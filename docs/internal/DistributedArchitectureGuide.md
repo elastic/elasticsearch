@@ -2675,7 +2675,7 @@ The routing key is hashed to a shard number within the index by `IndexRouting.ha
 
 The coordinator now knows which shard holds the document. It still needs the current primary node for that shard.
 
-Note that for a bulk request 
+Note that for a bulk request
 ([multiple documents in one HTTP call](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-bulk)),
 [BulkOperation] [groups](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/bulk/BulkOperation.java#L194)
 items by shard before dispatching each shard’s work to the appropriate primaries.
@@ -2687,9 +2687,9 @@ items by shard before dispatching each shard’s work to the appropriate primari
 Elasticsearch uses primary–backup replication: the primary shard copy defines the ordered write history and replicas
 apply the same operations.
 
-After matching each document to a shard, [BulkOperation] will 
+After matching each document to a shard, [BulkOperation] will
 [hand over](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/bulk/BulkOperation.java#L485)
-the rest of the execution to a [TransportShardBulkAction]. This is a subclass of [TransportReplicationAction], which 
+the rest of the execution to a [TransportShardBulkAction]. This is a subclass of [TransportReplicationAction], which
 holds the core replication framework logic for document writes and deletes.
 
 The coordinator uses the cluster state routing table ([Cluster State](#cluster-state)) to send the shard request to
@@ -2699,33 +2699,33 @@ In practice, the request can take more than one transport hop before it executes
 re-samples cluster state, and if the active primary for that shard is assigned elsewhere, [TransportReplicationAction]
 [forwards](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/support/replication/TransportReplicationAction.java#L1043)
 the replication request to that node. That “chase the primary” step can repeat while routing metadata
-converges. To avoid redirect loops between nodes whose cluster state versions differ, the request carries a 
+converges. To avoid redirect loops between nodes whose cluster state versions differ, the request carries a
 [routedBasedOnClusterVersion](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/support/replication/TransportReplicationAction.java#L1021)
-field. Each forward updates it to the forwarding node’s cluster state version so the next receiver 
-[is on at least](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/support/replication/TransportReplicationAction.java#L898) 
+field. Each forward updates it to the forwarding node’s cluster state version so the next receiver
+[is on at least](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/support/replication/TransportReplicationAction.java#L898)
 that version before it redirects again.
 
 Once the request
 [reaches](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/support/replication/TransportReplicationAction.java#L964)
 the node that actually hosts the primary, it will get
 [wrapped](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/support/replication/TransportReplicationAction.java#L988)
-in a `ConcreteShardRequest` that includes the shard’s primary term and target allocation id. That lets the primary and 
+in a `ConcreteShardRequest` that includes the shard’s primary term and target allocation id. That lets the primary and
 replicas refuse operations that were built for a superseded primary generation.
 
 #### Primary Execution
 
 On the primary node, `TransportShardBulkAction`
 [applies](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/bulk/TransportShardBulkAction.java#L441)
-the shard's bulk items through [IndexShard], the single entry point for shard-level work 
+the shard's bulk items through [IndexShard], the single entry point for shard-level work
 (see [IndexShard](#indexshard) in [Engine & Store](#engine--store)).
 
-The primary will first try to 
+The primary will first try to
 [acquire](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/support/replication/TransportReplicationAction.java#L484)
-an operation permit via [IndexShardOperationPermits]. Note that recovery and relocation are operations that can grab 
-all available permits and block in-flight writes. If the permit is successfully acquired, it will then validate and 
+an operation permit via [IndexShardOperationPermits]. Note that recovery and relocation are operations that can grab
+all available permits and block in-flight writes. If the permit is successfully acquired, it will then validate and
 [prepare](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/shard/IndexShard.java#L1026)
 the operation: create the mapping (if not already existing), parse the source, etc. `IndexShard` will then hand over the
-request to the engine (typically [InternalEngine], see [Engine](#engine) section for more details) that 
+request to the engine (typically [InternalEngine], see [Engine](#engine) section for more details) that
 [generates](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/engine/InternalEngine.java#L1239)
 the sequence number for the operation, [updates](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/engine/InternalEngine.java#L1262)
 Lucene via an `IndexWriter`, and then
@@ -2738,6 +2738,32 @@ See [Engine & Store](#engine--store) and [Segment Merges](#segment-merges) for m
 
 ### Replication
 
+[ReplicationOperation]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/support/replication/ReplicationOperation.java
+
+After the primary applies the operation, a [ReplicationOperation]
+[wrapper object](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/support/replication/TransportReplicationAction.java#L592)
+will coordinate the rest. It
+[loads](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/support/replication/ReplicationOperation.java#L151)
+the replication group after the primary write (to avoid missing new recovery targets),
+captures the global checkpoint and related metadata from the primary, then
+[forwards the request](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/support/replication/ReplicationOperation.java#L188)
+to each replica in that group. Each replica
+[applies](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/support/replication/TransportReplicationAction.java#L1331)
+the same operation (using the same `seq_no` and primary term) to its engine and returns checkpoint information.
+
+Allocation ids that are still in the in-sync set but no longer have a live shard in routing are
+[marked stale](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/support/replication/ReplicationOperation.java#L187)
+on the primary. The master will update the cluster state to drop those allocation ids from the index’s
+[in-sync set](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/metadata/IndexMetadata.java#L651)
+before the write is acknowledged back to the client. Similarly, if a replica fails to execute the replicated operation,
+it will also get dropped from the in-sync set before the write is acknowledged back. The primary will not
+acknowledge the replication operation as “done” while the cluster state still reports an in-sync copy that has failed
+the operation.
+[A ref-counting listener](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/support/replication/ReplicationOperation.java#L108)
+also waits for the primary shard application, each replica response, and post-replication hooks. The client only gets an
+ack after that coordinated completion, together with `wait_for_active_shards` and translog / `syncAfterWrite` behaviour (see
+[Translog](#translog) and `TransportWriteAction`).
+
 ```mermaid
 sequenceDiagram
     participant C as Client
@@ -2749,11 +2775,11 @@ sequenceDiagram
     C->>CN: REST index (RestIndexAction → IndexRequest)
     CN->>CN: Bulk coordinator: route to shard
     CN->>P: Shard bulk on primary (TransportShardBulkAction)
-    P->>P: IndexShard / engine (translog + Lucene)
+    P->>P: IndexShard / engine (Translog + Lucene)
     Note over P: ReplicationOperation: stale in-sync ids, then replica fan-out
     P->>R: Replica request (seq_no, primary_term, checkpoints)
     alt replica applies successfully
-        R->>R: Engine apply (translog + Lucene)
+        R->>R: Engine apply (Translog + Lucene)
         R-->>P: ReplicaResponse (checkpoints)
     else replica fails replication
         R-->>P: failure

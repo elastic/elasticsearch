@@ -17,6 +17,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.codec.tsdb.ES93TSDBDefaultCompressionLucene103Codec;
+import org.elasticsearch.index.codec.tsdb.ES94TSDBBestCompressionLucene104Codec;
 import org.elasticsearch.index.codec.zstd.Zstd814StoredFieldsFormat;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -64,10 +65,17 @@ public class CodecService implements CodecProvider {
         }
         codecs.put(LEGACY_DEFAULT_CODEC, legacyBestSpeedCodec);
 
-        codecs.put(
-            BEST_COMPRESSION_CODEC,
-            new PerFieldMapperCodec(Zstd814StoredFieldsFormat.Mode.BEST_COMPRESSION, mapperService, bigArrays, threadPool)
+        PerFieldMapperCodec bestCompressionCodec = new PerFieldMapperCodec(
+            Zstd814StoredFieldsFormat.Mode.BEST_COMPRESSION,
+            mapperService,
+            bigArrays,
+            threadPool
         );
+        if (useSyntheticId) {
+            codecs.put(BEST_COMPRESSION_CODEC, new ES94TSDBBestCompressionLucene104Codec(bestCompressionCodec));
+        } else {
+            codecs.put(BEST_COMPRESSION_CODEC, bestCompressionCodec);
+        }
         Codec legacyBestCompressionCodec = new LegacyPerFieldMapperCodec(
             Lucene104Codec.Mode.BEST_COMPRESSION,
             mapperService,

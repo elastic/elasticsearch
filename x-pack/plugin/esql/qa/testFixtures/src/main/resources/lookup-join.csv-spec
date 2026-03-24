@@ -5993,13 +5993,12 @@ message:keyword | type:keyword
 
 whereFalseBeforeLookupJoinWithFullTextDisjunction
 required_capability: join_lookup_v12
-required_capability: multi_match_function
 required_capability: full_text_functions_disjunctions_compute_engine
 
 FROM sample_data
 | WHERE false
 | LOOKUP JOIN message_types_lookup ON message
-| WHERE multi_match("Connection error", message) OR type LIKE "Success"
+| WHERE match("Connection error", message) OR type LIKE "Success"
 | KEEP message, type
 ;
 

@@ -1231,7 +1231,7 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
             .relocateShard(
                 startedPrimary,
                 targetNodeId,
-                allocationForRelocation.clusterInfo().getShardSize(startedPrimary, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE),
+                randomNonNegativeLong(),
                 "relocating shard in test",
                 allocationForRelocation.changes()
             );

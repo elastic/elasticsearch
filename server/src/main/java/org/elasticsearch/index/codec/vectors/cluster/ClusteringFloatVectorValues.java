@@ -34,7 +34,6 @@ public abstract sealed class ClusteringFloatVectorValues extends FloatVectorValu
     private static final float PREFIX_LENGTH_RATIO = 0.5f;
     // we require all prefixes to be a multiple 64, we want to take best advantage of vectorization
     private static final int PREFIX_MULTIPLE = 64;
-    private static final int PREFIX_MAX = 256;
     private static final int PREFIX_TOPK_SIZE = 4;
 
     @Override
@@ -500,11 +499,12 @@ public abstract sealed class ClusteringFloatVectorValues extends FloatVectorValu
     private static int prefixLength(int dims) {
         int computed = Math.round(dims * PREFIX_LENGTH_RATIO);
         int roundedToMultiple = ((computed + PREFIX_MULTIPLE - 1) / PREFIX_MULTIPLE) * PREFIX_MULTIPLE;
-        return Math.max(1, Math.min(Math.min(dims - 1, PREFIX_MAX), roundedToMultiple));
+        // TODO do we want to have a "max prefix"? e.g. 2048 vectors might index just fine with a prefix of 768 or 512 vs 1024
+        return roundedToMultiple;
     }
 
     private record PrefixScratch(float[] topPrefixDistances, int[] topPrefixIds, int prefixLength) {
-        public PrefixScratch(int prefixLength) {
+        PrefixScratch(int prefixLength) {
             this(new float[PREFIX_TOPK_SIZE], new int[PREFIX_TOPK_SIZE], prefixLength);
         }
 

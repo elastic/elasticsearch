@@ -270,8 +270,9 @@ public class DataStreamLifecycleConvertToFrozenMarkReadOnlyIT extends ESIntegTes
         ClusterState clusterState = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         ProjectId projectId = Metadata.DEFAULT_PROJECT_ID;
         ClusterBlock writeBlock = WRITE.getBlock();
+        String expectation = expected ? "should have" : "should not have";
         assertThat(
-            "Index [" + DataStreamLifecycleConvertToFrozenMarkReadOnlyIT.INDEX_NAME + "] should have WRITE block",
+            "Index [" + DataStreamLifecycleConvertToFrozenMarkReadOnlyIT.INDEX_NAME + "] " + expectation + " WRITE block",
             clusterState.blocks().hasIndexBlock(projectId, DataStreamLifecycleConvertToFrozenMarkReadOnlyIT.INDEX_NAME, writeBlock),
             is(expected)
         );

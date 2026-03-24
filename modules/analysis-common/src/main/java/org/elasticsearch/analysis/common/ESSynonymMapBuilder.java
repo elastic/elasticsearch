@@ -166,7 +166,6 @@ class ESSynonymMapBuilder {
             fstCompiler.add(Util.toUTF32(input, scratchIntsRef), scratch.toBytesRef());
         }
 
-        circuitBreaker.addEstimateBytesAndMaybeBreak(0L, "Synonyms");
         FST<BytesRef> fst = FST.fromFSTReader(fstCompiler.compile(), fstCompiler.getFSTReader());
         return new SynonymMap(fst, words, maxHorizontalContext);
     }

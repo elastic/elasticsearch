@@ -13,6 +13,7 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matcher;
 
@@ -487,6 +488,68 @@ public class CrossProjectIndexExpressionsRewriterTests extends ESTestCase {
         }
     }
 
+    public void testChainedWildcardIsRejected() {
+        assertChainedExpressionRejected("linked_project:chained_linked_project:*");
+    }
+
+    public void testChainedAllIsRejected() {
+        assertChainedExpressionRejected("linked_project:chained_linked_project:_all");
+    }
+
+    public void testChainedConcreteIndexIsRejected() {
+        assertChainedExpressionRejected("linked_project:chained_linked_project:logs");
+    }
+
+    public void testChainedIndexPatternIsRejected() {
+        assertChainedExpressionRejected("linked_project:chained_linked_project:logs*");
+    }
+
+    public void testChainedIndexExclusionIsRejected() {
+        assertChainedExpressionRejected("linked_project:chained_linked_project:-logs*");
+    }
+
+    public void testChainedConcreteIndexWithSelectorIsRejected() {
+        assertChainedExpressionRejected("linked_project:chained_linked_project:logs::data");
+    }
+
+    public void testChainedConcreteIndexWithFailuresSelectorIsRejected() {
+        assertChainedExpressionRejected("linked_project:chained_linked_project:logs::failures");
+    }
+
+    public void testChainedWildcardWithSelectorIsRejected() {
+        assertChainedExpressionRejected("linked_project:chained_linked_project:*::data");
+    }
+
+    public void testChainedExpressionMixedWithFlatIsRejected() {
+        final ProjectRoutingInfo origin = createRandomProjectWithAlias("P0");
+        final List<ProjectRoutingInfo> linked = List.of(createRandomProjectWithAlias("linked_project"));
+        expectThrows(
+            InvalidIndexNameException.class,
+            containsString("no cross-project chaining"),
+            () -> rewriteIndexExpressions(origin, linked, "logs", "linked_project:chained_linked_project:logs")
+        );
+    }
+
+    public void testChainedExpressionMixedWithQualifiedIsRejected() {
+        final ProjectRoutingInfo origin = createRandomProjectWithAlias("P0");
+        final List<ProjectRoutingInfo> linked = List.of(createRandomProjectWithAlias("linked_project"));
+        expectThrows(
+            InvalidIndexNameException.class,
+            containsString("no cross-project chaining"),
+            () -> rewriteIndexExpressions(origin, linked, "linked_project:logs", "linked_project:chained_linked_project:*")
+        );
+    }
+
+    public void testChainedExpressionAppearingFirstIsRejected() {
+        final ProjectRoutingInfo origin = createRandomProjectWithAlias("P0");
+        final List<ProjectRoutingInfo> linked = List.of(createRandomProjectWithAlias("linked_project"));
+        expectThrows(
+            InvalidIndexNameException.class,
+            containsString("no cross-project chaining"),
+            () -> rewriteIndexExpressions(origin, linked, "linked_project:chained_linked_project:logs", "logs")
+        );
+    }
+
     public void testValidateIndexExpressionWithoutRewrite() {
         var origin = createRandomProjectWithAlias("P0");
         var linked = List.of(createRandomProjectWithAlias("P1"), createRandomProjectWithAlias("P2"));
@@ -611,5 +674,16 @@ public class CrossProjectIndexExpressionsRewriterTests extends ESTestCase {
             );
         }
         return canonicalExpressionsMap;
+    }
+
+    private void assertChainedExpressionRejected(String chainedExpression) {
+        final ProjectRoutingInfo origin = createRandomProjectWithAlias("P0");
+        final List<ProjectRoutingInfo> linked = List.of(createRandomProjectWithAlias("linked_project"));
+        final var e = expectThrows(
+            InvalidIndexNameException.class,
+            containsString("no cross-project chaining"),
+            () -> rewriteIndexExpressions(origin, linked, chainedExpression)
+        );
+        assertThat(e.getMessage(), containsString(chainedExpression));
     }
 }

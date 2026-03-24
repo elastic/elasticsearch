@@ -33,6 +33,10 @@ public final class EntitledActions {
 
     private static final SecureRandom random = new SecureRandom();
 
+    public static FileStore getFileStore(Path path) throws IOException {
+        return Files.getFileStore(path);
+    }
+
     private static final Path testRootDir = Paths.get(System.getProperty("es.entitlements.testdir"));
 
     private static Path readDir() {
@@ -86,10 +90,6 @@ public final class EntitledActions {
             baseDir.resolve(actualFileMount.getFileName()),
             dataDir.getFileName().resolve(actualFileMount.getFileName())
         );
-    }
-
-    public static FileStore getFileStore(Path path) throws IOException {
-        return Files.getFileStore(path);
     }
 
     public static URLConnection createHttpURLConnection() throws IOException {

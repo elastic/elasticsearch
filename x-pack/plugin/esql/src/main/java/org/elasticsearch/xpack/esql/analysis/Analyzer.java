@@ -274,7 +274,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
     public LogicalPlan analyze(LogicalPlan plan) {
         BitSet partialMetrics = new BitSet(FeatureMetric.values().length);
-        return verify(execute(plan), gatherPreAnalysisMetrics(plan, partialMetrics));
+        LogicalPlan analyzed = execute(plan);
+        return verify(analyzed, gatherPreAnalysisMetrics(plan, partialMetrics));
     }
 
     public LogicalPlan verify(LogicalPlan plan, BitSet partialMetrics) {
@@ -3063,7 +3064,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     }
                 }
             }
-            return new UnionAll(unionAll.source(), newChildren, newOutput);
+            return unionAll.replaceSubPlansAndOutput(newChildren, newOutput);
         }
 
         /**
@@ -3309,7 +3310,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     newOutput.add(oldAttr);
                 }
             }
-            return new UnionAll(unionAll.source(), newChildren, newOutput);
+            return unionAll.replaceSubPlansAndOutput(newChildren, newOutput);
         }
 
         /**

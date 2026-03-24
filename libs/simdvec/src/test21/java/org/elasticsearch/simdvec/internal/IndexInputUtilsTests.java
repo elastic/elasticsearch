@@ -27,6 +27,9 @@ import java.lang.foreign.ValueLayout;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
+
 /**
  * Tests that {@link IndexInputUtils#withSlice} correctly handles all
  * three input types: {@link MemorySegmentAccessInput} (mmap),
@@ -44,7 +47,7 @@ public class IndexInputUtilsTests extends ESTestCase {
         try (Directory dir = new MMapDirectory(createTempDir())) {
             writeData(dir, data);
             try (IndexInput in = dir.openInput(FILE_NAME, IOContext.DEFAULT)) {
-                assertTrue(in instanceof MemorySegmentAccessInput);
+                assertThat(in, instanceOf(MemorySegmentAccessInput.class));
                 verifyWithSlice(in, data);
             }
         }
@@ -56,7 +59,7 @@ public class IndexInputUtilsTests extends ESTestCase {
             writeData(dir, data);
             try (IndexInput rawIn = dir.openInput(FILE_NAME, IOContext.DEFAULT)) {
                 IndexInput in = new DirectAccessWrapper("dai", rawIn, data);
-                assertTrue(in instanceof DirectAccessInput);
+                assertThat(in, instanceOf(DirectAccessInput.class));
                 verifyWithSlice(in, data);
             }
         }
@@ -67,8 +70,8 @@ public class IndexInputUtilsTests extends ESTestCase {
         try (Directory dir = new NIOFSDirectory(createTempDir())) {
             writeData(dir, data);
             try (IndexInput in = dir.openInput(FILE_NAME, IOContext.DEFAULT)) {
-                assertFalse(in instanceof MemorySegmentAccessInput);
-                assertFalse(in instanceof DirectAccessInput);
+                assertThat(in, not(instanceOf(MemorySegmentAccessInput.class)));
+                assertThat(in, not(instanceOf(DirectAccessInput.class)));
                 verifyWithSlice(in, data);
             }
         }
@@ -79,8 +82,8 @@ public class IndexInputUtilsTests extends ESTestCase {
         try (Directory dir = new NIOFSDirectory(createTempDir())) {
             writeData(dir, data);
             try (IndexInput in = dir.openInput(FILE_NAME, IOContext.DEFAULT)) {
-                assertFalse(in instanceof MemorySegmentAccessInput);
-                assertFalse(in instanceof DirectAccessInput);
+                assertThat(in, not(instanceOf(MemorySegmentAccessInput.class)));
+                assertThat(in, not(instanceOf(DirectAccessInput.class)));
                 IndexInputUtils.withSlice(in, data.length, byte[]::new, segment -> {
                     if (Runtime.version().feature() < 22) {
                         assertTrue("segment should be native-backed on Java 21", segment.heapBase().isEmpty());

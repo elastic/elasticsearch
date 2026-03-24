@@ -3091,7 +3091,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     }
                 }
             }
-            return new UnionAll(unionAll.source(), newChildren, newOutput);
+            return unionAll.replaceSubPlansAndOutput(newChildren, newOutput);
         }
 
         /**
@@ -3337,7 +3337,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     newOutput.add(oldAttr);
                 }
             }
-            return new UnionAll(unionAll.source(), newChildren, newOutput);
+            return unionAll.replaceSubPlansAndOutput(newChildren, newOutput);
         }
 
         /**

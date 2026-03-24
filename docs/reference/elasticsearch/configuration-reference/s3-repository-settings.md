@@ -9,7 +9,7 @@ applies_to:
 
 # S3 repository settings [repository-s3-settings]
 
-You can use [AWS S3](https://aws.amazon.com/s3/) as a repository for [Snapshot/Restore](docs-content://deploy-manage/tools/snapshot-and-restore.md). This page lists the settings you can use to configure how {{es}} connects to S3 and how it stores data in your repository.
+You can use [AWS S3](https://aws.amazon.com/s3/) as a repository for [Snapshot and restore](docs-content://deploy-manage/tools/snapshot-and-restore.md). This page lists the settings you can use to configure how {{es}} connects to S3 and how it stores data in your repository.
 
 There are two categories of settings:
 

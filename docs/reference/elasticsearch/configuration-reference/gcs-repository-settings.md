@@ -9,7 +9,7 @@ applies_to:
 
 # Google Cloud Storage repository settings [repository-gcs-settings]
 
-You can use [Google Cloud Storage](https://cloud.google.com/storage/) as a repository for [Snapshot/Restore](docs-content://deploy-manage/tools/snapshot-and-restore.md). This page lists the settings you can use to configure how {{es}} connects to GCS and how it stores data in your repository.
+You can use [Google Cloud Storage](https://cloud.google.com/storage/) as a repository for [Snapshot and restore](docs-content://deploy-manage/tools/snapshot-and-restore.md). This page lists the settings you can use to configure how {{es}} connects to GCS and how it stores data in your repository.
 
 There are two categories of settings:
 

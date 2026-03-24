@@ -17,6 +17,9 @@ This page covers **cluster-level** snapshot and restore settings. For client con
 - [S3 repository settings](/reference/elasticsearch/configuration-reference/s3-repository-settings.md)
 - [Azure repository settings](/reference/elasticsearch/configuration-reference/azure-repository-settings.md)
 - [GCS repository settings](/reference/elasticsearch/configuration-reference/gcs-repository-settings.md)
+- [Shared file system repository settings](/reference/elasticsearch/configuration-reference/fs-repository-settings.md)
+- [Read-only URL repository settings](/reference/elasticsearch/configuration-reference/url-repository-settings.md)
+- [Source-only repository settings](/reference/elasticsearch/configuration-reference/source-repository-settings.md)
 :::
 
 $$$snapshot-max-concurrent-ops$$$

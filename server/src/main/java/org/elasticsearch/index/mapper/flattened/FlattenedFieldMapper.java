@@ -372,85 +372,82 @@ public final class FlattenedFieldMapper extends FieldMapper {
         "ip"
     );
 
-    public static final FieldMapper.TypeParser PARSER = new FieldMapper.TypeParser(
-        FlattenedFieldMapper.Builder::new,
-        MINIMUM_LEGACY_COMPATIBILITY_VERSION
-    ) {
+    public static final Mapper.TypeParser PARSER = new Mapper.TypeParser() {
         @Override
-        public FieldMapper.Builder parse(String name, Map<String, Object> node, MappingParserContext parserContext)
+        public Mapper.Builder parse(String name, Map<String, Object> node, MappingParserContext parserContext)
             throws MapperParsingException {
+            Builder builder = new Builder(name, parserContext);
             Object propertiesNode = node.remove("properties");
-            Builder builder = (Builder) super.parse(name, node, parserContext);
             if (propertiesNode != null) {
-                parseProperties(builder.propertyBuilders, name, propertiesNode, parserContext);
+                parseProperties(builder, name, propertiesNode, parserContext);
             }
+            builder.parse(name, parserContext, node);
             return builder;
         }
-    };
 
-    /**
-     * Parses sub-field properties for flattened fields. Unlike {@code ObjectMapper.Builder.parseProperties},
-     * flattened sub-fields are restricted to an explicit allow list of types, disallow copy_to/multi-fields,
-     * and are built into a flat map keyed by dotted path rather than a recursive object tree.
-     */
-    @SuppressWarnings("unchecked")
-    static void parseProperties(
-        Map<String, FieldMapper.Builder> propertyBuilders,
-        String flattenedName,
-        Object propertiesNode,
-        MappingParserContext parserContext
-    ) {
-        if (propertiesNode instanceof Collection<?> c && c.isEmpty()) {
-            return;
+        // Unlike ObjectMapper.Builder.parseProperties, flattened sub-fields are restricted to an explicit allow
+        // list of types, disallow copy_to/multi-fields, and are built into a flat map keyed by dotted path
+        // rather than a recursive object tree.
+        @SuppressWarnings("unchecked")
+        private static void parseProperties(
+            Builder builder,
+            String flattenedName,
+            Object propertiesNode,
+            MappingParserContext parserContext
+        ) {
+            if (propertiesNode instanceof Collection<?> c && c.isEmpty()) {
+                return;
+            }
+            if (propertiesNode instanceof Map == false) {
+                throw new MapperParsingException("[properties] on flattened field [" + flattenedName + "] must be a map");
+            }
+            Map<String, Object> propsMap = (Map<String, Object>) propertiesNode;
+            for (Map.Entry<String, Object> entry : propsMap.entrySet()) {
+                String propertyName = entry.getKey();
+                if (entry.getValue() instanceof Map == false) {
+                    throw new MapperParsingException(
+                        "Expected map for property [" + propertyName + "] in flattened field [" + flattenedName + "]"
+                    );
+                }
+                Map<String, Object> propNode = (Map<String, Object>) entry.getValue();
+                Object typeNode = propNode.get("type");
+                if (typeNode == null) {
+                    throw new MapperParsingException(
+                        "No type specified for property [" + propertyName + "] in flattened field [" + flattenedName + "]"
+                    );
+                }
+                String type = typeNode.toString();
+                if (ALLOWED_SUB_FIELD_TYPES.contains(type) == false) {
+                    throw new MapperParsingException(
+                        "Type ["
+                            + type
+                            + "] is not supported as a mapped sub-field of flattened field ["
+                            + flattenedName
+                            + "]. Supported types: "
+                            + ALLOWED_SUB_FIELD_TYPES
+                    );
+                }
+                if (propNode.containsKey("copy_to")) {
+                    throw new MapperParsingException("[copy_to] is not supported on properties of flattened field [" + flattenedName + "]");
+                }
+                if (propNode.containsKey("fields")) {
+                    throw new MapperParsingException(
+                        "[fields] (multi-fields) is not supported on properties of flattened field [" + flattenedName + "]"
+                    );
+                }
+                Mapper.TypeParser typeParser = parserContext.typeParser(type);
+                if (typeParser == null) {
+                    throw new MapperParsingException("No handler for type [" + type + "] declared on property [" + propertyName + "]");
+                }
+                Mapper.Builder fieldBuilder = typeParser.parse(propertyName, propNode, parserContext);
+                assert fieldBuilder instanceof FieldMapper.Builder
+                    : "allowed sub-field type [" + type + "] produced a non-FieldMapper builder";
+                builder.propertyBuilders.put(propertyName, (FieldMapper.Builder) fieldBuilder);
+                propNode.remove("type");
+                MappingParser.checkNoRemainingFields(propertyName, propNode);
+            }
         }
-        if (propertiesNode instanceof Map == false) {
-            throw new MapperParsingException("[properties] on flattened field [" + flattenedName + "] must be a map");
-        }
-        Map<String, Object> propsMap = (Map<String, Object>) propertiesNode;
-        for (Map.Entry<String, Object> entry : propsMap.entrySet()) {
-            String propertyName = entry.getKey();
-            if (entry.getValue() instanceof Map == false) {
-                throw new MapperParsingException(
-                    "Expected map for property [" + propertyName + "] in flattened field [" + flattenedName + "]"
-                );
-            }
-            Map<String, Object> propNode = (Map<String, Object>) entry.getValue();
-            Object typeNode = propNode.get("type");
-            if (typeNode == null) {
-                throw new MapperParsingException(
-                    "No type specified for property [" + propertyName + "] in flattened field [" + flattenedName + "]"
-                );
-            }
-            String type = typeNode.toString();
-            if (ALLOWED_SUB_FIELD_TYPES.contains(type) == false) {
-                throw new MapperParsingException(
-                    "Type ["
-                        + type
-                        + "] is not supported as a mapped sub-field of flattened field ["
-                        + flattenedName
-                        + "]. Supported types: "
-                        + ALLOWED_SUB_FIELD_TYPES
-                );
-            }
-            if (propNode.containsKey("copy_to")) {
-                throw new MapperParsingException("[copy_to] is not supported on properties of flattened field [" + flattenedName + "]");
-            }
-            if (propNode.containsKey("fields")) {
-                throw new MapperParsingException(
-                    "[fields] (multi-fields) is not supported on properties of flattened field [" + flattenedName + "]"
-                );
-            }
-            Mapper.TypeParser typeParser = parserContext.typeParser(type);
-            if (typeParser == null) {
-                throw new MapperParsingException("No handler for type [" + type + "] declared on property [" + propertyName + "]");
-            }
-            Mapper.Builder fieldBuilder = typeParser.parse(propertyName, propNode, parserContext);
-            assert fieldBuilder instanceof FieldMapper.Builder : "allowed sub-field type [" + type + "] produced a non-FieldMapper builder";
-            propertyBuilders.put(propertyName, (FieldMapper.Builder) fieldBuilder);
-            propNode.remove("type");
-            MappingParser.checkNoRemainingFields(propertyName, propNode);
-        }
-    }
+    };
 
     abstract static class BaseFlattenedFieldType extends StringFieldType {
         protected final IgnoreAbove ignoreAbove;

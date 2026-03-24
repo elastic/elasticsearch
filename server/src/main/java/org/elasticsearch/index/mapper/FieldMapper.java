@@ -2034,7 +2034,7 @@ public abstract class FieldMapper extends Mapper {
         };
     }
 
-    protected static final IndexVersion MINIMUM_LEGACY_COMPATIBILITY_VERSION = IndexVersion.fromId(5000099);
+    private static final IndexVersion MINIMUM_LEGACY_COMPATIBILITY_VERSION = IndexVersion.fromId(5000099);
 
     public static TypeParser createTypeParserWithLegacySupport(BiFunction<String, MappingParserContext, Builder> builderFunction) {
         return new TypeParser(builderFunction, MINIMUM_LEGACY_COMPATIBILITY_VERSION);
@@ -2043,7 +2043,7 @@ public abstract class FieldMapper extends Mapper {
     /**
      * TypeParser implementation that automatically handles parsing
      */
-    public static class TypeParser implements Mapper.TypeParser {
+    public static final class TypeParser implements Mapper.TypeParser {
 
         private final BiFunction<String, MappingParserContext, Builder> builderFunction;
         private final BiConsumer<String, MappingParserContext> contextValidator;
@@ -2061,7 +2061,7 @@ public abstract class FieldMapper extends Mapper {
          * Variant of {@link #TypeParser(BiFunction)} that allows to define a minimumCompatibilityVersion to
          * allow parsing mapping definitions of legacy indices (see {@link Mapper.TypeParser#supportsVersion(IndexVersion)}).
          */
-        protected TypeParser(BiFunction<String, MappingParserContext, Builder> builderFunction, IndexVersion minimumCompatibilityVersion) {
+        private TypeParser(BiFunction<String, MappingParserContext, Builder> builderFunction, IndexVersion minimumCompatibilityVersion) {
             this(builderFunction, (n, c) -> {}, minimumCompatibilityVersion);
         }
 

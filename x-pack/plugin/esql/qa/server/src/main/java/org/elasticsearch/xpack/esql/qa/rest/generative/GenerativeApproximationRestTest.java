@@ -16,7 +16,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.APPROXIMATION_V5;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.APPROXIMATION_V6;
 
 /**
  * Tests for query approximation generated from existing CSV tests.
@@ -73,7 +73,7 @@ public abstract class GenerativeApproximationRestTest extends EsqlSpecTestCase {
 
         assumeFalse(
             "Approximation tests must not be approximated",
-            testCase.requiredCapabilities.contains(APPROXIMATION_V5.capabilityName())
+            testCase.requiredCapabilities.contains(APPROXIMATION_V6.capabilityName())
         );
         assumeTrue("Test must contain STATS to be included in approximation tests", testCase.query.toLowerCase().contains("stats"));
 

@@ -1138,7 +1138,8 @@ public final class IndicesPermission {
     private static class IndexAccessControlCache {
 
         private final FieldPermissionsCache fieldPermissionsCache;
-        private final IdentityHashMap<DocumentLevelPermissions,
+        private final IdentityHashMap<
+            DocumentLevelPermissions,
             IdentityHashMap<Set<FieldPermissions>, IndicesAccessControl.IndexAccessControl>> cache = new IdentityHashMap<>();
 
         IndexAccessControlCache(FieldPermissionsCache fieldPermissionsCache) {
@@ -1149,8 +1150,7 @@ public final class IndicesPermission {
             @Nullable DocumentLevelPermissions docPerms,
             @Nullable Set<FieldPermissions> fieldPerms
         ) {
-            return cache.computeIfAbsent(docPerms, k -> new IdentityHashMap<>())
-                .computeIfAbsent(fieldPerms, fp -> buildNew(docPerms, fp));
+            return cache.computeIfAbsent(docPerms, k -> new IdentityHashMap<>()).computeIfAbsent(fieldPerms, fp -> buildNew(docPerms, fp));
         }
 
         private IndicesAccessControl.IndexAccessControl buildNew(
@@ -1165,9 +1165,7 @@ public final class IndicesPermission {
             }
             final FieldPermissions fieldPermissions;
             if (fieldPerms != null && false == fieldPerms.isEmpty()) {
-                fieldPermissions = fieldPerms.size() == 1
-                    ? fieldPerms.iterator().next()
-                    : fieldPermissionsCache.union(fieldPerms);
+                fieldPermissions = fieldPerms.size() == 1 ? fieldPerms.iterator().next() : fieldPermissionsCache.union(fieldPerms);
             } else {
                 fieldPermissions = FieldPermissions.DEFAULT;
             }

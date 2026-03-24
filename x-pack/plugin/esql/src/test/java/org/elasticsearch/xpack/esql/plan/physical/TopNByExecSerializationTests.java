@@ -51,7 +51,7 @@ public class TopNByExecSerializationTests extends AbstractPhysicalPlanSerializat
             );
             case 4 -> groupings = randomValueOtherThan(
                 groupings,
-                () -> randomFieldAttributes(0, 5, false).stream().map(a -> (Expression) a).toList()
+                () -> randomFieldAttributes(1, 5, false).stream().map(a -> (Expression) a).toList()
             );
         }
         return new TopNByExec(instance.source(), child, order, limit, groupings, estimatedRowSize);

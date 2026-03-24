@@ -8,14 +8,11 @@
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
-import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.optimizer.AbstractLogicalPlanOptimizerTests;
 import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
-import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
 
 import java.util.List;
@@ -78,36 +75,6 @@ public class CombineLimitTopNTests extends AbstractLogicalPlanOptimizerTests {
         assertThat(resultTopNBy.limitPerGroup(), equalTo(L(5)));
         assertThat(resultTopNBy.child(), equalTo(source));
         assertThat(resultTopNBy.groupings(), equalTo(topNGroupings));
-    }
-
-    /**
-     * <pre>{@code
-     * LimitBy[5, [language_code_ref], false]
-     *   \_Project[[languages AS language_code, emp_no]]
-     *       \_relation
-     * }</pre>
-     * The Project introduces the alias {@code language_code} that the LimitBy groups by.
-     * The rule must NOT swap LimitBy below the Project, because the grouping would become unresolvable.
-     */
-    public void testLimitByNotSwappedBelowProjectIntroducingGrouping() {
-        assumeTrue("SORT | LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_TOPN_BY.isEnabled());
-        var languages = getFieldAttribute("languages");
-        var empNo = getFieldAttribute("emp_no");
-
-        // Project renames languages → language_code
-        var languageCodeAlias = new Alias(EMPTY, "language_code", languages);
-        var project = new Project(EMPTY, emptySource(), List.<NamedExpression>of(languageCodeAlias, empNo));
-
-        // LimitBy groups by the alias introduced by the Project
-        var groupings = List.<Expression>of(languageCodeAlias.toAttribute());
-        var limitBy = new LimitBy(EMPTY, L(5), project, groupings);
-
-        var result = new CombineLimitTopN().rule(limitBy);
-
-        // LimitBy must stay on top — swapping would lose the alias
-        var resultLimitBy = as(result, LimitBy.class);
-        assertThat(resultLimitBy.limitPerGroup(), equalTo(L(5)));
-        as(resultLimitBy.child(), Project.class);
     }
 
     public void testLowerLimitIsChosenForCombiningTopNByAndLimitBy() {

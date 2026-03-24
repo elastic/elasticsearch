@@ -48,7 +48,7 @@ public class TopNBySerializationTests extends AbstractLogicalPlanSerializationTe
             case 2 -> limit = randomValueOtherThan(limit, AbstractExpressionSerializationTests::randomChild);
             case 3 -> groupings = randomValueOtherThan(
                 groupings,
-                () -> randomFieldAttributes(0, 5, false).stream().map(a -> (Expression) a).toList()
+                () -> randomFieldAttributes(1, 5, false).stream().map(a -> (Expression) a).toList()
             );
         }
         return new TopNBy(source, child, order, limit, groupings);

@@ -42,6 +42,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MultiPhraseQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
@@ -1742,7 +1743,7 @@ public class TextFieldMapperTests extends MapperTestCase {
         Query q5 = new MatchPhraseQueryBuilder("field", "sparkle a stopword").toQuery(searchExecutionContext);
         assertThat(q5, is(new PhraseQuery.Builder().add(new Term("field", "sparkle")).add(new Term("field", "stopword"), 2).build()));
 
-        MatchQueryParser matchQueryParser = new MatchQueryParser(searchExecutionContext);
+        MatchQueryParser matchQueryParser = new MatchQueryParser(searchExecutionContext, QueryVisitor.EMPTY_VISITOR);
         matchQueryParser.setAnalyzer(new MockSynonymAnalyzer());
         Query q6 = matchQueryParser.parse(MatchQueryParser.Type.PHRASE, "synfield", "motor dogs");
         assertThat(
@@ -2010,7 +2011,7 @@ public class TextFieldMapperTests extends MapperTestCase {
         }
 
         {
-            MatchQueryParser matchQueryParser = new MatchQueryParser(searchExecutionContext);
+            MatchQueryParser matchQueryParser = new MatchQueryParser(searchExecutionContext, QueryVisitor.EMPTY_VISITOR);
             matchQueryParser.setAnalyzer(new MockSynonymAnalyzer());
             Query q = matchQueryParser.parse(MatchQueryParser.Type.PHRASE_PREFIX, "synfield", "motor dogs");
             Query expected = new SpanNearQuery.Builder("synfield", true).addClause(new SpanTermQuery(new Term("synfield", "motor")))
@@ -2025,7 +2026,7 @@ public class TextFieldMapperTests extends MapperTestCase {
         }
 
         {
-            MatchQueryParser matchQueryParser = new MatchQueryParser(searchExecutionContext);
+            MatchQueryParser matchQueryParser = new MatchQueryParser(searchExecutionContext, QueryVisitor.EMPTY_VISITOR);
             matchQueryParser.setPhraseSlop(1);
             matchQueryParser.setAnalyzer(new MockSynonymAnalyzer());
             Query q = matchQueryParser.parse(MatchQueryParser.Type.PHRASE_PREFIX, "synfield", "two dogs");

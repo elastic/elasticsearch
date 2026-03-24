@@ -21,7 +21,7 @@ esplugin {
   name = 'esql-datasource-iceberg'
   description = 'Iceberg table catalog support for ESQL external data sources'
   classname = 'org.elasticsearch.xpack.esql.datasource.iceberg.IcebergDataSourcePlugin'
-  extendedPlugins = ['x-pack-esql']
+  extendedPlugins = ['x-pack-esql', 'esql-datasource-compression-libs']
 }
 
 base {
@@ -49,6 +49,8 @@ dependencies {
     exclude group: 'com.fasterxml.jackson.core', module: 'jackson-core'
     exclude group: 'com.fasterxml.jackson.core', module: 'jackson-databind'
     exclude group: 'com.fasterxml.jackson.core', module: 'jackson-annotations'
+    // aircompressor provided by esql-datasource-compression-libs parent plugin
+    exclude group: 'io.airlift', module: 'aircompressor'
   }
   implementation("org.apache.iceberg:iceberg-aws:${versions.iceberg}") {
     // Exclude AWS SDK bundle - we'll declare individual modules explicitly
@@ -60,6 +62,8 @@ dependencies {
     exclude group: 'com.fasterxml.jackson.core', module: 'jackson-core'
     exclude group: 'com.fasterxml.jackson.core', module: 'jackson-databind'
     exclude group: 'com.fasterxml.jackson.core', module: 'jackson-annotations'
+    // aircompressor provided by esql-datasource-compression-libs parent plugin
+    exclude group: 'io.airlift', module: 'aircompressor'
   }
   implementation("org.apache.iceberg:iceberg-parquet:${versions.iceberg}") {
     exclude group: 'org.apache.parquet', module: 'parquet-hadoop'
@@ -76,6 +80,8 @@ dependencies {
     exclude group: 'com.fasterxml.jackson.core', module: 'jackson-core'
     exclude group: 'com.fasterxml.jackson.core', module: 'jackson-databind'
     exclude group: 'com.fasterxml.jackson.core', module: 'jackson-annotations'
+    // aircompressor provided by esql-datasource-compression-libs parent plugin
+    exclude group: 'io.airlift', module: 'aircompressor'
   }
   // Iceberg Arrow integration for vectorized data reading
   implementation("org.apache.iceberg:iceberg-arrow:${versions.iceberg}") {
@@ -95,6 +101,8 @@ dependencies {
     exclude group: 'com.fasterxml.jackson.core', module: 'jackson-core'
     exclude group: 'com.fasterxml.jackson.core', module: 'jackson-databind'
     exclude group: 'com.fasterxml.jackson.core', module: 'jackson-annotations'
+    // aircompressor provided by esql-datasource-compression-libs parent plugin
+    exclude group: 'io.airlift', module: 'aircompressor'
   }
   implementation("org.apache.parquet:parquet-hadoop-bundle:${versions.parquet}")
   implementation("com.github.ben-manes.caffeine:caffeine:${versions.caffeine}") {
@@ -169,6 +177,8 @@ dependencies {
   testImplementation project(xpackModule('esql'))
   testImplementation project(xpackModule('esql-core'))
 }
+
+// aircompressor provided by esql-datasource-compression-libs parent plugin (excluded from transitives above)
 
 tasks.named("dependencyLicenses").configure {
   mapping from: /lucene-.*/, to: 'lucene'

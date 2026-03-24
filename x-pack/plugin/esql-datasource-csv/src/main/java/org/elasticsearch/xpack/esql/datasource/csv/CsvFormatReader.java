@@ -12,7 +12,9 @@ import com.fasterxml.jackson.dataformat.csv.CsvMapper;
 import com.fasterxml.jackson.dataformat.csv.CsvParser;
 import com.fasterxml.jackson.dataformat.csv.CsvSchema;
 
+import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
@@ -24,13 +26,13 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.util.DateUtils;
 import org.elasticsearch.xpack.esql.datasources.CloseableIterator;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
@@ -73,7 +75,7 @@ import java.util.regex.Pattern;
  * {@code integer} ({@code int}, {@code i}), {@code long} ({@code l}),
  * {@code double} ({@code d}), {@code keyword} ({@code k}, {@code string}, {@code s}),
  * {@code text} ({@code txt}), {@code boolean} ({@code bool}),
- * {@code datetime} ({@code date}, {@code dt}), {@code null} ({@code n}).
+ * {@code datetime} ({@code date}, {@code dt}), {@code ip}, {@code null} ({@code n}).
  *
  * <h2>Configurable options</h2>
  * All options are set via the {@code WITH} clause and parsed by {@link #withConfig(java.util.Map)}.
@@ -137,20 +139,32 @@ public class CsvFormatReader implements SegmentableFormatReader {
     private final CsvFormatOptions options;
     private final String format;
     private final List<String> extensions;
+    private final List<Attribute> resolvedSchema;
 
     public CsvFormatReader(BlockFactory blockFactory) {
-        this(blockFactory, CsvFormatOptions.DEFAULT, "csv", List.of(".csv", ".tsv"));
+        this(blockFactory, CsvFormatOptions.DEFAULT, "csv", List.of(".csv", ".tsv"), null);
     }
 
     public CsvFormatReader(BlockFactory blockFactory, String format, List<String> extensions) {
-        this(blockFactory, CsvFormatOptions.DEFAULT, format, extensions);
+        this(blockFactory, CsvFormatOptions.DEFAULT, format, extensions, null);
     }
 
     public CsvFormatReader(BlockFactory blockFactory, CsvFormatOptions options, String format, List<String> extensions) {
+        this(blockFactory, options, format, extensions, null);
+    }
+
+    private CsvFormatReader(
+        BlockFactory blockFactory,
+        CsvFormatOptions options,
+        String format,
+        List<String> extensions,
+        List<Attribute> resolvedSchema
+    ) {
         this.blockFactory = blockFactory;
         this.options = options;
         this.format = format;
         this.extensions = extensions;
+        this.resolvedSchema = resolvedSchema;
         this.sharedCsvMapper = createMapper(options);
     }
 
@@ -281,7 +295,12 @@ public class CsvFormatReader implements SegmentableFormatReader {
     }
 
     public CsvFormatReader withOptions(CsvFormatOptions newOptions) {
-        return new CsvFormatReader(blockFactory, newOptions, format, extensions);
+        return new CsvFormatReader(blockFactory, newOptions, format, extensions, resolvedSchema);
+    }
+
+    @Override
+    public CsvFormatReader withSchema(List<Attribute> schema) {
+        return new CsvFormatReader(blockFactory, options, format, extensions, schema);
     }
 
     @Override
@@ -362,48 +381,18 @@ public class CsvFormatReader implements SegmentableFormatReader {
     }
 
     @Override
-    public CloseableIterator<Page> read(StorageObject object, List<String> projectedColumns, int batchSize) throws IOException {
-        return read(object, projectedColumns, batchSize, defaultErrorPolicy());
-    }
-
-    @Override
-    public CloseableIterator<Page> read(StorageObject object, List<String> projectedColumns, int batchSize, ErrorPolicy errorPolicy)
-        throws IOException {
+    public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) throws IOException {
         InputStream stream = object.newStream();
         BufferedReader reader = new BufferedReader(new InputStreamReader(stream, options.encoding()), READER_BUFFER_SIZE);
-        ErrorPolicy effective = errorPolicy != null ? errorPolicy : defaultErrorPolicy();
-        return new CsvBatchIterator(reader, stream, projectedColumns, batchSize, null, effective);
-    }
-
-    @Override
-    public CloseableIterator<Page> readSplit(
-        StorageObject object,
-        List<String> projectedColumns,
-        int batchSize,
-        boolean skipFirstLine,
-        boolean lastSplit,
-        List<Attribute> resolvedAttributes
-    ) throws IOException {
-        return readSplit(object, projectedColumns, batchSize, skipFirstLine, lastSplit, resolvedAttributes, defaultErrorPolicy());
-    }
-
-    @Override
-    public CloseableIterator<Page> readSplit(
-        StorageObject object,
-        List<String> projectedColumns,
-        int batchSize,
-        boolean skipFirstLine,
-        boolean lastSplit,
-        List<Attribute> resolvedAttributes,
-        ErrorPolicy errorPolicy
-    ) throws IOException {
-        InputStream stream = object.newStream();
-        BufferedReader reader = new BufferedReader(new InputStreamReader(stream, options.encoding()), READER_BUFFER_SIZE);
-        if (skipFirstLine) {
+        List<Attribute> effectiveSchema;
+        if (context.firstSplit()) {
+            effectiveSchema = null;
+        } else {
             reader.readLine();
+            effectiveSchema = resolvedSchema;
         }
-        ErrorPolicy effective = errorPolicy != null ? errorPolicy : defaultErrorPolicy();
-        return new CsvBatchIterator(reader, stream, projectedColumns, batchSize, resolvedAttributes, effective);
+        ErrorPolicy effective = context.errorPolicy() != null ? context.errorPolicy() : defaultErrorPolicy();
+        return new CsvBatchIterator(reader, stream, context.projectedColumns(), context.batchSize(), effectiveSchema, effective);
     }
 
     @Override
@@ -503,8 +492,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             String trimmedType = parts[1].trim();
             String typeName = trimmedType.toUpperCase(Locale.ROOT);
             DataType dataType = parseDataType(typeName);
-            EsField field = new EsField(name, dataType, Map.of(), true, EsField.TimeSeriesFieldType.NONE);
-            attributes.add(new FieldAttribute(Source.EMPTY, name, field));
+            attributes.add(new ReferenceAttribute(Source.EMPTY, null, name, dataType));
         }
         return attributes;
     }
@@ -527,6 +515,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             case "TEXT", "TXT" -> DataType.TEXT;
             case "BOOLEAN", "BOOL" -> DataType.BOOLEAN;
             case "DATETIME", "DATE", "DT" -> DataType.DATETIME;
+            case "IP" -> DataType.IP;
             case "NULL", "N" -> DataType.NULL;
             default -> throw EsqlIllegalArgumentException.illegalDataType(typeName);
         };
@@ -965,6 +954,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 case KEYWORD, TEXT -> new BytesRef(value);
                 case BOOLEAN -> tryParseBoolean(value);
                 case DATETIME -> tryParseDatetime(value);
+                case IP -> tryParseIp(value);
                 case NULL -> null;
                 default -> {
                     lastFieldError = "Unsupported data type: " + dataType;
@@ -1047,6 +1037,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 case KEYWORD, TEXT -> new BytesRef(value);
                 case BOOLEAN -> tryParseBoolean(value);
                 case DATETIME -> tryParseDatetime(value);
+                case IP -> tryParseIp(value);
                 case NULL -> null;
                 default -> {
                     lastFieldError = "Unsupported data type: " + dataType;
@@ -1127,6 +1118,15 @@ public class CsvFormatReader implements SegmentableFormatReader {
             }
         }
 
+        private Object tryParseIp(String value) {
+            try {
+                return new BytesRef(InetAddressPoint.encode(InetAddresses.forString(value)));
+            } catch (IllegalArgumentException e) {
+                lastFieldError = "Failed to parse CSV value [" + value + "] as [IP]";
+                return null;
+            }
+        }
+
         private void onRowError(String message, Exception cause, String[] row) {
             if (modeOrdinal == ErrorPolicy.Mode.FAIL_FAST.ordinal()) {
                 throw new EsqlIllegalArgumentException(cause, message);
@@ -1188,7 +1188,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 case INTEGER -> Integer.class;
                 case LONG, DATETIME -> Long.class;
                 case DOUBLE -> Double.class;
-                case KEYWORD, TEXT -> BytesRef.class;
+                case KEYWORD, TEXT, IP -> BytesRef.class;
                 case BOOLEAN -> Boolean.class;
                 case NULL -> Void.class;
                 default -> throw new IllegalArgumentException("Unsupported data type: " + dataType);

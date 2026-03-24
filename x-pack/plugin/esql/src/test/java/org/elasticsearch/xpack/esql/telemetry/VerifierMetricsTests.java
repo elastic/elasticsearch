@@ -16,7 +16,6 @@ import org.elasticsearch.xpack.esql.analysis.Verifier;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
-import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 
@@ -28,10 +27,8 @@ import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
-import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyzer;
-import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.indexResolutions;
-import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.DISSECT;
 import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.DROP;
 import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.ENRICH;
@@ -972,10 +969,13 @@ public class VerifierMetricsTests extends ESTestCase {
             metrics = new Metrics(TEST_FUNCTION_REGISTRY, true, true);
             verifier = new Verifier(metrics, new XPackLicenseState(() -> 0L));
         }
-        IndexResolution metricsIndex = loadMapping("mapping-basic.json", "metrics", IndexMode.TIME_SERIES);
-        IndexResolution k8sIndex = loadMapping("k8s-mappings.json", "k8s", IndexMode.TIME_SERIES);
-        IndexResolution employees = loadMapping("mapping-basic.json", "employees");
-        analyzer(indexResolutions(metricsIndex, k8sIndex, employees), verifier).analyze(TEST_PARSER.parseQuery(esql));
+        analyzer().addIndex("metrics", "mapping-basic.json", IndexMode.TIME_SERIES)
+            .addK8s()
+            .addEmployees()
+            .addAnalysisTestsEnrichResolution()
+            .addLanguagesLookup()
+            .buildAnalyzer(verifier)
+            .analyze(TEST_PARSER.parseQuery(esql));
 
         return metrics == null ? null : metrics.stats();
     }

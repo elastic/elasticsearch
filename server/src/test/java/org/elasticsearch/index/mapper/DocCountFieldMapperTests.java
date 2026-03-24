@@ -15,7 +15,6 @@ import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.List;
@@ -100,7 +99,6 @@ public class DocCountFieldMapperTests extends MetadataMapperTestCase {
             }
         }, reader -> {
             SourceLoader loader = mapper.mappingLookup().newSourceLoader(null, SourceFieldMetrics.NOOP);
-            assertThat(loader.requiredStoredFields(), Matchers.contains("_ignored_source"));
             for (LeafReaderContext leaf : reader.leaves()) {
                 int[] docIds = IntStream.range(0, leaf.reader().maxDoc()).toArray();
                 SourceLoader.Leaf sourceLoaderLeaf = loader.leaf(leaf.reader(), docIds);
@@ -132,7 +130,6 @@ public class DocCountFieldMapperTests extends MetadataMapperTestCase {
             }
         }, reader -> {
             SourceLoader loader = mapper.mappingLookup().newSourceLoader(null, SourceFieldMetrics.NOOP);
-            assertThat(loader.requiredStoredFields(), Matchers.contains("_ignored_source"));
             for (LeafReaderContext leaf : reader.leaves()) {
                 int[] docIds = IntStream.range(0, leaf.reader().maxDoc()).toArray();
                 SourceLoader.Leaf sourceLoaderLeaf = loader.leaf(leaf.reader(), docIds);

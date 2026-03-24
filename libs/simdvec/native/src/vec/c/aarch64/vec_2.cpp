@@ -76,7 +76,7 @@ EXPORT int64_t vec_dotd1q4_2(const int8_t* a, const int8_t* query, const int32_t
     return dotd1q4_inner(a, query, length);
 }
 
-template <int64_t(*mapper)(const int32_t, const int32_t*)>
+template <const int8_t*(*mapper)(const int8_t*, const int32_t, const int32_t*, const int32_t)>
 static inline void dotd1q4_inner_bulk(
     const int8_t* a,
     const int8_t* query,
@@ -92,10 +92,10 @@ static inline void dotd1q4_inner_bulk(
     int c = 0;
 
     for (; c + 3 < count; c += 4) {
-        const int8_t* a0 = a + mapper(c, offsets) * pitch;
-        const int8_t* a1 = a + mapper(c + 1, offsets) * pitch;
-        const int8_t* a2 = a + mapper(c + 2, offsets) * pitch;
-        const int8_t* a3 = a + mapper(c + 3, offsets) * pitch;
+        const int8_t* a0 = mapper(a, c, offsets, pitch);
+        const int8_t* a1 = mapper(a, c + 1, offsets, pitch);
+        const int8_t* a2 = mapper(a, c + 2, offsets, pitch);
+        const int8_t* a3 = mapper(a, c + 3, offsets, pitch);
 
         int64_t subRet0_0 = 0;
         int64_t subRet1_0 = 0;
@@ -231,7 +231,7 @@ static inline void dotd1q4_inner_bulk(
     }
 
     for (; c < count; c++) {
-        const int8_t* a0 = a + mapper(c, offsets) * pitch;
+        const int8_t* a0 = mapper(a, c, offsets, pitch);
         results[c] = (f32_t)dotd1q4_inner(a0, query, length);
     }
 }
@@ -242,7 +242,7 @@ EXPORT void vec_dotd1q4_bulk_2(
     const int32_t length,
     const int32_t count,
     f32_t* results) {
-    dotd1q4_inner_bulk<identity_mapper>(a, query, length, length, NULL, count, results);
+    dotd1q4_inner_bulk<sequential_mapper>(a, query, length, length, NULL, count, results);
 }
 
 EXPORT void vec_dotd1q4_bulk_offsets_2(
@@ -253,7 +253,7 @@ EXPORT void vec_dotd1q4_bulk_offsets_2(
     const int32_t* offsets,
     const int32_t count,
     f32_t* results) {
-    dotd1q4_inner_bulk<array_mapper>(a, query, length, pitch, offsets, count, results);
+    dotd1q4_inner_bulk<offsets_mapper>(a, query, length, pitch, offsets, count, results);
 }
 
 #ifdef __clang__

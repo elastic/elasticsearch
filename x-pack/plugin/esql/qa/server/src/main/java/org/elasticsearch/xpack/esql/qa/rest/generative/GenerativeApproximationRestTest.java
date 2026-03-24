@@ -78,9 +78,6 @@ public abstract class GenerativeApproximationRestTest extends EsqlSpecTestCase {
         assumeTrue("Test must contain STATS to be included in approximation tests", testCase.query.toLowerCase().contains("stats"));
 
         // stats
-        assumeFalse("...", "countNull".equals(testName));  // ClassCastException
-        assumeFalse("...", "count_mv".equals(testName));  // ClassCastException
-        assumeFalse("...", "count_where".equals(testName));  // ClassCastException
         assumeFalse("...", "docsCountWithExpression".equals(testName));  // ClassCastException
         assumeFalse("...", "isNullWithStatsCount_On_TextField".equals(testName));  // ClassCastException
         assumeFalse("...", "countStarGroupedTrunc".equals(testName));  // ClassCastException
@@ -88,6 +85,8 @@ public abstract class GenerativeApproximationRestTest extends EsqlSpecTestCase {
 
         assumeFalse("...", "sumOfConst".equals(testName));  //  optimized incorrectly
 
+        assumeFalse("...", "countNull".equals(testName));  // can't read released page
+        assumeFalse("...", "count_mv".equals(testName));  // can't read released page
         assumeFalse("...", "countWithConditions".equals(testName));  // can't read released page
         assumeFalse("...", "groupByNull".equals(testName));  // can't read released page
         assumeFalse("...", "groupByNullAndString".equals(testName));  // can't read released page
@@ -113,8 +112,7 @@ public abstract class GenerativeApproximationRestTest extends EsqlSpecTestCase {
         assumeFalse("...", "percentile precision tests with row".equals(testName));  // can't read released page
 
         // unmapped-nullify
-        assumeFalse("...", "statsFilteredAggs".equals(testName));  // ClassCastException
-        assumeFalse("...", "statsFilteredAggsAndGroups".equals(testName));  // ClassCastException
+        assumeFalse("...", "statsFilteredAggsAndGroups".equals(testName));  // can't release already released object
         assumeFalse("...", "statsGroups".equals(testName));  // can't release already released object
         assumeFalse("...", "statsExpressions".equals(testName));  // can't release already released object
         assumeFalse("...", "statsExpressionsWithAliases".equals(testName));  // can't release already released object
@@ -178,9 +176,6 @@ public abstract class GenerativeApproximationRestTest extends EsqlSpecTestCase {
         assumeFalse("...", "roundToNanos".equals(testName));  // ClassCastException
         assumeFalse("...", "roundToBirthWindow".equals(testName));  // ClassCastException
         assumeFalse("...", "functionUnderArithmeticOperationAggString".equals(testName));  // can't release already released object
-
-        // spatial_shapes
-        assumeFalse("...", "cartesianPolygonDisjointEmptyGeometry".equals(testName));  // ClassCastException
 
         // mv_expand
         assumeFalse("...", "expandAfterDuplicateAggs".equals(testName));  // optimized incorrectly

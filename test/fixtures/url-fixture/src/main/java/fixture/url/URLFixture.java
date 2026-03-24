@@ -136,7 +136,12 @@ public class URLFixture extends AbstractHttpFixture implements TestRule {
         ftpServerFactory.getUserManager().save(user);
         ftpServer = ftpServerFactory.createServer();
         ftpServer.start();
-        ftpUrl = "ftp://" + user.getName() + ":" + user.getPassword() + "@" + listener.getServerAddress() + ":" + listener.getPort();
+        // For IPv6 addresses, wrap the host in brackets for proper URL format
+        String serverAddress = listener.getServerAddress();
+        if (serverAddress.contains(":")) {
+            serverAddress = "[" + serverAddress + "]";
+        }
+        ftpUrl = "ftp://" + user.getName() + ":" + user.getPassword() + "@" + serverAddress + ":" + listener.getPort();
     }
 
     public String getFtpUrl() {

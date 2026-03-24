@@ -23,6 +23,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 import org.elasticsearch.xpack.esql.Column;
+import org.elasticsearch.xpack.esql.approximation.ApproximationSettings;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plugin.EsqlQueryStatus;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
@@ -60,6 +61,7 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
     private boolean acceptedPragmaRisks = false;
     private Boolean allowPartialResults = null;
     private String projectRouting;
+    private ApproximationSettings approximation;
 
     /**
      * "Tables" provided in the request for use with things like {@code LOOKUP}.
@@ -277,7 +279,7 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
 
     @Override
     public Task createTask(TaskId taskId, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-        var status = new EsqlQueryStatus(new AsyncExecutionId(UUIDs.randomBase64UUID(), taskId));
+        var status = new EsqlQueryStatus(new AsyncExecutionId(UUIDs.randomBase64UUID(), taskId), keepAlive);
         return new EsqlQueryRequestTask(query, taskId.getId(), type, action, parentTaskId, headers, status);
     }
 
@@ -320,5 +322,14 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
 
     public String projectRouting() {
         return projectRouting;
+    }
+
+    public EsqlQueryRequest approximation(ApproximationSettings approximation) {
+        this.approximation = approximation;
+        return this;
+    }
+
+    public ApproximationSettings approximation() {
+        return approximation;
     }
 }

@@ -88,6 +88,15 @@ final class IntRangeVector extends AbstractVector implements IntVector {
     }
 
     @Override
+    public IntVector slice(int beginInclusive, int endExclusive) {
+        if (beginInclusive == 0 && endExclusive == getPositionCount()) {
+            incRef();
+            return this;
+        }
+        return blockFactory().newIntRangeVector(startInclusive + beginInclusive, startInclusive + endExclusive);
+    }
+
+    @Override
     public int min() {
         return getPositionCount() == 0 ? Integer.MAX_VALUE : startInclusive;
     }

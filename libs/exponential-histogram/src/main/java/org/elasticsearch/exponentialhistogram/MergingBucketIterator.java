@@ -58,8 +58,8 @@ final class MergingBucketIterator implements BucketIterator {
      * @param targetScale the histogram scale to which both iterators should be aligned
      */
     MergingBucketIterator(BucketIterator itA, BucketIterator itB, int targetScale, LongBinaryOperator countMergeOperator) {
-        this.itA = new ScaleAdjustingBucketIterator(itA, targetScale);
-        this.itB = new ScaleAdjustingBucketIterator(itB, targetScale);
+        this.itA = new ScaleReducingBucketIterator(itA, targetScale);
+        this.itB = new ScaleReducingBucketIterator(itB, targetScale);
         this.countMergeOperator = countMergeOperator;
         endReached = false;
         advance();

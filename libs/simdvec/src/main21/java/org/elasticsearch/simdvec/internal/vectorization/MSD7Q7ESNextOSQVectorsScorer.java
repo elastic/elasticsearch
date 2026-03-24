@@ -10,10 +10,13 @@ package org.elasticsearch.simdvec.internal.vectorization;
 
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.IndexInput;
+import org.elasticsearch.simdvec.internal.IndexInputUtils;
 import org.elasticsearch.simdvec.internal.MemorySegmentES92Int7VectorsScorer;
 
 import java.io.IOException;
 import java.lang.foreign.MemorySegment;
+
+import static org.elasticsearch.simdvec.internal.Similarities.dotProductI7uBulkWithOffsets;
 
 /** Vectorized scorer for 7-bit symmetric quantized vectors stored as a {@link MemorySegment}. */
 final class MSD7Q7ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVectorsScorer.MemorySegmentScorer {
@@ -34,6 +37,51 @@ final class MSD7Q7ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVectorsSc
     boolean quantizeScoreBulk(byte[] q, int count, float[] scores) throws IOException {
         int7Scorer.int7DotProductBulk(q, count, scores);
         return true;
+    }
+
+    @Override
+    public boolean quantizeScoreBulkOffsets(byte[] q, int[] offsets, int offsetsCount, float[] scores, int count) throws IOException {
+        assert q.length == length;
+        if (NATIVE_SUPPORTED && SUPPORTS_HEAP_SEGMENTS) {
+            var querySegment = MemorySegment.ofArray(q);
+            var offsetsSegment = MemorySegment.ofArray(offsets);
+            var scoresSegment = MemorySegment.ofArray(scores);
+            nativeQuantizeScoreBulkOffsets(querySegment, offsetsSegment, scoresSegment, offsetsCount, count);
+            repositionScoresMatchingOffsets(offsets, offsetsCount, scores);
+            return true;
+        }
+        return false;
+    }
+
+    private void nativeQuantizeScoreBulkOffsets(
+        MemorySegment querySegment,
+        MemorySegment offsetsSegment,
+        MemorySegment scoresSegment,
+        int offsetsCount,
+        int totalCount
+    ) throws IOException {
+        var datasetLengthInBytes = (long) length * totalCount;
+        IndexInputUtils.withSlice(in, datasetLengthInBytes, this::getScratch, datasetSegment -> {
+            dotProductI7uBulkWithOffsets(datasetSegment, querySegment, length, length, offsetsSegment, offsetsCount, scoresSegment);
+            return null;
+        });
+    }
+
+    @Override
+    float scoreBulkOffsets(
+        byte[] q,
+        float queryLowerInterval,
+        float queryUpperInterval,
+        int queryComponentSum,
+        float queryAdditionalCorrection,
+        VectorSimilarityFunction similarityFunction,
+        float centroidDp,
+        int[] offsets,
+        int offsetsCount,
+        float[] scores,
+        int count
+    ) {
+        return Float.NEGATIVE_INFINITY;
     }
 
     @Override

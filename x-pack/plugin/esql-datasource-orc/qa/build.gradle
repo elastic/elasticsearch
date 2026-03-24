@@ -20,6 +20,10 @@ configurations {
   orcFixtureGenerator
 }
 
+configurations.all {
+  resolutionStrategy.force "io.airlift:aircompressor:${versions.aircompressor}"
+}
+
 // OrcFixtureGenerator lives in its own source set so TestingConventions doesn't load it
 // (it depends on Hadoop which conflicts with repository-azure on the test classpath).
 sourceSets {
@@ -44,15 +48,6 @@ dependencies {
 
   // S3 datasource provider for discovery tests
   javaRestTestImplementation project(xpackModule('esql-datasource-s3'))
-
-  // OrcFixtureGenerator: ORC/Hadoop (separate from javaRestTest to avoid jar hell)
-  orcFixtureGenerator("org.apache.orc:orc-core:2.2.2") { exclude group: 'org.slf4j', module: 'slf4j-api' }
-  orcFixtureGenerator('org.apache.hive:hive-storage-api:2.8.1')
-  orcFixtureGenerator('com.google.protobuf:protobuf-java:3.25.8')
-  orcFixtureGenerator('org.apache.hadoop:hadoop-client-api:3.4.2') { exclude group: 'org.slf4j', module: 'slf4j-api' }
-  orcFixtureGenerator('org.apache.hadoop:hadoop-client-runtime:3.4.2') { exclude group: 'org.slf4j', module: 'slf4j-api' }
-  orcFixtureGenerator "org.slf4j:slf4j-api:${versions.slf4j}"
-  orcFixtureGenerator project(':libs:core')
 
   // Repository S3 module for cluster
   clusterModules project(':modules:repository-s3')
@@ -82,45 +77,47 @@ tasks.named("forbiddenPatterns").configure {
   exclude '**/*.orc'
 }
 
-// OrcFixtureGenerator has minimal classpath (no Lucene); es-all-signatures references
-// org.apache.lucene.util.IOUtils. Use only JDK signatures to avoid parse failures.
-tasks.named('forbiddenApisOrcFixtureGenerator').configure { task ->
-  def resourcesDir = task.resourcesDir
-  task.setSignaturesFiles(
-    project.files(
-      new File(resourcesDir, 'forbidden/jdk-signatures.txt'),
-      new File(resourcesDir, 'forbidden/jdk-deprecated.txt')
-    )
-  )
+def serverProject = project(xpackModule('esql:qa:server'))
+def orcFixtureOutputDir = file("${buildDir}/orc-fixtures/iceberg-fixtures")
+def orcFixtureDir = file("${orcFixtureOutputDir}/standalone")
+
+// Add CSV base names here to generate ORC fixtures; source: esql:qa:testFixtures/src/main/resources/data/{name}.csv
+def csvToOrcFixtures = ['employees', 'web_logs']
+
+def generateOrcTasks = []
+csvToOrcFixtures.each { baseName ->
+  def taskName = "generateOrc_${baseName}"
+  def csvFile = project(xpackModule('esql:qa:testFixtures')).file("src/main/resources/data/${baseName}.csv")
+  def orcFile = file("${orcFixtureDir}/${baseName}.orc")
+  tasks.register(taskName, JavaExec) {
+    dependsOn serverProject.tasks.named('compileOrcFixtureGeneratorJava')
+    dependsOn project(xpackModule('esql:qa:testFixtures')).tasks.named('processResources')
+    classpath = serverProject.configurations.orcFixtureGenerator + serverProject.sourceSets.orcFixtureGenerator.output
+    mainClass = 'org.elasticsearch.xpack.esql.datasources.OrcFixtureGenerator'
+    args = [csvFile.absolutePath, orcFile.absolutePath]
+    inputs.file(csvFile)
+    outputs.file(orcFile)
+    systemProperty 'slf4j.provider', 'org.slf4j.nop.NOPServiceProvider'
+  }
+  generateOrcTasks.add(tasks.named(taskName))
 }
 
-// Generate the employees.orc fixture file before tests run.
-// The OrcFixtureGenerator reads the canonical employees.csv and writes an equivalent ORC file.
-def orcFixtureDir = file("src/javaRestTest/resources/iceberg-fixtures/standalone")
-def orcFixtureFile = file("${orcFixtureDir}/employees.orc")
-def orcFixtureCsv = file("${orcFixtureDir}/employees.csv")
-
-tasks.register('generateOrcFixture', JavaExec) {
-  dependsOn tasks.named('compileOrcFixtureGeneratorJava'), tasks.named('processJavaRestTestResources')
-  // Use orcFixtureGenerator config + output; javaRestTest resources for employees.csv
-  classpath = configurations.orcFixtureGenerator + sourceSets.orcFixtureGenerator.output + files(sourceSets.javaRestTest.output.resourcesDir)
-  mainClass = 'org.elasticsearch.xpack.esql.qa.orc.OrcFixtureGenerator'
-  args = [orcFixtureFile.absolutePath]
-  inputs.file(orcFixtureCsv)
-  outputs.file(orcFixtureFile)
-  // Route SLF4J (used by Hadoop) to the NOP provider to avoid Log4j2 initialization errors
-  systemProperty 'slf4j.provider', 'org.slf4j.nop.NOPServiceProvider'
+tasks.register('generateOrcFixtures') {
+  dependsOn generateOrcTasks
 }
 
-tasks.named('javaRestTest') {
-  dependsOn 'generateOrcFixture'
+sourceSets.javaRestTest.resources.srcDir file("${buildDir}/orc-fixtures")
+
+tasks.named('processJavaRestTestResources').configure {
+  dependsOn generateOrcFixtures
 }
 
 tasks.named('filepermissions').configure {
-  dependsOn 'generateOrcFixture'
+  dependsOn generateOrcFixtures
 }
 
 tasks.named('javaRestTest') {
+  dependsOn generateOrcFixtures
   usesDefaultDistribution("to be triaged")
   maxParallelForks = 1
   enabled = buildParams.snapshotBuild

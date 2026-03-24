@@ -168,7 +168,7 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
         Warnings warnings
     ) {
         List<Expression> expressions = Predicates.splitAnd(joinOnConditions);
-        if (applyAsFastKeywordFilter(expressions, matchFields, extractFieldNames, context, clusterService, warnings)) {
+        if (applyAsBulkKeywordLookup(expressions, matchFields, extractFieldNames, context, clusterService, warnings)) {
             // we managed to apply the whole condition as a fast keyword filter
             return;
         }
@@ -183,7 +183,7 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
         }
     }
 
-    private boolean applyAsFastKeywordFilter(
+    private boolean applyAsBulkKeywordLookup(
         List<Expression> expressions,
         List<MatchConfig> matchFields,
         List<String> extractFieldNames,
@@ -212,7 +212,7 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
 
                 if (matchChannelOffset != -1 && dataType == DataType.KEYWORD) {
 
-                    // BulkLookupMvFilterOperator needs the extractChannelOffset later
+                    // bulkLookupMvFilterOperator() needs the extractChannelOffset later
                     // when filtering out false-positive multivalue matches
                     //
                     int extractChannelOffset = -1;

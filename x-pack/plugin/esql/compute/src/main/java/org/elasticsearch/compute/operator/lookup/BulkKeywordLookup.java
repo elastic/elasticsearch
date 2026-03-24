@@ -28,6 +28,13 @@ import org.elasticsearch.search.internal.AliasFilter;
 import java.io.IOException;
 import java.util.function.BiFunction;
 
+/**
+ * Helper class used in lookup joins.
+ * The {@code processQuery()} method searches a field in a Lucene index
+ * for documents containing a given term.  Positions, segments and docs
+ * of the matches are gathered into {@code IntVector.Builder}s.
+ */
+
 public class BulkKeywordLookup {
     private final MappedFieldType rightFieldType;
     private final int matchChannelOffset;
@@ -55,8 +62,8 @@ public class BulkKeywordLookup {
     ) {
         this.rightFieldType = rightFieldType;
         this.context = context;
-        this.matchChannelOffset = matchChannelOffset; // ___ offset of field in left (input) page
-        this.extractChannelOffset = extractChannelOffset; // offset of field in right (output) page
+        this.matchChannelOffset = matchChannelOffset; // offset of field in left (page shipped to lookup index)
+        this.extractChannelOffset = extractChannelOffset; // offset of field in right (page from ValuesSourceReaderOperator)
         this.clusterService = clusterService;
         this.aliasFilter = aliasFilter;
         this.warnings = warnings;

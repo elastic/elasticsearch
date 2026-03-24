@@ -120,7 +120,7 @@ import java.util.stream.IntStream;
  * </p>
  * <p>
  * Stage 3: Optionally the BulkLookupMvFilterOperator removes false-positive
- * multivalue matches when the {@link BulkKeywordLookup} optimization.
+ * multivalue matches when the {@link BulkKeywordLookup} optimization is active.
  * </p>
  * <p>
  * Stage 4: Optionally this combines the extracted values based on positions and filling
@@ -435,7 +435,7 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
                 operators.add(extractFieldsOperator);
             }
 
-            // Stage 3 - 137269
+            // Stage 3
             Operator bulkLookupMvFilterOperator = bulkLookupMvFilterOperator(queryList, driverContext, warnings);
             if (bulkLookupMvFilterOperator != null) {
                 operators.add(bulkLookupMvFilterOperator);
@@ -594,7 +594,7 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
         if (bulkLookup != null) {
 
             // at this point the output page [DocVector, IntBlock: positions, Block: field1, Block: field2,...]
-            // get the channel ignoreing the DocVector and IntBlock
+            // get the channel ignoring the DocVector and IntBlock
             //
             final int channelOffset = 2 + bulkLookup.getExtractChannelOffset();
             return new FilterOperator(new BulkLookupSingleValued(driverContext, channelOffset, warnings));

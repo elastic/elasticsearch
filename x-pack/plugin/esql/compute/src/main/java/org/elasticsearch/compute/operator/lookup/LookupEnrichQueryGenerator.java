@@ -34,6 +34,5 @@ public interface LookupEnrichQueryGenerator {
      */
     default BulkKeywordLookup getBulkKeywordLookup() {
         return null;
-    };
-
+    }
 }

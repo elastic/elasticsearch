@@ -1,5 +1,5 @@
 area: ES|QL
 issues: []
 pr: 144704
-summary: ESIQL Improve LOOKUP JOIN on single keyword
+summary: ES|QL Improve LOOKUP JOIN on single keyword
 type: enhancement

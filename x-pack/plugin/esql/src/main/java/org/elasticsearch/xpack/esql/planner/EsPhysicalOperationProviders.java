@@ -345,7 +345,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
 
             @Override
             protected String sourceValueToString(Object value) {
-                // Unmapped numeric fields are stored as numerics, not strings (ByteRefs).
+                // When _source is synthetic, unmapped numeric fields are provided as their native Java types (Long, Double, etc.) rather
+                // than BytesRef. Since we treat all unmapped fields as keyword, we fall back to toString().
                 return value instanceof BytesRef br ? br.utf8ToString() : value.toString();
             }
         }

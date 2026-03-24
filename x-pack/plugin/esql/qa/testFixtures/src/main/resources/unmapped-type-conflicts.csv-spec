@@ -345,7 +345,6 @@ heights        | null
 
 typeConflictLongDateUnmappedCastToKeyword
 required_capability: optional_fields_v3
-required_capability: index_metadata_field
 
 SET unmapped_fields="load"\;
 FROM sample_data_ts_long, sample_data, no_mapping_sample_data METADATA _index
@@ -380,7 +379,6 @@ sample_data_ts_long    | 1698069301543
 
 typeConflictLongDateUnmappedCastToDouble
 required_capability: optional_fields_v3
-required_capability: index_metadata_field
 
 SET unmapped_fields="load"\;
 FROM sample_data_ts_long, sample_data, no_mapping_sample_data METADATA _index
@@ -423,7 +421,6 @@ sample_data_ts_long    | 1.698069301543E12
 
 typeConflictLongDateUnmappedCastToDate
 required_capability: optional_fields_v3
-required_capability: index_metadata_field
 
 SET unmapped_fields="load"\;
 FROM sample_data_ts_long, sample_data, no_mapping_sample_data METADATA _index
@@ -458,7 +455,6 @@ sample_data_ts_long    | 2023-10-23T13:55:01.543Z
 
 typeConflictLongDateUnmappedCastToDateNoSort
 required_capability: optional_fields_v3
-required_capability: index_metadata_field
 
 SET unmapped_fields="load"\;
 FROM sample_data_ts_long, sample_data, no_mapping_sample_data METADATA _index
@@ -497,7 +493,6 @@ sample_data_ts_long    | 2023-10-23T13:55:01.543Z
 
 typeConflictLongDateNonExistentCastToKeyword
 required_capability: optional_fields_v3
-required_capability: index_metadata_field
 
 SET unmapped_fields="load"\;
 FROM sample_data_ts_long, sample_data, colors METADATA _index
@@ -537,7 +532,6 @@ colors              | null
 
 typeConflictLongDateNonExistentCastToDouble
 required_capability: optional_fields_v3
-required_capability: index_metadata_field
 
 SET unmapped_fields="load"\;
 FROM sample_data_ts_long, sample_data, colors METADATA _index
@@ -577,7 +571,6 @@ colors              | null
 
 typeConflictLongDateNonExistentCastToDate
 required_capability: optional_fields_v3
-required_capability: index_metadata_field
 
 SET unmapped_fields="load"\;
 FROM sample_data_ts_long, sample_data, colors METADATA _index
@@ -621,7 +614,6 @@ colors              | null
 
 typeConflictLongDateUnmappedNonExistentCastToKeyword
 required_capability: optional_fields_v3
-required_capability: index_metadata_field
 
 SET unmapped_fields="load"\;
 FROM sample_data_ts_long, sample_data, no_mapping_sample_data, colors METADATA _index
@@ -666,7 +658,6 @@ colors                 | null
 
 typeConflictLongDateUnmappedNonExistentCastToDouble
 required_capability: optional_fields_v3
-required_capability: index_metadata_field
 
 SET unmapped_fields="load"\;
 FROM sample_data_ts_long, sample_data, no_mapping_sample_data, colors METADATA _index
@@ -719,7 +710,6 @@ colors                 | null
 
 typeConflictLongDateUnmappedNonExistentCastToDate
 required_capability: optional_fields_v3
-required_capability: index_metadata_field
 
 SET unmapped_fields="load"\;
 FROM sample_data_ts_long, sample_data, no_mapping_sample_data, colors METADATA _index
@@ -764,7 +754,6 @@ colors                 | null
 
 typeConflictLongDateUnmappedNonExistentCastToDateNoSort
 required_capability: optional_fields_v3
-required_capability: index_metadata_field
 
 SET unmapped_fields="load"\;
 FROM sample_data_ts_long, sample_data, no_mapping_sample_data, heights METADATA _index
@@ -800,4 +789,429 @@ sample_data_ts_long    | 2023-10-23T13:51:54.732Z
 sample_data_ts_long    | 2023-10-23T13:52:55.015Z
 sample_data_ts_long    | 2023-10-23T13:53:55.832Z
 sample_data_ts_long    | 2023-10-23T13:55:01.543Z
+;
+
+##############################
+# WHERE with type casts      #
+##############################
+
+typeConflictLongUnmappedWhereWithCastToLong
+required_capability: optional_fields_v3
+
+SET unmapped_fields="load"\;
+FROM sample_data, no_mapping_sample_data METADATA _index
+| WHERE event_duration::long > 3000000
+| EVAL event_duration = event_duration::keyword
+| KEEP _index, event_duration
+| SORT _index, event_duration
+;
+
+_index:keyword         | event_duration:keyword
+no_mapping_sample_data | 3450232
+no_mapping_sample_data | 5033754
+no_mapping_sample_data | 8268152
+sample_data            | 3450233
+sample_data            | 5033755
+sample_data            | 8268153
+;
+
+noTypeConflictKeywordUnmappedWhereWithCastToKeyword
+required_capability: optional_fields_v3
+
+SET unmapped_fields="load"\;
+FROM sample_data, no_mapping_sample_data METADATA _index
+| WHERE message::keyword LIKE "Connected*"
+| KEEP _index, message
+| SORT _index, message
+;
+
+_index:keyword         | message:keyword
+no_mapping_sample_data | Connected to 10.1.0.1!
+no_mapping_sample_data | Connected to 10.1.0.2!
+no_mapping_sample_data | Connected to 10.1.0.3!
+sample_data            | Connected to 10.1.0.1
+sample_data            | Connected to 10.1.0.2
+sample_data            | Connected to 10.1.0.3
+;
+
+typeConflictLongNonExistentWhereWithCastToLong
+required_capability: optional_fields_v3
+
+SET unmapped_fields="load"\;
+FROM sample_data, colors METADATA _index
+| WHERE event_duration::long > 3000000
+| EVAL event_duration = event_duration::keyword
+| KEEP _index, event_duration
+| SORT _index DESC, event_duration
+;
+
+_index:keyword | event_duration:keyword
+sample_data    | 3450233
+sample_data    | 5033755
+sample_data    | 8268153
+;
+
+typeConflictLongDateUnmappedWhereWithCastToDate
+required_capability: optional_fields_v3
+
+SET unmapped_fields="load"\;
+FROM sample_data_ts_long, sample_data, no_mapping_sample_data METADATA _index
+| WHERE @timestamp::date > "2024-01-01T00:00:00.000Z"
+| EVAL ts = @timestamp::keyword
+| KEEP _index, ts
+| SORT _index, ts
+;
+
+_index:keyword         | ts:keyword
+no_mapping_sample_data | 2024-10-23T12:15:03.360Z
+no_mapping_sample_data | 2024-10-23T12:27:28.948Z
+no_mapping_sample_data | 2024-10-23T13:33:34.937Z
+no_mapping_sample_data | 2024-10-23T13:51:54.732Z
+no_mapping_sample_data | 2024-10-23T13:52:55.015Z
+no_mapping_sample_data | 2024-10-23T13:53:55.832Z
+no_mapping_sample_data | 2024-10-23T13:55:01.543Z
+;
+
+#############################
+# SORT with type casts      #
+#############################
+
+typeConflictLongUnmappedSortWithCastToLong
+required_capability: optional_fields_v3
+
+SET unmapped_fields="load"\;
+FROM sample_data, no_mapping_sample_data METADATA _index
+| SORT event_duration::long, _index
+| KEEP _index, event_duration
+;
+
+_index:keyword         | event_duration:long
+no_mapping_sample_data | null
+sample_data            | 725448
+no_mapping_sample_data | null
+sample_data            | 1232382
+no_mapping_sample_data | null
+sample_data            | 1756467
+no_mapping_sample_data | null
+sample_data            | 2764889
+no_mapping_sample_data | null
+sample_data            | 3450233
+no_mapping_sample_data | null
+sample_data            | 5033755
+no_mapping_sample_data | null
+sample_data            | 8268153
+;
+
+typeConflictLongUnmappedSortWithCastToKeyword
+required_capability: optional_fields_v3
+
+SET unmapped_fields="load"\;
+FROM sample_data, no_mapping_sample_data METADATA _index
+| SORT event_duration::keyword, _index
+| KEEP _index, event_duration
+;
+
+_index:keyword         | event_duration:long
+no_mapping_sample_data | null
+sample_data            | 1232382
+no_mapping_sample_data | null
+sample_data            | 1756467
+no_mapping_sample_data | null
+sample_data            | 2764889
+no_mapping_sample_data | null
+sample_data            | 3450233
+no_mapping_sample_data | null
+sample_data            | 5033755
+no_mapping_sample_data | null
+sample_data            | 725448
+no_mapping_sample_data | null
+sample_data            | 8268153
+;
+
+############################
+# Chained type casts       #
+############################
+
+typeConflictLongUnmappedChainedCastLongToKeyword
+required_capability: optional_fields_v3
+
+SET unmapped_fields="load"\;
+FROM sample_data, no_mapping_sample_data METADATA _index
+| EVAL event_duration = event_duration::long::keyword
+| KEEP _index, event_duration
+| SORT _index, event_duration
+;
+
+_index:keyword         | event_duration:keyword
+no_mapping_sample_data | 1232381
+no_mapping_sample_data | 1756466
+no_mapping_sample_data | 2764888
+no_mapping_sample_data | 3450232
+no_mapping_sample_data | 5033754
+no_mapping_sample_data | 725447
+no_mapping_sample_data | 8268152
+sample_data            | 1232382
+sample_data            | 1756467
+sample_data            | 2764889
+sample_data            | 3450233
+sample_data            | 5033755
+sample_data            | 725448
+sample_data            | 8268153
+;
+
+typeConflictLongUnmappedChainedCastLongToDouble
+required_capability: optional_fields_v3
+
+SET unmapped_fields="load"\;
+FROM sample_data, no_mapping_sample_data METADATA _index
+| EVAL event_duration = event_duration::long::double
+| KEEP _index, event_duration
+| SORT _index, event_duration
+;
+
+_index:keyword         | event_duration:double
+no_mapping_sample_data | 725447.0
+no_mapping_sample_data | 1232381.0
+no_mapping_sample_data | 1756466.0
+no_mapping_sample_data | 2764888.0
+no_mapping_sample_data | 3450232.0
+no_mapping_sample_data | 5033754.0
+no_mapping_sample_data | 8268152.0
+sample_data            | 725448.0
+sample_data            | 1232382.0
+sample_data            | 1756467.0
+sample_data            | 2764889.0
+sample_data            | 3450233.0
+sample_data            | 5033755.0
+sample_data            | 8268153.0
+;
+
+typeConflictLongDateUnmappedChainedCastDateToKeyword
+required_capability: optional_fields_v3
+
+SET unmapped_fields="load"\;
+FROM sample_data_ts_long, sample_data, no_mapping_sample_data METADATA _index
+| EVAL ts = @timestamp::date::keyword
+| KEEP _index, ts
+| SORT _index, ts
+;
+
+_index:keyword         | ts:keyword
+no_mapping_sample_data | 2024-10-23T12:15:03.360Z
+no_mapping_sample_data | 2024-10-23T12:27:28.948Z
+no_mapping_sample_data | 2024-10-23T13:33:34.937Z
+no_mapping_sample_data | 2024-10-23T13:51:54.732Z
+no_mapping_sample_data | 2024-10-23T13:52:55.015Z
+no_mapping_sample_data | 2024-10-23T13:53:55.832Z
+no_mapping_sample_data | 2024-10-23T13:55:01.543Z
+sample_data            | 2023-10-23T12:15:03.360Z
+sample_data            | 2023-10-23T12:27:28.948Z
+sample_data            | 2023-10-23T13:33:34.937Z
+sample_data            | 2023-10-23T13:51:54.732Z
+sample_data            | 2023-10-23T13:52:55.015Z
+sample_data            | 2023-10-23T13:53:55.832Z
+sample_data            | 2023-10-23T13:55:01.543Z
+sample_data_ts_long    | 2023-10-23T12:15:03.360Z
+sample_data_ts_long    | 2023-10-23T12:27:28.948Z
+sample_data_ts_long    | 2023-10-23T13:33:34.937Z
+sample_data_ts_long    | 2023-10-23T13:51:54.732Z
+sample_data_ts_long    | 2023-10-23T13:52:55.015Z
+sample_data_ts_long    | 2023-10-23T13:53:55.832Z
+sample_data_ts_long    | 2023-10-23T13:55:01.543Z
+;
+
+typeConflictLongUnmappedChainedCastInWhere
+required_capability: optional_fields_v3
+
+SET unmapped_fields="load"\;
+FROM sample_data, no_mapping_sample_data METADATA _index
+| WHERE event_duration::long::double > 3000000.0
+| EVAL event_duration = event_duration::keyword
+| KEEP _index, event_duration
+| SORT _index, event_duration
+;
+
+_index:keyword         | event_duration:keyword
+no_mapping_sample_data | 3450232
+no_mapping_sample_data | 5033754
+no_mapping_sample_data | 8268152
+sample_data            | 3450233
+sample_data            | 5033755
+sample_data            | 8268153
+;
+
+####################################
+# Mapped and _source excluded      #
+####################################
+
+noTypeConflictKeywordSourceExcludedNoCast
+required_capability: optional_fields_v3
+required_capability: source_field_mapping
+
+SET unmapped_fields="load"\;
+FROM sample_data, partial_mapping_no_source_sample_data METADATA _index
+| KEEP _index, message
+| SORT _index DESC, message
+| LIMIT 15
+;
+
+_index:keyword                        | message:keyword
+sample_data                           | Connected to 10.1.0.1
+sample_data                           | Connected to 10.1.0.2
+sample_data                           | Connected to 10.1.0.3
+sample_data                           | Connection error
+sample_data                           | Connection error
+sample_data                           | Connection error
+sample_data                           | Disconnected
+partial_mapping_no_source_sample_data | null
+partial_mapping_no_source_sample_data | null
+partial_mapping_no_source_sample_data | null
+partial_mapping_no_source_sample_data | null
+partial_mapping_no_source_sample_data | null
+partial_mapping_no_source_sample_data | null
+partial_mapping_no_source_sample_data | null
+;
+
+noTypeConflictKeywordSourceExcludedCastToKeyword
+required_capability: optional_fields_v3
+required_capability: source_field_mapping
+
+SET unmapped_fields="load"\;
+FROM sample_data, partial_mapping_no_source_sample_data METADATA _index
+| EVAL message = message::keyword
+| KEEP _index, message
+| SORT _index DESC, message
+| LIMIT 15
+;
+
+_index:keyword                        | message:keyword
+sample_data                           | Connected to 10.1.0.1
+sample_data                           | Connected to 10.1.0.2
+sample_data                           | Connected to 10.1.0.3
+sample_data                           | Connection error
+sample_data                           | Connection error
+sample_data                           | Connection error
+sample_data                           | Disconnected
+partial_mapping_no_source_sample_data | null
+partial_mapping_no_source_sample_data | null
+partial_mapping_no_source_sample_data | null
+partial_mapping_no_source_sample_data | null
+partial_mapping_no_source_sample_data | null
+partial_mapping_no_source_sample_data | null
+partial_mapping_no_source_sample_data | null
+;
+
+typeConflictLongSourceExcludedCastToKeyword
+required_capability: optional_fields_v3
+required_capability: source_field_mapping
+
+SET unmapped_fields="load"\;
+FROM sample_data, partial_mapping_no_source_sample_data METADATA _index
+| EVAL event_duration = event_duration::keyword
+| KEEP _index, event_duration
+| SORT _index DESC, event_duration
+| LIMIT 15
+;
+
+_index:keyword                        | event_duration:keyword
+sample_data                           | 1232382
+sample_data                           | 1756467
+sample_data                           | 2764889
+sample_data                           | 3450233
+sample_data                           | 5033755
+sample_data                           | 725448
+sample_data                           | 8268153
+partial_mapping_no_source_sample_data | null
+partial_mapping_no_source_sample_data | null
+partial_mapping_no_source_sample_data | null
+partial_mapping_no_source_sample_data | null
+partial_mapping_no_source_sample_data | null
+partial_mapping_no_source_sample_data | null
+partial_mapping_no_source_sample_data | null
+;
+
+typeConflictLongSourceExcludedCastToLong
+required_capability: optional_fields_v3
+required_capability: source_field_mapping
+
+SET unmapped_fields="load"\;
+FROM sample_data, partial_mapping_no_source_sample_data METADATA _index
+| EVAL event_duration = event_duration::long
+| KEEP _index, event_duration
+| SORT _index DESC, event_duration
+| LIMIT 15
+;
+
+_index:keyword                        | event_duration:long
+sample_data                           | 725448
+sample_data                           | 1232382
+sample_data                           | 1756467
+sample_data                           | 2764889
+sample_data                           | 3450233
+sample_data                           | 5033755
+sample_data                           | 8268153
+partial_mapping_no_source_sample_data | null
+partial_mapping_no_source_sample_data | null
+partial_mapping_no_source_sample_data | null
+partial_mapping_no_source_sample_data | null
+partial_mapping_no_source_sample_data | null
+partial_mapping_no_source_sample_data | null
+partial_mapping_no_source_sample_data | null
+;
+
+typeConflictLongSourceExcludedCastToDouble
+required_capability: optional_fields_v3
+required_capability: source_field_mapping
+
+SET unmapped_fields="load"\;
+FROM sample_data, partial_mapping_no_source_sample_data METADATA _index
+| EVAL event_duration = event_duration::double
+| KEEP _index, event_duration
+| SORT _index DESC, event_duration
+| LIMIT 15
+;
+
+_index:keyword                        | event_duration:double
+sample_data                           | 725448.0
+sample_data                           | 1232382.0
+sample_data                           | 1756467.0
+sample_data                           | 2764889.0
+sample_data                           | 3450233.0
+sample_data                           | 5033755.0
+sample_data                           | 8268153.0
+partial_mapping_no_source_sample_data | null
+partial_mapping_no_source_sample_data | null
+partial_mapping_no_source_sample_data | null
+partial_mapping_no_source_sample_data | null
+partial_mapping_no_source_sample_data | null
+partial_mapping_no_source_sample_data | null
+partial_mapping_no_source_sample_data | null
+;
+
+typeConflictLongSourceExcludedCastToDoubleNoSort
+required_capability: optional_fields_v3
+required_capability: source_field_mapping
+
+SET unmapped_fields="load"\;
+FROM sample_data, partial_mapping_no_source_sample_data METADATA _index
+| EVAL event_duration = event_duration::double
+| KEEP _index, event_duration
+;
+ignoreOrder:true
+
+_index:keyword                        | event_duration:double
+partial_mapping_no_source_sample_data | null
+partial_mapping_no_source_sample_data | null
+partial_mapping_no_source_sample_data | null
+partial_mapping_no_source_sample_data | null
+partial_mapping_no_source_sample_data | null
+partial_mapping_no_source_sample_data | null
+partial_mapping_no_source_sample_data | null
+sample_data                           | 725448.0
+sample_data                           | 1232382.0
+sample_data                           | 1756467.0
+sample_data                           | 2764889.0
+sample_data                           | 3450233.0
+sample_data                           | 5033755.0
+sample_data                           | 8268153.0
 ;

@@ -828,13 +828,9 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
      */
     public static AllocationService mockAllocationService(AllocationDeciders allocationDeciders) {
         AllocationService allocationService = mock(AllocationService.class);
-        when(
-            allocationService.createAllocationQueryContext(
-                any(ClusterState.class),
-                any(ClusterInfo.class),
-                any(SnapshotShardSizeInfo.class)
-            )
-        ).thenAnswer(iom -> new MockAllocationQueryContext(iom.getArgument(0), iom.getArgument(1), iom.getArgument(2), allocationDeciders));
+        when(allocationService.createAllocationQueryContext(any(ClusterState.class), any(), any())).thenAnswer(
+            iom -> new MockAllocationQueryContext(iom.getArgument(0), iom.getArgument(1), iom.getArgument(2), allocationDeciders)
+        );
         return allocationService;
     }
 

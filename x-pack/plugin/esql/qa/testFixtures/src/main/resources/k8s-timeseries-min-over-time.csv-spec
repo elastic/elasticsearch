@@ -167,6 +167,35 @@ bytes_in:double | step:datetime
 4632.0          | 2024-05-10T00:19:00.000Z
 ;
 
+min_over_time_with_window_and_tbucket_offset
+required_capability: ts_command_v0
+required_capability: tbucket_from_to
+required_capability: fix_tbucket_target_count_window_validation
+
+TS k8s
+| WHERE pod == "one"
+| STATS mn = min(min_over_time(network.cost, 10m)) BY cluster, time_bucket = TBUCKET(20, "2024-05-10T00:00:00Z", "2024-05-10T01:00:00Z")
+| SORT time_bucket, cluster
+| LIMIT 15;
+
+mn:double | cluster:keyword | time_bucket:datetime
+1.0       | prod            | 2024-05-10T00:00:00.000Z
+1.25      | qa              | 2024-05-10T00:00:00.000Z
+2.5       | staging         | 2024-05-10T00:00:00.000Z
+0.625     | prod            | 2024-05-10T00:03:00.000Z
+1.25      | qa              | 2024-05-10T00:03:00.000Z
+0.375     | staging         | 2024-05-10T00:03:00.000Z
+0.625     | prod            | 2024-05-10T00:06:00.000Z
+1.0       | qa              | 2024-05-10T00:06:00.000Z
+0.375     | staging         | 2024-05-10T00:06:00.000Z
+0.625     | prod            | 2024-05-10T00:09:00.000Z
+1.0       | qa              | 2024-05-10T00:09:00.000Z
+0.375     | staging         | 2024-05-10T00:09:00.000Z
+0.875     | prod            | 2024-05-10T00:12:00.000Z
+1.0       | qa              | 2024-05-10T00:12:00.000Z
+0.0       | staging         | 2024-05-10T00:12:00.000Z
+;
+
 min_over_time_of_long_grouping
 required_capability: ts_command_v0
 TS k8s | STATS bytes_in = sum(min_over_time(network.bytes_in)) BY cluster, time_bucket = bucket(@timestamp,1minute) | SORT bytes_in DESC, time_bucket | LIMIT 10;

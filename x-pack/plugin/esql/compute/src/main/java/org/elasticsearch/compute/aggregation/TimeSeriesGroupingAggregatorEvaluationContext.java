@@ -15,7 +15,6 @@ import org.elasticsearch.index.mapper.DateFieldMapper;
 
 import java.time.Duration;
 import java.util.function.IntConsumer;
-import java.util.function.LongConsumer;
 
 public abstract class TimeSeriesGroupingAggregatorEvaluationContext extends GroupingAggregatorEvaluationContext {
     private IntVector allGroupIds;
@@ -54,7 +53,7 @@ public abstract class TimeSeriesGroupingAggregatorEvaluationContext extends Grou
      * treat the effective interval as {@code [rangeStartInMillis, rangeEndInMillis)}.
      *
      * @param groupId the group ID
-     * @return the evaluation window start in milliseconds (inclusive)
+     * @return the start of the time range in milliseconds (inclusive)
      */
     public abstract long rangeStartInMillis(int groupId);
 
@@ -65,28 +64,14 @@ public abstract class TimeSeriesGroupingAggregatorEvaluationContext extends Grou
     public abstract long rangeEndInMillis(int groupId);
 
     /**
-     * Calls {@code action} for each group ID that participates in the specified window anchored at
-     * {@code startingGroupId}. The traversal order follows time order for the effective bucket semantics,
-     * and the starting group ID is included.
+     * Calls {@code action} for each group ID in the window starting with {@code startingGroupId}.
+     * Groups are ordered by time, and the starting group ID is included.
      *
      * @param startingGroupId the starting group ID
      * @param window          the window duration
      * @param action          called for each group ID within the window
      */
     public abstract void forEachGroupInWindow(int startingGroupId, Duration window, IntConsumer action);
-
-    /**
-     * Calls {@code action} for each extra bucket key whose window includes {@code groupId}.
-     *
-     * Used to materialize missing buckets before final time-series aggregation so windowed
-     * results match sliding-window evaluation over the raw input.
-     *
-     * @param groupId source group to expand
-     * @param window rolling window size
-     * @param tsBlockHash block hash used for bucket bounds
-     * @param action called for each extra bucket key
-     */
-    public abstract void forEachBucketInWindow(long groupId, Duration window, TimeSeriesBlockHash tsBlockHash, LongConsumer action);
 
     public abstract int previousGroupId(int currentGroupId);
 

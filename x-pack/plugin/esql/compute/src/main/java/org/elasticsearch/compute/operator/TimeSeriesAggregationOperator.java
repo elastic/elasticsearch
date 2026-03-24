@@ -39,7 +39,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.IntConsumer;
-import java.util.function.LongConsumer;
 import java.util.function.Supplier;
 
 import static java.util.stream.Collectors.joining;
@@ -387,16 +386,17 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
         }
         this.numGroupsBeforeExpanding = Math.toIntExact(numGroups);
         this.expandingGroups = new ExpandingGroups(driverContext.bigArrays());
-        try (TimeSeriesGroupingAggregatorEvaluationContext ctx = evaluationContext(tsBlockHash)) {
-            for (long groupId = 0; groupId < numGroups; groupId++) {
-                final int originalGroupId = Math.toIntExact(groupId);
-                int tsid = tsBlockHash.tsidForGroup(groupId);
-                LongConsumer action = candidateBucket -> {
-                    if (tsBlockHash.addExtraGroup(tsid, candidateBucket) >= 0) {
-                        expandingGroups.addGroup(originalGroupId);
-                    }
-                };
-                ctx.forEachBucketInWindow(groupId, window, tsBlockHash, action);
+        for (long groupId = 0; groupId < numGroups; groupId++) {
+            int tsid = tsBlockHash.tsidForGroup(groupId);
+            long endTimestamp = tsBlockHash.timestampForGroup(groupId);
+            long bucket = optimizedTimeBucket.nextRoundingValue(endTimestamp - timeResolution.convert(largestWindowMillis()));
+            bucket = Math.max(bucket, tsBlockHash.minTimestamp());
+            // Fill the missing buckets between (timestamp - window, timestamp)
+            while (bucket < endTimestamp) {
+                if (tsBlockHash.addExtraGroup(tsid, bucket) >= 0) {
+                    expandingGroups.addGroup(Math.toIntExact(groupId));
+                }
+                bucket = optimizedTimeBucket.nextRoundingValue(bucket);
             }
         }
     }
@@ -527,36 +527,19 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
                 IntArray prevGroupIds;
                 IntArray nextGroupIds;
 
-                @Override
-                public long rangeStartInMillis(int groupId) {
-                    long bucketTsMillis = tsBlockHash.timestampForGroup(groupId);
-                    return roundedBucketKeyInMillis(bucketTsMillis, timeResolution);
-                }
-
-                @Override
-                public long rangeEndInMillis(int groupId) {
-                    long bucketTsMillis = tsBlockHash.timestampForGroup(groupId);
-                    long roundedBucketTsMillis = roundedBucketKeyInMillis(bucketTsMillis, timeResolution);
-                    return nextBucketKey(roundedBucketTsMillis, timeBucketRounding);
-                }
-
-                @Override
-                public void forEachGroupInWindow(int startingGroupId, Duration window, IntConsumer action) {
-                    int tsid = tsBlockHash.tsidForGroup(startingGroupId);
-                    long bucket = tsBlockHash.timestampForGroup(startingGroupId);
-                    action.accept(startingGroupId);
-                    LongConsumer action1 = candidateBucket -> {
-                        long groupId = tsBlockHash.getGroupId(tsid, candidateBucket);
-                        if (groupId != -1) {
-                            action.accept(Math.toIntExact(groupId));
-                        }
-                    };
-                    long nextBucket = bucket;
-                    long endTimestamp = bucket + windowInBucketResolution(window.toMillis(), timeResolution);
-                    while ((nextBucket = nextBucketKey(nextBucket, timeBucketRounding)) < endTimestamp) {
-                        action1.accept(nextBucket);
+            @Override
+            public void forEachGroupInWindow(int startingGroupId, Duration window, IntConsumer action) {
+                int tsid = tsBlockHash.tsidForGroup(startingGroupId);
+                long bucket = tsBlockHash.timestampForGroup(startingGroupId);
+                action.accept(startingGroupId);
+                long endTimestamp = bucket + timeResolution.convert(window.toMillis());
+                while ((bucket = optimizedTimeBucket.nextRoundingValue(bucket)) < endTimestamp) {
+                    long nextGroupId = tsBlockHash.getGroupId(tsid, bucket);
+                    if (nextGroupId != -1) {
+                        action.accept(Math.toIntExact(nextGroupId));
                     }
                 }
+            }
 
                 @Override
                 public void forEachBucketInWindow(long groupId, Duration window, TimeSeriesBlockHash windowBlockHash, LongConsumer action) {

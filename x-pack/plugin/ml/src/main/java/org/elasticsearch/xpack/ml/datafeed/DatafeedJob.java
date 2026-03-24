@@ -463,7 +463,7 @@ class DatafeedJob {
                 dataExtractor.isCancelled()
             );
 
-            CrossProjectSearchStats.CycleResult scopeChange = updateCrossProjectSearchStats(linkedClusterStates);
+            CrossProjectSearchStats.ScopeChangeResult scopeChange = updateCrossProjectSearchStats(linkedClusterStates);
 
             // We can now throw any stored error as we have updated time.
             if (error != null) {
@@ -494,26 +494,26 @@ class DatafeedJob {
     }
 
     /**
-     * Updates cross-project search stats with linked project states from this cycle.
+     * Updates cross-project search stats with linked cluster states from this cycle.
      * If a scope change is confirmed, persists an annotation and emits a warning.
      *
      * @return the scope change result if one was confirmed this cycle, or {@code null}
      */
     @Nullable
-    private CrossProjectSearchStats.CycleResult updateCrossProjectSearchStats(List<LinkedClusterState> linkedClusterStates) {
-        CrossProjectSearchStats.CycleResult cycleResult = crossProjectSearchStats.update(linkedClusterStates);
-        if (cycleResult.scopeChanged()) {
-            String message = CrossProjectSearchStats.buildScopeChangeMessage(cycleResult);
+    private CrossProjectSearchStats.ScopeChangeResult updateCrossProjectSearchStats(List<LinkedClusterState> linkedClusterStates) {
+        CrossProjectSearchStats.ScopeChangeResult scopeChangeResult = crossProjectSearchStats.update(linkedClusterStates);
+        if (scopeChangeResult.scopeChanged()) {
+            String message = CrossProjectSearchStats.buildScopeChangeMessage(scopeChangeResult);
             LOGGER.info("[{}] {}", jobId, message);
             auditor.warning(jobId, message);
-            persistScopeChangeAnnotation(cycleResult, message);
-            return cycleResult;
+            persistScopeChangeAnnotation(scopeChangeResult, message);
+            return scopeChangeResult;
         }
         return null;
     }
 
-    private void persistScopeChangeAnnotation(CrossProjectSearchStats.CycleResult cycleResult, String message) {
-        Date changeTime = Date.from(cycleResult.changeTimestamp());
+    private void persistScopeChangeAnnotation(CrossProjectSearchStats.ScopeChangeResult scopeChangeResult, String message) {
+        Date changeTime = Date.from(scopeChangeResult.changeTimestamp());
         Date now = new Date(currentTimeSupplier.get());
         Annotation annotation = new Annotation.Builder().setAnnotation(message)
             .setCreateTime(now)
@@ -524,7 +524,7 @@ class DatafeedJob {
             .setModifiedTime(now)
             .setModifiedUsername(InternalUsers.XPACK_USER.principal())
             .setType(Annotation.Type.ANNOTATION)
-            .setEvent(Annotation.Event.PROJECT_SCOPE_CHANGED)
+            .setEvent(Annotation.Event.SEARCH_SCOPE_CHANGED)
             .build();
         annotationPersister.persistAnnotation(null, annotation);
     }
@@ -535,7 +535,7 @@ class DatafeedJob {
      * elevated anomaly scores (>= 75). If found, emits a warning correlating the anomalies
      * with the scope change.
      */
-    private void checkForAnomaliesAfterScopeChange(CrossProjectSearchStats.CycleResult scopeChange) {
+    private void checkForAnomaliesAfterScopeChange(CrossProjectSearchStats.ScopeChangeResult scopeChange) {
         try {
             GetBucketsAction.Request request = new GetBucketsAction.Request(jobId);
             request.setStart(String.valueOf(scopeChange.changeTimestamp().toEpochMilli()));
@@ -566,9 +566,9 @@ class DatafeedJob {
         }
     }
 
-    private static String buildScopeChangeSummary(CrossProjectSearchStats.CycleResult result) {
-        String linked = String.join(", ", new TreeSet<>(result.newlyStabilizedProjects()));
-        String unlinked = String.join(", ", new TreeSet<>(result.confirmedRemovals()));
+    private static String buildScopeChangeSummary(CrossProjectSearchStats.ScopeChangeResult result) {
+        String linked = String.join(", ", new TreeSet<>(result.confirmedLinks()));
+        String unlinked = String.join(", ", new TreeSet<>(result.confirmedUnlinks()));
         if (linked.isEmpty() == false && unlinked.isEmpty() == false) {
             return linked + " linked; " + unlinked + " unlinked";
         } else if (linked.isEmpty() == false) {

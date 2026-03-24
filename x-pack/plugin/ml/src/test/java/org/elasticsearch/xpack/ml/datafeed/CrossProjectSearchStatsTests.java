@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.ml.datafeed;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.ml.datafeed.CrossProjectSearchStats.CycleResult;
+import org.elasticsearch.xpack.ml.datafeed.CrossProjectSearchStats.ScopeChangeResult;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -45,26 +45,26 @@ public class CrossProjectSearchStatsTests extends ESTestCase {
         AtomicReference<Instant> clock = new AtomicReference<>(Instant.now());
         CrossProjectSearchStats stats = new CrossProjectSearchStats(clock::get);
 
-        CycleResult result = stats.update(List.of());
+        ScopeChangeResult result = stats.update(List.of());
 
         assertFalse(result.scopeChanged());
-        assertThat(result.newlyStabilizedProjects(), equalTo(Set.of()));
-        assertThat(result.confirmedRemovals(), equalTo(Set.of()));
+        assertThat(result.confirmedLinks(), equalTo(Set.of()));
+        assertThat(result.confirmedUnlinks(), equalTo(Set.of()));
         assertThat(result.changeTimestamp(), nullValue());
-        assertThat(stats.getTotalProjects(), equalTo(0));
+        assertThat(stats.getTotalClusters(), equalTo(0));
     }
 
     public void testFirstCycleEstablishesBaseline() {
         AtomicReference<Instant> clock = new AtomicReference<>(Instant.now());
         CrossProjectSearchStats stats = new CrossProjectSearchStats(clock::get);
 
-        CycleResult result = stats.update(List.of(available("origin"), available("P1"), available("P2")));
+        ScopeChangeResult result = stats.update(List.of(available("origin"), available("P1"), available("P2")));
 
         assertFalse(result.scopeChanged());
-        assertThat(stats.getStabilizedProjectAliases(), containsInAnyOrder("origin", "P1", "P2"));
-        assertThat(stats.getTotalProjects(), equalTo(3));
-        assertThat(stats.getAvailableProjects(), equalTo(3));
-        assertThat(stats.getSkippedProjects(), equalTo(0));
+        assertThat(stats.getConfirmedAliases(), containsInAnyOrder("origin", "P1", "P2"));
+        assertThat(stats.getTotalClusters(), equalTo(3));
+        assertThat(stats.getAvailableClusters(), equalTo(3));
+        assertThat(stats.getSkippedClusters(), equalTo(0));
         assertThat(stats.getAvailabilityRatio(), closeTo(1.0, 0.001));
     }
 
@@ -76,17 +76,17 @@ public class CrossProjectSearchStatsTests extends ESTestCase {
 
         for (int i = 1; i <= 11; i++) {
             clock.set(Instant.EPOCH.plus(ONE_MINUTE.multipliedBy(i)));
-            CycleResult result = stats.update(List.of(available("origin"), available("P1"), available("P3")));
+            ScopeChangeResult result = stats.update(List.of(available("origin"), available("P1"), available("P3")));
             assertFalse("Cycle " + i + " should not trigger stabilization", result.scopeChanged());
         }
 
         clock.set(Instant.EPOCH.plus(ONE_MINUTE.multipliedBy(12)));
-        CycleResult result = stats.update(List.of(available("origin"), available("P1"), available("P3")));
+        ScopeChangeResult result = stats.update(List.of(available("origin"), available("P1"), available("P3")));
 
         assertTrue(result.scopeChanged());
-        assertThat(result.newlyStabilizedProjects(), equalTo(Set.of("P3")));
-        assertThat(result.confirmedRemovals(), equalTo(Set.of()));
-        assertThat(stats.getStabilizedProjectAliases(), containsInAnyOrder("origin", "P1", "P3"));
+        assertThat(result.confirmedLinks(), equalTo(Set.of("P3")));
+        assertThat(result.confirmedUnlinks(), equalTo(Set.of()));
+        assertThat(stats.getConfirmedAliases(), containsInAnyOrder("origin", "P1", "P3"));
     }
 
     public void testUnlinkingRequires12ConsecutiveCycles() {
@@ -97,17 +97,17 @@ public class CrossProjectSearchStatsTests extends ESTestCase {
 
         for (int i = 1; i <= 11; i++) {
             clock.set(Instant.EPOCH.plus(ONE_MINUTE.multipliedBy(i)));
-            CycleResult result = stats.update(List.of(available("origin"), available("P1")));
+            ScopeChangeResult result = stats.update(List.of(available("origin"), available("P1")));
             assertFalse("Cycle " + i + " should not trigger removal", result.scopeChanged());
         }
 
         clock.set(Instant.EPOCH.plus(ONE_MINUTE.multipliedBy(12)));
-        CycleResult result = stats.update(List.of(available("origin"), available("P1")));
+        ScopeChangeResult result = stats.update(List.of(available("origin"), available("P1")));
 
         assertTrue(result.scopeChanged());
-        assertThat(result.confirmedRemovals(), equalTo(Set.of("P2")));
-        assertThat(result.newlyStabilizedProjects(), equalTo(Set.of()));
-        assertThat(stats.getStabilizedProjectAliases(), containsInAnyOrder("origin", "P1"));
+        assertThat(result.confirmedUnlinks(), equalTo(Set.of("P2")));
+        assertThat(result.confirmedLinks(), equalTo(Set.of()));
+        assertThat(stats.getConfirmedAliases(), containsInAnyOrder("origin", "P1"));
     }
 
     public void testLinkingTimeFloorPreventsEarlyStabilization() {
@@ -122,15 +122,15 @@ public class CrossProjectSearchStatsTests extends ESTestCase {
 
         for (int i = 2; i <= 12; i++) {
             clock.set(Instant.EPOCH.plusSeconds(i * 10));
-            CycleResult result = stats.update(List.of(available("origin"), available("P1")));
+            ScopeChangeResult result = stats.update(List.of(available("origin"), available("P1")));
             assertFalse("Should not stabilize before 5 minutes even with 12+ cycles", result.scopeChanged());
         }
 
         clock.set(firstSeen.plus(Duration.ofMinutes(5)));
-        CycleResult result = stats.update(List.of(available("origin"), available("P1")));
+        ScopeChangeResult result = stats.update(List.of(available("origin"), available("P1")));
 
         assertTrue(result.scopeChanged());
-        assertThat(result.newlyStabilizedProjects(), equalTo(Set.of("P1")));
+        assertThat(result.confirmedLinks(), equalTo(Set.of("P1")));
     }
 
     public void testUnlinkingTimeFloorPreventsEarlyStabilization() {
@@ -145,15 +145,15 @@ public class CrossProjectSearchStatsTests extends ESTestCase {
 
         for (int i = 2; i <= 12; i++) {
             clock.set(Instant.EPOCH.plusSeconds(i * 10));
-            CycleResult result = stats.update(List.of(available("origin")));
+            ScopeChangeResult result = stats.update(List.of(available("origin")));
             assertFalse("Should not confirm removal before 5 minutes even with 12+ cycles", result.scopeChanged());
         }
 
         clock.set(firstAbsent.plus(Duration.ofMinutes(5)));
-        CycleResult result = stats.update(List.of(available("origin")));
+        ScopeChangeResult result = stats.update(List.of(available("origin")));
 
         assertTrue(result.scopeChanged());
-        assertThat(result.confirmedRemovals(), equalTo(Set.of("P1")));
+        assertThat(result.confirmedUnlinks(), equalTo(Set.of("P1")));
     }
 
     public void testLinkingPresenceGapResetsCounter() {
@@ -172,15 +172,15 @@ public class CrossProjectSearchStatsTests extends ESTestCase {
 
         for (int i = 7; i <= 17; i++) {
             clock.set(Instant.EPOCH.plus(ONE_MINUTE.multipliedBy(i)));
-            CycleResult result = stats.update(List.of(available("origin"), available("P3")));
+            ScopeChangeResult result = stats.update(List.of(available("origin"), available("P3")));
             assertFalse("Cycle " + i + " after reset should not yet stabilize", result.scopeChanged());
         }
 
         clock.set(Instant.EPOCH.plus(ONE_MINUTE.multipliedBy(18)));
-        CycleResult result = stats.update(List.of(available("origin"), available("P3")));
+        ScopeChangeResult result = stats.update(List.of(available("origin"), available("P3")));
 
         assertTrue(result.scopeChanged());
-        assertThat(result.newlyStabilizedProjects(), equalTo(Set.of("P3")));
+        assertThat(result.confirmedLinks(), equalTo(Set.of("P3")));
         assertThat(result.changeTimestamp(), equalTo(Instant.EPOCH.plus(ONE_MINUTE.multipliedBy(7))));
     }
 
@@ -200,15 +200,15 @@ public class CrossProjectSearchStatsTests extends ESTestCase {
 
         for (int i = 7; i <= 17; i++) {
             clock.set(Instant.EPOCH.plus(ONE_MINUTE.multipliedBy(i)));
-            CycleResult result = stats.update(List.of(available("origin")));
+            ScopeChangeResult result = stats.update(List.of(available("origin")));
             assertFalse("Cycle " + i + " after reset should not yet confirm removal", result.scopeChanged());
         }
 
         clock.set(Instant.EPOCH.plus(ONE_MINUTE.multipliedBy(18)));
-        CycleResult result = stats.update(List.of(available("origin")));
+        ScopeChangeResult result = stats.update(List.of(available("origin")));
 
         assertTrue(result.scopeChanged());
-        assertThat(result.confirmedRemovals(), equalTo(Set.of("P2")));
+        assertThat(result.confirmedUnlinks(), equalTo(Set.of("P2")));
         assertThat(result.changeTimestamp(), equalTo(Instant.EPOCH.plus(ONE_MINUTE.multipliedBy(7))));
     }
 
@@ -221,11 +221,11 @@ public class CrossProjectSearchStatsTests extends ESTestCase {
         for (int i = 1; i <= 24; i++) {
             clock.set(Instant.EPOCH.plus(ONE_MINUTE.multipliedBy(i)));
             List<LinkedClusterState> cycle = (i % 2 == 1) ? List.of(available("origin"), available("P3")) : List.of(available("origin"));
-            CycleResult result = stats.update(cycle);
+            ScopeChangeResult result = stats.update(cycle);
             assertFalse("Flip-flap cycle " + i + " should never confirm", result.scopeChanged());
         }
 
-        assertThat(stats.getStabilizedProjectAliases(), equalTo(Set.of("origin")));
+        assertThat(stats.getConfirmedAliases(), equalTo(Set.of("origin")));
     }
 
     public void testUnlinkingFlipFlapProducesNoConfirmation() {
@@ -237,11 +237,11 @@ public class CrossProjectSearchStatsTests extends ESTestCase {
         for (int i = 1; i <= 24; i++) {
             clock.set(Instant.EPOCH.plus(ONE_MINUTE.multipliedBy(i)));
             List<LinkedClusterState> cycle = (i % 2 == 1) ? List.of(available("origin")) : List.of(available("origin"), available("P2"));
-            CycleResult result = stats.update(cycle);
+            ScopeChangeResult result = stats.update(cycle);
             assertFalse("Flip-flap cycle " + i + " should never confirm", result.scopeChanged());
         }
 
-        assertThat(stats.getStabilizedProjectAliases(), containsInAnyOrder("origin", "P2"));
+        assertThat(stats.getConfirmedAliases(), containsInAnyOrder("origin", "P2"));
     }
 
     public void testSimultaneousLinkingAndUnlinking() {
@@ -260,12 +260,12 @@ public class CrossProjectSearchStatsTests extends ESTestCase {
         }
 
         clock.set(Instant.EPOCH.plus(ONE_MINUTE.multipliedBy(12)));
-        CycleResult result = stats.update(List.of(available("origin"), available("P1"), available("P3")));
+        ScopeChangeResult result = stats.update(List.of(available("origin"), available("P1"), available("P3")));
 
         assertTrue(result.scopeChanged());
-        assertThat(result.newlyStabilizedProjects(), equalTo(Set.of("P3")));
-        assertThat(result.confirmedRemovals(), equalTo(Set.of("P2")));
-        assertThat(stats.getStabilizedProjectAliases(), containsInAnyOrder("origin", "P1", "P3"));
+        assertThat(result.confirmedLinks(), equalTo(Set.of("P3")));
+        assertThat(result.confirmedUnlinks(), equalTo(Set.of("P2")));
+        assertThat(stats.getConfirmedAliases(), containsInAnyOrder("origin", "P1", "P3"));
         assertThat(result.changeTimestamp(), equalTo(firstChangeTime));
     }
 
@@ -281,11 +281,11 @@ public class CrossProjectSearchStatsTests extends ESTestCase {
         }
 
         clock.set(Instant.EPOCH.plus(ONE_MINUTE.multipliedBy(12)));
-        CycleResult result = stats.update(List.of(available("origin"), available("P1"), available("P2"), available("P3")));
+        ScopeChangeResult result = stats.update(List.of(available("origin"), available("P1"), available("P2"), available("P3")));
 
         assertTrue(result.scopeChanged());
-        assertThat(result.newlyStabilizedProjects(), containsInAnyOrder("P1", "P2", "P3"));
-        assertThat(stats.getStabilizedProjectAliases(), containsInAnyOrder("origin", "P1", "P2", "P3"));
+        assertThat(result.confirmedLinks(), containsInAnyOrder("P1", "P2", "P3"));
+        assertThat(stats.getConfirmedAliases(), containsInAnyOrder("origin", "P1", "P2", "P3"));
     }
 
     public void testSingleProjectDatafeed() {
@@ -293,12 +293,12 @@ public class CrossProjectSearchStatsTests extends ESTestCase {
         CrossProjectSearchStats stats = new CrossProjectSearchStats(clock::get);
 
         stats.update(List.of(available("origin")));
-        assertThat(stats.getStabilizedProjectAliases(), equalTo(Set.of("origin")));
+        assertThat(stats.getConfirmedAliases(), equalTo(Set.of("origin")));
         assertThat(stats.getAvailabilityRatio(), closeTo(1.0, 0.001));
 
         for (int i = 1; i <= 12; i++) {
             clock.set(Instant.EPOCH.plus(ONE_MINUTE.multipliedBy(i)));
-            CycleResult result = stats.update(List.of(available("origin")));
+            ScopeChangeResult result = stats.update(List.of(available("origin")));
             assertFalse(result.scopeChanged());
         }
     }
@@ -315,12 +315,12 @@ public class CrossProjectSearchStatsTests extends ESTestCase {
         }
 
         clock.set(Instant.EPOCH.plus(ONE_MINUTE.multipliedBy(12)));
-        CycleResult result = stats.update(List.of(available("origin"), skipped("P1"), available("P2")));
+        ScopeChangeResult result = stats.update(List.of(available("origin"), skipped("P1"), available("P2")));
 
         assertTrue(result.scopeChanged());
-        assertThat(result.newlyStabilizedProjects(), equalTo(Set.of("P2")));
-        assertThat(result.confirmedRemovals(), equalTo(Set.of()));
-        assertThat(stats.getStabilizedProjectAliases(), containsInAnyOrder("origin", "P1", "P2"));
+        assertThat(result.confirmedLinks(), equalTo(Set.of("P2")));
+        assertThat(result.confirmedUnlinks(), equalTo(Set.of()));
+        assertThat(stats.getConfirmedAliases(), containsInAnyOrder("origin", "P1", "P2"));
     }
 
     public void testFailedProjectCountsAsPresent() {
@@ -331,11 +331,11 @@ public class CrossProjectSearchStatsTests extends ESTestCase {
 
         for (int i = 1; i <= 12; i++) {
             clock.set(Instant.EPOCH.plus(ONE_MINUTE.multipliedBy(i)));
-            CycleResult result = stats.update(List.of(available("origin"), failed("P1")));
+            ScopeChangeResult result = stats.update(List.of(available("origin"), failed("P1")));
             assertFalse(result.scopeChanged());
         }
 
-        assertThat(stats.getStabilizedProjectAliases(), containsInAnyOrder("origin", "P1"));
+        assertThat(stats.getConfirmedAliases(), containsInAnyOrder("origin", "P1"));
     }
 
     public void testConsecutiveSkipsTracking() {
@@ -346,15 +346,15 @@ public class CrossProjectSearchStatsTests extends ESTestCase {
 
         clock.set(Instant.EPOCH.plus(ONE_MINUTE));
         stats.update(List.of(available("origin"), skipped("P1")));
-        assertThat(stats.getConsecutiveSkips(), hasEntry("P1", 1));
+        assertThat(stats.getConsecutiveUnavailable(), hasEntry("P1", 1));
 
         clock.set(Instant.EPOCH.plus(ONE_MINUTE.multipliedBy(2)));
         stats.update(List.of(available("origin"), skipped("P1")));
-        assertThat(stats.getConsecutiveSkips(), hasEntry("P1", 2));
+        assertThat(stats.getConsecutiveUnavailable(), hasEntry("P1", 2));
 
         clock.set(Instant.EPOCH.plus(ONE_MINUTE.multipliedBy(3)));
         stats.update(List.of(available("origin"), available("P1")));
-        assertThat(stats.getConsecutiveSkips(), hasEntry("P1", 0));
+        assertThat(stats.getConsecutiveUnavailable(), hasEntry("P1", 0));
     }
 
     public void testAvailabilityRatioUpdatesPerCycle() {
@@ -366,9 +366,9 @@ public class CrossProjectSearchStatsTests extends ESTestCase {
 
         clock.set(Instant.EPOCH.plus(ONE_MINUTE));
         stats.update(List.of(available("origin"), skipped("P1"), available("P2"), available("P3"), available("P4")));
-        assertThat(stats.getTotalProjects(), equalTo(5));
-        assertThat(stats.getAvailableProjects(), equalTo(4));
-        assertThat(stats.getSkippedProjects(), equalTo(1));
+        assertThat(stats.getTotalClusters(), equalTo(5));
+        assertThat(stats.getAvailableClusters(), equalTo(4));
+        assertThat(stats.getSkippedClusters(), equalTo(1));
         assertThat(stats.getAvailabilityRatio(), closeTo(0.8, 0.001));
     }
 
@@ -379,11 +379,11 @@ public class CrossProjectSearchStatsTests extends ESTestCase {
         stats.update(List.of(available("origin")));
 
         Instant firstSeen = Instant.EPOCH.plus(ONE_MINUTE);
-        CycleResult confirmedResult = null;
+        ScopeChangeResult confirmedResult = null;
 
         for (int i = 1; i <= 12; i++) {
             clock.set(Instant.EPOCH.plus(ONE_MINUTE.multipliedBy(i)));
-            CycleResult result = stats.update(List.of(available("origin"), available("P1")));
+            ScopeChangeResult result = stats.update(List.of(available("origin"), available("P1")));
             if (result.scopeChanged()) {
                 confirmedResult = result;
                 break;
@@ -403,10 +403,10 @@ public class CrossProjectSearchStatsTests extends ESTestCase {
 
         Instant p1AbsentStart = Instant.EPOCH.plus(ONE_MINUTE);
 
-        CycleResult confirmedResult = null;
+        ScopeChangeResult confirmedResult = null;
         for (int i = 1; i <= 13; i++) {
             clock.set(Instant.EPOCH.plus(ONE_MINUTE.multipliedBy(i)));
-            CycleResult result = stats.update(List.of(available("origin"), available("P2")));
+            ScopeChangeResult result = stats.update(List.of(available("origin"), available("P2")));
             if (result.scopeChanged()) {
                 confirmedResult = result;
                 break;
@@ -415,8 +415,8 @@ public class CrossProjectSearchStatsTests extends ESTestCase {
 
         assertThat(confirmedResult, notNullValue());
         assertTrue(confirmedResult.scopeChanged());
-        assertThat(confirmedResult.newlyStabilizedProjects(), equalTo(Set.of("P2")));
-        assertThat(confirmedResult.confirmedRemovals(), equalTo(Set.of("P1")));
+        assertThat(confirmedResult.confirmedLinks(), equalTo(Set.of("P2")));
+        assertThat(confirmedResult.confirmedUnlinks(), equalTo(Set.of("P1")));
         assertThat(confirmedResult.changeTimestamp(), equalTo(p1AbsentStart));
     }
 
@@ -428,7 +428,7 @@ public class CrossProjectSearchStatsTests extends ESTestCase {
 
         for (int i = 1; i <= 20; i++) {
             clock.set(Instant.EPOCH.plus(ONE_MINUTE.multipliedBy(i)));
-            CycleResult result = stats.update(List.of(available("origin"), available("P1"), available("P2")));
+            ScopeChangeResult result = stats.update(List.of(available("origin"), available("P1"), available("P2")));
             assertFalse(result.scopeChanged());
         }
     }
@@ -442,7 +442,7 @@ public class CrossProjectSearchStatsTests extends ESTestCase {
         int confirmedAtCycle = -1;
         for (int i = 1; i <= 13; i++) {
             clock.set(Instant.EPOCH.plus(ONE_MINUTE.multipliedBy(i)));
-            CycleResult result = stats.update(List.of(available("origin"), available("P1")));
+            ScopeChangeResult result = stats.update(List.of(available("origin"), available("P1")));
             if (result.scopeChanged()) {
                 confirmedAtCycle = i;
                 break;
@@ -452,7 +452,7 @@ public class CrossProjectSearchStatsTests extends ESTestCase {
 
         for (int i = confirmedAtCycle + 1; i <= confirmedAtCycle + 10; i++) {
             clock.set(Instant.EPOCH.plus(ONE_MINUTE.multipliedBy(i)));
-            CycleResult result = stats.update(List.of(available("origin"), available("P1")));
+            ScopeChangeResult result = stats.update(List.of(available("origin"), available("P1")));
             assertFalse("Post-confirmation cycle " + i + " should not re-trigger", result.scopeChanged());
         }
     }
@@ -463,7 +463,7 @@ public class CrossProjectSearchStatsTests extends ESTestCase {
 
         stats.update(List.of(available("origin"), available("P1")));
 
-        Set<String> aliases = stats.getStabilizedProjectAliases();
+        Set<String> aliases = stats.getConfirmedAliases();
         expectThrows(UnsupportedOperationException.class, () -> aliases.add("hacked"));
     }
 
@@ -473,7 +473,7 @@ public class CrossProjectSearchStatsTests extends ESTestCase {
 
         stats.update(List.of(available("origin"), skipped("P1")));
 
-        var skips = stats.getConsecutiveSkips();
+        var skips = stats.getConsecutiveUnavailable();
         expectThrows(UnsupportedOperationException.class, () -> skips.put("hacked", 99));
     }
 
@@ -486,10 +486,10 @@ public class CrossProjectSearchStatsTests extends ESTestCase {
         for (int i = 1; i <= 30; i++) {
             clock.set(Instant.EPOCH.plus(ONE_MINUTE.multipliedBy(i)));
             List<LinkedClusterState> cycle = (i % 3 == 0) ? List.of(available("origin")) : List.of(available("origin"), available("P1"));
-            CycleResult result = stats.update(cycle);
+            ScopeChangeResult result = stats.update(cycle);
             assertFalse("Fluctuating cycle " + i + " should not confirm", result.scopeChanged());
         }
-        assertThat(stats.getStabilizedProjectAliases(), equalTo(Set.of("origin")));
+        assertThat(stats.getConfirmedAliases(), equalTo(Set.of("origin")));
     }
 
     public void testSimultaneousLinkingAndUnlinkingWithDifferentStartTimes() {
@@ -514,19 +514,19 @@ public class CrossProjectSearchStatsTests extends ESTestCase {
 
         // At t=12, P2 stabilizes
         clock.set(Instant.EPOCH.plus(ONE_MINUTE.multipliedBy(12)));
-        CycleResult result1 = stats.update(List.of(available("origin"), available("P2")));
+        ScopeChangeResult result1 = stats.update(List.of(available("origin"), available("P2")));
         assertTrue(result1.scopeChanged());
-        assertThat(result1.newlyStabilizedProjects(), equalTo(Set.of("P2")));
-        assertThat(result1.confirmedRemovals(), equalTo(Set.of()));
+        assertThat(result1.confirmedLinks(), equalTo(Set.of("P2")));
+        assertThat(result1.confirmedUnlinks(), equalTo(Set.of()));
 
         // At t=13, P1 is confirmed as unlinked
         clock.set(Instant.EPOCH.plus(ONE_MINUTE.multipliedBy(13)));
-        CycleResult result2 = stats.update(List.of(available("origin"), available("P2")));
+        ScopeChangeResult result2 = stats.update(List.of(available("origin"), available("P2")));
         assertTrue(result2.scopeChanged());
-        assertThat(result2.newlyStabilizedProjects(), equalTo(Set.of()));
-        assertThat(result2.confirmedRemovals(), equalTo(Set.of("P1")));
+        assertThat(result2.confirmedLinks(), equalTo(Set.of()));
+        assertThat(result2.confirmedUnlinks(), equalTo(Set.of("P1")));
 
-        assertThat(stats.getStabilizedProjectAliases(), containsInAnyOrder("origin", "P2"));
+        assertThat(stats.getConfirmedAliases(), containsInAnyOrder("origin", "P2"));
     }
 
     public void testStaleEntryCleanup() {
@@ -535,16 +535,16 @@ public class CrossProjectSearchStatsTests extends ESTestCase {
 
         // Baseline with origin and P1, where P1 is skipped
         stats.update(List.of(available("origin"), skipped("P1")));
-        assertThat(stats.getConsecutiveSkips(), hasEntry("P1", 1));
-        assertThat(stats.getConsecutiveSkips(), hasEntry("origin", 0));
+        assertThat(stats.getConsecutiveUnavailable(), hasEntry("P1", 1));
+        assertThat(stats.getConsecutiveUnavailable(), hasEntry("origin", 0));
 
         // In the next cycle, P1 is absent. Its skip entry should be removed immediately.
         clock.set(Instant.EPOCH.plus(ONE_MINUTE));
         stats.update(List.of(available("origin")));
 
         // The entry for P1 should be gone, but origin's should remain.
-        assertThat(stats.getConsecutiveSkips(), not(hasEntry("P1", 1)));
-        assertThat(stats.getConsecutiveSkips(), hasEntry("origin", 0));
+        assertThat(stats.getConsecutiveUnavailable(), not(hasEntry("P1", 1)));
+        assertThat(stats.getConsecutiveUnavailable(), hasEntry("origin", 0));
     }
 
     public void testDelayedTimeBasedStabilization() {
@@ -560,44 +560,44 @@ public class CrossProjectSearchStatsTests extends ESTestCase {
         // P1 is present for 11 more cycles, but the time floor is not met
         for (int i = 2; i <= 12; i++) {
             clock.set(firstSeen.plus(Duration.ofSeconds(i * 10)));
-            CycleResult result = stats.update(List.of(available("origin"), available("P1")));
+            ScopeChangeResult result = stats.update(List.of(available("origin"), available("P1")));
             assertFalse("Should not stabilize before 5 minutes", result.scopeChanged());
         }
 
         // Advance the clock to meet the time floor
         clock.set(firstSeen.plus(Duration.ofMinutes(5).plusSeconds(1)));
-        CycleResult result = stats.update(List.of(available("origin"), available("P1")));
+        ScopeChangeResult result = stats.update(List.of(available("origin"), available("P1")));
 
         assertTrue(result.scopeChanged());
-        assertThat(result.newlyStabilizedProjects(), equalTo(Set.of("P1")));
+        assertThat(result.confirmedLinks(), equalTo(Set.of("P1")));
     }
 
     public void testBuildScopeChangeMessageLinkingOnly() {
-        CycleResult result = new CycleResult(Set.of("P3", "P4"), Set.of(), true, Instant.EPOCH);
+        ScopeChangeResult result = new ScopeChangeResult(Set.of("P3", "P4"), Set.of(), true, Instant.EPOCH);
         String msg = CrossProjectSearchStats.buildScopeChangeMessage(result);
-        assertThat(msg, containsString("project(s) [P3, P4] linked"));
+        assertThat(msg, containsString("[P3, P4] linked"));
         assertThat(msg, containsString("new data sources"));
         assertThat(msg, not(containsString("unlinked")));
     }
 
     public void testBuildScopeChangeMessageUnlinkingOnly() {
-        CycleResult result = new CycleResult(Set.of(), Set.of("P2"), true, Instant.EPOCH);
+        ScopeChangeResult result = new ScopeChangeResult(Set.of(), Set.of("P2"), true, Instant.EPOCH);
         String msg = CrossProjectSearchStats.buildScopeChangeMessage(result);
-        assertThat(msg, containsString("project(s) [P2] unlinked"));
+        assertThat(msg, containsString("[P2] unlinked"));
         assertThat(msg, containsString("removed data sources"));
         assertThat(msg, not(containsString("linked,")));
     }
 
     public void testBuildScopeChangeMessageBothLinkingAndUnlinking() {
-        CycleResult result = new CycleResult(Set.of("P3"), Set.of("P2"), true, Instant.EPOCH);
+        ScopeChangeResult result = new ScopeChangeResult(Set.of("P3"), Set.of("P2"), true, Instant.EPOCH);
         String msg = CrossProjectSearchStats.buildScopeChangeMessage(result);
-        assertThat(msg, containsString("project(s) [P3] linked"));
-        assertThat(msg, containsString("project(s) [P2] unlinked"));
+        assertThat(msg, containsString("[P3] linked"));
+        assertThat(msg, containsString("[P2] unlinked"));
         assertThat(msg, containsString("Data distribution may have changed"));
     }
 
     public void testBuildScopeChangeMessageSortsAliases() {
-        CycleResult result = new CycleResult(Set.of("Z1", "A1", "M1"), Set.of(), true, Instant.EPOCH);
+        ScopeChangeResult result = new ScopeChangeResult(Set.of("Z1", "A1", "M1"), Set.of(), true, Instant.EPOCH);
         String msg = CrossProjectSearchStats.buildScopeChangeMessage(result);
         assertThat(msg, containsString("[A1, M1, Z1]"));
     }
@@ -611,7 +611,7 @@ public class CrossProjectSearchStatsTests extends ESTestCase {
         int confirmedAtCycle = -1;
         for (int i = 1; i <= 13; i++) {
             clock.set(Instant.EPOCH.plus(ONE_MINUTE.multipliedBy(i)));
-            CycleResult result = stats.update(List.of(available("origin")));
+            ScopeChangeResult result = stats.update(List.of(available("origin")));
             if (result.scopeChanged()) {
                 confirmedAtCycle = i;
                 break;
@@ -621,7 +621,7 @@ public class CrossProjectSearchStatsTests extends ESTestCase {
 
         for (int i = confirmedAtCycle + 1; i <= confirmedAtCycle + 10; i++) {
             clock.set(Instant.EPOCH.plus(ONE_MINUTE.multipliedBy(i)));
-            CycleResult result = stats.update(List.of(available("origin")));
+            ScopeChangeResult result = stats.update(List.of(available("origin")));
             assertFalse("Post-confirmation cycle " + i + " should not re-trigger", result.scopeChanged());
         }
     }
@@ -638,11 +638,11 @@ public class CrossProjectSearchStatsTests extends ESTestCase {
         }
 
         clock.set(Instant.EPOCH.plus(ONE_MINUTE.multipliedBy(12)));
-        CycleResult result = stats.update(List.of(available("origin")));
+        ScopeChangeResult result = stats.update(List.of(available("origin")));
 
         assertTrue(result.scopeChanged());
-        assertThat(result.confirmedRemovals(), containsInAnyOrder("P1", "P2", "P3"));
-        assertThat(stats.getStabilizedProjectAliases(), equalTo(Set.of("origin")));
+        assertThat(result.confirmedUnlinks(), containsInAnyOrder("P1", "P2", "P3"));
+        assertThat(stats.getConfirmedAliases(), equalTo(Set.of("origin")));
     }
 
     public void testMixedSkippedAndFailedStates() {
@@ -661,7 +661,7 @@ public class CrossProjectSearchStatsTests extends ESTestCase {
             stats.update(List.of(available("origin"), failed("P1")));
         }
 
-        assertThat(stats.getConsecutiveSkips(), hasEntry("P1", 12));
+        assertThat(stats.getConsecutiveUnavailable(), hasEntry("P1", 12));
     }
 
     public void testCustomStabilizationCycles() {
@@ -672,14 +672,14 @@ public class CrossProjectSearchStatsTests extends ESTestCase {
 
         for (int i = 1; i <= 2; i++) {
             clock.set(Instant.EPOCH.plus(ONE_MINUTE.multipliedBy(i)));
-            CycleResult result = stats.update(List.of(available("origin"), available("P1")));
+            ScopeChangeResult result = stats.update(List.of(available("origin"), available("P1")));
             assertFalse("Cycle " + i + " should not yet stabilize with 3-cycle threshold", result.scopeChanged());
         }
 
         clock.set(Instant.EPOCH.plus(ONE_MINUTE.multipliedBy(3)));
-        CycleResult result = stats.update(List.of(available("origin"), available("P1")));
+        ScopeChangeResult result = stats.update(List.of(available("origin"), available("P1")));
         assertTrue(result.scopeChanged());
-        assertThat(result.newlyStabilizedProjects(), equalTo(Set.of("P1")));
+        assertThat(result.confirmedLinks(), equalTo(Set.of("P1")));
     }
 
     public void testCustomStabilizationFloor() {
@@ -689,17 +689,17 @@ public class CrossProjectSearchStatsTests extends ESTestCase {
         stats.update(List.of(available("origin")));
 
         clock.set(Instant.EPOCH.plusSeconds(5));
-        CycleResult r1 = stats.update(List.of(available("origin"), available("P1")));
+        ScopeChangeResult r1 = stats.update(List.of(available("origin"), available("P1")));
         assertFalse(r1.scopeChanged());
 
         clock.set(Instant.EPOCH.plusSeconds(10));
-        CycleResult r2 = stats.update(List.of(available("origin"), available("P1")));
+        ScopeChangeResult r2 = stats.update(List.of(available("origin"), available("P1")));
         assertFalse("2 cycles met but floor of 30s not met", r2.scopeChanged());
 
         clock.set(Instant.EPOCH.plusSeconds(36));
-        CycleResult r3 = stats.update(List.of(available("origin"), available("P1")));
+        ScopeChangeResult r3 = stats.update(List.of(available("origin"), available("P1")));
         assertTrue(r3.scopeChanged());
-        assertThat(r3.newlyStabilizedProjects(), equalTo(Set.of("P1")));
+        assertThat(r3.confirmedLinks(), equalTo(Set.of("P1")));
     }
 
     public void testInvalidStabilizationCyclesThrows() {

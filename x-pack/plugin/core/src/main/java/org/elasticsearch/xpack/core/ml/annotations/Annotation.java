@@ -26,7 +26,7 @@ import java.util.Objects;
 
 public class Annotation implements ToXContentObject, Writeable {
 
-    private static final TransportVersion PROJECT_SCOPE_CHANGED_EVENT = TransportVersion.fromName(
+    private static final TransportVersion SEARCH_SCOPE_CHANGED_EVENT = TransportVersion.fromName(
         "ml_annotation_project_scope_changed_event"
     );
 
@@ -50,7 +50,7 @@ public class Annotation implements ToXContentObject, Writeable {
         MODEL_SNAPSHOT_STORED,
         MODEL_CHANGE,
         CATEGORIZATION_STATUS_CHANGE,
-        PROJECT_SCOPE_CHANGED;
+        SEARCH_SCOPE_CHANGED;
 
         public static Event fromString(String value) {
             try {
@@ -256,7 +256,7 @@ public class Annotation implements ToXContentObject, Writeable {
         out.writeOptionalString(modifiedUsername);
         out.writeString(type.toString());
         Event eventToWrite = event;
-        if (eventToWrite == Event.PROJECT_SCOPE_CHANGED && out.getTransportVersion().supports(PROJECT_SCOPE_CHANGED_EVENT) == false) {
+        if (eventToWrite == Event.SEARCH_SCOPE_CHANGED && out.getTransportVersion().supports(SEARCH_SCOPE_CHANGED_EVENT) == false) {
             eventToWrite = null;
         }
         if (eventToWrite != null) {

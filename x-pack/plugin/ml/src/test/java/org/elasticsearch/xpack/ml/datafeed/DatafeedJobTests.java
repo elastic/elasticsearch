@@ -595,7 +595,7 @@ public class DatafeedJobTests extends ESTestCase {
         assertThat(annotationBulk.requests(), hasSize(1));
         IndexRequest indexRequest = (IndexRequest) annotationBulk.requests().get(0);
         String annotationSource = indexRequest.source().utf8ToString();
-        assertThat(annotationSource, containsString("project_scope_changed"));
+        assertThat(annotationSource, containsString("search_scope_changed"));
         assertThat(annotationSource, containsString("new_project"));
 
         // Verify scope change warning was emitted
@@ -800,7 +800,7 @@ public class DatafeedJobTests extends ESTestCase {
         assertThat(annotationBulk.requests(), hasSize(1));
         IndexRequest indexRequest = (IndexRequest) annotationBulk.requests().get(0);
         String annotationSource = indexRequest.source().utf8ToString();
-        assertThat(annotationSource, containsString("project_scope_changed"));
+        assertThat(annotationSource, containsString("search_scope_changed"));
         assertThat(annotationSource, containsString("new_project"));
 
         // Scope change warning emitted, but no anomaly warning (due to the error)
@@ -848,7 +848,7 @@ public class DatafeedJobTests extends ESTestCase {
         assertThat(annotationBulk.requests(), hasSize(1));
         IndexRequest indexRequest = (IndexRequest) annotationBulk.requests().get(0);
         String annotationSource = indexRequest.source().utf8ToString();
-        assertThat(annotationSource, containsString("project_scope_changed"));
+        assertThat(annotationSource, containsString("search_scope_changed"));
         assertThat(annotationSource, containsString("departing"));
 
         // Verify the warning message references unlinking
@@ -878,10 +878,10 @@ public class DatafeedJobTests extends ESTestCase {
         // Phase 2: "flapping" disappears and stabilizes as unlinked
         for (int i = 0; i < 12; i++) {
             currentTime += 30_000;
-            CrossProjectSearchStats.CycleResult r = stats.update(withoutFlapping);
+            CrossProjectSearchStats.ScopeChangeResult r = stats.update(withoutFlapping);
             if (i == 11) {
                 assertTrue("12th cycle should confirm unlink", r.scopeChanged());
-                assertThat(r.confirmedRemovals(), equalTo(java.util.Set.of("flapping")));
+                assertThat(r.confirmedUnlinks(), equalTo(java.util.Set.of("flapping")));
             }
         }
 
@@ -911,7 +911,7 @@ public class DatafeedJobTests extends ESTestCase {
         assertThat(annotationBulk.requests(), hasSize(1));
         IndexRequest indexRequest = (IndexRequest) annotationBulk.requests().get(0);
         String annotationSource = indexRequest.source().utf8ToString();
-        assertThat(annotationSource, containsString("project_scope_changed"));
+        assertThat(annotationSource, containsString("search_scope_changed"));
         assertThat(annotationSource, containsString("flapping"));
 
         // Verify the warning message references linking (this is the relink event)

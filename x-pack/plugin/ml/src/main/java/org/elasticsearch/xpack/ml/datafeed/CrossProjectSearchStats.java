@@ -22,139 +22,151 @@ import java.util.TreeSet;
 import java.util.function.Supplier;
 
 /**
- * Per-datafeed mutable runtime state that tracks which linked projects (clusters)
- * participate in a cross-project search (CPS) datafeed across search cycles.
+ * Per-datafeed mutable runtime state that tracks which linked clusters participate
+ * in a cross-cluster / cross-project search (CCS/CPS) datafeed across search cycles.
  * <p>
- * Detects project linking (new projects appearing) and unlinking (existing projects
- * disappearing) using a symmetric dual stabilization condition: a project must be
+ * Detects cluster linking (new clusters appearing) and unlinking (existing clusters
+ * disappearing) using a symmetric dual stabilization condition: a cluster must be
  * consecutively present (or absent) for {@link #DEFAULT_STABILIZATION_CYCLES} search
- * cycles <em>and</em> at least {@link #DEFAULT_STABILIZATION_FLOOR} wall-clock time
- * must have elapsed since the state change was first observed.
+ * cycles <em>and</em> at least {@link #DEFAULT_MIN_STABILIZATION_DURATION} wall-clock
+ * time must have elapsed since the state change was first observed.
  * <p>
- * Created when the datafeed starts and discarded when it stops. On the first cycle
- * the observed project set is recorded as the baseline with no annotation.
+ * Created when the datafeed starts and discarded when it stops. On the first search
+ * cycle the observed cluster set is recorded as the baseline with no annotation.
  */
 public class CrossProjectSearchStats {
 
     public static final int DEFAULT_STABILIZATION_CYCLES = 12;
-    static final Duration DEFAULT_STABILIZATION_FLOOR = Duration.ofMinutes(5);
-    public static final TimeValue DEFAULT_STABILIZATION_FLOOR_TIMEVALUE = TimeValue.timeValueMinutes(5);
+    static final Duration DEFAULT_MIN_STABILIZATION_DURATION = Duration.ofMinutes(5);
+    public static final TimeValue DEFAULT_MIN_STABILIZATION_DURATION_TIMEVALUE = TimeValue.timeValueMinutes(5);
 
     private final Supplier<Instant> clock;
     private final int stabilizationCycles;
-    private final Duration stabilizationFloor;
+    private final Duration minStabilizationDuration;
 
-    private int totalProjects;
-    private int availableProjects;
-    private int skippedProjects;
+    private int totalClusters;
+    private int availableClusters;
+    private int skippedClusters;
     private double availabilityRatio;
     private boolean baselineEstablished;
 
-    private final Map<String, Integer> consecutiveSkips = new HashMap<>();
-    private final Map<String, StabilizationTracker> linkingCandidates = new HashMap<>();
-    private final Map<String, StabilizationTracker> unlinkingCandidates = new HashMap<>();
-    private final Set<String> stabilizedProjectAliases = new HashSet<>();
+    private final Map<String, Integer> consecutiveUnavailable = new HashMap<>();
+    private final Map<String, StabilizationTracker> pendingLinks = new HashMap<>();
+    private final Map<String, StabilizationTracker> pendingUnlinks = new HashMap<>();
+    private final Set<String> confirmedAliases = new HashSet<>();
 
     /**
      * Creates stats with production-default stabilization thresholds.
      */
     public CrossProjectSearchStats(Supplier<Instant> clock) {
-        this(clock, DEFAULT_STABILIZATION_CYCLES, DEFAULT_STABILIZATION_FLOOR);
+        this(clock, DEFAULT_STABILIZATION_CYCLES, DEFAULT_MIN_STABILIZATION_DURATION);
     }
 
     /**
      * Creates stats with configurable stabilization thresholds. Intended for integration
      * tests that need faster stabilization without waiting for production timeouts.
      *
-     * @param stabilizationCycles minimum consecutive cycles a change must persist before confirmation
-     * @param stabilizationFloor  minimum wall-clock duration since first observation before confirmation
+     * @param stabilizationCycles       minimum consecutive cycles a change must persist before confirmation
+     * @param minStabilizationDuration  minimum wall-clock duration since first observation before confirmation
      */
-    public CrossProjectSearchStats(Supplier<Instant> clock, int stabilizationCycles, Duration stabilizationFloor) {
+    public CrossProjectSearchStats(Supplier<Instant> clock, int stabilizationCycles, Duration minStabilizationDuration) {
         this.clock = Objects.requireNonNull(clock);
         if (stabilizationCycles < 1) {
             throw new IllegalArgumentException("stabilizationCycles must be >= 1, got " + stabilizationCycles);
         }
         this.stabilizationCycles = stabilizationCycles;
-        this.stabilizationFloor = Objects.requireNonNull(stabilizationFloor);
+        this.minStabilizationDuration = Objects.requireNonNull(minStabilizationDuration);
     }
 
     /**
      * Updates tracking state with the results from one search cycle and returns
-     * a {@link CycleResult} describing any confirmed scope changes.
+     * a {@link ScopeChangeResult} describing any confirmed scope changes.
      *
-     * @param cycle per-project states extracted from the latest {@code SearchResponse};
-     *              empty for non-CPS datafeeds (in which case this is a no-op)
+     * @param linkedClusterStates per-cluster states extracted from the latest {@code SearchResponse};
+     *                            empty for non-CPS datafeeds (in which case this is a no-op)
      */
-    public CycleResult update(List<LinkedClusterState> cycle) {
-        if (cycle.isEmpty()) {
-            return CycleResult.NO_CHANGE;
+    public ScopeChangeResult update(List<LinkedClusterState> linkedClusterStates) {
+        if (linkedClusterStates.isEmpty()) {
+            return ScopeChangeResult.NO_CHANGE;
         }
 
         Instant now = clock.get();
         Set<String> currentAliases = new HashSet<>();
 
-        totalProjects = cycle.size();
+        // Tally per-cluster availability for this cycle
+        totalClusters = linkedClusterStates.size();
         int available = 0;
         int skipped = 0;
 
-        for (LinkedClusterState state : cycle) {
+        for (LinkedClusterState state : linkedClusterStates) {
             currentAliases.add(state.alias());
             switch (state.status()) {
                 case AVAILABLE -> {
                     available++;
-                    consecutiveSkips.put(state.alias(), 0);
+                    consecutiveUnavailable.put(state.alias(), 0);
                 }
                 case SKIPPED -> {
                     skipped++;
-                    consecutiveSkips.merge(state.alias(), 1, Integer::sum);
+                    consecutiveUnavailable.merge(state.alias(), 1, Integer::sum);
                 }
-                case FAILED -> consecutiveSkips.merge(state.alias(), 1, Integer::sum);
+                case FAILED -> consecutiveUnavailable.merge(state.alias(), 1, Integer::sum);
             }
         }
-        availableProjects = available;
-        skippedProjects = skipped;
-        availabilityRatio = totalProjects > 0 ? (double) availableProjects / totalProjects : 0.0;
+        availableClusters = available;
+        skippedClusters = skipped;
+        availabilityRatio = totalClusters > 0 ? (double) availableClusters / totalClusters : 0.0;
 
+        // First cycle: record the baseline set with no scope change
         if (baselineEstablished == false) {
-            stabilizedProjectAliases.addAll(currentAliases);
+            confirmedAliases.addAll(currentAliases);
             baselineEstablished = true;
-            return CycleResult.NO_CHANGE;
+            return ScopeChangeResult.NO_CHANGE;
         }
 
+        // Advance pending link/unlink counters for aliases that are new or missing
         updateTracking(currentAliases, now, ConfirmationType.LINKING);
         updateTracking(currentAliases, now, ConfirmationType.UNLINKING);
 
+        // Promote any candidates that have met both the cycle and duration thresholds
         Instant[] earliest = new Instant[] { null };
-        Set<String> newlyStabilized = confirmLinking(now, earliest);
-        Set<String> confirmedRemovals = confirmUnlinking(now, earliest);
+        Set<String> confirmedLinks = confirmStabilization(now, earliest, ConfirmationType.LINKING);
+        Set<String> confirmedUnlinks = confirmStabilization(now, earliest, ConfirmationType.UNLINKING);
 
-        cleanupStaleTrackingEntries(currentAliases);
+        // Prune skip counters for clusters no longer present
+        removeStaleTrackingEntries(currentAliases);
 
-        boolean scopeChanged = newlyStabilized.isEmpty() == false || confirmedRemovals.isEmpty() == false;
+        boolean scopeChanged = confirmedLinks.isEmpty() == false || confirmedUnlinks.isEmpty() == false;
         Instant changeTimestamp = scopeChanged ? (earliest[0] != null ? earliest[0] : now) : null;
 
-        return new CycleResult(newlyStabilized, confirmedRemovals, scopeChanged, changeTimestamp);
+        return new ScopeChangeResult(confirmedLinks, confirmedUnlinks, scopeChanged, changeTimestamp);
     }
 
+    /**
+     * Advances stabilization counters for one confirmation direction (linking or unlinking).
+     * <p>
+     * For each alias that is a candidate (new for linking, missing for unlinking), either
+     * creates a new tracker or increments the existing counter. Stale candidates whose
+     * precondition is no longer met (e.g. a linking candidate that disappeared) are removed.
+     */
     private void updateTracking(Set<String> currentAliases, Instant now, ConfirmationType type) {
         Map<String, StabilizationTracker> candidates = type.getCandidates(this);
 
-        Set<String> trackable = type.getTrackableAliases(currentAliases, stabilizedProjectAliases);
-        for (String alias : trackable) {
+        Set<String> pending = type.getPendingAliases(currentAliases, confirmedAliases);
+        for (String alias : pending) {
             candidates.compute(alias, (k, v) -> (v == null) ? new StabilizationTracker(now) : v.increment());
         }
 
         type.cleanupStaleCandidates(candidates, currentAliases);
     }
 
-    private Set<String> confirmLinking(Instant now, Instant[] earliest) {
-        return confirmStabilization(now, earliest, ConfirmationType.LINKING);
-    }
-
-    private Set<String> confirmUnlinking(Instant now, Instant[] earliest) {
-        return confirmStabilization(now, earliest, ConfirmationType.UNLINKING);
-    }
-
+    /**
+     * Checks all candidates of the given type and promotes those that have met both the
+     * required cycle count and the minimum wall-clock duration. Promoted aliases are moved
+     * from the candidate map into (or out of) {@link #confirmedAliases}.
+     *
+     * @param earliest single-element array to track the earliest first-observation timestamp
+     *                 across all promoted candidates in this cycle
+     */
     private Set<String> confirmStabilization(Instant now, Instant[] earliest, ConfirmationType type) {
         Set<String> confirmed = new HashSet<>();
         var it = type.getCandidates(this).entrySet().iterator();
@@ -162,9 +174,9 @@ public class CrossProjectSearchStats {
             var entry = it.next();
             String alias = entry.getKey();
             StabilizationTracker tracker = entry.getValue();
-            if (tracker.isStabilized(now, stabilizationCycles, stabilizationFloor)) {
+            if (tracker.isStabilized(now, stabilizationCycles, minStabilizationDuration)) {
                 confirmed.add(alias);
-                type.updateStabilizedSet(stabilizedProjectAliases, alias);
+                type.updateConfirmedSet(confirmedAliases, alias);
                 updateEarliest(earliest, tracker.firstEvent());
                 it.remove();
             }
@@ -179,47 +191,47 @@ public class CrossProjectSearchStats {
     }
 
     /**
-     * Removes skip tracking entries for projects no longer present in
+     * Removes unavailability tracking entries for clusters no longer present in
      * the current cycle's aliases.
      */
-    private void cleanupStaleTrackingEntries(Set<String> currentAliases) {
-        consecutiveSkips.keySet().retainAll(currentAliases);
+    private void removeStaleTrackingEntries(Set<String> currentAliases) {
+        consecutiveUnavailable.keySet().retainAll(currentAliases);
     }
 
-    public int getTotalProjects() {
-        return totalProjects;
+    public int getTotalClusters() {
+        return totalClusters;
     }
 
-    public int getAvailableProjects() {
-        return availableProjects;
+    public int getAvailableClusters() {
+        return availableClusters;
     }
 
-    public int getSkippedProjects() {
-        return skippedProjects;
+    public int getSkippedClusters() {
+        return skippedClusters;
     }
 
     public double getAvailabilityRatio() {
         return availabilityRatio;
     }
 
-    public Set<String> getStabilizedProjectAliases() {
-        return Set.copyOf(stabilizedProjectAliases);
+    public Set<String> getConfirmedAliases() {
+        return Set.copyOf(confirmedAliases);
     }
 
-    public Map<String, Integer> getConsecutiveSkips() {
-        return Map.copyOf(consecutiveSkips);
+    public Map<String, Integer> getConsecutiveUnavailable() {
+        return Map.copyOf(consecutiveUnavailable);
     }
 
     /**
      * Builds the annotation message for a confirmed scope change, selecting the appropriate
-     * template based on whether projects were linked, unlinked, or both.
+     * template based on whether clusters were linked, unlinked, or both.
      *
-     * @param result a {@link CycleResult} where {@code scopeChanged} is {@code true}
+     * @param scopeChange a {@link ScopeChangeResult} where {@code scopeChanged} is {@code true}
      * @return the formatted annotation message
      */
-    public static String buildScopeChangeMessage(CycleResult result) {
-        String linked = String.join(", ", new TreeSet<>(result.newlyStabilizedProjects()));
-        String unlinked = String.join(", ", new TreeSet<>(result.confirmedRemovals()));
+    public static String buildScopeChangeMessage(ScopeChangeResult scopeChange) {
+        String linked = String.join(", ", new TreeSet<>(scopeChange.confirmedLinks()));
+        String unlinked = String.join(", ", new TreeSet<>(scopeChange.confirmedUnlinks()));
         if (linked.isEmpty() == false && unlinked.isEmpty() == false) {
             return Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_SCOPE_CHANGED_BOTH, linked, unlinked);
         } else if (linked.isEmpty() == false) {
@@ -230,16 +242,18 @@ public class CrossProjectSearchStats {
     }
 
     /**
-     * The result of a single search cycle update.
+     * The result of processing a single search cycle through {@link #update}. Contains the sets
+     * of newly confirmed linked and unlinked cluster aliases, along with the earliest timestamp
+     * at which the change was first observed.
      */
-    public record CycleResult(
-        Set<String> newlyStabilizedProjects,
-        Set<String> confirmedRemovals,
+    public record ScopeChangeResult(
+        Set<String> confirmedLinks,
+        Set<String> confirmedUnlinks,
         boolean scopeChanged,
         Instant changeTimestamp
     ) {
 
-        static final CycleResult NO_CHANGE = new CycleResult(Set.of(), Set.of(), false, null);
+        static final ScopeChangeResult NO_CHANGE = new ScopeChangeResult(Set.of(), Set.of(), false, null);
     }
 
     private record StabilizationTracker(Instant firstEvent, int count) {
@@ -251,27 +265,27 @@ public class CrossProjectSearchStats {
             return new StabilizationTracker(firstEvent, count + 1);
         }
 
-        boolean isStabilized(Instant now, int requiredCycles, Duration requiredFloor) {
-            return count >= requiredCycles && Duration.between(firstEvent, now).compareTo(requiredFloor) >= 0;
+        boolean isStabilized(Instant now, int requiredCycles, Duration requiredDuration) {
+            return count >= requiredCycles && Duration.between(firstEvent, now).compareTo(requiredDuration) >= 0;
         }
     }
 
     private enum ConfirmationType {
         LINKING {
             @Override
-            void updateStabilizedSet(Set<String> stabilized, String alias) {
-                stabilized.add(alias);
+            void updateConfirmedSet(Set<String> confirmed, String alias) {
+                confirmed.add(alias);
             }
 
             @Override
             Map<String, StabilizationTracker> getCandidates(CrossProjectSearchStats stats) {
-                return stats.linkingCandidates;
+                return stats.pendingLinks;
             }
 
             @Override
-            Set<String> getTrackableAliases(Set<String> current, Set<String> stabilized) {
+            Set<String> getPendingAliases(Set<String> current, Set<String> confirmed) {
                 Set<String> newAliases = new HashSet<>(current);
-                newAliases.removeAll(stabilized);
+                newAliases.removeAll(confirmed);
                 return newAliases;
             }
 
@@ -282,20 +296,20 @@ public class CrossProjectSearchStats {
         },
         UNLINKING {
             @Override
-            void updateStabilizedSet(Set<String> stabilized, String alias) {
-                stabilized.remove(alias);
+            void updateConfirmedSet(Set<String> confirmed, String alias) {
+                confirmed.remove(alias);
             }
 
             @Override
             Map<String, StabilizationTracker> getCandidates(CrossProjectSearchStats stats) {
-                return stats.unlinkingCandidates;
+                return stats.pendingUnlinks;
             }
 
             @Override
-            Set<String> getTrackableAliases(Set<String> current, Set<String> stabilized) {
-                Set<String> absentStabilized = new HashSet<>(stabilized);
-                absentStabilized.removeAll(current);
-                return absentStabilized;
+            Set<String> getPendingAliases(Set<String> current, Set<String> confirmed) {
+                Set<String> absentConfirmed = new HashSet<>(confirmed);
+                absentConfirmed.removeAll(current);
+                return absentConfirmed;
             }
 
             @Override
@@ -304,11 +318,11 @@ public class CrossProjectSearchStats {
             }
         };
 
-        abstract void updateStabilizedSet(Set<String> stabilized, String alias);
+        abstract void updateConfirmedSet(Set<String> confirmed, String alias);
 
         abstract Map<String, StabilizationTracker> getCandidates(CrossProjectSearchStats stats);
 
-        abstract Set<String> getTrackableAliases(Set<String> current, Set<String> stabilized);
+        abstract Set<String> getPendingAliases(Set<String> current, Set<String> confirmed);
 
         abstract void cleanupStaleCandidates(Map<String, StabilizationTracker> candidates, Set<String> currentAliases);
     }

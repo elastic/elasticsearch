@@ -25,6 +25,7 @@ import org.junit.ClassRule;
 
 import java.io.IOException;
 
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
@@ -57,6 +58,26 @@ public class PrometheusQueryRangeRestIT extends ESRestTestCase {
     protected Settings restClientSettings() {
         String token = basicAuthHeaderValue(USER, new SecureString(PASS.toCharArray()));
         return Settings.builder().put(super.restClientSettings()).put(ThreadContext.PREFIX + ".Authorization", token).build();
+    }
+
+    /**
+     * Verifies that querying when no Prometheus indices exist returns an empty result instead of an error.
+     * ESRestTestCase wipes all indices between test methods, so this test always runs on a clean cluster.
+     */
+    public void testQueryRangeWithNoPrometheusIndicesReturnsEmptyResult() throws Exception {
+        Request request = new Request("GET", "/_prometheus/api/v1/query_range");
+        request.addParameter("query", "nonexistent_metric");
+        request.addParameter("start", "2026-01-01T00:00:00Z");
+        request.addParameter("end", "2026-01-01T00:05:00Z");
+        request.addParameter("step", "60s");
+
+        Response response = client().performRequest(request);
+        assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
+
+        ObjectPath responsePath = ObjectPath.createFromResponse(response);
+        assertThat(responsePath.evaluate("status"), equalTo("success"));
+        assertThat(responsePath.evaluate("data.resultType"), equalTo("matrix"));
+        assertThat(responsePath.evaluate("data.result"), empty());
     }
 
     public void testQueryRangeWithIngestedData() throws Exception {

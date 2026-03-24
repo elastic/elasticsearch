@@ -884,8 +884,8 @@ required_capability: optional_fields_v2
 SET unmapped_fields="load"\;
 FROM sample_data, no_mapping_sample_data METADATA _index
 | DROP @timestamp, client_ip, event_duration
-| SORT _index, message DESC
 ;
+ignoreOrder:true
 
 message:keyword        | _index:keyword
 Connection error?      | no_mapping_sample_data

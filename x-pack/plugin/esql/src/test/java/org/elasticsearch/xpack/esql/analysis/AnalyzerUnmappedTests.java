@@ -14,17 +14,14 @@ import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedTimestamp;
-import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
-import org.elasticsearch.xpack.esql.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.index.EsIndex;
-import org.elasticsearch.xpack.esql.index.IndexResolution;
-import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
@@ -568,31 +565,21 @@ public class AnalyzerUnmappedTests extends ESTestCase {
      * not explicitly referenced in any downstream expression (e.g. KEEP, SORT, WHERE).
      */
     public void testPartiallyMappedKeywordFieldLoadedWithoutExplicitReference() {
-        String query = setUnmappedLoad("""
-            FROM test*
-            | SORT emp_no
-            """);
-
-        var statement = EsqlTestUtils.TEST_PARSER.createStatement(query);
-        var mapping = EsqlTestUtils.loadMapping("mapping-basic.json");
-        var indexResolution = IndexResolution.valid(
-            new EsIndex(
-                "test*",
-                mapping,
-                Map.of("test1", IndexMode.STANDARD, "test2", IndexMode.STANDARD),
-                Map.of(),
-                Map.of(),
-                Set.of("first_name")
+        var plan = analyzer()
+            .addIndex(
+                new EsIndex(
+                    "test*",
+                    EsqlTestUtils.loadMapping("mapping-basic.json"),
+                    Map.of("test1", IndexMode.STANDARD, "test2", IndexMode.STANDARD),
+                    Map.of(),
+                    Map.of(),
+                    Set.of("first_name")
+                )
             )
-        );
-        var indexResolutions = Map.of(new IndexPattern(Source.EMPTY, "test*"), indexResolution);
-        var analyzer = AnalyzerTestUtils.analyzer(
-            indexResolutions,
-            EsqlTestUtils.TEST_VERIFIER,
-            EsqlTestUtils.configuration(query),
-            statement
-        );
-        var plan = analyzer.analyze(statement.plan());
+            .statement(setUnmappedLoad("""
+                FROM test*
+                | SORT emp_no
+                """));
 
         var limit = as(plan, Limit.class);
         var order = as(limit.child(), OrderBy.class);

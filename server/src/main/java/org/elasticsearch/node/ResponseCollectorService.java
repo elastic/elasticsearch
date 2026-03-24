@@ -17,8 +17,6 @@ import org.elasticsearch.common.ExponentiallyWeightedMovingAverage;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -43,23 +41,9 @@ public final class ResponseCollectorService implements ClusterStateListener {
 
     public static final FeatureFlag ARS_FORMULA_ADJUSTMENT_FEATURE_FLAG = new FeatureFlag("ars_formula_adjustment");
 
-    /**
-     * Enables an experimental ARS formula adjustment that ignores the response time component of the C3 ranking formula.
-     */
-    public static final Setting<Boolean> ARS_FORMULA_ADJUSTMENT = Setting.boolSetting(
-        "cluster.routing.use_adaptive_replica_selection.ars_formula_adjustment",
-        ARS_FORMULA_ADJUSTMENT_FEATURE_FLAG.isEnabled(),
-        Property.Dynamic,
-        Property.NodeScope
-    );
-
-    private volatile boolean arsFormulaAdjustmentEnabled;
-
     private final ConcurrentMap<String, NodeStatistics> nodeIdToStats = ConcurrentCollections.newConcurrentMap();
 
     public ResponseCollectorService(ClusterService clusterService) {
-        this.arsFormulaAdjustmentEnabled = ARS_FORMULA_ADJUSTMENT.get(clusterService.getSettings());
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(ARS_FORMULA_ADJUSTMENT, v -> this.arsFormulaAdjustmentEnabled = v);
         clusterService.addListener(this);
     }
 
@@ -93,10 +77,9 @@ public final class ResponseCollectorService implements ClusterStateListener {
 
     public Map<String, ComputedNodeStats> getAllNodeStatistics() {
         final int clientNum = nodeIdToStats.size();
-        final boolean formulaAdjustment = arsFormulaAdjustmentEnabled;
         // Transform the mutable object internally used for accounting into the computed version
         Map<String, ComputedNodeStats> nodeStats = Maps.newMapWithExpectedSize(nodeIdToStats.size());
-        nodeIdToStats.forEach((k, v) -> { nodeStats.put(k, new ComputedNodeStats(clientNum, v, formulaAdjustment)); });
+        nodeIdToStats.forEach((k, v) -> { nodeStats.put(k, new ComputedNodeStats(clientNum, v)); });
         return nodeStats;
     }
 
@@ -111,8 +94,7 @@ public final class ResponseCollectorService implements ClusterStateListener {
      */
     public Optional<ComputedNodeStats> getNodeStatistics(final String nodeId) {
         final int clientNum = nodeIdToStats.size();
-        final boolean formulaAdjustment = arsFormulaAdjustmentEnabled;
-        return Optional.ofNullable(nodeIdToStats.get(nodeId)).map(ns -> new ComputedNodeStats(clientNum, ns, formulaAdjustment));
+        return Optional.ofNullable(nodeIdToStats.get(nodeId)).map(ns -> new ComputedNodeStats(clientNum, ns));
     }
 
     /**
@@ -126,7 +108,6 @@ public final class ResponseCollectorService implements ClusterStateListener {
         // the values so the times don't unduely weight the formula
         private final double FACTOR = 1000000.0;
         private final int clientNum;
-        private final boolean arsFormulaAdjustment;
 
         private double cachedRank = 0;
 
@@ -141,16 +122,14 @@ public final class ResponseCollectorService implements ClusterStateListener {
             this.queueSize = queueSize;
             this.responseTime = responseTime;
             this.serviceTime = serviceTime;
-            this.arsFormulaAdjustment = false;
         }
 
-        ComputedNodeStats(int clientNum, NodeStatistics nodeStats, boolean arsFormulaAdjustment) {
+        ComputedNodeStats(int clientNum, NodeStatistics nodeStats) {
             this.nodeId = nodeStats.nodeId;
             this.clientNum = clientNum;
             this.queueSize = (int) nodeStats.queueSize.getAverage();
             this.responseTime = nodeStats.responseTime.getAverage();
             this.serviceTime = nodeStats.serviceTime;
-            this.arsFormulaAdjustment = arsFormulaAdjustment;
         }
 
         ComputedNodeStats(StreamInput in) throws IOException {
@@ -159,7 +138,6 @@ public final class ResponseCollectorService implements ClusterStateListener {
             this.queueSize = in.readInt();
             this.responseTime = in.readDouble();
             this.serviceTime = in.readDouble();
-            this.arsFormulaAdjustment = false;
         }
 
         @Override
@@ -196,8 +174,8 @@ public final class ResponseCollectorService implements ClusterStateListener {
             double muBarSInverse = serviceTime / FACTOR;
 
             double innerRank = Math.pow(qHatS, queueAdjustmentFactor) * muBarSInverse;
-            // When arsFormulaAdjustment is enabled, the rS - muBarSInverse term is dropped.
-            if (arsFormulaAdjustment == false) {
+            // When the feature flag is enabled, the rS - muBarSInverse term is dropped.
+            if (ARS_FORMULA_ADJUSTMENT_FEATURE_FLAG.isEnabled() == false) {
                 innerRank += rS - muBarSInverse;
             }
             return innerRank;

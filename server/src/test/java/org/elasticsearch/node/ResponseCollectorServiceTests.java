@@ -140,31 +140,20 @@ public class ResponseCollectorServiceTests extends ESTestCase {
         assertFalse(nodeStats.containsKey("node2"));
     }
 
-    public void testArsFormulaAdjustmentSettingChangesRank() {
-        // Start without the adjustment
-        Settings settings = Settings.builder().put(ResponseCollectorService.ARS_FORMULA_ADJUSTMENT.getKey(), false).build();
-        try (
-            ClusterService clusterService = new ClusterService(
-                settings,
-                new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                threadpool,
-                null
-            )
-        ) {
-            ResponseCollectorService responseCollectorService = new ResponseCollectorService(clusterService);
+    public void testArsFormulaAdjustmentFeatureFlag() {
+        // 100ms response time, 10ms service time
+        collector.addNodeStatistics("node1", 1, 100 * 1_000_000L, 10 * 1_000_000L);
+        double rank = collector.getAllNodeStatistics().get("node1").rank(1);
 
-            // 100ms response time, 10ms service time
-            responseCollectorService.addNodeStatistics("node1", 1, 100 * 1_000_000L, 10 * 1_000_000L);
-            double rankOriginal = responseCollectorService.getAllNodeStatistics().get("node1").rank(1);
-
-            // Dynamically update the setting
-            clusterService.getClusterSettings()
-                .applySettings(Settings.builder().put(ResponseCollectorService.ARS_FORMULA_ADJUSTMENT.getKey(), true).build());
-
-            double rankAdjusted = responseCollectorService.getAllNodeStatistics().get("node1").rank(1);
-
-            // (Response time - service time) = 100ms - 10ms = 90ms
-            assertThat(rankAdjusted, equalTo(rankOriginal - 90));
+        if (ResponseCollectorService.ARS_FORMULA_ADJUSTMENT_FEATURE_FLAG.isEnabled()) {
+            // With the adjustment enabled, the response time component (rS - muBarSInverse) is dropped,
+            // so rank should equal just the queue-based term: qHatS^3 * muBarSInverse
+            // qHatS = 1 + 1*1 + 1 = 3, muBarSInverse = 10ms, so rank = 27 * 10 = 270
+            assertThat(rank, equalTo(270.0));
+        } else {
+            // Without the adjustment, rank = (rS - muBarSInverse) + qHatS^3 * muBarSInverse
+            // = (100 - 10) + 270 = 360
+            assertThat(rank, equalTo(360.0));
         }
     }
 }

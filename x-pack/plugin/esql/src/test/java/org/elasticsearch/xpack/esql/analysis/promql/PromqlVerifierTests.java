@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.esql.analysis.promql;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtractor.TimestampBounds;
+import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
+import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -19,6 +21,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 
 public class PromqlVerifierTests extends ESTestCase {
 
@@ -113,6 +116,25 @@ public class PromqlVerifierTests extends ESTestCase {
             .timestampBounds(bounds)
             .query("PROMQL index=test buckets=10 avg(network.bytes_in)");
         assertTrue("Plan should be resolved after timestamp bounds injection", plan.resolved());
+    }
+
+    public void testQueryOnEmptyIndexReturnsEmptyLocalRelation() {
+        // When the index pattern resolves to zero concrete indices (e.g. the data stream hasn't been created yet),
+        // the PROMQL command should be short-circuited to a Limit(0) -> LocalRelation rather than leaving
+        // series attributes unresolved, which would cause a VerificationException.
+        var plan = analyzer().addEmptyIndex().query("PROMQL index=empty_index step=5m test_metric");
+        var localRelations = plan.collect(LocalRelation.class);
+        assertThat(localRelations, hasSize(1));
+        assertThat(localRelations.get(0).supplier(), equalTo(EmptyLocalSupplier.EMPTY));
+    }
+
+    public void testQueryOnEmptyIndexWithGroupingReturnsEmptyLocalRelation() {
+        // A `by` clause would normally add dimension columns to the PROMQL output. With an empty index
+        // those columns are absent from the short-circuited LocalRelation, but should not cause errors.
+        var plan = analyzer().addEmptyIndex().query("PROMQL index=empty_index step=5m avg(test_metric) by (job)");
+        var localRelations = plan.collect(LocalRelation.class);
+        assertThat(localRelations, hasSize(1));
+        assertThat(localRelations.get(0).supplier(), equalTo(EmptyLocalSupplier.EMPTY));
     }
 
     public void testNoMetricNameMatcherNotSupported() {

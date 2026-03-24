@@ -104,7 +104,8 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                 random().nextBoolean(),
                 BinaryDVCompressionMode.COMPRESSED_ZSTD_LEVEL_1,
                 true,
-                randomFrom(NUMERIC_LARGE_BLOCK_SHIFT, NUMERIC_BLOCK_SHIFT)
+                randomFrom(NUMERIC_LARGE_BLOCK_SHIFT, NUMERIC_BLOCK_SHIFT),
+                randomBoolean()
             );
         }
     };
@@ -2050,7 +2051,8 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                 random().nextBoolean(),
                 randomBinaryCompressionMode(),
                 randomBoolean(),
-                randomNumericBlockSize()
+                randomNumericBlockSize(),
+                randomBoolean()
             );
 
             @Override
@@ -2469,7 +2471,8 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
             random().nextBoolean(),
             randomBoolean() ? BinaryDVCompressionMode.COMPRESSED_ZSTD_LEVEL_1 : BinaryDVCompressionMode.NO_COMPRESS,
             randomBoolean(),
-            NUMERIC_LARGE_BLOCK_SHIFT
+            NUMERIC_LARGE_BLOCK_SHIFT,
+            randomBoolean()
         );
         var compressedCodec = TestUtil.alwaysDocValuesFormat(dvFormat);
 
@@ -2589,7 +2592,8 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
             random().nextBoolean(),
             BinaryDVCompressionMode.COMPRESSED_ZSTD_LEVEL_1,
             randomBoolean(),
-            NUMERIC_LARGE_BLOCK_SHIFT
+            NUMERIC_LARGE_BLOCK_SHIFT,
+            randomBoolean()
         );
         var compressedCodec = TestUtil.alwaysDocValuesFormat(dvFormat);
 

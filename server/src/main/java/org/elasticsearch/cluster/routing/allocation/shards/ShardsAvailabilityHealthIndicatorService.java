@@ -124,12 +124,11 @@ public abstract class ShardsAvailabilityHealthIndicatorService implements Health
         this.allocationService = allocationService;
         this.systemIndices = systemIndices;
         this.replicaUnassignedBufferTime = REPLICA_UNASSIGNED_BUFFER_TIME.get(clusterService.getSettings());
-        clusterService.getClusterSettings()
-            .addSettingsUpdateConsumer(REPLICA_UNASSIGNED_BUFFER_TIME, this::setReplicaUnassignedGracePeriod);
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(REPLICA_UNASSIGNED_BUFFER_TIME, this::setReplicaUnassignedBufferTime);
         this.projectResolver = projectResolver;
     }
 
-    private void setReplicaUnassignedGracePeriod(TimeValue replicaUnassignedBufferTime) {
+    private void setReplicaUnassignedBufferTime(TimeValue replicaUnassignedBufferTime) {
         this.replicaUnassignedBufferTime = replicaUnassignedBufferTime;
     }
 
@@ -464,10 +463,10 @@ public abstract class ShardsAvailabilityHealthIndicatorService implements Health
             return false;
         }
         return switch (unassignedInfo.reason()) {
-            case ALLOCATION_FAILED, NODE_LEFT, REINITIALIZED, REALLOCATED_REPLICA, PRIMARY_FAILED, NODE_RESTARTING, CLUSTER_RECOVERED ->
-                false;
+            case ALLOCATION_FAILED, NODE_LEFT, REINITIALIZED, REALLOCATED_REPLICA, PRIMARY_FAILED, NODE_RESTARTING -> false;
             case INDEX_CREATED, INDEX_REOPENED, DANGLING_INDEX_IMPORTED, NEW_INDEX_RESTORED, EXISTING_INDEX_RESTORED, REPLICA_ADDED,
-                REROUTE_CANCELLED, FORCED_EMPTY_PRIMARY, MANUAL_ALLOCATION, INDEX_CLOSED, UNPROMOTABLE_REPLICA, RESHARD_ADDED -> true;
+                REROUTE_CANCELLED, FORCED_EMPTY_PRIMARY, MANUAL_ALLOCATION, INDEX_CLOSED, UNPROMOTABLE_REPLICA, RESHARD_ADDED,
+                CLUSTER_RECOVERED -> true;
         };
     }
 

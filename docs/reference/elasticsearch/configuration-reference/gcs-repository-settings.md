@@ -43,31 +43,31 @@ bin/elasticsearch-keystore add-file gcs.client.default.credentials_file /path/se
 
 The following are the available client settings. Those that must be stored in the keystore are marked as `Secure`.
 
-`credentials_file` ([Secure](docs-content://deploy-manage/security/secure-settings.md), [reloadable](docs-content://deploy-manage/security/secure-settings.md#reloadable-secure-settings))
+`gcs.client.CLIENT_NAME.credentials_file` ([Secure](docs-content://deploy-manage/security/secure-settings.md), [reloadable](docs-content://deploy-manage/security/secure-settings.md#reloadable-secure-settings))
 :   The service account file that is used to authenticate to the Google Cloud Storage service.
 
-`endpoint`
+`gcs.client.CLIENT_NAME.endpoint`
 :   The Google Cloud Storage service endpoint to connect to. This will be automatically determined by the Google Cloud Storage client but can be specified explicitly.
 
-`connect_timeout`
+`gcs.client.CLIENT_NAME.connect_timeout`
 :   The timeout to establish a connection to the Google Cloud Storage service. The value should specify the unit. For example, a value of `5s` specifies a 5 second timeout. The value of `-1` corresponds to an infinite timeout. The default value is 20 seconds.
 
-`read_timeout`
+`gcs.client.CLIENT_NAME.read_timeout`
 :   The timeout to read data from an established connection. The value should specify the unit. For example, a value of `5s` specifies a 5 second timeout. The value of `-1` corresponds to an infinite timeout. The default value is 20 seconds.
 
-`application_name`
+`gcs.client.CLIENT_NAME.application_name`
 :   Name used by the client when it uses the Google Cloud Storage service. Setting a custom name can be useful to authenticate your cluster when requests statistics are logged in the Google Cloud Platform. Default to `repository-gcs`.
 
-`project_id`
+`gcs.client.CLIENT_NAME.project_id`
 :   The Google Cloud project id. This will be automatically inferred from the credentials file but can be specified explicitly. For example, it can be used to switch between projects when the same credentials are usable for both the production and the development projects.
 
-`proxy.host`
+`gcs.client.CLIENT_NAME.proxy.host`
 :   Host name of a proxy to connect to the Google Cloud Storage through.
 
-`proxy.port`
+`gcs.client.CLIENT_NAME.proxy.port`
 :   Port of a proxy to connect to the Google Cloud Storage through.
 
-`proxy.type`
+`gcs.client.CLIENT_NAME.proxy.type`
 :   Proxy type for the client. Supported values are `direct` (no proxy), `http`, and `socks`. Defaults to `direct`.
 
 

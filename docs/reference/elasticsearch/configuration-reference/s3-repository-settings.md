@@ -62,56 +62,56 @@ Define the relevant secure settings in each node's keystore before starting the 
 
 The following list contains the available S3 client settings. Those that must be stored in the keystore are marked as "secure" and are **reloadable**; the other settings belong in the `elasticsearch.yml` file.
 
-`region`
+`s3.client.CLIENT_NAME.region`
 :   Determines the region to use to sign requests made to the service. Also determines the regional endpoint to which {{es}} sends its requests, unless you specify a particular endpoint using the `endpoint` setting. If not set, {{es}} will attempt to determine the region automatically using the AWS SDK. {{es}} must use the correct region to sign requests because this value is required by [the S3 request-signing process](https://docs.aws.amazon.com/AmazonS3/latest/API/sig-v4-authenticating-requests.html).
 
     If you are using an [S3-compatible service](docs-content://deploy-manage/tools/snapshot-and-restore/s3-repository.md#repository-s3-compatible-services) then it is unlikely the AWS SDK will be able to determine the correct region name automatically, so you must set it manually. Your service's region name is under the control of your service administrator and need not refer to a real AWS region, but the value to which you configure this setting must match the region name your service expects.
 
-`access_key` ([Secure](docs-content://deploy-manage/security/secure-settings.md), [reloadable](docs-content://deploy-manage/security/secure-settings.md#reloadable-secure-settings))
+`s3.client.CLIENT_NAME.access_key` ([Secure](docs-content://deploy-manage/security/secure-settings.md), [reloadable](docs-content://deploy-manage/security/secure-settings.md#reloadable-secure-settings))
 :   An S3 access key. If set, the `secret_key` setting must also be specified. If unset, the client will use the instance or container role instead.
 
-`secret_key` ([Secure](docs-content://deploy-manage/security/secure-settings.md), [reloadable](docs-content://deploy-manage/security/secure-settings.md#reloadable-secure-settings))
+`s3.client.CLIENT_NAME.secret_key` ([Secure](docs-content://deploy-manage/security/secure-settings.md), [reloadable](docs-content://deploy-manage/security/secure-settings.md#reloadable-secure-settings))
 :   An S3 secret key. If set, the `access_key` setting must also be specified.
 
-`session_token` ([Secure](docs-content://deploy-manage/security/secure-settings.md), [reloadable](docs-content://deploy-manage/security/secure-settings.md#reloadable-secure-settings))
+`s3.client.CLIENT_NAME.session_token` ([Secure](docs-content://deploy-manage/security/secure-settings.md), [reloadable](docs-content://deploy-manage/security/secure-settings.md#reloadable-secure-settings))
 :   An S3 session token. If set, the `access_key` and `secret_key` settings must also be specified.
 
-`endpoint`
+`s3.client.CLIENT_NAME.endpoint`
 :   The S3 service endpoint to connect to. This defaults to the regional endpoint corresponding to the configured `region`, but the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html#s3_region) lists alternative S3 endpoints. If you are using an [S3-compatible service](docs-content://deploy-manage/tools/snapshot-and-restore/s3-repository.md#repository-s3-compatible-services) then you should set this to the service's endpoint. The endpoint should specify the protocol and host name, e.g. `https://s3.ap-southeast-4.amazonaws.com`, `http://minio.local:9000`.
 
     When using HTTPS, this repository type validates the repository's certificate chain using the JVM-wide truststore. Ensure that the root certificate authority is in this truststore using the JVM's `keytool` tool. If you have a custom certificate authority for your S3 repository and you use the {{es}} [bundled JDK](docs-content://deploy-manage/deploy/self-managed/installing-elasticsearch.md#jvm-version), then you will need to reinstall your CA certificate every time you upgrade {{es}}.
 
-`protocol` {applies_to}`stack: deprecated 8.19`
+`s3.client.CLIENT_NAME.protocol` {applies_to}`stack: deprecated 8.19`
 :   The protocol scheme to use to connect to S3, if `endpoint` is set to an incomplete URL which does not specify the scheme. Valid values are either `http` or `https`. Defaults to `https`. Avoid using this setting. Instead, set the `endpoint` setting to a fully-qualified URL that starts with either `http://` or `https://`.
 
-`proxy.host`
+`s3.client.CLIENT_NAME.proxy.host`
 :   The host name of a proxy to connect to S3 through.
 
-`proxy.port`
+`s3.client.CLIENT_NAME.proxy.port`
 :   The port of a proxy to connect to S3 through.
 
-`proxy.scheme`
+`s3.client.CLIENT_NAME.proxy.scheme`
 :   The scheme to use for the proxy connection to S3. Valid values are either `http` or `https`. Defaults to `http`. This setting allows to specify the protocol used for communication with the proxy server.
 
-`proxy.username` ([Secure](docs-content://deploy-manage/security/secure-settings.md), [reloadable](docs-content://deploy-manage/security/secure-settings.md#reloadable-secure-settings))
+`s3.client.CLIENT_NAME.proxy.username` ([Secure](docs-content://deploy-manage/security/secure-settings.md), [reloadable](docs-content://deploy-manage/security/secure-settings.md#reloadable-secure-settings))
 :   The username to connect to the `proxy.host` with.
 
-`proxy.password` ([Secure](docs-content://deploy-manage/security/secure-settings.md), [reloadable](docs-content://deploy-manage/security/secure-settings.md#reloadable-secure-settings))
+`s3.client.CLIENT_NAME.proxy.password` ([Secure](docs-content://deploy-manage/security/secure-settings.md), [reloadable](docs-content://deploy-manage/security/secure-settings.md#reloadable-secure-settings))
 :   The password to connect to the `proxy.host` with.
 
-`read_timeout`
+`s3.client.CLIENT_NAME.read_timeout`
 :   ([time value](/reference/elasticsearch/rest-apis/api-conventions.md#time-units)) The maximum time {{es}} will wait to receive the next byte of data over an established, open connection to the repository before it closes the connection. The default value is 50 seconds.
 
-`max_connections`
+`s3.client.CLIENT_NAME.max_connections`
 :   The maximum number of concurrent connections to S3. The default value is `50`.
 
-`max_retries`
+`s3.client.CLIENT_NAME.max_retries`
 :   The number of retries to use when an S3 request fails. The default value is `3`.
 
-`connection_max_idle_time`
+`s3.client.CLIENT_NAME.connection_max_idle_time`
 :   ([time value](/reference/elasticsearch/rest-apis/api-conventions.md#time-units)) The timeout after which {{es}} will close an idle connection. The default value is 60 seconds.
 
-`path_style_access`
+`s3.client.CLIENT_NAME.path_style_access`
 :   Whether to force the use of the path style access pattern. If `true`, the path style access pattern will be used. If `false`, the access pattern will be automatically determined by the AWS Java SDK (See [AWS documentation](https://docs.aws.amazon.com/AWSJavaSDK/latest/javadoc/com/amazonaws/services/s3/AmazonS3Builder.html#setPathStyleAccessEnabled-java.lang.Boolean-) for details). Defaults to `false`.
 
 ::::{note}
@@ -121,7 +121,7 @@ In versions `7.0`, `7.1`, `7.2` and `7.3` all bucket operations used the [now-de
 ::::
 
 
-`disable_chunked_encoding`
+`s3.client.CLIENT_NAME.disable_chunked_encoding`
 :   Whether chunked encoding should be disabled or not. If `false`, chunked encoding is enabled and will be used where appropriate. If `true`, chunked encoding is disabled and will not be used, which may mean that snapshot operations consume more resources and take longer to complete. It should only be set to `true` if you are using a storage service that does not support chunked encoding. See the [AWS Java SDK documentation](https://docs.aws.amazon.com/AWSJavaSDK/latest/javadoc/com/amazonaws/services/s3/AmazonS3Builder.html#disableChunkedEncoding--) for details. Defaults to `false`.
 
 

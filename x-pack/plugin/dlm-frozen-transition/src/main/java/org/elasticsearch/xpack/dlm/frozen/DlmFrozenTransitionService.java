@@ -21,6 +21,7 @@ import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -61,7 +62,7 @@ class DlmFrozenTransitionService implements ClusterStateListener, Closeable {
     private final AtomicBoolean isMaster = new AtomicBoolean(false);
     private volatile ScheduledExecutorService schedulerThreadExecutor;
     private volatile DlmFrozenTransitionExecutor transitionExecutor;
-    private volatile boolean closing = false;
+    private final AtomicBoolean closing = new AtomicBoolean(false);
     private final TimeValue pollInterval;
     private final int maxConcurrency;
 
@@ -96,7 +97,7 @@ class DlmFrozenTransitionService implements ClusterStateListener, Closeable {
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
         // wait for the cluster state to be recovered
-        if (closing || event.state().blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
+        if (closing.get() || event.state().blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
             return;
         }
         var isNodeMaster = event.localNodeMaster();
@@ -110,7 +111,7 @@ class DlmFrozenTransitionService implements ClusterStateListener, Closeable {
     }
 
     private void startThreadPools() {
-        if (!closing) {
+        if (closing.get() == false) {
             transitionExecutor = new DlmFrozenTransitionExecutor(maxConcurrency, clusterService.getSettings());
             schedulerThreadExecutor = Executors.newSingleThreadScheduledExecutor(r -> {
                 var thread = new Thread(r, "dlm-frozen-transition-scheduler");
@@ -134,9 +135,17 @@ class DlmFrozenTransitionService implements ClusterStateListener, Closeable {
 
     @Override
     public void close() throws IOException {
-        closing = true;
-        clusterService.removeListener(this);
-        stopThreadPools();
+        if (closing.compareAndSet(false, true)) {
+            clusterService.removeListener(this);
+            if (schedulerThreadExecutor != null) {
+                ThreadPool.terminate(schedulerThreadExecutor, 10, TimeUnit.SECONDS);
+                schedulerThreadExecutor = null;
+            }
+            if (transitionExecutor != null) {
+                transitionExecutor.close();
+                transitionExecutor = null;
+            }
+        }
     }
 
     // Visible for testing
@@ -156,7 +165,7 @@ class DlmFrozenTransitionService implements ClusterStateListener, Closeable {
 
     // Visible for testing
     boolean isClosing() {
-        return closing;
+        return closing.get();
     }
 
     // visible for testing
@@ -168,7 +177,7 @@ class DlmFrozenTransitionService implements ClusterStateListener, Closeable {
         for (ProjectMetadata projectMetadata : clusterService.state().metadata().projects().values()) {
             for (DataStream dataStream : projectMetadata.dataStreams().values()) {
                 for (Index index : dataStream.getIndices()) {
-                    if (Thread.currentThread().isInterrupted() || closing) {
+                    if (Thread.currentThread().isInterrupted() || closing.get()) {
                         return;
                     }
                     if (indexMarkedForFrozen(projectMetadata.index(index))) {

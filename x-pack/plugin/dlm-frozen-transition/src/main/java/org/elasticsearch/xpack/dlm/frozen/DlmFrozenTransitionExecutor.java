@@ -12,12 +12,16 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.threadpool.ThreadPool;
 
+import java.io.Closeable;
+import java.io.IOException;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.logging.LogManager.getLogger;
 
@@ -29,7 +33,7 @@ import static org.elasticsearch.logging.LogManager.getLogger;
  * and prevents transitions being executed concurrently for the same index.
  * It also ensures that tasks are tracked and cleaned up upon completion or failure.
  */
-class DlmFrozenTransitionExecutor implements AutoCloseable {
+class DlmFrozenTransitionExecutor implements Closeable {
 
     private static final Logger logger = getLogger(DlmFrozenTransitionExecutor.class);
 
@@ -95,7 +99,7 @@ class DlmFrozenTransitionExecutor implements AutoCloseable {
     }
 
     @Override
-    public void close() throws Exception {
-        executor.close();
+    public void close() throws IOException {
+        ThreadPool.terminate(executor, 10, TimeUnit.SECONDS);
     }
 }

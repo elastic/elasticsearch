@@ -1,0 +1,82 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+apply plugin: 'elasticsearch.internal-es-plugin'
+apply plugin: 'elasticsearch.publish'
+
+esplugin {
+  name = 'esql-datasource-compression-libs'
+  description = 'Shared compression libraries for ESQL external data sources'
+  classname = 'org.elasticsearch.xpack.esql.datasource.compress.CompressionLibsPlugin'
+  extendedPlugins = ['x-pack-esql']
+}
+
+base {
+  archivesName = 'esql-datasource-compression-libs'
+}
+
+dependencies {
+  compileOnly project(path: xpackModule('esql'))
+  compileOnly project(path: xpackModule('esql-core'))
+  compileOnly project(path: xpackModule('core'))
+  compileOnly project(':server')
+  compileOnly project(xpackModule('esql:compute'))
+
+  // Shared compression libraries — loaded once, used by all child plugins via extendedPlugins
+  implementation "io.airlift:aircompressor:${versions.aircompressor}"
+  implementation "com.github.luben:zstd-jni:${versions.zstdJni}"
+}
+
+tasks.withType(org.elasticsearch.gradle.internal.AbstractDependenciesTask).configureEach {
+  mapping from: /aircompressor-.*/, to: 'aircompressor'
+  mapping from: /zstd-jni-.*/, to: 'zstd-jni'
+}
+
+tasks.named("thirdPartyAudit").configure {
+  ignoreMissingClasses()
+  ignoreViolations(
+    // aircompressor uses sun.misc.Unsafe throughout for optimized compression/decompression
+    'io.airlift.compress.lz4.Lz4Compressor',
+    'io.airlift.compress.lz4.Lz4Decompressor',
+    'io.airlift.compress.lz4.Lz4RawCompressor',
+    'io.airlift.compress.lz4.Lz4RawDecompressor',
+    'io.airlift.compress.lz4.UnsafeUtil',
+    'io.airlift.compress.lzo.LzoCompressor',
+    'io.airlift.compress.lzo.LzoDecompressor',
+    'io.airlift.compress.lzo.LzoRawCompressor',
+    'io.airlift.compress.lzo.LzoRawDecompressor',
+    'io.airlift.compress.lzo.UnsafeUtil',
+    'io.airlift.compress.snappy.SnappyCompressor',
+    'io.airlift.compress.snappy.SnappyDecompressor',
+    'io.airlift.compress.snappy.SnappyRawCompressor',
+    'io.airlift.compress.snappy.SnappyRawDecompressor',
+    'io.airlift.compress.snappy.UnsafeUtil',
+    'io.airlift.compress.zstd.BitInputStream',
+    'io.airlift.compress.zstd.BitInputStream$Initializer',
+    'io.airlift.compress.zstd.BitInputStream$Loader',
+    'io.airlift.compress.zstd.BitOutputStream',
+    'io.airlift.compress.zstd.DoubleFastBlockCompressor',
+    'io.airlift.compress.zstd.FiniteStateEntropy',
+    'io.airlift.compress.zstd.FseTableReader',
+    'io.airlift.compress.zstd.Histogram',
+    'io.airlift.compress.zstd.Huffman',
+    'io.airlift.compress.zstd.HuffmanCompressionTable',
+    'io.airlift.compress.zstd.HuffmanCompressor',
+    'io.airlift.compress.zstd.SequenceEncoder',
+    'io.airlift.compress.zstd.SequenceStore',
+    'io.airlift.compress.zstd.UnsafeUtil',
+    'io.airlift.compress.zstd.Util',
+    'io.airlift.compress.zstd.XxHash64',
+    'io.airlift.compress.zstd.ZstdCompressor',
+    'io.airlift.compress.zstd.ZstdDecompressor',
+    'io.airlift.compress.zstd.ZstdFrameCompressor',
+    'io.airlift.compress.zstd.ZstdFrameDecompressor',
+    'io.airlift.compress.zstd.ZstdIncrementalFrameDecompressor',
+    'io.airlift.compress.zstd.ZstdInputStream',
+    'io.airlift.compress.zstd.ZstdOutputStream',
+  )
+}

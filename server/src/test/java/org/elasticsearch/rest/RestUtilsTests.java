@@ -30,51 +30,51 @@ public class RestUtilsTests extends ESTestCase {
         return randomBoolean() ? '&' : ';';
     }
 
-    public void testDecodeQueryStringFromUrl() {
-        var params = RequestParams.fromUrl("something?test=value");
+    public void testDecodeQueryStringFromUri() {
+        var params = RequestParams.fromUri("something?test=value");
         assertThat(params.size(), equalTo(1));
         assertThat(params.get("test"), equalTo("value"));
 
-        params = RequestParams.fromUrl(Strings.format("something?test=value%ctest1=value1", randomDelimiter()));
+        params = RequestParams.fromUri(Strings.format("something?test=value%ctest1=value1", randomDelimiter()));
         assertThat(params.size(), equalTo(2));
         assertThat(params.get("test"), equalTo("value"));
         assertThat(params.get("test1"), equalTo("value1"));
 
         // no query string
-        assertThat(RequestParams.fromUrl("something").isEmpty(), is(true));
+        assertThat(RequestParams.fromUri("something").isEmpty(), is(true));
     }
 
-    public void testDecodeQueryStringFromUrlEdgeCases() {
+    public void testDecodeQueryStringFromUriEdgeCases() {
         // empty query string
-        assertThat(RequestParams.fromUrl("something?").size(), equalTo(0));
+        assertThat(RequestParams.fromUri("something?").size(), equalTo(0));
 
-        assertThat(RequestParams.fromUrl(Strings.format("something?%c", randomDelimiter())).size(), equalTo(0));
+        assertThat(RequestParams.fromUri(Strings.format("something?%c", randomDelimiter())).size(), equalTo(0));
 
-        var params = RequestParams.fromUrl(Strings.format("something?p=v%c%cp1=v1", randomDelimiter(), randomDelimiter()));
+        var params = RequestParams.fromUri(Strings.format("something?p=v%c%cp1=v1", randomDelimiter(), randomDelimiter()));
         assertThat(params.size(), equalTo(2));
         assertThat(params.get("p"), equalTo("v"));
         assertThat(params.get("p1"), equalTo("v1"));
 
-        assertThat(RequestParams.fromUrl("something?=").size(), equalTo(0));
+        assertThat(RequestParams.fromUri("something?=").size(), equalTo(0));
 
-        assertThat(RequestParams.fromUrl(Strings.format("something?%c=", randomDelimiter())).size(), equalTo(0));
+        assertThat(RequestParams.fromUri(Strings.format("something?%c=", randomDelimiter())).size(), equalTo(0));
 
-        params = RequestParams.fromUrl("something?a");
+        params = RequestParams.fromUri("something?a");
         assertThat(params.size(), equalTo(1));
         assertThat(params.get("a"), equalTo(""));
 
-        params = RequestParams.fromUrl(Strings.format("something?p=v%ca", randomDelimiter()));
+        params = RequestParams.fromUri(Strings.format("something?p=v%ca", randomDelimiter()));
         assertThat(params.size(), equalTo(2));
         assertThat(params.get("a"), equalTo(""));
         assertThat(params.get("p"), equalTo("v"));
 
-        params = RequestParams.fromUrl(Strings.format("something?p=v%ca%cp1=v1", randomDelimiter(), randomDelimiter()));
+        params = RequestParams.fromUri(Strings.format("something?p=v%ca%cp1=v1", randomDelimiter(), randomDelimiter()));
         assertThat(params.size(), equalTo(3));
         assertThat(params.get("a"), equalTo(""));
         assertThat(params.get("p"), equalTo("v"));
         assertThat(params.get("p1"), equalTo("v1"));
 
-        params = RequestParams.fromUrl(
+        params = RequestParams.fromUri(
             Strings.format("something?p=v%ca%cb%cp1=v1", randomDelimiter(), randomDelimiter(), randomDelimiter())
         );
         assertThat(params.size(), equalTo(4));
@@ -112,7 +112,7 @@ public class RestUtilsTests extends ESTestCase {
 
     public void testDecodeQueryStringFragment() {
         // fragment should be excluded
-        var params = RequestParams.fromUrl("something?a=1#fragment");
+        var params = RequestParams.fromUri("something?a=1#fragment");
         assertThat(params.getAll("a"), equalTo(List.of("1")));
         assertThat(params.containsKey("fragment"), is(false));
     }
@@ -160,7 +160,7 @@ public class RestUtilsTests extends ESTestCase {
             randomDelimiter(),
             randomDelimiter()
         );
-        var params = RequestParams.fromUrl(uri);
+        var params = RequestParams.fromUri(uri);
         assertThat(params.get("/?:@-._~!$'()* ,"), equalTo("/?:@-._~!$'()* ,=="));
         assertThat(params.size(), equalTo(1));
     }
@@ -169,7 +169,7 @@ public class RestUtilsTests extends ESTestCase {
         for (var reservedParam : INTERNAL_MARKER_REQUEST_PARAMETERS) {
             IllegalArgumentException exception = expectThrows(
                 IllegalArgumentException.class,
-                () -> RequestParams.fromUrl("something?" + reservedParam + "=value")
+                () -> RequestParams.fromUri("something?" + reservedParam + "=value")
             );
             assertEquals(exception.getMessage(), "parameter [" + reservedParam + "] is reserved and may not be set");
         }

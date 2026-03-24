@@ -69,15 +69,15 @@ public final class RequestParams extends AbstractMap<String, String> {
     }
 
     /**
-     * Parses the query string from a full URL string into a {@code RequestParams}, preserving all
-     * values for repeated parameters. Returns an empty map if the URL contains no {@code ?}.
+     * Parses the query string from a URI string into a {@code RequestParams}, preserving all
+     * values for repeated parameters. Returns an empty map if the URI contains no {@code ?}.
      *
-     * @param url a full URL string, e.g. {@code /index/_search?pretty&size=10}
+     * @param uri a URI string, e.g. {@code /index/_search?pretty&size=10}
      * @return a {@code RequestParams} from parameter name to all its values, in encounter order
      */
-    public static RequestParams fromUrl(String url) {
-        int index = url.indexOf('?');
-        return index >= 0 ? of(RestUtils.decodeQueryString(url, index + 1)) : RequestParams.empty();
+    public static RequestParams fromUri(String uri) {
+        int index = uri.indexOf('?');
+        return index >= 0 ? of(RestUtils.decodeQueryString(uri, index + 1)) : RequestParams.empty();
     }
 
     /**

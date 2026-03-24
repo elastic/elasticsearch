@@ -212,7 +212,7 @@ public class RestRequest implements ToXContent.Params, Traceable {
 
     private static RequestParams params(final String uri) {
         try {
-            return RequestParams.fromUrl(uri);
+            return RequestParams.fromUri(uri);
         } catch (final IllegalArgumentException e) {
             throw new BadParameterException(e);
         }

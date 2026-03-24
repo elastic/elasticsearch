@@ -153,22 +153,6 @@ public abstract class GenerativeApproximationRestTest extends EsqlSpecTestCase {
         assumeFalse("...", "row aliases with keep".equals(testName));  // can't read released page
         assumeFalse("...", "skips stopwords".equals(testName));  // can't read released page
 
-        // external
-        assumeFalse("...", "bucketByHireDate".equals(testName));  // Failed to resolve external source
-        assumeFalse("...", "statsAfterChangePoint".equals(testName));  // Failed to resolve external source
-        assumeFalse("...", "complexQuery".equals(testName));           // Failed to resolve external source
-        assumeFalse("...", "aggregateSalaryStats".equals(testName));   // Failed to resolve external source
-        assumeFalse("...", "categorizeByFullName".equals(testName));   // Failed to resolve external source
-        assumeFalse("...", "aggregateAverageSalary".equals(testName));   // Failed to resolve external source
-        assumeFalse("...", "aggregateSumSalary".equals(testName));   // Failed to resolve external source
-        assumeFalse("...", "lookupJoinAfterStats".equals(testName));   // Failed to resolve external source
-        assumeFalse("...", "inlineStatsMaxSalary".equals(testName));   // Failed to resolve external source
-        assumeFalse("...", "aggregateByGender".equals(testName));   // Failed to resolve external source
-        assumeFalse("...", "aggregateSalaryByGender".equals(testName));   // Failed to resolve external source
-        assumeFalse("...", "sampleWithStats".equals(testName));   // Failed to resolve external source
-        assumeFalse("...", "tbucketByHireDate".equals(testName));   // Failed to resolve external source
-        assumeFalse("...", "aggregateCount".equals(testName));   // Failed to resolve external source
-
         // row
         assumeFalse("...", "rowStatsProjectGroupByLong".equals(testName));  // can't read released page
         assumeFalse("...", "rowStatsProjectGroupByDouble".equals(testName));  // can't read released page

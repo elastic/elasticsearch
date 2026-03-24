@@ -34,6 +34,25 @@ import static org.apache.lucene.index.VectorSimilarityFunction.MAXIMUM_INNER_PRO
 /** Panamized scorer for quantized vectors stored as a {@link MemorySegment}. */
 public final class MemorySegmentESNextOSQVectorsScorer extends ESNextOSQVectorsScorer {
 
+    private static final boolean USE_NATIVE = MemorySegmentScorer.NATIVE_SUPPORTED && MemorySegmentScorer.SUPPORTS_HEAP_SEGMENTS;
+
+    enum QuantEncoding {
+        D1Q4,
+        D2Q4,
+        D4Q4,
+        D7Q7;
+
+        static QuantEncoding of(byte queryBits, byte indexBits) {
+            return switch ((queryBits << 8) | indexBits) {
+                case (4 << 8) | 1 -> D1Q4;
+                case (4 << 8) | 2 -> D2Q4;
+                case (4 << 8) | 4 -> D4Q4;
+                case (7 << 8) | 7 -> D7Q7;
+                default -> throw new IllegalArgumentException("Unsupported query/index bits combination: " + queryBits + "/" + indexBits);
+            };
+        }
+    }
+
     private final MemorySegmentScorer scorer;
 
     public MemorySegmentESNextOSQVectorsScorer(
@@ -45,17 +64,27 @@ public final class MemorySegmentESNextOSQVectorsScorer extends ESNextOSQVectorsS
         int bulkSize
     ) {
         super(in, queryBits, indexBits, dimensions, dataLength);
-        if (queryBits == 4 && indexBits == 1) {
-            this.scorer = new MSBitToInt4ESNextOSQVectorsScorer(in, dimensions, dataLength, bulkSize);
-        } else if (queryBits == 4 && indexBits == 4) {
-            this.scorer = new MSInt4SymmetricESNextOSQVectorsScorer(in, dimensions, dataLength, bulkSize);
-        } else if (queryBits == 4 && indexBits == 2) {
-            this.scorer = new MSDibitToInt4ESNextOSQVectorsScorer(in, dimensions, dataLength, bulkSize);
-        } else if (queryBits == 7 && indexBits == 7) {
-            this.scorer = new MSD7Q7ESNextOSQVectorsScorer(in, dimensions, dataLength, bulkSize);
-        } else {
-            throw new IllegalArgumentException("Unsupported query/index bits combination: " + queryBits + "/" + indexBits);
-        }
+        this.scorer = USE_NATIVE
+            ? createNativeScorer(QuantEncoding.of(queryBits, indexBits), in, dimensions, dataLength, bulkSize)
+            : createPanamaScorer(QuantEncoding.of(queryBits, indexBits), in, dimensions, dataLength, bulkSize);
+    }
+
+    private static MemorySegmentScorer createNativeScorer(QuantEncoding enc, IndexInput in, int dimensions, int dataLength, int bulkSize) {
+        return switch (enc) {
+            case D1Q4 -> new NativeD1Q4Scorer(in, dimensions, dataLength, bulkSize);
+            case D2Q4 -> new NativeD2Q4Scorer(in, dimensions, dataLength, bulkSize);
+            case D4Q4 -> new NativeD4Q4Scorer(in, dimensions, dataLength, bulkSize);
+            case D7Q7 -> new MSD7Q7ESNextOSQVectorsScorer(in, dimensions, dataLength, bulkSize);
+        };
+    }
+
+    private static MemorySegmentScorer createPanamaScorer(QuantEncoding enc, IndexInput in, int dimensions, int dataLength, int bulkSize) {
+        return switch (enc) {
+            case D1Q4 -> new MSBitToInt4ESNextOSQVectorsScorer(in, dimensions, dataLength, bulkSize);
+            case D2Q4 -> new MSDibitToInt4ESNextOSQVectorsScorer(in, dimensions, dataLength, bulkSize);
+            case D4Q4 -> new MSInt4SymmetricESNextOSQVectorsScorer(in, dimensions, dataLength, bulkSize);
+            case D7Q7 -> new MSD7Q7ESNextOSQVectorsScorer(in, dimensions, dataLength, bulkSize);
+        };
     }
 
     @Override
@@ -158,10 +187,54 @@ public final class MemorySegmentESNextOSQVectorsScorer extends ESNextOSQVectorsS
         );
     }
 
-    abstract static sealed class MemorySegmentScorer permits MSBitToInt4ESNextOSQVectorsScorer, MSDibitToInt4ESNextOSQVectorsScorer,
-        MSInt4SymmetricESNextOSQVectorsScorer, MSD7Q7ESNextOSQVectorsScorer {
+    @Override
+    public float scoreBulkOffsets(
+        byte[] q,
+        float queryLowerInterval,
+        float queryUpperInterval,
+        int queryComponentSum,
+        float queryAdditionalCorrection,
+        VectorSimilarityFunction similarityFunction,
+        float centroidDp,
+        int[] offsets,
+        int offsetsCount,
+        float[] scores,
+        int count
+    ) throws IOException {
+        float score = scorer.scoreBulkOffsets(
+            q,
+            queryLowerInterval,
+            queryUpperInterval,
+            queryComponentSum,
+            queryAdditionalCorrection,
+            similarityFunction,
+            centroidDp,
+            offsets,
+            offsetsCount,
+            scores,
+            count
+        );
+        if (score != Float.NEGATIVE_INFINITY) {
+            return score;
+        }
+        return super.scoreBulkOffsets(
+            q,
+            queryLowerInterval,
+            queryUpperInterval,
+            queryComponentSum,
+            queryAdditionalCorrection,
+            similarityFunction,
+            centroidDp,
+            offsets,
+            offsetsCount,
+            scores,
+            count
+        );
+    }
 
-        // TODO: split Panama and Native implementations
+    abstract static sealed class MemorySegmentScorer permits NativeMemorySegmentScorer, MSBitToInt4ESNextOSQVectorsScorer,
+        MSDibitToInt4ESNextOSQVectorsScorer, MSInt4SymmetricESNextOSQVectorsScorer, MSD7Q7ESNextOSQVectorsScorer {
+
         static final boolean NATIVE_SUPPORTED = NativeAccess.instance().getVectorSimilarityFunctions().isPresent();
         static final boolean SUPPORTS_HEAP_SEGMENTS = Runtime.version().feature() >= 22;
 
@@ -281,6 +354,20 @@ public final class MemorySegmentESNextOSQVectorsScorer extends ESNextOSQVectorsS
             float centroidDp,
             float[] scores,
             int bulkSize
+        ) throws IOException;
+
+        abstract float scoreBulkOffsets(
+            byte[] q,
+            float queryLowerInterval,
+            float queryUpperInterval,
+            int queryComponentSum,
+            float queryAdditionalCorrection,
+            VectorSimilarityFunction similarityFunction,
+            float centroidDp,
+            int[] offsets,
+            int offsetsCount,
+            float[] scores,
+            int count
         ) throws IOException;
 
         protected float applyCorrectionsIndividually(

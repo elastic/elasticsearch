@@ -1386,7 +1386,14 @@ public class EsqlSession {
         QueryBuilder requestFilter
     ) throws Exception {
         handleFieldCapsFailures(configuration.allowPartialResults(), executionInfo, r.indexResolution());
-        var timestampBounds = QueryDslTimestampBoundsExtractor.extractTimestampBounds(requestFilter);
+        var timestampBounds = QueryDslTimestampBoundsExtractor.extractTimestampBounds(
+            requestFilter,
+            // Resolve date math against the query start time. If this uses the wall clock during planning instead,
+            // filters like [@timestamp >= now-5m AND @timestamp <= now] drift relative to Configuration.now(), so inferred
+            // timestamp bounds can shift within one request and misanchor TBUCKET/TSTEP bucketing.
+            // TODO: support nanos resolution for date_nanos fields
+            configuration::absoluteStartedTimeInMillis
+        );
         AnalyzerContext analyzerContext = new AnalyzerContext(
             configuration,
             functionRegistry,

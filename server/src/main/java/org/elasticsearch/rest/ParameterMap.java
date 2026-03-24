@@ -9,6 +9,7 @@
 
 package org.elasticsearch.rest;
 
+import java.net.URI;
 import java.util.AbstractMap;
 import java.util.AbstractSet;
 import java.util.ArrayList;
@@ -55,6 +56,41 @@ public final class ParameterMap extends AbstractMap<String, String> {
      */
     public static ParameterMap of(Map<String, List<String>> multiValues) {
         return new ParameterMap(multiValues);
+    }
+
+    /**
+     * Parses a URL-encoded query string into a {@code ParameterMap}, preserving all values for
+     * repeated parameters (e.g. {@code match[]=foo&match[]=bar} → {@code ["foo", "bar"]}).
+     *
+     * @param queryString the raw query string (the part after {@code ?}, without the {@code ?} itself)
+     * @return a {@code ParameterMap} from parameter name to all its values, in encounter order
+     */
+    public static ParameterMap fromQueryString(String queryString) {
+        return RestUtils.decodeQueryString(queryString, 0);
+    }
+
+    /**
+     * Parses the query string from a full URL string into a {@code ParameterMap}, preserving all
+     * values for repeated parameters. Returns an empty map if the URL contains no {@code ?}.
+     *
+     * @param url a full URL string, e.g. {@code /index/_search?pretty&size=10}
+     * @return a {@code ParameterMap} from parameter name to all its values, in encounter order
+     */
+    public static ParameterMap fromUrl(String url) {
+        int index = url.indexOf('?');
+        return index >= 0 ? RestUtils.decodeQueryString(url, index + 1) : ParameterMap.empty();
+    }
+
+    /**
+     * Parses the query string from a {@link URI} into a {@code ParameterMap}, preserving all
+     * values for repeated parameters. Returns an empty map if the URI has no query.
+     *
+     * @param uri the URI whose raw query string is parsed
+     * @return a {@code ParameterMap} from parameter name to all its values, in encounter order
+     */
+    public static ParameterMap from(URI uri) {
+        final var rawQuery = uri.getRawQuery();
+        return rawQuery != null && rawQuery.isEmpty() == false ? fromQueryString(rawQuery) : ParameterMap.empty();
     }
 
     /**

@@ -13,7 +13,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -542,7 +541,7 @@ public class HttpRequestTemplate implements ToXContentObject {
 
                 String rawQuery = uri.getRawQuery();
                 if (Strings.hasLength(rawQuery)) {
-                    RestUtils.decodeQueryString(rawQuery, 0).forEach((k, v) -> params.put(k, new TextTemplate(v)));
+                    ParameterMap.fromQueryString(rawQuery).forEach((k, v) -> params.put(k, new TextTemplate(v)));
                 }
             } catch (URISyntaxException e) {
                 throw new ElasticsearchParseException("Malformed URL [{}]", supposedUrl);

@@ -30,66 +30,53 @@ public class RestUtilsTests extends ESTestCase {
         return randomBoolean() ? '&' : ';';
     }
 
-    public void testDecodeQueryString() {
-        String uri = "something?test=value";
-        var params = RestUtils.decodeQueryString(uri, uri.indexOf('?') + 1);
+    public void testDecodeQueryStringFromUrl() {
+        var params = ParameterMap.fromUrl("something?test=value");
         assertThat(params.size(), equalTo(1));
         assertThat(params.get("test"), equalTo("value"));
 
-        uri = Strings.format("something?test=value%ctest1=value1", randomDelimiter());
-        params = RestUtils.decodeQueryString(uri, uri.indexOf('?') + 1);
+        params = ParameterMap.fromUrl(Strings.format("something?test=value%ctest1=value1", randomDelimiter()));
         assertThat(params.size(), equalTo(2));
         assertThat(params.get("test"), equalTo("value"));
         assertThat(params.get("test1"), equalTo("value1"));
 
-        uri = "something";
-        params = RestUtils.decodeQueryString(uri, uri.length());
-        assertThat(params.size(), equalTo(0));
-
-        uri = "something";
-        params = RestUtils.decodeQueryString(uri, -1);
-        assertThat(params.size(), equalTo(0));
+        // no query string
+        assertThat(ParameterMap.fromUrl("something").isEmpty(), is(true));
     }
 
-    public void testDecodeQueryStringEdgeCases() {
-        String uri = "something?";
-        assertThat(RestUtils.decodeQueryString(uri, uri.indexOf('?') + 1).size(), equalTo(0));
+    public void testDecodeQueryStringFromUrlEdgeCases() {
+        // empty query string
+        assertThat(ParameterMap.fromUrl("something?").size(), equalTo(0));
 
-        uri = Strings.format("something?%c", randomDelimiter());
-        assertThat(RestUtils.decodeQueryString(uri, uri.indexOf('?') + 1).size(), equalTo(0));
+        assertThat(ParameterMap.fromUrl(Strings.format("something?%c", randomDelimiter())).size(), equalTo(0));
 
-        uri = Strings.format("something?p=v%c%cp1=v1", randomDelimiter(), randomDelimiter());
-        var params = RestUtils.decodeQueryString(uri, uri.indexOf('?') + 1);
+        var params = ParameterMap.fromUrl(Strings.format("something?p=v%c%cp1=v1", randomDelimiter(), randomDelimiter()));
         assertThat(params.size(), equalTo(2));
         assertThat(params.get("p"), equalTo("v"));
         assertThat(params.get("p1"), equalTo("v1"));
 
-        uri = "something?=";
-        assertThat(RestUtils.decodeQueryString(uri, uri.indexOf('?') + 1).size(), equalTo(0));
+        assertThat(ParameterMap.fromUrl("something?=").size(), equalTo(0));
 
-        uri = Strings.format("something?%c=", randomDelimiter());
-        assertThat(RestUtils.decodeQueryString(uri, uri.indexOf('?') + 1).size(), equalTo(0));
+        assertThat(ParameterMap.fromUrl(Strings.format("something?%c=", randomDelimiter())).size(), equalTo(0));
 
-        uri = "something?a";
-        params = RestUtils.decodeQueryString(uri, uri.indexOf('?') + 1);
+        params = ParameterMap.fromUrl("something?a");
         assertThat(params.size(), equalTo(1));
         assertThat(params.get("a"), equalTo(""));
 
-        uri = Strings.format("something?p=v%ca", randomDelimiter());
-        params = RestUtils.decodeQueryString(uri, uri.indexOf('?') + 1);
+        params = ParameterMap.fromUrl(Strings.format("something?p=v%ca", randomDelimiter()));
         assertThat(params.size(), equalTo(2));
         assertThat(params.get("a"), equalTo(""));
         assertThat(params.get("p"), equalTo("v"));
 
-        uri = Strings.format("something?p=v%ca%cp1=v1", randomDelimiter(), randomDelimiter());
-        params = RestUtils.decodeQueryString(uri, uri.indexOf('?') + 1);
+        params = ParameterMap.fromUrl(Strings.format("something?p=v%ca%cp1=v1", randomDelimiter(), randomDelimiter()));
         assertThat(params.size(), equalTo(3));
         assertThat(params.get("a"), equalTo(""));
         assertThat(params.get("p"), equalTo("v"));
         assertThat(params.get("p1"), equalTo("v1"));
 
-        uri = Strings.format("something?p=v%ca%cb%cp1=v1", randomDelimiter(), randomDelimiter(), randomDelimiter());
-        params = RestUtils.decodeQueryString(uri, uri.indexOf('?') + 1);
+        params = ParameterMap.fromUrl(
+            Strings.format("something?p=v%ca%cb%cp1=v1", randomDelimiter(), randomDelimiter(), randomDelimiter())
+        );
         assertThat(params.size(), equalTo(4));
         assertThat(params.get("a"), equalTo(""));
         assertThat(params.get("b"), equalTo(""));
@@ -97,65 +84,51 @@ public class RestUtilsTests extends ESTestCase {
         assertThat(params.get("p1"), equalTo("v1"));
     }
 
-    public void testDecodeQueryStringBasic() {
-        String uri = "something?test=value";
-        var params = RestUtils.decodeQueryString(uri, uri.indexOf('?') + 1);
+    public void testDecodeQueryString() {
+        var params = ParameterMap.fromQueryString("test=value");
         assertThat(params.size(), equalTo(1));
         assertThat(params.getAll("test"), equalTo(List.of("value")));
     }
 
     public void testDecodeQueryStringMultipleValues() {
-        String uri = "something?match%5B%5D=up&match%5B%5D=http_requests_total&start=1609746000";
-        var params = RestUtils.decodeQueryString(uri, uri.indexOf('?') + 1);
+        var params = ParameterMap.fromQueryString("match%5B%5D=up&match%5B%5D=http_requests_total&start=1609746000");
         assertThat(params.getAll("match[]"), equalTo(List.of("up", "http_requests_total")));
         assertThat(params.getAll("start"), equalTo(List.of("1609746000")));
     }
 
     public void testDecodeQueryStringDelimiters() {
-        String uri = Strings.format("something?a=1%cb=2", randomDelimiter());
-        var params = RestUtils.decodeQueryString(uri, uri.indexOf('?') + 1);
+        var params = ParameterMap.fromQueryString(Strings.format("a=1%cb=2", randomDelimiter()));
         assertThat(params.getAll("a"), equalTo(List.of("1")));
         assertThat(params.getAll("b"), equalTo(List.of("2")));
     }
 
-    public void testDecodeQueryStringEdgeCasesMulti() {
+    public void testDecodeQueryStringEdgeCases() {
         // empty query string
-        String uri = "something?";
-        assertThat(RestUtils.decodeQueryString(uri, uri.indexOf('?') + 1).isEmpty(), is(true));
-
-        // fromIndex past end
-        assertThat(RestUtils.decodeQueryString("something", 9).isEmpty(), is(true));
-
-        // fromIndex negative
-        assertThat(RestUtils.decodeQueryString("something", -1).isEmpty(), is(true));
-
-        // empty string
-        assertThat(RestUtils.decodeQueryString("", 0).isEmpty(), is(true));
+        assertThat(ParameterMap.fromQueryString("").isEmpty(), is(true));
 
         // key with no value
-        uri = "something?a";
-        var params = RestUtils.decodeQueryString(uri, uri.indexOf('?') + 1);
-        assertThat(params.getAll("a"), equalTo(List.of("")));
+        assertThat(ParameterMap.fromQueryString("a").getAll("a"), equalTo(List.of("")));
+
+        // package-private fromIndex edge cases
+        assertThat(RestUtils.decodeQueryString("something", 9).isEmpty(), is(true));
+        assertThat(RestUtils.decodeQueryString("something", -1).isEmpty(), is(true));
     }
 
     public void testDecodeQueryStringFragment() {
         // fragment should be excluded
-        String uri = "something?a=1#fragment";
-        var params = RestUtils.decodeQueryString(uri, uri.indexOf('?') + 1);
+        var params = ParameterMap.fromUrl("something?a=1#fragment");
         assertThat(params.getAll("a"), equalTo(List.of("1")));
         assertThat(params.containsKey("fragment"), is(false));
     }
 
     public void testDecodeQueryStringUrlEncoded() {
-        String uri = "something?match%5B%5D=up%7Bjob%3D%22prometheus%22%7D";
-        var params = RestUtils.decodeQueryString(uri, uri.indexOf('?') + 1);
+        var params = ParameterMap.fromQueryString("match%5B%5D=up%7Bjob%3D%22prometheus%22%7D");
         assertThat(params.getAll("match[]"), equalTo(List.of("up{job=\"prometheus\"}")));
     }
 
     public void testDecodeQueryStringReservedParameters() {
         for (var reservedParam : INTERNAL_MARKER_REQUEST_PARAMETERS) {
-            String uri = "something?" + reservedParam + "=value";
-            expectThrows(IllegalArgumentException.class, () -> RestUtils.decodeQueryString(uri, uri.indexOf('?') + 1));
+            expectThrows(IllegalArgumentException.class, () -> ParameterMap.fromQueryString(reservedParam + "=value"));
         }
     }
 
@@ -197,17 +170,16 @@ public class RestUtilsTests extends ESTestCase {
             randomDelimiter(),
             randomDelimiter()
         );
-        var params = RestUtils.decodeQueryString(uri, uri.indexOf('?') + 1);
+        var params = ParameterMap.fromUrl(uri);
         assertThat(params.get("/?:@-._~!$'()* ,"), equalTo("/?:@-._~!$'()* ,=="));
         assertThat(params.size(), equalTo(1));
     }
 
     public void testReservedParameters() {
         for (var reservedParam : INTERNAL_MARKER_REQUEST_PARAMETERS) {
-            String uri = "something?" + reservedParam + "=value";
             IllegalArgumentException exception = expectThrows(
                 IllegalArgumentException.class,
-                () -> RestUtils.decodeQueryString(uri, uri.indexOf('?') + 1)
+                () -> ParameterMap.fromUrl("something?" + reservedParam + "=value")
             );
             assertEquals(exception.getMessage(), "parameter [" + reservedParam + "] is reserved and may not be set");
         }

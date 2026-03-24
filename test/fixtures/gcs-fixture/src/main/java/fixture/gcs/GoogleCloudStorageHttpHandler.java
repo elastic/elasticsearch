@@ -17,7 +17,6 @@ import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.fixture.HttpHeaderParser;
 import org.elasticsearch.xcontent.ToXContent;
@@ -103,7 +102,7 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                 writeBlobVersionAsJson(exchange, blob);
             } else if (Regex.simpleMatch("GET /storage/v1/b/" + bucket + "/o*", request)) {
                 // List Objects https://cloud.google.com/storage/docs/json_api/v1/objects/list
-                final var params = RestUtils.decodeQueryString(exchange.getRequestURI());
+                final var params = ParameterMap.from(exchange.getRequestURI());
                 final String prefix = params.getOrDefault("prefix", "");
                 final int maxResults = Integer.parseInt(params.getOrDefault("maxResults", String.valueOf(defaultPageLimit.get())));
                 final String delimiter = params.getOrDefault("delimiter", "");
@@ -214,7 +213,7 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                 }
             } else if (Regex.simpleMatch("POST /upload/storage/v1/b/" + bucket + "/*uploadType=resumable*", request)) {
                 // Resumable upload initialization https://cloud.google.com/storage/docs/json_api/v1/how-tos/resumable-upload
-                final var params = RestUtils.decodeQueryString(exchange.getRequestURI());
+                final var params = ParameterMap.from(exchange.getRequestURI());
                 final String blobName = params.get("name");
                 final Long ifGenerationMatch = parseOptionalLongParameter(exchange, IF_GENERATION_MATCH);
                 final MockGcsBlobStore.ResumableUpload resumableUpload = mockGcsBlobStore.createResumableUpload(
@@ -240,7 +239,7 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
 
             } else if (Regex.simpleMatch("PUT /upload/storage/v1/b/" + bucket + "/o?*uploadType=resumable*", request)) {
                 // Resumable upload https://cloud.google.com/storage/docs/json_api/v1/how-tos/resumable-upload
-                final var params = RestUtils.decodeQueryString(exchange.getRequestURI());
+                final var params = ParameterMap.from(exchange.getRequestURI());
 
                 final String contentRangeValue = requireHeader(exchange, "Content-Range");
                 final HttpHeaderParser.ContentRange contentRange = HttpHeaderParser.parseContentRangeHeader(contentRangeValue);
@@ -468,7 +467,7 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
     }
 
     private static Long parseOptionalLongParameter(HttpExchange exchange, String parameterName) {
-        final var params = RestUtils.decodeQueryString(exchange.getRequestURI());
+        final var params = ParameterMap.from(exchange.getRequestURI());
         if (params.containsKey(parameterName)) {
             try {
                 return Long.parseLong(params.get(parameterName));

@@ -211,15 +211,11 @@ public class RestRequest implements ToXContent.Params, Traceable {
     }
 
     private static ParameterMap params(final String uri) {
-        int index = uri.indexOf('?');
-        if (index >= 0) {
-            try {
-                return RestUtils.decodeQueryString(uri, index + 1);
-            } catch (final IllegalArgumentException e) {
-                throw new BadParameterException(e);
-            }
+        try {
+            return ParameterMap.fromUrl(uri);
+        } catch (final IllegalArgumentException e) {
+            throw new BadParameterException(e);
         }
-        return ParameterMap.empty();
     }
 
     /**

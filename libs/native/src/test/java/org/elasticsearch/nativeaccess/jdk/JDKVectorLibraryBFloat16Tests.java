@@ -212,7 +212,7 @@ public class JDKVectorLibraryBFloat16Tests extends VectorSimilarityFunctionsTest
         var offsetsSegment = arena.allocate((long) numVecs * Integer.BYTES);
 
         // Mimics extra data at the end
-        // f32 doesn't need to be pitched like this, only used for individual queries
+        // f32 doesn't need to be pitched like this, as its only used for individual queries
         var bf16Pitch = dims * BFloat16.BYTES + BFloat16.BYTES;
         var f32Values = new float[numVecs][];
         var bf16Values = new float[numVecs][];
@@ -232,7 +232,7 @@ public class JDKVectorLibraryBFloat16Tests extends VectorSimilarityFunctionsTest
                 (long) i * dims * Float.BYTES,
                 dims
             );
-            copyToBFloat16Segment(bf16Values[i], bf16Segment, (long) i * dims * BFloat16.BYTES);
+            copyToBFloat16Segment(bf16Values[i], bf16Segment, (long) i * bf16Pitch);
         }
 
         int queryOrd = randomInt(numVecs - 1);

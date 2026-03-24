@@ -196,11 +196,14 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
         Warnings warnings
     ) {
 
-        // TODO: https://github.com/elastic/elasticsearch/pull/144704#pullrequestreview-3991685487
-        // We need a better explaination why this check is needed here.
-        // The other applyAs methods in this class do not include this check.
-        //
-        if (aliasFilter != null && aliasFilter != AliasFilter.EMPTY) return false;
+        if (aliasFilter != null && aliasFilter != AliasFilter.EMPTY) {
+
+            // Other "applyAs" methods here implicitly handle AliasFilter in QueryList.getQuery()
+            // which adds the filter clause to the query sent to Lucene.  Unfortunately this
+            // optimization avoids Lucene queries so we can't use it when an AliasFilter is in effect.
+            //
+            return false;
+        }
 
         if (expressions.size() == 1) {
             Expression expr = expressions.get(0);

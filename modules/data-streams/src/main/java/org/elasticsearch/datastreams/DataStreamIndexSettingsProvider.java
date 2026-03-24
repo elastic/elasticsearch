@@ -122,6 +122,7 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
                     additionalSettings.put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), "1m");
                     additionalSettings.put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), "async");
                     additionalSettings.put(IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL_SETTING.getKey(), "1m");
+                    additionalSettings.put(IndexSettings.INDEX_TRANSLOG_GENERATION_THRESHOLD_SIZE_SETTING.getKey(), "1GB");
 
                     if (indexTemplateAndCreateRequestSettings.hasValue(IndexMetadata.INDEX_ROUTING_PATH.getKey()) == false
                         && combinedTemplateMappings.isEmpty() == false) {

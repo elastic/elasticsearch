@@ -62,3 +62,16 @@ TS k8s | METRICS_INFO | WHERE metric_type == "counter" | STATS matching_metrics 
 matching_metrics:long
 2
 ;
+
+metricsInfoMultipleIndices
+required_capability: metrics_info_command
+TS k8s,ts_window | METRICS_INFO | SORT metric_name;
+
+metric_name:keyword    | data_stream:keyword | unit:keyword | metric_type:keyword | field_type:keyword | dimension_fields:keyword
+counter_val            | ts_window           | null         | counter             | long               | dim
+network.eth0.rx        | k8s                 | packets      | gauge               | integer            | [cluster, pod, region]
+network.eth0.tx        | k8s                 | packets      | gauge               | integer            | [cluster, pod, region]
+network.total_bytes_in | k8s                 | bytes        | counter             | long               | [cluster, pod, region]
+network.total_cost     | k8s                 | usd          | counter             | double             | [cluster, pod, region]
+val                    | ts_window           | null         | gauge               | long               | dim
+;

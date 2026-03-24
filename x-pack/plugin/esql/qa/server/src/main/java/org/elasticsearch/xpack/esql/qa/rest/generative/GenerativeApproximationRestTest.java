@@ -78,11 +78,9 @@ public abstract class GenerativeApproximationRestTest extends EsqlSpecTestCase {
         assumeTrue("Test must contain STATS to be included in approximation tests", testCase.query.toLowerCase().contains("stats"));
 
         // stats
-        assumeFalse("...", "docsCountWithExpression".equals(testName));  // ClassCastException
-        assumeFalse("...", "isNullWithStatsCount_On_TextField".equals(testName));  // ClassCastException
-
         assumeFalse("...", "sumOfConst".equals(testName));  //  optimized incorrectly
 
+        assumeFalse("...", "docsCountWithExpression".equals(testName));  // can't release already released object
         assumeFalse("...", "countNull".equals(testName));  // can't read released page
         assumeFalse("...", "count_mv".equals(testName));  // can't read released page
         assumeFalse("...", "countWithConditions".equals(testName));  // can't read released page

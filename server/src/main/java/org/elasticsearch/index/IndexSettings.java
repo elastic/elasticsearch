@@ -635,6 +635,16 @@ public final class IndexSettings {
         Property.ServerlessPublic
     );
 
+    /**
+     * Defines the name of the field storing the metric temporality
+     */
+    public static final Setting<String> TIME_SERIES_TEMPORALITY_FIELD = Setting.simpleString(
+        "index.time_series.temporality_field",
+        Property.IndexScope,
+        Property.Final,
+        Property.ServerlessPublic
+    );
+
     // TODO: deprecate this setting as this was designed as an opt-out and name of the setting is tied actual name of the codec:
     public static final Setting<Boolean> TIME_SERIES_ES87TSDB_CODEC_ENABLED_SETTING = Setting.boolSetting(
         "index.time_series.es87tsdb_codec.enabled",

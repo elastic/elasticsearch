@@ -90,6 +90,17 @@ public final class OrdinalBytesRefBlock extends AbstractNonThreadSafeRefCounted 
     }
 
     @Override
+    public BytesRefBlock slice(int beginInclusive, int endExclusive) {
+        if (beginInclusive == 0 && endExclusive == getPositionCount()) {
+            incRef();
+            return this;
+        }
+        IntBlock slicedOrdinals = ordinals.slice(beginInclusive, endExclusive);
+        bytes.incRef();
+        return new OrdinalBytesRefBlock(slicedOrdinals, bytes);
+    }
+
+    @Override
     public BytesRefBlock filter(boolean mayContainDuplicates, int... positions) {
         // Do not build a filtered block using the same dictionary, because dictionary entries that are not referenced
         // may reappear when hashing the dictionary in BlockHash.

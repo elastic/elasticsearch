@@ -759,8 +759,7 @@ public class ClientTransformIndexerTests extends ESTestCase {
                             // copy the pit from the request
                             searchRequest.pointInTimeBuilder() != null
                                 ? CompositeBytesReference.of(searchRequest.pointInTimeBuilder().getEncodedId(), new BytesArray("+"))
-                                : null,
-                            null
+                                : null
                         )
                     );
 

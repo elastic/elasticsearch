@@ -80,8 +80,6 @@ public abstract class GenerativeApproximationRestTest extends EsqlSpecTestCase {
         // stats
         assumeFalse("...", "docsCountWithExpression".equals(testName));  // ClassCastException
         assumeFalse("...", "isNullWithStatsCount_On_TextField".equals(testName));  // ClassCastException
-        assumeFalse("...", "countStarGroupedTrunc".equals(testName));  // ClassCastException
-        assumeFalse("...", "countStarGroupedTruncWithFilterOutsideStats".equals(testName));  // ClassCastException
 
         assumeFalse("...", "sumOfConst".equals(testName));  //  optimized incorrectly
 
@@ -118,25 +116,10 @@ public abstract class GenerativeApproximationRestTest extends EsqlSpecTestCase {
         assumeFalse("...", "statsExpressionsWithAliases".equals(testName));  // can't release already released object
         assumeFalse("...", "statsAggsGrouped".equals(testName));  // can't release already released object
 
-        // string
-        assumeFalse("...", "negatedNotEqualsToUpperFolded".equals(testName));  // ClassCastException
-
         // bucket
-        assumeFalse("...", "bucketByYearLowBucketCount".equals(testName));  // ClassCastException
-        assumeFalse("...", "bucketByWeekInString".equals(testName));  // ClassCastException
-        assumeFalse("...", "docsBucketWeeklyHistogram".equals(testName));  // ClassCastException
-        assumeFalse("...", "docsBucketWeeklyHistogramWithSpan".equals(testName));  // ClassCastException
-        assumeFalse("...", "foldableBuckets".equals(testName));  // ClassCastException
-        assumeFalse("...", "foldableBucketsInline".equals(testName));  // ClassCastException
-        assumeFalse("...", "docsGettingStartedBucketStatsBy".equals(testName));  // ClassCastException
-        assumeFalse("...", "docsBucketMonthlyHistogram".equals(testName));  // ClassCastException
         assumeFalse("...", "bucketNumericMixedTypes".equals(testName));  // can't release already released object
         assumeFalse("...", "binNumericMixedTypes".equals(testName));  // can't release already released object
         assumeFalse("...", "bucketNumericMixedTypesIntegerSpans".equals(testName));  // can't release already released object
-
-        // tbucket
-        assumeFalse("...", "tbucketWithNumericBucketsAndExplicitFromToCount".equals(testName));  // ClassCastException
-        assumeFalse("...", "tbucketWithNumericBucketsAndExplicitFromToCountFinerGranularity".equals(testName));  // ClassCastException
 
         // drop
         assumeFalse("...", "dropGrouping".equals(testName));  // can't read released page
@@ -172,9 +155,6 @@ public abstract class GenerativeApproximationRestTest extends EsqlSpecTestCase {
         assumeFalse("...", "toIpInAggOctal".equals(testName));  // can't release already released object
 
         // math
-        assumeFalse("...", "roundToSalaryWindow".equals(testName));  // ClassCastException
-        assumeFalse("...", "roundToNanos".equals(testName));  // ClassCastException
-        assumeFalse("...", "roundToBirthWindow".equals(testName));  // ClassCastException
         assumeFalse("...", "functionUnderArithmeticOperationAggString".equals(testName));  // can't release already released object
 
         // mv_expand

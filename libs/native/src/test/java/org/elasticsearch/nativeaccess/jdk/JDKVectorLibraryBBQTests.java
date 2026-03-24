@@ -337,18 +337,14 @@ public class JDKVectorLibraryBBQTests extends VectorSimilarityFunctionsTests {
         offsetsSegment.setAtIndex(ValueLayout.JAVA_INT, 2, 0);
         Exception ex = expectThrows(
             IOOBE,
-            () -> nativeSimilarityBulkWithOffsets(
-                indexSegment, query, indexVectorBytes, indexVectorBytes, offsetsSegment, numVecs, scores
-            )
+            () -> nativeSimilarityBulkWithOffsets(indexSegment, query, indexVectorBytes, indexVectorBytes, offsetsSegment, numVecs, scores)
         );
         assertThat(ex.getMessage(), containsString("out of bounds for length"));
 
         offsetsSegment.setAtIndex(ValueLayout.JAVA_INT, 1, -1);
         ex = expectThrows(
             IOOBE,
-            () -> nativeSimilarityBulkWithOffsets(
-                indexSegment, query, indexVectorBytes, indexVectorBytes, offsetsSegment, numVecs, scores
-            )
+            () -> nativeSimilarityBulkWithOffsets(indexSegment, query, indexVectorBytes, indexVectorBytes, offsetsSegment, numVecs, scores)
         );
         assertThat(ex.getMessage(), containsString("out of bounds for length"));
     }

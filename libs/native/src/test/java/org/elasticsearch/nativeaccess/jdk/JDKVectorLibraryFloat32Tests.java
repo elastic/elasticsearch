@@ -247,10 +247,7 @@ public class JDKVectorLibraryFloat32Tests extends VectorSimilarityFunctionsTests
         assertThat(ex.getMessage(), containsString("out of bounds for length"));
 
         offsetsSegment.setAtIndex(ValueLayout.JAVA_INT, 1, -1);
-        ex = expectThrows(
-            IOOBE,
-            () -> similarityBulkWithOffsets(vectorsSegment, query, dims, pitch, offsetsSegment, numVecs, scores)
-        );
+        ex = expectThrows(IOOBE, () -> similarityBulkWithOffsets(vectorsSegment, query, dims, pitch, offsetsSegment, numVecs, scores));
         assertThat(ex.getMessage(), containsString("out of bounds for length"));
     }
 

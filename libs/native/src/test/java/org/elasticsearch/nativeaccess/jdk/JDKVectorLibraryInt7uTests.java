@@ -256,10 +256,7 @@ public class JDKVectorLibraryInt7uTests extends VectorSimilarityFunctionsTests {
 
         // Negative offset
         offsetsSegment.setAtIndex(ValueLayout.JAVA_INT, 1, -1);
-        ex = expectThrows(
-            IOOBE,
-            () -> similarityBulkWithOffsets(vectorsSegment, query, dims, dims, offsetsSegment, numVecs, scores)
-        );
+        ex = expectThrows(IOOBE, () -> similarityBulkWithOffsets(vectorsSegment, query, dims, dims, offsetsSegment, numVecs, scores));
         assertThat(ex.getMessage(), containsString("out of bounds for length"));
     }
 

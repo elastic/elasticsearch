@@ -80,6 +80,15 @@ $endif$
     @Override
     ReleasableIterator<? extends $Type$Block> lookup(IntBlock positions, ByteSizeValue targetBlockSize);
 
+    /**
+     * Return a subset of this vector from {@code beginInclusive} to
+     * {@code endExclusive}. This <strong>may</strong> return the same
+     * instance if the range covers all positions, but if it does it
+     * will {@link #incRef()} it.
+     */
+    @Override
+    $Type$Vector slice(int beginInclusive, int endExclusive);
+
 $if(int)$
     /**
      * The minimum value in the Vector. An empty Vector will return {@link Integer#MAX_VALUE}.

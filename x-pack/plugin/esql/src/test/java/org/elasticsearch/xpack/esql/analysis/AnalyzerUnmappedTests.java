@@ -565,21 +565,19 @@ public class AnalyzerUnmappedTests extends ESTestCase {
      * not explicitly referenced in any downstream expression (e.g. KEEP, SORT, WHERE).
      */
     public void testPartiallyMappedKeywordFieldLoadedWithoutExplicitReference() {
-        var plan = analyzer()
-            .addIndex(
-                new EsIndex(
-                    "test*",
-                    EsqlTestUtils.loadMapping("mapping-basic.json"),
-                    Map.of("test1", IndexMode.STANDARD, "test2", IndexMode.STANDARD),
-                    Map.of(),
-                    Map.of(),
-                    Set.of("first_name")
-                )
+        var plan = analyzer().addIndex(
+            new EsIndex(
+                "test*",
+                EsqlTestUtils.loadMapping("mapping-basic.json"),
+                Map.of("test1", IndexMode.STANDARD, "test2", IndexMode.STANDARD),
+                Map.of(),
+                Map.of(),
+                Set.of("first_name")
             )
-            .statement(setUnmappedLoad("""
-                FROM test*
-                | SORT emp_no
-                """));
+        ).statement(setUnmappedLoad("""
+            FROM test*
+            | SORT emp_no
+            """));
 
         var limit = as(plan, Limit.class);
         var order = as(limit.child(), OrderBy.class);

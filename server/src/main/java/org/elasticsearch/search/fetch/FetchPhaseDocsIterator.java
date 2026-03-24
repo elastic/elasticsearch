@@ -125,7 +125,12 @@ abstract class FetchPhaseDocsIterator {
     }
 
     private static SearchHit[] stripNulls(SearchHit[] searchHits) {
-        return Arrays.stream(searchHits).filter(Objects::nonNull).toArray(SearchHit[]::new);
+        for (SearchHit hit : searchHits) {
+            if (hit == null) {
+                return Arrays.stream(searchHits).filter(Objects::nonNull).toArray(SearchHit[]::new);
+            }
+        }
+        return searchHits;
     }
 
     private static void purgeSearchHits(SearchHit[] searchHits) {

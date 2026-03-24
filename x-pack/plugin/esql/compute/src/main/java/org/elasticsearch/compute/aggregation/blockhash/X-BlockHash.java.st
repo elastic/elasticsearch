@@ -232,62 +232,32 @@ $endif$
     }
 
     @Override
-    public $Type$Block[] getKeys() {
+    public $Type$Block[] getKeys(IntVector selected) {
 $if(BytesRef)$
-        /*
-         * Create an un-owned copy of the data so we can close our BytesRefHash
-         * without and still read from the block.
-         */
         // TODO replace with takeBytesRefsOwnership ?!
         final BytesRef spare = new BytesRef();
-        if (seenNull) {
-            try (var builder = blockFactory.newBytesRefBlockBuilder(Math.toIntExact(hash.size() + 1))) {
-                builder.appendNull();
-                for (long i = 0; i < hash.size(); i++) {
-                    builder.appendBytesRef(hash.get(i, spare));
+$endif$
+        try ($Type$Block.Builder builder = blockFactory.new$Type$BlockBuilder(selected.getPositionCount())) {
+            for (int i = 0; i < selected.getPositionCount(); i++) {
+                int groupId = selected.getInt(i);
+                if (groupId == 0) {
+                    builder.appendNull();
+                } else {
+$if(BytesRef)$
+                    builder.appendBytesRef(hash.get(groupId - 1, spare));
+$elseif(int)$
+                    builder.appendInt((int) hash.get(groupId - 1));
+$elseif(double)$
+                    builder.appendDouble(Double.longBitsToDouble(hash.get(groupId - 1)));
+$elseif(long)$
+                    builder.appendLong(hash.get(groupId - 1));
+$else$
+                    syntax error because we didn't cover this case
+$endif$
                 }
-                return new BytesRefBlock[] { builder.build() };
             }
+            return new $Type$Block[] { builder.build() };
         }
-        var bytes = hash.getBytesRefs();
-        var bytesVector = blockFactory.newBytesRefArrayVector(bytes, Math.toIntExact(hash.size()));
-        bytes.incRef(); // increase the reference for bytesVector
-        return new BytesRefBlock[] { bytesVector.asBlock() };
-$else$
-        if (seenNull) {
-            final int size = Math.toIntExact(hash.size() + 1);
-            final $type$[] keys = new $type$[size];
-            for (int i = 1; i < size; i++) {
-$if(int)$
-                keys[i] = (int) hash.get(i - 1);
-$elseif(double)$
-                keys[i] = Double.longBitsToDouble(hash.get(i - 1));
-$elseif(long)$
-                keys[i] = hash.get(i - 1);
-$else$
-                syntax error because we didn't cover this case
-$endif$
-            }
-            BitSet nulls = new BitSet(1);
-            nulls.set(0);
-            return new $Type$Block[] {
-                blockFactory.new$Type$ArrayBlock(keys, keys.length, null, nulls, Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING) };
-        }
-        final int size = Math.toIntExact(hash.size());
-        final $type$[] keys = new $type$[size];
-        for (int i = 0; i < size; i++) {
-$if(int)$
-            keys[i] = (int) hash.get(i);
-$elseif(double)$
-            keys[i] = Double.longBitsToDouble(hash.get(i));
-$elseif(long)$
-            keys[i] = hash.get(i);
-$else$
-            syntax error because we didn't cover this case
-$endif$
-        }
-        return new $Type$Block[] { blockFactory.new$Type$ArrayVector(keys, keys.length).asBlock() };
-$endif$
     }
 
     @Override

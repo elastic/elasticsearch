@@ -21,7 +21,7 @@ import java.io.IOException;
  * This class is generated. Edit {@code X-Vector.java.st} instead.
  */
 public sealed interface BooleanVector extends Vector permits ConstantBooleanVector, BooleanArrayVector, BooleanBigArrayVector,
-    ConstantNullVector {
+    ConstantNullVector, org.elasticsearch.compute.data.arrow.BooleanArrowBufVector {
     boolean getBoolean(int position);
 
     @Override
@@ -48,6 +48,15 @@ public sealed interface BooleanVector extends Vector permits ConstantBooleanVect
 
     @Override
     ReleasableIterator<? extends BooleanBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize);
+
+    /**
+     * Return a subset of this vector from {@code beginInclusive} to
+     * {@code endExclusive}. This <strong>may</strong> return the same
+     * instance if the range covers all positions, but if it does it
+     * will {@link #incRef()} it.
+     */
+    @Override
+    BooleanVector slice(int beginInclusive, int endExclusive);
 
     /**
      * Are all values {@code true}? This will scan all values to check and always answer accurately.

@@ -32,7 +32,6 @@ import java.nio.charset.Charset;
 import java.nio.file.Path;
 import java.security.SecureRandom;
 import java.security.cert.Certificate;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -123,8 +122,7 @@ public class MicrosoftGraphHttpFixture extends ExternalResource {
             }
 
             final var requestBody = Streams.copyToString(new InputStreamReader(exchange.getRequestBody(), Charset.defaultCharset()));
-            final var formFields = new HashMap<String, String>();
-            RestUtils.decodeQueryString(requestBody, 0, formFields);
+            final var formFields = RestUtils.decodeQueryStringMulti(requestBody, 0);
 
             if (formFields.get("grant_type").equals("client_credentials") == false) {
                 graphError(exchange, RestStatus.BAD_REQUEST, Strings.format("Unexpected Grant Type: %s", formFields.get("grant_type")));

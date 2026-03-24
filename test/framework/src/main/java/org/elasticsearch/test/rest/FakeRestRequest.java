@@ -19,6 +19,7 @@ import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.http.HttpRequest;
 import org.elasticsearch.http.HttpResponse;
 import org.elasticsearch.rest.ChunkedRestResponseBodyPart;
+import org.elasticsearch.rest.ParameterMap;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -37,17 +38,12 @@ public class FakeRestRequest extends RestRequest {
         this(
             XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE),
             new FakeHttpRequest(Method.GET, "", BytesArray.EMPTY, new HashMap<>()),
-            new HashMap<>(),
+            ParameterMap.empty(),
             new FakeHttpChannel(null)
         );
     }
 
-    private FakeRestRequest(
-        XContentParserConfiguration config,
-        HttpRequest httpRequest,
-        Map<String, String> params,
-        HttpChannel httpChannel
-    ) {
+    private FakeRestRequest(XContentParserConfiguration config, HttpRequest httpRequest, ParameterMap params, HttpChannel httpChannel) {
         super(config, params, httpRequest.uri(), httpRequest.getHeaders(), httpRequest, httpChannel);
     }
 
@@ -207,7 +203,7 @@ public class FakeRestRequest extends RestRequest {
 
         private Map<String, List<String>> headers = new HashMap<>();
 
-        private Map<String, String> params = new HashMap<>();
+        private ParameterMap params = ParameterMap.empty();
 
         private HttpBody content = HttpBody.empty();
 
@@ -230,7 +226,14 @@ public class FakeRestRequest extends RestRequest {
         }
 
         public Builder withParams(Map<String, String> params) {
-            this.params = params;
+            if (params != null) {
+                this.params = ParameterMap.fromSingleValues(params);
+            }
+            return this;
+        }
+
+        public Builder withMultiParams(ParameterMap multiParams) {
+            this.params = multiParams;
             return this;
         }
 

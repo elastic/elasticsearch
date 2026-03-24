@@ -65,7 +65,6 @@ import java.nio.file.NoSuchFileException;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.Base64;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -369,8 +368,7 @@ public class AzureBlobContainerRetriesTests extends AbstractBlobContainerRetries
         httpServer.createContext(downloadStorageEndpoint(blobContainer, "write_large_blob"), exchange -> {
 
             if ("PUT".equals(exchange.getRequestMethod())) {
-                final Map<String, String> params = new HashMap<>();
-                RestUtils.decodeQueryString(exchange.getRequestURI().getRawQuery(), 0, params);
+                final var params = RestUtils.decodeQueryStringMulti(exchange.getRequestURI().getRawQuery(), 0);
 
                 final String blockId = params.get("blockid");
                 assert Strings.hasText(blockId) == false || AzureFixtureHelper.assertValidBlockId(blockId);
@@ -439,8 +437,7 @@ public class AzureBlobContainerRetriesTests extends AbstractBlobContainerRetries
         httpServer.createContext(downloadStorageEndpoint(blobContainer, "write_large_blob_streaming"), exchange -> {
 
             if ("PUT".equals(exchange.getRequestMethod())) {
-                final Map<String, String> params = new HashMap<>();
-                RestUtils.decodeQueryString(exchange.getRequestURI().getRawQuery(), 0, params);
+                final var params = RestUtils.decodeQueryStringMulti(exchange.getRequestURI().getRawQuery(), 0);
 
                 final String blockId = params.get("blockid");
                 assert Strings.hasText(blockId) == false || AzureFixtureHelper.assertValidBlockId(blockId);

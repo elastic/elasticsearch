@@ -45,32 +45,37 @@ public class RestUtils {
 
     public static final UnaryOperator<String> REST_DECODER = RestUtils::decodeComponent;
 
-    public static void decodeQueryString(URI uri, Map<String, String> params) {
-        final var rawQuery = uri.getRawQuery();
-        if (Strings.hasLength(rawQuery)) {
-            decodeQueryString(rawQuery, 0, params);
-        }
-    }
-
     public static void decodeQueryString(String s, int fromIndex, Map<String, String> params) {
         parseQueryStringPairs(s, fromIndex, (name, value) -> addParam(params, name, value));
     }
 
     /**
-     * Parses a URL-encoded query string into a multi-value map, preserving all values for
+     * Parses a URL-encoded query string into a {@link ParameterMap}, preserving all values for
+     * repeated parameters (e.g. {@code match[]=foo&match[]=bar} → {@code ["foo", "bar"]}).
+     *
+     * @param uri the URI whose raw query string is parsed
+     * @return a {@link ParameterMap} from parameter name to all its values, in encounter order
+     */
+    public static ParameterMap decodeQueryStringMulti(URI uri) {
+        final var rawQuery = uri.getRawQuery();
+        return Strings.hasLength(rawQuery) ? decodeQueryStringMulti(rawQuery, 0) : ParameterMap.empty();
+    }
+
+    /**
+     * Parses a URL-encoded query string into a {@link ParameterMap}, preserving all values for
      * repeated parameters (e.g. {@code match[]=foo&match[]=bar} → {@code ["foo", "bar"]}).
      *
      * @param s         the full string containing the query string
      * @param fromIndex the index at which the query string begins (i.e. one past the {@code ?})
-     * @return a map from parameter name to all its values, in encounter order
+     * @return a {@link ParameterMap} from parameter name to all its values, in encounter order
      */
-    public static Map<String, List<String>> decodeQueryStringMulti(String s, int fromIndex) {
+    public static ParameterMap decodeQueryStringMulti(String s, int fromIndex) {
         Map<String, List<String>> result = new LinkedHashMap<>();
         parseQueryStringPairs(s, fromIndex, (name, value) -> {
             checkReservedParam(name);
             result.computeIfAbsent(name, k -> new ArrayList<>()).add(value);
         });
-        return result;
+        return ParameterMap.of(result);
     }
 
     private static void parseQueryStringPairs(String s, int fromIndex, BiConsumer<String, String> consumer) {

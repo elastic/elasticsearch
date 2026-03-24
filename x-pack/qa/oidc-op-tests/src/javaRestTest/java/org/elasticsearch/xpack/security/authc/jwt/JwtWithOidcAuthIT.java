@@ -31,7 +31,6 @@ import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.net.URI;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -139,8 +138,7 @@ public class JwtWithOidcAuthIT extends C2IdOpTestCase {
          * The three-part-encoded JWT id_token will be in the "id_token" field
          */
         final int hashChar = implicitFlowURI.indexOf('#');
-        final Map<String, String> hashParams = new HashMap<>();
-        RestUtils.decodeQueryString(implicitFlowURI.substring(hashChar + 1), 0, hashParams);
+        final var hashParams = RestUtils.decodeQueryStringMulti(implicitFlowURI.substring(hashChar + 1), 0);
 
         assertThat("Hash value of URI [" + implicitFlowURI + "] should be a JWT with an id Token", hashParams, hasKey("id_token"));
         String idJwt = hashParams.get("id_token");

@@ -68,7 +68,6 @@ import java.net.InetSocketAddress;
 import java.net.SocketTimeoutException;
 import java.nio.file.NoSuchFileException;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Locale;
 import java.util.Map;
@@ -421,8 +420,7 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
         httpServer.createContext("/upload/storage/v1/b/bucket/o", safeHandler(exchange -> {
             final BytesReference requestBody = Streams.readFully(exchange.getRequestBody());
 
-            final Map<String, String> params = new HashMap<>();
-            RestUtils.decodeQueryString(exchange.getRequestURI().getQuery(), 0, params);
+            final var params = RestUtils.decodeQueryStringMulti(exchange.getRequestURI().getQuery(), 0);
             assertThat(params.get("uploadType"), equalTo("resumable"));
 
             if ("POST".equals(exchange.getRequestMethod())) {

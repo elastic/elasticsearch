@@ -514,11 +514,9 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
     }
 
     private void assertMonitorVersionQueryString(String query, final Map<String, String> parameters) {
-        Map<String, String> expectedQueryStringMap = new HashMap<>();
-        RestUtils.decodeQueryString(query, 0, expectedQueryStringMap);
+        var expectedQueryStringMap = RestUtils.decodeQueryStringMulti(query, 0);
 
-        Map<String, String> resourceVersionQueryStringMap = new HashMap<>();
-        RestUtils.decodeQueryString(resourceVersionQueryString(), 0, resourceVersionQueryStringMap);
+        var resourceVersionQueryStringMap = RestUtils.decodeQueryStringMulti(resourceVersionQueryString(), 0);
 
         Map<String, String> actualQueryStringMap = new HashMap<>();
         actualQueryStringMap.putAll(resourceVersionQueryStringMap);

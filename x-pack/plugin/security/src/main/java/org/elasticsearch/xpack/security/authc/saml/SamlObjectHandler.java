@@ -63,9 +63,7 @@ import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.zip.Inflater;
@@ -398,8 +396,7 @@ public class SamlObjectHandler {
 
     protected ParsedQueryString parseQueryStringAndValidateSignature(String queryString, String samlMessageParameterName) {
         final String signatureInput = queryString.replaceAll("&Signature=.*$", "");
-        final Map<String, String> parameters = new HashMap<>();
-        RestUtils.decodeQueryString(queryString, 0, parameters);
+        final var parameters = RestUtils.decodeQueryStringMulti(queryString, 0);
         final String samlMessage = parameters.get(samlMessageParameterName);
         if (samlMessage == null) {
             throw samlException("Could not parse {} from query string: [{}]", samlMessageParameterName, queryString);

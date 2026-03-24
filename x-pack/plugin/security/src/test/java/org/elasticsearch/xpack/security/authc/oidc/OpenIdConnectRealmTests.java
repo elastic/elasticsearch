@@ -42,7 +42,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -358,8 +357,7 @@ public class OpenIdConnectRealmTests extends OpenIdConnectTestCase {
         final JWT idToken = generateIdToken(randomAlphaOfLength(8), randomAlphaOfLength(8), randomAlphaOfLength(8));
         final OpenIdConnectLogoutResponse logoutResponse = realm.buildLogoutResponse(idToken);
         final String endSessionUrl = logoutResponse.getEndSessionUrl();
-        final Map<String, String> parameters = new HashMap<>();
-        RestUtils.decodeQueryString(endSessionUrl, endSessionUrl.indexOf("?") + 1, parameters);
+        final var parameters = RestUtils.decodeQueryStringMulti(endSessionUrl, endSessionUrl.indexOf("?") + 1);
         assertThat(parameters, aMapWithSize(3));
         assertThat(parameters, hasKey("id_token_hint"));
         assertThat(parameters, hasKey("post_logout_redirect_uri"));
@@ -382,8 +380,7 @@ public class OpenIdConnectRealmTests extends OpenIdConnectTestCase {
         final JWT idToken = generateIdToken(randomAlphaOfLength(8), randomAlphaOfLength(8), randomAlphaOfLength(8));
         final OpenIdConnectLogoutResponse logoutResponse = realm.buildLogoutResponse(idToken);
         final String endSessionUrl = logoutResponse.getEndSessionUrl();
-        final Map<String, String> parameters = new HashMap<>();
-        RestUtils.decodeQueryString(endSessionUrl, endSessionUrl.indexOf("?") + 1, parameters);
+        final var parameters = RestUtils.decodeQueryStringMulti(endSessionUrl, endSessionUrl.indexOf("?") + 1);
         assertThat(parameters, aMapWithSize(4));
         assertThat(parameters, hasKey("parameter"));
         assertThat(parameters, hasKey("post_logout_redirect_uri"));
@@ -456,11 +453,9 @@ public class OpenIdConnectRealmTests extends OpenIdConnectTestCase {
         assertThat(endOfPath, greaterThan(-1));
         assertThat(actual.substring(0, endOfPath + 1), equalTo(expected.substring(0, endOfPath + 1)));
 
-        final HashMap<String, String> actualParams = new HashMap<>();
-        RestUtils.decodeQueryString(actual, endOfPath + 1, actualParams);
+        final var actualParams = RestUtils.decodeQueryStringMulti(actual, endOfPath + 1);
 
-        final HashMap<String, String> expectedParams = new HashMap<>();
-        RestUtils.decodeQueryString(expected, endOfPath + 1, expectedParams);
+        final var expectedParams = RestUtils.decodeQueryStringMulti(expected, endOfPath + 1);
 
         assertThat(actualParams, equalTo(expectedParams));
     }

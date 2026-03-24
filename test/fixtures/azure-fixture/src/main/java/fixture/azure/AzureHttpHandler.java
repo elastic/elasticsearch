@@ -34,7 +34,6 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -137,8 +136,7 @@ public class AzureHttpHandler implements HttpHandler {
         try {
             if (Regex.simpleMatch("PUT /" + account + "/" + container + "/*blockid=*", request)) {
                 // Put Block (https://docs.microsoft.com/en-us/rest/api/storageservices/put-block)
-                final Map<String, String> params = new HashMap<>();
-                RestUtils.decodeQueryString(exchange.getRequestURI().getRawQuery(), 0, params);
+                final var params = RestUtils.decodeQueryStringMulti(exchange.getRequestURI().getRawQuery(), 0);
 
                 final String blockId = params.get("blockid");
                 assert assertValidBlockId(blockId);
@@ -273,8 +271,7 @@ public class AzureHttpHandler implements HttpHandler {
 
             } else if (Regex.simpleMatch("GET /" + account + "/" + container + "?*restype=container*comp=list*", request)) {
                 // List Blobs (https://docs.microsoft.com/en-us/rest/api/storageservices/list-blobs)
-                final Map<String, String> params = new HashMap<>();
-                RestUtils.decodeQueryString(exchange.getRequestURI().getQuery(), 0, params);
+                final var params = RestUtils.decodeQueryStringMulti(exchange.getRequestURI().getQuery(), 0);
 
                 final StringBuilder list = new StringBuilder();
                 list.append("""

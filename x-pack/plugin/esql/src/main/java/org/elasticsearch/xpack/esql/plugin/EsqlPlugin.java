@@ -76,6 +76,7 @@ import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.datasources.CoalescedSplit;
 import org.elasticsearch.xpack.esql.datasources.DataSourceCapabilities;
 import org.elasticsearch.xpack.esql.datasources.DataSourceModule;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.FileSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupOperator;
@@ -87,6 +88,8 @@ import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.io.stream.ExpressionQueryBuilder;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamWrapperQueryBuilder;
+import org.elasticsearch.xpack.esql.parser.EsqlConfig;
+import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plan.PlanWritables;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
@@ -250,6 +253,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         );
 
         EsqlFunctionRegistry functionRegistry = new EsqlFunctionRegistry();
+        EsqlParser parser = new EsqlParser(new EsqlConfig(functionRegistry));
         capabilities.set(EsqlCapabilities.capabilities(functionRegistry, false));
 
         List<Object> components = new ArrayList<>(
@@ -261,7 +265,9 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                     new EsqlQueryLog(services.clusterService().getClusterSettings(), services.loggingFieldsProvider()),
                     extraCheckers,
                     services.crossProjectModeDecider(),
-                    dataSourceModule
+                    dataSourceModule,
+                    functionRegistry,
+                    parser
                 ),
                 new ExchangeService(
                     services.clusterService().getSettings(),
@@ -276,7 +282,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         if (ESQL_VIEWS_FEATURE_FLAG.isEnabled()) {
             components = new ArrayList<>(components);
             components.add(new ViewResolver(services.clusterService(), services.projectResolver(), services.client()));
-            components.add(new ViewService(services.clusterService(), functionRegistry));
+            components.add(new ViewService(services.clusterService(), functionRegistry, parser));
         }
         return components;
     }
@@ -324,6 +330,9 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
 
         // Inference command settings
         settings.addAll(InferenceSettings.getSettings());
+
+        // External source rate limiting settings
+        settings.addAll(ExternalSourceSettings.settings());
 
         return Collections.unmodifiableList(settings);
     }

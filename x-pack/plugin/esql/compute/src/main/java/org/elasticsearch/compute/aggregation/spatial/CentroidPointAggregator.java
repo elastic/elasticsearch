@@ -23,6 +23,7 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.utils.WellKnownBinary;
+import org.elasticsearch.lucene.spatial.CoordinateEncoder;
 import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
 
 import java.nio.ByteOrder;
@@ -33,12 +34,12 @@ import java.nio.ByteOrder;
  * This requires that the planner has planned that points are loaded from the index as doc-values.
  */
 abstract class CentroidPointAggregator {
-    public static CentroidState initSingle() {
-        return new CentroidState();
+    public static CentroidState initSingle(CoordinateEncoder encoder) {
+        return new CentroidState(encoder);
     }
 
-    public static GroupingCentroidState initGrouping(BigArrays bigArrays) {
-        return new GroupingCentroidState(bigArrays);
+    public static GroupingCentroidState initGrouping(BigArrays bigArrays, CoordinateEncoder encoder) {
+        return new GroupingCentroidState(bigArrays, encoder);
     }
 
     public static void combine(CentroidState current, double xVal, double xDel, double yVal, double yDel, long count) {
@@ -141,6 +142,11 @@ abstract class CentroidPointAggregator {
         protected final CompensatedSum xSum = new CompensatedSum(0, 0);
         protected final CompensatedSum ySum = new CompensatedSum(0, 0);
         protected long count = 0;
+        final CoordinateEncoder encoder;
+
+        CentroidState(CoordinateEncoder encoder) {
+            this.encoder = encoder;
+        }
 
         @Override
         public void toIntermediate(Block[] blocks, int offset, DriverContext driverContext) {
@@ -179,6 +185,7 @@ abstract class CentroidPointAggregator {
 
     static class GroupingCentroidState implements GroupingAggregatorState {
         private final BigArrays bigArrays;
+        final CoordinateEncoder encoder;
 
         DoubleArray xValues;
         DoubleArray xDeltas;
@@ -187,8 +194,9 @@ abstract class CentroidPointAggregator {
 
         LongArray counts;
 
-        GroupingCentroidState(BigArrays bigArrays) {
+        GroupingCentroidState(BigArrays bigArrays, CoordinateEncoder encoder) {
             this.bigArrays = bigArrays;
+            this.encoder = encoder;
             boolean success = false;
             try {
                 this.xValues = bigArrays.newDoubleArray(1);

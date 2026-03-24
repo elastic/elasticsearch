@@ -55,6 +55,11 @@ public final class BooleanVectorBlock extends AbstractVectorBlock implements Boo
     }
 
     @Override
+    public BooleanBlock slice(int beginInclusive, int endExclusive) {
+        return vector.slice(beginInclusive, endExclusive).asBlock();
+    }
+
+    @Override
     public BooleanBlock filter(boolean mayContainDuplicates, int... positions) {
         return vector.filter(mayContainDuplicates, positions).asBlock();
     }

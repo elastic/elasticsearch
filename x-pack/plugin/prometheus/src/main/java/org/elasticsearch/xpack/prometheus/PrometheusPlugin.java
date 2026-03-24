@@ -7,9 +7,11 @@
 
 package org.elasticsearch.xpack.prometheus;
 
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.FeatureFlag;
@@ -20,6 +22,7 @@ import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.prometheus.rest.PrometheusQueryRangeRestAction;
 import org.elasticsearch.xpack.prometheus.rest.PrometheusRemoteWriteRestAction;
 import org.elasticsearch.xpack.prometheus.rest.PrometheusRemoteWriteTransportAction;
 
@@ -43,6 +46,7 @@ public class PrometheusPlugin extends Plugin implements ActionPlugin {
 
     private final SetOnce<PrometheusIndexTemplateRegistry> indexTemplateRegistry = new SetOnce<>();
     private final SetOnce<IndexingPressure> indexingPressure = new SetOnce<>();
+    private final SetOnce<Recycler<BytesRef>> recycler = new SetOnce<>();
     private final boolean enabled;
     private final long maxProtobufContentLengthBytes;
 
@@ -56,6 +60,7 @@ public class PrometheusPlugin extends Plugin implements ActionPlugin {
         Settings settings = services.environment().settings();
         ClusterService clusterService = services.clusterService();
         indexingPressure.set(services.indexingPressure());
+        recycler.set(services.bigArrays().bytesRefRecycler());
         indexTemplateRegistry.set(
             new PrometheusIndexTemplateRegistry(
                 settings,
@@ -93,7 +98,10 @@ public class PrometheusPlugin extends Plugin implements ActionPlugin {
     ) {
         if (enabled) {
             assert indexingPressure.get() != null : "indexing pressure must be set if plugin is enabled";
-            return List.of(new PrometheusRemoteWriteRestAction(indexingPressure.get(), maxProtobufContentLengthBytes));
+            return List.of(
+                new PrometheusRemoteWriteRestAction(indexingPressure.get(), maxProtobufContentLengthBytes, recycler.get()),
+                new PrometheusQueryRangeRestAction()
+            );
         }
         return List.of();
     }

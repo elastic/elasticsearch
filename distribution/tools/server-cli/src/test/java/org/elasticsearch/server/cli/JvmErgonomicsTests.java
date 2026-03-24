@@ -112,41 +112,61 @@ public class JvmErgonomicsTests extends ESTestCase {
     }
 
     public void testG1GOptionsForSmallHeap() throws Exception {
-        List<String> jvmErgonomics = JvmErgonomics.choose(Arrays.asList("-Xms6g", "-Xmx6g", "-XX:+UseG1GC"), Settings.EMPTY);
+        long heapSize = 6L << 30;
+        Map<String, JvmOption> opts = buildG1Options(heapSize, Map.of());
+        List<String> jvmErgonomics = JvmErgonomics.choose(opts, heapSize, Settings.EMPTY);
         assertThat(jvmErgonomics, hasItem("-XX:G1HeapRegionSize=4m"));
         assertThat(jvmErgonomics, hasItem("-XX:InitiatingHeapOccupancyPercent=30"));
         assertThat(jvmErgonomics, hasItem("-XX:G1ReservePercent=15"));
     }
 
     public void testG1GOptionsForSmallHeapWhenTuningSet() throws Exception {
-        List<String> jvmErgonomics = JvmErgonomics.choose(
-            Arrays.asList("-Xms6g", "-Xmx6g", "-XX:+UseG1GC", "-XX:G1HeapRegionSize=4m", "-XX:InitiatingHeapOccupancyPercent=45"),
-            Settings.EMPTY
+        long heapSize = 6L << 30;
+        Map<String, JvmOption> opts = buildG1Options(
+            heapSize,
+            Map.of(
+                "G1HeapRegionSize",
+                new JvmOption("4194304", "command line"),
+                "InitiatingHeapOccupancyPercent",
+                new JvmOption("45", "command line")
+            )
         );
+        List<String> jvmErgonomics = JvmErgonomics.choose(opts, heapSize, Settings.EMPTY);
         assertThat(jvmErgonomics, everyItem(not(startsWith("-XX:G1HeapRegionSize="))));
         assertThat(jvmErgonomics, everyItem(not(startsWith("-XX:InitiatingHeapOccupancyPercent="))));
         assertThat(jvmErgonomics, hasItem("-XX:G1ReservePercent=15"));
     }
 
     public void testG1GOptionsForLargeHeap() throws Exception {
-        List<String> jvmErgonomics = JvmErgonomics.choose(Arrays.asList("-Xms8g", "-Xmx8g", "-XX:+UseG1GC"), Settings.EMPTY);
+        long heapSize = 8L << 30;
+        Map<String, JvmOption> opts = buildG1Options(heapSize, Map.of());
+        List<String> jvmErgonomics = JvmErgonomics.choose(opts, heapSize, Settings.EMPTY);
         assertThat(jvmErgonomics, hasItem("-XX:InitiatingHeapOccupancyPercent=30"));
         assertThat(jvmErgonomics, hasItem("-XX:G1ReservePercent=25"));
         assertThat(jvmErgonomics, everyItem(not(startsWith("-XX:G1HeapRegionSize="))));
     }
 
     public void testG1GOptionsForSmallHeapWhenOtherGCSet() throws Exception {
-        List<String> jvmErgonomics = JvmErgonomics.choose(Arrays.asList("-Xms6g", "-Xmx6g", "-XX:+UseParallelGC"), Settings.EMPTY);
+        long heapSize = 6L << 30;
+        Map<String, JvmOption> opts = buildFinalOptions(heapSize, false, Map.of());
+        List<String> jvmErgonomics = JvmErgonomics.choose(opts, heapSize, Settings.EMPTY);
         assertThat(jvmErgonomics, everyItem(not(startsWith("-XX:G1HeapRegionSize="))));
         assertThat(jvmErgonomics, everyItem(not(startsWith("-XX:InitiatingHeapOccupancyPercent="))));
         assertThat(jvmErgonomics, everyItem(not(startsWith("-XX:G1ReservePercent="))));
     }
 
     public void testG1GOptionsForLargeHeapWhenTuningSet() throws Exception {
-        List<String> jvmErgonomics = JvmErgonomics.choose(
-            Arrays.asList("-Xms8g", "-Xmx8g", "-XX:+UseG1GC", "-XX:InitiatingHeapOccupancyPercent=60", "-XX:G1ReservePercent=10"),
-            Settings.EMPTY
+        long heapSize = 8L << 30;
+        Map<String, JvmOption> opts = buildG1Options(
+            heapSize,
+            Map.of(
+                "InitiatingHeapOccupancyPercent",
+                new JvmOption("60", "command line"),
+                "G1ReservePercent",
+                new JvmOption("10", "command line")
+            )
         );
+        List<String> jvmErgonomics = JvmErgonomics.choose(opts, heapSize, Settings.EMPTY);
         assertThat(jvmErgonomics, everyItem(not(startsWith("-XX:InitiatingHeapOccupancyPercent="))));
         assertThat(jvmErgonomics, everyItem(not(startsWith("-XX:G1ReservePercent="))));
         assertThat(jvmErgonomics, everyItem(not(startsWith("-XX:G1HeapRegionSize="))));
@@ -158,34 +178,38 @@ public class JvmErgonomicsTests extends ESTestCase {
     }
 
     public void testMaxDirectMemorySizeChoice() throws Exception {
-        final Map<String, String> heapMaxDirectMemorySize = Map.of(
+        final Map<String, Long> heapSizes = Map.of(
             "64M",
-            Long.toString((64L << 20) / 2),
+            64L << 20,
             "512M",
-            Long.toString((512L << 20) / 2),
+            512L << 20,
             "1024M",
-            Long.toString((1024L << 20) / 2),
+            1024L << 20,
             "1G",
-            Long.toString((1L << 30) / 2),
+            1L << 30,
             "2048M",
-            Long.toString((2048L << 20) / 2),
+            2048L << 20,
             "2G",
-            Long.toString((2L << 30) / 2),
+            2L << 30,
             "8G",
-            Long.toString((8L << 30) / 2)
+            8L << 30
         );
-        final String heapSize = randomFrom(heapMaxDirectMemorySize.keySet().toArray(String[]::new));
+        final String heapLabel = randomFrom(heapSizes.keySet().toArray(String[]::new));
+        final long heapSize = heapSizes.get(heapLabel);
+        Map<String, JvmOption> opts = buildG1Options(heapSize, Map.of());
         assertThat(
-            JvmErgonomics.choose(Arrays.asList("-Xms" + heapSize, "-Xmx" + heapSize), Settings.EMPTY),
-            hasItem("-XX:MaxDirectMemorySize=" + heapMaxDirectMemorySize.get(heapSize))
+            JvmErgonomics.choose(opts, heapSize, Settings.EMPTY),
+            hasItem("-XX:MaxDirectMemorySize=" + (long) (heapSize * JvmErgonomics.DIRECT_MEMORY_TO_HEAP_FACTOR))
         );
     }
 
     public void testMaxDirectMemorySizeChoiceWhenSet() throws Exception {
-        assertThat(
-            JvmErgonomics.choose(Arrays.asList("-Xms1g", "-Xmx1g", "-XX:MaxDirectMemorySize=1g"), Settings.EMPTY),
-            everyItem(not(startsWith("-XX:MaxDirectMemorySize=")))
+        long heapSize = 1L << 30;
+        Map<String, JvmOption> opts = buildG1Options(
+            heapSize,
+            Map.of("MaxDirectMemorySize", new JvmOption(Long.toString(1L << 30), "command line"))
         );
+        assertThat(JvmErgonomics.choose(opts, heapSize, Settings.EMPTY), everyItem(not(startsWith("-XX:MaxDirectMemorySize="))));
     }
 
     public void testConcGCThreadsNotSetBasedOnProcessors() throws Exception {
@@ -197,7 +221,12 @@ public class JvmErgonomicsTests extends ESTestCase {
             IntStream.range(1, maxProcessors + 1).filter(i -> i < 4 || i > 5).forEach(possibleProcessors::add);
             nodeSettingsBuilder.put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), randomFrom(possibleProcessors));
         }
-        assertThat(JvmErgonomics.choose(List.of(), nodeSettingsBuilder.build()), everyItem(not(startsWith("-XX:ConcGCThreads="))));
+        long defaultHeapSize = 1L << 30;
+        Map<String, JvmOption> opts = buildG1Options(defaultHeapSize, Map.of());
+        assertThat(
+            JvmErgonomics.choose(opts, defaultHeapSize, nodeSettingsBuilder.build()),
+            everyItem(not(startsWith("-XX:ConcGCThreads=")))
+        );
     }
 
     public void testConcGCThreadsNotSetBasedOnRoles() throws Exception {
@@ -208,8 +237,12 @@ public class JvmErgonomicsTests extends ESTestCase {
             possibleRoles.remove(DiscoveryNodeRole.VOTING_ONLY_NODE_ROLE);
             nodeSettingsBuilder.put(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), randomFrom(possibleRoles).roleName());
         }
-        assertThat(JvmErgonomics.choose(List.of(), nodeSettingsBuilder.build()), everyItem(not(startsWith("-XX:ConcGCThreads="))));
-
+        long defaultHeapSize = 1L << 30;
+        Map<String, JvmOption> opts = buildG1Options(defaultHeapSize, Map.of());
+        assertThat(
+            JvmErgonomics.choose(opts, defaultHeapSize, nodeSettingsBuilder.build()),
+            everyItem(not(startsWith("-XX:ConcGCThreads=")))
+        );
     }
 
     public void testConcGCThreadsSet() throws Exception {
@@ -217,14 +250,18 @@ public class JvmErgonomicsTests extends ESTestCase {
             .put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), between(4, 5))
             .put(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DiscoveryNodeRole.SEARCH_ROLE.roleName())
             .build();
-        assertThat(JvmErgonomics.choose(List.of(), nodeSettings), hasItem("-XX:ConcGCThreads=2"));
+        long defaultHeapSize = 1L << 30;
+        Map<String, JvmOption> opts = buildG1Options(defaultHeapSize, Map.of());
+        assertThat(JvmErgonomics.choose(opts, defaultHeapSize, nodeSettings), hasItem("-XX:ConcGCThreads=2"));
     }
 
     public void testMinimumNewSizeNotSetBasedOnHeap() throws Exception {
         Settings nodeSettings = Settings.builder()
             .put(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DiscoveryNodeRole.SEARCH_ROLE.roleName())
             .build();
-        List<String> chosen = JvmErgonomics.choose(List.of("-Xmx" + between(5, 31) + "g"), nodeSettings);
+        long heapSize = (long) between(5, 31) << 30;
+        Map<String, JvmOption> opts = buildG1Options(heapSize, Map.of());
+        List<String> chosen = JvmErgonomics.choose(opts, heapSize, nodeSettings);
         assertThat(chosen, everyItem(not(is("-XX:+UnlockExperimentalVMOptions"))));
         assertThat(chosen, everyItem(not(startsWith("-XX:G1NewSizePercent="))));
     }
@@ -241,7 +278,9 @@ public class JvmErgonomicsTests extends ESTestCase {
                 .put(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), randomFrom(possibleRoles).roleName())
                 .build();
         }
-        List<String> chosen = JvmErgonomics.choose(List.of("-Xmx" + between(1, 4) + "g"), nodeSettings);
+        long heapSize = (long) between(1, 4) << 30;
+        Map<String, JvmOption> opts = buildG1Options(heapSize, Map.of());
+        List<String> chosen = JvmErgonomics.choose(opts, heapSize, nodeSettings);
         assertThat(chosen, everyItem(not(is("-XX:+UnlockExperimentalVMOptions"))));
         assertThat(chosen, everyItem(not(startsWith("-XX:G1NewSizePercent="))));
     }
@@ -250,7 +289,9 @@ public class JvmErgonomicsTests extends ESTestCase {
         Settings nodeSettings = Settings.builder()
             .put(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DiscoveryNodeRole.SEARCH_ROLE.roleName())
             .build();
-        List<String> chosen = JvmErgonomics.choose(List.of("-Xmx" + between(1, 4) + "g"), nodeSettings);
+        long heapSize = (long) between(1, 4) << 30;
+        Map<String, JvmOption> opts = buildG1Options(heapSize, Map.of());
+        List<String> chosen = JvmErgonomics.choose(opts, heapSize, nodeSettings);
         assertThat(chosen, hasItem("-XX:+UnlockExperimentalVMOptions"));
         assertThat(chosen, hasItem("-XX:G1NewSizePercent=10"));
     }
@@ -295,6 +336,28 @@ public class JvmErgonomicsTests extends ESTestCase {
             expectThrows(IllegalStateException.class, () -> new JvmOption("OptionName", null)).getMessage(),
             allOf(containsString("could not determine the origin of JVM option [OptionName]"), containsString("unsupported"))
         );
+    }
+
+    /**
+     * Builds a final JVM options map simulating G1GC being enabled with the given heap size.
+     */
+    private static Map<String, JvmOption> buildG1Options(long heapSize, Map<String, JvmOption> overrides) {
+        return buildFinalOptions(heapSize, true, overrides);
+    }
+
+    /**
+     * Builds a final JVM options map with the given settings.
+     */
+    private static Map<String, JvmOption> buildFinalOptions(long heapSize, boolean g1gc, Map<String, JvmOption> overrides) {
+        Map<String, JvmOption> options = new HashMap<>();
+        options.put("MaxHeapSize", new JvmOption(Long.toString(heapSize), "command line"));
+        options.put("MaxDirectMemorySize", new JvmOption("0", "default"));
+        options.put("UseG1GC", new JvmOption(g1gc ? "true" : "false", g1gc ? "default" : "command line"));
+        options.put("G1HeapRegionSize", new JvmOption("0", "default"));
+        options.put("InitiatingHeapOccupancyPercent", new JvmOption("45", "default"));
+        options.put("G1ReservePercent", new JvmOption("10", "default"));
+        options.putAll(overrides);
+        return options;
     }
 
 }

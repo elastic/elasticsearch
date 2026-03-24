@@ -1,0 +1,5 @@
+area: Search
+issues: [82675]
+pr: 144802
+summary: Added resources to all ResourceNotFoundException where an Id exists
+type: refactor

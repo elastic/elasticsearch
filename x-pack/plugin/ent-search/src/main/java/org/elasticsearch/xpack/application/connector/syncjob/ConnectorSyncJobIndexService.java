@@ -528,7 +528,9 @@ public class ConnectorSyncJobIndexService {
                     final boolean connectorDoesNotExist = response.isExists() == false;
 
                     if (connectorDoesNotExist) {
-                        ResourceNotFoundException e = new ResourceNotFoundException("Connector with id '" + connectorId + "' does not exist.");
+                        ResourceNotFoundException e = new ResourceNotFoundException(
+                            "Connector with id '" + connectorId + "' does not exist."
+                        );
                         e.setResources("connector", connectorId);
                         onFailure(e);
                         return;

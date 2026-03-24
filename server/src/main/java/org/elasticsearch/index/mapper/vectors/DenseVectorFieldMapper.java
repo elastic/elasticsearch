@@ -224,6 +224,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
     public static final IndexVersion NORMALIZE_COSINE = IndexVersions.NORMALIZED_VECTOR_COSINE;
     public static final IndexVersion DEFAULT_TO_INT8 = IndexVersions.DEFAULT_DENSE_VECTOR_TO_INT8_HNSW;
     public static final IndexVersion DEFAULT_TO_BBQ = IndexVersions.DEFAULT_DENSE_VECTOR_TO_BBQ_HNSW;
+    public static final IndexVersion DEFAULT_TO_BBQ_DISK = IndexVersions.DEFAULT_DENSE_VECTOR_TO_BBQ_DISK;
     public static final IndexVersion LITTLE_ENDIAN_FLOAT_STORED_INDEX_VERSION = IndexVersions.V_8_9_0;
 
     public static final NodeFeature RESCORE_VECTOR_QUANTIZED_VECTOR_MAPPING = new NodeFeature("mapper.dense_vector.rescore_vector");
@@ -315,6 +316,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             final boolean indexedByDefault = indexVersionCreated.onOrAfter(INDEXED_BY_DEFAULT_INDEX_VERSION);
             final boolean defaultInt8Hnsw = indexVersionCreated.onOrAfter(IndexVersions.DEFAULT_DENSE_VECTOR_TO_INT8_HNSW);
             final boolean defaultBBQHnsw = indexVersionCreated.onOrAfter(IndexVersions.DEFAULT_DENSE_VECTOR_TO_BBQ_HNSW);
+            final boolean defaultBBQDisk = indexVersionCreated.onOrAfter(IndexVersions.DEFAULT_DENSE_VECTOR_TO_BBQ_DISK);
             this.indexed = Parameter.indexParam(m -> toType(m).fieldType().indexed, indexedByDefault);
             if (indexedByDefault) {
                 // Only serialize on newer index versions to prevent breaking existing indices when upgrading
@@ -344,7 +346,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             this.indexOptions = new Parameter<>(
                 "index_options",
                 true,
-                () -> defaultIndexOptions(defaultInt8Hnsw, defaultBBQHnsw),
+                () -> defaultIndexOptions(defaultInt8Hnsw, defaultBBQHnsw, defaultBBQDisk),
                 (n, c, o) -> o == null ? null : parseIndexOptions(n, o, indexVersionCreated, experimentalFeaturesEnabled),
                 m -> toType(m).indexOptions,
                 (b, n, v) -> {
@@ -368,7 +370,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
                         || Objects.equals(previous, current)
                         || previous.updatableTo(current)
                 );
-            if (defaultInt8Hnsw || defaultBBQHnsw) {
+            if (defaultBBQDisk) {
+                this.indexOptions.alwaysSerialize();
+            } else if (defaultInt8Hnsw || defaultBBQHnsw) {
                 if (defaultBBQHnsw == false || (dims != null && dims.isConfigured())) {
                     this.indexOptions.alwaysSerialize();
                 }
@@ -393,9 +397,36 @@ public class DenseVectorFieldMapper extends FieldMapper {
             });
         }
 
-        private DenseVectorIndexOptions defaultIndexOptions(boolean defaultInt8Hnsw, boolean defaultBBQHnsw) {
+        private boolean isVectorIndexTypeAllowedByProviders(VectorIndexType indexType) {
+            // null or empty implies not licensed for DiskBBQ, so return false
+            if (vectorsFormatProviders == null || vectorsFormatProviders.isEmpty()) {
+                return false;
+            }
+            for (VectorsFormatProvider vectorsFormatProvider : vectorsFormatProviders) {
+                if (vectorsFormatProvider.isVectorIndexTypeAllowed(indexVersionCreated, indexType)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        private DenseVectorIndexOptions defaultIndexOptions(boolean defaultInt8Hnsw, boolean defaultBBQHnsw, boolean defaultBBQDisk) {
             if (elementType.getValue() != ElementType.FLOAT || indexed.getValue() == false) {
                 return null;
+            }
+
+            if (defaultBBQDisk && isVectorIndexTypeAllowedByProviders(VectorIndexType.BBQ_DISK)) {
+                return new BBQIVFIndexOptions(
+                    ES940DiskBBQVectorsFormat.DEFAULT_VECTORS_PER_CLUSTER,
+                    -1,
+                    0d,
+                    false,
+                    new RescoreVector(DEFAULT_OVERSAMPLE),
+                    indexVersionCreated,
+                    false,
+                    DEFAULT_BBQ_IVF_QUANTIZE_BITS,
+                    experimentalFeaturesEnabled
+                );
             }
 
             boolean dimIsConfigured = dims != null && dims.isConfigured();

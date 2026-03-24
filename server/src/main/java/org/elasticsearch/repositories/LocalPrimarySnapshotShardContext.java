@@ -33,6 +33,7 @@ import org.elasticsearch.snapshots.SnapshotId;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.Objects;
 
 import static org.elasticsearch.repositories.SnapshotShardContextHelper.withSnapshotIndexCommitRef;
 
@@ -78,7 +79,7 @@ public final class LocalPrimarySnapshotShardContext extends SnapshotShardContext
             snapshotId,
             indexId,
             shardStateIdentifier,
-            snapshotStatus,
+            Objects.requireNonNull(snapshotStatus),
             repositoryMetaVersion,
             snapshotStartTime,
             commitRef.closingBefore(listener)

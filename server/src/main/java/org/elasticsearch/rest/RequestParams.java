@@ -81,7 +81,7 @@ public final class RequestParams extends AbstractMap<String, String> {
      */
     public static RequestParams fromUri(String uri) {
         int index = uri.indexOf('?');
-        return index >= 0 ? of(RestUtils.decodeQueryString(uri, index + 1)) : RequestParams.empty();
+        return index >= 0 ? fromQueryString(uri.substring(index + 1)) : RequestParams.empty();
     }
 
     /**

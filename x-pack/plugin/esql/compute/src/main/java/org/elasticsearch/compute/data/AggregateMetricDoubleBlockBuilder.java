@@ -8,7 +8,6 @@
 package org.elasticsearch.compute.data;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.GenericNamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -187,7 +186,8 @@ public class AggregateMetricDoubleBlockBuilder extends AbstractBlockBuilder impl
         MIN(0, "min"),
         MAX(1, "max"),
         SUM(2, "sum"),
-        COUNT(3, "value_count");
+        COUNT(3, "value_count"),
+        DEFAULT(4, "default");
 
         private final int index;
         private final String label;
@@ -204,9 +204,32 @@ public class AggregateMetricDoubleBlockBuilder extends AbstractBlockBuilder impl
         public String getLabel() {
             return label;
         }
+
+        public static Metric indexToMetric(int i) {
+            return switch (i) {
+                case 0 -> MIN;
+                case 1 -> MAX;
+                case 2 -> SUM;
+                case 3 -> COUNT;
+                case 4 -> DEFAULT;
+                default -> null;
+            };
+        }
     }
 
-    public record AggregateMetricDoubleLiteral(Double min, Double max, Double sum, Integer count) implements GenericNamedWriteable {
+    /**
+     * Literal to represent AggregateMetricDouble and primarily used for testing and during folding.
+     * For all other purposes it is preferred to use the individual builders over the literal for generating blocks when possible.
+     */
+    public record AggregateMetricDoubleLiteral(Double min, Double max, Double sum, Integer count)
+        implements
+            GenericNamedWriteable,
+            Comparable<AggregateMetricDoubleLiteral> {
+
+        private static final TransportVersion ESQL_AGGREGATE_METRIC_DOUBLE_LITERAL = TransportVersion.fromName(
+            "esql_aggregate_metric_double_literal"
+        );
+
         public AggregateMetricDoubleLiteral {
             min = (min == null || min.isNaN()) ? null : min;
             max = (max == null || max.isNaN()) ? null : max;
@@ -238,7 +261,7 @@ public class AggregateMetricDoubleBlockBuilder extends AbstractBlockBuilder impl
 
         @Override
         public boolean supportsVersion(TransportVersion version) {
-            return version.onOrAfter(TransportVersions.ESQL_AGGREGATE_METRIC_DOUBLE_LITERAL);
+            return version.supports(ESQL_AGGREGATE_METRIC_DOUBLE_LITERAL);
         }
 
         @Override
@@ -246,5 +269,46 @@ public class AggregateMetricDoubleBlockBuilder extends AbstractBlockBuilder impl
             assert false : "must not be called when overriding supportsVersion";
             throw new UnsupportedOperationException("must not be called when overriding supportsVersion");
         }
+
+        @Override
+        public int compareTo(AggregateMetricDoubleLiteral other) {
+            int c = Double.compare(min, other.min);
+            if (c != 0) {
+                return c;
+            }
+            c = Double.compare(max, other.max);
+            if (c != 0) {
+                return c;
+            }
+            c = Double.compare(sum, other.sum);
+            if (c != 0) {
+                return c;
+            }
+            return Double.compare(count, other.count);
+        }
+    }
+
+    public AggregateMetricDoubleBlockBuilder appendLiteral(AggregateMetricDoubleLiteral literal) {
+        if (literal.min != null) {
+            minBuilder.appendDouble(literal.min);
+        } else {
+            minBuilder.appendNull();
+        }
+        if (literal.max != null) {
+            maxBuilder.appendDouble(literal.max);
+        } else {
+            maxBuilder.appendNull();
+        }
+        if (literal.sum != null) {
+            sumBuilder.appendDouble(literal.sum);
+        } else {
+            sumBuilder.appendNull();
+        }
+        if (literal.count != null) {
+            countBuilder.appendInt(literal.count);
+        } else {
+            countBuilder.appendNull();
+        }
+        return this;
     }
 }

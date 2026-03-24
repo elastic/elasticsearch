@@ -10,7 +10,8 @@ package org.elasticsearch.xpack.esql.planner;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.compute.lucene.DataPartitioning;
+import org.elasticsearch.compute.lucene.IndexedByShardIdFromSingleton;
+import org.elasticsearch.compute.test.NoOpReleasable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
@@ -19,40 +20,47 @@ import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
+import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperMetrics;
+import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
+import org.elasticsearch.index.mapper.flattened.KeyedFlattenedDocValuesBlockLoader;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.ExistsQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.query.SearchExecutionContextHelper;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.mockito.Mockito;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiFunction;
 
 import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 
-public class EsPhysicalOperationProvidersTests extends ESTestCase {
+public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
 
     public void testNullsFilteredFieldInfos() {
         record TestCase(QueryBuilder query, List<String> nullsFilteredFields) {
@@ -80,16 +88,17 @@ public class EsPhysicalOperationProvidersTests extends ESTestCase {
         );
         EsPhysicalOperationProviders provider = new EsPhysicalOperationProviders(
             FoldContext.small(),
-            List.of(new EsPhysicalOperationProviders.DefaultShardContext(0, () -> {}, createMockContext(), AliasFilter.EMPTY)),
+            new IndexedByShardIdFromSingleton<>(
+                new EsPhysicalOperationProviders.DefaultShardContext(0, () -> {}, createMockContext(), AliasFilter.EMPTY)
+            ),
             null,
-            new PhysicalSettings(DataPartitioning.AUTO, ByteSizeValue.ofMb(1))
+            PlannerSettings.DEFAULTS
         );
         for (TestCase testCase : testCases) {
             EsQueryExec queryExec = new EsQueryExec(
                 Source.EMPTY,
                 "test",
                 IndexMode.STANDARD,
-                Map.of(),
                 List.of(),
                 null,
                 null,
@@ -134,6 +143,60 @@ public class EsPhysicalOperationProvidersTests extends ESTestCase {
         }
     }
 
+    /**
+     * When unmapped_fields="load" and the unmapped field is a keyed subfield of a flattened field,
+     * the shard context should resolve it from the mapping and use the keyed flattened block loader
+     * instead of falling back to source.
+     */
+    public void testUnmappedFlattenedSubfieldUsesKeyedBlockLoader() throws IOException {
+        SearchExecutionContext searchExecutionContext = createSearchExecutionContext(
+            createMapperService(
+                mapping(
+                    b -> b.startObject("resource")
+                        .startObject("properties")
+                        .startObject("attributes")
+                        .field("type", "flattened")
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                )
+            ),
+            null
+        );
+        var defaultCtx = new EsPhysicalOperationProviders.DefaultShardContext(
+            0,
+            new NoOpReleasable(),
+            searchExecutionContext,
+            AliasFilter.EMPTY
+        );
+        var unmappedCtx = EsPhysicalOperationProviders.wrapWithUnmappedFieldContext(
+            defaultCtx,
+            new PotentiallyUnmappedKeywordEsField("resource.attributes.host.name")
+        );
+
+        MappedFieldType fieldType = unmappedCtx.fieldType("resource.attributes.host.name");
+        assertThat(
+            "Unmapped flattened subfield should resolve to KeyedFlattenedFieldType from shard mapping",
+            fieldType,
+            instanceOf(FlattenedFieldMapper.KeyedFlattenedFieldType.class)
+        );
+
+        BlockLoader blockLoader = unmappedCtx.blockLoader(
+            "resource.attributes.host.name",
+            false,
+            MappedFieldType.FieldExtractPreference.NONE,
+            null,
+            null,
+            ByteSizeValue.ofKb(100),
+            ByteSizeValue.ofKb(300)
+        );
+        assertThat(
+            "Block loader for unmapped flattened subfield should be KeyedFlattenedDocValuesBlockLoader",
+            blockLoader,
+            instanceOf(KeyedFlattenedDocValuesBlockLoader.class)
+        );
+    }
+
     protected static SearchExecutionContext createMockContext() {
         Index index = new Index(randomAlphaOfLengthBetween(1, 10), "_na_");
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(
@@ -145,7 +208,7 @@ public class EsPhysicalOperationProvidersTests extends ESTestCase {
             IndexFieldData.Builder builder = fieldType.fielddataBuilder(fdc);
             return builder.build(new IndexFieldDataCache.None(), null);
         };
-        MappingLookup lookup = MappingLookup.fromMapping(Mapping.EMPTY);
+        MappingLookup lookup = MappingLookup.fromMapping(Mapping.EMPTY, randomFrom(IndexMode.values()));
         return new SearchExecutionContext(
             0,
             0,
@@ -166,7 +229,9 @@ public class EsPhysicalOperationProvidersTests extends ESTestCase {
             () -> true,
             null,
             emptyMap(),
-            MapperMetrics.NOOP
+            null,
+            MapperMetrics.NOOP,
+            SearchExecutionContextHelper.SHARD_SEARCH_STATS
         ) {
             @Override
             public MappedFieldType getFieldType(String name) {

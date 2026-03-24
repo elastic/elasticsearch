@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.services.openai.request;
 import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.ByteArrayEntity;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
@@ -35,7 +36,7 @@ public class OpenAiUnifiedChatCompletionRequest implements Request {
     }
 
     @Override
-    public HttpRequest createHttpRequest() {
+    public void createHttpRequest(ActionListener<HttpRequest> listener) {
         HttpPost httpPost = new HttpPost(model.uri());
 
         ByteArrayEntity byteEntity = new ByteArrayEntity(
@@ -51,7 +52,13 @@ public class OpenAiUnifiedChatCompletionRequest implements Request {
             httpPost.setHeader(createOrgHeader(org));
         }
 
-        return new HttpRequest(httpPost, getInferenceEntityId());
+        if (model.getTaskSettings().headers() != null) {
+            for (var header : model.getTaskSettings().headers().entrySet()) {
+                httpPost.setHeader(header.getKey(), header.getValue());
+            }
+        }
+
+        listener.onResponse(new HttpRequest(httpPost, getInferenceEntityId()));
     }
 
     @Override

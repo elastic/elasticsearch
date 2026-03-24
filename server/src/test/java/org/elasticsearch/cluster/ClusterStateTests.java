@@ -9,7 +9,6 @@
 package org.elasticsearch.cluster;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
 import org.elasticsearch.cluster.block.ClusterBlock;
@@ -203,8 +202,8 @@ public class ClusterStateTests extends ESTestCase {
             meta data version: 86
                coordination_metadata:
                   term: 22
-                  last_committed_config: VotingConfiguration{node01}
-                  last_accepted_config: VotingConfiguration{}
+                  last_committed_config: VotingConfiguration[node01]
+                  last_accepted_config: VotingConfiguration[]
                   voting tombstones: []
             """));
 
@@ -498,6 +497,7 @@ public class ClusterStateTests extends ESTestCase {
                         "indices": {
                           "common-index": {
                             "version": 2,
+                            "transport_version" : "0",
                             "mapping_version": 1,
                             "settings_version": 1,
                             "aliases_version": 1,
@@ -530,6 +530,7 @@ public class ClusterStateTests extends ESTestCase {
                         "indices": {
                           "another-index": {
                             "version": 2,
+                            "transport_version" : "0",
                             "mapping_version": 1,
                             "settings_version": 1,
                             "aliases_version": 1,
@@ -555,6 +556,7 @@ public class ClusterStateTests extends ESTestCase {
                           },
                           "common-index": {
                             "version": 2,
+                            "transport_version" : "0",
                             "mapping_version": 1,
                             "settings_version": 1,
                             "aliases_version": 1,
@@ -1078,7 +1080,7 @@ public class ClusterStateTests extends ESTestCase {
                               ],
                               "voting_config_exclusions": [
                                 {
-                                  "node_id": "exlucdedNodeId",
+                                  "node_id": "excludedNodeId",
                                   "node_name": "excludedNodeName"
                                 }
                               ]
@@ -1106,6 +1108,7 @@ public class ClusterStateTests extends ESTestCase {
                             "indices": {
                               "index": {
                                 "version": 1,
+                                "transport_version" : "0",
                                 "mapping_version": 1,
                                 "settings_version": 1,
                                 "aliases_version": 1,
@@ -1358,7 +1361,7 @@ public class ClusterStateTests extends ESTestCase {
                           ],
                           "voting_config_exclusions" : [
                             {
-                              "node_id" : "exlucdedNodeId",
+                              "node_id" : "excludedNodeId",
                               "node_name" : "excludedNodeName"
                             }
                           ]
@@ -1382,6 +1385,7 @@ public class ClusterStateTests extends ESTestCase {
                         "indices" : {
                           "index" : {
                             "version" : 1,
+                            "transport_version" : "0",
                             "mapping_version" : 1,
                             "settings_version" : 1,
                             "aliases_version" : 1,
@@ -1638,7 +1642,7 @@ public class ClusterStateTests extends ESTestCase {
                           ],
                           "voting_config_exclusions" : [
                             {
-                              "node_id" : "exlucdedNodeId",
+                              "node_id" : "excludedNodeId",
                               "node_name" : "excludedNodeName"
                             }
                           ]
@@ -1664,6 +1668,7 @@ public class ClusterStateTests extends ESTestCase {
                         "indices" : {
                           "index" : {
                             "version" : 1,
+                            "transport_version" : "0",
                             "mapping_version" : 1,
                             "settings_version" : 1,
                             "aliases_version" : 1,
@@ -1855,6 +1860,7 @@ public class ClusterStateTests extends ESTestCase {
                 "indices" : {
                   "index" : {
                     "version" : 2,
+                    "transport_version" : "0",
                     "mapping_version" : 1,
                     "settings_version" : 1,
                     "aliases_version" : 1,
@@ -2010,7 +2016,7 @@ public class ClusterStateTests extends ESTestCase {
                             .term(1)
                             .lastCommittedConfiguration(new CoordinationMetadata.VotingConfiguration(Set.of("commitedConfigurationNodeId")))
                             .lastAcceptedConfiguration(new CoordinationMetadata.VotingConfiguration(Set.of("acceptedConfigurationNodeId")))
-                            .addVotingConfigExclusion(new CoordinationMetadata.VotingConfigExclusion("exlucdedNodeId", "excludedNodeName"))
+                            .addVotingConfigExclusion(new CoordinationMetadata.VotingConfigExclusion("excludedNodeId", "excludedNodeName"))
                             .build()
                     )
                     .persistentSettings(Settings.builder().put(SETTING_VERSION_CREATED, IndexVersion.current()).build())
@@ -2080,7 +2086,7 @@ public class ClusterStateTests extends ESTestCase {
     }
 
     public void testGetMinTransportVersion() throws IOException {
-        assertEquals(TransportVersions.MINIMUM_COMPATIBLE, ClusterState.EMPTY_STATE.getMinTransportVersion());
+        assertEquals(TransportVersion.minimumCompatible(), ClusterState.EMPTY_STATE.getMinTransportVersion());
 
         var builder = ClusterState.builder(buildClusterState());
         int numNodes = randomIntBetween(2, 20);
@@ -2096,7 +2102,7 @@ public class ClusterStateTests extends ESTestCase {
         assertThat(newState.getMinTransportVersion(), equalTo(minVersion));
 
         assertEquals(
-            TransportVersions.MINIMUM_COMPATIBLE,
+            TransportVersion.minimumCompatible(),
             ClusterState.builder(newState)
                 .blocks(ClusterBlocks.builder().addGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK))
                 .build()

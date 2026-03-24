@@ -11,6 +11,7 @@ package org.elasticsearch.action.search;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionResponse;
@@ -21,6 +22,9 @@ import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -49,9 +53,12 @@ import org.elasticsearch.search.rank.feature.RankFeatureShardRequest;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.AbstractTransportRequest;
+import org.elasticsearch.transport.BytesTransportResponse;
 import org.elasticsearch.transport.RemoteClusterService;
+import org.elasticsearch.transport.TaskTransportChannel;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportActionProxy;
+import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
@@ -384,10 +391,14 @@ public class SearchTransportService {
         }
     }
 
-    public static void registerRequestHandler(TransportService transportService, SearchService searchService) {
+    public static void registerRequestHandler(
+        TransportService transportService,
+        SearchService searchService,
+        NamedWriteableRegistry namedWriteableRegistry
+    ) {
         final TransportRequestHandler<ScrollFreeContextRequest> freeContextHandler = (request, channel, task) -> {
-            logger.trace("releasing search context [{}]", request.id());
             boolean freed = searchService.freeReaderContext(request.id());
+            logger.trace("releasing search context [{}], [{}]", request.id(), freed);
             channel.sendResponse(SearchFreeContextResponse.of(freed));
         };
         final Executor freeContextExecutor = buildFreeContextExecutor(transportService);
@@ -401,7 +412,8 @@ public class SearchTransportService {
             transportService,
             FREE_CONTEXT_SCROLL_ACTION_NAME,
             false,
-            SearchFreeContextResponse::readFrom
+            SearchFreeContextResponse::readFrom,
+            namedWriteableRegistry
         );
 
         // TODO: remove this handler once the lowest compatible version stops using it
@@ -411,7 +423,13 @@ public class SearchTransportService {
             OriginalIndices.readOriginalIndices(in);
             return res;
         }, freeContextHandler);
-        TransportActionProxy.registerProxyAction(transportService, FREE_CONTEXT_ACTION_NAME, false, SearchFreeContextResponse::readFrom);
+        TransportActionProxy.registerProxyAction(
+            transportService,
+            FREE_CONTEXT_ACTION_NAME,
+            false,
+            SearchFreeContextResponse::readFrom,
+            namedWriteableRegistry
+        );
 
         transportService.registerRequestHandler(
             CLEAR_SCROLL_CONTEXTS_ACTION_NAME,
@@ -426,7 +444,8 @@ public class SearchTransportService {
             transportService,
             CLEAR_SCROLL_CONTEXTS_ACTION_NAME,
             false,
-            (in) -> ActionResponse.Empty.INSTANCE
+            (in) -> ActionResponse.Empty.INSTANCE,
+            namedWriteableRegistry
         );
 
         transportService.registerRequestHandler(
@@ -435,7 +454,7 @@ public class SearchTransportService {
             ShardSearchRequest::new,
             (request, channel, task) -> searchService.executeDfsPhase(request, (SearchShardTask) task, new ChannelActionListener<>(channel))
         );
-        TransportActionProxy.registerProxyAction(transportService, DFS_ACTION_NAME, true, DfsSearchResult::new);
+        TransportActionProxy.registerProxyAction(transportService, DFS_ACTION_NAME, true, DfsSearchResult::new, namedWriteableRegistry);
 
         transportService.registerRequestHandler(
             QUERY_ACTION_NAME,
@@ -444,14 +463,15 @@ public class SearchTransportService {
             (request, channel, task) -> searchService.executeQueryPhase(
                 request,
                 (SearchShardTask) task,
-                new ChannelActionListener<>(channel)
+                channelListener(transportService, channel, searchService.getCircuitBreaker())
             )
         );
         TransportActionProxy.registerProxyActionWithDynamicResponseType(
             transportService,
             QUERY_ACTION_NAME,
             true,
-            (request) -> ((ShardSearchRequest) request).numberOfShards() == 1 ? QueryFetchSearchResult::new : QuerySearchResult::new
+            (request) -> ((ShardSearchRequest) request).numberOfShards() == 1 ? QueryFetchSearchResult::new : QuerySearchResult::new,
+            namedWriteableRegistry
         );
 
         transportService.registerRequestHandler(
@@ -465,7 +485,13 @@ public class SearchTransportService {
                 channel.getVersion()
             )
         );
-        TransportActionProxy.registerProxyAction(transportService, QUERY_ID_ACTION_NAME, true, QuerySearchResult::new);
+        TransportActionProxy.registerProxyAction(
+            transportService,
+            QUERY_ID_ACTION_NAME,
+            true,
+            QuerySearchResult::new,
+            namedWriteableRegistry
+        );
 
         transportService.registerRequestHandler(
             QUERY_SCROLL_ACTION_NAME,
@@ -478,7 +504,13 @@ public class SearchTransportService {
                 channel.getVersion()
             )
         );
-        TransportActionProxy.registerProxyAction(transportService, QUERY_SCROLL_ACTION_NAME, true, ScrollQuerySearchResult::new);
+        TransportActionProxy.registerProxyAction(
+            transportService,
+            QUERY_SCROLL_ACTION_NAME,
+            true,
+            ScrollQuerySearchResult::new,
+            namedWriteableRegistry
+        );
 
         transportService.registerRequestHandler(
             QUERY_FETCH_SCROLL_ACTION_NAME,
@@ -487,10 +519,16 @@ public class SearchTransportService {
             (request, channel, task) -> searchService.executeFetchPhase(
                 request,
                 (SearchShardTask) task,
-                new ChannelActionListener<>(channel)
+                channelListener(transportService, channel, searchService.getCircuitBreaker())
             )
         );
-        TransportActionProxy.registerProxyAction(transportService, QUERY_FETCH_SCROLL_ACTION_NAME, true, ScrollQueryFetchSearchResult::new);
+        TransportActionProxy.registerProxyAction(
+            transportService,
+            QUERY_FETCH_SCROLL_ACTION_NAME,
+            true,
+            ScrollQueryFetchSearchResult::new,
+            namedWriteableRegistry
+        );
 
         final TransportRequestHandler<RankFeatureShardRequest> rankShardFeatureRequest = (request, channel, task) -> searchService
             .executeRankFeaturePhase(request, (SearchShardTask) task, new ChannelActionListener<>(channel));
@@ -500,17 +538,33 @@ public class SearchTransportService {
             RankFeatureShardRequest::new,
             rankShardFeatureRequest
         );
-        TransportActionProxy.registerProxyAction(transportService, RANK_FEATURE_SHARD_ACTION_NAME, true, RankFeatureResult::new);
+        TransportActionProxy.registerProxyAction(
+            transportService,
+            RANK_FEATURE_SHARD_ACTION_NAME,
+            true,
+            RankFeatureResult::new,
+            namedWriteableRegistry
+        );
 
         final TransportRequestHandler<ShardFetchRequest> shardFetchRequestHandler = (request, channel, task) -> searchService
-            .executeFetchPhase(request, (SearchShardTask) task, new ChannelActionListener<>(channel));
+            .executeFetchPhase(
+                request,
+                (SearchShardTask) task,
+                channelListener(transportService, channel, searchService.getCircuitBreaker())
+            );
         transportService.registerRequestHandler(
             FETCH_ID_SCROLL_ACTION_NAME,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             ShardFetchRequest::new,
             shardFetchRequestHandler
         );
-        TransportActionProxy.registerProxyAction(transportService, FETCH_ID_SCROLL_ACTION_NAME, true, FetchSearchResult::new);
+        TransportActionProxy.registerProxyAction(
+            transportService,
+            FETCH_ID_SCROLL_ACTION_NAME,
+            true,
+            FetchSearchResult::new,
+            namedWriteableRegistry
+        );
 
         transportService.registerRequestHandler(
             FETCH_ID_ACTION_NAME,
@@ -520,7 +574,13 @@ public class SearchTransportService {
             ShardFetchSearchRequest::new,
             shardFetchRequestHandler
         );
-        TransportActionProxy.registerProxyAction(transportService, FETCH_ID_ACTION_NAME, true, FetchSearchResult::new);
+        TransportActionProxy.registerProxyAction(
+            transportService,
+            FETCH_ID_ACTION_NAME,
+            true,
+            FetchSearchResult::new,
+            namedWriteableRegistry
+        );
 
         transportService.registerRequestHandler(
             QUERY_CAN_MATCH_NODE_NAME,
@@ -528,7 +588,13 @@ public class SearchTransportService {
             CanMatchNodeRequest::new,
             (request, channel, task) -> searchService.canMatch(request, new ChannelActionListener<>(channel))
         );
-        TransportActionProxy.registerProxyAction(transportService, QUERY_CAN_MATCH_NODE_NAME, true, CanMatchNodeResponse::new);
+        TransportActionProxy.registerProxyAction(
+            transportService,
+            QUERY_CAN_MATCH_NODE_NAME,
+            true,
+            CanMatchNodeResponse::new,
+            namedWriteableRegistry
+        );
     }
 
     private static Executor buildFreeContextExecutor(TransportService transportService) {
@@ -613,6 +679,75 @@ public class SearchTransportService {
             // Always return true, there is additional asserting here, the boolean is just so this
             // can be skipped when assertions are not enabled
             return true;
+        }
+    }
+
+    /**
+     * Returns a listener that serializes responses to bytes on the network path.
+     *
+     * <p>On the <b>network path</b>, the response is serialized into bytes using a
+     * circuit-breaker-aware stream and sent as a {@link BytesTransportResponse}.
+     *
+     * <p>On the <b>direct (same-node) path</b> the response is forwarded as-is.
+     *
+     * <p>Circuit-breaker accounting for response objects is handled by the caller.
+     */
+    static <T extends TransportResponse> ActionListener<T> channelListener(
+        TransportService transportService,
+        TransportChannel channel,
+        @Nullable CircuitBreaker circuitBreaker
+    ) {
+        if (isDirectResponseChannel(channel)) {
+            return new ChannelActionListener<>(channel);
+        }
+        return new NetworkPathListener<>(transportService, channel, circuitBreaker);
+    }
+
+    private static boolean isDirectResponseChannel(TransportChannel channel) {
+        if (channel instanceof TaskTransportChannel ttc) {
+            channel = ttc.getChannel();
+        }
+        return TransportService.isDirectResponseChannel(channel);
+    }
+
+    /**
+     * Serializes the response into a {@link BytesTransportResponse} while keeping the breaker-accounted
+     * bytes alive for the response lifecycle. Captures the transport version from the channel at
+     * construction time and reuses it for serialization and the response metadata.
+     */
+    private static class NetworkPathListener<T extends TransportResponse> implements ActionListener<T> {
+        private final TransportService transportService;
+        private final TransportVersion transportVersion;
+        private final ChannelActionListener<BytesTransportResponse> channelListener;
+        @Nullable
+        private final CircuitBreaker circuitBreaker;
+
+        NetworkPathListener(TransportService transportService, TransportChannel channel, @Nullable CircuitBreaker circuitBreaker) {
+            this.transportService = transportService;
+            this.transportVersion = channel.getVersion();
+            this.channelListener = new ChannelActionListener<>(channel);
+            this.circuitBreaker = circuitBreaker;
+        }
+
+        @Override
+        public void onResponse(T response) {
+            // The bytes reference keeps breaker-accounted bytes; the stream output closes after serialization.
+            final ReleasableBytesReference bytesRef;
+            try (var out = transportService.newNetworkBytesStream(circuitBreaker)) {
+                out.setTransportVersion(transportVersion);
+                response.writeTo(out);
+                bytesRef = out.moveToBytesReference();
+            } catch (Exception e) {
+                channelListener.onFailure(e);
+                return;
+            }
+            // respondAndRelease releases the bytes once the transport layer completes.
+            ActionListener.respondAndRelease(channelListener, new BytesTransportResponse(bytesRef, transportVersion));
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            channelListener.onFailure(e);
         }
     }
 

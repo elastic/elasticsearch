@@ -31,16 +31,10 @@ public final class MaxBooleanAggregatorFunction implements AggregatorFunction {
 
   private final List<Integer> channels;
 
-  public MaxBooleanAggregatorFunction(DriverContext driverContext, List<Integer> channels,
-      BooleanState state) {
+  MaxBooleanAggregatorFunction(DriverContext driverContext, List<Integer> channels) {
     this.driverContext = driverContext;
     this.channels = channels;
-    this.state = state;
-  }
-
-  public static MaxBooleanAggregatorFunction create(DriverContext driverContext,
-      List<Integer> channels) {
-    return new MaxBooleanAggregatorFunction(driverContext, channels, new BooleanState(MaxBooleanAggregator.init()));
+    this.state = new BooleanState(MaxBooleanAggregator.init());
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -104,12 +98,13 @@ public final class MaxBooleanAggregatorFunction implements AggregatorFunction {
 
   private void addRawBlock(BooleanBlock vBlock) {
     for (int p = 0; p < vBlock.getPositionCount(); p++) {
-      if (vBlock.isNull(p)) {
+      int vValueCount = vBlock.getValueCount(p);
+      if (vValueCount == 0) {
         continue;
       }
       state.seen(true);
       int vStart = vBlock.getFirstValueIndex(p);
-      int vEnd = vStart + vBlock.getValueCount(p);
+      int vEnd = vStart + vValueCount;
       for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
         boolean vValue = vBlock.getBoolean(vOffset);
         state.booleanValue(MaxBooleanAggregator.combine(state.booleanValue(), vValue));
@@ -122,12 +117,13 @@ public final class MaxBooleanAggregatorFunction implements AggregatorFunction {
       if (mask.getBoolean(p) == false) {
         continue;
       }
-      if (vBlock.isNull(p)) {
+      int vValueCount = vBlock.getValueCount(p);
+      if (vValueCount == 0) {
         continue;
       }
       state.seen(true);
       int vStart = vBlock.getFirstValueIndex(p);
-      int vEnd = vStart + vBlock.getValueCount(p);
+      int vEnd = vStart + vValueCount;
       for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
         boolean vValue = vBlock.getBoolean(vOffset);
         state.booleanValue(MaxBooleanAggregator.combine(state.booleanValue(), vValue));

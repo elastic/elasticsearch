@@ -1,0 +1,5 @@
+pr: 140062
+summary: Use less memory in `ValuesFromMany`
+area: ES|QL
+type: enhancement
+issues: []

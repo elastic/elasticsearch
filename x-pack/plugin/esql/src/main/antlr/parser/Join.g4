@@ -18,11 +18,8 @@ joinTarget
     ;
 
 joinCondition
-    : ON joinPredicate (COMMA joinPredicate)*
+    : ON booleanExpression (COMMA booleanExpression)*
     ;
 
-joinPredicate
-    : valueExpression
-    ;
 
 

@@ -15,7 +15,6 @@ import org.apache.logging.log4j.Level;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.TestPlainActionFuture;
@@ -25,6 +24,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
+import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.MockSecureSettings;
@@ -176,13 +176,14 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleTran
     }
 
     public void testConnectException() throws UnknownHostException {
+        final InetAddress loopback = InetAddress.getLoopbackAddress();
         final ConnectTransportException e = connectToNodeExpectFailure(
             serviceA,
-            DiscoveryNodeUtils.create("C", new TransportAddress(InetAddress.getByName("localhost"), 9876), emptyMap(), emptySet()),
+            DiscoveryNodeUtils.create("C", new TransportAddress(loopback, 9876), emptyMap(), emptySet()),
             null
         );
         assertThat(e.getMessage(), containsString("connect_exception"));
-        assertThat(e.getMessage(), containsString("[127.0.0.1:9876]"));
+        assertThat(e.getMessage(), containsString("[" + NetworkAddress.format(loopback, 9876) + "]"));
         Throwable cause = ExceptionsHelper.unwrap(e, IOException.class);
         assertThat(cause, instanceOf(IOException.class));
     }
@@ -1113,7 +1114,7 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleTran
                 super.executeHandshake(node, channel, profile, listener);
             } else {
                 assert version.equals(TransportVersion.current());
-                listener.onResponse(TransportVersions.MINIMUM_COMPATIBLE);
+                listener.onResponse(TransportVersion.minimumCompatible());
             }
         }
 

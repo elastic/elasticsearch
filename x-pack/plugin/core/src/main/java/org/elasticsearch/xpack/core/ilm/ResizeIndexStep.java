@@ -11,6 +11,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
+import org.elasticsearch.action.admin.indices.shrink.TransportResizeAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.ProjectState;
@@ -95,10 +96,13 @@ public class ResizeIndexStep extends AsyncActionStep {
             .put(LifecycleSettings.LIFECYCLE_SKIP, true)
             .build();
 
-        ResizeRequest resizeRequest = new ResizeRequest(targetIndexName, indexMetadata.getIndex().getName()).masterNodeTimeout(
-            TimeValue.MAX_VALUE
+        ResizeRequest resizeRequest = new ResizeRequest(
+            TimeValue.MAX_VALUE,
+            TimeValue.MAX_VALUE,
+            resizeType,
+            indexMetadata.getIndex().getName(),
+            targetIndexName
         );
-        resizeRequest.setResizeType(resizeType);
         resizeRequest.getTargetIndexRequest().settings(relevantTargetSettings);
         if (resizeType == ResizeType.SHRINK) {
             resizeRequest.setMaxPrimaryShardSize(maxPrimaryShardSize);
@@ -106,9 +110,7 @@ public class ResizeIndexStep extends AsyncActionStep {
 
         // This request does not wait for (successful) completion of the resize operation - it fires-and-forgets.
         // It's up to a subsequent step to check for the existence of the target index and wait for it to be green.
-        getClient(currentState.projectId()).admin()
-            .indices()
-            .resizeIndex(resizeRequest, listener.delegateFailureAndWrap((l, response) -> l.onResponse(null)));
+        getClient(currentState.projectId()).execute(TransportResizeAction.TYPE, resizeRequest, listener.map(response -> null));
 
     }
 

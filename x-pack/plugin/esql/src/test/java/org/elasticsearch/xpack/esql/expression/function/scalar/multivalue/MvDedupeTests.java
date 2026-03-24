@@ -47,6 +47,9 @@ public class MvDedupeTests extends AbstractMultivalueFunctionTestCase {
         cartesianShape(cases, "mv_dedupe", "MvDedupe", DataType.CARTESIAN_SHAPE, (size, values) -> getMatcher(values));
         geoPoints(cases, "mv_dedupe", "MvDedupe", (size, values) -> getMatcher(values));
         geoShape(cases, "mv_dedupe", "MvDedupe", DataType.GEO_SHAPE, (size, values) -> getMatcher(values));
+        geohashGrid(cases, "mv_dedupe", "MvDedupe", DataType.GEOHASH, (size, values) -> getMatcher(values));
+        geotileGrid(cases, "mv_dedupe", "MvDedupe", DataType.GEOTILE, (size, values) -> getMatcher(values));
+        geohexGrid(cases, "mv_dedupe", "MvDedupe", DataType.GEOHEX, (size, values) -> getMatcher(values));
         unsignedLongs(cases, "mv_dedupe", "MvDedupe", (size, values) -> getMatcher(values));
         return parameterSuppliersFromTypedData(anyNullIsNull(false, cases));
     }

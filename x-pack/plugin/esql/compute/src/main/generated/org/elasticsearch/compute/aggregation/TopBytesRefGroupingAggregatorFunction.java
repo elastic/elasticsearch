@@ -38,19 +38,13 @@ public final class TopBytesRefGroupingAggregatorFunction implements GroupingAggr
 
   private final boolean ascending;
 
-  public TopBytesRefGroupingAggregatorFunction(List<Integer> channels,
-      TopBytesRefAggregator.GroupingState state, DriverContext driverContext, int limit,
-      boolean ascending) {
-    this.channels = channels;
-    this.state = state;
-    this.driverContext = driverContext;
+  TopBytesRefGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext,
+      int limit, boolean ascending) {
     this.limit = limit;
     this.ascending = ascending;
-  }
-
-  public static TopBytesRefGroupingAggregatorFunction create(List<Integer> channels,
-      DriverContext driverContext, int limit, boolean ascending) {
-    return new TopBytesRefGroupingAggregatorFunction(channels, TopBytesRefAggregator.initGrouping(driverContext.bigArrays(), limit, ascending), driverContext, limit, ascending);
+    this.channels = channels;
+    this.state = TopBytesRefAggregator.initGrouping(driverContext.bigArrays(), limit, ascending);
+    this.driverContext = driverContext;
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -162,7 +156,7 @@ public final class TopBytesRefGroupingAggregatorFunction implements GroupingAggr
       return;
     }
     BytesRefBlock top = (BytesRefBlock) topUncast;
-    BytesRef scratch = new BytesRef();
+    BytesRef topScratch = new BytesRef();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
         continue;
@@ -227,7 +221,7 @@ public final class TopBytesRefGroupingAggregatorFunction implements GroupingAggr
       return;
     }
     BytesRefBlock top = (BytesRefBlock) topUncast;
-    BytesRef scratch = new BytesRef();
+    BytesRef topScratch = new BytesRef();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
         continue;
@@ -278,7 +272,7 @@ public final class TopBytesRefGroupingAggregatorFunction implements GroupingAggr
       return;
     }
     BytesRefBlock top = (BytesRefBlock) topUncast;
-    BytesRef scratch = new BytesRef();
+    BytesRef topScratch = new BytesRef();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int groupId = groups.getInt(groupPosition);
       int valuesPosition = groupPosition + positionOffset;

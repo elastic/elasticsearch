@@ -30,8 +30,8 @@ import static org.hamcrest.Matchers.is;
 
 public class MistralChatCompletionServiceSettingsTests extends AbstractBWCWireSerializationTestCase<MistralChatCompletionServiceSettings> {
 
-    public static final String MODEL_ID = "some model";
-    public static final int RATE_LIMIT = 2;
+    private static final String MODEL_ID = "some model";
+    private static final int RATE_LIMIT = 2;
 
     public void testFromMap_AllFields_Success() {
         var serviceSettings = MistralChatCompletionServiceSettings.fromMap(
@@ -144,7 +144,13 @@ public class MistralChatCompletionServiceSettingsTests extends AbstractBWCWireSe
 
     @Override
     protected MistralChatCompletionServiceSettings mutateInstance(MistralChatCompletionServiceSettings instance) throws IOException {
-        return randomValueOtherThan(instance, MistralChatCompletionServiceSettingsTests::createRandom);
+        if (randomBoolean()) {
+            var modelId = randomValueOtherThan(instance.modelId(), () -> randomAlphaOfLength(8));
+            return new MistralChatCompletionServiceSettings(modelId, instance.rateLimitSettings());
+        } else {
+            var rateLimitSettings = randomValueOtherThan(instance.rateLimitSettings(), RateLimitSettingsTests::createRandom);
+            return new MistralChatCompletionServiceSettings(instance.modelId(), rateLimitSettings);
+        }
     }
 
     @Override

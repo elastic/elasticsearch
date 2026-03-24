@@ -126,7 +126,7 @@ public class LocateTests extends AbstractScalarFunctionTestCase {
         suppliers.add(supplier("🐱Meow!🐶Woof!", "Meow!🐶Woof!", 0, 2));
         suppliers.add(supplier("🐱Meow!🐶Woof!", "eow!🐶Woof!", 0, 3));
 
-        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);
+        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
     }
 
     @Override

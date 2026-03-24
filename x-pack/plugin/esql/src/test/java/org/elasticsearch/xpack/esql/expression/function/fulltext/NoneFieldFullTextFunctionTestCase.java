@@ -52,7 +52,7 @@ public abstract class NoneFieldFullTextFunctionTestCase extends AbstractFunction
     private static TestCaseSupplier.TestCase testCase(DataType strType, String str, Matcher<Boolean> matcher) {
         return new TestCaseSupplier.TestCase(
             List.of(new TestCaseSupplier.TypedData(new BytesRef(str), strType, "query")),
-            "EndsWithEvaluator[str=Attribute[channel=0], suffix=Attribute[channel=1]]",
+            "",
             DataType.BOOLEAN,
             matcher
         );

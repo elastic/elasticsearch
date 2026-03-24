@@ -19,22 +19,30 @@ import org.apache.http.entity.ContentType;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
+import org.junit.rules.TemporaryFolder;
 import org.junit.rules.TestRule;
 
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class IngestGeoIpClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
@@ -43,7 +51,10 @@ public class IngestGeoIpClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase 
 
     private static GeoIpHttpFixture fixture = new GeoIpHttpFixture(useFixture);
 
+    public static TemporaryFolder configDir = new TemporaryFolder();
+
     private static ElasticsearchCluster cluster = ElasticsearchCluster.local()
+        .withConfigDir(() -> getRootPath(configDir))
         .module("reindex")
         .module("ingest-geoip")
         .systemProperty("ingest.geoip.downloader.enabled.default", "true")
@@ -56,7 +67,7 @@ public class IngestGeoIpClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase 
         .build();
 
     @ClassRule
-    public static TestRule ruleChain = RuleChain.outerRule(fixture).around(cluster);
+    public static TestRule ruleChain = RuleChain.outerRule(fixture).around(configDir).around(cluster);
 
     @Override
     protected String getTestRestCluster() {
@@ -70,6 +81,19 @@ public class IngestGeoIpClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase 
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws Exception {
         return ESClientYamlSuiteTestCase.createParameters();
+    }
+
+    @BeforeClass
+    public static void copyExtraDatabase() throws Exception {
+        Path configPath = getRootPath(configDir);
+        assertThat(Files.exists(configPath), is(true));
+        Path ingestGeoipDatabaseDir = configPath.resolve("ingest-geoip");
+        Files.createDirectory(ingestGeoipDatabaseDir);
+        final var clazz = IngestGeoIpClientYamlTestSuiteIT.class; // long line prevention
+        Files.copy(
+            Objects.requireNonNull(clazz.getResourceAsStream("/ipinfo/asn_sample.mmdb")),
+            ingestGeoipDatabaseDir.resolve("asn.mmdb")
+        );
     }
 
     @Before
@@ -123,6 +147,8 @@ public class IngestGeoIpClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase 
             Map<?, ?> nodes = (Map<?, ?>) response.get("nodes");
             assertThat(nodes.size(), equalTo(1));
             Map<?, ?> node = (Map<?, ?>) nodes.values().iterator().next();
+
+            // confirm the downloaded databases are all correct
             List<?> databases = ((List<?>) node.get("databases"));
             assertThat(databases, notNullValue());
             List<String> databaseNames = databases.stream().map(o -> (String) ((Map<?, ?>) o).get("name")).toList();
@@ -130,6 +156,16 @@ public class IngestGeoIpClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase 
                 databaseNames,
                 containsInAnyOrder("GeoLite2-City.mmdb", "GeoLite2-Country.mmdb", "GeoLite2-ASN.mmdb", "MyCustomGeoLite2-City.mmdb")
             );
-        });
+
+            // ensure that the extra config database has been set up, too:
+            assertThat(node.get("config_databases"), equalTo(List.of("asn.mmdb")));
+            // Downloading all four databases may take some time, so we set a longer timeout here.
+            // If 20 seconds prove insufficient, we should first investigate whether we can speed up the database downloader.
+        }, 20, TimeUnit.SECONDS);
+    }
+
+    @SuppressForbidden(reason = "fixtures use java.io.File based APIs")
+    public static Path getRootPath(TemporaryFolder folder) {
+        return folder.getRoot().toPath();
     }
 }

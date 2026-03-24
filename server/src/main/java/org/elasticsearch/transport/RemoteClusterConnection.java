@@ -60,17 +60,21 @@ public final class RemoteClusterConnection implements Closeable {
      * @param credentialsManager object to lookup remote cluster credentials by cluster alias. If a cluster is protected by a credential,
      *                           i.e. it has a credential configured via secure setting.
      *                           This means the remote cluster uses the advances RCS model (as opposed to the basic model).
+     * @param crossProjectEnabled True if cross-project search is enabled, false otherwise.
      */
     RemoteClusterConnection(
         LinkedProjectConfig config,
         TransportService transportService,
-        RemoteClusterCredentialsManager credentialsManager
+        RemoteClusterCredentialsManager credentialsManager,
+        boolean crossProjectEnabled
     ) {
         this.transportService = transportService;
         this.clusterAlias = config.linkedProjectAlias();
         ConnectionProfile profile = RemoteConnectionStrategy.buildConnectionProfile(
             config,
-            credentialsManager.hasCredentials(clusterAlias)
+            crossProjectEnabled || credentialsManager.hasCredentials(clusterAlias)
+                ? RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE
+                : TransportSettings.DEFAULT_PROFILE
         );
         this.remoteConnectionManager = new RemoteConnectionManager(
             clusterAlias,
@@ -217,7 +221,7 @@ public final class RemoteClusterConnection implements Closeable {
             connectionStrategy.getModeInfo(),
             initialConnectionTimeout,
             skipUnavailable,
-            REMOTE_CLUSTER_PROFILE.equals(remoteConnectionManager.getConnectionProfile().getTransportProfile())
+            remoteConnectionManager.getCredentialsManager().hasCredentials(clusterAlias)
         );
     }
 

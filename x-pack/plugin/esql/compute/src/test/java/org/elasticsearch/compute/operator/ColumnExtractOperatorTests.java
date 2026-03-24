@@ -14,11 +14,13 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.test.OperatorTestCase;
+import org.elasticsearch.compute.test.TestDriverRunner;
+import org.elasticsearch.compute.test.operator.blocksource.BytesRefBlockSourceOperator;
 import org.hamcrest.Matcher;
 
 import java.util.List;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.LongStream;
 
@@ -49,32 +51,38 @@ public class ColumnExtractOperatorTests extends OperatorTestCase {
 
     @Override
     protected Operator.OperatorFactory simple(SimpleOptions options) {
-        Supplier<ColumnExtractOperator.Evaluator> expEval = () -> new FirstWord(0);
-        return new ColumnExtractOperator.Factory(
-            new ElementType[] { ElementType.BYTES_REF },
-            dvrCtx -> new EvalOperator.ExpressionEvaluator() {
-                @Override
-                public Block eval(Page page) {
-                    BytesRefBlock input = page.getBlock(0);
-                    for (int i = 0; i < input.getPositionCount(); i++) {
-                        if (input.getBytesRef(i, new BytesRef()).utf8ToString().startsWith("no_")) {
-                            return input.blockFactory().newConstantNullBlock(input.getPositionCount());
-                        }
+        ColumnExtractOperator.Evaluator.Factory expEval = new ColumnExtractOperator.Evaluator.Factory() {
+            @Override
+            public ColumnExtractOperator.Evaluator create(DriverContext driverContext) {
+                return new FirstWord(0);
+            }
+
+            @Override
+            public String describe() {
+                return "FirstWord";
+            }
+        };
+        return new ColumnExtractOperator.Factory(new ElementType[] { ElementType.BYTES_REF }, dvrCtx -> new ExpressionEvaluator() {
+            @Override
+            public Block eval(Page page) {
+                BytesRefBlock input = page.getBlock(0);
+                for (int i = 0; i < input.getPositionCount(); i++) {
+                    if (input.getBytesRef(i, new BytesRef()).utf8ToString().startsWith("no_")) {
+                        return input.blockFactory().newConstantNullBlock(input.getPositionCount());
                     }
-                    input.incRef();
-                    return input;
                 }
+                input.incRef();
+                return input;
+            }
 
-                @Override
-                public long baseRamBytesUsed() {
-                    return 0;
-                }
+            @Override
+            public long baseRamBytesUsed() {
+                return 0;
+            }
 
-                @Override
-                public void close() {}
-            },
-            expEval
-        );
+            @Override
+            public void close() {}
+        }, expEval);
     }
 
     @Override
@@ -102,14 +110,14 @@ public class ColumnExtractOperatorTests extends OperatorTestCase {
     }
 
     public void testAllNullValues() {
-        DriverContext driverContext = driverContext();
-        BytesRef scratch = new BytesRef();
-        Block input1 = driverContext.blockFactory().newBytesRefBlockBuilder(1).appendBytesRef(new BytesRef("can_match")).build();
-        Block input2 = driverContext.blockFactory().newBytesRefBlockBuilder(1).appendBytesRef(new BytesRef("no_match")).build();
-        List<Page> inputPages = List.of(new Page(input1), new Page(input2));
-        List<Page> outputPages = drive(simple().get(driverContext), inputPages.iterator(), driverContext);
+        var runner = new TestDriverRunner().builder(driverContext());
+        Block input1 = runner.blockFactory().newBytesRefBlockBuilder(1).appendBytesRef(new BytesRef("can_match")).build();
+        Block input2 = runner.blockFactory().newBytesRefBlockBuilder(1).appendBytesRef(new BytesRef("no_match")).build();
+        runner.input(new Page(input1), new Page(input2));
+        List<Page> outputPages = runner.run(simple());
         BytesRefBlock output1 = outputPages.get(0).getBlock(1);
         BytesRefBlock output2 = outputPages.get(1).getBlock(1);
+        BytesRef scratch = new BytesRef();
         assertThat(output1.getBytesRef(0, scratch), equalTo(new BytesRef("can_match")));
         assertTrue(output2.areAllValuesNull());
     }

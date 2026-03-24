@@ -9,14 +9,24 @@ package org.elasticsearch.xpack.esql.qa.multi_node;
 
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
+import org.elasticsearch.xpack.esql.CsvTestUtils;
 import org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase;
 import org.junit.ClassRule;
 
-import java.io.IOException;
+import java.nio.file.Path;
 
 public class EsqlSpecIT extends EsqlSpecTestCase {
+    private static final Path CSV_DATA_PATH = CsvTestUtils.createCsvDataDirectory();
+
     @ClassRule
-    public static ElasticsearchCluster cluster = Clusters.testCluster(spec -> spec.plugin("inference-service-test"));
+    public static ElasticsearchCluster cluster = Clusters.testCluster(CSV_DATA_PATH, spec -> {
+        spec.plugin("inference-service-test").settings(nodeSpec -> LOGGING_CLUSTER_SETTINGS);
+    });
+
+    @Override
+    protected Path getCsvDataPath() {
+        return CSV_DATA_PATH;
+    }
 
     @Override
     protected String getTestRestCluster() {
@@ -33,7 +43,12 @@ public class EsqlSpecIT extends EsqlSpecTestCase {
     }
 
     @Override
-    protected boolean supportsSourceFieldMapping() throws IOException {
+    protected boolean supportsSourceFieldMapping() {
         return false;
+    }
+
+    @Override
+    protected String maybeRandomizeQuery(String query) {
+        return randomlyNullify(query);
     }
 }

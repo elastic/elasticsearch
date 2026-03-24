@@ -25,11 +25,11 @@ import org.apache.lucene.search.BoostAttribute;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.FuzzyQuery;
-import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiPhraseQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
@@ -142,7 +142,7 @@ public class QueryStringQueryParser extends QueryParser {
         super(defaultField, context.getIndexAnalyzers().getDefaultSearchAnalyzer());
         this.context = context;
         this.fieldsAndWeights = Collections.unmodifiableMap(fieldsAndWeights);
-        this.queryBuilder = new MultiMatchQueryParser(context);
+        this.queryBuilder = new MultiMatchQueryParser(context, QueryVisitor.EMPTY_VISITOR);
         queryBuilder.setZeroTermsQuery(ZeroTermsQueryOption.NULL);
         queryBuilder.setLenient(lenient);
         this.lenient = lenient;
@@ -292,7 +292,7 @@ public class QueryStringQueryParser extends QueryParser {
 
     @Override
     protected Query newMatchAllDocsQuery() {
-        return Queries.newMatchAllQuery();
+        return Queries.ALL_DOCS_INSTANCE;
     }
 
     @Override
@@ -648,7 +648,7 @@ public class QueryStringQueryParser extends QueryParser {
 
     private Query existsQuery(String fieldName) {
         if (context.isFieldMapped(FieldNamesFieldMapper.NAME) == false) {
-            return new MatchNoDocsQuery("No mappings yet");
+            return Queries.NO_MAPPINGS;
         }
         final FieldNamesFieldMapper.FieldNamesFieldType fieldNamesFieldType = (FieldNamesFieldMapper.FieldNamesFieldType) context
             .getFieldType(FieldNamesFieldMapper.NAME);
@@ -785,7 +785,7 @@ public class QueryStringQueryParser extends QueryParser {
         if (q == null) {
             return null;
         }
-        return fixNegativeQueryIfNeeded(q);
+        return fixNegativeQueryIfNeeded(q, QueryVisitor.EMPTY_VISITOR);
     }
 
     private static Query applySlop(Query q, int slop) {

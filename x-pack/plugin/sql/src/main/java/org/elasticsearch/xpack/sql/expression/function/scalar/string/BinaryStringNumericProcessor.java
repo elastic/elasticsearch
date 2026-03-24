@@ -44,7 +44,7 @@ public class BinaryStringNumericProcessor extends FunctionalEnumBinaryProcessor<
             if (i <= 0) {
                 return null;
             }
-            checkResultLength(s.length() * c.longValue()); // mul is safe: c's checked by doProcess() to be within Integer's range
+            checkResultLength(s.length() * c.longValue());// mul is safe: c's checked by doProcess() to be within Integer's range
             return s.repeat(i);
         });
 

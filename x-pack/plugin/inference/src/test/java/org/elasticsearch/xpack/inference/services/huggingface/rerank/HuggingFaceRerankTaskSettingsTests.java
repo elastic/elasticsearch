@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.services.huggingface.rerank;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 
 import java.io.IOException;
@@ -21,7 +22,7 @@ import static org.hamcrest.Matchers.containsString;
 public class HuggingFaceRerankTaskSettingsTests extends AbstractBWCWireSerializationTestCase<HuggingFaceRerankTaskSettings> {
 
     public static HuggingFaceRerankTaskSettings createRandom() {
-        var returnDocuments = randomBoolean() ? randomBoolean() : null;
+        var returnDocuments = randomOptionalBoolean();
         var topNDocsOnly = randomBoolean() ? randomIntBetween(1, 10) : null;
 
         return new HuggingFaceRerankTaskSettings(topNDocsOnly, returnDocuments);
@@ -114,7 +115,13 @@ public class HuggingFaceRerankTaskSettingsTests extends AbstractBWCWireSerializa
 
     @Override
     protected HuggingFaceRerankTaskSettings mutateInstance(HuggingFaceRerankTaskSettings instance) throws IOException {
-        return randomValueOtherThan(instance, HuggingFaceRerankTaskSettingsTests::createRandom);
+        if (randomBoolean()) {
+            var topNDocumentsOnly = randomValueOtherThan(instance.getTopNDocumentsOnly(), () -> randomFrom(randomIntBetween(1, 10), null));
+            return new HuggingFaceRerankTaskSettings(topNDocumentsOnly, instance.getReturnDocuments());
+        } else {
+            var returnDocuments = randomValueOtherThan(instance.getReturnDocuments(), ESTestCase::randomOptionalBoolean);
+            return new HuggingFaceRerankTaskSettings(instance.getTopNDocumentsOnly(), returnDocuments);
+        }
     }
 
     @Override

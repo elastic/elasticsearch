@@ -17,7 +17,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationInfo;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.RequestInfo;
-import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.support.Exceptions;
 import org.elasticsearch.xpack.security.audit.AuditTrail;
@@ -28,6 +27,7 @@ import java.util.Collections;
 import static org.elasticsearch.action.support.ContextPreservingActionListener.wrapPreservingContext;
 import static org.elasticsearch.xpack.core.security.SecurityField.DOCUMENT_LEVEL_SECURITY_FEATURE;
 import static org.elasticsearch.xpack.core.security.SecurityField.FIELD_LEVEL_SECURITY_FEATURE;
+import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.INDICES_PERMISSIONS_VALUE;
 import static org.elasticsearch.xpack.security.audit.AuditUtil.extractRequestId;
 
 public final class ResizeRequestInterceptor implements RequestInterceptor {
@@ -60,7 +60,7 @@ public final class ResizeRequestInterceptor implements RequestInterceptor {
             final boolean isDlsLicensed = DOCUMENT_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState);
             final boolean isFlsLicensed = FIELD_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState);
             if (dlsFlsEnabled && (isDlsLicensed || isFlsLicensed)) {
-                IndicesAccessControl indicesAccessControl = threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
+                IndicesAccessControl indicesAccessControl = INDICES_PERMISSIONS_VALUE.get(threadContext);
                 IndicesAccessControl.IndexAccessControl indexAccessControl = indicesAccessControl.getIndexPermissions(
                     request.getSourceIndex()
                 );

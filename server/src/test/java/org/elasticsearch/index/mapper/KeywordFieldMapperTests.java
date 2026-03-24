@@ -24,12 +24,14 @@ import org.apache.lucene.tests.analysis.MockTokenizer;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.CustomAnalyzer;
@@ -44,8 +46,13 @@ import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.StringFieldScript;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentGenerator;
+import org.elasticsearch.xcontent.XContentType;
+import org.hamcrest.Matchers;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.Arrays;
@@ -65,6 +72,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class KeywordFieldMapperTests extends MapperTestCase {
+
     /**
      * Creates a copy of the lowercase token filter which we use for testing merge errors.
      */
@@ -176,19 +184,25 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         checker.registerConflictCheck("similarity", b -> b.field("similarity", "boolean"));
         checker.registerConflictCheck("normalizer", b -> b.field("normalizer", "lowercase"));
 
-        checker.registerUpdateCheck(b -> b.field("eager_global_ordinals", true), m -> assertTrue(m.fieldType().eagerGlobalOrdinals()));
         checker.registerUpdateCheck(
-            b -> b.field("ignore_above", 256),
-            m -> assertEquals(256, ((KeywordFieldMapper) m).fieldType().ignoreAbove())
+            "eager_global_ordinals",
+            b -> b.field("eager_global_ordinals", true),
+            m -> assertTrue(m.fieldType().eagerGlobalOrdinals())
         );
         checker.registerUpdateCheck(
+            "ignore_above",
+            b -> b.field("ignore_above", 256),
+            m -> assertEquals(256, ((KeywordFieldMapper) m).fieldType().ignoreAbove().get())
+        );
+        checker.registerUpdateCheck(
+            "split_queries_on_whitespace",
             b -> b.field("split_queries_on_whitespace", true),
             m -> assertEquals("_whitespace", m.fieldType().getTextSearchInfo().searchAnalyzer().name())
         );
 
         // norms can be set from true to false, but not vice versa
         checker.registerConflictCheck("norms", b -> b.field("norms", true));
-        checker.registerUpdateCheck(b -> {
+        checker.registerUpdateCheck("norms", b -> {
             minimalMapping(b);
             b.field("norms", true);
         }, b -> {
@@ -196,7 +210,10 @@ public class KeywordFieldMapperTests extends MapperTestCase {
             b.field("norms", false);
         }, m -> assertFalse(m.fieldType().getTextSearchInfo().hasNorms()));
 
+        checker.registerConflictCheck("normalizer_skip_store_original_value", b -> b.field("normalizer_skip_store_original_value", true));
+
         registerDimensionChecks(checker);
+        registerScriptChecks(checker);
     }
 
     public void testDefaults() throws Exception {
@@ -241,6 +258,108 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         fields = doc.rootDoc().getFields("_ignored");
         assertEquals(2, fields.size());
         assertTrue(doc.rootDoc().getFields("_ignored").stream().anyMatch(field -> "field".equals(field.stringValue())));
+    }
+
+    public void testIgnoreAboveIndexLevelSetting() throws IOException {
+        // given
+        final MapperService mapperService = createMapperService(
+            Settings.builder()
+                .put(IndexSettings.MODE.getKey(), IndexMode.STANDARD.name())
+                .put(IndexSettings.IGNORE_ABOVE_SETTING.getKey(), 123)
+                .build(),
+            mapping(b -> {
+                b.startObject("field");
+                b.field("type", "keyword");
+                b.endObject();
+            })
+        );
+
+        // when
+        final KeywordFieldMapper mapper = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
+
+        // then
+        assertEquals(123, mapper.fieldType().ignoreAbove().get());
+        assertTrue(mapper.fieldType().ignoreAbove().isSet());
+    }
+
+    public void testIgnoreAboveIndexLevelSettingIsOverriddenByFieldLevelIgnoreAboveInStandardIndices() throws IOException {
+        // given
+        final MapperService mapperService = createMapperService(
+            Settings.builder()
+                .put(IndexSettings.MODE.getKey(), IndexMode.STANDARD.name())
+                .put(IndexSettings.IGNORE_ABOVE_SETTING.getKey(), 123)
+                .build(),
+            mapping(b -> {
+                b.startObject("potato");
+                b.field("type", "keyword");
+                b.field("ignore_above", 456);
+                b.endObject();
+
+                b.startObject("tomato");
+                b.field("type", "keyword");
+                b.field("ignore_above", 789);
+                b.endObject();
+
+                b.startObject("cheese");
+                b.field("type", "keyword");
+                b.endObject();
+            })
+        );
+
+        // when
+        final KeywordFieldMapper fieldMapper1 = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("potato");
+        final KeywordFieldMapper fieldMapper2 = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("tomato");
+        final KeywordFieldMapper fieldMapper3 = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("cheese");
+
+        // then
+        assertEquals(456, fieldMapper1.fieldType().ignoreAbove().get());
+        assertTrue(fieldMapper1.fieldType().ignoreAbove().isSet());
+
+        assertEquals(789, fieldMapper2.fieldType().ignoreAbove().get());
+        assertTrue(fieldMapper2.fieldType().ignoreAbove().isSet());
+
+        assertEquals(123, fieldMapper3.fieldType().ignoreAbove().get());
+        assertTrue(fieldMapper3.fieldType().ignoreAbove().isSet());
+    }
+
+    public void testIgnoreAboveIndexLevelSettingIsOverriddenByFieldLevelIgnoreAboveInLogsdbIndices() throws IOException {
+        // given
+        final MapperService mapperService = createMapperService(
+            Settings.builder()
+                .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.name())
+                .put(IndexSettings.IGNORE_ABOVE_SETTING.getKey(), 123)
+                .build(),
+            mapping(b -> {
+                b.startObject("potato");
+                b.field("type", "keyword");
+                b.field("ignore_above", 456);
+                b.endObject();
+
+                b.startObject("tomato");
+                b.field("type", "keyword");
+                b.field("ignore_above", 789);
+                b.endObject();
+
+                b.startObject("cheese");
+                b.field("type", "keyword");
+                b.endObject();
+            })
+        );
+
+        // when
+        final KeywordFieldMapper fieldMapper1 = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("potato");
+        final KeywordFieldMapper fieldMapper2 = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("tomato");
+        final KeywordFieldMapper fieldMapper3 = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("cheese");
+
+        // then
+        assertEquals(456, fieldMapper1.fieldType().ignoreAbove().get());
+        assertTrue(fieldMapper1.fieldType().ignoreAbove().isSet());
+
+        assertEquals(789, fieldMapper2.fieldType().ignoreAbove().get());
+        assertTrue(fieldMapper2.fieldType().ignoreAbove().isSet());
+
+        assertEquals(123, fieldMapper3.fieldType().ignoreAbove().get());
+        assertTrue(fieldMapper3.fieldType().ignoreAbove().isSet());
     }
 
     public void testNullValue() throws IOException {
@@ -323,6 +442,8 @@ public class KeywordFieldMapperTests extends MapperTestCase {
 
         assertDimension(true, KeywordFieldMapper.KeywordFieldType::isDimension);
         assertDimension(false, KeywordFieldMapper.KeywordFieldType::isDimension);
+
+        assertTimeSeriesIndexing();
     }
 
     public void testDimensionAndIgnoreAbove() throws IOException {
@@ -331,7 +452,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
             b.field("time_series_dimension", true).field("ignore_above", 2048);
         }));
         KeywordFieldMapper field = (KeywordFieldMapper) documentMapper.mappers().getMapper("field");
-        assertEquals(2048, field.fieldType().ignoreAbove());
+        assertEquals(2048, field.fieldType().ignoreAbove().get());
     }
 
     public void testDimensionAndNormalizer() {
@@ -351,30 +472,14 @@ public class KeywordFieldMapperTests extends MapperTestCase {
                 minimalMapping(b);
                 b.field("time_series_dimension", true).field("index", false).field("doc_values", false);
             })));
-            assertThat(
-                e.getCause().getMessage(),
-                containsString("Field [time_series_dimension] requires that [index] and [doc_values] are true")
-            );
+            assertThat(e.getCause().getMessage(), containsString("Field [time_series_dimension] requires that [doc_values] is true"));
         }
         {
             Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
                 minimalMapping(b);
                 b.field("time_series_dimension", true).field("index", true).field("doc_values", false);
             })));
-            assertThat(
-                e.getCause().getMessage(),
-                containsString("Field [time_series_dimension] requires that [index] and [doc_values] are true")
-            );
-        }
-        {
-            Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
-                minimalMapping(b);
-                b.field("time_series_dimension", true).field("index", false).field("doc_values", true);
-            })));
-            assertThat(
-                e.getCause().getMessage(),
-                containsString("Field [time_series_dimension] requires that [index] and [doc_values] are true")
-            );
+            assertThat(e.getCause().getMessage(), containsString("Field [time_series_dimension] requires that [doc_values] is true"));
         }
     }
 
@@ -472,6 +577,89 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         assertEquals(new BytesRef("foo"), doc.rootDoc().getField("field2").binaryValue());
     }
 
+    public void testNormalizerSyntheticSourceKeepOriginalValue() throws IOException {
+        MapperService mapper = createSytheticSourceMapperService(
+            fieldMapping(
+                b -> b.field("type", "keyword").field("normalizer", "lowercase").field("normalizer_skip_store_original_value", false)
+            )
+        );
+        var keywordMapper = mapper.mappingLookup().getMapper("field");
+        assertThat(keywordMapper, Matchers.instanceOf(KeywordFieldMapper.class));
+        assertFalse(((KeywordFieldMapper) keywordMapper).isNormalizerSkipStoreOriginalValue());
+
+        assertEquals("{\"field\":\"AbC\"}", syntheticSource(mapper.documentMapper(), b -> b.field("field", "AbC")));
+
+        String expected = """
+            {"field":{"type":"keyword","normalizer":"lowercase","normalizer_skip_store_original_value":false}}""";
+        assertThat(keywordMapper.toString(), equalTo(expected));
+    }
+
+    public void testNormalizerSyntheticSourceSkipStoreOriginalValue() throws IOException {
+        MapperService mapper = createSytheticSourceMapperService(
+            fieldMapping(
+                b -> b.field("type", "keyword").field("normalizer", "lowercase").field("normalizer_skip_store_original_value", true)
+            )
+        );
+        var keywordMapper = mapper.mappingLookup().getMapper("field");
+        assertThat(keywordMapper, Matchers.instanceOf(KeywordFieldMapper.class));
+        assertTrue(((KeywordFieldMapper) keywordMapper).isNormalizerSkipStoreOriginalValue());
+
+        assertEquals("{\"field\":\"abc\"}", syntheticSource(mapper.documentMapper(), b -> b.field("field", "AbC")));
+
+        // normalizer_skip_store_original_value is configured, but it is the same as the default value, and therefor it isn't serialized
+        // (See default serializerCheck in Parameter.java)
+        String expected = """
+            {"field":{"type":"keyword","normalizer":"lowercase"}}""";
+        assertThat(keywordMapper.toString(), equalTo(expected));
+    }
+
+    public void testSkipStoreOriginalValueForLowercaseNormalizer() throws IOException {
+        MapperService mapper = createSytheticSourceMapperService(
+            fieldMapping(b -> b.field("type", "keyword").field("normalizer", "lowercase"))
+        );
+
+        var keywordMapper = mapper.mappingLookup().getMapper("field");
+        assertThat(keywordMapper, Matchers.instanceOf(KeywordFieldMapper.class));
+        assertTrue(((KeywordFieldMapper) keywordMapper).isNormalizerSkipStoreOriginalValue());
+
+        assertEquals("{\"field\":\"abc\"}", syntheticSource(mapper.documentMapper(), b -> b.field("field", "AbC")));
+        String expected = """
+            {"field":{"type":"keyword","normalizer":"lowercase"}}""";
+        assertThat(keywordMapper.toString(), equalTo(expected));
+    }
+
+    public void testSkipStoreOriginalValueForCustomNormalizer() throws IOException {
+        MapperService mapper = createSytheticSourceMapperService(
+            fieldMapping(b -> b.field("type", "keyword").field("normalizer", "other_lowercase"))
+        );
+
+        var keywordMapper = mapper.mappingLookup().getMapper("field");
+        assertThat(keywordMapper, Matchers.instanceOf(KeywordFieldMapper.class));
+        assertFalse(((KeywordFieldMapper) keywordMapper).isNormalizerSkipStoreOriginalValue());
+
+        assertEquals("{\"field\":\"AbC\"}", syntheticSource(mapper.documentMapper(), b -> b.field("field", "AbC")));
+        String expected = """
+            {"field":{"type":"keyword","normalizer":"other_lowercase"}}""";
+        assertThat(keywordMapper.toString(), equalTo(expected));
+    }
+
+    public void testSkipStoreOriginalValueForCustomNormalizerOverwriteSkipStoreOriginalValue() throws IOException {
+        MapperService mapper = createSytheticSourceMapperService(
+            fieldMapping(
+                b -> b.field("type", "keyword").field("normalizer", "other_lowercase").field("normalizer_skip_store_original_value", true)
+            )
+        );
+
+        var keywordMapper = mapper.mappingLookup().getMapper("field");
+        assertThat(keywordMapper, Matchers.instanceOf(KeywordFieldMapper.class));
+        assertTrue(((KeywordFieldMapper) keywordMapper).isNormalizerSkipStoreOriginalValue());
+
+        assertEquals("{\"field\":\"abc\"}", syntheticSource(mapper.documentMapper(), b -> b.field("field", "AbC")));
+        String expected = """
+            {"field":{"type":"keyword","normalizer":"other_lowercase","normalizer_skip_store_original_value":true}}""";
+        assertThat(keywordMapper.toString(), equalTo(expected));
+    }
+
     public void testParsesKeywordNestedEmptyObjectStrict() throws IOException {
         DocumentMapper defaultMapper = createDocumentMapper(fieldMapping(this::minimalMapping));
 
@@ -519,7 +707,11 @@ public class KeywordFieldMapperTests extends MapperTestCase {
     }
 
     public void testUpdateNormalizer() throws IOException {
-        MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "keyword").field("normalizer", "lowercase")));
+        MapperService mapperService = createMapperService(
+            fieldMapping(
+                b -> b.field("type", "keyword").field("normalizer", "lowercase").field("normalizer_skip_store_original_value", false)
+            )
+        );
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> merge(mapperService, fieldMapping(b -> b.field("type", "keyword").field("normalizer", "other_lowercase")))
@@ -682,7 +874,8 @@ public class KeywordFieldMapperTests extends MapperTestCase {
             randomBoolean() ? null : between(10, 100),
             randomBoolean(),
             usually() ? null : randomAlphaOfLength(2),
-            true
+            true,
+            KeywordFieldSyntheticSourceSupport.randomDocValuesParams(true)
         );
     }
 
@@ -737,6 +930,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
             b.startObject("mykeyw");
             b.field("type", "keyword");
             b.field("normalizer", "lowercase");
+            b.field("normalizer_skip_store_original_value", false);
             b.endObject();
         }));
         assertThat(service.fieldType("mykeyw"), instanceOf(KeywordFieldMapper.KeywordFieldType.class));
@@ -760,6 +954,90 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         assertScriptDocValues(mapper, "foo", equalTo(List.of("foo")));
     }
 
+    public void testDocValuesLowCardinality() throws IOException {
+        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        MapperService mapperService = createMapperService(
+            fieldMapping(b -> b.field("type", "keyword").startObject("doc_values").field("cardinality", "low").endObject())
+        );
+        KeywordFieldMapper mapper = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
+        assertThat(
+            mapper.docValuesParameters(),
+            equalTo(
+                new FieldMapper.DocValuesParameter.Values(
+                    true,
+                    FieldMapper.DocValuesParameter.Values.Cardinality.LOW,
+                    FieldMapper.DocValuesParameter.Values.MultiValue.SORTED_SET
+                )
+            )
+        );
+        assertScriptDocValues(mapperService, List.of("bar", "foo"), equalTo(List.of("bar", "foo")));
+    }
+
+    public void testDocValuesHighCardinality() throws IOException {
+        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        MapperService mapperService = createMapperService(
+            fieldMapping(b -> b.field("type", "keyword").startObject("doc_values").field("cardinality", "high").endObject())
+        );
+        KeywordFieldMapper mapper = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
+        assertThat(
+            mapper.docValuesParameters(),
+            equalTo(
+                new FieldMapper.DocValuesParameter.Values(
+                    true,
+                    FieldMapper.DocValuesParameter.Values.Cardinality.HIGH,
+                    FieldMapper.DocValuesParameter.Values.MultiValue.SORTED_SET
+                )
+            )
+        );
+        assertScriptDocValues(mapperService, List.of("bar", "foo"), equalTo(List.of("bar", "foo")));
+    }
+
+    public void testMultiValueSortedSet() throws IOException {
+        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        MapperService mapperService = createSytheticSourceMapperService(
+            fieldMapping(
+                b -> b.field("type", "keyword")
+                    .startObject("doc_values")
+                    .field("multi_value", "sorted_set")
+                    .field("cardinality", "low")
+                    .endObject()
+            )
+        );
+        KeywordFieldMapper mapper = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
+        assertThat(
+            mapper.docValuesParameters(),
+            equalTo(
+                new FieldMapper.DocValuesParameter.Values(
+                    true,
+                    FieldMapper.DocValuesParameter.Values.Cardinality.LOW,
+                    FieldMapper.DocValuesParameter.Values.MultiValue.SORTED_SET
+                )
+            )
+        );
+        assertScriptDocValues(mapperService, List.of("foo", "bar", "foo"), equalTo(List.of("bar", "foo")));
+    }
+
+    public void testMultiValueDefaultIsSortedSet() throws IOException {
+        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "keyword")));
+        KeywordFieldMapper mapper = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
+        assertThat(mapper.docValuesParameters().multiValue(), equalTo(FieldMapper.DocValuesParameter.Values.MultiValue.SORTED_SET));
+    }
+
+    public void testMultiValueSortedNotAllowed() throws IOException {
+        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        var e = expectThrows(
+            MapperParsingException.class,
+            () -> createMapperService(
+                fieldMapping(b -> b.field("type", "keyword").startObject("doc_values").field("multi_value", "sorted").endObject())
+            )
+        );
+        assertThat(
+            e.getMessage(),
+            containsString("Unknown value [sorted] for field [multi_value] - accepted values are [no, sorted_set, arrays]")
+        );
+    }
+
     public void testFieldTypeWithSkipDocValues_LogsDbModeDisabledSetting() throws IOException {
         final MapperService mapperService = createMapperService(
             Settings.builder()
@@ -775,15 +1053,14 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         );
 
         final KeywordFieldMapper mapper = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("host.name");
-        assertTrue(mapper.fieldType().hasDocValues());
-        assertTrue(mapper.fieldType().isIndexed());
-        assertFalse(mapper.fieldType().hasDocValuesSkipper());
+        assertTrue(mapper.fieldType().indexType().hasTerms());
     }
 
     public void testFieldTypeWithSkipDocValues_LogsDbMode() throws IOException {
         final Settings settings = Settings.builder()
             .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.name())
             .put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), "host.name")
+            .put(IndexSettings.USE_DOC_VALUES_SKIPPER.getKey(), true)
             .build();
         final MapperService mapperService = createMapperService(settings, mapping(b -> {
             b.startObject("host.name");
@@ -792,13 +1069,8 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         }));
 
         final KeywordFieldMapper mapper = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("host.name");
-        assertTrue(mapper.fieldType().hasDocValues());
-        assertFalse(IndexSettings.USE_DOC_VALUES_SKIPPER.get(settings) && mapper.fieldType().isIndexed());
-        if (IndexSettings.USE_DOC_VALUES_SKIPPER.get(settings)) {
-            assertTrue(mapper.fieldType().hasDocValuesSkipper());
-        } else {
-            assertFalse(mapper.fieldType().hasDocValuesSkipper());
-        }
+        assertTrue(mapper.fieldType().indexType().hasDocValuesSkipper());
+        assertFalse(mapper.fieldType().indexType().hasTerms());
     }
 
     public void testFieldTypeDefault_StandardMode() throws IOException {
@@ -814,8 +1086,8 @@ public class KeywordFieldMapperTests extends MapperTestCase {
 
         final KeywordFieldMapper mapper = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("host.name");
         assertTrue(mapper.fieldType().hasDocValues());
-        assertTrue(mapper.fieldType().isIndexed());
-        assertFalse(mapper.fieldType().hasDocValuesSkipper());
+        assertTrue(mapper.fieldType().indexType().hasTerms());
+        assertFalse(mapper.fieldType().indexType().hasDocValuesSkipper());
     }
 
     public void testFieldTypeDefault_NonMatchingFieldName() throws IOException {
@@ -831,14 +1103,15 @@ public class KeywordFieldMapperTests extends MapperTestCase {
 
         final KeywordFieldMapper mapper = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("hostname");
         assertTrue(mapper.fieldType().hasDocValues());
-        assertTrue(mapper.fieldType().isIndexed());
-        assertFalse(mapper.fieldType().hasDocValuesSkipper());
+        assertTrue(mapper.fieldType().indexType().hasTerms());
+        assertFalse(mapper.fieldType().indexType.hasDocValuesSkipper());
     }
 
     public void testFieldTypeDefault_ConfiguredIndexedWithSettingOverride() throws IOException {
         final Settings settings = Settings.builder()
             .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.name())
             .put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), "host.name")
+            .put(IndexSettings.USE_DOC_VALUES_SKIPPER.getKey(), true)
             .build();
         final MapperService mapperService = createMapperService(settings, mapping(b -> {
             b.startObject("host.name");
@@ -849,12 +1122,8 @@ public class KeywordFieldMapperTests extends MapperTestCase {
 
         final KeywordFieldMapper mapper = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("host.name");
         assertTrue(mapper.fieldType().hasDocValues());
-        assertFalse(IndexSettings.USE_DOC_VALUES_SKIPPER.get(settings) && mapper.fieldType().isIndexed());
-        if (IndexSettings.USE_DOC_VALUES_SKIPPER.get(settings)) {
-            assertTrue(mapper.fieldType().hasDocValuesSkipper());
-        } else {
-            assertFalse(mapper.fieldType().hasDocValuesSkipper());
-        }
+        assertTrue(mapper.fieldType().indexType().hasDocValuesSkipper());
+        assertFalse(mapper.fieldType().indexType().hasTerms());
     }
 
     public void testFieldTypeDefault_ConfiguredIndexedWithoutSettingOverride() throws IOException {
@@ -871,12 +1140,8 @@ public class KeywordFieldMapperTests extends MapperTestCase {
 
         final KeywordFieldMapper mapper = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("host.name");
         assertTrue(mapper.fieldType().hasDocValues());
-        assertFalse(IndexSettings.USE_DOC_VALUES_SKIPPER.get(settings) && mapper.fieldType().isIndexed());
-        if (IndexSettings.USE_DOC_VALUES_SKIPPER.get(settings)) {
-            assertTrue(mapper.fieldType().hasDocValuesSkipper());
-        } else {
-            assertFalse(mapper.fieldType().hasDocValuesSkipper());
-        }
+        assertFalse(mapper.fieldType().indexType().hasDocValuesSkipper());
+        assertTrue(mapper.fieldType().indexType().hasTerms());
     }
 
     public void testFieldTypeDefault_ConfiguredDocValues() throws IOException {
@@ -893,12 +1158,8 @@ public class KeywordFieldMapperTests extends MapperTestCase {
 
         final KeywordFieldMapper mapper = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("host.name");
         assertTrue(mapper.fieldType().hasDocValues());
-        assertFalse(IndexSettings.USE_DOC_VALUES_SKIPPER.get(settings) && mapper.fieldType().isIndexed());
-        if (IndexSettings.USE_DOC_VALUES_SKIPPER.get(settings)) {
-            assertTrue(mapper.fieldType().hasDocValuesSkipper());
-        } else {
-            assertFalse(mapper.fieldType().hasDocValuesSkipper());
-        }
+        assertFalse(mapper.fieldType().indexType().hasDocValuesSkipper());
+        assertTrue(mapper.fieldType().indexType().hasTerms());
     }
 
     public void testFieldTypeDefault_LogsDbMode_NonSortField() throws IOException {
@@ -914,14 +1175,15 @@ public class KeywordFieldMapperTests extends MapperTestCase {
 
         final KeywordFieldMapper mapper = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("host.name");
         assertTrue(mapper.fieldType().hasDocValues());
-        assertTrue(mapper.fieldType().isIndexed());
-        assertFalse(mapper.fieldType().hasDocValuesSkipper());
+        assertTrue(mapper.fieldType().indexType().hasTerms());
+        assertFalse(mapper.fieldType().indexType().hasDocValuesSkipper());
     }
 
     public void testFieldTypeWithSkipDocValues_IndexedFalseDocValuesTrue() throws IOException {
         final Settings settings = Settings.builder()
             .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.name())
             .put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), "host.name")
+            .put(IndexSettings.USE_DOC_VALUES_SKIPPER.getKey(), true)
             .build();
         final MapperService mapperService = createMapperService(settings, mapping(b -> {
             b.startObject("host.name");
@@ -933,12 +1195,8 @@ public class KeywordFieldMapperTests extends MapperTestCase {
 
         final KeywordFieldMapper mapper = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("host.name");
         assertTrue(mapper.fieldType().hasDocValues());
-        assertFalse(IndexSettings.USE_DOC_VALUES_SKIPPER.get(settings) && mapper.fieldType().isIndexed());
-        if (IndexSettings.USE_DOC_VALUES_SKIPPER.get(settings)) {
-            assertTrue(mapper.fieldType().hasDocValuesSkipper());
-        } else {
-            assertFalse(mapper.fieldType().hasDocValuesSkipper());
-        }
+        assertTrue(mapper.fieldType().indexType().hasDocValuesSkipper());
+        assertFalse(mapper.fieldType().indexType().hasTerms());
     }
 
     public void testFieldTypeDefault_IndexedFalseDocValuesFalse() throws IOException {
@@ -956,13 +1214,186 @@ public class KeywordFieldMapperTests extends MapperTestCase {
 
         final KeywordFieldMapper mapper = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("host.name");
         assertFalse(mapper.fieldType().hasDocValues());
-        assertFalse(mapper.fieldType().isIndexed());
-        assertFalse(mapper.fieldType().hasDocValuesSkipper());
+        assertThat(mapper.fieldType().indexType(), equalTo(IndexType.NONE));
+        assertFalse(mapper.fieldType().indexType().hasDocValuesSkipper());
+    }
+
+    public void testValueIsStoredWhenItExceedsIgnoreAboveAndFieldIsNotAMultiField() throws IOException {
+        // given
+        MapperService mapperService = createSytheticSourceMapperService(mapping(b -> {
+            b.startObject("potato");
+            b.field("type", "keyword");
+            b.field("ignore_above", 1);
+            b.endObject();
+        }));
+
+        // when
+        KeywordFieldMapper mapper = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("potato");
+        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> { b.field("potato", "this value is too long"); }));
+
+        // then
+
+        // for synthetic source, we expect to store a copy of this value in Lucene otherwise _source cannot be reconstructed
+        assertThat(doc.rootDoc().getField(mapper.fieldType().syntheticSourceFallbackFieldName()), Matchers.notNullValue());
+    }
+
+    /**
+     * Verifies that a lack of values that don't exceed ignore_above doesn't break anything.
+     */
+    public void testSyntheticSourceWhenAllValuesExceedIgnoreAbove() throws IOException {
+        MapperService mapperService = createSytheticSourceMapperService(mapping(b -> {
+            b.startObject("field");
+            b.field("type", "keyword");
+            b.field("ignore_above", 5);
+            b.endObject();
+        }));
+
+        String longValue1 = "this value is long";
+        String longValue2 = "this value is long too";
+
+        // long values should be present in synthetic source regardless
+        assertEquals(
+            "{\"field\":[\"" + longValue1 + "\",\"" + longValue2 + "\"]}",
+            syntheticSource(mapperService.documentMapper(), b -> b.array("field", longValue1, longValue2))
+        );
+    }
+
+    public void testValueIsNotStoredWhenItExceedsIgnoreAboveAndFieldIsAMultiField() throws IOException {
+        // given
+        MapperService mapperService = createSytheticSourceMapperService(mapping(b -> {
+            b.startObject("potato").field("type", "text");
+            {
+                b.startObject("fields");
+                {
+                    b.startObject("tomato").field("type", "keyword");
+                    b.field("ignore_above", 1);
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        }));
+
+        // when
+        KeywordFieldMapper mapper = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("potato.tomato");
+        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> { b.field("potato", "this value is too long"); }));
+
+        // then
+
+        // despite exceeding ignore_above, because the field is a multi field, we don't need to store anything extra in Lucene as _source
+        // can be reconstructed via the parent
+        assertThat(doc.rootDoc().getField(mapper.fieldType().syntheticSourceFallbackFieldName()), Matchers.nullValue());
+    }
+
+    public void testValueExceedsIgnoreAboveWhenSyntheticSourceDisabled() throws IOException {
+        // given
+        final MapperService mapperService = createMapperService(mapping(b -> {
+            b.startObject("potato");
+            b.field("type", "keyword");
+            b.field("ignore_above", 1);
+            b.endObject();
+        }));
+
+        // when
+        KeywordFieldMapper mapper = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("potato");
+        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> { b.field("potato", "this value is too long"); }));
+
+        // then
+
+        // despite exceeding ignore_above, because synthetic source is disabled, we don't expect to store anything
+        assertThat(doc.rootDoc().getField(mapper.fieldType() + "_original"), Matchers.nullValue());
+    }
+
+    public void testIgnoredFieldStoredInBinaryDocValuesForLogsDbIndex() throws IOException {
+        // given
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.name()).build();
+        DocumentMapper mapper = createMapperService(
+            IndexVersions.STORE_IGNORED_WILDCARD_FIELDS_IN_BINARY_DOC_VALUES,
+            settings,
+            fieldMapping(b -> b.field("type", "keyword").field("ignore_above", 5))
+        ).documentMapper();
+
+        // when
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "valuetoolong").field("@timestamp", Instant.now())));
+
+        // then
+        assertFalse(doc.rootDoc().getFields("field._original").stream().anyMatch(f -> f instanceof org.apache.lucene.document.StoredField));
+        assertTrue(doc.rootDoc().getFields("field._original").stream().anyMatch(f -> f instanceof MultiValuedBinaryDocValuesField));
+    }
+
+    public void testIgnoredFieldStoredInStoredFieldsForStandardIndex() throws IOException {
+        // given
+        DocumentMapper mapper = createSytheticSourceMapperService(fieldMapping(b -> b.field("type", "keyword").field("ignore_above", 5)))
+            .documentMapper();
+
+        // when
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "valuetoolong")));
+
+        // then
+
+        // except stored fields to be used for ignored fields - this happens because TSDB doc values format is not enabled
+        assertTrue(doc.rootDoc().getFields("field._original").stream().anyMatch(f -> f instanceof org.apache.lucene.document.StoredField));
+        assertFalse(doc.rootDoc().getFields("field._original").stream().anyMatch(f -> f instanceof MultiValuedBinaryDocValuesField));
+    }
+
+    /**
+     * Indices between STORE_IGNORED_KEYWORDS_IN_BINARY_DOC_VALUES and STORE_IGNORED_WILDCARD_FIELDS_IN_BINARY_DOC_VALUES stored ignored
+     * keyword fields in binary doc values regardless of doc values format, so we must continue reading them that way
+     */
+    public void testIgnoredFieldStoredInBinaryDocValuesForPreviousIndexVersion() throws IOException {
+        // given
+        Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.STANDARD.name())
+            .put("index.mapping.source.mode", "synthetic")
+            .build();
+        DocumentMapper mapper = createMapperService(
+            IndexVersionUtils.getPreviousVersion(IndexVersions.STORE_IGNORED_WILDCARD_FIELDS_IN_BINARY_DOC_VALUES),
+            settings,
+            fieldMapping(b -> b.field("type", "keyword").field("ignore_above", 5))
+        ).documentMapper();
+
+        // when
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "valuetoolong")));
+
+        // then
+        assertFalse(doc.rootDoc().getFields("field._original").stream().anyMatch(f -> f instanceof org.apache.lucene.document.StoredField));
+        assertTrue(doc.rootDoc().getFields("field._original").stream().anyMatch(f -> f instanceof MultiValuedBinaryDocValuesField));
     }
 
     @Override
     protected String randomSyntheticSourceKeep() {
         // Only option all keeps array source in ignored source.
         return randomFrom("all");
+    }
+
+    @Override
+    protected List<SortShortcutSupport> getSortShortcutSupport() {
+        return List.of(new SortShortcutSupport(this::minimalMapping, this::writeField, true));
+    }
+
+    /**
+     * Parsing a keyword field that contains a SMILE binary value (VALUE_EMBEDDED_OBJECT token)
+     * must not throw a NullPointerException. Binary values have no text representation and should
+     * be treated as null by the parser, so the field must be skipped rather than indexed.
+     *
+     * Regression test for when {@code KeywordFieldMapper.parseCreateField}
+     * calls {@code optimizedTextOrNull()}, which for binary SMILE tokens returned {@code new Text(null)}
+     * instead of {@code null}.
+     */
+    public void testParseSmileBinaryValueInKeywordField() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
+
+        ByteArrayOutputStream os = new ByteArrayOutputStream();
+        try (XContentGenerator generator = XContentType.SMILE.xContent().createGenerator(os)) {
+            generator.writeStartObject();
+            generator.writeBinaryField("field", new byte[] { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16 });
+            generator.writeEndObject();
+        }
+
+        SourceToParse source = new SourceToParse("1", new BytesArray(os.toByteArray()), XContentType.SMILE);
+
+        // Binary values have no text representation; the keyword field must be skipped without NPE.
+        ParsedDocument doc = mapper.parse(source);
+        assertThat(doc.rootDoc().getFields("field"), empty());
     }
 }

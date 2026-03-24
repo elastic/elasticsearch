@@ -15,7 +15,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -25,10 +24,6 @@ import java.math.RoundingMode;
 import java.util.Locale;
 import java.util.Objects;
 
-import static org.elasticsearch.TransportVersions.BYTE_SIZE_VALUE_ALWAYS_USES_BYTES;
-import static org.elasticsearch.TransportVersions.BYTE_SIZE_VALUE_ALWAYS_USES_BYTES_1;
-import static org.elasticsearch.TransportVersions.REVERT_BYTE_SIZE_VALUE_ALWAYS_USES_BYTES_1;
-import static org.elasticsearch.TransportVersions.V_9_0_0;
 import static org.elasticsearch.common.unit.ByteSizeUnit.BYTES;
 import static org.elasticsearch.common.unit.ByteSizeUnit.GB;
 import static org.elasticsearch.common.unit.ByteSizeUnit.KB;
@@ -38,18 +33,13 @@ import static org.elasticsearch.common.unit.ByteSizeUnit.TB;
 
 public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXContentFragment {
 
-    /**
-     * We have to lazy initialize the deprecation logger as otherwise a static logger here would be constructed before logging is configured
-     * leading to a runtime failure (see {@code LogConfigurator.checkErrorListener()} ). The premature construction would come from any
-     * {@link ByteSizeValue} object constructed in, for example, settings in {@link org.elasticsearch.common.network.NetworkService}.
-     */
-    static class DeprecationLoggerHolder {
-        static DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(ByteSizeValue.class);
-    }
-
     public static final ByteSizeValue ZERO = new ByteSizeValue(0, BYTES);
     public static final ByteSizeValue ONE = new ByteSizeValue(1, BYTES);
     public static final ByteSizeValue MINUS_ONE = new ByteSizeValue(-1, BYTES);
+
+    private static final TransportVersion BYTE_SIZE_VALUE_ALWAYS_USES_BYTES = TransportVersion.fromName(
+        "byte_size_value_always_uses_bytes"
+    );
 
     /**
      * @param size the number of {@code unit}s
@@ -133,9 +123,7 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXC
     }
 
     private static boolean alwaysUseBytes(TransportVersion tv) {
-        return tv.onOrAfter(BYTE_SIZE_VALUE_ALWAYS_USES_BYTES)
-            || tv.isPatchFrom(V_9_0_0)
-            || tv.between(BYTE_SIZE_VALUE_ALWAYS_USES_BYTES_1, REVERT_BYTE_SIZE_VALUE_ALWAYS_USES_BYTES_1);
+        return tv.supports(BYTE_SIZE_VALUE_ALWAYS_USES_BYTES);
     }
 
     ByteSizeValue(long sizeInBytes, ByteSizeUnit desiredUnit) {

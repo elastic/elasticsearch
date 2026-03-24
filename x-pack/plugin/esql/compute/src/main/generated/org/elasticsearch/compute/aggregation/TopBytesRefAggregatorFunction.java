@@ -36,18 +36,13 @@ public final class TopBytesRefAggregatorFunction implements AggregatorFunction {
 
   private final boolean ascending;
 
-  public TopBytesRefAggregatorFunction(DriverContext driverContext, List<Integer> channels,
-      TopBytesRefAggregator.SingleState state, int limit, boolean ascending) {
-    this.driverContext = driverContext;
-    this.channels = channels;
-    this.state = state;
+  TopBytesRefAggregatorFunction(DriverContext driverContext, List<Integer> channels, int limit,
+      boolean ascending) {
     this.limit = limit;
     this.ascending = ascending;
-  }
-
-  public static TopBytesRefAggregatorFunction create(DriverContext driverContext,
-      List<Integer> channels, int limit, boolean ascending) {
-    return new TopBytesRefAggregatorFunction(driverContext, channels, TopBytesRefAggregator.initSingle(driverContext.bigArrays(), limit, ascending), limit, ascending);
+    this.driverContext = driverContext;
+    this.channels = channels;
+    this.state = TopBytesRefAggregator.initSingle(driverContext.bigArrays(), limit, ascending);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -112,11 +107,12 @@ public final class TopBytesRefAggregatorFunction implements AggregatorFunction {
   private void addRawBlock(BytesRefBlock vBlock) {
     BytesRef vScratch = new BytesRef();
     for (int p = 0; p < vBlock.getPositionCount(); p++) {
-      if (vBlock.isNull(p)) {
+      int vValueCount = vBlock.getValueCount(p);
+      if (vValueCount == 0) {
         continue;
       }
       int vStart = vBlock.getFirstValueIndex(p);
-      int vEnd = vStart + vBlock.getValueCount(p);
+      int vEnd = vStart + vValueCount;
       for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
         BytesRef vValue = vBlock.getBytesRef(vOffset, vScratch);
         TopBytesRefAggregator.combine(state, vValue);
@@ -130,11 +126,12 @@ public final class TopBytesRefAggregatorFunction implements AggregatorFunction {
       if (mask.getBoolean(p) == false) {
         continue;
       }
-      if (vBlock.isNull(p)) {
+      int vValueCount = vBlock.getValueCount(p);
+      if (vValueCount == 0) {
         continue;
       }
       int vStart = vBlock.getFirstValueIndex(p);
-      int vEnd = vStart + vBlock.getValueCount(p);
+      int vEnd = vStart + vValueCount;
       for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
         BytesRef vValue = vBlock.getBytesRef(vOffset, vScratch);
         TopBytesRefAggregator.combine(state, vValue);
@@ -152,7 +149,7 @@ public final class TopBytesRefAggregatorFunction implements AggregatorFunction {
     }
     BytesRefBlock top = (BytesRefBlock) topUncast;
     assert top.getPositionCount() == 1;
-    BytesRef scratch = new BytesRef();
+    BytesRef topScratch = new BytesRef();
     TopBytesRefAggregator.combineIntermediate(state, top);
   }
 

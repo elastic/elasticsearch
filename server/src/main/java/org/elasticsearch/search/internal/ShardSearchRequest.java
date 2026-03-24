@@ -10,7 +10,6 @@
 package org.elasticsearch.search.internal;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchRequest;
@@ -19,8 +18,8 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.CheckedBiConsumer;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.hash.MessageDigests;
@@ -46,7 +45,6 @@ import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchSortValuesAndFormats;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.builder.SubSearchSourceBuilder;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.tasks.Task;
@@ -54,9 +52,6 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.AbstractTransportRequest;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
@@ -101,6 +96,16 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
      */
     private final boolean forceSyntheticSource;
 
+    /**
+     * Additional metadata specific to the resharding feature. See {@link org.elasticsearch.cluster.routing.SplitShardCountSummary}.
+     */
+    private final SplitShardCountSummary splitShardCountSummary;
+
+    public static final TransportVersion SHARD_SEARCH_REQUEST_RESHARD_SHARD_COUNT_SUMMARY = TransportVersion.fromName(
+        "shard_search_request_reshard_shard_count_summary"
+    );
+
+    // Test only constructor.
     public ShardSearchRequest(
         OriginalIndices originalIndices,
         SearchRequest searchRequest,
@@ -123,7 +128,8 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
             nowInMillis,
             clusterAlias,
             null,
-            null
+            null,
+            SplitShardCountSummary.UNSET
         );
     }
 
@@ -138,7 +144,8 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
         long nowInMillis,
         @Nullable String clusterAlias,
         ShardSearchContextId readerId,
-        TimeValue keepAlive
+        TimeValue keepAlive,
+        SplitShardCountSummary splitShardCountSummary
     ) {
         this(
             originalIndices,
@@ -158,7 +165,8 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
             keepAlive,
             computeWaitForCheckpoint(searchRequest.getWaitForCheckpoints(), shardId, shardRequestIndex),
             searchRequest.getWaitForCheckpointsTimeout(),
-            searchRequest.isForceSyntheticSource()
+            searchRequest.isForceSyntheticSource(),
+            splitShardCountSummary
         );
         // If allowPartialSearchResults is unset (ie null), the cluster-level default should have been substituted
         // at this stage. Any NPEs in the above are therefore an error in request preparation logic.
@@ -180,11 +188,20 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
         return waitForCheckpoint;
     }
 
+    // Used by ValidateQueryAction, ExplainAction, FieldCaps, TermsEnumAction, lookup join in ESQL
     public ShardSearchRequest(ShardId shardId, long nowInMillis, AliasFilter aliasFilter) {
-        this(shardId, nowInMillis, aliasFilter, null);
+        // TODO fix SplitShardCountSummary
+        this(shardId, nowInMillis, aliasFilter, null, SplitShardCountSummary.UNSET);
     }
 
-    public ShardSearchRequest(ShardId shardId, long nowInMillis, AliasFilter aliasFilter, String clusterAlias) {
+    // Used by ESQL and field_caps API
+    public ShardSearchRequest(
+        ShardId shardId,
+        long nowInMillis,
+        AliasFilter aliasFilter,
+        String clusterAlias,
+        SplitShardCountSummary splitShardCountSummary
+    ) {
         this(
             OriginalIndices.NONE,
             shardId,
@@ -203,7 +220,8 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
             null,
             SequenceNumbers.UNASSIGNED_SEQ_NO,
             SearchService.NO_TIMEOUT,
-            false
+            false,
+            splitShardCountSummary
         );
     }
 
@@ -226,7 +244,8 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
         TimeValue keepAlive,
         long waitForCheckpoint,
         TimeValue waitForCheckpointsTimeout,
-        boolean forceSyntheticSource
+        boolean forceSyntheticSource,
+        SplitShardCountSummary splitShardCountSummary
     ) {
         this.shardId = shardId;
         this.shardRequestIndex = shardRequestIndex;
@@ -248,6 +267,7 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
         this.waitForCheckpoint = waitForCheckpoint;
         this.waitForCheckpointsTimeout = waitForCheckpointsTimeout;
         this.forceSyntheticSource = forceSyntheticSource;
+        this.splitShardCountSummary = splitShardCountSummary;
     }
 
     @SuppressWarnings("this-escape")
@@ -273,6 +293,7 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
         this.waitForCheckpoint = clone.waitForCheckpoint;
         this.waitForCheckpointsTimeout = clone.waitForCheckpointsTimeout;
         this.forceSyntheticSource = clone.forceSyntheticSource;
+        this.splitShardCountSummary = clone.splitShardCountSummary;
     }
 
     public ShardSearchRequest(StreamInput in) throws IOException {
@@ -283,38 +304,6 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
         numberOfShards = in.readVInt();
         scroll = in.readOptionalTimeValue();
         source = in.readOptionalWriteable(SearchSourceBuilder::new);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0) && in.getTransportVersion().before(TransportVersions.V_8_9_X)) {
-            // to deserialize between the 8.8 and 8.500.020 version we need to translate
-            // the rank queries into sub searches if we are ranking; if there are no rank queries
-            // we deserialize the empty list and do nothing
-            List<QueryBuilder> rankQueryBuilders = in.readNamedWriteableCollectionAsList(QueryBuilder.class);
-            // if we are in the dfs phase in 8.8, we can have no rank queries
-            // and if we are in the query/fetch phase we can have either no rank queries
-            // for a standard query or hybrid search or 2+ rank queries, but we cannot have
-            // exactly 1 rank query ever so we check for this
-            assert rankQueryBuilders.size() != 1 : "[rank] requires at least [2] sub searches, but only found [1]";
-            // if we have 2+ rank queries we know we are ranking, so we set our
-            // sub searches from this; note this will override the boolean query deserialized from source
-            // because we use the same data structure for a single query and multiple queries
-            // but we will just re-create it as necessary
-            if (rankQueryBuilders.size() >= 2) {
-                assert source != null && source.rankBuilder() != null;
-                List<SubSearchSourceBuilder> subSearchSourceBuilders = new ArrayList<>();
-                for (QueryBuilder queryBuilder : rankQueryBuilders) {
-                    subSearchSourceBuilders.add(new SubSearchSourceBuilder(queryBuilder));
-                }
-                source.subSearches(subSearchSourceBuilders);
-            }
-        }
-        if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            // types no longer relevant so ignore
-            String[] types = in.readStringArray();
-            if (types.length > 0) {
-                throw new IllegalStateException(
-                    "types are no longer supported in search requests but found [" + Arrays.toString(types) + "]"
-                );
-            }
-        }
         aliasFilter = AliasFilter.readFrom(in);
         indexBoost = in.readFloat();
         nowInMillis = in.readVLong();
@@ -329,16 +318,13 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
         channelVersion = TransportVersion.min(TransportVersion.readVersion(in), in.getTransportVersion());
         waitForCheckpoint = in.readLong();
         waitForCheckpointsTimeout = in.readTimeValue();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
-            forceSyntheticSource = in.readBoolean();
+        forceSyntheticSource = in.readBoolean();
+        if (in.getTransportVersion().supports(SHARD_SEARCH_REQUEST_RESHARD_SHARD_COUNT_SUMMARY)) {
+            splitShardCountSummary = new SplitShardCountSummary(in);
         } else {
-            /*
-             * Synthetic source is not supported before 8.3.0 so any request
-             * from a coordinating node of that version will not want to
-             * force it.
-             */
-            forceSyntheticSource = false;
+            splitShardCountSummary = SplitShardCountSummary.UNSET;
         }
+
         originalIndices = OriginalIndices.readOriginalIndices(in);
     }
 
@@ -358,23 +344,6 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
         }
         out.writeOptionalTimeValue(scroll);
         out.writeOptionalWriteable(source);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0) && out.getTransportVersion().before(TransportVersions.V_8_9_X)) {
-            // to serialize between the 8.8 and 8.500.020 version we need to translate
-            // the sub searches into rank queries if we are ranking, otherwise, we
-            // ignore this because linear combination will have multiple sub searches in
-            // 8.500.020+, but only use the combined boolean query in prior versions
-            List<QueryBuilder> rankQueryBuilders = new ArrayList<>();
-            if (source != null && source.rankBuilder() != null && source.subSearches().size() >= 2) {
-                for (SubSearchSourceBuilder subSearchSourceBuilder : source.subSearches()) {
-                    rankQueryBuilders.add(subSearchSourceBuilder.getQueryBuilder());
-                }
-            }
-            out.writeNamedWriteableCollection(rankQueryBuilders);
-        }
-        if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            // types not supported so send an empty array to previous versions
-            out.writeStringArray(Strings.EMPTY_ARRAY);
-        }
         aliasFilter.writeTo(out);
         out.writeFloat(indexBoost);
         if (asKey == false) {
@@ -392,12 +361,9 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
         TransportVersion.writeVersion(channelVersion, out);
         out.writeLong(waitForCheckpoint);
         out.writeTimeValue(waitForCheckpointsTimeout);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
-            out.writeBoolean(forceSyntheticSource);
-        } else {
-            if (forceSyntheticSource) {
-                throw new IllegalArgumentException("force_synthetic_source is not supported before 8.4.0");
-            }
+        out.writeBoolean(forceSyntheticSource);
+        if (out.getTransportVersion().supports(SHARD_SEARCH_REQUEST_RESHARD_SHARD_COUNT_SUMMARY)) {
+            splitShardCountSummary.writeTo(out);
         }
     }
 
@@ -554,6 +520,10 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
 
     public String getClusterAlias() {
         return clusterAlias;
+    }
+
+    public SplitShardCountSummary getSplitShardCountSummary() {
+        return splitShardCountSummary;
     }
 
     @Override

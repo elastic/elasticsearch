@@ -68,6 +68,7 @@ public class EqlRequestParserTests extends ESTestCase {
               "timestamp_field": "tsf",
               "event_category_field": "etf",
               "size": "101",
+              "project_routing": "_alias:_origin",
               "query": "file where user != 'SYSTEM' by file_path"
             }""", EqlSearchRequest::fromXContent);
         assertArrayEquals(new String[] { "endgame-*" }, request.indices());
@@ -81,6 +82,7 @@ public class EqlRequestParserTests extends ESTestCase {
         assertEquals(101, request.size());
         assertEquals(1000, request.fetchSize());
         assertEquals("file where user != 'SYSTEM' by file_path", request.query());
+        assertEquals("_alias:_origin", request.getProjectRouting());
     }
 
     private EqlSearchRequest generateRequest(String index, String json, Function<XContentParser, EqlSearchRequest> fromXContent)

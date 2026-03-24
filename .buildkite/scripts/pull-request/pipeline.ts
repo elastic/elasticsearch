@@ -50,6 +50,14 @@ const changedFilesIncludedCheck = (pipeline: EsPipeline, changedFiles: string[])
   return true;
 };
 
+const checkTargetBranch = (pipeline: EsPipeline, targetBranch: string | undefined) => {
+  if (!targetBranch || !pipeline.config?.["skip-target-branches"]) {
+    return true;
+  }
+
+  return !getArray(pipeline.config["skip-target-branches"]).some((branch) => branch === targetBranch);
+};
+
 const triggerCommentCheck = (pipeline: EsPipeline): boolean => {
   if (process.env["GITHUB_PR_TRIGGER_COMMENT"] && pipeline.config?.["trigger-phrase"]) {
     return !!process.env["GITHUB_PR_TRIGGER_COMMENT"].match(pipeline.config["trigger-phrase"]);
@@ -138,6 +146,7 @@ export const generatePipelines = (
   }
 
   let filters: ((pipeline: EsPipeline) => boolean)[] = [
+    (pipeline) => checkTargetBranch(pipeline, process.env["GITHUB_PR_TARGET_BRANCH"]),
     (pipeline) => labelCheckAllow(pipeline, labels),
     (pipeline) => labelCheckSkip(pipeline, labels),
     (pipeline) => changedFilesExcludedCheck(pipeline, changedFiles),

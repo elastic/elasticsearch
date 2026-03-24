@@ -12,6 +12,7 @@ import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 import org.elasticsearch.search.vectors.RescoreVectorBuilder;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.expression.function.vector.Knn;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -20,9 +21,8 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.index.query.AbstractQueryBuilder.BOOST_FIELD;
-import static org.elasticsearch.search.vectors.KnnVectorQueryBuilder.K_FIELD;
-import static org.elasticsearch.search.vectors.KnnVectorQueryBuilder.NUM_CANDS_FIELD;
 import static org.elasticsearch.search.vectors.KnnVectorQueryBuilder.VECTOR_SIMILARITY_FIELD;
+import static org.elasticsearch.search.vectors.KnnVectorQueryBuilder.VISIT_PERCENTAGE_FIELD;
 
 public class KnnQuery extends Query {
 
@@ -32,9 +32,12 @@ public class KnnQuery extends Query {
     private final List<QueryBuilder> filterQueries;
 
     public static final String RESCORE_OVERSAMPLE_FIELD = "rescore_oversample";
+    private final Integer k;
 
-    public KnnQuery(Source source, String field, float[] query, Map<String, Object> options, List<QueryBuilder> filterQueries) {
+    public KnnQuery(Source source, String field, float[] query, Integer k, Map<String, Object> options, List<QueryBuilder> filterQueries) {
         super(source);
+        assert k != null && k > 0 : "k must be a positive integer, but was: " + k;
+        this.k = k;
         assert options != null;
         this.field = field;
         this.query = query;
@@ -44,16 +47,26 @@ public class KnnQuery extends Query {
 
     @Override
     protected QueryBuilder asBuilder() {
-        Integer k = (Integer) options.get(K_FIELD.getPreferredName());
-        Integer numCands = (Integer) options.get(NUM_CANDS_FIELD.getPreferredName());
         RescoreVectorBuilder rescoreVectorBuilder = null;
         Float oversample = (Float) options.get(RESCORE_OVERSAMPLE_FIELD);
         if (oversample != null) {
             rescoreVectorBuilder = new RescoreVectorBuilder(oversample);
         }
         Float vectorSimilarity = (Float) options.get(VECTOR_SIMILARITY_FIELD.getPreferredName());
+        Integer minCandidates = (Integer) options.get(Knn.MIN_CANDIDATES_OPTION);
+        Float visitPercentage = (Float) options.get(VISIT_PERCENTAGE_FIELD.getPreferredName());
+        minCandidates = minCandidates == null ? null : Math.max(minCandidates, k);
 
-        KnnVectorQueryBuilder queryBuilder = new KnnVectorQueryBuilder(field, query, k, numCands, rescoreVectorBuilder, vectorSimilarity);
+        // TODO: expose visit_percentage in ESQL
+        KnnVectorQueryBuilder queryBuilder = new KnnVectorQueryBuilder(
+            field,
+            query,
+            k,
+            minCandidates,
+            visitPercentage,
+            rescoreVectorBuilder,
+            vectorSimilarity
+        );
         for (QueryBuilder filter : filterQueries) {
             queryBuilder.addFilterQuery(filter);
         }

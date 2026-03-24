@@ -33,16 +33,10 @@ public final class MaxFloatAggregatorFunction implements AggregatorFunction {
 
   private final List<Integer> channels;
 
-  public MaxFloatAggregatorFunction(DriverContext driverContext, List<Integer> channels,
-      FloatState state) {
+  MaxFloatAggregatorFunction(DriverContext driverContext, List<Integer> channels) {
     this.driverContext = driverContext;
     this.channels = channels;
-    this.state = state;
-  }
-
-  public static MaxFloatAggregatorFunction create(DriverContext driverContext,
-      List<Integer> channels) {
-    return new MaxFloatAggregatorFunction(driverContext, channels, new FloatState(MaxFloatAggregator.init()));
+    this.state = new FloatState(MaxFloatAggregator.init());
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -106,12 +100,13 @@ public final class MaxFloatAggregatorFunction implements AggregatorFunction {
 
   private void addRawBlock(FloatBlock vBlock) {
     for (int p = 0; p < vBlock.getPositionCount(); p++) {
-      if (vBlock.isNull(p)) {
+      int vValueCount = vBlock.getValueCount(p);
+      if (vValueCount == 0) {
         continue;
       }
       state.seen(true);
       int vStart = vBlock.getFirstValueIndex(p);
-      int vEnd = vStart + vBlock.getValueCount(p);
+      int vEnd = vStart + vValueCount;
       for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
         float vValue = vBlock.getFloat(vOffset);
         state.floatValue(MaxFloatAggregator.combine(state.floatValue(), vValue));
@@ -124,12 +119,13 @@ public final class MaxFloatAggregatorFunction implements AggregatorFunction {
       if (mask.getBoolean(p) == false) {
         continue;
       }
-      if (vBlock.isNull(p)) {
+      int vValueCount = vBlock.getValueCount(p);
+      if (vValueCount == 0) {
         continue;
       }
       state.seen(true);
       int vStart = vBlock.getFirstValueIndex(p);
-      int vEnd = vStart + vBlock.getValueCount(p);
+      int vEnd = vStart + vValueCount;
       for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
         float vValue = vBlock.getFloat(vOffset);
         state.floatValue(MaxFloatAggregator.combine(state.floatValue(), vValue));

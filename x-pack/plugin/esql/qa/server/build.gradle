@@ -2,12 +2,69 @@ apply plugin: 'elasticsearch.java'
 
 description = 'Integration tests for ESQL'
 
+configurations {
+  // Separate classpath for OrcFixtureGenerator to avoid jar hell: hadoop-client-runtime
+  // bundles javax.xml.bind (multi-release) which conflicts with jakarta.xml.bind-api from
+  // repository-azure.
+  orcFixtureGenerator
+  // Separate classpath for ParquetFixtureGenerator to avoid jar hell with repository-azure.
+  parquetFixtureGenerator
+}
+
+sourceSets {
+  orcFixtureGenerator {
+    compileClasspath += configurations.orcFixtureGenerator
+  }
+  parquetFixtureGenerator {
+    compileClasspath += configurations.parquetFixtureGenerator
+  }
+}
+
 dependencies {
   api project(":test:framework")
 
-  // Common utilities from QL
-  api project(xpackModule('esql-core:test-fixtures'))
   // Requirement for some ESQL-specific utilities
   implementation project(':x-pack:plugin:esql')
   api project(xpackModule('esql:qa:testFixtures'))
+  
+  // S3 fixture infrastructure for external source tests (Iceberg, Parquet)
+  api project(':test:fixtures:s3-fixture')
+  api project(':test:fixtures:aws-fixture-utils')
+
+  // GCS fixture infrastructure for external source tests
+  api project(':test:fixtures:gcs-fixture')
+
+  // Azure fixture infrastructure for external source tests
+  api project(':test:fixtures:azure-fixture')
+
+  // Azure SDK for fixture blob loading - use repository-azure for complete dependency tree
+  api project(':modules:repository-azure')
+  
+  // Access to test utilities including IcebergS3FixtureUtils
+  api(project(path: xpackModule('esql'), configuration: 'testRuntimeElements'))
+
+  // Compression libs for generating .gz, .zst, .bz2 fixtures on the fly
+  implementation "com.github.luben:zstd-jni:${versions.zstdJni}"
+  implementation "org.apache.commons:commons-compress:${versions.esql_commons_compress}"
+
+  // OrcFixtureGenerator: ORC/Hadoop (separate from main to avoid jar hell)
+  orcFixtureGenerator("org.apache.orc:orc-core:2.2.2") { exclude group: 'org.slf4j', module: 'slf4j-api' }
+  orcFixtureGenerator('org.apache.hive:hive-storage-api:2.8.1')
+  orcFixtureGenerator('com.google.protobuf:protobuf-java:3.25.8')
+  orcFixtureGenerator('org.apache.hadoop:hadoop-client-api:3.4.2') { exclude group: 'org.slf4j', module: 'slf4j-api' }
+  orcFixtureGenerator('org.apache.hadoop:hadoop-client-runtime:3.4.2') { exclude group: 'org.slf4j', module: 'slf4j-api' }
+  orcFixtureGenerator "org.slf4j:slf4j-api:${versions.slf4j}"
+  orcFixtureGenerator project(':libs:core')
+  orcFixtureGenerator project(xpackModule('esql-datasource-csv'))
+
+  // ParquetFixtureGenerator: Parquet/Hadoop (separate from main to avoid jar hell)
+  parquetFixtureGenerator("org.apache.parquet:parquet-hadoop-bundle:1.16.0") {
+    exclude group: 'org.apache.logging.log4j'
+  }
+  parquetFixtureGenerator "org.locationtech.jts:jts-core:${versions.jts}"
+  parquetFixtureGenerator('org.apache.hadoop:hadoop-client-api:3.4.2') { exclude group: 'org.apache.logging.log4j' }
+  parquetFixtureGenerator('org.apache.hadoop:hadoop-client-runtime:3.4.2') { exclude group: 'org.apache.logging.log4j' }
+  parquetFixtureGenerator "org.slf4j:slf4j-api:${versions.slf4j}"
+  parquetFixtureGenerator project(':libs:core')
+  parquetFixtureGenerator project(xpackModule('esql-datasource-csv'))
 }

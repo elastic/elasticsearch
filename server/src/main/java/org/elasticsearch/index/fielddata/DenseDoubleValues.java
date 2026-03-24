@@ -1,0 +1,79 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+package org.elasticsearch.index.fielddata;
+
+import org.apache.lucene.index.NumericDocValues;
+import org.apache.lucene.search.DoubleValues;
+
+import java.io.IOException;
+import java.util.function.DoubleToLongFunction;
+
+/**
+ * DoubleValues implementation that is guaranteed to have a value
+ * for every document in a reader
+ */
+public abstract class DenseDoubleValues extends DoubleValues {
+
+    @Override
+    public final boolean advanceExact(int doc) throws IOException {
+        doAdvanceExact(doc);
+        return true;
+    }
+
+    protected abstract void doAdvanceExact(int doc) throws IOException;
+
+    /**
+     * Represent a DenseDoubleValues as a NumericDocValues instance
+     * @param in        the DenseDoubleValues to wrap
+     * @param maxDoc    the maxDoc of the current reader
+     * @param converter a function to convert the double-valued output of DenseDoubleValues to a long
+     */
+    public static NumericDocValues asNumericDocValues(DenseDoubleValues in, int maxDoc, DoubleToLongFunction converter) {
+        return new NumericDocValues() {
+
+            int doc = -1;
+
+            @Override
+            public long longValue() throws IOException {
+                return converter.applyAsLong(in.doubleValue());
+            }
+
+            @Override
+            public boolean advanceExact(int target) throws IOException {
+                doc = target;
+                return in.advanceExact(target);
+            }
+
+            @Override
+            public int docID() {
+                return doc;
+            }
+
+            @Override
+            public int nextDoc() throws IOException {
+                return advance(doc + 1);
+            }
+
+            @Override
+            public int advance(int target) throws IOException {
+                if (target >= maxDoc) {
+                    return doc = NO_MORE_DOCS;
+                }
+                in.advanceExact(target);
+                return doc = target;
+            }
+
+            @Override
+            public long cost() {
+                return maxDoc;
+            }
+        };
+    }
+}

@@ -14,31 +14,31 @@ import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Round}.
+ * {@link ExpressionEvaluator} implementation for {@link Round}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class RoundIntEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class RoundIntEvaluator implements ExpressionEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(RoundIntEvaluator.class);
 
   private final Source source;
 
-  private final EvalOperator.ExpressionEvaluator val;
+  private final ExpressionEvaluator val;
 
-  private final EvalOperator.ExpressionEvaluator decimals;
+  private final ExpressionEvaluator decimals;
 
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
-  public RoundIntEvaluator(Source source, EvalOperator.ExpressionEvaluator val,
-      EvalOperator.ExpressionEvaluator decimals, DriverContext driverContext) {
+  public RoundIntEvaluator(Source source, ExpressionEvaluator val, ExpressionEvaluator decimals,
+      DriverContext driverContext) {
     this.source = source;
     this.val = val;
     this.decimals = decimals;
@@ -73,29 +73,31 @@ public final class RoundIntEvaluator implements EvalOperator.ExpressionEvaluator
   public IntBlock eval(int positionCount, IntBlock valBlock, LongBlock decimalsBlock) {
     try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        if (valBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
+        switch (valBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
-        if (valBlock.getValueCount(p) != 1) {
-          if (valBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
+        switch (decimalsBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
-        if (decimalsBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
-        }
-        if (decimalsBlock.getValueCount(p) != 1) {
-          if (decimalsBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
-        }
-        result.appendInt(Round.process(valBlock.getInt(valBlock.getFirstValueIndex(p)), decimalsBlock.getLong(decimalsBlock.getFirstValueIndex(p))));
+        int val = valBlock.getInt(valBlock.getFirstValueIndex(p));
+        long decimals = decimalsBlock.getLong(decimalsBlock.getFirstValueIndex(p));
+        result.appendInt(Round.process(val, decimals));
       }
       return result.build();
     }
@@ -104,7 +106,9 @@ public final class RoundIntEvaluator implements EvalOperator.ExpressionEvaluator
   public IntVector eval(int positionCount, IntVector valVector, LongVector decimalsVector) {
     try(IntVector.FixedBuilder result = driverContext.blockFactory().newIntVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendInt(p, Round.process(valVector.getInt(p), decimalsVector.getLong(p)));
+        int val = valVector.getInt(p);
+        long decimals = decimalsVector.getLong(p);
+        result.appendInt(p, Round.process(val, decimals));
       }
       return result.build();
     }
@@ -122,25 +126,20 @@ public final class RoundIntEvaluator implements EvalOperator.ExpressionEvaluator
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(
-              driverContext.warningsMode(),
-              source.source().getLineNumber(),
-              source.source().getColumnNumber(),
-              source.text()
-          );
+      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
     }
     return warnings;
   }
 
-  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory val;
+    private final ExpressionEvaluator.Factory val;
 
-    private final EvalOperator.ExpressionEvaluator.Factory decimals;
+    private final ExpressionEvaluator.Factory decimals;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory val,
-        EvalOperator.ExpressionEvaluator.Factory decimals) {
+    public Factory(Source source, ExpressionEvaluator.Factory val,
+        ExpressionEvaluator.Factory decimals) {
       this.source = source;
       this.val = val;
       this.decimals = decimals;

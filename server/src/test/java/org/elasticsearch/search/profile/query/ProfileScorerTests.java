@@ -12,13 +12,13 @@ package org.elasticsearch.search.profile.query;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Explanation;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Matches;
 import org.apache.lucene.search.MatchesIterator;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -191,7 +191,7 @@ public class ProfileScorerTests extends ESTestCase {
 
     // tests that ProfileWeight correctly propagates the wrapped inner weight
     public void testPropagateSubWeight() throws IOException {
-        Query query = new MatchAllDocsQuery();
+        Query query = Queries.ALL_DOCS_INSTANCE;
         Weight fakeWeight = new FakeWeight(query);
         QueryProfileBreakdown profile = new QueryProfileBreakdown();
         ProfileWeight profileWeight = new ProfileWeight(query, fakeWeight, profile);
@@ -201,7 +201,7 @@ public class ProfileScorerTests extends ESTestCase {
     }
 
     public void testPropagateTopLevelScoringClause() throws IOException {
-        Query query = new MatchAllDocsQuery();
+        Query query = Queries.ALL_DOCS_INSTANCE;
         Weight fakeWeight = new FakeWeight(query);
         QueryProfileBreakdown profile = new QueryProfileBreakdown();
         ProfileWeight profileWeight = new ProfileWeight(query, fakeWeight, profile);

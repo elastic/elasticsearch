@@ -62,6 +62,60 @@
       "params" : [
         {
           "name" : "number",
+          "type" : "exponential_histogram",
+          "optional" : false,
+          "description" : ""
+        },
+        {
+          "name" : "percentile",
+          "type" : "double",
+          "optional" : false,
+          "description" : ""
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "double"
+    },
+    {
+      "params" : [
+        {
+          "name" : "number",
+          "type" : "exponential_histogram",
+          "optional" : false,
+          "description" : ""
+        },
+        {
+          "name" : "percentile",
+          "type" : "integer",
+          "optional" : false,
+          "description" : ""
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "double"
+    },
+    {
+      "params" : [
+        {
+          "name" : "number",
+          "type" : "exponential_histogram",
+          "optional" : false,
+          "description" : ""
+        },
+        {
+          "name" : "percentile",
+          "type" : "long",
+          "optional" : false,
+          "description" : ""
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "double"
+    },
+    {
+      "params" : [
+        {
+          "name" : "number",
           "type" : "integer",
           "optional" : false,
           "description" : ""
@@ -153,6 +207,60 @@
         {
           "name" : "number",
           "type" : "long",
+          "optional" : false,
+          "description" : ""
+        },
+        {
+          "name" : "percentile",
+          "type" : "long",
+          "optional" : false,
+          "description" : ""
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "double"
+    },
+    {
+      "params" : [
+        {
+          "name" : "number",
+          "type" : "tdigest",
+          "optional" : false,
+          "description" : ""
+        },
+        {
+          "name" : "percentile",
+          "type" : "double",
+          "optional" : false,
+          "description" : ""
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "double"
+    },
+    {
+      "params" : [
+        {
+          "name" : "number",
+          "type" : "tdigest",
+          "optional" : false,
+          "description" : ""
+        },
+        {
+          "name" : "percentile",
+          "type" : "integer",
+          "optional" : false,
+          "description" : ""
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "double"
+    },
+    {
+      "params" : [
+        {
+          "name" : "number",
+          "type" : "tdigest",
           "optional" : false,
           "description" : ""
         },

@@ -21,5 +21,5 @@
     "FROM books METADATA _score\n| WHERE match(title, \"Return\") AND match(author, \"Tolkien\")\n| EVAL first_score = score(match(title, \"Return\"))"
   ],
   "preview" : true,
-  "snapshot_only" : true
+  "snapshot_only" : false
 }

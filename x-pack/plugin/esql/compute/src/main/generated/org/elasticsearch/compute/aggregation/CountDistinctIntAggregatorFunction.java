@@ -36,17 +36,12 @@ public final class CountDistinctIntAggregatorFunction implements AggregatorFunct
 
   private final int precision;
 
-  public CountDistinctIntAggregatorFunction(DriverContext driverContext, List<Integer> channels,
-      HllStates.SingleState state, int precision) {
+  CountDistinctIntAggregatorFunction(DriverContext driverContext, List<Integer> channels,
+      int precision) {
+    this.precision = precision;
     this.driverContext = driverContext;
     this.channels = channels;
-    this.state = state;
-    this.precision = precision;
-  }
-
-  public static CountDistinctIntAggregatorFunction create(DriverContext driverContext,
-      List<Integer> channels, int precision) {
-    return new CountDistinctIntAggregatorFunction(driverContext, channels, CountDistinctIntAggregator.initSingle(driverContext.bigArrays(), precision), precision);
+    this.state = CountDistinctIntAggregator.initSingle(driverContext, precision);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -108,11 +103,12 @@ public final class CountDistinctIntAggregatorFunction implements AggregatorFunct
 
   private void addRawBlock(IntBlock vBlock) {
     for (int p = 0; p < vBlock.getPositionCount(); p++) {
-      if (vBlock.isNull(p)) {
+      int vValueCount = vBlock.getValueCount(p);
+      if (vValueCount == 0) {
         continue;
       }
       int vStart = vBlock.getFirstValueIndex(p);
-      int vEnd = vStart + vBlock.getValueCount(p);
+      int vEnd = vStart + vValueCount;
       for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
         int vValue = vBlock.getInt(vOffset);
         CountDistinctIntAggregator.combine(state, vValue);
@@ -125,11 +121,12 @@ public final class CountDistinctIntAggregatorFunction implements AggregatorFunct
       if (mask.getBoolean(p) == false) {
         continue;
       }
-      if (vBlock.isNull(p)) {
+      int vValueCount = vBlock.getValueCount(p);
+      if (vValueCount == 0) {
         continue;
       }
       int vStart = vBlock.getFirstValueIndex(p);
-      int vEnd = vStart + vBlock.getValueCount(p);
+      int vEnd = vStart + vValueCount;
       for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
         int vValue = vBlock.getInt(vOffset);
         CountDistinctIntAggregator.combine(state, vValue);
@@ -147,8 +144,8 @@ public final class CountDistinctIntAggregatorFunction implements AggregatorFunct
     }
     BytesRefVector hll = ((BytesRefBlock) hllUncast).asVector();
     assert hll.getPositionCount() == 1;
-    BytesRef scratch = new BytesRef();
-    CountDistinctIntAggregator.combineIntermediate(state, hll.getBytesRef(0, scratch));
+    BytesRef hllScratch = new BytesRef();
+    CountDistinctIntAggregator.combineIntermediate(state, hll.getBytesRef(0, hllScratch));
   }
 
   @Override

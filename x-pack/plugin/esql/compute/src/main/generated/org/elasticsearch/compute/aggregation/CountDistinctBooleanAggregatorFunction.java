@@ -31,16 +31,10 @@ public final class CountDistinctBooleanAggregatorFunction implements AggregatorF
 
   private final List<Integer> channels;
 
-  public CountDistinctBooleanAggregatorFunction(DriverContext driverContext, List<Integer> channels,
-      CountDistinctBooleanAggregator.SingleState state) {
+  CountDistinctBooleanAggregatorFunction(DriverContext driverContext, List<Integer> channels) {
     this.driverContext = driverContext;
     this.channels = channels;
-    this.state = state;
-  }
-
-  public static CountDistinctBooleanAggregatorFunction create(DriverContext driverContext,
-      List<Integer> channels) {
-    return new CountDistinctBooleanAggregatorFunction(driverContext, channels, CountDistinctBooleanAggregator.initSingle());
+    this.state = CountDistinctBooleanAggregator.initSingle();
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -102,11 +96,12 @@ public final class CountDistinctBooleanAggregatorFunction implements AggregatorF
 
   private void addRawBlock(BooleanBlock vBlock) {
     for (int p = 0; p < vBlock.getPositionCount(); p++) {
-      if (vBlock.isNull(p)) {
+      int vValueCount = vBlock.getValueCount(p);
+      if (vValueCount == 0) {
         continue;
       }
       int vStart = vBlock.getFirstValueIndex(p);
-      int vEnd = vStart + vBlock.getValueCount(p);
+      int vEnd = vStart + vValueCount;
       for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
         boolean vValue = vBlock.getBoolean(vOffset);
         CountDistinctBooleanAggregator.combine(state, vValue);
@@ -119,11 +114,12 @@ public final class CountDistinctBooleanAggregatorFunction implements AggregatorF
       if (mask.getBoolean(p) == false) {
         continue;
       }
-      if (vBlock.isNull(p)) {
+      int vValueCount = vBlock.getValueCount(p);
+      if (vValueCount == 0) {
         continue;
       }
       int vStart = vBlock.getFirstValueIndex(p);
-      int vEnd = vStart + vBlock.getValueCount(p);
+      int vEnd = vStart + vValueCount;
       for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
         boolean vValue = vBlock.getBoolean(vOffset);
         CountDistinctBooleanAggregator.combine(state, vValue);

@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.sender.ExecutableInferenceRequest;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
+import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMAuthenticationApplierFactory;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionModel;
 import org.elasticsearch.xpack.inference.services.elastic.request.ElasticInferenceServiceUnifiedChatCompletionRequest;
 import org.elasticsearch.xpack.inference.services.openai.response.OpenAiChatCompletionResponseEntity;
@@ -34,26 +35,31 @@ public class ElasticInferenceServiceUnifiedCompletionRequestManager extends Elas
     public static ElasticInferenceServiceUnifiedCompletionRequestManager of(
         ElasticInferenceServiceCompletionModel model,
         ThreadPool threadPool,
-        TraceContext traceContext
+        TraceContext traceContext,
+        CCMAuthenticationApplierFactory.AuthApplier authApplier
     ) {
         return new ElasticInferenceServiceUnifiedCompletionRequestManager(
             Objects.requireNonNull(model),
             Objects.requireNonNull(threadPool),
-            Objects.requireNonNull(traceContext)
+            Objects.requireNonNull(traceContext),
+            Objects.requireNonNull(authApplier)
         );
     }
 
     private final ElasticInferenceServiceCompletionModel model;
     private final TraceContext traceContext;
+    private final CCMAuthenticationApplierFactory.AuthApplier authApplier;
 
     private ElasticInferenceServiceUnifiedCompletionRequestManager(
         ElasticInferenceServiceCompletionModel model,
         ThreadPool threadPool,
-        TraceContext traceContext
+        TraceContext traceContext,
+        CCMAuthenticationApplierFactory.AuthApplier authApplier
     ) {
         super(threadPool, model);
         this.model = model;
         this.traceContext = traceContext;
+        this.authApplier = authApplier;
     }
 
     @Override
@@ -68,7 +74,8 @@ public class ElasticInferenceServiceUnifiedCompletionRequestManager extends Elas
             inferenceInputs.castTo(UnifiedChatInput.class),
             model,
             traceContext,
-            requestMetadata()
+            requestMetadata(),
+            authApplier
         );
 
         execute(new ExecutableInferenceRequest(requestSender, logger, request, HANDLER, hasRequestCompletedFunction, listener));

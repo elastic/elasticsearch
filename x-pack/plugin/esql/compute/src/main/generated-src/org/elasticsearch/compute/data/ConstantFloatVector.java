@@ -41,7 +41,7 @@ final class ConstantFloatVector extends AbstractVector implements FloatVector {
     }
 
     @Override
-    public FloatVector filter(int... positions) {
+    public FloatVector filter(boolean mayContainDuplicates, int... positions) {
         return blockFactory().newConstantFloatVector(value, positions.length);
     }
 
@@ -91,6 +91,15 @@ final class ConstantFloatVector extends AbstractVector implements FloatVector {
             return ReleasableIterator.single(positions.blockFactory().newConstantFloatBlockWith(value, positions.getPositionCount()));
         }
         return new FloatLookup(asBlock(), positions, targetBlockSize);
+    }
+
+    @Override
+    public FloatVector slice(int beginInclusive, int endExclusive) {
+        if (beginInclusive == 0 && endExclusive == getPositionCount()) {
+            incRef();
+            return this;
+        }
+        return blockFactory().newConstantFloatVector(value, endExclusive - beginInclusive);
     }
 
     @Override

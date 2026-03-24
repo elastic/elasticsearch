@@ -36,16 +36,10 @@ public final class LastFloatByTimestampAggregatorFunction implements AggregatorF
 
   private final List<Integer> channels;
 
-  public LastFloatByTimestampAggregatorFunction(DriverContext driverContext, List<Integer> channels,
-      LongFloatState state) {
+  LastFloatByTimestampAggregatorFunction(DriverContext driverContext, List<Integer> channels) {
     this.driverContext = driverContext;
     this.channels = channels;
-    this.state = state;
-  }
-
-  public static LastFloatByTimestampAggregatorFunction create(DriverContext driverContext,
-      List<Integer> channels) {
-    return new LastFloatByTimestampAggregatorFunction(driverContext, channels, LastFloatByTimestampAggregator.initSingle(driverContext));
+    this.state = LastFloatByTimestampAggregator.initSingle(driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -149,18 +143,20 @@ public final class LastFloatByTimestampAggregatorFunction implements AggregatorF
 
   private void addRawBlock(FloatBlock valueBlock, LongBlock timestampBlock) {
     for (int p = 0; p < valueBlock.getPositionCount(); p++) {
-      if (valueBlock.isNull(p)) {
+      int valueValueCount = valueBlock.getValueCount(p);
+      if (valueValueCount == 0) {
         continue;
       }
-      if (timestampBlock.isNull(p)) {
+      int timestampValueCount = timestampBlock.getValueCount(p);
+      if (timestampValueCount == 0) {
         continue;
       }
       int valueStart = valueBlock.getFirstValueIndex(p);
-      int valueEnd = valueStart + valueBlock.getValueCount(p);
+      int valueEnd = valueStart + valueValueCount;
       for (int valueOffset = valueStart; valueOffset < valueEnd; valueOffset++) {
         float valueValue = valueBlock.getFloat(valueOffset);
         int timestampStart = timestampBlock.getFirstValueIndex(p);
-        int timestampEnd = timestampStart + timestampBlock.getValueCount(p);
+        int timestampEnd = timestampStart + timestampValueCount;
         for (int timestampOffset = timestampStart; timestampOffset < timestampEnd; timestampOffset++) {
           long timestampValue = timestampBlock.getLong(timestampOffset);
           // Check seen in every iteration to save on complexity in the Block path
@@ -180,18 +176,20 @@ public final class LastFloatByTimestampAggregatorFunction implements AggregatorF
       if (mask.getBoolean(p) == false) {
         continue;
       }
-      if (valueBlock.isNull(p)) {
+      int valueValueCount = valueBlock.getValueCount(p);
+      if (valueValueCount == 0) {
         continue;
       }
-      if (timestampBlock.isNull(p)) {
+      int timestampValueCount = timestampBlock.getValueCount(p);
+      if (timestampValueCount == 0) {
         continue;
       }
       int valueStart = valueBlock.getFirstValueIndex(p);
-      int valueEnd = valueStart + valueBlock.getValueCount(p);
+      int valueEnd = valueStart + valueValueCount;
       for (int valueOffset = valueStart; valueOffset < valueEnd; valueOffset++) {
         float valueValue = valueBlock.getFloat(valueOffset);
         int timestampStart = timestampBlock.getFirstValueIndex(p);
-        int timestampEnd = timestampStart + timestampBlock.getValueCount(p);
+        int timestampEnd = timestampStart + timestampValueCount;
         for (int timestampOffset = timestampStart; timestampOffset < timestampEnd; timestampOffset++) {
           long timestampValue = timestampBlock.getLong(timestampOffset);
           // Check seen in every iteration to save on complexity in the Block path

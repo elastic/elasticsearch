@@ -1,0 +1,5 @@
+pr: 139748
+summary: Optimize script sorts that do not require query scores
+area: Search
+type: enhancement
+issues: []

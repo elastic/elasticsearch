@@ -10,9 +10,7 @@ package org.elasticsearch.search.aggregations.bucket.histogram;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.index.DocValues;
-import org.apache.lucene.index.NumericDocValues;
-import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.search.LongValues;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.common.Rounding;
@@ -21,6 +19,7 @@ import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AdaptingAggregator;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
@@ -289,12 +288,12 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
         if (valuesSource == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
-        final SortedNumericDocValues values = valuesSource.longValues(aggCtx.getLeafReaderContext());
-        final NumericDocValues singleton = DocValues.unwrapSingleton(values);
+        final SortedNumericLongValues values = valuesSource.longValues(aggCtx.getLeafReaderContext());
+        final LongValues singleton = SortedNumericLongValues.unwrapSingleton(values);
         return singleton != null ? getLeafCollector(singleton, sub) : getLeafCollector(values, sub);
     }
 
-    private LeafBucketCollector getLeafCollector(SortedNumericDocValues values, LeafBucketCollector sub) {
+    private LeafBucketCollector getLeafCollector(SortedNumericLongValues values, LeafBucketCollector sub) {
         return new LeafBucketCollectorBase(sub, values) {
             @Override
             public void collect(int doc, long owningBucketOrd) throws IOException {
@@ -314,7 +313,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
         };
     }
 
-    private LeafBucketCollector getLeafCollector(NumericDocValues values, LeafBucketCollector sub) {
+    private LeafBucketCollector getLeafCollector(LongValues values, LeafBucketCollector sub) {
         return new LeafBucketCollectorBase(sub, values) {
             @Override
             public void collect(int doc, long owningBucketOrd) throws IOException {

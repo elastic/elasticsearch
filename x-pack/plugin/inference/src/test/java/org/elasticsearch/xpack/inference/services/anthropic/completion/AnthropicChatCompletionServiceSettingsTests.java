@@ -91,13 +91,21 @@ public class AnthropicChatCompletionServiceSettingsTests extends AbstractBWCWire
 
     @Override
     protected AnthropicChatCompletionServiceSettings mutateInstance(AnthropicChatCompletionServiceSettings instance) throws IOException {
-        return randomValueOtherThan(instance, AnthropicChatCompletionServiceSettingsTests::createRandom);
+        if (randomBoolean()) {
+            return new AnthropicChatCompletionServiceSettings(
+                randomValueOtherThan(instance.modelId(), () -> randomAlphaOfLength(8)),
+                instance.rateLimitSettings()
+            );
+        } else {
+            return new AnthropicChatCompletionServiceSettings(
+                instance.modelId(),
+                randomValueOtherThan(instance.rateLimitSettings(), RateLimitSettingsTests::createRandom)
+            );
+        }
     }
 
     private static AnthropicChatCompletionServiceSettings createRandom() {
-        var modelId = randomAlphaOfLength(8);
-
-        return new AnthropicChatCompletionServiceSettings(modelId, RateLimitSettingsTests.createRandom());
+        return new AnthropicChatCompletionServiceSettings(randomAlphaOfLength(8), RateLimitSettingsTests.createRandom());
     }
 
     @Override

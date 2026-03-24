@@ -11,8 +11,8 @@ package org.elasticsearch.action.search;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.ScoreMode;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
@@ -24,6 +24,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
@@ -140,6 +141,7 @@ public class TransportSearchIT extends ESIntegTestCase {
                 parentTaskId,
                 new SearchRequest(),
                 Strings.EMPTY_ARRAY,
+                SearchRequest.DEFAULT_INDICES_OPTIONS,
                 "local",
                 nowInMillis,
                 randomBoolean()
@@ -159,6 +161,7 @@ public class TransportSearchIT extends ESIntegTestCase {
                 parentTaskId,
                 new SearchRequest(),
                 Strings.EMPTY_ARRAY,
+                SearchRequest.DEFAULT_INDICES_OPTIONS,
                 "",
                 nowInMillis,
                 randomBoolean()
@@ -206,6 +209,7 @@ public class TransportSearchIT extends ESIntegTestCase {
                 parentTaskId,
                 new SearchRequest(),
                 Strings.EMPTY_ARRAY,
+                SearchRequest.DEFAULT_INDICES_OPTIONS,
                 "",
                 0,
                 randomBoolean()
@@ -217,6 +221,7 @@ public class TransportSearchIT extends ESIntegTestCase {
                 parentTaskId,
                 new SearchRequest(),
                 Strings.EMPTY_ARRAY,
+                SearchRequest.DEFAULT_INDICES_OPTIONS,
                 "",
                 0,
                 randomBoolean()
@@ -232,6 +237,7 @@ public class TransportSearchIT extends ESIntegTestCase {
                 parentTaskId,
                 new SearchRequest(),
                 Strings.EMPTY_ARRAY,
+                SearchRequest.DEFAULT_INDICES_OPTIONS,
                 "",
                 0,
                 randomBoolean()
@@ -280,7 +286,15 @@ public class TransportSearchIT extends ESIntegTestCase {
         {
             SearchRequest searchRequest = randomBoolean()
                 ? originalRequest
-                : SearchRequest.subSearchRequest(taskId, originalRequest, Strings.EMPTY_ARRAY, "remote", nowInMillis, true);
+                : SearchRequest.subSearchRequest(
+                    taskId,
+                    originalRequest,
+                    Strings.EMPTY_ARRAY,
+                    originalRequest.indicesOptions(),
+                    "remote",
+                    nowInMillis,
+                    true
+                );
             assertResponse(client().search(searchRequest), searchResponse -> {
                 assertEquals(2, searchResponse.getHits().getTotalHits().value());
                 InternalAggregations aggregations = searchResponse.getAggregations();
@@ -293,6 +307,7 @@ public class TransportSearchIT extends ESIntegTestCase {
                 taskId,
                 originalRequest,
                 Strings.EMPTY_ARRAY,
+                originalRequest.indicesOptions(),
                 "remote",
                 nowInMillis,
                 false
@@ -490,7 +505,10 @@ public class TransportSearchIT extends ESIntegTestCase {
                     Exception.class,
                     client.prepareSearch("test").addAggregation(new TestAggregationBuilder("test"))
                 );
-                assertThat(exc.getCause().getMessage(), containsString("<reduce_aggs>"));
+                assertNotNull(
+                    "root cause must be a CircuitBreakingException",
+                    ExceptionsHelper.unwrap(exc, CircuitBreakingException.class)
+                );
             });
 
             final AtomicArray<Exception> exceptions = new AtomicArray<>(10);
@@ -517,7 +535,10 @@ public class TransportSearchIT extends ESIntegTestCase {
             latch.await();
             assertThat(exceptions.asList().size(), equalTo(10));
             for (Exception exc : exceptions.asList()) {
-                assertThat(exc.getCause().getMessage(), containsString("<reduce_aggs>"));
+                assertNotNull(
+                    "root cause must be a CircuitBreakingException",
+                    ExceptionsHelper.unwrap(exc, CircuitBreakingException.class)
+                );
             }
             assertBusy(() -> assertThat(requestBreakerUsed(), equalTo(0L)));
         } finally {
@@ -648,7 +669,7 @@ public class TransportSearchIT extends ESIntegTestCase {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersions.ZERO;
+            return TransportVersion.zero();
         }
     }
 

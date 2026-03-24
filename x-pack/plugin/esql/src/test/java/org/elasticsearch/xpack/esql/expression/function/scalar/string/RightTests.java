@@ -12,7 +12,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -166,7 +166,7 @@ public class RightTests extends AbstractScalarFunctionTestCase {
                 equalTo(new BytesRef(unicodeRightSubstring(text, length)))
             );
         }));
-        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);
+        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
     }
 
     private static String unicodeRightSubstring(String str, int length) {
@@ -201,7 +201,7 @@ public class RightTests extends AbstractScalarFunctionTestCase {
 
     private String process(String str, int length) {
         try (
-            EvalOperator.ExpressionEvaluator eval = evaluator(
+            ExpressionEvaluator eval = evaluator(
                 new Right(Source.EMPTY, field("str", DataType.KEYWORD), new Literal(Source.EMPTY, length, DataType.INTEGER))
             ).get(driverContext());
             Block block = eval.eval(row(List.of(new BytesRef(str))))

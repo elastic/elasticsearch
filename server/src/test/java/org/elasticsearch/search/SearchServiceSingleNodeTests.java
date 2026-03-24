@@ -12,7 +12,6 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
@@ -21,7 +20,6 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.OriginalIndices;
@@ -47,6 +45,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
@@ -56,6 +55,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.TimeValue;
@@ -64,7 +64,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.query.AbstractQueryBuilder;
+import org.elasticsearch.index.query.LeafQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -72,6 +72,7 @@ import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.search.stats.SearchStats;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.index.shard.ShardId;
@@ -166,6 +167,7 @@ import static org.elasticsearch.search.SearchService.QUERY_PHASE_PARALLEL_COLLEC
 import static org.elasticsearch.search.SearchService.SEARCH_WORKER_THREADS_ENABLED;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -1344,7 +1346,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
      */
     public void testMaxDocvalueFieldsSearch() throws IOException {
         final Settings settings = Settings.builder().put(IndexSettings.MAX_DOCVALUE_FIELDS_SEARCH_SETTING.getKey(), 1).build();
-        createIndex("index", settings, null, "field1", "keyword", "field2", "keyword");
+        createIndex("index", settings);
         prepareIndex("index").setId("1").setSource("field1", "value1", "field2", "value2").setRefreshPolicy(IMMEDIATE).get();
 
         final SearchService service = getInstanceFromNode(SearchService.class);
@@ -1398,7 +1400,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
     }
 
     public void testDeduplicateDocValuesFields() throws Exception {
-        createIndex("index", Settings.EMPTY, "_doc", "field1", "type=date", "field2", "type=date");
+        createIndex("index", Settings.EMPTY, "field1", "type=date", "field2", "type=date");
         prepareIndex("index").setId("1").setSource("field1", "2022-08-03", "field2", "2022-08-04").setRefreshPolicy(IMMEDIATE).get();
         SearchService service = getInstanceFromNode(SearchService.class);
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
@@ -1866,7 +1868,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
 
     public void testAggContextGetsMatchAll() throws IOException {
         createIndex("test");
-        withAggregationContext("test", context -> assertThat(context.query(), equalTo(new MatchAllDocsQuery())));
+        withAggregationContext("test", context -> assertThat(context.query(), equalTo(Queries.ALL_DOCS_INSTANCE)));
     }
 
     public void testAggContextGetsNestedFilter() throws IOException {
@@ -1875,7 +1877,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
         mapping.endObject().endObject();
 
         createIndex("test", Settings.EMPTY, mapping);
-        withAggregationContext("test", context -> assertThat(context.query(), equalTo(new MatchAllDocsQuery())));
+        withAggregationContext("test", context -> assertThat(context.query(), equalTo(Queries.ALL_DOCS_INSTANCE)));
     }
 
     /**
@@ -2001,6 +2003,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
             clusterAlias
         );
         try (SearchContext searchContext = service.createSearchContext(request, new TimeValue(System.currentTimeMillis()))) {
+            assertTrue(searchContext.searcher().hasExecutor());
             SearchShardTarget searchShardTarget = searchContext.shardTarget();
             SearchExecutionContext searchExecutionContext = searchContext.getSearchExecutionContext();
             String expectedIndexName = clusterAlias == null ? index : clusterAlias + ":" + index;
@@ -2460,7 +2463,8 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
             -1,
             null,
             null,
-            null
+            null,
+            SplitShardCountSummary.UNSET
         );
         PlainActionFuture<Void> future = new PlainActionFuture<>();
         service.executeQueryPhase(request, task, future.delegateFailure((l, r) -> {
@@ -2496,7 +2500,8 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
             -1,
             null,
             null,
-            null
+            null,
+            SplitShardCountSummary.UNSET
         );
         service.executeQueryPhase(request, task, future);
         IllegalArgumentException illegalArgumentException = expectThrows(IllegalArgumentException.class, future::actionGet);
@@ -2534,7 +2539,8 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
             -1,
             null,
             null,
-            null
+            null,
+            SplitShardCountSummary.UNSET
         );
         service.executeQueryPhase(request, task, future);
 
@@ -2571,7 +2577,8 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
             -1,
             null,
             null,
-            null
+            null,
+            SplitShardCountSummary.UNSET
         );
         service.executeQueryPhase(request, task, future);
 
@@ -2893,6 +2900,22 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
         }
     }
 
+    public void testSeqNoAndPrimaryTermReturnsSentinelsWhenSequenceNumbersDisabled() {
+        assumeTrue("Test should only run with feature flag", IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG);
+        final Settings settings = Settings.builder()
+            .put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true)
+            .put(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(), "doc_values_only")
+            .build();
+        createIndex("test-no-seqno", settings);
+        prepareIndex("test-no-seqno").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
+
+        assertNoFailuresAndResponse(client().prepareSearch("test-no-seqno").seqNoAndPrimaryTerm(true), response -> {
+            assertHitCount(response, 1);
+            assertEquals(SequenceNumbers.UNASSIGNED_SEQ_NO, response.getHits().getAt(0).getSeqNo());
+            assertEquals(SequenceNumbers.UNASSIGNED_PRIMARY_TERM, response.getHits().getAt(0).getPrimaryTerm());
+        });
+    }
+
     private static ReaderContext createReaderContext(IndexService indexService, IndexShard indexShard) {
         return new ReaderContext(
             new ShardSearchContextId(UUIDs.randomBase64UUID(), randomNonNegativeLong()),
@@ -2911,7 +2934,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
         return fieldValues;
     }
 
-    private static class TestRewriteCounterQueryBuilder extends AbstractQueryBuilder<TestRewriteCounterQueryBuilder> {
+    private static class TestRewriteCounterQueryBuilder extends LeafQueryBuilder<TestRewriteCounterQueryBuilder> {
 
         final int asyncRewriteCount;
         final Supplier<Boolean> fetched;
@@ -2933,7 +2956,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersions.ZERO;
+            return TransportVersion.zero();
         }
 
         @Override
@@ -2944,7 +2967,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
 
         @Override
         protected Query doToQuery(SearchExecutionContext context) throws IOException {
-            return new MatchAllDocsQuery();
+            return Queries.ALL_DOCS_INSTANCE;
         }
 
         @Override

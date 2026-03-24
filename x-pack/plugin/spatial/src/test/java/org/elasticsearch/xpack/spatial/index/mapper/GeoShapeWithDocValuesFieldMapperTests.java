@@ -33,17 +33,19 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.OnScriptError;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.query.GeoShapeQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.legacygeo.mapper.LegacyGeoShapeFieldMapper;
 import org.elasticsearch.legacygeo.mapper.LegacyGeoShapeFieldMapper.GeoShapeFieldType;
+import org.elasticsearch.script.GeometryFieldScript;
+import org.elasticsearch.script.ScriptFactory;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.ToXContent.MapParams;
 import org.elasticsearch.xcontent.ToXContent.Params;
 import org.elasticsearch.xpack.spatial.index.mapper.GeometricShapeSyntheticSourceSupport.FieldType;
-import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -75,18 +77,19 @@ public class GeoShapeWithDocValuesFieldMapperTests extends GeoFieldMapperTests {
         checker.registerConflictCheck("doc_values", b -> b.field("doc_values", false));
         checker.registerConflictCheck("index", b -> b.field("index", false));
         checker.registerConflictCheck("store", b -> b.field("store", true));
-        checker.registerUpdateCheck(b -> b.field("orientation", "right"), m -> {
+        checker.registerUpdateCheck("orientation", b -> b.field("orientation", "right"), m -> {
             AbstractShapeGeometryFieldMapper<?> gsfm = (AbstractShapeGeometryFieldMapper<?>) m;
             assertEquals(Orientation.RIGHT, gsfm.orientation());
         });
-        checker.registerUpdateCheck(b -> b.field("ignore_z_value", false), m -> {
+        checker.registerUpdateCheck("ignore_z_value", b -> b.field("ignore_z_value", false), m -> {
             AbstractShapeGeometryFieldMapper<?> gpfm = (AbstractShapeGeometryFieldMapper<?>) m;
             assertFalse(gpfm.ignoreZValue());
         });
-        checker.registerUpdateCheck(b -> b.field("coerce", true), m -> {
+        checker.registerUpdateCheck("coerce", b -> b.field("coerce", true), m -> {
             AbstractShapeGeometryFieldMapper<?> gpfm = (AbstractShapeGeometryFieldMapper<?>) m;
             assertTrue(gpfm.coerce());
         });
+        registerScriptChecks(checker);
     }
 
     protected AbstractShapeGeometryFieldType<?> fieldType(Mapper fieldMapper) {
@@ -109,7 +112,7 @@ public class GeoShapeWithDocValuesFieldMapperTests extends GeoFieldMapperTests {
     }
 
     public void testDefaultDocValueConfigurationOnPre7_8() throws IOException {
-        IndexVersion oldVersion = IndexVersionUtils.randomVersionBetween(random(), IndexVersions.V_7_0_0, IndexVersions.V_7_7_0);
+        IndexVersion oldVersion = IndexVersionUtils.randomVersionBetween(IndexVersions.V_7_0_0, IndexVersions.V_7_7_0);
         DocumentMapper defaultMapper = createDocumentMapper(oldVersion, fieldMapping(this::minimalMapping));
         Mapper fieldMapper = defaultMapper.mappers().getMapper(FIELD_NAME);
         assertThat(fieldMapper, instanceOf(fieldMapperClass()));
@@ -325,7 +328,7 @@ public class GeoShapeWithDocValuesFieldMapperTests extends GeoFieldMapperTests {
             };
 
             // indices created before 8 should allow parameters but issue a warning
-            IndexVersion pre8version = IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersions.V_8_0_0);
+            IndexVersion pre8version = IndexVersionUtils.randomPreviousCompatibleVersion(IndexVersions.V_8_0_0);
             MapperService m = createMapperService(
                 pre8version,
                 fieldMapping(b -> b.field("type", getFieldName()).field(deprecatedParam, value))
@@ -359,7 +362,7 @@ public class GeoShapeWithDocValuesFieldMapperTests extends GeoFieldMapperTests {
             }
 
             // indices created after 8 should throw an error
-            IndexVersion post8version = IndexVersionUtils.randomCompatibleWriteVersion(random());
+            IndexVersion post8version = IndexVersionUtils.randomCompatibleWriteVersion();
             Exception ex = expectThrows(
                 MapperParsingException.class,
                 () -> createMapperService(post8version, fieldMapping(b -> b.field("type", getFieldName()).field(deprecatedParam, value)))
@@ -376,7 +379,7 @@ public class GeoShapeWithDocValuesFieldMapperTests extends GeoFieldMapperTests {
     }
 
     public void testGeoShapeLegacyMerge() throws Exception {
-        IndexVersion version = IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersions.V_8_0_0);
+        IndexVersion version = IndexVersionUtils.randomPreviousCompatibleVersion(IndexVersions.V_8_0_0);
         MapperService m = createMapperService(version, fieldMapping(b -> b.field("type", getFieldName())));
         Exception e = expectThrows(
             IllegalArgumentException.class,
@@ -393,7 +396,7 @@ public class GeoShapeWithDocValuesFieldMapperTests extends GeoFieldMapperTests {
     }
 
     public void testGeoShapeLegacyCircle() throws Exception {
-        IndexVersion version = IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersions.V_8_0_0);
+        IndexVersion version = IndexVersionUtils.randomPreviousCompatibleVersion(IndexVersions.V_8_0_0);
         MapperService mapperService = createMapperService(version, fieldMapping(b -> {
             b.field("type", getFieldName());
             b.field("strategy", "recursive");
@@ -551,6 +554,32 @@ public class GeoShapeWithDocValuesFieldMapperTests extends GeoFieldMapperTests {
 
     @Override
     protected IngestScriptSupport ingestScriptSupport() {
-        throw new AssumptionViolatedException("not supported");
+        return new IngestScriptSupport() {
+            protected ScriptFactory emptyFieldScript() {
+                return (GeometryFieldScript.Factory) (
+                    fieldName,
+                    params,
+                    searchLookup,
+                    onScriptError) -> (GeometryFieldScript.LeafFactory) ctx -> new GeometryFieldScript(
+                        fieldName,
+                        params,
+                        searchLookup,
+                        OnScriptError.FAIL,
+                        ctx
+                    ) {
+                        @Override
+                        public void execute() {}
+                    };
+            }
+
+            protected ScriptFactory nonEmptyFieldScript() {
+                return emptyFieldScript();
+            }
+        };
+    }
+
+    @Override
+    protected List<SortShortcutSupport> getSortShortcutSupport() {
+        return List.of();
     }
 }

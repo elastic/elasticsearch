@@ -9,28 +9,52 @@
 
 package org.elasticsearch.gradle.fixtures
 
+import spock.lang.Shared
+import spock.lang.TempDir
+
 import org.apache.commons.io.FileUtils
 import org.gradle.testkit.runner.GradleRunner
-import org.junit.Rule
-import org.junit.rules.TemporaryFolder
 
 abstract class AbstractGitAwareGradleFuncTest extends AbstractGradleFuncTest {
 
-    @Rule
-    TemporaryFolder remoteRepoDirs = new TemporaryFolder()
+    /**
+     * Shared temporary directory for the prepared git remote. Using {@code @Shared @TempDir}
+     * ensures the directory is created once per spec class and cleaned up after all methods
+     * have run. The remote repo is prepared lazily on first access and reused across methods.
+     */
+    @Shared
+    @TempDir
+    File sharedRemoteRepoDir
+
+    @Shared
+    File preparedRemoteGitDir
 
     File remoteGitRepo
 
     def setup() {
-        remoteGitRepo = new File(setupGitRemote(), '.git')
+        if (preparedRemoteGitDir == null) {
+            preparedRemoteGitDir = setupGitRemote()
+        }
+        remoteGitRepo = new File(preparedRemoteGitDir, '.git')
         execute("git clone ${remoteGitRepo.absolutePath} cloned", testProjectDir.root)
         buildFile = new File(testProjectDir.root, 'cloned/build.gradle')
         settingsFile = new File(testProjectDir.root, 'cloned/settings.gradle')
+        versionPropertiesFile = new File(testProjectDir.root, 'cloned/build-tools-internal/version.properties')
+        versionPropertiesFile.text = """
+            elasticsearch     = 9.1.0
+            lucene            = 10.2.2
+
+            bundled_jdk_vendor = openjdk
+            bundled_jdk = 24+36@1f9ff9062db4449d8ca828c504ffae90
+            minimumJdkVersion = 21
+            minimumRuntimeJava = 21
+            minimumCompilerJava = 21
+        """
     }
 
     File setupGitRemote() {
         URL fakeRemote = getClass().getResource("fake_git/remote")
-        File workingRemoteGit = new File(remoteRepoDirs.root, 'remote')
+        File workingRemoteGit = new File(sharedRemoteRepoDir, 'remote')
         FileUtils.copyDirectory(new File(fakeRemote.toURI()), workingRemoteGit)
         fakeRemote.file + "/.git"
         gradleRunner(workingRemoteGit, "wrapper").build()

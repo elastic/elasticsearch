@@ -12,13 +12,12 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BlockFactoryBuilder;
 import org.elasticsearch.compute.data.BlockFactoryProvider;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.compute.test.MockBlockFactory;
@@ -36,11 +35,12 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.transport.AbstractSimpleTransportTestCase.IGNORE_DESERIALIZATION_ERRORS_SETTING;
+import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
-@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
+@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE,org.elasticsearch.compute.operator.exchange:TRACE", reason = "debug")
 public class EsqlActionBreakerIT extends EsqlActionIT {
 
     public static class InternalTransportSettingPlugin extends Plugin {
@@ -55,7 +55,7 @@ public class EsqlActionBreakerIT extends EsqlActionIT {
         List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
         plugins.add(InternalExchangePlugin.class);
         plugins.add(InternalTransportSettingPlugin.class);
-        assertTrue(plugins.removeIf(p -> p.isAssignableFrom(EsqlPlugin.class)));
+        assertTrue(plugins.removeIf(EsqlPlugin.class::isAssignableFrom));
         plugins.add(EsqlTestPluginWithMockBlockFactory.class);
         return plugins;
     }
@@ -88,12 +88,13 @@ public class EsqlActionBreakerIT extends EsqlActionIT {
 
     public static class EsqlTestPluginWithMockBlockFactory extends EsqlPlugin {
         @Override
-        protected BlockFactoryProvider blockFactoryProvider(
-            CircuitBreaker breaker,
-            BigArrays bigArrays,
-            ByteSizeValue maxPrimitiveArraySize
-        ) {
-            return new BlockFactoryProvider(new MockBlockFactory(breaker, bigArrays, maxPrimitiveArraySize));
+        protected BlockFactoryProvider blockFactoryProvider(BlockFactoryBuilder builder) {
+            return new BlockFactoryProvider(new MockBlockFactory(builder));
+        }
+
+        @Override
+        public void loadExtensions(ExtensionLoader loader) {
+            // nothing, else it would clash with super's SPI discoverer, which adds data source plugins
         }
     }
 
@@ -163,9 +164,7 @@ public class EsqlActionBreakerIT extends EsqlActionIT {
         setRequestCircuitBreakerLimit(ByteSizeValue.ofBytes(between(256, 512)));
         try {
             final ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> {
-                var request = EsqlQueryRequest.syncEsqlQueryRequest();
-                request.query("from test_breaker | stats count_distinct(foo) by bar");
-                request.pragmas(randomPragmas());
+                var request = syncEsqlQueryRequest("from test_breaker | stats count_distinct(foo) by bar").pragmas(randomPragmas());
                 try (var ignored = client().execute(EsqlQueryAction.INSTANCE, request).actionGet(2, TimeUnit.MINUTES)) {
 
                 }

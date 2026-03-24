@@ -7,15 +7,14 @@
 
 package org.elasticsearch.xpack.inference.services.voyageai;
 
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
@@ -30,14 +29,14 @@ import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
-import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsBuilder;
-import org.elasticsearch.xpack.inference.chunking.EmbeddingRequestChunker;
+import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsBuilder;
+import org.elasticsearch.xpack.core.inference.chunking.EmbeddingRequestChunker;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.ModelCreator;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
@@ -45,8 +44,9 @@ import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.elasticsearch.xpack.inference.services.voyageai.action.VoyageAIActionCreator;
 import org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingsModel;
+import org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingsModelCreator;
 import org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingsServiceSettings;
-import org.elasticsearch.xpack.inference.services.voyageai.rerank.VoyageAIRerankModel;
+import org.elasticsearch.xpack.inference.services.voyageai.rerank.VoyageAIRerankModelCreator;
 
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -55,19 +55,22 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.parsePersistedConfigErrorMsg;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMap;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrDefaultEmpty;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwUnsupportedUnifiedCompletionOperation;
 
-public class VoyageAIService extends SenderService implements RerankingInferenceService {
+public class VoyageAIService extends SenderService<VoyageAIModel> implements RerankingInferenceService {
     public static final String NAME = "voyageai";
 
     private static final String SERVICE_NAME = "Voyage AI";
-    private static final EnumSet<TaskType> supportedTaskTypes = EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.RERANK);
-
+    private static final EnumSet<TaskType> SUPPORTED_TASK_TYPES = EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.RERANK);
+    private static final Map<TaskType, ModelCreator<? extends VoyageAIModel>> MODEL_CREATORS = Map.of(
+        TaskType.TEXT_EMBEDDING,
+        new VoyageAIEmbeddingsModelCreator(),
+        TaskType.RERANK,
+        new VoyageAIRerankModelCreator()
+    );
     private static final Integer DEFAULT_BATCH_SIZE = 7;
     private static final Map<String, Integer> MODEL_BATCH_SIZES = Map.of(
         "voyage-multimodal-3",
@@ -110,6 +113,8 @@ public class VoyageAIService extends SenderService implements RerankingInference
         InputType.INTERNAL_SEARCH
     );
 
+    private static final TransportVersion VOYAGE_AI_INTEGRATION_ADDED = TransportVersion.fromName("voyage_ai_integration_added");
+
     public VoyageAIService(
         HttpRequestSender.Factory factory,
         ServiceComponents serviceComponents,
@@ -119,7 +124,7 @@ public class VoyageAIService extends SenderService implements RerankingInference
     }
 
     public VoyageAIService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents, ClusterService clusterService) {
-        super(factory, serviceComponents, clusterService);
+        super(factory, serviceComponents, clusterService, MODEL_CREATORS);
     }
 
     @Override
@@ -151,7 +156,6 @@ public class VoyageAIService extends SenderService implements RerankingInference
                 taskSettingsMap,
                 chunkingSettings,
                 serviceSettingsMap,
-                TaskType.unsupportedTaskTypeErrorMsg(taskType, NAME),
                 ConfigurationParseContext.REQUEST
             );
 
@@ -165,27 +169,6 @@ public class VoyageAIService extends SenderService implements RerankingInference
         }
     }
 
-    private static VoyageAIModel createModelFromPersistent(
-        String inferenceEntityId,
-        TaskType taskType,
-        Map<String, Object> serviceSettings,
-        Map<String, Object> taskSettings,
-        ChunkingSettings chunkingSettings,
-        @Nullable Map<String, Object> secretSettings,
-        String failureMessage
-    ) {
-        return createModel(
-            inferenceEntityId,
-            taskType,
-            serviceSettings,
-            taskSettings,
-            chunkingSettings,
-            secretSettings,
-            failureMessage,
-            ConfigurationParseContext.PERSISTENT
-        );
-    }
-
     private static VoyageAIModel createModel(
         String inferenceEntityId,
         TaskType taskType,
@@ -193,70 +176,29 @@ public class VoyageAIService extends SenderService implements RerankingInference
         Map<String, Object> taskSettings,
         ChunkingSettings chunkingSettings,
         @Nullable Map<String, Object> secretSettings,
-        String failureMessage,
         ConfigurationParseContext context
     ) {
-        return switch (taskType) {
-            case TEXT_EMBEDDING -> new VoyageAIEmbeddingsModel(
-                inferenceEntityId,
-                NAME,
-                serviceSettings,
-                taskSettings,
-                chunkingSettings,
-                secretSettings,
-                context
-            );
-            case RERANK -> new VoyageAIRerankModel(inferenceEntityId, NAME, serviceSettings, taskSettings, secretSettings, context);
-            default -> throw new ElasticsearchStatusException(failureMessage, RestStatus.BAD_REQUEST);
-        };
-    }
-
-    @Override
-    public VoyageAIModel parsePersistedConfigWithSecrets(
-        String inferenceEntityId,
-        TaskType taskType,
-        Map<String, Object> config,
-        Map<String, Object> secrets
-    ) {
-        Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
-        Map<String, Object> taskSettingsMap = removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
-        Map<String, Object> secretSettingsMap = removeFromMapOrThrowIfNull(secrets, ModelSecrets.SECRET_SETTINGS);
-
-        ChunkingSettings chunkingSettings = null;
-        if (TaskType.TEXT_EMBEDDING.equals(taskType)) {
-            chunkingSettings = ChunkingSettingsBuilder.fromMap(removeFromMap(config, ModelConfigurations.CHUNKING_SETTINGS));
-        }
-
-        return createModelFromPersistent(
+        return retrieveModelCreatorFromMapOrThrow(MODEL_CREATORS, inferenceEntityId, taskType, NAME, context).createFromMaps(
             inferenceEntityId,
             taskType,
-            serviceSettingsMap,
-            taskSettingsMap,
+            NAME,
+            serviceSettings,
+            taskSettings,
             chunkingSettings,
-            secretSettingsMap,
-            parsePersistedConfigErrorMsg(inferenceEntityId, NAME)
+            secretSettings,
+            context
         );
     }
 
     @Override
-    public VoyageAIModel parsePersistedConfig(String inferenceEntityId, TaskType taskType, Map<String, Object> config) {
-        Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
-        Map<String, Object> taskSettingsMap = removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
-
-        ChunkingSettings chunkingSettings = null;
-        if (TaskType.TEXT_EMBEDDING.equals(taskType)) {
-            chunkingSettings = ChunkingSettingsBuilder.fromMap(removeFromMap(config, ModelConfigurations.CHUNKING_SETTINGS));
-        }
-
-        return createModelFromPersistent(
-            inferenceEntityId,
-            taskType,
-            serviceSettingsMap,
-            taskSettingsMap,
-            chunkingSettings,
-            null,
-            parsePersistedConfigErrorMsg(inferenceEntityId, NAME)
-        );
+    public Model buildModelFromConfigAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
+        return retrieveModelCreatorFromMapOrThrow(
+            MODEL_CREATORS,
+            config.getInferenceEntityId(),
+            config.getTaskType(),
+            config.getService(),
+            ConfigurationParseContext.PERSISTENT
+        ).createFromModelConfigurationsAndSecrets(config, secrets);
     }
 
     @Override
@@ -266,7 +208,7 @@ public class VoyageAIService extends SenderService implements RerankingInference
 
     @Override
     public EnumSet<TaskType> supportedTaskTypes() {
-        return supportedTaskTypes;
+        return SUPPORTED_TASK_TYPES;
     }
 
     @Override
@@ -307,7 +249,7 @@ public class VoyageAIService extends SenderService implements RerankingInference
     @Override
     protected void doChunkedInfer(
         Model model,
-        EmbeddingsInput inputs,
+        List<ChunkInferenceInput> inputs,
         Map<String, Object> taskSettings,
         InputType inputType,
         TimeValue timeout,
@@ -322,14 +264,14 @@ public class VoyageAIService extends SenderService implements RerankingInference
         var actionCreator = new VoyageAIActionCreator(getSender(), getServiceComponents());
 
         List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests = new EmbeddingRequestChunker<>(
-            inputs.getInputs(),
+            inputs,
             getBatchSize(voyageaiModel),
             voyageaiModel.getConfigurations().getChunkingSettings()
         ).batchRequestsWithListeners(listener);
 
         for (var request : batchedRequests) {
             var action = voyageaiModel.accept(actionCreator, taskSettings);
-            action.execute(EmbeddingsInput.fromStrings(request.batch().inputs().get(), inputType), timeout, request.listener());
+            action.execute(new EmbeddingsInput(request.batch().inputs(), inputType), timeout, request.listener());
         }
     }
 
@@ -378,7 +320,7 @@ public class VoyageAIService extends SenderService implements RerankingInference
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.VOYAGE_AI_INTEGRATION_ADDED;
+        return VOYAGE_AI_INTEGRATION_ADDED;
     }
 
     @Override
@@ -389,16 +331,16 @@ public class VoyageAIService extends SenderService implements RerankingInference
 
     public static class Configuration {
         public static InferenceServiceConfiguration get() {
-            return configuration.getOrCompute();
+            return CONFIGURATION.getOrCompute();
         }
 
-        private static final LazyInitializable<InferenceServiceConfiguration, RuntimeException> configuration = new LazyInitializable<>(
+        private static final LazyInitializable<InferenceServiceConfiguration, RuntimeException> CONFIGURATION = new LazyInitializable<>(
             () -> {
                 var configurationMap = new HashMap<String, SettingsConfiguration>();
 
                 configurationMap.put(
                     MODEL_ID,
-                    new SettingsConfiguration.Builder(supportedTaskTypes).setDescription(
+                    new SettingsConfiguration.Builder(SUPPORTED_TASK_TYPES).setDescription(
                         "The name of the model to use for the inference task."
                     )
                         .setLabel("Model ID")
@@ -409,12 +351,12 @@ public class VoyageAIService extends SenderService implements RerankingInference
                         .build()
                 );
 
-                configurationMap.putAll(DefaultSecretSettings.toSettingsConfiguration(supportedTaskTypes));
-                configurationMap.putAll(RateLimitSettings.toSettingsConfiguration(supportedTaskTypes));
+                configurationMap.putAll(DefaultSecretSettings.toSettingsConfiguration(SUPPORTED_TASK_TYPES));
+                configurationMap.putAll(RateLimitSettings.toSettingsConfiguration(SUPPORTED_TASK_TYPES));
 
                 return new InferenceServiceConfiguration.Builder().setService(NAME)
                     .setName(SERVICE_NAME)
-                    .setTaskTypes(supportedTaskTypes)
+                    .setTaskTypes(SUPPORTED_TASK_TYPES)
                     .setConfigurations(configurationMap)
                     .build();
             }

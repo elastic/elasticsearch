@@ -31,6 +31,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
+
 public class ChunkedRestResponseBodyPartTests extends ESTestCase {
 
     public void testEncodesChunkedXContentCorrectly() throws IOException {
@@ -67,7 +69,7 @@ public class ChunkedRestResponseBodyPartTests extends ESTestCase {
         }
         assertTrue(firstBodyPart.isLastPart());
 
-        assertEquals(bytesDirect, CompositeBytesReference.of(refsGenerated.toArray(new BytesReference[0])));
+        assertThat(CompositeBytesReference.of(refsGenerated.toArray(new BytesReference[0])), equalBytes(bytesDirect));
     }
 
     public void testFromTextChunks() throws IOException {
@@ -88,7 +90,7 @@ public class ChunkedRestResponseBodyPartTests extends ESTestCase {
                 writer.write(chunk);
             }
             writer.flush();
-            assertEquals(new BytesArray(outputStream.toByteArray()), chunkedBytes);
+            assertThat(chunkedBytes, equalBytes(new BytesArray(outputStream.toByteArray())));
         }
     }
 }

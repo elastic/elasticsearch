@@ -9,7 +9,6 @@
 
 package org.elasticsearch.cluster.health;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ClusterStatsLevel;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -56,10 +55,29 @@ public final class ClusterIndexHealth implements Writeable, ToXContentFragment {
         this.numberOfReplicas = indexMetadata.getNumberOfReplicas();
 
         shards = new HashMap<>();
-        for (int i = 0; i < indexRoutingTable.size(); i++) {
-            IndexShardRoutingTable shardRoutingTable = indexRoutingTable.shard(i);
-            int shardId = shardRoutingTable.shardId().id();
-            shards.put(shardId, new ClusterShardHealth(shardId, shardRoutingTable));
+        if (indexRoutingTable != null) {
+            for (int i = 0; i < indexRoutingTable.size(); i++) {
+                IndexShardRoutingTable shardRoutingTable = indexRoutingTable.shard(i);
+                int shardId = shardRoutingTable.shardId().id();
+                shards.put(shardId, new ClusterShardHealth(shardId, shardRoutingTable));
+            }
+        } else {
+            for (int shardId = 0; shardId < numberOfShards; shardId++) {
+                // Create a shard health representing completely unassigned shard
+                // All replicas for this shard are unassigned, including the primary
+                int replicasCount = numberOfReplicas + 1;
+                ClusterShardHealth clusterShardHealth = new ClusterShardHealth(
+                    shardId,
+                    ClusterHealthStatus.RED,
+                    0,
+                    0,
+                    0,
+                    replicasCount,
+                    1,
+                    false
+                );
+                shards.put(shardId, clusterShardHealth);
+            }
         }
 
         // update the index status
@@ -111,11 +129,7 @@ public final class ClusterIndexHealth implements Writeable, ToXContentFragment {
         unassignedShards = in.readVInt();
         status = ClusterHealthStatus.readFrom(in);
         shards = in.readMapValues(ClusterShardHealth::new, ClusterShardHealth::getShardId);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-            unassignedPrimaryShards = in.readVInt();
-        } else {
-            unassignedPrimaryShards = 0;
-        }
+        unassignedPrimaryShards = in.readVInt();
     }
 
     /**
@@ -203,9 +217,7 @@ public final class ClusterIndexHealth implements Writeable, ToXContentFragment {
         out.writeVInt(unassignedShards);
         out.writeByte(status.value());
         out.writeMapValues(shards);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-            out.writeVInt(unassignedPrimaryShards);
-        }
+        out.writeVInt(unassignedPrimaryShards);
     }
 
     @Override

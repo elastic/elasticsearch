@@ -11,7 +11,6 @@ package org.elasticsearch.index.query.functionscore;
 
 import org.apache.lucene.search.Explanation;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 
@@ -60,7 +59,7 @@ public class LinearDecayFunctionBuilder extends DecayFunctionBuilder<LinearDecay
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ZERO;
+        return TransportVersion.zero();
     }
 
     private static final class LinearDecayScoreFunction implements DecayFunction {

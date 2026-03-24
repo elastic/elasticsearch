@@ -34,16 +34,10 @@ public final class MinIpAggregatorFunction implements AggregatorFunction {
 
   private final List<Integer> channels;
 
-  public MinIpAggregatorFunction(DriverContext driverContext, List<Integer> channels,
-      MinIpAggregator.SingleState state) {
+  MinIpAggregatorFunction(DriverContext driverContext, List<Integer> channels) {
     this.driverContext = driverContext;
     this.channels = channels;
-    this.state = state;
-  }
-
-  public static MinIpAggregatorFunction create(DriverContext driverContext,
-      List<Integer> channels) {
-    return new MinIpAggregatorFunction(driverContext, channels, MinIpAggregator.initSingle());
+    this.state = MinIpAggregator.initSingle();
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -108,11 +102,12 @@ public final class MinIpAggregatorFunction implements AggregatorFunction {
   private void addRawBlock(BytesRefBlock valueBlock) {
     BytesRef valueScratch = new BytesRef();
     for (int p = 0; p < valueBlock.getPositionCount(); p++) {
-      if (valueBlock.isNull(p)) {
+      int valueValueCount = valueBlock.getValueCount(p);
+      if (valueValueCount == 0) {
         continue;
       }
       int valueStart = valueBlock.getFirstValueIndex(p);
-      int valueEnd = valueStart + valueBlock.getValueCount(p);
+      int valueEnd = valueStart + valueValueCount;
       for (int valueOffset = valueStart; valueOffset < valueEnd; valueOffset++) {
         BytesRef valueValue = valueBlock.getBytesRef(valueOffset, valueScratch);
         MinIpAggregator.combine(state, valueValue);
@@ -126,11 +121,12 @@ public final class MinIpAggregatorFunction implements AggregatorFunction {
       if (mask.getBoolean(p) == false) {
         continue;
       }
-      if (valueBlock.isNull(p)) {
+      int valueValueCount = valueBlock.getValueCount(p);
+      if (valueValueCount == 0) {
         continue;
       }
       int valueStart = valueBlock.getFirstValueIndex(p);
-      int valueEnd = valueStart + valueBlock.getValueCount(p);
+      int valueEnd = valueStart + valueValueCount;
       for (int valueOffset = valueStart; valueOffset < valueEnd; valueOffset++) {
         BytesRef valueValue = valueBlock.getBytesRef(valueOffset, valueScratch);
         MinIpAggregator.combine(state, valueValue);
@@ -154,8 +150,8 @@ public final class MinIpAggregatorFunction implements AggregatorFunction {
     }
     BooleanVector seen = ((BooleanBlock) seenUncast).asVector();
     assert seen.getPositionCount() == 1;
-    BytesRef scratch = new BytesRef();
-    MinIpAggregator.combineIntermediate(state, max.getBytesRef(0, scratch), seen.getBoolean(0));
+    BytesRef maxScratch = new BytesRef();
+    MinIpAggregator.combineIntermediate(state, max.getBytesRef(0, maxScratch), seen.getBoolean(0));
   }
 
   @Override

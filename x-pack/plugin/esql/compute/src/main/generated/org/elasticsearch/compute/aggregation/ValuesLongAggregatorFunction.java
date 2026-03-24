@@ -31,16 +31,10 @@ public final class ValuesLongAggregatorFunction implements AggregatorFunction {
 
   private final List<Integer> channels;
 
-  public ValuesLongAggregatorFunction(DriverContext driverContext, List<Integer> channels,
-      ValuesLongAggregator.SingleState state) {
+  ValuesLongAggregatorFunction(DriverContext driverContext, List<Integer> channels) {
     this.driverContext = driverContext;
     this.channels = channels;
-    this.state = state;
-  }
-
-  public static ValuesLongAggregatorFunction create(DriverContext driverContext,
-      List<Integer> channels) {
-    return new ValuesLongAggregatorFunction(driverContext, channels, ValuesLongAggregator.initSingle(driverContext.bigArrays()));
+    this.state = ValuesLongAggregator.initSingle(driverContext.bigArrays());
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -102,11 +96,12 @@ public final class ValuesLongAggregatorFunction implements AggregatorFunction {
 
   private void addRawBlock(LongBlock vBlock) {
     for (int p = 0; p < vBlock.getPositionCount(); p++) {
-      if (vBlock.isNull(p)) {
+      int vValueCount = vBlock.getValueCount(p);
+      if (vValueCount == 0) {
         continue;
       }
       int vStart = vBlock.getFirstValueIndex(p);
-      int vEnd = vStart + vBlock.getValueCount(p);
+      int vEnd = vStart + vValueCount;
       for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
         long vValue = vBlock.getLong(vOffset);
         ValuesLongAggregator.combine(state, vValue);
@@ -119,11 +114,12 @@ public final class ValuesLongAggregatorFunction implements AggregatorFunction {
       if (mask.getBoolean(p) == false) {
         continue;
       }
-      if (vBlock.isNull(p)) {
+      int vValueCount = vBlock.getValueCount(p);
+      if (vValueCount == 0) {
         continue;
       }
       int vStart = vBlock.getFirstValueIndex(p);
-      int vEnd = vStart + vBlock.getValueCount(p);
+      int vEnd = vStart + vValueCount;
       for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
         long vValue = vBlock.getLong(vOffset);
         ValuesLongAggregator.combine(state, vValue);

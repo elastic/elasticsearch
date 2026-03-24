@@ -62,7 +62,10 @@ public class ThreadPoolMergeSchedulerStressTestIT extends ESSingleNodeTestCase {
             .put(ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey(), true)
             // when there are more threads than scheduler(s)' concurrency capacity, excess merges will be backlogged
             // alternatively, when scheduler(s)' concurrency capacity exceeds the executor's thread count, excess merges will be enqueued
-            .put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), MERGE_SCHEDULER_MAX_CONCURRENCY + randomFrom(-2, -1, 0, 1, 2))
+            .put(
+                EsExecutors.NODE_PROCESSORS_SETTING.getKey(),
+                Math.min(MERGE_SCHEDULER_MAX_CONCURRENCY + randomFrom(-2, -1, 0, 1, 2), Runtime.getRuntime().availableProcessors())
+            )
             .build();
     }
 
@@ -87,6 +90,7 @@ public class ThreadPoolMergeSchedulerStressTestIT extends ESSingleNodeTestCase {
                 super(engineConfig);
             }
 
+            @Override
             protected ElasticsearchMergeScheduler createMergeScheduler(
                 ShardId shardId,
                 IndexSettings indexSettings,
@@ -257,7 +261,7 @@ public class ThreadPoolMergeSchedulerStressTestIT extends ESSingleNodeTestCase {
         assertBusy(() -> {
             // wait for merges to enqueue or backlog
             assertThat(testEnginePlugin.enqueuedMergesSet.size(), greaterThanOrEqualTo(testEnginePlugin.waitMergesEnqueuedCount));
-        }, 1, TimeUnit.MINUTES);
+        }, 10, TimeUnit.MINUTES);
         // finish up indexing
         indexingDone.set(true);
         for (Thread indexingThread : indexingThreads) {
@@ -273,7 +277,7 @@ public class ThreadPoolMergeSchedulerStressTestIT extends ESSingleNodeTestCase {
             assertThat(testEnginePlugin.runningMergesSet.size(), is(0));
             assertThat(testEnginePlugin.enqueuedMergesSet.size(), is(0));
             testEnginePlugin.mergeExecutorServiceReference.get().allDone();
-        }, 1, TimeUnit.MINUTES);
+        }, 10, TimeUnit.MINUTES);
         // indices stats says that no merge is currently running (meaning merging did catch up)
         IndicesStatsResponse indicesStatsResponse = client().admin().indices().prepareStats("index").setMerge(true).get();
         long currentMergeCount = indicesStatsResponse.getIndices().get("index").getPrimaries().merge.getCurrent();

@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.esql.plan.logical.local;
 
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -29,6 +29,10 @@ public class LocalRelation extends LeafPlan {
         LocalRelation::new
     );
 
+    private static final TransportVersion ESQL_LOCAL_RELATION_WITH_NEW_BLOCKS = TransportVersion.fromName(
+        "esql_local_relation_with_new_blocks"
+    );
+
     private final List<Attribute> output;
     private final LocalSupplier supplier;
 
@@ -41,7 +45,7 @@ public class LocalRelation extends LeafPlan {
     public LocalRelation(StreamInput in) throws IOException {
         super(Source.readFrom((PlanStreamInput) in));
         this.output = in.readNamedWriteableCollectionAsList(Attribute.class);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_LOCAL_RELATION_WITH_NEW_BLOCKS)) {
+        if (in.getTransportVersion().supports(ESQL_LOCAL_RELATION_WITH_NEW_BLOCKS)) {
             this.supplier = in.readNamedWriteable(LocalSupplier.class);
         } else {
             this.supplier = LocalSourceExec.readLegacyLocalSupplierFrom((PlanStreamInput) in);
@@ -52,7 +56,7 @@ public class LocalRelation extends LeafPlan {
     public void writeTo(StreamOutput out) throws IOException {
         source().writeTo(out);
         out.writeNamedWriteableCollection(output);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_LOCAL_RELATION_WITH_NEW_BLOCKS)) {
+        if (out.getTransportVersion().supports(ESQL_LOCAL_RELATION_WITH_NEW_BLOCKS)) {
             out.writeNamedWriteable(supplier);
         } else {
             if (hasEmptySupplier()) {

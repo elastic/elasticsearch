@@ -46,6 +46,8 @@ import static org.hamcrest.Matchers.instanceOf;
 @ESTestCase.WithoutEntitlements // due to dependency issue ES-12435
 public class ShardBulkInferenceActionFilterBasicLicenseIT extends ESIntegTestCase {
     public static final String INDEX_NAME = "test-index";
+    private static final String SPARSE_INFERENCE_ID = "sparse-endpoint";
+    private static final String DENSE_INFERENCE_ID = "dense-endpoint";
 
     private final boolean useLegacyFormat;
 
@@ -61,9 +63,9 @@ public class ShardBulkInferenceActionFilterBasicLicenseIT extends ESIntegTestCas
     @Before
     public void setup() throws Exception {
         ModelRegistry modelRegistry = internalCluster().getCurrentMasterNodeInstance(ModelRegistry.class);
-        Utils.storeSparseModel("sparse-endpoint", modelRegistry);
+        Utils.storeSparseModel(SPARSE_INFERENCE_ID, modelRegistry);
         Utils.storeDenseModel(
-            "dense-endpoint",
+            DENSE_INFERENCE_ID,
             modelRegistry,
             randomIntBetween(1, 100),
             // dot product means that we need normalized vectors; it's not worth doing that in this test
@@ -92,27 +94,20 @@ public class ShardBulkInferenceActionFilterBasicLicenseIT extends ESIntegTestCas
     }
 
     public void testLicenseInvalidForInference() {
-        prepareCreate(INDEX_NAME).setMapping(
-            String.format(
-                Locale.ROOT,
-                """
-                    {
-                        "properties": {
-                            "sparse_field": {
-                                "type": "semantic_text",
-                                "inference_id": "%s"
-                            },
-                            "dense_field": {
-                                "type": "semantic_text",
-                                "inference_id": "%s"
-                            }
-                        }
+        prepareCreate(INDEX_NAME).setMapping(String.format(Locale.ROOT, """
+            {
+                "properties": {
+                    "sparse_field": {
+                        "type": "semantic_text",
+                        "inference_id": "%s"
+                    },
+                    "dense_field": {
+                        "type": "semantic_text",
+                        "inference_id": "%s"
                     }
-                    """,
-                TestSparseInferenceServiceExtension.TestInferenceService.NAME,
-                TestDenseInferenceServiceExtension.TestInferenceService.NAME
-            )
-        ).get();
+                }
+            }
+            """, SPARSE_INFERENCE_ID, DENSE_INFERENCE_ID)).get();
 
         BulkRequestBuilder bulkRequest = client().prepareBulk();
         int totalBulkReqs = randomIntBetween(2, 100);

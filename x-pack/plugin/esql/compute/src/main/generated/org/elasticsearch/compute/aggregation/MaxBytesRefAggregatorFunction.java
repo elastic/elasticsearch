@@ -34,16 +34,10 @@ public final class MaxBytesRefAggregatorFunction implements AggregatorFunction {
 
   private final List<Integer> channels;
 
-  public MaxBytesRefAggregatorFunction(DriverContext driverContext, List<Integer> channels,
-      MaxBytesRefAggregator.SingleState state) {
+  MaxBytesRefAggregatorFunction(DriverContext driverContext, List<Integer> channels) {
     this.driverContext = driverContext;
     this.channels = channels;
-    this.state = state;
-  }
-
-  public static MaxBytesRefAggregatorFunction create(DriverContext driverContext,
-      List<Integer> channels) {
-    return new MaxBytesRefAggregatorFunction(driverContext, channels, MaxBytesRefAggregator.initSingle(driverContext));
+    this.state = MaxBytesRefAggregator.initSingle(driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -108,11 +102,12 @@ public final class MaxBytesRefAggregatorFunction implements AggregatorFunction {
   private void addRawBlock(BytesRefBlock valueBlock) {
     BytesRef valueScratch = new BytesRef();
     for (int p = 0; p < valueBlock.getPositionCount(); p++) {
-      if (valueBlock.isNull(p)) {
+      int valueValueCount = valueBlock.getValueCount(p);
+      if (valueValueCount == 0) {
         continue;
       }
       int valueStart = valueBlock.getFirstValueIndex(p);
-      int valueEnd = valueStart + valueBlock.getValueCount(p);
+      int valueEnd = valueStart + valueValueCount;
       for (int valueOffset = valueStart; valueOffset < valueEnd; valueOffset++) {
         BytesRef valueValue = valueBlock.getBytesRef(valueOffset, valueScratch);
         MaxBytesRefAggregator.combine(state, valueValue);
@@ -126,11 +121,12 @@ public final class MaxBytesRefAggregatorFunction implements AggregatorFunction {
       if (mask.getBoolean(p) == false) {
         continue;
       }
-      if (valueBlock.isNull(p)) {
+      int valueValueCount = valueBlock.getValueCount(p);
+      if (valueValueCount == 0) {
         continue;
       }
       int valueStart = valueBlock.getFirstValueIndex(p);
-      int valueEnd = valueStart + valueBlock.getValueCount(p);
+      int valueEnd = valueStart + valueValueCount;
       for (int valueOffset = valueStart; valueOffset < valueEnd; valueOffset++) {
         BytesRef valueValue = valueBlock.getBytesRef(valueOffset, valueScratch);
         MaxBytesRefAggregator.combine(state, valueValue);
@@ -154,8 +150,8 @@ public final class MaxBytesRefAggregatorFunction implements AggregatorFunction {
     }
     BooleanVector seen = ((BooleanBlock) seenUncast).asVector();
     assert seen.getPositionCount() == 1;
-    BytesRef scratch = new BytesRef();
-    MaxBytesRefAggregator.combineIntermediate(state, max.getBytesRef(0, scratch), seen.getBoolean(0));
+    BytesRef maxScratch = new BytesRef();
+    MaxBytesRefAggregator.combineIntermediate(state, max.getBytesRef(0, maxScratch), seen.getBoolean(0));
   }
 
   @Override

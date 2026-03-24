@@ -36,17 +36,12 @@ public final class PercentileDoubleAggregatorFunction implements AggregatorFunct
 
   private final double percentile;
 
-  public PercentileDoubleAggregatorFunction(DriverContext driverContext, List<Integer> channels,
-      QuantileStates.SingleState state, double percentile) {
+  PercentileDoubleAggregatorFunction(DriverContext driverContext, List<Integer> channels,
+      double percentile) {
+    this.percentile = percentile;
     this.driverContext = driverContext;
     this.channels = channels;
-    this.state = state;
-    this.percentile = percentile;
-  }
-
-  public static PercentileDoubleAggregatorFunction create(DriverContext driverContext,
-      List<Integer> channels, double percentile) {
-    return new PercentileDoubleAggregatorFunction(driverContext, channels, PercentileDoubleAggregator.initSingle(driverContext, percentile), percentile);
+    this.state = PercentileDoubleAggregator.initSingle(driverContext, percentile);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -108,11 +103,12 @@ public final class PercentileDoubleAggregatorFunction implements AggregatorFunct
 
   private void addRawBlock(DoubleBlock vBlock) {
     for (int p = 0; p < vBlock.getPositionCount(); p++) {
-      if (vBlock.isNull(p)) {
+      int vValueCount = vBlock.getValueCount(p);
+      if (vValueCount == 0) {
         continue;
       }
       int vStart = vBlock.getFirstValueIndex(p);
-      int vEnd = vStart + vBlock.getValueCount(p);
+      int vEnd = vStart + vValueCount;
       for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
         double vValue = vBlock.getDouble(vOffset);
         PercentileDoubleAggregator.combine(state, vValue);
@@ -125,11 +121,12 @@ public final class PercentileDoubleAggregatorFunction implements AggregatorFunct
       if (mask.getBoolean(p) == false) {
         continue;
       }
-      if (vBlock.isNull(p)) {
+      int vValueCount = vBlock.getValueCount(p);
+      if (vValueCount == 0) {
         continue;
       }
       int vStart = vBlock.getFirstValueIndex(p);
-      int vEnd = vStart + vBlock.getValueCount(p);
+      int vEnd = vStart + vValueCount;
       for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
         double vValue = vBlock.getDouble(vOffset);
         PercentileDoubleAggregator.combine(state, vValue);
@@ -147,8 +144,8 @@ public final class PercentileDoubleAggregatorFunction implements AggregatorFunct
     }
     BytesRefVector quart = ((BytesRefBlock) quartUncast).asVector();
     assert quart.getPositionCount() == 1;
-    BytesRef scratch = new BytesRef();
-    PercentileDoubleAggregator.combineIntermediate(state, quart.getBytesRef(0, scratch));
+    BytesRef quartScratch = new BytesRef();
+    PercentileDoubleAggregator.combineIntermediate(state, quart.getBytesRef(0, quartScratch));
   }
 
   @Override

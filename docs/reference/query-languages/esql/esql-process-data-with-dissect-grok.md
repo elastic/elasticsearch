@@ -1,4 +1,7 @@
 ---
+applies_to:
+  stack:
+  serverless:
 navigation_title: "Extract data with DISSECT and GROK"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/esql-process-data-with-dissect-and-grok.html

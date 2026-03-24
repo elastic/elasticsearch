@@ -48,6 +48,7 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
@@ -136,6 +137,10 @@ public class AllocationService {
 
     public ShardRoutingRoleStrategy getShardRoutingRoleStrategy() {
         return shardRoutingRoleStrategy;
+    }
+
+    public ClusterInfoService getClusterInfoService() {
+        return clusterInfoService;
     }
 
     /**
@@ -791,7 +796,20 @@ public class AllocationService {
         if (allocateDecision.isDecisionTaken()) {
             return new ShardAllocationDecision(allocateDecision, MoveDecision.NOT_TAKEN);
         } else {
-            return shardsAllocator.decideShardAllocation(shardRouting, allocation);
+            return shardsAllocator.explainShardAllocation(shardRouting, allocation);
+        }
+    }
+
+    public Function<ShardRouting, ShardAllocationDecision> explainAssignedShardAllocationFunction(RoutingAllocation allocation) {
+        assert allocation.debugDecision();
+        final Function<ShardRouting, ShardAllocationDecision> explainFunction = shardsAllocator.explainShardAllocationFunction(allocation);
+        if (Assertions.ENABLED) {
+            return shard -> {
+                assert shard.unassigned() == false;
+                return explainFunction.apply(shard);
+            };
+        } else {
+            return explainFunction;
         }
     }
 

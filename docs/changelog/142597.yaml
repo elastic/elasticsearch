@@ -1,0 +1,6 @@
+pr: 142597
+summary: Added service settings update logic for AI21 provider in the Inference Plugin
+area: Inference
+type: enhancement
+issues:
+  - 122356

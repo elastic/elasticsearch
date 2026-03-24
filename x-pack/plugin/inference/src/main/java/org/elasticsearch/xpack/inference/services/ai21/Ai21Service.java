@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.services.ai21;
 
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -15,6 +14,7 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceExtension;
@@ -26,21 +26,21 @@ import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
-import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.GenericRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.ModelCreator;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.ai21.action.Ai21ActionCreator;
 import org.elasticsearch.xpack.inference.services.ai21.completion.Ai21ChatCompletionModel;
+import org.elasticsearch.xpack.inference.services.ai21.completion.Ai21ChatCompletionModelCreator;
 import org.elasticsearch.xpack.inference.services.ai21.completion.Ai21ChatCompletionResponseHandler;
 import org.elasticsearch.xpack.inference.services.ai21.request.Ai21ChatCompletionRequest;
 import org.elasticsearch.xpack.inference.services.openai.response.OpenAiChatCompletionResponseEntity;
@@ -55,7 +55,6 @@ import java.util.Objects;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.parsePersistedConfigErrorMsg;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrDefaultEmpty;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
@@ -65,7 +64,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNot
  * using AI21 models. It supports completion and chat completion tasks.
  * The service uses Ai21ActionCreator to create actions for executing inference requests.
  */
-public class Ai21Service extends SenderService {
+public class Ai21Service extends SenderService<Ai21Model> {
     public static final String NAME = "ai21";
 
     private static final String SERVICE_NAME = "AI21";
@@ -78,6 +77,13 @@ public class Ai21Service extends SenderService {
     private static final TransportVersion ML_INFERENCE_AI21_COMPLETION_ADDED = TransportVersion.fromName(
         "ml_inference_ai21_completion_added"
     );
+    private static final Ai21ChatCompletionModelCreator COMPLETION_MODEL_CREATOR = new Ai21ChatCompletionModelCreator();
+    private static final Map<TaskType, ModelCreator<? extends Ai21Model>> MODEL_CREATORS = Map.of(
+        TaskType.CHAT_COMPLETION,
+        COMPLETION_MODEL_CREATOR,
+        TaskType.COMPLETION,
+        COMPLETION_MODEL_CREATOR
+    );
 
     public Ai21Service(
         HttpRequestSender.Factory factory,
@@ -88,7 +94,7 @@ public class Ai21Service extends SenderService {
     }
 
     public Ai21Service(HttpRequestSender.Factory factory, ServiceComponents serviceComponents, ClusterService clusterService) {
-        super(factory, serviceComponents, clusterService);
+        super(factory, serviceComponents, clusterService, MODEL_CREATORS);
     }
 
     @Override
@@ -143,13 +149,19 @@ public class Ai21Service extends SenderService {
     @Override
     protected void doChunkedInfer(
         Model model,
-        EmbeddingsInput inputs,
+        List<ChunkInferenceInput> inputs,
         Map<String, Object> taskSettings,
         InputType inputType,
         TimeValue timeout,
         ActionListener<List<ChunkedInference>> listener
     ) {
+        // Should never be called
         throw new UnsupportedOperationException("AI21 service does not support chunked inference");
+    }
+
+    @Override
+    protected boolean supportsChunkedInfer() {
+        return false;
     }
 
     @Override
@@ -178,14 +190,7 @@ public class Ai21Service extends SenderService {
             Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
             Map<String, Object> taskSettingsMap = removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
 
-            Ai21Model model = createModel(
-                modelId,
-                taskType,
-                serviceSettingsMap,
-                serviceSettingsMap,
-                TaskType.unsupportedTaskTypeErrorMsg(taskType, NAME),
-                ConfigurationParseContext.REQUEST
-            );
+            Ai21Model model = createModel(modelId, taskType, serviceSettingsMap, serviceSettingsMap, ConfigurationParseContext.REQUEST);
 
             throwIfNotEmptyMap(config, NAME);
             throwIfNotEmptyMap(serviceSettingsMap, NAME);
@@ -198,31 +203,14 @@ public class Ai21Service extends SenderService {
     }
 
     @Override
-    public Ai21Model parsePersistedConfigWithSecrets(
-        String modelId,
-        TaskType taskType,
-        Map<String, Object> config,
-        Map<String, Object> secrets
-    ) {
-        Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
-        removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
-        Map<String, Object> secretSettingsMap = removeFromMapOrDefaultEmpty(secrets, ModelSecrets.SECRET_SETTINGS);
-
-        return createModelFromPersistent(
-            modelId,
-            taskType,
-            serviceSettingsMap,
-            secretSettingsMap,
-            parsePersistedConfigErrorMsg(modelId, NAME)
-        );
-    }
-
-    @Override
-    public Ai21Model parsePersistedConfig(String modelId, TaskType taskType, Map<String, Object> config) {
-        Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
-        removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
-
-        return createModelFromPersistent(modelId, taskType, serviceSettingsMap, null, parsePersistedConfigErrorMsg(modelId, NAME));
+    public Ai21Model buildModelFromConfigAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
+        return retrieveModelCreatorFromMapOrThrow(
+            MODEL_CREATORS,
+            config.getInferenceEntityId(),
+            config.getTaskType(),
+            config.getService(),
+            ConfigurationParseContext.REQUEST
+        ).createFromModelConfigurationsAndSecrets(config, secrets);
     }
 
     @Override
@@ -236,35 +224,21 @@ public class Ai21Service extends SenderService {
     }
 
     private static Ai21Model createModel(
-        String modelId,
+        String inferenceId,
         TaskType taskType,
         Map<String, Object> serviceSettings,
         @Nullable Map<String, Object> secretSettings,
-        String failureMessage,
         ConfigurationParseContext context
     ) {
-        switch (taskType) {
-            case CHAT_COMPLETION, COMPLETION:
-                return new Ai21ChatCompletionModel(modelId, taskType, NAME, serviceSettings, secretSettings, context);
-            default:
-                throw new ElasticsearchStatusException(failureMessage, RestStatus.BAD_REQUEST);
-        }
-    }
-
-    private Ai21Model createModelFromPersistent(
-        String inferenceEntityId,
-        TaskType taskType,
-        Map<String, Object> serviceSettings,
-        Map<String, Object> secretSettings,
-        String failureMessage
-    ) {
-        return createModel(
-            inferenceEntityId,
+        return retrieveModelCreatorFromMapOrThrow(MODEL_CREATORS, inferenceId, taskType, NAME, context).createFromMaps(
+            inferenceId,
             taskType,
+            NAME,
             serviceSettings,
+            null,
+            null,
             secretSettings,
-            failureMessage,
-            ConfigurationParseContext.PERSISTENT
+            context
         );
     }
 

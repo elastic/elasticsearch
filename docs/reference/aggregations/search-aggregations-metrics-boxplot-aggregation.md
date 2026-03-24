@@ -7,7 +7,7 @@ mapped_pages:
 # Boxplot aggregation [search-aggregations-metrics-boxplot-aggregation]
 
 
-A `boxplot` metrics aggregation that computes boxplot of numeric values extracted from the aggregated documents. These values can be generated from specific numeric or [histogram fields](/reference/elasticsearch/mapping-reference/histogram.md) in the documents.
+A `boxplot` metrics aggregation that computes boxplot of numeric values extracted from the aggregated documents. These values can be generated from specific numeric, [histogram](/reference/elasticsearch/mapping-reference/histogram.md) or [exponential histogram](/reference/elasticsearch/mapping-reference/exponential-histogram.md) {applies_to}`stack: ga 9.4` fields in the documents.
 
 The `boxplot` aggregation returns essential information for making a [box plot](https://en.wikipedia.org/wiki/Box_plot): minimum, maximum, median, first quartile (25th percentile)  and third quartile (75th percentile) values.
 
@@ -22,6 +22,7 @@ A `boxplot` aggregation looks like this in isolation:
   }
 }
 ```
+% NOTCONSOLE
 
 Let’s look at a boxplot representing load time:
 
@@ -38,6 +39,7 @@ GET latency/_search
   }
 }
 ```
+% TEST[setup:latency]
 
 1. The field `load_time` must be a numeric field
 
@@ -61,6 +63,7 @@ The response will look like this:
   }
 }
 ```
+% TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 
 In this case, the lower and upper whisker values are equal to the min and max. In general, these values are the 1.5 * IQR range, which is to say the nearest values to `q1 - (1.5 * IQR)` and `q3 + (1.5 * IQR)`. Since this is an approximation, the given values may not actually be observed values from the data, but should be within a reasonable error bound of them. While the Boxplot aggregation doesn’t directly return outlier points, you can check if `lower > min` or `upper < max` to see if outliers exist on either side, and then query for them directly.
 
@@ -91,7 +94,9 @@ GET latency/_search
   }
 }
 ```
-
+% TEST[setup:latency]
+% TEST[s/_search/_search?filter_path=aggregations/]
+% TEST[s/"timeUnit": 1000/"timeUnit": 10/]
 
 ## Boxplot values are (usually) approximate [search-aggregations-metrics-boxplot-aggregation-approximation]
 
@@ -122,6 +127,7 @@ GET latency/_search
   }
 }
 ```
+% TEST[setup:latency]
 
 1. Compression controls memory usage and approximation error
 
@@ -151,6 +157,7 @@ GET latency/_search
   }
 }
 ```
+% TEST[setup:latency]
 
 1. Optimize TDigest for accuracy, at the expense of performance
 
@@ -176,6 +183,7 @@ GET latency/_search
   }
 }
 ```
+% TEST[setup:latency]
 
 1. Documents without a value in the `grade` field will fall into the same bucket as documents that have the value `10`.
 

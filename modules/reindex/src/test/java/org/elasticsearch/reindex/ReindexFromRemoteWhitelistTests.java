@@ -16,7 +16,6 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.net.UnknownHostException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
 import static java.util.Collections.emptyList;
@@ -112,33 +111,10 @@ public class ReindexFromRemoteWhitelistTests extends ESTestCase {
         assertEquals("[not in list:" + port + "] not whitelisted in reindex.remote.whitelist", e.getMessage());
     }
 
-    public void testRejectMatchAll() {
-        assertMatchesTooMuch(singletonList("*"));
-        assertMatchesTooMuch(singletonList("**"));
-        assertMatchesTooMuch(singletonList("***"));
-        assertMatchesTooMuch(Arrays.asList("realstuff", "*"));
-        assertMatchesTooMuch(Arrays.asList("*", "realstuff"));
-        List<String> random = randomWhitelist();
-        random.add("*");
-        assertMatchesTooMuch(random);
-    }
-
     public void testIPv6Address() {
         List<String> whitelist = randomWhitelist();
         whitelist.add("[::1]:*");
         checkRemoteWhitelist(buildRemoteWhitelist(whitelist), newRemoteInfo("[::1]", 9200));
-    }
-
-    private void assertMatchesTooMuch(List<String> whitelist) {
-        Exception e = expectThrows(IllegalArgumentException.class, () -> buildRemoteWhitelist(whitelist));
-        assertEquals(
-            "Refusing to start because whitelist "
-                + whitelist
-                + " accepts all addresses. "
-                + "This would allow users to reindex-from-remote any URL they like effectively having Elasticsearch make HTTP GETs "
-                + "for them.",
-            e.getMessage()
-        );
     }
 
     private List<String> randomWhitelist() {

@@ -25,12 +25,8 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.NodeFeature;
@@ -41,7 +37,6 @@ import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.plugins.PersistentTaskPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -74,6 +69,8 @@ import org.elasticsearch.xpack.core.transform.action.UpdateTransformAction;
 import org.elasticsearch.xpack.core.transform.action.UpgradeTransformsAction;
 import org.elasticsearch.xpack.core.transform.action.ValidateTransformAction;
 import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
+import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
+import org.elasticsearch.xpack.core.transform.transforms.TransformParsingContext;
 import org.elasticsearch.xpack.transform.action.TransportDeleteTransformAction;
 import org.elasticsearch.xpack.transform.action.TransportGetCheckpointAction;
 import org.elasticsearch.xpack.transform.action.TransportGetCheckpointNodeAction;
@@ -197,7 +194,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
         var originClient = new OriginSettingClient(client, TRANSFORM_ORIGIN);
         originClient.execute(
             SetTransformUpgradeModeAction.INSTANCE,
-            new SetUpgradeModeActionRequest(true),
+            new SetUpgradeModeActionRequest(HARD_CODED_TRANSFORM_MASTER_NODE_TIMEOUT, HARD_CODED_TRANSFORM_MASTER_NODE_TIMEOUT, true),
             listener.delegateFailureAndWrap((l, r) -> l.onResponse(Map.of("already_in_upgrade_mode", false)))
         );
     }
@@ -214,33 +211,29 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
         var originClient = new OriginSettingClient(client, TRANSFORM_ORIGIN);
         originClient.execute(
             SetTransformUpgradeModeAction.INSTANCE,
-            new SetUpgradeModeActionRequest(false),
+            new SetUpgradeModeActionRequest(HARD_CODED_TRANSFORM_MASTER_NODE_TIMEOUT, HARD_CODED_TRANSFORM_MASTER_NODE_TIMEOUT, false),
             listener.delegateFailureAndWrap((l, r) -> l.onResponse(r.isAcknowledged()))
         );
     }
 
     @Override
     public List<RestHandler> getRestHandlers(
-        final Settings unused,
-        NamedWriteableRegistry namedWriteableRegistry,
-        final RestController restController,
-        final ClusterSettings clusterSettings,
-        final IndexScopedSettings indexScopedSettings,
-        final SettingsFilter settingsFilter,
-        final IndexNameExpressionResolver indexNameExpressionResolver,
+        RestHandlersServices restHandlersServices,
         final Supplier<DiscoveryNodes> nodesInCluster,
         Predicate<NodeFeature> clusterSupportsFeature
     ) {
-
+        var transformParsingContext = new TransformParsingContext(
+            restHandlersServices.crossProjectModeDecider().crossProjectEnabled() && TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled()
+        );
         return Arrays.asList(
-            new RestPutTransformAction(),
+            new RestPutTransformAction(transformParsingContext),
             new RestStartTransformAction(),
             new RestStopTransformAction(),
             new RestDeleteTransformAction(),
             new RestGetTransformAction(),
             new RestGetTransformStatsAction(),
-            new RestPreviewTransformAction(),
-            new RestUpdateTransformAction(),
+            new RestPreviewTransformAction(transformParsingContext),
+            new RestUpdateTransformAction(transformParsingContext),
             new RestCatTransformAction(),
             new RestUpgradeTransformsAction(),
             new RestResetTransformAction(),
@@ -285,11 +278,17 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
         Client client = services.client();
         ClusterService clusterService = services.clusterService();
 
+        var crossProjectModeDecider = services.crossProjectModeDecider();
+        var transformParsingContext = new TransformParsingContext(
+            crossProjectModeDecider.crossProjectEnabled() && TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled()
+        );
+
         TransformConfigManager configManager = new IndexBasedTransformConfigManager(
             clusterService,
             services.indexNameExpressionResolver(),
             client,
-            services.xContentRegistry()
+            services.xContentRegistry(),
+            transformParsingContext
         );
         TransformAuditor auditor = new TransformAuditor(
             client,
@@ -303,7 +302,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
         TransformCheckpointService checkpointService = new TransformCheckpointService(
             clock,
             settings,
-            clusterService,
+            services.linkedProjectConfigService(),
             configManager,
             auditor
         );
@@ -317,7 +316,17 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
         var clusterStateListener = new TransformClusterStateListener(clusterService, client);
         var transformNode = new TransformNode(clusterStateListener);
 
-        transformServices.set(new TransformServices(configManager, checkpointService, auditor, scheduler, transformNode));
+        transformServices.set(
+            new TransformServices(
+                configManager,
+                checkpointService,
+                auditor,
+                scheduler,
+                transformNode,
+                crossProjectModeDecider,
+                projectId -> false
+            )
+        );
 
         var transformMeterRegistry = TransformMeterRegistry.create(services.telemetryProvider().getMeterRegistry());
         transformConfigAutoMigration.set(
@@ -439,6 +448,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
         ClusterService clusterService,
         ProjectResolver projectResolver,
         Client unwrappedClient,
+        TimeValue masterNodeTimeout,
         ActionListener<ResetFeatureStateResponse.ResetFeatureStateStatus> finalListener
     ) {
         OriginSettingClient client = new OriginSettingClient(unwrappedClient, TRANSFORM_ORIGIN);
@@ -449,7 +459,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
             }
             client.execute(
                 SetResetModeAction.INSTANCE,
-                SetResetModeActionRequest.disabled(true),
+                SetResetModeActionRequest.disabled(masterNodeTimeout, true),
                 ActionListener.wrap(resetSuccess -> finalListener.onResponse(success), resetFailure -> {
                     logger.error("failed to disable reset mode after otherwise successful transform reset", resetFailure);
                     finalListener.onFailure(
@@ -464,7 +474,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
         },
             failure -> client.execute(
                 SetResetModeAction.INSTANCE,
-                SetResetModeActionRequest.disabled(false),
+                SetResetModeActionRequest.disabled(masterNodeTimeout, false),
                 ActionListener.wrap(resetSuccess -> finalListener.onFailure(failure), resetFailure -> {
                     logger.error(TransformMessages.getMessage(FAILED_TO_UNSET_RESET_MODE, "a failed feature reset"), resetFailure);
                     Exception ex = new ElasticsearchException(
@@ -479,7 +489,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
 
         ActionListener<ListTasksResponse> afterWaitingForTasks = ActionListener.wrap(listTasksResponse -> {
             listTasksResponse.rethrowFailures("Waiting for transform indexing tasks");
-            SystemIndexPlugin.super.cleanUpFeature(clusterService, projectResolver, client, unsetResetModeListener);
+            SystemIndexPlugin.super.cleanUpFeature(clusterService, projectResolver, client, masterNodeTimeout, unsetResetModeListener);
         }, unsetResetModeListener::onFailure);
 
         ActionListener<StopTransformAction.Response> afterForceStoppingTransforms = ActionListener.wrap(stopTransformsResponse -> {
@@ -548,7 +558,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
             client.execute(StopTransformAction.INSTANCE, stopTransformsRequest, afterStoppingTransforms);
         }, finalListener::onFailure);
 
-        client.execute(SetResetModeAction.INSTANCE, SetResetModeActionRequest.enabled(), afterResetModeSet);
+        client.execute(SetResetModeAction.INSTANCE, SetResetModeActionRequest.enabled(masterNodeTimeout), afterResetModeSet);
     }
 
     @Override

@@ -153,7 +153,6 @@ setup:
         index: test
         body:
           _source:
-            exclude_vectors: false
             includes: nested.vector
           sort: ["name"]
 
@@ -213,7 +212,6 @@ setup:
   - match:      { hits.hits.3._source.name: "zoolander.jpg" }
   - length:     { hits.hits.3._source.nested: 3 }
   - not_exists:   hits.hits.3._source.nested.0.vector
-
 
 ---
 "Bulk partial update with synthetic vectors":
@@ -343,3 +341,52 @@ setup:
   - match: { hits.total.relation: eq }
   - match: { hits.hits.0._source.name: zoolander3.jpg }
   - match: { hits.hits.0._source.nested: $original_nested }
+
+---
+"Ensure both fields and docvalue_fields are supported":
+  - requires:
+      cluster_features: ["mapper.exclude_vectors_docvalue_bugfix"]
+      reason: "Bugfix for issue #136545"
+  - do:
+      headers:
+        Content-Type: application/json
+      indices.create:
+        index: just_vectors
+        body:
+          mappings:
+            properties:
+              vector1:
+                type: dense_vector
+                dims: 5
+                index: true
+                element_type: float
+                similarity: cosine
+              vector2:
+                type: dense_vector
+                dims: 5
+                element_type: float
+                index: false
+          settings:
+            index:
+              mapping:
+                exclude_source_vectors: true
+  - do:
+      headers:
+        Content-Type: application/json
+      index:
+        refresh: true
+        index: just_vectors
+        id: "1"
+        body:
+          vector1: [230.0, 300.33, -34.8988, 15.555, -200.0]
+          vector2: [230.0, 300.33, -34.8988, 15.555, -200.0]
+  # shouldn't throw
+  - do:
+      headers:
+        Content-Type: application/json
+      search:
+        index: just_vectors
+        body:
+          _source: false
+          fields: ["vector1"]
+          docvalue_fields: ["vector2"]

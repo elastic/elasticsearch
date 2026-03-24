@@ -62,6 +62,7 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.elasticsearch.action.admin.indices.ResizeIndexTestUtils.executeResize;
 import static org.elasticsearch.index.IndexSettings.INDEX_SOFT_DELETES_SETTING;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.dateHistogram;
@@ -384,15 +385,15 @@ public class FrozenSearchableSnapshotsIntegTests extends BaseFrozenSearchableSna
 
         final String clonedIndexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         assertAcked(
-            indicesAdmin().prepareResizeIndex(restoredIndexName, clonedIndexName)
-                .setResizeType(ResizeType.CLONE)
-                .setSettings(
-                    Settings.builder()
-                        .putNull(IndexModule.INDEX_STORE_TYPE_SETTING.getKey())
-                        .putNull(IndexModule.INDEX_RECOVERY_TYPE_SETTING.getKey())
-                        .put(DataTier.TIER_PREFERENCE, DataTier.DATA_HOT)
-                        .build()
-                )
+            executeResize(
+                ResizeType.CLONE,
+                restoredIndexName,
+                clonedIndexName,
+                Settings.builder()
+                    .putNull(IndexModule.INDEX_STORE_TYPE_SETTING.getKey())
+                    .putNull(IndexModule.INDEX_RECOVERY_TYPE_SETTING.getKey())
+                    .put(DataTier.TIER_PREFERENCE, DataTier.DATA_HOT)
+            )
         );
         ensureGreen(clonedIndexName);
         assertTotalHits(clonedIndexName, originalAllHits, originalBarHits);

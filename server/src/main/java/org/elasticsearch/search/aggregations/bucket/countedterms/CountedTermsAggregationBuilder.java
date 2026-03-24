@@ -10,7 +10,6 @@
 package org.elasticsearch.search.aggregations.bucket.countedterms;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -45,6 +44,7 @@ public class CountedTermsAggregationBuilder extends ValuesSourceAggregationBuild
         NAME,
         CountedTermsAggregationBuilder::new
     );
+
     static {
         ValuesSourceAggregationBuilder.declareFields(PARSER, true, true, false);
 
@@ -90,7 +90,7 @@ public class CountedTermsAggregationBuilder extends ValuesSourceAggregationBuild
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_12_0;
+        return TransportVersion.minimumCompatible();
     }
 
     @Override

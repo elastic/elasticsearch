@@ -61,7 +61,7 @@ public class ES816BinaryQuantizedVectorsFormat extends AbstractFlatVectorsFormat
     }
 
     @Override
-    protected FlatVectorsScorer flatVectorsScorer() {
+    public FlatVectorsScorer flatVectorsScorer() {
         return scorer;
     }
 

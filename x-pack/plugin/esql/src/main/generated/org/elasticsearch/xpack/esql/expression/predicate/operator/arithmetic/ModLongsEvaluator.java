@@ -13,31 +13,31 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Mod}.
+ * {@link ExpressionEvaluator} implementation for {@link Mod}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class ModLongsEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class ModLongsEvaluator implements ExpressionEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ModLongsEvaluator.class);
 
   private final Source source;
 
-  private final EvalOperator.ExpressionEvaluator lhs;
+  private final ExpressionEvaluator lhs;
 
-  private final EvalOperator.ExpressionEvaluator rhs;
+  private final ExpressionEvaluator rhs;
 
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
-  public ModLongsEvaluator(Source source, EvalOperator.ExpressionEvaluator lhs,
-      EvalOperator.ExpressionEvaluator rhs, DriverContext driverContext) {
+  public ModLongsEvaluator(Source source, ExpressionEvaluator lhs, ExpressionEvaluator rhs,
+      DriverContext driverContext) {
     this.source = source;
     this.lhs = lhs;
     this.rhs = rhs;
@@ -72,30 +72,32 @@ public final class ModLongsEvaluator implements EvalOperator.ExpressionEvaluator
   public LongBlock eval(int positionCount, LongBlock lhsBlock, LongBlock rhsBlock) {
     try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        if (lhsBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
+        switch (lhsBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
-        if (lhsBlock.getValueCount(p) != 1) {
-          if (lhsBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
+        switch (rhsBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
-        if (rhsBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
-        }
-        if (rhsBlock.getValueCount(p) != 1) {
-          if (rhsBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
-        }
+        long lhs = lhsBlock.getLong(lhsBlock.getFirstValueIndex(p));
+        long rhs = rhsBlock.getLong(rhsBlock.getFirstValueIndex(p));
         try {
-          result.appendLong(Mod.processLongs(lhsBlock.getLong(lhsBlock.getFirstValueIndex(p)), rhsBlock.getLong(rhsBlock.getFirstValueIndex(p))));
+          result.appendLong(Mod.processLongs(lhs, rhs));
         } catch (ArithmeticException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -108,8 +110,10 @@ public final class ModLongsEvaluator implements EvalOperator.ExpressionEvaluator
   public LongBlock eval(int positionCount, LongVector lhsVector, LongVector rhsVector) {
     try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
+        long lhs = lhsVector.getLong(p);
+        long rhs = rhsVector.getLong(p);
         try {
-          result.appendLong(Mod.processLongs(lhsVector.getLong(p), rhsVector.getLong(p)));
+          result.appendLong(Mod.processLongs(lhs, rhs));
         } catch (ArithmeticException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -131,25 +135,20 @@ public final class ModLongsEvaluator implements EvalOperator.ExpressionEvaluator
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(
-              driverContext.warningsMode(),
-              source.source().getLineNumber(),
-              source.source().getColumnNumber(),
-              source.text()
-          );
+      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
     }
     return warnings;
   }
 
-  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory lhs;
+    private final ExpressionEvaluator.Factory lhs;
 
-    private final EvalOperator.ExpressionEvaluator.Factory rhs;
+    private final ExpressionEvaluator.Factory rhs;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory lhs,
-        EvalOperator.ExpressionEvaluator.Factory rhs) {
+    public Factory(Source source, ExpressionEvaluator.Factory lhs,
+        ExpressionEvaluator.Factory rhs) {
       this.source = source;
       this.lhs = lhs;
       this.rhs = rhs;

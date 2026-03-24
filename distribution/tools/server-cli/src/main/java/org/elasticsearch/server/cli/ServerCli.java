@@ -22,22 +22,33 @@ import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.cli.EnvironmentAwareCommand;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.monitor.jvm.JvmInfo;
+import org.elasticsearch.server.launcher.common.LaunchDescriptor;
 
+import java.io.DataOutputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * The main CLI for running Elasticsearch.
+ * The main CLI for preparing the Elasticsearch server launch.
+ *
+ * <p> This program (the "preparer") does all the heavy lifting: parsing options, loading secure
+ * settings, auto-configuring security, syncing plugins, computing JVM options, and building the
+ * full command line. It then writes a {@link LaunchDescriptor} to stdout and exits. The
+ * server-launcher runs the preparer with stdout redirected and reads the descriptor from the
+ * preparer's stdout pipe, then spawns the actual server process.
  */
 class ServerCli extends EnvironmentAwareCommand {
 
@@ -46,10 +57,6 @@ class ServerCli extends EnvironmentAwareCommand {
     private final OptionSpec<Path> pidfileOption;
     private final OptionSpecBuilder quietOption;
     private final OptionSpec<String> enrollmentTokenOption;
-
-    // flag for indicating shutdown has begun. we use an AtomicBoolean to double as a synchronization object
-    private final AtomicBoolean shuttingDown = new AtomicBoolean(false);
-    private volatile ServerProcess server;
 
     // visible for testing
     ServerCli() {
@@ -103,33 +110,7 @@ class ServerCli extends EnvironmentAwareCommand {
             syncPlugins(terminal, env, processInfo);
 
             ServerArgs args = createArgs(options, env, secrets, processInfo);
-            synchronized (shuttingDown) {
-                // if we are shutting down there is no reason to start the server
-                if (shuttingDown.get()) {
-                    terminal.println("CLI is shutting down, skipping starting server process");
-                    return;
-                }
-                this.server = startServer(terminal, processInfo, args);
-            }
-        }
-
-        if (options.has(daemonizeOption)) {
-            server.detach();
-            return;
-        }
-
-        // we are running in the foreground, so wait for the server to exit
-        int exitCode = server.waitFor();
-        onExit(exitCode);
-    }
-
-    /**
-     * A post-exit hook to perform additional processing before the command terminates
-     * @param exitCode the server process exit code
-     */
-    protected void onExit(int exitCode) throws UserException {
-        if (exitCode != ExitCodes.OK) {
-            throw new UserException(exitCode, "Elasticsearch exited unexpectedly");
+            prepareLaunch(terminal, processInfo, args, options.has(daemonizeOption));
         }
     }
 
@@ -243,36 +224,80 @@ class ServerCli extends EnvironmentAwareCommand {
         return new ServerArgs(daemonize, quiet, pidFile, secrets, env.settings(), env.configDir(), env.logsDir());
     }
 
-    @Override
-    public void close() throws IOException {
-        synchronized (shuttingDown) {
-            shuttingDown.set(true);
-            if (server != null) {
-                server.stop();
-            }
-        }
-    }
-
-    // allow subclasses to access the started process
-    protected ServerProcess getServer() {
-        return server;
-    }
-
     // protected to allow tests to override
     protected Command loadTool(Map<String, String> sysprops, String toolname, String libs) {
         return CliToolProvider.load(sysprops, toolname, libs).create();
     }
 
+    /**
+     * Builds a {@link LaunchDescriptor} with all the information the launcher needs to spawn
+     * the server process and writes it to the terminal's output stream (stdout when the
+     * launcher runs the preparer with redirect mode).
+     */
     // protected to allow tests to override
-    protected ServerProcess startServer(Terminal terminal, ProcessInfo processInfo, ServerArgs args) throws Exception {
+    protected void prepareLaunch(Terminal terminal, ProcessInfo processInfo, ServerArgs args, boolean daemonize) throws Exception {
         var tempDir = ServerProcessUtils.setupTempDir(processInfo);
         var jvmOptions = JvmOptionsParser.determineJvmOptions(args, processInfo, tempDir, new MachineDependentHeap());
-        var serverProcessBuilder = new ServerProcessBuilder().withTerminal(terminal)
-            .withProcessInfo(processInfo)
-            .withServerArgs(args)
-            .withTempDir(tempDir)
-            .withJvmOptions(jvmOptions);
-        return serverProcessBuilder.start();
+
+        String command = getJavaCommand(processInfo);
+        List<String> jvmArgs = getJvmArgs(processInfo);
+        Map<String, String> environment = getEnvironment(processInfo, tempDir);
+        byte[] serverArgsBytes = serializeServerArgs(args);
+
+        LaunchDescriptor descriptor = new LaunchDescriptor(
+            command,
+            jvmOptions,
+            jvmArgs,
+            environment,
+            args.logsDir().toString(),
+            tempDir.toString(),
+            daemonize,
+            serverArgsBytes
+        );
+
+        var out = terminal.getOutputStream();
+        if (out == null) {
+            throw new IllegalStateException("terminal.getOutputStream() is null; preparer must be run with ES_REDIRECT_STDOUT_TO_STDERR");
+        }
+        DataOutputStream dos = new DataOutputStream(out);
+        descriptor.writeTo(dos);
+        dos.flush();
+    }
+
+    protected static String getJavaCommand(ProcessInfo processInfo) {
+        Path javaHome = Path.of(processInfo.sysprops().get("java.home"));
+        boolean isWindows = processInfo.sysprops().get("os.name").startsWith("Windows");
+        return javaHome.resolve("bin").resolve("java" + (isWindows ? ".exe" : "")).toString();
+    }
+
+    protected static List<String> getJvmArgs(ProcessInfo processInfo) {
+        Path esHome = processInfo.workingDir();
+        return List.of(
+            "--module-path",
+            esHome.resolve("lib").toString(),
+            "--add-modules=jdk.net",
+            "--add-modules=jdk.management.agent",
+            "--add-modules=ALL-MODULE-PATH",
+            "-m",
+            "org.elasticsearch.server/org.elasticsearch.bootstrap.Elasticsearch"
+        );
+    }
+
+    protected static Map<String, String> getEnvironment(ProcessInfo processInfo, Path tempDir) {
+        Map<String, String> envVars = new HashMap<>(processInfo.envVars());
+        envVars.remove("ES_TMPDIR");
+        if (envVars.containsKey("LIBFFI_TMPDIR") == false) {
+            envVars.put("LIBFFI_TMPDIR", tempDir.toString());
+        }
+        envVars.remove("ES_JAVA_OPTS");
+        return envVars;
+    }
+
+    protected static byte[] serializeServerArgs(ServerArgs args) throws IOException {
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            args.writeTo(out);
+            return BytesReference.toBytes(out.bytes());
+        }
     }
 
     // protected to allow tests to override

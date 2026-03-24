@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.services.elasticsearch;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.core.ml.action.CreateTrainedModelAssignmentAction;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
@@ -22,7 +23,11 @@ public class ElasticRerankerModel extends ElasticsearchInternalModel {
         ElasticRerankerServiceSettings serviceSettings,
         RerankTaskSettings taskSettings
     ) {
-        super(inferenceEntityId, taskType, service, serviceSettings, taskSettings);
+        this(new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings));
+    }
+
+    public ElasticRerankerModel(ModelConfigurations modelConfigurations) {
+        super(modelConfigurations);
     }
 
     @Override

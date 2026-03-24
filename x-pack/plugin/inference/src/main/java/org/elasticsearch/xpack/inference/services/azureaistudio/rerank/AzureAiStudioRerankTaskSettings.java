@@ -8,13 +8,13 @@
 package org.elasticsearch.xpack.inference.services.azureaistudio.rerank;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskSettings;
+import org.elasticsearch.inference.TopNProvider;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -30,8 +30,11 @@ import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiSt
 /**
  * Defines the rerank task settings for the AzureAiStudio service.
  */
-public class AzureAiStudioRerankTaskSettings implements TaskSettings {
+public class AzureAiStudioRerankTaskSettings implements TaskSettings, TopNProvider {
     public static final String NAME = "azure_ai_studio_rerank_task_settings";
+    private static final TransportVersion ML_INFERENCE_AZURE_AI_STUDIO_RERANK_ADDED = TransportVersion.fromName(
+        "ml_inference_azure_ai_studio_rerank_added"
+    );
 
     public static AzureAiStudioRerankTaskSettings fromMap(Map<String, Object> map) {
         final var validationException = new ValidationException();
@@ -88,13 +91,18 @@ public class AzureAiStudioRerankTaskSettings implements TaskSettings {
     }
 
     @Override
+    public Integer getTopN() {
+        return topN();
+    }
+
+    @Override
     public String getWriteableName() {
         return NAME;
     }
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ML_INFERENCE_AZURE_AI_STUDIO_RERANK_ADDED;
+        return ML_INFERENCE_AZURE_AI_STUDIO_RERANK_ADDED;
     }
 
     @Override

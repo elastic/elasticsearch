@@ -14,8 +14,9 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.compute.ann.Evaluator;
+import org.elasticsearch.compute.ann.Position;
 import org.elasticsearch.compute.data.BytesRefBlock;
-import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
@@ -55,8 +56,16 @@ public class MvZip extends EsqlScalarFunction implements OptionalArgument, Evalu
     )
     public MvZip(
         Source source,
-        @Param(name = "string1", type = { "keyword", "text" }, description = "Multivalue expression.") Expression mvLeft,
-        @Param(name = "string2", type = { "keyword", "text" }, description = "Multivalue expression.") Expression mvRight,
+        @Param(
+            name = "string1",
+            type = { "keyword", "text" },
+            description = "Expression that can be null, a single value, or multiple values."
+        ) Expression mvLeft,
+        @Param(
+            name = "string2",
+            type = { "keyword", "text" },
+            description = "Expression that can be null, a single value, or multiple values."
+        ) Expression mvRight,
         @Param(
             name = "delim",
             type = { "keyword", "text" },
@@ -130,7 +139,7 @@ public class MvZip extends EsqlScalarFunction implements OptionalArgument, Evalu
     }
 
     @Override
-    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         return new MvZipEvaluator.Factory(
             source(),
             toEvaluator.apply(mvLeft),
@@ -163,7 +172,13 @@ public class MvZip extends EsqlScalarFunction implements OptionalArgument, Evalu
     }
 
     @Evaluator
-    static void process(BytesRefBlock.Builder builder, int position, BytesRefBlock leftField, BytesRefBlock rightField, BytesRef delim) {
+    static void process(
+        BytesRefBlock.Builder builder,
+        @Position int position,
+        BytesRefBlock leftField,
+        BytesRefBlock rightField,
+        BytesRef delim
+    ) {
         int leftFieldValueCount = leftField.getValueCount(position);
         int rightFieldValueCount = rightField.getValueCount(position);
 

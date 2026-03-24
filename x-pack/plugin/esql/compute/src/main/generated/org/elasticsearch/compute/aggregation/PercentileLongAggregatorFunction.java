@@ -36,17 +36,12 @@ public final class PercentileLongAggregatorFunction implements AggregatorFunctio
 
   private final double percentile;
 
-  public PercentileLongAggregatorFunction(DriverContext driverContext, List<Integer> channels,
-      QuantileStates.SingleState state, double percentile) {
+  PercentileLongAggregatorFunction(DriverContext driverContext, List<Integer> channels,
+      double percentile) {
+    this.percentile = percentile;
     this.driverContext = driverContext;
     this.channels = channels;
-    this.state = state;
-    this.percentile = percentile;
-  }
-
-  public static PercentileLongAggregatorFunction create(DriverContext driverContext,
-      List<Integer> channels, double percentile) {
-    return new PercentileLongAggregatorFunction(driverContext, channels, PercentileLongAggregator.initSingle(driverContext, percentile), percentile);
+    this.state = PercentileLongAggregator.initSingle(driverContext, percentile);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -108,11 +103,12 @@ public final class PercentileLongAggregatorFunction implements AggregatorFunctio
 
   private void addRawBlock(LongBlock vBlock) {
     for (int p = 0; p < vBlock.getPositionCount(); p++) {
-      if (vBlock.isNull(p)) {
+      int vValueCount = vBlock.getValueCount(p);
+      if (vValueCount == 0) {
         continue;
       }
       int vStart = vBlock.getFirstValueIndex(p);
-      int vEnd = vStart + vBlock.getValueCount(p);
+      int vEnd = vStart + vValueCount;
       for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
         long vValue = vBlock.getLong(vOffset);
         PercentileLongAggregator.combine(state, vValue);
@@ -125,11 +121,12 @@ public final class PercentileLongAggregatorFunction implements AggregatorFunctio
       if (mask.getBoolean(p) == false) {
         continue;
       }
-      if (vBlock.isNull(p)) {
+      int vValueCount = vBlock.getValueCount(p);
+      if (vValueCount == 0) {
         continue;
       }
       int vStart = vBlock.getFirstValueIndex(p);
-      int vEnd = vStart + vBlock.getValueCount(p);
+      int vEnd = vStart + vValueCount;
       for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
         long vValue = vBlock.getLong(vOffset);
         PercentileLongAggregator.combine(state, vValue);
@@ -147,8 +144,8 @@ public final class PercentileLongAggregatorFunction implements AggregatorFunctio
     }
     BytesRefVector quart = ((BytesRefBlock) quartUncast).asVector();
     assert quart.getPositionCount() == 1;
-    BytesRef scratch = new BytesRef();
-    PercentileLongAggregator.combineIntermediate(state, quart.getBytesRef(0, scratch));
+    BytesRef quartScratch = new BytesRef();
+    PercentileLongAggregator.combineIntermediate(state, quart.getBytesRef(0, quartScratch));
   }
 
   @Override

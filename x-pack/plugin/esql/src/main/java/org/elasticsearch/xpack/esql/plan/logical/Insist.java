@@ -18,7 +18,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
-public class Insist extends UnaryPlan implements SurrogateLogicalPlan {
+public class Insist extends UnaryPlan implements SurrogateLogicalPlan, Streaming {
     private final List<? extends Attribute> insistedAttributes;
     private @Nullable List<Attribute> lazyOutput = null;
 
@@ -46,7 +46,7 @@ public class Insist extends UnaryPlan implements SurrogateLogicalPlan {
 
     @Override
     public boolean expressionsResolved() {
-        // Like EsqlProject, we allow unsupported attributes to flow through the engine.
+        // Like Project, we allow unsupported attributes to flow through the engine.
         return insistedAttributes().stream().allMatch(a -> a.resolved() || a instanceof UnsupportedAttribute);
     }
 

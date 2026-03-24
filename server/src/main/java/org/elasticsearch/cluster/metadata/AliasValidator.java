@@ -88,7 +88,7 @@ public class AliasValidator {
 
         String sameNameAsAlias = lookup.apply(alias);
         if (sameNameAsAlias != null) {
-            throw new InvalidAliasNameException(alias, "an index or data stream exists with the same name as the alias");
+            throw new InvalidAliasNameException(alias, "an index, data stream, or ESQL view exists with the same name as the alias");
         }
     }
 

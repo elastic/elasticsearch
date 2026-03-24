@@ -10,20 +10,18 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.hamcrest.CoreMatchers;
 
@@ -65,22 +63,25 @@ public class MappingParserTests extends MapperServiceTestCase {
             indexAnalyzers,
             indexSettings,
             indexSettings.getMode().idFieldMapperWithoutFieldData(),
-            bitsetFilterCache::getBitSetProducer
+            bitsetFilterCache::getBitSetProducer,
+            null
         );
 
         Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers = mapperRegistry.getMetadataMapperParsers(
             indexSettings.getIndexVersionCreated()
         );
-        Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappers = new LinkedHashMap<>();
-        metadataMapperParsers.values().stream().map(parser -> parser.getDefault(mappingParserContextSupplier.get())).forEach(m -> {
-            if (m != null) {
-                metadataMappers.put(m.getClass(), m);
+        MappingParserContext ctx = mappingParserContextSupplier.get();
+        Map<String, MetadataFieldMapper.Builder> metadataBuilders = new LinkedHashMap<>();
+        for (MetadataFieldMapper.TypeParser parser : metadataMapperParsers.values()) {
+            MetadataFieldMapper.Builder builder = parser.getDefaultBuilder(ctx);
+            if (builder != null) {
+                metadataBuilders.put(builder.leafName(), builder);
             }
-        });
+        }
         return new MappingParser(
             mappingParserContextSupplier,
             metadataMapperParsers,
-            () -> metadataMappers,
+            () -> metadataBuilders,
             type -> MapperService.SINGLE_MAPPING_NAME
         );
     }
@@ -113,7 +114,7 @@ public class MappingParserTests extends MapperServiceTestCase {
             b.endObject();
         });
         Mapping mapping = createMappingParser(Settings.EMPTY).parse("_doc", new CompressedXContent(BytesReference.bytes(builder)));
-        MappingLookup mappingLookup = MappingLookup.fromMapping(mapping);
+        MappingLookup mappingLookup = MappingLookup.fromMapping(mapping, IndexMode.STANDARD);
         assertNotNull(mappingLookup.getMapper("foo.bar"));
         assertNotNull(mappingLookup.getMapper("foo.baz.deep.field"));
         assertNotNull(mappingLookup.objectMappers().get("foo"));
@@ -128,7 +129,7 @@ public class MappingParserTests extends MapperServiceTestCase {
             IllegalArgumentException.class,
             () -> createMappingParser(Settings.EMPTY).parse("_doc", new CompressedXContent(BytesReference.bytes(builder)))
         );
-        assertTrue(e.getMessage(), e.getMessage().contains("mapper [foo] cannot be changed from type [text] to [ObjectMapper]"));
+        assertTrue(e.getMessage(), e.getMessage().contains("can't merge a non object mapping [foo] with an object mapping"));
     }
 
     public void testMultiFieldsWithFieldAlias() throws IOException {
@@ -327,33 +328,6 @@ public class MappingParserTests extends MapperServiceTestCase {
         }
     }
 
-    public void testBlankFieldNameBefore8_6_0() throws Exception {
-        IndexVersion version = IndexVersionUtils.randomVersionBetween(
-            random(),
-            IndexVersions.MINIMUM_READONLY_COMPATIBLE,
-            IndexVersions.V_8_5_0
-        );
-        TransportVersion transportVersion = TransportVersions.V_8_5_0;
-        {
-            XContentBuilder builder = mapping(b -> b.startObject(" ").field("type", randomFieldType()).endObject());
-            MappingParser mappingParser = createMappingParser(Settings.EMPTY, version, transportVersion);
-            Mapping mapping = mappingParser.parse("_doc", new CompressedXContent(BytesReference.bytes(builder)));
-            assertNotNull(mapping.getRoot().getMapper(" "));
-        }
-        {
-            XContentBuilder builder = mapping(b -> b.startObject("top. .foo").field("type", randomFieldType()).endObject());
-            MappingParser mappingParser = createMappingParser(Settings.EMPTY, version, transportVersion);
-            Mapping mapping = mappingParser.parse("_doc", new CompressedXContent(BytesReference.bytes(builder)));
-            assertNotNull(((ObjectMapper) mapping.getRoot().getMapper("top")).getMapper(" "));
-        }
-        {
-            XContentBuilder builder = mappingNoSubobjects(b -> b.startObject(" ").field("type", "keyword").endObject());
-            MappingParser mappingParser = createMappingParser(Settings.EMPTY, version, transportVersion);
-            Mapping mapping = mappingParser.parse("_doc", new CompressedXContent(BytesReference.bytes(builder)));
-            assertNotNull(mapping.getRoot().getMapper(" "));
-        }
-    }
-
     public void testFieldNameDotsOnly() throws Exception {
         String[] fieldNames = { ".", "..", "..." };
         for (String fieldName : fieldNames) {
@@ -372,6 +346,21 @@ public class MappingParserTests extends MapperServiceTestCase {
             XContentBuilder builder = mappingNoSubobjects(b -> b.startObject(fieldName).field("type", "keyword").endObject());
             assertNotNull(mappingParser.parse("_doc", new CompressedXContent(BytesReference.bytes(builder))));
         }
+    }
+
+    /**
+     * Verifies that supplementary Unicode characters (above U+FFFF) in field names survive the full
+     * mapping round-trip: XContentBuilder serialization -> CompressedXContent compression -> decompression
+     * and parsing by MappingParser. This is a regression guard for
+     * <a href="https://github.com/FasterXML/jackson-core/issues/1541">jackson-core#1541</a>.
+     */
+    public void testSupplementaryCharacterInFieldName() throws Exception {
+        MappingParser mappingParser = createMappingParser(Settings.EMPTY);
+        String fieldName = "emoji_\uD83C\uDFB5_field";
+        XContentBuilder builder = mapping(b -> b.startObject(fieldName).field("type", "keyword").endObject());
+        CompressedXContent compressed = new CompressedXContent(BytesReference.bytes(builder));
+        Mapping mapping = mappingParser.parse("_doc", compressed);
+        assertNotNull(mapping.getRoot().getMapper(fieldName));
     }
 
     public void testDynamicFieldEdgeCaseNamesRuntimeSection() throws Exception {

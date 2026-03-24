@@ -35,18 +35,13 @@ public final class TopIntAggregatorFunction implements AggregatorFunction {
 
   private final boolean ascending;
 
-  public TopIntAggregatorFunction(DriverContext driverContext, List<Integer> channels,
-      TopIntAggregator.SingleState state, int limit, boolean ascending) {
-    this.driverContext = driverContext;
-    this.channels = channels;
-    this.state = state;
+  TopIntAggregatorFunction(DriverContext driverContext, List<Integer> channels, int limit,
+      boolean ascending) {
     this.limit = limit;
     this.ascending = ascending;
-  }
-
-  public static TopIntAggregatorFunction create(DriverContext driverContext, List<Integer> channels,
-      int limit, boolean ascending) {
-    return new TopIntAggregatorFunction(driverContext, channels, TopIntAggregator.initSingle(driverContext.bigArrays(), limit, ascending), limit, ascending);
+    this.driverContext = driverContext;
+    this.channels = channels;
+    this.state = TopIntAggregator.initSingle(driverContext.bigArrays(), limit, ascending);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -108,11 +103,12 @@ public final class TopIntAggregatorFunction implements AggregatorFunction {
 
   private void addRawBlock(IntBlock vBlock) {
     for (int p = 0; p < vBlock.getPositionCount(); p++) {
-      if (vBlock.isNull(p)) {
+      int vValueCount = vBlock.getValueCount(p);
+      if (vValueCount == 0) {
         continue;
       }
       int vStart = vBlock.getFirstValueIndex(p);
-      int vEnd = vStart + vBlock.getValueCount(p);
+      int vEnd = vStart + vValueCount;
       for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
         int vValue = vBlock.getInt(vOffset);
         TopIntAggregator.combine(state, vValue);
@@ -125,11 +121,12 @@ public final class TopIntAggregatorFunction implements AggregatorFunction {
       if (mask.getBoolean(p) == false) {
         continue;
       }
-      if (vBlock.isNull(p)) {
+      int vValueCount = vBlock.getValueCount(p);
+      if (vValueCount == 0) {
         continue;
       }
       int vStart = vBlock.getFirstValueIndex(p);
-      int vEnd = vStart + vBlock.getValueCount(p);
+      int vEnd = vStart + vValueCount;
       for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
         int vValue = vBlock.getInt(vOffset);
         TopIntAggregator.combine(state, vValue);

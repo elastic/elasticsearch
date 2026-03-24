@@ -1,0 +1,6 @@
+pr: 139946
+summary: Fix validation of anomaly detection job config
+area: Machine Learning
+type: bug
+issues:
+ - 29843

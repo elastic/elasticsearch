@@ -10,12 +10,14 @@
 package org.elasticsearch.index.mapper.vectors;
 
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.codec.vectors.BFloat16;
+import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.FloatBuffer;
+import java.nio.ShortBuffer;
 
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.LITTLE_ENDIAN_FLOAT_STORED_INDEX_VERSION;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MAGNITUDE_STORED_INDEX_VERSION;
@@ -48,7 +50,7 @@ public final class VectorEncoderDecoder {
      * Calculates vector magnitude
      */
     private static float calculateMagnitude(float[] decodedVector) {
-        return (float) Math.sqrt(VectorUtil.dotProduct(decodedVector, decodedVector));
+        return (float) Math.sqrt(ESVectorUtil.dotProduct(decodedVector, decodedVector));
     }
 
     public static float getMagnitude(IndexVersion indexVersion, BytesRef vectorBR, float[] decodedVector) {
@@ -82,6 +84,14 @@ public final class VectorEncoderDecoder {
                 vector[dim] = byteBuffer.getFloat((dim * Float.BYTES) + vectorBR.offset);
             }
         }
+    }
+
+    public static void decodeBFloat16DenseVector(BytesRef vectorBR, float[] vector) {
+        if (vectorBR == null) {
+            throw new IllegalArgumentException(DenseVectorScriptDocValues.MISSING_VECTOR_FIELD_MESSAGE);
+        }
+        ShortBuffer sb = ByteBuffer.wrap(vectorBR.bytes, vectorBR.offset, vectorBR.length).order(ByteOrder.LITTLE_ENDIAN).asShortBuffer();
+        BFloat16.bFloat16ToFloat(sb, vector);
     }
 
     /**

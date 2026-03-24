@@ -1009,12 +1009,16 @@ public final class NodeEnvironment implements Closeable {
                     setDetails(details);
                 } else {
                     final Tuple<Long, String> lockDetails = this.lockDetails; // single volatile read
+                    final var stateAge = TimeValue.timeValueNanos(System.nanoTime() - lockDetails.v1());
                     final var message = format(
-                        "obtaining shard lock for [%s] timed out after [%dms], lock already held for [%s] with age [%dms]",
+                        """
+                            obtaining shard lock for [%s] timed out after [%dms]; \
+                            this shard lock is still held by a different instance of the shard and has been in state [%s] for [%s/%dms]""",
                         details,
                         timeoutInMillis,
                         lockDetails.v2(),
-                        TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - lockDetails.v1())
+                        stateAge,
+                        stateAge.millis()
                     );
                     maybeLogThreadDump(shardId, message);
                     throw new ShardLockObtainFailedException(shardId, message);

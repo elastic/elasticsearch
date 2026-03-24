@@ -11,7 +11,7 @@ package org.elasticsearch.cluster.metadata;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.Diffable;
@@ -45,6 +45,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.persistent.ClusterPersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.crossproject.ProjectTags;
 import org.elasticsearch.xcontent.NamedObjectNotFoundException;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
@@ -150,6 +151,12 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
      */
     public interface ProjectCustom extends MetadataCustom<ProjectCustom> {}
 
+    public interface TaggedProjectCustom extends ProjectCustom {
+        ProjectTags tags();
+
+        String tagPrefix();
+    }
+
     public static final Setting<Boolean> SETTING_READ_ONLY_SETTING = Setting.boolSetting(
         "cluster.blocks.read_only",
         false,
@@ -218,6 +225,8 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
             }
         }
     };
+
+    private static final TransportVersion MULTI_PROJECT = TransportVersion.fromName("multi_project");
 
     private final String clusterUUID;
     private final boolean clusterUUIDCommitted;
@@ -956,7 +965,7 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
             // (1) If the diff is read from an old node, it is already combined.
             // (2) If the diff is read from a new node, multiProject != null, which prevents it from being sent to old nodes.
             combinedTasksDiff = null;
-            if (in.getTransportVersion().before(TransportVersions.MULTI_PROJECT)) {
+            if (in.getTransportVersion().supports(MULTI_PROJECT) == false) {
                 fromNodeBeforeMultiProjectsSupport = true;
                 var indices = DiffableUtils.readImmutableOpenMapDiff(
                     in,
@@ -1039,7 +1048,7 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
             transientSettings.writeTo(out);
             persistentSettings.writeTo(out);
             hashesOfConsistentSettings.writeTo(out);
-            if (out.getTransportVersion().before(TransportVersions.MULTI_PROJECT)) {
+            if (out.getTransportVersion().supports(MULTI_PROJECT) == false) {
                 // there's only ever a single project with pre-multi-project
                 if (multiProject != null) {
                     throw new UnsupportedOperationException(
@@ -1180,7 +1189,7 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
         builder.transientSettings(readSettingsFromStream(in));
         builder.persistentSettings(readSettingsFromStream(in));
         builder.hashesOfConsistentSettings(DiffableStringMap.readFrom(in));
-        if (in.getTransportVersion().before(TransportVersions.MULTI_PROJECT)) {
+        if (in.getTransportVersion().supports(MULTI_PROJECT) == false) {
             final ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(ProjectId.DEFAULT);
             builder.put(projectBuilder);
             final Function<String, MappingMetadata> mappingLookup;
@@ -1267,7 +1276,7 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
         transientSettings.writeTo(out);
         persistentSettings.writeTo(out);
         hashesOfConsistentSettings.writeTo(out);
-        if (out.getTransportVersion().before(TransportVersions.MULTI_PROJECT)) {
+        if (out.getTransportVersion().supports(MULTI_PROJECT) == false) {
             ProjectMetadata singleProject = getSingleProject();
             out.writeMapValues(singleProject.getMappingsByHash());
             out.writeVInt(singleProject.size());

@@ -13,7 +13,6 @@ import org.apache.lucene.queries.spans.FieldMaskingSpanQuery;
 import org.apache.lucene.queries.spans.SpanQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -28,7 +27,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.index.query.SpanQueryBuilder.SpanQueryBuilderUtil.checkNoBoost;
 
-public class FieldMaskingSpanQueryBuilder extends AbstractQueryBuilder<FieldMaskingSpanQueryBuilder> implements SpanQueryBuilder {
+public class FieldMaskingSpanQueryBuilder extends LeafQueryBuilder<FieldMaskingSpanQueryBuilder> implements SpanQueryBuilder {
     public static final ParseField NAME = new ParseField("span_field_masking", "field_masking_span");
 
     private static final ParseField FIELD_FIELD = new ParseField("field");
@@ -179,6 +178,6 @@ public class FieldMaskingSpanQueryBuilder extends AbstractQueryBuilder<FieldMask
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ZERO;
+        return TransportVersion.zero();
     }
 }

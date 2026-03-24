@@ -34,7 +34,7 @@ import java.net.URISyntaxException;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
+import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests.createSender;
@@ -59,7 +59,7 @@ public abstract class ChatCompletionActionTests extends ESTestCase {
     @Before
     public void init() throws Exception {
         webServer.start();
-        threadPool = createThreadPool(inferenceUtilityPool());
+        threadPool = createThreadPool(inferenceUtilityExecutors());
         clientManager = HttpClientManager.create(Settings.EMPTY, threadPool, mockClusterServiceEmpty(), mock(ThrottlerManager.class));
     }
 
@@ -108,7 +108,7 @@ public abstract class ChatCompletionActionTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var sender = createSender(senderFactory)) {
-            sender.start();
+            sender.startSynchronously();
 
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(getResponseJson()));
 

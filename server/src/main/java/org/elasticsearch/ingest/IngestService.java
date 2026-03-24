@@ -77,10 +77,11 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.node.ReportingService;
 import org.elasticsearch.plugins.IngestPlugin;
-import org.elasticsearch.plugins.internal.XContentParserDecorator;
+import org.elasticsearch.script.Metadata;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.useragent.api.UserAgentParserRegistry;
 
 import java.time.Instant;
 import java.time.InstantSource;
@@ -108,7 +109,6 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.core.UpdateForV10.Owner.DATA_MANAGEMENT;
 
 /**
  * Holder class for several ingest related services.
@@ -133,12 +133,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
      * @return true if the node feature can be supported in the local library code, false if it is not supported
      */
     public static boolean locallySupportedIngestFeature(NodeFeature nodeFeature) {
-        if (DataStream.LOGS_STREAM_FEATURE_FLAG) {
-            // logs_stream feature flag guard
-            return IngestService.FIELD_ACCESS_PATTERN.equals(nodeFeature);
-        }
-        // Default to unsupported if not contained here
-        return false;
+        return IngestService.FIELD_ACCESS_PATTERN.equals(nodeFeature);
     }
 
     private final MasterServiceTaskQueue<PipelineClusterStateUpdateTask> taskQueue;
@@ -177,15 +172,8 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
 
     public static MatcherWatchdog createGrokThreadWatchdog(Environment env, ThreadPool threadPool) {
         final Settings settings = env.settings();
-        final BiFunction<Long, Runnable, Scheduler.ScheduledCancellable> scheduler = createScheduler(threadPool);
-        long intervalMillis = IngestSettings.GROK_WATCHDOG_INTERVAL.get(settings).getMillis();
-        long maxExecutionTimeMillis = IngestSettings.GROK_WATCHDOG_INTERVAL.get(settings).getMillis();
-        return MatcherWatchdog.newInstance(
-            intervalMillis,
-            maxExecutionTimeMillis,
-            threadPool.relativeTimeInMillisSupplier(),
-            scheduler::apply
-        );
+        long maxExecutionTimeMillis = IngestSettings.GROK_WATCHDOG_MAX_EXECUTION_TIME.get(settings).getMillis();
+        return MatcherWatchdog.newInstance(maxExecutionTimeMillis);
     }
 
     /**
@@ -255,6 +243,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         List<IngestPlugin> ingestPlugins,
         Client client,
         MatcherWatchdog matcherWatchdog,
+        UserAgentParserRegistry userAgentParserRegistry,
         FailureStoreMetrics failureStoreMetrics,
         ProjectResolver projectResolver,
         FeatureService featureService,
@@ -274,7 +263,8 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 this,
                 client,
                 threadPool.generic()::execute,
-                matcherWatchdog
+                matcherWatchdog,
+                userAgentParserRegistry
             )
         );
         this.threadPool = threadPool;
@@ -294,6 +284,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         List<IngestPlugin> ingestPlugins,
         Client client,
         MatcherWatchdog matcherWatchdog,
+        UserAgentParserRegistry userAgentParserRegistry,
         FailureStoreMetrics failureStoreMetrics,
         ProjectResolver projectResolver,
         FeatureService featureService
@@ -307,6 +298,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             ingestPlugins,
             client,
             matcherWatchdog,
+            userAgentParserRegistry,
             failureStoreMetrics,
             projectResolver,
             featureService,
@@ -839,7 +831,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         }
     }
 
-    @UpdateForV10(owner = DATA_MANAGEMENT) // Change deprecation log for special characters in name to a failure
+    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED) // Change deprecation log for special characters in name to a failure
     void validatePipeline(
         Map<DiscoveryNode, IngestInfo> ingestInfos,
         ProjectId projectId,
@@ -913,6 +905,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             null,
             IndexDocFailureStoreStatus.NOT_APPLICABLE_OR_UNKNOWN
         );
+
         private static IngestPipelinesExecutionResult failAndStoreFor(String index, Exception e) {
             return new IngestPipelinesExecutionResult(false, true, e, index, IndexDocFailureStoreStatus.USED);
         }
@@ -988,8 +981,21 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                         }
                         final int slot = i;
                         final Releasable ref = refs.acquire();
-                        final IngestDocument ingestDocument = newIngestDocument(indexRequest);
-                        final org.elasticsearch.script.Metadata originalDocumentMetadata = ingestDocument.getMetadata().clone();
+                        final IngestDocument ingestDocument;
+                        try {
+                            ingestDocument = newIngestDocument(indexRequest);
+                        } catch (Exception e) {
+                            // Document parsing failed (e.g. invalid JSON). Handle this gracefully
+                            // by marking this document as failed and continuing with other documents.
+                            final long ingestTimeInNanos = System.nanoTime() - startTimeInNanos;
+                            totalMetrics.postIngest(ingestTimeInNanos);
+                            totalMetrics.ingestFailed();
+                            ref.close();
+                            i++;
+                            onFailure.apply(slot, e, IndexDocFailureStoreStatus.NOT_APPLICABLE_OR_UNKNOWN);
+                            continue;
+                        }
+                        final Metadata originalDocumentMetadata = ingestDocument.getMetadata().clone();
                         // the document listener gives us three-way logic: a document can fail processing (1), or it can
                         // be successfully processed. a successfully processed document can be kept (2) or dropped (3).
                         final ActionListener<IngestPipelinesExecutionResult> documentListener = ActionListener.runAfter(
@@ -1186,12 +1192,11 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 listener.onFailure(e);
             }
         };
-
+        final var project = state.metadata().projects().get(pipelines.projectId());
         try {
             if (pipeline == null) {
                 throw new IllegalArgumentException("pipeline with id [" + pipelineId + "] does not exist");
             }
-            final var project = state.metadata().projects().get(pipelines.projectId());
             if (project == null) {
                 throw new IllegalArgumentException("project with id [" + pipelines.projectId() + "] does not exist");
             }
@@ -1283,27 +1288,25 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                         return; // document failed!
                     }
 
-                    for (StreamType streamType : StreamType.getEnabledStreamTypesForProject(project)) {
-                        if (streamType.matchesStreamPrefix(newIndex)
-                            && ingestDocument.getIndexHistory().contains(streamType.getStreamName()) == false) {
-                            exceptionHandler.accept(
-                                new IngestPipelineException(
-                                    pipelineId,
-                                    new IllegalArgumentException(
-                                        format(
-                                            "Pipeline [%s] can't change the target index (from [%s] to [%s] child stream [%s]) "
-                                                + "History: [%s]",
-                                            pipelineId,
-                                            originalIndex,
-                                            streamType.getStreamName(),
-                                            newIndex,
-                                            String.join(", ", ingestDocument.getIndexHistory())
-                                        )
+                    final StreamType subStream = StreamType.enabledParentStreamOf(project, newIndex);
+                    if (subStream != null && ingestDocument.getIndexHistory().contains(subStream.getStreamName()) == false) {
+                        exceptionHandler.accept(
+                            new IngestPipelineException(
+                                pipelineId,
+                                new IllegalArgumentException(
+                                    format(
+                                        "Pipeline [%s] can't change the target index (from [%s] to [%s] child stream [%s]) "
+                                            + "History: [%s]",
+                                        pipelineId,
+                                        originalIndex,
+                                        subStream.getStreamName(),
+                                        newIndex,
+                                        String.join(", ", ingestDocument.getIndexHistory())
                                     )
                                 )
-                            );
-                            return; // document failed!
-                        }
+                            )
+                        );
+                        return; // document failed!
                     }
 
                     // add the index to the document's index history, and check for cycles in the visited indices
@@ -1343,7 +1346,10 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 if (newPipelines.hasNext()) {
                     executePipelines(newPipelines, indexRequest, ingestDocument, resolveFailureStore, listener);
                 } else {
-                    // update the index request's source and (potentially) cache the timestamp for TSDB
+                    /*
+                     * At this point, all pipelines have been executed, and we are about to overwrite ingestDocument with the results.
+                     * This is our chance to sample with both the original document and all changes.
+                     */
                     updateIndexRequestSource(indexRequest, ingestDocument);
                     cacheRawTimestamp(indexRequest, ingestDocument);
                     listener.onResponse(IngestPipelinesExecutionResult.SUCCESSFUL_RESULT); // document succeeded!
@@ -1453,7 +1459,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             request.version(),
             request.routing(),
             request.versionType(),
-            request.sourceAsMap(XContentParserDecorator.NOOP)
+            request.sourceAsMap()
         );
     }
 

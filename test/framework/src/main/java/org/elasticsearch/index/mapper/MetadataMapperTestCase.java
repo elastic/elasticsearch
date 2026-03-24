@@ -109,7 +109,7 @@ public abstract class MetadataMapperTestCase extends MapperServiceTestCase {
 
     public final void testUnsupportedParametersAreRejected() throws IOException {
         assumeTrue("Metadata field " + fieldName() + " isn't configurable", isConfigurable());
-        IndexVersion version = IndexVersionUtils.randomCompatibleVersion(random());
+        IndexVersion version = IndexVersionUtils.randomCompatibleVersion();
         assumeTrue("Metadata field " + fieldName() + " is not supported on version " + version, isSupportedOn(version));
         MapperService mapperService = createMapperService(version, mapping(xContentBuilder -> {}));
         String mappingAsString = "{\n"
@@ -133,7 +133,7 @@ public abstract class MetadataMapperTestCase extends MapperServiceTestCase {
 
     public final void testFixedMetaFieldsAreNotConfigurable() throws IOException {
         assumeFalse("Metadata field " + fieldName() + " is configurable", isConfigurable());
-        IndexVersion version = IndexVersionUtils.randomCompatibleVersion(random());
+        IndexVersion version = IndexVersionUtils.randomCompatibleVersion();
         assumeTrue("Metadata field " + fieldName() + " is not supported on version " + version, isSupportedOn(version));
         MapperService mapperService = createMapperService(version, mapping(xContentBuilder -> {}));
         String mappingAsString = "{\n" + "    \"_doc\" : {\n" + "      \"" + fieldName() + "\" : {\n" + "      }\n" + "    }\n" + "}";
@@ -148,11 +148,7 @@ public abstract class MetadataMapperTestCase extends MapperServiceTestCase {
         assumeTrue("Metadata field " + fieldName() + " isn't configurable", isConfigurable());
         IndexVersion previousVersion = IndexVersionUtils.getPreviousVersion(IndexVersions.V_8_6_0);
         // we randomly also pick read-only versions to test that we can still parse the parameters for them
-        IndexVersion version = IndexVersionUtils.randomVersionBetween(
-            random(),
-            IndexVersionUtils.getLowestReadCompatibleVersion(),
-            previousVersion
-        );
+        IndexVersion version = IndexVersionUtils.randomVersionBetween(IndexVersionUtils.getLowestReadCompatibleVersion(), previousVersion);
         assumeTrue("Metadata field " + fieldName() + " is not supported on version " + version, isSupportedOn(version));
         MapperService mapperService = createMapperService(version, mapping(b -> {}));
         // these parameters were previously silently ignored, they will still be ignored in existing indices
@@ -176,7 +172,7 @@ public abstract class MetadataMapperTestCase extends MapperServiceTestCase {
     public void testTypeAndFriendsAreDeprecatedFrom_8_6_0_TO_9_0_0() throws IOException {
         assumeTrue("Metadata field " + fieldName() + " isn't configurable", isConfigurable());
         IndexVersion previousVersion = IndexVersionUtils.getPreviousVersion(IndexVersions.UPGRADE_TO_LUCENE_10_0_0);
-        IndexVersion version = IndexVersionUtils.randomVersionBetween(random(), IndexVersions.V_8_6_0, previousVersion);
+        IndexVersion version = IndexVersionUtils.randomVersionBetween(IndexVersions.V_8_6_0, previousVersion);
         assumeTrue("Metadata field " + fieldName() + " is not supported on version " + version, isSupportedOn(version));
         MapperService mapperService = createMapperService(version, mapping(b -> {}));
         // these parameters were deprecated, they now should throw an error in new indices
@@ -200,11 +196,7 @@ public abstract class MetadataMapperTestCase extends MapperServiceTestCase {
 
     public void testTypeAndFriendsThrow_After_9_0_0() throws IOException {
         assumeTrue("Metadata field " + fieldName() + " isn't configurable", isConfigurable());
-        IndexVersion version = IndexVersionUtils.randomVersionBetween(
-            random(),
-            IndexVersions.UPGRADE_TO_LUCENE_10_0_0,
-            IndexVersion.current()
-        );
+        IndexVersion version = IndexVersionUtils.randomVersionBetween(IndexVersions.UPGRADE_TO_LUCENE_10_0_0, IndexVersion.current());
         assumeTrue("Metadata field " + fieldName() + " is not supported on version " + version, isSupportedOn(version));
         MapperService mapperService = createMapperService(version, mapping(b -> {}));
         // these parameters were previously silently ignored, they are now deprecated in new indices

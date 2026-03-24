@@ -93,6 +93,18 @@ public class RerankResponseParser extends BaseCustomResponseParser {
         return builder;
     }
 
+    String getRelevanceScorePath() {
+        return relevanceScorePath;
+    }
+
+    String getRerankIndexPath() {
+        return rerankIndexPath;
+    }
+
+    String getDocumentTextPath() {
+        return documentTextPath;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;

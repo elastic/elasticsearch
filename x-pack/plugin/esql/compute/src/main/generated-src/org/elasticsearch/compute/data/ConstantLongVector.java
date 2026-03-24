@@ -41,7 +41,7 @@ final class ConstantLongVector extends AbstractVector implements LongVector {
     }
 
     @Override
-    public LongVector filter(int... positions) {
+    public LongVector filter(boolean mayContainDuplicates, int... positions) {
         return blockFactory().newConstantLongVector(value, positions.length);
     }
 
@@ -91,6 +91,15 @@ final class ConstantLongVector extends AbstractVector implements LongVector {
             return ReleasableIterator.single(positions.blockFactory().newConstantLongBlockWith(value, positions.getPositionCount()));
         }
         return new LongLookup(asBlock(), positions, targetBlockSize);
+    }
+
+    @Override
+    public LongVector slice(int beginInclusive, int endExclusive) {
+        if (beginInclusive == 0 && endExclusive == getPositionCount()) {
+            incRef();
+            return this;
+        }
+        return blockFactory().newConstantLongVector(value, endExclusive - beginInclusive);
     }
 
     @Override

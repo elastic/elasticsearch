@@ -31,16 +31,10 @@ public final class ValuesFloatAggregatorFunction implements AggregatorFunction {
 
   private final List<Integer> channels;
 
-  public ValuesFloatAggregatorFunction(DriverContext driverContext, List<Integer> channels,
-      ValuesFloatAggregator.SingleState state) {
+  ValuesFloatAggregatorFunction(DriverContext driverContext, List<Integer> channels) {
     this.driverContext = driverContext;
     this.channels = channels;
-    this.state = state;
-  }
-
-  public static ValuesFloatAggregatorFunction create(DriverContext driverContext,
-      List<Integer> channels) {
-    return new ValuesFloatAggregatorFunction(driverContext, channels, ValuesFloatAggregator.initSingle(driverContext.bigArrays()));
+    this.state = ValuesFloatAggregator.initSingle(driverContext.bigArrays());
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -102,11 +96,12 @@ public final class ValuesFloatAggregatorFunction implements AggregatorFunction {
 
   private void addRawBlock(FloatBlock vBlock) {
     for (int p = 0; p < vBlock.getPositionCount(); p++) {
-      if (vBlock.isNull(p)) {
+      int vValueCount = vBlock.getValueCount(p);
+      if (vValueCount == 0) {
         continue;
       }
       int vStart = vBlock.getFirstValueIndex(p);
-      int vEnd = vStart + vBlock.getValueCount(p);
+      int vEnd = vStart + vValueCount;
       for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
         float vValue = vBlock.getFloat(vOffset);
         ValuesFloatAggregator.combine(state, vValue);
@@ -119,11 +114,12 @@ public final class ValuesFloatAggregatorFunction implements AggregatorFunction {
       if (mask.getBoolean(p) == false) {
         continue;
       }
-      if (vBlock.isNull(p)) {
+      int vValueCount = vBlock.getValueCount(p);
+      if (vValueCount == 0) {
         continue;
       }
       int vStart = vBlock.getFirstValueIndex(p);
-      int vEnd = vStart + vBlock.getValueCount(p);
+      int vEnd = vStart + vValueCount;
       for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
         float vValue = vBlock.getFloat(vOffset);
         ValuesFloatAggregator.combine(state, vValue);

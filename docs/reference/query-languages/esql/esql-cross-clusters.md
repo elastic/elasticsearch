@@ -3,7 +3,7 @@ navigation_title: Query across clusters
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/esql-cross-clusters.html
 applies_to:
-  stack: preview 9.0, ga 9.1
+  stack: preview =9.0, ga 9.1+
   serverless: unavailable
 products:
   - id: elasticsearch
@@ -19,7 +19,7 @@ With {{esql}}, you can execute a single query across multiple clusters.
 
 * {{ccs-cap}} requires remote clusters. To set up remote clusters, see [*Remote clusters*](docs-content://deploy-manage/remote-clusters.md).
 
-    To ensure your remote cluster configuration supports {{ccs}}, see [Supported {{ccs}} configurations](docs-content://solutions/search/cross-cluster-search.md#ccs-supported-configurations).
+    To ensure your remote cluster configuration supports {{ccs}}, see [Supported {{ccs}} configurations](docs-content://explore-analyze/cross-cluster-search.md#ccs-supported-configurations).
 
 * For full {{ccs}} capabilities, the local and remote cluster must be on the same [subscription level](https://www.elastic.co/subscriptions).
 * The local coordinating node must have the [`remote_cluster_client`](docs-content://deploy-manage/distributed-architecture/clusters-nodes-shards/node-roles.md#remote-node) node role.
@@ -163,6 +163,9 @@ PUT _cluster/settings
   }
 }
 ```
+% TEST[setup:host]
+% TEST[s/35.238.149.\d+:930\d+/\${transport_host}/]
+% end::ccs-remote-cluster-setup[]
 
 1. Since `skip_unavailable` was not set on `cluster_three`, it uses the default of `true`. See the [Optional remote clusters](#ccq-skip-unavailable-clusters) section for details.
 
@@ -210,6 +213,8 @@ POST /_query/async?format=json
   "include_ccs_metadata": true
 }
 ```
+% TEST[setup:my_index]
+% TEST[s/cluster_one:my-index-000001,cluster_two:my-index//]
 
 Which returns:
 
@@ -277,6 +282,7 @@ Which returns:
   }
 }
 ```
+% TEST[skip: cross-cluster testing env not set up]
 
 1. How long the entire search (across all clusters) took, in milliseconds.
 2. This section of counters shows all possible cluster search states and how many cluster searches are currently in that state. The clusters can have one of the following statuses: **running**, **successful** (searches on all shards were successful), **skipped** (the search failed on a cluster marked with `skip_unavailable`=`true`), **failed** (the search failed on a cluster marked with `skip_unavailable`=`false`) or **partial** (the search was [interrupted](https://www.elastic.co/docs/api/doc/elasticsearch/group/endpoint-esql) before finishing or has partially failed).
@@ -300,6 +306,8 @@ POST /_query/async?format=json
   "include_ccs_metadata": true
 }
 ```
+% TEST[continued]
+% TEST[s/cluster_one:my-index\*,cluster_two:logs\*/my-index-000001/]
 
 Which returns:
 
@@ -348,6 +356,7 @@ Which returns:
   }
 }
 ```
+% TEST[skip: cross-cluster testing env not set up]
 
 1. This cluster is marked as *skipped*, since there were no matching indices on that cluster.
 2. Indicates that no shards were searched (due to not having any matching indices).
@@ -466,9 +475,9 @@ FROM my-index-000001,cluster*:my-index-*,cluster_three:-my-index-000001
 
 {{ccs-cap}} for {{esql}} behavior when there are problems connecting to or running query on remote clusters differs between versions.
 
-::::{tab-set}
+::::{applies-switch}
 
-:::{tab-item} 9.1
+:::{applies-item} stack: ga 9.1+
 Remote clusters are configured with the `skip_unavailable: true` setting by default. With this setting, clusters are marked as `skipped` or `partial` rather than causing queries to fail in the following scenarios:
 
 * The remote cluster is disconnected from the querying cluster, either before or during the query execution.
@@ -487,7 +496,7 @@ FROM cluster_one:missing-index*,cluster_two:missing-index | LIMIT 10
 ```
 :::
 
-:::{tab-item} 9.0
+:::{applies-item} stack: ga =9.0
 If a remote cluster disconnects from the querying cluster, {{ccs}} for {{esql}} will set it to `skipped`
 and continue the query with other clusters, unless the remote cluster's `skip_unavailable` setting is set to `false`,
 in which case the query will fail.

@@ -16,6 +16,13 @@ org.apache.httpcomponents.httpcore.nio:
   - manage_threads
 org.apache.httpcomponents.httpasyncclient:
   - manage_threads
+org.apache.httpcomponents.core5.httpcore5:
+  - manage_threads
+  - outbound_network
+org.apache.httpcomponents.client5.httpclient5:
+  - manage_threads
+org.apache.httpcomponents.core5.httpcore5.h2:
+  - manage_threads
 unboundid.ldapsdk:
   - set_https_connection_properties # TODO: review if we need this once we have proper test coverage
   - outbound_network

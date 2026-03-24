@@ -280,10 +280,7 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
      */
     private void finishJob() {
         isJobFinishing.set(true);
-        doSaveState(finishAndSetState(), position.get(), () -> {
-            afterFinishOrFailure();
-            isJobFinishing.set(false);
-        });
+        doSaveState(finishAndSetState(), position.get(), this::afterFinishOrFailure);
     }
 
     private <T> ActionListener<T> finishJobListener() {
@@ -434,7 +431,9 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
      * This will be called before the internal state changes from {@link IndexerState#INDEXING} to {@link IndexerState#STARTED} or
      * from {@link IndexerState#STOPPING} to {@link IndexerState#STOPPED}.
      */
-    protected void afterFinishOrFailure() {}
+    protected void afterFinishOrFailure() {
+        isJobFinishing.set(false);
+    }
 
     /**
      * Called when the indexer is stopped. This is only called when the indexer is stopped

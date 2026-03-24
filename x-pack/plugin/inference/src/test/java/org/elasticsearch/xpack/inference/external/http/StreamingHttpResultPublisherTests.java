@@ -34,7 +34,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_POOL_NAME;
-import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
+import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -507,7 +507,7 @@ public class StreamingHttpResultPublisherTests extends ESTestCase {
      */
     public void testReuseMlThread() throws ExecutionException, InterruptedException, TimeoutException {
         try {
-            threadPool = spy(createThreadPool(inferenceUtilityPool()));
+            threadPool = spy(createThreadPool(inferenceUtilityExecutors()));
             publisher = new StreamingHttpResultPublisher(threadPool, settings, listener());
             var subscriber = new TestSubscriber();
             publisher.responseReceived(mock(HttpResponse.class));
@@ -537,7 +537,7 @@ public class StreamingHttpResultPublisherTests extends ESTestCase {
     public void testCancelBreaksInfiniteLoop() throws Exception {
         try {
             var futureHolder = new AtomicReference<CompletableFuture<Void>>();
-            threadPool = spy(createThreadPool(inferenceUtilityPool()));
+            threadPool = spy(createThreadPool(inferenceUtilityExecutors()));
             doAnswer(utilityThreadPool -> {
                 var realExecutorService = (ExecutorService) utilityThreadPool.callRealMethod();
                 var executorServiceSpy = spy(realExecutorService);

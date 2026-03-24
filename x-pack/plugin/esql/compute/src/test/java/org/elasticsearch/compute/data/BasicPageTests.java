@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.util.BytesRefArray;
@@ -21,7 +22,10 @@ import java.util.List;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class BasicPageTests extends SerializationTestCase {
 
@@ -47,6 +51,27 @@ public class BasicPageTests extends SerializationTestCase {
             in,
             page -> new Page(0),
             page -> new Page(1, blockFactory.newConstantIntBlockWith(1, 1)),
+            Page::releaseBlocks
+        );
+        in.releaseBlocks();
+
+        in = new Page(10);
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
+            in,
+            page -> new Page(10),
+            page -> new Page(8, blockFactory.newConstantIntBlockWith(1, 8)),
+            Page::releaseBlocks
+        );
+        in.releaseBlocks();
+
+        in = new Page(blockFactory.newIntArrayVector(new int[] {}, 0).asBlock());
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
+            in,
+            page -> new Page(blockFactory.newIntArrayVector(new int[] {}, 0).asBlock()),
+            page -> new Page(
+                blockFactory.newIntArrayVector(new int[] {}, 0).asBlock(),
+                blockFactory.newIntArrayVector(new int[] {}, 0).asBlock()
+            ),
             Page::releaseBlocks
         );
         in.releaseBlocks();
@@ -120,21 +145,35 @@ public class BasicPageTests extends SerializationTestCase {
         };
 
         final EqualsHashCodeTestUtils.MutateFunction<Page> mutatePageFunction = page -> {
-            assert page.getPositionCount() > 0;
-            Block[] blocks = new Block[page.getBlockCount()];
-            int positions = randomInt(page.getPositionCount() - 1);
-            for (int blockIndex = 0; blockIndex < blocks.length; blockIndex++) {
-                Block block = page.getBlock(blockIndex);
-                blocks[blockIndex] = block.elementType()
-                    .newBlockBuilder(positions, TestBlockFactory.getNonBreakingInstance())
-                    .copyFrom(block, 0, page.getPositionCount() - 1)
-                    .build();
+            if (page.getPositionCount() > 0) {
+                Block[] blocks = new Block[page.getBlockCount()];
+                int positions = randomInt(page.getPositionCount() - 1);
+                for (int blockIndex = 0; blockIndex < blocks.length; blockIndex++) {
+                    Block block = page.getBlock(blockIndex);
+                    blocks[blockIndex] = block.elementType()
+                        .newBlockBuilder(positions, TestBlockFactory.getNonBreakingInstance())
+                        .copyFrom(block, 0, positions)
+                        .build();
+                }
+                return new Page(positions, blocks);
+            } else {
+                Block[] blocks = new Block[page.getBlockCount() + 1];
+                for (int blockIndex = 0; blockIndex < page.getBlockCount(); blockIndex++) {
+                    blocks[blockIndex] = page.getBlock(blockIndex);
+                }
+
+                ElementType newBlockType = randomValueOtherThanMany(
+                    x -> x == ElementType.DOC || x == ElementType.COMPOSITE || x == ElementType.UNKNOWN,
+                    () -> randomFrom(ElementType.values())
+                );
+
+                blocks[blocks.length - 1] = newBlockType.newBlockBuilder(0, TestBlockFactory.getNonBreakingInstance()).build();
+                return new Page(0, blocks);
             }
-            return new Page(blocks);
         };
 
-        int positions = randomIntBetween(1, 512);
-        int blockCount = randomIntBetween(1, 256);
+        int positions = randomIntBetween(0, 512);
+        int blockCount = randomIntBetween(0, 256);
         Block[] blocks = new Block[blockCount];
         for (int blockIndex = 0; blockIndex < blockCount; blockIndex++) {
             blocks[blockIndex] = switch (randomInt(9)) {
@@ -198,6 +237,16 @@ public class BasicPageTests extends SerializationTestCase {
         page2.releaseBlocks();
     }
 
+    public void testAppendToEmpty() {
+        Page page1 = new Page(10);
+        Page page2 = page1.appendBlock(blockFactory.newLongArrayVector(LongStream.range(0, 10).toArray(), 10).asBlock());
+        assertThat(0, is(page1.getBlockCount()));
+        assertThat(1, is(page2.getBlockCount()));
+        LongBlock block1 = page2.getBlock(0);
+        IntStream.range(0, 10).forEach(i -> assertThat((long) i, is(block1.getLong(i))));
+        page2.releaseBlocks();
+    }
+
     public void testPageSerializationSimple() throws IOException {
         IntVector toFilter = blockFactory.newIntArrayVector(IntStream.range(0, 20).toArray(), 20);
         Page origPage = new Page(
@@ -226,7 +275,7 @@ public class BasicPageTests extends SerializationTestCase {
                 ),
                 10
             ),
-            toFilter.filter(5, 6, 7, 8, 9, 10, 11, 12, 13, 14).asBlock()
+            toFilter.filter(false, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14).asBlock()
         );
         toFilter.close();
         try {
@@ -240,6 +289,22 @@ public class BasicPageTests extends SerializationTestCase {
                         assertEquals(vector.isConstant(), deserPage.getBlock(i).asVector().isConstant());
                     }
                 }
+            } finally {
+                deserPage.releaseBlocks();
+            }
+        } finally {
+            origPage.releaseBlocks();
+        }
+    }
+
+    public void testPageSerializationEmpty() throws IOException {
+        Page origPage = new Page(10);
+        try {
+            Page deserPage = serializeDeserializePage(origPage);
+            try {
+                EqualsHashCodeTestUtils.checkEqualsAndHashCode(origPage, unused -> deserPage);
+                assertEquals(origPage.getBlockCount(), deserPage.getBlockCount());
+                assertEquals(origPage.getPositionCount(), deserPage.getPositionCount());
             } finally {
                 deserPage.releaseBlocks();
             }
@@ -265,7 +330,8 @@ public class BasicPageTests extends SerializationTestCase {
                     positions
                 )
             ),
-            new Page(blockFactory.newConstantBytesRefBlockWith(new BytesRef("Hello World"), positions))
+            new Page(blockFactory.newConstantBytesRefBlockWith(new BytesRef("Hello World"), positions)),
+            new Page(10)
         );
         try {
             EqualsHashCodeTestUtils.checkEqualsAndHashCode(origPages, page -> {
@@ -286,6 +352,81 @@ public class BasicPageTests extends SerializationTestCase {
         page.releaseBlocks();
         assertThat(block.isReleased(), is(true));
         page.releaseBlocks();
+    }
+
+    public void testPageWithBatchMetadataSerialization() throws IOException {
+        int positions = randomIntBetween(1, 100);
+        long batchId = randomNonNegativeLong();
+        int pageIndexInBatch = randomIntBetween(0, 50);
+        boolean isLastPage = randomBoolean();
+
+        Page basePage = new Page(
+            blockFactory.newIntArrayVector(IntStream.range(0, positions).toArray(), positions).asBlock(),
+            blockFactory.newLongArrayVector(LongStream.range(0, positions).toArray(), positions).asBlock()
+        );
+        Page origPage = basePage.withBatchMetadata(new BatchMetadata(batchId, pageIndexInBatch, isLastPage));
+        basePage.releaseBlocks();
+        try {
+            Page deserPage = serializeDeserializePageWithVersion(origPage, TransportVersion.current());
+            try {
+                assertThat(deserPage.batchMetadata(), is(notNullValue()));
+                BatchMetadata metadata = deserPage.batchMetadata();
+                assertThat(metadata.batchId(), is(batchId));
+                assertThat(metadata.pageIndexInBatch(), is(pageIndexInBatch));
+                assertThat(metadata.isLastPageInBatch(), is(isLastPage));
+                assertThat(deserPage.getPositionCount(), is(origPage.getPositionCount()));
+                assertThat(deserPage.getBlockCount(), is(origPage.getBlockCount()));
+            } finally {
+                deserPage.releaseBlocks();
+            }
+        } finally {
+            origPage.releaseBlocks();
+        }
+    }
+
+    public void testBatchMarkerPageSerialization() throws IOException {
+        long batchId = randomNonNegativeLong();
+        int pageIndexInBatch = randomIntBetween(0, 50);
+
+        Page origPage = Page.createBatchMarkerPage(batchId, pageIndexInBatch);
+        try {
+            Page deserPage = serializeDeserializePageWithVersion(origPage, TransportVersion.current());
+            try {
+                assertThat(deserPage.batchMetadata(), is(notNullValue()));
+                BatchMetadata metadata = deserPage.batchMetadata();
+                assertThat(metadata.batchId(), is(batchId));
+                assertThat(metadata.pageIndexInBatch(), is(pageIndexInBatch));
+                assertThat(metadata.isLastPageInBatch(), is(true));
+                assertThat(deserPage.isBatchMarkerOnly(), is(true));
+                assertThat(deserPage.getPositionCount(), is(0));
+                assertThat(deserPage.getBlockCount(), is(0));
+            } finally {
+                deserPage.releaseBlocks();
+            }
+        } finally {
+            origPage.releaseBlocks();
+        }
+    }
+
+    public void testPageSerializationWithVersion() throws IOException {
+        int positions = randomIntBetween(1, 100);
+        Page origPage = new Page(
+            blockFactory.newIntArrayVector(IntStream.range(0, positions).toArray(), positions).asBlock(),
+            blockFactory.newLongArrayVector(LongStream.range(0, positions).toArray(), positions).asBlock()
+        );
+        try {
+            Page deserPage = serializeDeserializePageWithVersion(origPage, TransportVersion.current());
+            try {
+                assertThat(deserPage, is(instanceOf(Page.class)));
+                assertThat(deserPage.batchMetadata(), is(nullValue()));
+                assertThat(deserPage.getPositionCount(), is(origPage.getPositionCount()));
+                assertThat(deserPage.getBlockCount(), is(origPage.getBlockCount()));
+            } finally {
+                deserPage.releaseBlocks();
+            }
+        } finally {
+            origPage.releaseBlocks();
+        }
     }
 
     BytesRefArray bytesRefArrayOf(String... values) {

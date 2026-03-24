@@ -17,6 +17,7 @@ import org.hamcrest.Matcher;
 import java.util.List;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ToDateNanosErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
@@ -27,7 +28,7 @@ public class ToDateNanosErrorTests extends ErrorsForCasesWithoutExamplesTestCase
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new ToDateNanos(source, args.get(0));
+        return new ToDateNanos(source, args.get(0), TEST_CFG);
     }
 
     @Override

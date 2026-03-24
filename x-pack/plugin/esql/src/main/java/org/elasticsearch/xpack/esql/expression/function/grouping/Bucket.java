@@ -12,7 +12,7 @@ import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAware;
@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.Foldables;
+import org.elasticsearch.xpack.esql.expression.function.ConfigurationFunction;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
@@ -35,10 +36,14 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.math.Floor;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
+import java.util.function.Function;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
@@ -48,7 +53,6 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNumeric;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 import static org.elasticsearch.xpack.esql.expression.Validations.isFoldable;
-import static org.elasticsearch.xpack.esql.session.Configuration.DEFAULT_TZ;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToLong;
 
 /**
@@ -60,32 +64,51 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeTo
 public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
     implements
         PostOptimizationVerificationAware,
-        TwoOptionalArguments {
+        TwoOptionalArguments,
+        ConfigurationFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Bucket", Bucket::new);
 
     // TODO maybe we should just cover the whole of representable dates here - like ten years, 100 years, 1000 years, all the way up.
     // That way you never end up with more than the target number of buckets.
-    private static final Rounding LARGEST_HUMAN_DATE_ROUNDING = Rounding.builder(Rounding.DateTimeUnit.YEAR_OF_CENTURY).build();
-    private static final Rounding[] HUMAN_DATE_ROUNDINGS = new Rounding[] {
-        Rounding.builder(Rounding.DateTimeUnit.MONTH_OF_YEAR).build(),
-        Rounding.builder(Rounding.DateTimeUnit.WEEK_OF_WEEKYEAR).build(),
-        Rounding.builder(Rounding.DateTimeUnit.DAY_OF_MONTH).build(),
-        Rounding.builder(TimeValue.timeValueHours(12)).build(),
-        Rounding.builder(TimeValue.timeValueHours(3)).build(),
-        Rounding.builder(TimeValue.timeValueHours(1)).build(),
-        Rounding.builder(TimeValue.timeValueMinutes(30)).build(),
-        Rounding.builder(TimeValue.timeValueMinutes(10)).build(),
-        Rounding.builder(TimeValue.timeValueMinutes(5)).build(),
-        Rounding.builder(TimeValue.timeValueMinutes(1)).build(),
-        Rounding.builder(TimeValue.timeValueSeconds(30)).build(),
-        Rounding.builder(TimeValue.timeValueSeconds(10)).build(),
-        Rounding.builder(TimeValue.timeValueSeconds(5)).build(),
-        Rounding.builder(TimeValue.timeValueSeconds(1)).build(),
-        Rounding.builder(TimeValue.timeValueMillis(100)).build(),
-        Rounding.builder(TimeValue.timeValueMillis(50)).build(),
-        Rounding.builder(TimeValue.timeValueMillis(10)).build(),
-        Rounding.builder(TimeValue.timeValueMillis(1)).build(), };
+    private static final Unit YEAR_OF_CENTURY = Unit.from(Rounding.DateTimeUnit.YEAR_OF_CENTURY);
+    private static final Unit MONTH_OF_YEAR = Unit.from(Rounding.DateTimeUnit.MONTH_OF_YEAR);
+    private static final Unit WEEK_OF_WEEKYEAR = Unit.from(Rounding.DateTimeUnit.WEEK_OF_WEEKYEAR);
+    private static final List<Unit> DAY_OF_MONTH_OR_FINER = List.of(
+        Unit.from(Rounding.DateTimeUnit.DAY_OF_MONTH),
+        Unit.from(TimeValue.timeValueHours(12)),
+        Unit.from(TimeValue.timeValueHours(3)),
+        Unit.from(TimeValue.timeValueHours(1)),
+        Unit.from(TimeValue.timeValueMinutes(30)),
+        Unit.from(TimeValue.timeValueMinutes(10)),
+        Unit.from(TimeValue.timeValueMinutes(5)),
+        Unit.from(TimeValue.timeValueMinutes(1)),
+        Unit.from(TimeValue.timeValueSeconds(30)),
+        Unit.from(TimeValue.timeValueSeconds(10)),
+        Unit.from(TimeValue.timeValueSeconds(5)),
+        Unit.from(TimeValue.timeValueSeconds(1)),
+        Unit.from(TimeValue.timeValueMillis(100)),
+        Unit.from(TimeValue.timeValueMillis(50)),
+        Unit.from(TimeValue.timeValueMillis(10)),
+        Unit.from(TimeValue.timeValueMillis(1))
+    );
 
+    private record Unit(Function<ZoneId, Rounding> fn) implements Function<ZoneId, Rounding> {
+
+        public static Unit from(Rounding.DateTimeUnit unit) {
+            return new Unit(zoneId -> Rounding.builder(unit).timeZone(zoneId).build());
+        }
+
+        public static Unit from(TimeValue interval) {
+            return new Unit(zoneId -> Rounding.builder(interval).timeZone(zoneId).build());
+        }
+
+        @Override
+        public Rounding apply(ZoneId zoneId) {
+            return fn.apply(zoneId);
+        }
+    }
+
+    private final Configuration configuration;
     private final Expression field;
     private final Expression buckets;
     private final Expression from;
@@ -208,13 +231,15 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
             type = { "integer", "long", "double", "date", "keyword", "text" },
             optional = true,
             description = "End of the range. Can be a number, a date or a date expressed as a string."
-        ) Expression to
+        ) Expression to,
+        Configuration configuration
     ) {
         super(source, fields(field, buckets, from, to));
         this.field = field;
         this.buckets = buckets;
         this.from = from;
         this.to = to;
+        this.configuration = configuration;
     }
 
     private Bucket(StreamInput in) throws IOException {
@@ -223,11 +248,12 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
             in.readNamedWriteable(Expression.class),
             in.readNamedWriteable(Expression.class),
             in.readOptionalNamedWriteable(Expression.class),
-            in.readOptionalNamedWriteable(Expression.class)
+            in.readOptionalNamedWriteable(Expression.class),
+            ((PlanStreamInput) in).configuration()
         );
     }
 
-    private static List<Expression> fields(Expression field, Expression buckets, Expression from, Expression to) {
+    static List<Expression> fields(Expression field, Expression buckets, Expression from, Expression to) {
         List<Expression> list = new ArrayList<>(4);
         list.add(field);
         list.add(buckets);
@@ -308,26 +334,47 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
             long f = foldToLong(foldContext, from);
             long t = foldToLong(foldContext, to);
             if (min != null && max != null) {
-                return new DateRoundingPicker(b, f, t).pickRounding().prepare(min, max);
+                return new DateRoundingPicker(b, f, t, configuration.zoneId()).pickRounding().prepare(min, max);
             }
-            return new DateRoundingPicker(b, f, t).pickRounding().prepareForUnknown();
+            return new DateRoundingPicker(b, f, t, configuration.zoneId()).pickRounding().prepareForUnknown();
         } else {
             assert DataType.isTemporalAmount(buckets.dataType()) : "Unexpected span data type [" + buckets.dataType() + "]";
-            return DateTrunc.createRounding(buckets.fold(foldContext), DEFAULT_TZ, min, max);
+            return DateTrunc.createRounding(buckets.fold(foldContext), configuration.zoneId(), min, max);
         }
     }
 
-    private record DateRoundingPicker(int buckets, long from, long to) {
+    private record DateRoundingPicker(int buckets, long from, long to, ZoneId zoneId) {
         Rounding pickRounding() {
-            Rounding prev = LARGEST_HUMAN_DATE_ROUNDING;
-            for (Rounding r : HUMAN_DATE_ROUNDINGS) {
-                if (roundingIsOk(r)) {
-                    prev = r;
+            Rounding best = findLastOk(DAY_OF_MONTH_OR_FINER);
+            if (best != null) {
+                return best;
+            }
+            Rounding week = WEEK_OF_WEEKYEAR.apply(zoneId);
+            if (roundingIsOk(week)) {
+                return week;
+            }
+            Rounding month = MONTH_OF_YEAR.apply(zoneId);
+            if (roundingIsOk(month)) {
+                return month;
+            }
+            return YEAR_OF_CENTURY.apply(zoneId);
+        }
+
+        private Rounding findLastOk(List<Unit> candidates) {
+            int low = 0;
+            int high = candidates.size() - 1;
+            Rounding best = null;
+            while (low <= high) {
+                int mid = (low + high) >>> 1;
+                Rounding candidate = candidates.get(mid).apply(zoneId);
+                if (roundingIsOk(candidate)) {
+                    best = candidate;
+                    low = mid + 1;
                 } else {
-                    return prev;
+                    high = mid - 1;
                 }
             }
-            return prev;
+            return best;
         }
 
         /**
@@ -464,12 +511,12 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
     public Expression replaceChildren(List<Expression> newChildren) {
         Expression from = newChildren.size() > 2 ? newChildren.get(2) : null;
         Expression to = newChildren.size() > 3 ? newChildren.get(3) : null;
-        return new Bucket(source(), newChildren.get(0), newChildren.get(1), from, to);
+        return new Bucket(source(), newChildren.get(0), newChildren.get(1), from, to, configuration);
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, Bucket::new, field, buckets, from, to);
+        return NodeInfo.create(this, Bucket::new, field, buckets, from, to, configuration);
     }
 
     public Expression field() {
@@ -491,5 +538,20 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
     @Override
     public String toString() {
         return "Bucket{" + "field=" + field + ", buckets=" + buckets + ", from=" + from + ", to=" + to + '}';
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(getClass(), children(), configuration);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (super.equals(obj) == false) {
+            return false;
+        }
+        Bucket other = (Bucket) obj;
+
+        return configuration.equals(other.configuration);
     }
 }

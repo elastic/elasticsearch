@@ -1,5 +1,0 @@
-pr: 131723
-summary: Tests for FORK's evaluation of field names used in `field_caps` resolve calls
-area: Search
-type: bug
-issues: []

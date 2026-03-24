@@ -68,8 +68,8 @@ public class CountedKeywordFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected void registerParameters(ParameterChecker checker) {
-        // Nothing to do
+    protected void registerParameters(ParameterChecker checker) throws IOException {
+        checker.registerConflictCheck("index", b -> b.field("index", false));
     }
 
     @Override
@@ -218,5 +218,15 @@ public class CountedKeywordFieldMapperTests extends MapperTestCase {
         assertEquals(1, fields.size());
         assertEquals(IndexOptions.NONE, fields.get(0).fieldType().indexOptions());
         assertEquals(DocValuesType.SORTED_SET, fields.get(0).fieldType().docValuesType());
+    }
+
+    @Override
+    protected List<SortShortcutSupport> getSortShortcutSupport() {
+        return List.of();
+    }
+
+    @Override
+    protected boolean supportsDocValuesSkippers() {
+        return false;
     }
 }

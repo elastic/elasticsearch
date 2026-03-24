@@ -20,9 +20,14 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -30,6 +35,7 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.LeafFieldData;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
@@ -39,13 +45,20 @@ import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.RootObjectMapper;
+import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
+import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.query.SearchExecutionContextHelper;
+import org.elasticsearch.index.query.WildcardQueryBuilder;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.breaker.CircuitBreakerMetrics;
+import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
+import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
@@ -60,7 +73,10 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 
 import java.io.IOException;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -109,6 +125,17 @@ public class SearchServiceTests extends IndexShardTestCase {
         SortField sortField = new SortField("field", SortField.Type.STRING);
         MinAndMax<BytesRef> expectedMinAndMax = new MinAndMax<>(new BytesRef("value"), new BytesRef("value"));
         doTestCanMatch(searchRequest, sortField, true, expectedMinAndMax, false);
+    }
+
+    public void testCanMatchTimeRangeFilter() throws IOException {
+        SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(false)
+            .source(new SearchSourceBuilder().query(new RangeQueryBuilder("@timestamp").from("2025-12-15")));
+        SearchService.CanMatchContext canMatchContext = doTestCanMatch(searchRequest, null, false, null, false);
+        LocalDateTime localDateTime = LocalDateTime.of(2025, 12, 15, 0, 0);
+        assertEquals(
+            localDateTime.atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
+            canMatchContext.getTimeRangeFilterFromMillis().longValue()
+        );
     }
 
     public void testCanMatchKeywordSortedQueryMatchNoneWithException() throws IOException {
@@ -160,9 +187,31 @@ public class SearchServiceTests extends IndexShardTestCase {
         e.fillInStackTrace();
         assertThat(e.getStackTrace().length, is(not(0)));
         listener.onFailure(e);
-        listener = wrapListenerForErrorHandling(listener, TransportVersion.current(), "node", shardId, 123L, threadPool);
+        listener = wrapListenerForErrorHandling(listener, TransportVersion.current(), "node", shardId, 123L, threadPool, randomLifecycle());
         isWrapped.set(true);
         listener.onFailure(e);
+    }
+
+    private static Lifecycle randomLifecycle() {
+        return randomBoolean() ? randomInitializedOrStartedLifecycle() : randomStoppedOrClosedLifecycle();
+    }
+
+    private static Lifecycle randomInitializedOrStartedLifecycle() {
+        Lifecycle lifecycle = new Lifecycle();
+        if (randomBoolean()) {
+            lifecycle.started();
+        }
+        return lifecycle;
+    }
+
+    private static Lifecycle randomStoppedOrClosedLifecycle() {
+        Lifecycle lifecycle = new Lifecycle();
+        lifecycle.started();
+        lifecycle.stopped();
+        if (randomBoolean()) {
+            lifecycle.closed();
+        }
+        return lifecycle;
     }
 
     public void testWrapListenerForErrorHandlingDebugLog() {
@@ -197,9 +246,31 @@ public class SearchServiceTests extends IndexShardTestCase {
                     mockLog.assertAllExpectationsMatched();
                 }
             };
-            IllegalArgumentException e = new IllegalArgumentException(exceptionMessage); // 400-level exception
-            listener = wrapListenerForErrorHandling(listener, TransportVersion.current(), nodeId, shardId, taskId, threadPool);
-            listener.onFailure(e);
+            // Default behavior is to use debug level for 400-level exceptions
+            IllegalArgumentException iae = new IllegalArgumentException(exceptionMessage); // 400-level exception
+            listener = wrapListenerForErrorHandling(
+                listener,
+                TransportVersion.current(),
+                nodeId,
+                shardId,
+                taskId,
+                threadPool,
+                randomLifecycle()
+            );
+            listener.onFailure(iae);
+
+            // Debug logging for a 500-level exception when closing or stopped lifecycle is to log as debug level
+            IllegalStateException ise = new IllegalStateException(exceptionMessage);
+            listener = wrapListenerForErrorHandling(
+                listener,
+                TransportVersion.current(),
+                nodeId,
+                shardId,
+                taskId,
+                threadPool,
+                randomStoppedOrClosedLifecycle()
+            );
+            listener.onFailure(ise);
         }
     }
 
@@ -235,7 +306,15 @@ public class SearchServiceTests extends IndexShardTestCase {
                 }
             };
             IllegalStateException e = new IllegalStateException(exceptionMessage); // 500-level exception
-            listener = wrapListenerForErrorHandling(listener, TransportVersion.current(), nodeId, shardId, taskId, threadPool);
+            listener = wrapListenerForErrorHandling(
+                listener,
+                TransportVersion.current(),
+                nodeId,
+                shardId,
+                taskId,
+                threadPool,
+                randomInitializedOrStartedLifecycle()
+            );
             listener.onFailure(e);
         }
     }
@@ -317,7 +396,107 @@ public class SearchServiceTests extends IndexShardTestCase {
         }
     }
 
-    private void doTestCanMatch(
+    public void testBuildQueryWithCircuitBreakerAccountsMemory() throws IOException {
+        IndexShard indexShard = newShard(true);
+        try {
+            recoverShardFromStore(indexShard);
+            try (Engine.Searcher searcher = indexShard.acquireSearcher("test")) {
+                CircuitBreaker cb = createQueryConstructionBreaker("100mb");
+                SearchExecutionContext context = new SearchExecutionContext(
+                    createSearchExecutionContext((mappedFieldType, fieldDataContext) -> null, searcher),
+                    cb
+                );
+
+                try {
+                    long cbBefore = cb.getUsed();
+                    assertEquals("Freshly created breaker must start at zero", 0L, cbBefore);
+
+                    WildcardQueryBuilder queryBuilder = new WildcardQueryBuilder("field", "*test*pattern*");
+                    assertNotNull(queryBuilder.toQuery(context));
+
+                    long cbAfter = cb.getUsed();
+                    long tracked = context.getQueryConstructionMemoryUsed();
+
+                    assertTrue("Circuit breaker should have accounted memory", cbAfter > cbBefore);
+                    assertTrue("Context should have tracked memory", tracked > 0);
+                    assertEquals("CB delta must match tracked memory", cbAfter - cbBefore, tracked);
+                } finally {
+                    context.releaseQueryConstructionMemory();
+                }
+            }
+        } finally {
+            closeShards(indexShard);
+        }
+    }
+
+    public void testBuildQueryWithCircuitBreakerTripsOnLimitExceeded() throws IOException {
+        IndexShard indexShard = newShard(true);
+        try {
+            recoverShardFromStore(indexShard);
+            try (Engine.Searcher searcher = indexShard.acquireSearcher("test")) {
+                CircuitBreaker cb = createQueryConstructionBreaker("1kb");
+                SearchExecutionContext context = new SearchExecutionContext(
+                    createSearchExecutionContext((mappedFieldType, fieldDataContext) -> null, searcher),
+                    cb
+                );
+
+                try {
+                    BoolQueryBuilder boolQuery = new BoolQueryBuilder();
+                    for (int i = 0; i < 50; i++) {
+                        boolQuery.should(new WildcardQueryBuilder("field", "*a*b*c*" + i + "*"));
+                    }
+
+                    expectThrows(CircuitBreakingException.class, () -> boolQuery.toQuery(context));
+                } finally {
+                    context.releaseQueryConstructionMemory();
+                }
+            }
+        } finally {
+            closeShards(indexShard);
+        }
+    }
+
+    public void testQueryConstructionMemoryReleasedOnContextClose() throws IOException {
+        IndexShard indexShard = newShard(true);
+        try {
+            recoverShardFromStore(indexShard);
+            try (Engine.Searcher searcher = indexShard.acquireSearcher("test")) {
+                CircuitBreaker cb = createQueryConstructionBreaker("100mb");
+                SearchExecutionContext context = new SearchExecutionContext(
+                    createSearchExecutionContext((mappedFieldType, fieldDataContext) -> null, searcher),
+                    cb
+                );
+
+                for (int i = 0; i < 3; i++) {
+                    new WildcardQueryBuilder("field", "*test" + i + "*").toQuery(context);
+                }
+
+                long cbAfterBuild = cb.getUsed();
+                long tracked = context.getQueryConstructionMemoryUsed();
+                assertTrue("Memory should be accounted before release", cbAfterBuild > 0);
+                assertEquals("Tracked memory should match CB", cbAfterBuild, tracked);
+
+                context.releaseQueryConstructionMemory();
+
+                assertEquals("CB must be fully released", 0L, cb.getUsed());
+                assertEquals("Tracked memory must be zeroed", 0L, context.getQueryConstructionMemoryUsed());
+            }
+        } finally {
+            closeShards(indexShard);
+        }
+    }
+
+    private CircuitBreaker createQueryConstructionBreaker(String limit) {
+        Settings settings = Settings.builder()
+            .put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), limit)
+            .put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), false)
+            .build();
+        ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        return new HierarchyCircuitBreakerService(CircuitBreakerMetrics.NOOP, settings, Collections.emptyList(), clusterSettings)
+            .getBreaker(CircuitBreaker.REQUEST);
+    }
+
+    private SearchService.CanMatchContext doTestCanMatch(
         SearchRequest searchRequest,
         SortField sortField,
         boolean expectedCanMatch,
@@ -339,7 +518,7 @@ public class SearchServiceTests extends IndexShardTestCase {
         IndexShard indexShard = newShard(true);
         try {
             recoverShardFromStore(indexShard);
-            assertTrue(indexDoc(indexShard, "_doc", "id", "{\"field\":\"value\"}").isCreated());
+            assertTrue(indexDoc(indexShard, "_doc", "id", "{\"field\":\"value\", \"@timestamp\":\"2025-12-09\"}").isCreated());
             assertTrue(indexShard.refresh("test").refreshed());
             try (Engine.Searcher searcher = indexShard.acquireSearcher("test")) {
                 SearchExecutionContext searchExecutionContext = createSearchExecutionContext(
@@ -363,7 +542,7 @@ public class SearchServiceTests extends IndexShardTestCase {
                     assertEquals(expectedMinAndMax.getMin(), minAndMax.getMin());
                     assertEquals(expectedMinAndMax.getMin(), minAndMax.getMax());
                 }
-
+                return canMatchContext;
             }
         } finally {
             closeShards(indexShard);
@@ -389,11 +568,19 @@ public class SearchServiceTests extends IndexShardTestCase {
             new MetadataFieldMapper[0],
             Collections.emptyMap()
         );
-        KeywordFieldMapper keywordFieldMapper = new KeywordFieldMapper.Builder("field", IndexVersion.current()).build(root);
+        KeywordFieldMapper keywordFieldMapper = new KeywordFieldMapper.Builder("field", indexSettings).build(root);
+        DateFieldMapper dateFieldMapper = new DateFieldMapper.Builder(
+            "@timestamp",
+            DateFieldMapper.Resolution.MILLISECONDS,
+            null,
+            ScriptCompiler.NONE,
+            indexSettings
+        ).build(root);
         MappingLookup mappingLookup = MappingLookup.fromMappers(
             mapping,
-            Collections.singletonList(keywordFieldMapper),
-            Collections.emptyList()
+            List.of(keywordFieldMapper, dateFieldMapper),
+            Collections.emptyList(),
+            IndexMode.STANDARD
         );
         return new SearchExecutionContext(
             0,
@@ -415,7 +602,9 @@ public class SearchServiceTests extends IndexShardTestCase {
             () -> true,
             null,
             Collections.emptyMap(),
-            MapperMetrics.NOOP
+            null,
+            MapperMetrics.NOOP,
+            SearchExecutionContextHelper.SHARD_SEARCH_STATS
         );
     }
 

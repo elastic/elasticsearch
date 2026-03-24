@@ -1,0 +1,6 @@
+area: Vector Search
+issues:
+  - 141863
+pr: 142036
+summary: Check for support for native vector ops before calling them
+type: bug

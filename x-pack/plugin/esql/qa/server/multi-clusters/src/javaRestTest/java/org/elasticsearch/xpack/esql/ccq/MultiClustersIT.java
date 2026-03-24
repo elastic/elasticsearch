@@ -13,6 +13,7 @@ import org.apache.http.HttpHost;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -263,9 +264,9 @@ public class MultiClustersIT extends ESRestTestCase {
 
     private <C, V> void assertResultMap(boolean includeCCSMetadata, Map<String, Object> result, C columns, V values, boolean remoteOnly) {
         MapMatcher mapMatcher = getResultMatcher(
-            ccsMetadataAvailable(),
             result.containsKey("is_partial"),
-            result.containsKey("documents_found")
+            result.containsKey("documents_found"),
+            result.containsKey("start_time_in_millis")
         ).extraOk();
         if (includeCCSMetadata) {
             mapMatcher = mapMatcher.entry("_clusters", any(Map.class));
@@ -316,7 +317,6 @@ public class MultiClustersIT extends ESRestTestCase {
             assertResultMap(includeCCSMetadata, result, columns, values, true);
         }
         {
-            assumeTrue("requires ccs metadata", ccsMetadataAvailable());
             Map<String, Object> result = runWithColumnarAndIncludeCCSMetadata("FROM *:test-remote-index | STATS total = SUM(data)");
             var columns = List.of(Map.of("name", "total", "type", "long"));
             long sum = remoteDocs.stream().mapToLong(d -> d.data).sum();
@@ -457,8 +457,6 @@ public class MultiClustersIT extends ESRestTestCase {
 
     @SuppressWarnings("unchecked")
     public void testStats() throws IOException {
-        assumeTrue("capabilities endpoint is not available", capabilitiesEndpointAvailable());
-
         Request caps = new Request("GET", "_capabilities?method=GET&path=_cluster/stats&capabilities=esql-stats");
         Response capsResponse = client().performRequest(caps);
         Map<String, Object> capsResult = entityAsMap(capsResponse.getEntity());
@@ -530,7 +528,11 @@ public class MultiClustersIT extends ESRestTestCase {
             var columns = List.of(Map.of("name", "c", "type", "long"));
             var values = List.of(List.of(localDocs.size()));
 
-            MapMatcher mapMatcher = getResultMatcher(true, false, result.containsKey("documents_found")).extraOk();
+            MapMatcher mapMatcher = getResultMatcher(
+                false,
+                result.containsKey("documents_found"),
+                result.containsKey("start_time_in_millis")
+            ).extraOk();
             mapMatcher = mapMatcher.entry("_clusters", any(Map.class));
             mapMatcher = mapMatcher.entry("is_partial", true);
             assertMap(result, mapMatcher.entry("columns", columns).entry("values", values));
@@ -756,20 +758,44 @@ public class MultiClustersIT extends ESRestTestCase {
         return buildClient(restClientSettings(), clusterHosts.toArray(new HttpHost[0]));
     }
 
-    private static boolean ccsMetadataAvailable() {
-        return Clusters.localClusterVersion().onOrAfter(Version.V_8_16_0);
-    }
-
-    private static boolean capabilitiesEndpointAvailable() {
-        return Clusters.localClusterVersion().onOrAfter(Version.V_8_15_0);
-    }
-
     private static boolean supportsLookupJoinAliases(Version version) {
         return version.onOrAfter(Version.V_9_2_0);
     }
 
     private static boolean includeCCSMetadata() {
-        return ccsMetadataAvailable() && randomBoolean();
+        return randomBoolean();
+    }
+
+    public void testRemoteViewFailsQuery() throws IOException {
+        assumeTrue("views not supported on remote cluster", capabilitiesSupportedNewAndOld(List.of("views_crud_as_index_actions")));
+        try (RestClient remoteClient = remoteClusterClient()) {
+            Request putView = new Request("PUT", "/_query/view/test-remote-view");
+            putView.setJsonEntity("{\"query\":\"FROM test-remote-index | LIMIT 10\"}");
+            assertOK(remoteClient.performRequest(putView));
+        }
+        try {
+            ResponseException e = expectThrows(
+                ResponseException.class,
+                () -> runEsql(new RestEsqlTestCase.RequestObjectBuilder().query("FROM remote_cluster:test-remote-*").build())
+            );
+            assertEquals(400, e.getResponse().getStatusLine().getStatusCode());
+            @SuppressWarnings("unchecked")
+            Map<String, Object> error = (Map<String, Object>) entityAsMap(e.getResponse()).get("error");
+            assertThat(error.get("type"), equalTo("remote_view_not_supported_exception"));
+            assertThat(
+                (String) error.get("reason"),
+                equalTo(
+                    "ES|QL queries with remote views are not supported. Matched [remote_cluster:test-remote-view]."
+                        + " Remove them from the query pattern or exclude them with"
+                        + " [remote_cluster:-test-remote-view] if matched by a wildcard."
+                )
+            );
+        } finally {
+            try (RestClient remoteClient = remoteClusterClient()) {
+                Request deleteView = new Request("DELETE", "/_query/view/test-remote-view");
+                remoteClient.performRequest(deleteView);
+            }
+        }
     }
 
     public static class ClusterSettingToggle implements AutoCloseable {

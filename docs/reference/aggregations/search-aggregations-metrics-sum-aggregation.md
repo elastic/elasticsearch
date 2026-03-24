@@ -26,6 +26,7 @@ POST /sales/_search?size=0
   }
 }
 ```
+% TEST[setup:sales]
 
 Resulting in:
 
@@ -39,6 +40,7 @@ Resulting in:
   }
 }
 ```
+% TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 
 The name of the aggregation (`hat_prices` above) also serves as the key by which the aggregation result can be retrieved from the returned response.
 
@@ -77,7 +79,8 @@ POST /sales/_search?size=0
   }
 }
 ```
-
+% TEST[setup:sales]
+% TEST[s/size=0/size=0&filter_path=aggregations/]
 
 ## Missing value [_missing_value_17]
 
@@ -103,7 +106,7 @@ POST /sales/_search?size=0
   }
 }
 ```
-
+% TEST[setup:sales]
 
 ## Histogram fields [search-aggregations-metrics-sum-aggregation-histogram-fields]
 

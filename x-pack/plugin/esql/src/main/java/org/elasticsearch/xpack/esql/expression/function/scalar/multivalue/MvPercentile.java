@@ -13,10 +13,11 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
+import org.elasticsearch.compute.ann.Position;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
-import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -65,7 +66,11 @@ public class MvPercentile extends EsqlScalarFunction {
     )
     public MvPercentile(
         Source source,
-        @Param(name = "number", type = { "double", "integer", "long" }, description = "Multivalue expression.") Expression field,
+        @Param(
+            name = "number",
+            type = { "double", "integer", "long" },
+            description = "Expression that can be null, a single value, or multiple values."
+        ) Expression field,
         @Param(
             name = "percentile",
             type = { "double", "integer", "long" },
@@ -112,6 +117,10 @@ public class MvPercentile extends EsqlScalarFunction {
 
     public final Expression field() {
         return field;
+    }
+
+    Expression percentile() {
+        return percentile;
     }
 
     @Override
@@ -165,7 +174,7 @@ public class MvPercentile extends EsqlScalarFunction {
     @Evaluator(extraName = "Double", warnExceptions = IllegalArgumentException.class)
     static void process(
         DoubleBlock.Builder builder,
-        int position,
+        @Position int position,
         DoubleBlock values,
         double percentile,
         @Fixed(includeInToString = false, scope = THREAD_LOCAL) DoubleSortingScratch scratch
@@ -188,7 +197,7 @@ public class MvPercentile extends EsqlScalarFunction {
     @Evaluator(extraName = "Integer", warnExceptions = IllegalArgumentException.class)
     static void process(
         IntBlock.Builder builder,
-        int position,
+        @Position int position,
         IntBlock values,
         double percentile,
         @Fixed(includeInToString = false, scope = THREAD_LOCAL) IntSortingScratch scratch
@@ -211,7 +220,7 @@ public class MvPercentile extends EsqlScalarFunction {
     @Evaluator(extraName = "Long", warnExceptions = IllegalArgumentException.class)
     static void process(
         LongBlock.Builder builder,
-        int position,
+        @Position int position,
         LongBlock values,
         double percentile,
         @Fixed(includeInToString = false, scope = THREAD_LOCAL) LongSortingScratch scratch

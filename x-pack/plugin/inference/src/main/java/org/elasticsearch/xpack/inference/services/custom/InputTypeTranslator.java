@@ -13,7 +13,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InputType;
-import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -39,16 +38,11 @@ public class InputTypeTranslator implements ToXContentFragment, Writeable {
         }
 
         Map<String, Object> inputTypeTranslation = Objects.requireNonNullElse(
-            extractOptionalMap(map, INPUT_TYPE_TRANSLATOR, ModelConfigurations.SERVICE_SETTINGS, validationException),
+            extractOptionalMap(map, INPUT_TYPE_TRANSLATOR, validationException),
             new HashMap<>(Map.of())
         );
 
-        Map<String, Object> translationMap = extractOptionalMap(
-            inputTypeTranslation,
-            TRANSLATION,
-            INPUT_TYPE_TRANSLATOR,
-            validationException
-        );
+        Map<String, Object> translationMap = extractOptionalMap(inputTypeTranslation, TRANSLATION, validationException);
 
         var validatedTranslation = InputType.validateInputTypeTranslationValues(translationMap, validationException);
 

@@ -12,7 +12,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
-import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -42,7 +42,7 @@ public class Now extends EsqlConfigurationFunction {
     public Now(Source source, Configuration configuration) {
         super(source, List.of(), configuration);
         assert configuration.now() != null;
-        this.now = configuration.now().toInstant().toEpochMilli();
+        this.now = configuration.now().toEpochMilli();
     }
 
     private Now(StreamInput in) throws IOException {

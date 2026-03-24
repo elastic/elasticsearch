@@ -90,8 +90,22 @@ public class HttpClient {
 
     public SqlQueryResponse basicQuery(String query, int fetchSize, boolean fieldMultiValueLeniency, boolean allowPartialSearchResults)
         throws SQLException {
+        return basicQuery(query, fetchSize, fieldMultiValueLeniency, allowPartialSearchResults, null);
+    }
+
+    public SqlQueryResponse basicQuery(
+        String query,
+        int fetchSize,
+        boolean fieldMultiValueLeniency,
+        boolean allowPartialSearchResults,
+        String projectRouting
+    ) throws SQLException {
         // TODO allow customizing the time zone - this is what session set/reset/get should be about
         // method called only from CLI
+
+        if (projectRouting == null) {
+            projectRouting = cfg.projectRouting();
+        }
         SqlQueryRequest sqlRequest = new SqlQueryRequest(
             query,
             emptyList(),
@@ -106,8 +120,10 @@ public class HttpClient {
             fieldMultiValueLeniency,
             false,
             cfg.binaryCommunication(),
-            allowPartialSearchResults
+            allowPartialSearchResults,
+            projectRouting
         );
+
         return query(sqlRequest).response();
     }
 
@@ -123,7 +139,8 @@ public class HttpClient {
             TimeValue.timeValueMillis(cfg.pageTimeout()),
             new RequestInfo(Mode.CLI),
             cfg.binaryCommunication(),
-            cfg.allowPartialSearchResults()
+            cfg.allowPartialSearchResults(),
+            cfg.projectRouting()
         );
         return post(CoreProtocol.SQL_QUERY_REST_ENDPOINT, sqlRequest, Payloads::parseQueryResponse).response();
     }
@@ -177,9 +194,11 @@ public class HttpClient {
             cfg.pageSize(),
             cfg.authUser(),
             cfg.authPass(),
+            cfg.apiKey(),
             cfg.sslConfig(),
             cfg.proxyConfig(),
-            CoreProtocol.ALLOW_PARTIAL_SEARCH_RESULTS
+            CoreProtocol.ALLOW_PARTIAL_SEARCH_RESULTS,
+            cfg.projectRouting()
         );
         try {
             return java.security.AccessController.doPrivileged(

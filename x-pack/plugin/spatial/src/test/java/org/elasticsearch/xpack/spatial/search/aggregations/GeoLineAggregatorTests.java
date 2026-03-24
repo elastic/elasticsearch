@@ -38,7 +38,6 @@ import org.elasticsearch.geometry.ShapeType;
 import org.elasticsearch.geometry.simplify.SimplificationErrorCalculator;
 import org.elasticsearch.geometry.simplify.StreamingGeometrySimplifier;
 import org.elasticsearch.geometry.utils.WellKnownText;
-import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
@@ -951,7 +950,7 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
             }
             fieldTypes.add(new DateFieldMapper.DateFieldType("time_field"));
             fieldTypes.add(
-                new KeywordFieldMapper.Builder("group_id", IndexVersion.current()).dimension(true)
+                new KeywordFieldMapper.Builder("group_id", defaultIndexSettings()).dimension(true)
                     .docValues(true)
                     .indexed(false)
                     .build(MapperBuilderContext.root(true, true))

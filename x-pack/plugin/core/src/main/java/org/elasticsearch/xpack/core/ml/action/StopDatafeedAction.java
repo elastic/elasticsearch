@@ -42,6 +42,7 @@ public class StopDatafeedAction extends ActionType<StopDatafeedAction.Response> 
         public static final ParseField TIMEOUT = new ParseField("timeout");
         public static final ParseField FORCE = new ParseField("force");
         public static final ParseField ALLOW_NO_MATCH = new ParseField("allow_no_match");
+        public static final ParseField CLOSE_JOB = new ParseField("close_job");
 
         public static final ObjectParser<Request, Void> PARSER = new ObjectParser<>(NAME, Request::new);
         static {
@@ -52,6 +53,7 @@ public class StopDatafeedAction extends ActionType<StopDatafeedAction.Response> 
             );
             PARSER.declareBoolean(Request::setForce, FORCE);
             PARSER.declareBoolean(Request::setAllowNoMatch, ALLOW_NO_MATCH);
+            PARSER.declareBoolean(Request::setCloseJob, CLOSE_JOB);
         }
 
         public static Request parseRequest(String datafeedId, XContentParser parser) {
@@ -67,6 +69,7 @@ public class StopDatafeedAction extends ActionType<StopDatafeedAction.Response> 
         private TimeValue stopTimeout = DEFAULT_TIMEOUT;
         private boolean force = false;
         private boolean allowNoMatch = true;
+        private boolean closeJob = false;
 
         public Request(String datafeedId) {
             this.datafeedId = ExceptionsHelper.requireNonNull(datafeedId, DatafeedConfig.ID.getPreferredName());
@@ -81,6 +84,7 @@ public class StopDatafeedAction extends ActionType<StopDatafeedAction.Response> 
             stopTimeout = in.readTimeValue();
             force = in.readBoolean();
             allowNoMatch = in.readBoolean();
+            closeJob = in.readBoolean();
         }
 
         public String getDatafeedId() {
@@ -124,6 +128,15 @@ public class StopDatafeedAction extends ActionType<StopDatafeedAction.Response> 
             return this;
         }
 
+        public boolean closeJob() {
+            return closeJob;
+        }
+
+        public Request setCloseJob(boolean closeJob) {
+            this.closeJob = closeJob;
+            return this;
+        }
+
         @Override
         public boolean match(Task task) {
             for (String id : resolvedStartedDatafeedIds) {
@@ -148,11 +161,12 @@ public class StopDatafeedAction extends ActionType<StopDatafeedAction.Response> 
             out.writeTimeValue(stopTimeout);
             out.writeBoolean(force);
             out.writeBoolean(allowNoMatch);
+            out.writeBoolean(closeJob);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(datafeedId, stopTimeout, force, allowNoMatch);
+            return Objects.hash(datafeedId, stopTimeout, force, allowNoMatch, closeJob);
         }
 
         @Override
@@ -162,6 +176,7 @@ public class StopDatafeedAction extends ActionType<StopDatafeedAction.Response> 
             builder.field(TIMEOUT.getPreferredName(), stopTimeout.getStringRep());
             builder.field(FORCE.getPreferredName(), force);
             builder.field(ALLOW_NO_MATCH.getPreferredName(), allowNoMatch);
+            builder.field(CLOSE_JOB.getPreferredName(), closeJob);
             builder.endObject();
             return builder;
         }
@@ -178,7 +193,8 @@ public class StopDatafeedAction extends ActionType<StopDatafeedAction.Response> 
             return Objects.equals(datafeedId, other.datafeedId)
                 && Objects.equals(stopTimeout, other.stopTimeout)
                 && Objects.equals(force, other.force)
-                && Objects.equals(allowNoMatch, other.allowNoMatch);
+                && Objects.equals(allowNoMatch, other.allowNoMatch)
+                && Objects.equals(closeJob, other.closeJob);
         }
     }
 

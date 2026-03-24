@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.azureaistudio.embeddings;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -18,7 +17,9 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.inference.InferenceUtils;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioEndpointType;
 import org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioProvider;
@@ -39,7 +40,6 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractSim
 public class AzureAiStudioEmbeddingsServiceSettings extends AzureAiStudioServiceSettings {
 
     public static final String NAME = "azure_ai_studio_embeddings_service_settings";
-    static final String DIMENSIONS_SET_BY_USER = "dimensions_set_by_user";
 
     public static AzureAiStudioEmbeddingsServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
         ValidationException validationException = new ValidationException();
@@ -68,13 +68,13 @@ public class AzureAiStudioEmbeddingsServiceSettings extends AzureAiStudioService
             ModelConfigurations.SERVICE_SETTINGS,
             validationException
         );
-        Boolean dimensionsSetByUser = extractOptionalBoolean(map, DIMENSIONS_SET_BY_USER, validationException);
+        Boolean dimensionsSetByUser = extractOptionalBoolean(map, ServiceFields.DIMENSIONS_SET_BY_USER, validationException);
 
         switch (context) {
             case REQUEST -> {
                 if (dimensionsSetByUser != null) {
                     validationException.addValidationError(
-                        ServiceUtils.invalidSettingError(DIMENSIONS_SET_BY_USER, ModelConfigurations.SERVICE_SETTINGS)
+                        ServiceUtils.invalidSettingError(ServiceFields.DIMENSIONS_SET_BY_USER, ModelConfigurations.SERVICE_SETTINGS)
                     );
                 }
                 dimensionsSetByUser = dims != null;
@@ -82,7 +82,7 @@ public class AzureAiStudioEmbeddingsServiceSettings extends AzureAiStudioService
             case PERSISTENT -> {
                 if (dimensionsSetByUser == null) {
                     validationException.addValidationError(
-                        ServiceUtils.missingSettingErrorMsg(DIMENSIONS_SET_BY_USER, ModelConfigurations.SERVICE_SETTINGS)
+                        InferenceUtils.missingSettingErrorMsg(ServiceFields.DIMENSIONS_SET_BY_USER, ModelConfigurations.SERVICE_SETTINGS)
                     );
                 }
             }
@@ -166,7 +166,7 @@ public class AzureAiStudioEmbeddingsServiceSettings extends AzureAiStudioService
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_15_0;
+        return TransportVersion.minimumCompatible();
     }
 
     @Override
@@ -201,7 +201,7 @@ public class AzureAiStudioEmbeddingsServiceSettings extends AzureAiStudioService
 
         super.addXContentFields(builder, params);
         addXContentFragmentOfExposedFields(builder, params);
-        builder.field(DIMENSIONS_SET_BY_USER, dimensionsSetByUser);
+        builder.field(ServiceFields.DIMENSIONS_SET_BY_USER, dimensionsSetByUser);
 
         builder.endObject();
         return builder;

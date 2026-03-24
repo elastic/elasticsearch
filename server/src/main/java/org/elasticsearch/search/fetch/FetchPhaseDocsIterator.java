@@ -33,6 +33,20 @@ import java.util.Arrays;
 abstract class FetchPhaseDocsIterator {
 
     /**
+     * Accounts for FetchPhase memory usage.
+     * It gets cleaned up after each fetch phase and should not be accessed/modified by subclasses.
+     */
+    private long requestBreakerBytes;
+
+    public void addRequestBreakerBytes(long delta) {
+        requestBreakerBytes += delta;
+    }
+
+    public long getRequestBreakerBytes() {
+        return requestBreakerBytes;
+    }
+
+    /**
      * Called when a new leaf reader is reached
      * @param ctx           the leaf reader for this set of doc ids
      * @param docsInLeaf    the reader-specific docids to be fetched in this leaf reader

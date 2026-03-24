@@ -76,8 +76,13 @@ $endif$
     }
 
     @Override
-    public $Type$Block filter(int... positions) {
-        return vector.filter(positions).asBlock();
+    public $Type$Block slice(int beginInclusive, int endExclusive) {
+        return vector.slice(beginInclusive, endExclusive).asBlock();
+    }
+
+    @Override
+    public $Type$Block filter(boolean mayContainDuplicates, int... positions) {
+        return vector.filter(mayContainDuplicates, positions).asBlock();
     }
 
     @Override

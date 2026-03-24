@@ -36,10 +36,15 @@ class EmptyExponentialHistogram extends AbstractExponentialHistogram implements 
     private static class EmptyBuckets implements Buckets {
 
         private static final EmptyBuckets INSTANCE = new EmptyBuckets();
-        private static final CopyableBucketIterator EMPTY_ITERATOR = new BucketArrayIterator(SCALE, new long[0], new long[0], 0, 0);
+        private static final CopyableBucketIterator EMPTY_ITERATOR = BucketArrayIterator.create(SCALE, new long[0], new long[0], 0, 0);
 
         @Override
         public CopyableBucketIterator iterator() {
+            return EMPTY_ITERATOR;
+        }
+
+        @Override
+        public CopyableBucketIterator reverseIterator() {
             return EMPTY_ITERATOR;
         }
 
@@ -84,6 +89,11 @@ class EmptyExponentialHistogram extends AbstractExponentialHistogram implements 
 
     @Override
     public double min() {
+        return Double.NaN;
+    }
+
+    @Override
+    public double max() {
         return Double.NaN;
     }
 

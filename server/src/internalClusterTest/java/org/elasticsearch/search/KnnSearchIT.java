@@ -18,10 +18,14 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
+import org.elasticsearch.search.vectors.VectorData;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.util.Base64;
 import java.util.List;
 
 import static org.hamcrest.Matchers.notNullValue;
@@ -77,13 +81,13 @@ public class KnnSearchIT extends ESIntegTestCase {
         // test top level knn search
         {
             SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
-            sourceBuilder.knnSearch(List.of(new KnnSearchBuilder(VECTOR_FIELD, new float[] { 0, 0 }, k, 100, null, null)));
+            sourceBuilder.knnSearch(List.of(new KnnSearchBuilder(VECTOR_FIELD, new float[] { 0, 0 }, k, 100, 10f, null, null)));
             executeScrollSearch(client, sourceBuilder, k);
         }
         // test top level knn search + another query
         {
             SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
-            sourceBuilder.knnSearch(List.of(new KnnSearchBuilder(VECTOR_FIELD, new float[] { 0, 0 }, k, 100, null, null)));
+            sourceBuilder.knnSearch(List.of(new KnnSearchBuilder(VECTOR_FIELD, new float[] { 0, 0 }, k, 100, 10f, null, null)));
             sourceBuilder.query(QueryBuilders.existsQuery("category").boost(10));
             executeScrollSearch(client, sourceBuilder, k + 10);
         }
@@ -91,7 +95,7 @@ public class KnnSearchIT extends ESIntegTestCase {
         // test knn query
         {
             SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
-            sourceBuilder.query(new KnnVectorQueryBuilder(VECTOR_FIELD, new float[] { 0, 0 }, k, 100, null, null));
+            sourceBuilder.query(new KnnVectorQueryBuilder(VECTOR_FIELD, new float[] { 0, 0 }, k, 100, 10f, null, null));
             executeScrollSearch(client, sourceBuilder, k * numShards);
         }
         // test knn query + another query
@@ -99,7 +103,7 @@ public class KnnSearchIT extends ESIntegTestCase {
             SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
             sourceBuilder.query(
                 QueryBuilders.boolQuery()
-                    .should(new KnnVectorQueryBuilder(VECTOR_FIELD, new float[] { 0, 0 }, k, 100, null, null))
+                    .should(new KnnVectorQueryBuilder(VECTOR_FIELD, new float[] { 0, 0 }, k, 100, 10f, null, null))
                     .should(QueryBuilders.existsQuery("category").boost(10))
             );
             executeScrollSearch(client, sourceBuilder, k * numShards + 10);
@@ -132,6 +136,47 @@ public class KnnSearchIT extends ESIntegTestCase {
             clearScroll(searchResponse.getScrollId());
             searchResponse.decRef();
         }
+    }
+
+    public void testQueryVectorBase64Parity() throws Exception {
+        String index = INDEX_NAME + "_base64";
+        Client client = client();
+        client.admin().indices().prepareCreate(index).setMapping(createKnnMapping()).get();
+
+        for (int i = 0; i < 10; i++) {
+            float[] vector = new float[] { randomFloat(), randomFloat() };
+            XContentBuilder source = XContentFactory.jsonBuilder().startObject().field(VECTOR_FIELD, vector).endObject();
+            client.prepareIndex(index).setSource(source).get();
+        }
+        refresh(index);
+
+        float[] queryVector = new float[] { randomFloat(), randomFloat() };
+        SearchSourceBuilder vectorQuery = new SearchSourceBuilder().query(
+            new KnnVectorQueryBuilder(VECTOR_FIELD, queryVector, 3, 5, 10f, null, null)
+        );
+        SearchSourceBuilder base64Query = new SearchSourceBuilder().query(
+            new KnnVectorQueryBuilder(VECTOR_FIELD, new VectorData(encodeToBase64(queryVector)), 3, 5, 10f, null, null)
+        );
+
+        SearchResponse standard = client.search(new SearchRequest(index).source(vectorQuery)).actionGet();
+        SearchResponse base64 = client.search(new SearchRequest(index).source(base64Query)).actionGet();
+
+        try {
+            assertEquals(standard.getHits().getTotalHits().value(), base64.getHits().getTotalHits().value());
+            for (int i = 0; i < standard.getHits().getHits().length; i++) {
+                assertEquals(standard.getHits().getAt(i).getId(), base64.getHits().getAt(i).getId());
+                assertEquals(standard.getHits().getAt(i).getScore(), base64.getHits().getAt(i).getScore(), 0f);
+            }
+        } finally {
+            standard.decRef();
+            base64.decRef();
+        }
+    }
+
+    private static String encodeToBase64(float[] vector) {
+        ByteBuffer buffer = ByteBuffer.allocate(Float.BYTES * vector.length).order(ByteOrder.BIG_ENDIAN);
+        buffer.asFloatBuffer().put(vector);
+        return Base64.getEncoder().encodeToString(buffer.array());
     }
 
 }

@@ -38,12 +38,13 @@ public class ForUtilTests extends LuceneTestCase {
 
     public void testEncodeDecode() throws IOException {
         final int iterations = RandomNumbers.randomIntBetween(random(), 50, 1000);
-        final int[] values = new int[iterations * ForUtil.BLOCK_SIZE];
+        final int blockSize = ForUtil.BLOCK_SIZE << random().nextInt(0, 5);
+        final int[] values = new int[iterations * blockSize];
 
         for (int i = 0; i < iterations; ++i) {
             final int bpv = TestUtil.nextInt(random(), 1, 31);
-            for (int j = 0; j < ForUtil.BLOCK_SIZE; ++j) {
-                values[i * ForUtil.BLOCK_SIZE + j] = RandomNumbers.randomIntBetween(random(), 0, (int) PackedInts.maxValue(bpv));
+            for (int j = 0; j < blockSize; ++j) {
+                values[i * blockSize + j] = RandomNumbers.randomIntBetween(random(), 0, (int) PackedInts.maxValue(bpv));
             }
         }
 
@@ -55,10 +56,10 @@ public class ForUtilTests extends LuceneTestCase {
             IndexOutput out = d.createOutput("test.bin", IOContext.DEFAULT);
 
             for (int i = 0; i < iterations; ++i) {
-                long[] source = new long[ForUtil.BLOCK_SIZE];
+                long[] source = new long[blockSize];
                 long or = 0;
-                for (int j = 0; j < ForUtil.BLOCK_SIZE; ++j) {
-                    source[j] = values[i * ForUtil.BLOCK_SIZE + j];
+                for (int j = 0; j < blockSize; ++j) {
+                    source[j] = values[i * blockSize + j];
                     or |= source[j];
                 }
                 final int bpv = PackedInts.bitsRequired(or);
@@ -75,18 +76,14 @@ public class ForUtilTests extends LuceneTestCase {
             for (int i = 0; i < iterations; ++i) {
                 final int bitsPerValue = in.readByte();
                 final long currentFilePointer = in.getFilePointer();
-                final long[] restored = new long[ForUtil.BLOCK_SIZE];
+                final long[] restored = new long[blockSize];
                 ForUtil.decode(bitsPerValue, in, restored);
-                int[] ints = new int[ForUtil.BLOCK_SIZE];
-                for (int j = 0; j < ForUtil.BLOCK_SIZE; ++j) {
+                int[] ints = new int[blockSize];
+                for (int j = 0; j < blockSize; ++j) {
                     ints[j] = Math.toIntExact(restored[j]);
                 }
-                assertArrayEquals(
-                    Arrays.toString(ints),
-                    ArrayUtil.copyOfSubArray(values, i * ForUtil.BLOCK_SIZE, (i + 1) * ForUtil.BLOCK_SIZE),
-                    ints
-                );
-                assertEquals(ForUtil.numBytes(bitsPerValue), in.getFilePointer() - currentFilePointer);
+                assertArrayEquals(Arrays.toString(ints), ArrayUtil.copyOfSubArray(values, i * blockSize, (i + 1) * blockSize), ints);
+                assertEquals(ForUtil.numBytes(bitsPerValue) * blockSize / ForUtil.BLOCK_SIZE, in.getFilePointer() - currentFilePointer);
             }
             assertEquals(endPointer, in.getFilePointer());
             in.close();

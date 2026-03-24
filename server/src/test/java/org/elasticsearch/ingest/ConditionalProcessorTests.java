@@ -26,8 +26,10 @@ import org.elasticsearch.test.ESTestCase;
 import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
@@ -141,55 +143,14 @@ public class ConditionalProcessorTests extends ESTestCase {
         assertMutatingCtxThrows(ctx -> ctx.put("foo", "bar"));
         assertMutatingCtxThrows(ctx -> ((List<Object>) ctx.get("listField")).add("bar"));
         assertMutatingCtxThrows(ctx -> ((List<Object>) ctx.get("listField")).remove("bar"));
-    }
-
-    public void testTypeDeprecation() throws Exception {
-
-        ScriptService scriptService = new ScriptService(
-            Settings.builder().build(),
-            Map.of(Script.DEFAULT_SCRIPT_LANG, new MockScriptEngine(Script.DEFAULT_SCRIPT_LANG, Map.of(scriptName, ctx -> {
-                ctx.get("_type");
-                return true;
-            }), Map.of())),
-            new HashMap<>(ScriptModule.CORE_CONTEXTS),
-            () -> 1L,
-            TestProjectResolvers.singleProject(randomProjectIdOrDefault())
+        assertMutatingCtxThrows(ctx -> ((Map<String, Object>) ctx.get("mapField")).put("bar", "baz"));
+        assertMutatingCtxThrows(ctx -> ((Map<?, ?>) ctx.get("mapField")).remove("bar"));
+        assertMutatingCtxThrows(ctx -> ((Set<Object>) ctx.get("setField")).add("bar"));
+        assertMutatingCtxThrows(ctx -> ((Set<Object>) ctx.get("setField")).remove("bar"));
+        assertMutatingCtxThrows(ctx -> ((List<Object>) ((Set<Object>) ctx.get("setField")).iterator().next()).add("bar"));
+        assertMutatingCtxThrows(
+            ctx -> ((List<Object>) ((List<Object>) ((Set<Object>) ctx.get("setField")).iterator().next()).iterator().next()).add("bar")
         );
-
-        LongSupplier relativeTimeProvider = mock(LongSupplier.class);
-        when(relativeTimeProvider.getAsLong()).thenReturn(0L, TimeUnit.MILLISECONDS.toNanos(1), 0L, TimeUnit.MILLISECONDS.toNanos(2));
-        ConditionalProcessor processor = new ConditionalProcessor(
-            randomAlphaOfLength(10),
-            "description",
-            new Script(ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG, scriptName, Map.of()),
-            scriptService,
-            new Processor() {
-                @Override
-                public IngestDocument execute(final IngestDocument ingestDocument) {
-                    return ingestDocument;
-                }
-
-                @Override
-                public String getType() {
-                    return null;
-                }
-
-                @Override
-                public String getTag() {
-                    return null;
-                }
-
-                @Override
-                public String getDescription() {
-                    return null;
-                }
-            },
-            relativeTimeProvider
-        );
-
-        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), Map.of());
-        execProcessor(processor, ingestDocument, (result, e) -> {});
-        assertWarnings("[types removal] Looking up doc types [_type] in scripts is deprecated.");
     }
 
     public void testPrecompiledError() {
@@ -243,6 +204,7 @@ public class ConditionalProcessorTests extends ESTestCase {
         execProcessor(processor, ingestDoc, (doc, e) -> { assertThat(e.getMessage(), equalTo("runtime problem")); });
     }
 
+    @SuppressWarnings("unchecked")
     private static void assertMutatingCtxThrows(Consumer<Map<String, Object>> mutation) throws Exception {
         String scriptName = "conditionalScript";
         PlainActionFuture<Exception> expectedException = new PlainActionFuture<>();
@@ -270,6 +232,11 @@ public class ConditionalProcessorTests extends ESTestCase {
         );
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
         ingestDocument.setFieldValue("listField", new ArrayList<>());
+        ingestDocument.setFieldValue("mapField", new HashMap<>());
+        ingestDocument.setFieldValue("setField", new HashSet<>());
+        List<Object> listWithinSet = new ArrayList<>();
+        listWithinSet.add(new ArrayList<>());
+        ingestDocument.getFieldValue("setField", Set.class).add(listWithinSet);
         execProcessor(processor, ingestDocument, (result, e) -> {});
         Exception e = safeGet(expectedException);
         assertThat(e, instanceOf(UnsupportedOperationException.class));

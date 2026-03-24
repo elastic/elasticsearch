@@ -324,7 +324,8 @@ public class AsyncTaskManagementService<
         ThreadPool threadPool,
         Task task,
         ActionListener<StoredAsyncResponse<Response>> listener,
-        TimeValue timeout
+        TimeValue timeout,
+        boolean returnIntermediateResults
     ) {
         if (timeout.getMillis() <= 0) {
             getCurrentResult(task, listener);

@@ -437,7 +437,7 @@ public class IndexingPressureIT extends ESIntegTestCase {
         }));
 
         final ThreadPool replicaThreadPool = internalCluster().getInstance(ThreadPool.class, replicaName);
-        final ThreadPool primaryThreadPool = internalCluster().getInstance(ThreadPool.class, replicaName);
+        final ThreadPool primaryThreadPool = internalCluster().getInstance(ThreadPool.class, primaryName);
         try (
             Releasable blockedPrimaryWriteThreadsRelease = blockWriteThreadPool(primaryThreadPool);
             Releasable blockedReplicaWriteThreadsRelease = blockWriteThreadPool(replicaThreadPool)

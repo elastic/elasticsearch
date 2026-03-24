@@ -17,6 +17,7 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettingProvider;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.test.ESTestCase;
@@ -25,7 +26,6 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.BiConsumer;
 
 import static org.hamcrest.CoreMatchers.is;
 import static org.mockito.ArgumentMatchers.any;
@@ -63,7 +63,7 @@ public class TransportSimulateIndexTemplateActionTests extends ESTestCase {
         // Create a setting provider that sets the test-setting to 0
         Set<IndexSettingProvider> indexSettingsProviders = Set.of(new IndexSettingProvider() {
             @Override
-            public void provideAdditionalMetadata(
+            public void provideAdditionalSettings(
                 String indexName,
                 String dataStreamName,
                 IndexMode templateIndexMode,
@@ -71,14 +71,14 @@ public class TransportSimulateIndexTemplateActionTests extends ESTestCase {
                 Instant resolvedAt,
                 Settings allSettings,
                 List<CompressedXContent> combinedTemplateMappings,
-                Settings.Builder additionalSettings,
-                BiConsumer<String, Map<String, String>> additionalCustomMetadata
+                IndexVersion indexVersion,
+                Settings.Builder additionalSettings
             ) {
                 additionalSettings.put("test-setting", 0);
             }
         }, new IndexSettingProvider() {
             @Override
-            public void provideAdditionalMetadata(
+            public void provideAdditionalSettings(
                 String indexName,
                 String dataStreamName,
                 IndexMode templateIndexMode,
@@ -86,8 +86,8 @@ public class TransportSimulateIndexTemplateActionTests extends ESTestCase {
                 Instant resolvedAt,
                 Settings indexTemplateAndCreateRequestSettings,
                 List<CompressedXContent> combinedTemplateMappings,
-                Settings.Builder additionalSettings,
-                BiConsumer<String, Map<String, String>> additionalCustomMetadata
+                IndexVersion indexVersion,
+                Settings.Builder additionalSettings
             ) {
                 additionalSettings.put("test-setting-2", 10);
             }

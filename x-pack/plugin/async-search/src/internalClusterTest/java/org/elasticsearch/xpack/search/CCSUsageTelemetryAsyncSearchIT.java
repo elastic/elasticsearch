@@ -22,6 +22,7 @@ import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.AbstractMultiClustersTestCase;
 import org.elasticsearch.test.InternalTestCluster;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.xpack.async.AsyncResultsIndexPlugin;
@@ -50,6 +51,10 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
+@TestLogging(
+    reason = "testing debug log output to identify race condition",
+    value = "org.elasticsearch.xpack.search.MutableSearchResponse:DEBUG,org.elasticsearch.xpack.search.AsyncSearchTask:DEBUG"
+)
 public class CCSUsageTelemetryAsyncSearchIT extends AbstractMultiClustersTestCase {
     private static final String REMOTE1 = "cluster-a";
     private static final String REMOTE2 = "cluster-b";

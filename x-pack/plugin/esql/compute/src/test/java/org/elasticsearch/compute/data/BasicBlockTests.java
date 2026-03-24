@@ -18,7 +18,7 @@ import org.elasticsearch.common.util.IntArray;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
-import org.elasticsearch.compute.lucene.ShardRefCounted;
+import org.elasticsearch.compute.lucene.AlwaysReferencedIndexedByShardId;
 import org.elasticsearch.compute.test.BlockTestUtils;
 import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.core.RefCounted;
@@ -27,11 +27,14 @@ import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geo.ShapeTestUtils;
+import org.elasticsearch.geometry.utils.WellKnownBinary;
+import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 import org.junit.Before;
 
+import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.BitSet;
@@ -44,23 +47,21 @@ import java.util.stream.LongStream;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.compute.test.BlockTestUtils.valuesAtPositions;
-import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
-import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class BasicBlockTests extends ESTestCase {
-    final CircuitBreaker breaker = new MockBigArrays.LimitedBreaker("esql-test-breaker", ByteSizeValue.ofGb(1));
-    final BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, mockBreakerService(breaker));
-    final BlockFactory blockFactory = BlockFactory.getInstance(breaker, bigArrays);
+    final CircuitBreakerService breakerService = newLimitedBreakerService(ByteSizeValue.ofGb(1));
+    final CircuitBreaker breaker = breakerService.getBreaker(CircuitBreaker.REQUEST);
+    final BlockFactory blockFactory = BlockFactory.builder(new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, breakerService))
+        .build();
 
     @Before
     @After
@@ -69,37 +70,62 @@ public class BasicBlockTests extends ESTestCase {
     }
 
     public void testEmpty() {
-        testEmpty(blockFactory);
-    }
-
-    void testEmpty(BlockFactory bf) {
-        assertZeroPositionsAndRelease(bf.newIntArrayBlock(new int[] {}, 0, new int[] { 0 }, new BitSet(), randomOrdering()));
-        assertZeroPositionsAndRelease(bf.newIntBlockBuilder(0).build());
-        assertZeroPositionsAndRelease(bf.newIntArrayVector(new int[] {}, 0));
-        assertZeroPositionsAndRelease(bf.newIntVectorBuilder(0).build());
-        assertZeroPositionsAndRelease(bf.newLongArrayBlock(new long[] {}, 0, new int[] { 0 }, new BitSet(), randomOrdering()));
-        assertZeroPositionsAndRelease(bf.newLongBlockBuilder(0).build());
-        assertZeroPositionsAndRelease(bf.newLongArrayVector(new long[] {}, 0));
-        assertZeroPositionsAndRelease(bf.newLongVectorBuilder(0).build());
-        assertZeroPositionsAndRelease(bf.newFloatArrayBlock(new float[] {}, 0, new int[] { 0 }, new BitSet(), randomOrdering()));
-        assertZeroPositionsAndRelease(bf.newFloatBlockBuilder(0).build());
-        assertZeroPositionsAndRelease(bf.newFloatArrayVector(new float[] {}, 0));
-        assertZeroPositionsAndRelease(bf.newFloatVectorBuilder(0).build());
-        assertZeroPositionsAndRelease(bf.newDoubleArrayBlock(new double[] {}, 0, new int[] { 0 }, new BitSet(), randomOrdering()));
-        assertZeroPositionsAndRelease(bf.newDoubleBlockBuilder(0).build());
-        assertZeroPositionsAndRelease(bf.newDoubleArrayVector(new double[] {}, 0));
-        assertZeroPositionsAndRelease(bf.newDoubleVectorBuilder(0).build());
+        assertZeroPositionsAndRelease(blockFactory.newIntArrayBlock(new int[] {}, 0, new int[] { 0 }, new BitSet(), randomOrdering()));
+        assertZeroPositionsAndRelease(blockFactory.newIntBlockBuilder(0).build());
+        assertZeroPositionsAndRelease(blockFactory.newIntArrayVector(new int[] {}, 0));
+        assertZeroPositionsAndRelease(blockFactory.newIntVectorBuilder(0).build());
+        assertZeroPositionsAndRelease(blockFactory.newLongArrayBlock(new long[] {}, 0, new int[] { 0 }, new BitSet(), randomOrdering()));
+        assertZeroPositionsAndRelease(blockFactory.newIntRangeVector(0, 0));
+        assertZeroPositionsAndRelease(blockFactory.newLongBlockBuilder(0).build());
+        assertZeroPositionsAndRelease(blockFactory.newLongArrayVector(new long[] {}, 0));
+        assertZeroPositionsAndRelease(blockFactory.newLongVectorBuilder(0).build());
+        assertZeroPositionsAndRelease(blockFactory.newFloatArrayBlock(new float[] {}, 0, new int[] { 0 }, new BitSet(), randomOrdering()));
+        assertZeroPositionsAndRelease(blockFactory.newFloatBlockBuilder(0).build());
+        assertZeroPositionsAndRelease(blockFactory.newFloatArrayVector(new float[] {}, 0));
+        assertZeroPositionsAndRelease(blockFactory.newFloatVectorBuilder(0).build());
         assertZeroPositionsAndRelease(
-            bf.newBytesRefArrayBlock(new BytesRefArray(0, bf.bigArrays()), 0, new int[] { 0 }, new BitSet(), randomOrdering())
+            blockFactory.newDoubleArrayBlock(new double[] {}, 0, new int[] { 0 }, new BitSet(), randomOrdering())
         );
-        assertZeroPositionsAndRelease(bf.newBytesRefBlockBuilder(0).build());
-        assertZeroPositionsAndRelease(bf.newBytesRefArrayVector(new BytesRefArray(0, bf.bigArrays()), 0));
-        assertZeroPositionsAndRelease(bf.newBytesRefVectorBuilder(0).build());
-        assertZeroPositionsAndRelease(bf.newBooleanArrayBlock(new boolean[] {}, 0, new int[] { 0 }, new BitSet(), randomOrdering()));
-        assertZeroPositionsAndRelease(bf.newBooleanBlockBuilder(0).build());
-        assertZeroPositionsAndRelease(bf.newBooleanArrayVector(new boolean[] {}, 0));
-        assertZeroPositionsAndRelease(bf.newBooleanVectorBuilder(0).build());
-        assertZeroPositionsAndRelease(bf.newAggregateMetricDoubleBlockBuilder(0).build());
+        assertZeroPositionsAndRelease(blockFactory.newDoubleBlockBuilder(0).build());
+        assertZeroPositionsAndRelease(blockFactory.newDoubleArrayVector(new double[] {}, 0));
+        assertZeroPositionsAndRelease(blockFactory.newDoubleVectorBuilder(0).build());
+        assertZeroPositionsAndRelease(
+            blockFactory.newBytesRefArrayBlock(
+                new BytesRefArray(0, blockFactory.bigArrays()),
+                0,
+                new int[] { 0 },
+                new BitSet(),
+                randomOrdering()
+            )
+        );
+        assertZeroPositionsAndRelease(blockFactory.newBytesRefBlockBuilder(0).build());
+        assertZeroPositionsAndRelease(blockFactory.newBytesRefArrayVector(new BytesRefArray(0, blockFactory.bigArrays()), 0));
+        assertZeroPositionsAndRelease(blockFactory.newBytesRefVectorBuilder(0).build());
+        assertZeroPositionsAndRelease(
+            blockFactory.newBooleanArrayBlock(new boolean[] {}, 0, new int[] { 0 }, new BitSet(), randomOrdering())
+        );
+        assertZeroPositionsAndRelease(blockFactory.newBooleanBlockBuilder(0).build());
+        assertZeroPositionsAndRelease(blockFactory.newBooleanArrayVector(new boolean[] {}, 0));
+        assertZeroPositionsAndRelease(blockFactory.newBooleanVectorBuilder(0).build());
+        assertZeroPositionsAndRelease(blockFactory.newAggregateMetricDoubleBlockBuilder(0).build());
+        try (var block = blockFactory.newIntBlockBuilder(0).build()) {
+            try (var sliced = block.slice(0, 0)) {
+                assertThat(sliced.getPositionCount(), is(0));
+            }
+        }
+        try (var vector = blockFactory.newIntArrayVector(new int[] {}, 0)) {
+            try (var sliced = vector.slice(0, 0)) {
+                assertThat(sliced.getPositionCount(), is(0));
+            }
+        }
+        try (var block = blockFactory.newIntBlockBuilder(2).appendInt(1).appendInt(2).build()) {
+            try (var sliced = block.slice(0, 0)) {
+                assertThat(sliced.getPositionCount(), is(0));
+            }
+            try (var sliced = block.slice(1, 1)) {
+                assertThat(sliced.getPositionCount(), is(0));
+            }
+        }
     }
 
     public void testSmallSingleValueDenseGrowthInt() {
@@ -205,6 +231,10 @@ public class BasicBlockTests extends ESTestCase {
         }
         assertKeepMask(initialBlock);
         assertKeepMask(initialBlock.asVector());
+        assertFilter(initialBlock);
+        assertFilter(initialBlock.asVector());
+        assertSlice(initialBlock);
+        assertSlice(initialBlock.asVector());
         assertDeepCopy(initialBlock);
     }
 
@@ -271,6 +301,40 @@ public class BasicBlockTests extends ESTestCase {
                 assertInsertNulls(vector.asBlock());
                 assertDeepCopy(vector.asBlock());
                 releaseAndAssertBreaker(vector.asBlock());
+            }
+        }
+    }
+
+    public void testIntRangeVector() {
+        for (int i = 0; i < 1000; i++) {
+            assertThat(breaker.getUsed(), is(0L));
+            int positionCount = between(1, 16 * 1024);
+            int start = randomBoolean() ? 0 : between(1, 16 * 1024);
+            IntVector vector = blockFactory.newIntRangeVector(start, start + positionCount);
+            assertThat(vector.getPositionCount(), equalTo(positionCount));
+            for (int p = 0; p < positionCount; p++) {
+                assertThat(vector.getInt(p), equalTo(start + p));
+            }
+            assertSingleValueDenseBlock(vector.asBlock());
+            if (positionCount > 2) {
+                assertLookup(
+                    vector.asBlock(),
+                    positions(blockFactory, 1, 2, new int[] { 1, 2 }),
+                    List.of(List.of(start + 1), List.of(start + 2), List.of(start + 1, start + 2))
+                );
+            }
+            assertLookup(vector.asBlock(), positions(blockFactory, positionCount + 1000), singletonList(null));
+            assertEmptyLookup(blockFactory, vector.asBlock());
+            assertThat(vector.min(), equalTo(start));
+            assertThat(vector.max(), equalTo(start + positionCount - 1));
+            assertDeepCopy(vector.asBlock());
+            assertSingleValueDenseBlock(vector.asBlock());
+
+            try (IntBlock.Builder blockBuilder = blockFactory.newIntBlockBuilder(1)) {
+                IntBlock copy = blockBuilder.copyFrom(vector.asBlock(), 0, vector.getPositionCount()).build();
+                assertThat(copy, equalTo(vector.asBlock()));
+                assertInsertNulls(vector.asBlock());
+                releaseAndAssertBreaker(vector.asBlock(), copy);
             }
         }
     }
@@ -728,16 +792,24 @@ public class BasicBlockTests extends ESTestCase {
     }
 
     public void testBytesRefBlockOnGeoPoints() {
-        testBytesRefBlock(() -> GEO.asWkb(GeometryTestUtils.randomPoint()), false, GEO::wkbToWkt);
+        testBytesRefBlock(
+            () -> new BytesRef(WellKnownBinary.toWKB(GeometryTestUtils.randomPoint(), ByteOrder.LITTLE_ENDIAN)),
+            false,
+            wkb -> WellKnownText.fromWKB(wkb.bytes, wkb.offset, wkb.length)
+        );
     }
 
     public void testBytesRefBlockOnCartesianPoints() {
-        testBytesRefBlock(() -> CARTESIAN.asWkb(ShapeTestUtils.randomPoint()), false, CARTESIAN::wkbToWkt);
+        testBytesRefBlock(
+            () -> new BytesRef(WellKnownBinary.toWKB(ShapeTestUtils.randomPoint(), ByteOrder.LITTLE_ENDIAN)),
+            false,
+            wkb -> WellKnownText.fromWKB(wkb.bytes, wkb.offset, wkb.length)
+        );
     }
 
     public void testBytesRefBlockBuilderWithNulls() {
         int positionCount = randomIntBetween(0, 16 * 1024);
-        final int builderEstimateSize = randomBoolean() ? randomIntBetween(1, positionCount) : positionCount;
+        final int builderEstimateSize = positionCount == 0 ? 0 : (randomBoolean() ? randomIntBetween(1, positionCount) : positionCount);
         try (var blockBuilder = blockFactory.newBytesRefBlockBuilder(builderEstimateSize)) {
             BytesRef[] values = new BytesRef[positionCount];
             for (int i = 0; i < positionCount; i++) {
@@ -774,6 +846,8 @@ public class BasicBlockTests extends ESTestCase {
                 }
             }
             assertKeepMask(block);
+            assertFilter(block);
+            assertSlice(block);
             assertInsertNulls(block);
             assertDeepCopy(block);
             releaseAndAssertBreaker(block);
@@ -784,27 +858,34 @@ public class BasicBlockTests extends ESTestCase {
         for (int i = 0; i < 1000; i++) {
             int positionCount = randomIntBetween(1, 16 * 1024);
             BytesRef value = new BytesRef(randomByteArrayOfLength(between(1, 20)));
+            BytesRef originalValue = BytesRef.deepCopyOf(value);
             BytesRefBlock block = blockFactory.newConstantBytesRefBlockWith(value, positionCount);
+            // modify the value after creating the constant block
+            for (int b = 0; b < value.length; b++) {
+                if (randomBoolean()) {
+                    value.bytes[b] = randomByte();
+                }
+            }
             assertThat(block.getPositionCount(), is(positionCount));
 
             BytesRef bytes = new BytesRef();
             bytes = block.getBytesRef(0, bytes);
-            assertThat(bytes, is(value));
+            assertThat(bytes, is(originalValue));
             bytes = block.getBytesRef(positionCount - 1, bytes);
-            assertThat(bytes, is(value));
+            assertThat(bytes, is(originalValue));
             bytes = block.getBytesRef(randomPosition(positionCount), bytes);
-            assertThat(bytes, is(value));
+            assertThat(bytes, is(originalValue));
             assertSingleValueDenseBlock(block);
             if (positionCount > 2) {
                 assertLookup(
                     block,
                     positions(blockFactory, 1, 2, new int[] { 1, 2 }),
-                    List.of(List.of(value), List.of(value), List.of(value, value))
+                    List.of(List.of(originalValue), List.of(originalValue), List.of(originalValue, originalValue))
                 );
                 assertLookup(
                     block,
                     positions(blockFactory, 1, 2),
-                    List.of(List.of(value), List.of(value)),
+                    List.of(List.of(originalValue), List.of(originalValue)),
                     b -> assertThat(b.asVector(), instanceOf(ConstantBytesRefVector.class))
                 );
             }
@@ -818,6 +899,12 @@ public class BasicBlockTests extends ESTestCase {
             assertInsertNulls(block);
             assertDeepCopy(block);
             releaseAndAssertBreaker(block);
+            // modify the offset
+            var v0 = block.getBytesRef(randomInt(positionCount), new BytesRef());
+            var v1 = block.getBytesRef(randomInt(positionCount), new BytesRef());
+            v1.length = 0;
+            var v2 = block.getBytesRef(randomInt(positionCount), new BytesRef());
+            assertThat(v2, equalTo(v0));
         }
     }
 
@@ -1156,31 +1243,59 @@ public class BasicBlockTests extends ESTestCase {
                 assertThat(s, containsString("positions=2"));
             }
             for (IntBlock block : List.of(intBlock, intVector.asBlock())) {
-                try (var filter = block.filter(0)) {
+                try (var filter = block.filter(false, 0)) {
                     assertThat(filter.toString(), containsString("IntVectorBlock[vector=ConstantIntVector[positions=1, value=1]]"));
                 }
-                try (var filter = block.filter(1)) {
+                try (var filter = block.filter(false, 1)) {
                     assertThat(filter.toString(), containsString("IntVectorBlock[vector=ConstantIntVector[positions=1, value=2]]"));
                 }
-                try (var filter = block.filter(0, 1)) {
+                try (var filter = block.filter(false, 0, 1)) {
                     assertThat(filter.toString(), containsString("IntVectorBlock[vector=IntArrayVector[positions=2, values=[1, 2]]]"));
                 }
-                try (var filter = block.filter()) {
+                try (var filter = block.filter(false)) {
                     assertThat(filter.toString(), containsString("IntVectorBlock[vector=IntArrayVector[positions=0, values=[]]]"));
                 }
             }
             for (IntVector vector : List.of(intVector, intBlock.asVector())) {
-                try (var filter = vector.filter(0)) {
+                try (var filter = vector.filter(false, 0)) {
                     assertThat(filter.toString(), containsString("ConstantIntVector[positions=1, value=1]"));
                 }
-                try (IntVector filter = vector.filter(1)) {
+                try (IntVector filter = vector.filter(false, 1)) {
                     assertThat(filter.toString(), containsString("ConstantIntVector[positions=1, value=2]"));
                 }
-                try (IntVector filter = vector.filter(0, 1)) {
+                try (IntVector filter = vector.filter(false, 0, 1)) {
                     assertThat(filter.toString(), containsString("IntArrayVector[positions=2, values=[1, 2]]"));
                 }
-                try (IntVector filter = vector.filter()) {
+                try (IntVector filter = vector.filter(false)) {
                     assertThat(filter.toString(), containsString("IntArrayVector[positions=0, values=[]]"));
+                }
+            }
+            for (IntBlock block : List.of(intBlock, intVector.asBlock())) {
+                try (var sliced = block.slice(0, 1)) {
+                    assertThat(sliced.toString(), containsString("IntVectorBlock[vector=ConstantIntVector[positions=1, value=1]]"));
+                }
+                try (var sliced = block.slice(1, 2)) {
+                    assertThat(sliced.toString(), containsString("IntVectorBlock[vector=ConstantIntVector[positions=1, value=2]]"));
+                }
+                try (var sliced = block.slice(0, 2)) {
+                    assertThat(sliced.toString(), containsString("IntVectorBlock[vector=IntArrayVector[positions=2, values=[1, 2]]]"));
+                }
+                try (var sliced = block.slice(0, 0)) {
+                    assertThat(sliced.toString(), containsString("IntVectorBlock[vector=IntArrayVector[positions=0, values=[]]]"));
+                }
+            }
+            for (IntVector vector : List.of(intVector, intBlock.asVector())) {
+                try (IntVector sliced = vector.slice(0, 1)) {
+                    assertThat(sliced.toString(), containsString("ConstantIntVector[positions=1, value=1]"));
+                }
+                try (IntVector sliced = vector.slice(1, 2)) {
+                    assertThat(sliced.toString(), containsString("ConstantIntVector[positions=1, value=2]"));
+                }
+                try (IntVector sliced = vector.slice(0, 2)) {
+                    assertThat(sliced.toString(), containsString("IntArrayVector[positions=2, values=[1, 2]]"));
+                }
+                try (IntVector sliced = vector.slice(0, 0)) {
+                    assertThat(sliced.toString(), containsString("IntArrayVector[positions=0, values=[]]"));
                 }
             }
         }
@@ -1428,13 +1543,6 @@ public class BasicBlockTests extends ESTestCase {
         return randomFrom(Block.MvOrdering.values());
     }
 
-    // A breaker service that always returns the given breaker for getBreaker(CircuitBreaker.REQUEST)
-    static CircuitBreakerService mockBreakerService(CircuitBreaker breaker) {
-        CircuitBreakerService breakerService = mock(CircuitBreakerService.class);
-        when(breakerService.getBreaker(CircuitBreaker.REQUEST)).thenReturn(breaker);
-        return breakerService;
-    }
-
     public void testRefCountingArrayBlock() {
         Block block = randomArrayBlock();
         assertThat(breaker.getUsed(), greaterThan(0L));
@@ -1459,11 +1567,11 @@ public class BasicBlockTests extends ESTestCase {
     public void testRefCountingDocBlock() {
         int positionCount = randomIntBetween(0, 100);
         DocBlock block = new DocVector(
-            ShardRefCounted.ALWAYS_REFERENCED,
+            AlwaysReferencedIndexedByShardId.INSTANCE,
             intVector(positionCount),
             intVector(positionCount),
             intVector(positionCount),
-            true
+            DocVector.config().singleSegmentNonDecreasing(true)
         ).asBlock();
         assertThat(breaker.getUsed(), greaterThan(0L));
         assertRefCountingBehavior(block);
@@ -1501,15 +1609,102 @@ public class BasicBlockTests extends ESTestCase {
     public void testRefCountingDocVector() {
         int positionCount = randomIntBetween(0, 100);
         DocVector vector = new DocVector(
-            ShardRefCounted.ALWAYS_REFERENCED,
+            AlwaysReferencedIndexedByShardId.INSTANCE,
             intVector(positionCount),
             intVector(positionCount),
             intVector(positionCount),
-            true
+            DocVector.config().singleSegmentNonDecreasing(true)
         );
         assertThat(breaker.getUsed(), greaterThan(0L));
         assertRefCountingBehavior(vector);
         assertThat(breaker.getUsed(), is(0L));
+    }
+
+    public void testFilterOrdinalBytesRefBlock() {
+        int dictSize = between(1, 10);
+        int positionCount = between(1, 100);
+        try (
+            var dictBuilder = blockFactory.newBytesRefVectorBuilder(dictSize);
+            var ordinalBuilder = blockFactory.newIntBlockBuilder(positionCount)
+        ) {
+            for (int i = 0; i < dictSize; i++) {
+                dictBuilder.appendBytesRef(new BytesRef("value" + i));
+            }
+            for (int i = 0; i < positionCount; i++) {
+                int valueCount = randomIntBetween(0, 2);
+                switch (valueCount) {
+                    case 0 -> ordinalBuilder.appendNull();
+                    case 1 -> ordinalBuilder.appendInt(randomIntBetween(0, dictSize - 1));
+                    default -> {
+                        ordinalBuilder.beginPositionEntry();
+                        for (int v = 0; v < valueCount; v++) {
+                            ordinalBuilder.appendInt(randomIntBetween(0, dictSize - 1));
+                        }
+                        ordinalBuilder.endPositionEntry();
+                    }
+                }
+            }
+            try (var block = new OrdinalBytesRefBlock(ordinalBuilder.build(), dictBuilder.build())) {
+                int[] masks = new int[between(1, 100)];
+                for (int i = 0; i < masks.length; i++) {
+                    masks[i] = randomIntBetween(0, positionCount - 1);
+                }
+                try (var filtered = block.filter(true, masks)) {
+                    assertThat(filtered, not(instanceOf(OrdinalBytesRefBlock.class)));
+                }
+                assertSliceFullRange(block);
+                assertSliceOrdinalBytesRefBlock(block, 0, 0);
+                if (positionCount > 1) {
+                    assertSliceOrdinalBytesRefBlock(block, 0, 1);
+                    assertSliceOrdinalBytesRefBlock(block, 1, positionCount);
+                }
+            }
+        }
+    }
+
+    private void assertSliceOrdinalBytesRefBlock(OrdinalBytesRefBlock block, int beginInclusive, int endExclusive) {
+        try (var sliced = block.slice(beginInclusive, endExclusive)) {
+            assertThat(sliced, instanceOf(OrdinalBytesRefBlock.class));
+            assertThat(sliced.getPositionCount(), equalTo(endExclusive - beginInclusive));
+        }
+    }
+
+    public void testFilterOrdinalBytesRefVector() {
+        int dictSize = between(1, 10);
+        int positionCount = between(1, 100);
+        try (
+            var dictBuilder = blockFactory.newBytesRefVectorBuilder(dictSize);
+            var ordinalBuilder = blockFactory.newIntVectorBuilder(positionCount)
+        ) {
+            for (int i = 0; i < dictSize; i++) {
+                dictBuilder.appendBytesRef(new BytesRef("value" + i));
+            }
+            for (int i = 0; i < positionCount; i++) {
+                ordinalBuilder.appendInt(randomIntBetween(0, dictSize - 1));
+            }
+            try (var vector = new OrdinalBytesRefVector(ordinalBuilder.build(), dictBuilder.build())) {
+                int[] masks = new int[between(1, 100)];
+                for (int i = 0; i < masks.length; i++) {
+                    masks[i] = randomIntBetween(0, positionCount - 1);
+                }
+                try (var filtered = vector.filter(true, masks)) {
+                    assertThat(filtered, not(instanceOf(OrdinalBytesRefVector.class)));
+                }
+                assertSliceFullRange(vector);
+                assertSliceOrdinalBytesRefVector(vector, 0, 0);
+                if (positionCount > 1) {
+                    assertSliceOrdinalBytesRefVector(vector, 0, 1);
+                    assertSliceOrdinalBytesRefVector(vector, 1, positionCount);
+                }
+            }
+        }
+    }
+
+    private void assertSliceOrdinalBytesRefVector(OrdinalBytesRefVector vector, int beginInclusive, int endExclusive) {
+        try (var sliced = vector.slice(beginInclusive, endExclusive)) {
+            assertThat(sliced, instanceOf(OrdinalBytesRefVector.class));
+            assertThat(sliced.getPositionCount(), equalTo(endExclusive - beginInclusive));
+        }
     }
 
     /**
@@ -1778,16 +1973,19 @@ public class BasicBlockTests extends ESTestCase {
     }
 
     public static Block assertDeepCopy(Block block) {
-        CircuitBreaker breaker = new MockBigArrays.LimitedBreaker("esql-test-into", ByteSizeValue.ofGb(1));
-        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, mockBreakerService(breaker));
-        BlockFactory into = new BlockFactory(bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST), bigArrays);
+        CircuitBreakerService breakerService = newLimitedBreakerService(ByteSizeValue.ofGb(1));
+        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, breakerService);
+        BlockFactory into = BlockFactory.builder(bigArrays).build();
         try (Block deepCopy = block.deepCopy(into)) {
             assertThat(deepCopy, equalTo(block));
 
-            assertThat(
-                deepCopy.asVector() != null && deepCopy.asVector().isConstant(),
-                equalTo(block.asVector() != null && block.asVector().isConstant())
-            );
+            if (block.asVector() != null && block.asVector().isConstant()) {
+                /*
+                 * If we were a constant, we will still be one. If we were not a constant,
+                 * deepCopy might make a constant in the rare case that we have a single element array.
+                 */
+                assertThat(deepCopy.asVector() != null && deepCopy.asVector().isConstant(), equalTo(true));
+            }
         }
         Block untracked = block.deepCopy(TestBlockFactory.getNonBreakingInstance());
         assertThat(untracked, equalTo(block));
@@ -1795,7 +1993,7 @@ public class BasicBlockTests extends ESTestCase {
         return untracked;
     }
 
-    static void assertKeepMask(Vector vector) {
+    public static void assertKeepMask(Vector vector) {
         int maskPositions = vector.getPositionCount();
         if (randomBoolean()) {
             maskPositions += between(1, 1000);
@@ -1829,7 +2027,7 @@ public class BasicBlockTests extends ESTestCase {
         }
     }
 
-    static void assertKeepMask(Block block) {
+    public static void assertKeepMask(Block block) {
         int maskPositions = block.getPositionCount();
         if (randomBoolean()) {
             maskPositions += between(1, 1000);
@@ -1862,6 +2060,144 @@ public class BasicBlockTests extends ESTestCase {
                     assertTrue(masked.isNull(p));
                 }
             }
+        }
+    }
+
+    /**
+     * Asserts the behavior of {@link Block#filter} with random filters.
+     */
+    public static void assertFilter(Block block) {
+        int positionCount = block.getPositionCount();
+        try (Block filtered = block.filter(false)) {
+            assertThat(filtered.getPositionCount(), equalTo(0));
+        }
+        if (positionCount == 0) {
+            return;
+        }
+        int[] allPositions = IntStream.range(0, positionCount).toArray();
+        try (Block filtered = block.filter(false, allPositions)) {
+            assertThat(filtered.getPositionCount(), equalTo(positionCount));
+            for (int p = 0; p < positionCount; p++) {
+                assertEquals(BlockUtils.toJavaObject(block, p), BlockUtils.toJavaObject(filtered, p));
+            }
+        }
+        int[] subsetPositions = randomSubsetOf(between(1, positionCount), IntStream.range(0, positionCount).boxed().toList()).stream()
+            .mapToInt(Integer::intValue)
+            .toArray();
+        try (Block filtered = block.filter(false, subsetPositions)) {
+            assertThat(filtered.getPositionCount(), equalTo(subsetPositions.length));
+            for (int p = 0; p < subsetPositions.length; p++) {
+                assertEquals(BlockUtils.toJavaObject(block, subsetPositions[p]), BlockUtils.toJavaObject(filtered, p));
+            }
+        }
+        int[] subsetWithRepeats = randomList(1, 1000, () -> between(0, positionCount - 1)).stream().mapToInt(i -> i).toArray();
+        try (Block filtered = block.filter(true, subsetWithRepeats)) {
+            assertThat(filtered.getPositionCount(), equalTo(subsetWithRepeats.length));
+            for (int p = 0; p < subsetWithRepeats.length; p++) {
+                assertEquals(BlockUtils.toJavaObject(block, subsetWithRepeats[p]), BlockUtils.toJavaObject(filtered, p));
+            }
+        }
+    }
+
+    /**
+     * Asserts the behavior of {@link Vector#filter} with random filter.
+     */
+    public static void assertFilter(Vector vector) {
+        int positionCount = vector.getPositionCount();
+        try (Vector filtered = vector.filter(false)) {
+            assertThat(filtered.getPositionCount(), equalTo(0));
+        }
+        if (positionCount == 0) {
+            return;
+        }
+        int[] allPositions = IntStream.range(0, positionCount).toArray();
+        try (Vector filtered = vector.filter(false, allPositions)) {
+            assertThat(filtered.getPositionCount(), equalTo(positionCount));
+            for (int p = 0; p < positionCount; p++) {
+                assertEquals(BlockUtils.toJavaObject(vector.asBlock(), p), BlockUtils.toJavaObject(filtered.asBlock(), p));
+            }
+        }
+        int[] subsetPositions = randomSubsetOf(between(1, positionCount), IntStream.range(0, positionCount).boxed().toList()).stream()
+            .mapToInt(Integer::intValue)
+            .toArray();
+        Arrays.sort(subsetPositions);
+        try (Vector filtered = vector.filter(false, subsetPositions)) {
+            assertThat(filtered.getPositionCount(), equalTo(subsetPositions.length));
+            for (int p = 0; p < subsetPositions.length; p++) {
+                assertEquals(BlockUtils.toJavaObject(vector.asBlock(), subsetPositions[p]), BlockUtils.toJavaObject(filtered.asBlock(), p));
+            }
+        }
+        int[] subsetWithRepeats = randomList(1, 1000, () -> between(0, positionCount - 1)).stream().mapToInt(i -> i).toArray();
+        try (Vector filtered = vector.filter(true, subsetWithRepeats)) {
+            assertThat(filtered.getPositionCount(), equalTo(subsetWithRepeats.length));
+            for (int p = 0; p < subsetWithRepeats.length; p++) {
+                assertEquals(
+                    BlockUtils.toJavaObject(vector.asBlock(), subsetWithRepeats[p]),
+                    BlockUtils.toJavaObject(filtered.asBlock(), p)
+                );
+            }
+        }
+    }
+
+    /**
+     * Asserts the behavior of {@link Block#slice} with random slices.
+     */
+    public static void assertSlice(Block block) {
+        int positionCount = block.getPositionCount();
+        assertSliceFullRange(block);
+        if (positionCount == 0) {
+            return;
+        }
+        try (Block sliced = block.slice(0, positionCount)) {
+            assertThat(sliced.getPositionCount(), equalTo(positionCount));
+            for (int p = 0; p < positionCount; p++) {
+                assertEquals(BlockUtils.toJavaObject(block, p), BlockUtils.toJavaObject(sliced, p));
+            }
+        }
+        int begin = between(0, positionCount);
+        int end = between(begin, positionCount);
+        try (Block sliced = block.slice(begin, end)) {
+            assertThat(sliced.getPositionCount(), equalTo(end - begin));
+            for (int p = 0; p < end - begin; p++) {
+                assertEquals(BlockUtils.toJavaObject(block, begin + p), BlockUtils.toJavaObject(sliced, p));
+            }
+        }
+    }
+
+    /**
+     * Asserts the behavior of {@link Vector#slice} with random slices.
+     */
+    public static void assertSlice(Vector vector) {
+        int positionCount = vector.getPositionCount();
+        assertSliceFullRange(vector);
+        if (positionCount == 0) {
+            return;
+        }
+        try (Vector sliced = vector.slice(0, positionCount)) {
+            assertThat(sliced.getPositionCount(), equalTo(positionCount));
+            for (int p = 0; p < positionCount; p++) {
+                assertEquals(BlockUtils.toJavaObject(vector.asBlock(), p), BlockUtils.toJavaObject(sliced.asBlock(), p));
+            }
+        }
+        int begin = between(0, positionCount);
+        int end = between(begin, positionCount);
+        try (Vector sliced = vector.slice(begin, end)) {
+            assertThat(sliced.getPositionCount(), equalTo(end - begin));
+            for (int p = 0; p < end - begin; p++) {
+                assertEquals(BlockUtils.toJavaObject(vector.asBlock(), begin + p), BlockUtils.toJavaObject(sliced.asBlock(), p));
+            }
+        }
+    }
+
+    private static void assertSliceFullRange(Block block) {
+        try (var sliced = block.slice(0, block.getPositionCount())) {
+            assertThat(sliced, sameInstance(sliced));
+        }
+    }
+
+    private static void assertSliceFullRange(Vector vector) {
+        try (var sliced = vector.slice(0, vector.getPositionCount())) {
+            assertThat(sliced, sameInstance(vector));
         }
     }
 

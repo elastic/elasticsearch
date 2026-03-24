@@ -137,17 +137,16 @@ final class BytesRef2BlockHash extends BlockHash {
     }
 
     @Override
-    public Block[] getKeys() {
+    public Block[] getKeys(IntVector selected) {
         // TODO Build Ordinals blocks #114010
-        final int positions = (int) finalHash.size();
+        final int positions = selected.getPositionCount();
         final BytesRef scratch = new BytesRef();
         final BytesRefBlock[] outputBlocks = new BytesRefBlock[2];
         try {
             try (BytesRefBlock.Builder b1 = blockFactory.newBytesRefBlockBuilder(positions)) {
                 for (int i = 0; i < positions; i++) {
-                    int k1 = (int) (finalHash.get(i) & 0xffffffffL);
-                    // k1 is always positive, it's how hash values are generated, see BytesRefBlockHash.
-                    // For now, we only manage at most 2^31 hash entries
+                    int groupId = selected.getInt(i);
+                    int k1 = (int) (finalHash.get(groupId) & 0xffffffffL);
                     if (k1 == 0) {
                         b1.appendNull();
                     } else {
@@ -158,7 +157,8 @@ final class BytesRef2BlockHash extends BlockHash {
             }
             try (BytesRefBlock.Builder b2 = blockFactory.newBytesRefBlockBuilder(positions)) {
                 for (int i = 0; i < positions; i++) {
-                    int k2 = (int) (finalHash.get(i) >>> 32);
+                    int groupId = selected.getInt(i);
+                    int k2 = (int) (finalHash.get(groupId) >>> 32);
                     if (k2 == 0) {
                         b2.appendNull();
                     } else {
@@ -182,7 +182,12 @@ final class BytesRef2BlockHash extends BlockHash {
 
     @Override
     public IntVector nonEmpty() {
-        return IntVector.range(0, Math.toIntExact(finalHash.size()), blockFactory);
+        return blockFactory.newIntRangeVector(0, Math.toIntExact(finalHash.size()));
+    }
+
+    @Override
+    public int numKeys() {
+        return Math.toIntExact(finalHash.size());
     }
 
     @Override

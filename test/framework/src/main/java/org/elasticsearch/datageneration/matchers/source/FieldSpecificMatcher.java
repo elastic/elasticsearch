@@ -71,6 +71,7 @@ interface FieldSpecificMatcher {
                 put("ip", new IpMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings));
                 put("constant_keyword", new ConstantKeywordMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings));
                 put("wildcard", new WildcardMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings));
+                put("flattened", new FlattenedFieldMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings));
             }
         };
     }
@@ -140,6 +141,9 @@ interface FieldSpecificMatcher {
         }
 
         private static List<String> normalize(List<Object> values) {
+            if (values == null) {
+                return List.of();
+            }
             return values.stream().filter(Objects::nonNull).map(it -> (String) it).toList();
         }
     }
@@ -947,7 +951,7 @@ interface FieldSpecificMatcher {
         abstract Object convert(Object value, Object nullValue);
     }
 
-    private static Object getNullValue(Map<String, Object> actualMapping, Map<String, Object> expectedMapping) {
+    static Object getNullValue(Map<String, Object> actualMapping, Map<String, Object> expectedMapping) {
         return getMappingParameter("null_value", actualMapping, expectedMapping);
     }
 

@@ -5,5 +5,5 @@ The population standard deviation of a numeric field.
 
 ```esql
 FROM employees
-| STATS STD_DEV(height)
+| STATS std_dev_height = STD_DEV(height)
 ```

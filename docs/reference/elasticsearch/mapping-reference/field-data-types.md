@@ -1,4 +1,7 @@
 ---
+applies_to:
+  stack:
+  serverless:
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/mapping-types.html
 ---
@@ -72,13 +75,19 @@ Dates
 :   Pre-aggregated metric values.
 
 [`histogram`](/reference/elasticsearch/mapping-reference/histogram.md)
-:   Pre-aggregated numerical values in the form of a histogram.
+:   Pre-aggregated numerical values in the form of a T-Digest or HDRhistogram.
+
+[`exponential_histogram`](/reference/elasticsearch/mapping-reference/exponential-histogram.md)
+:   Pre-aggregated numerical values in the form of an exponential histogram.
+
+[`tdigest`](/reference/elasticsearch/mapping-reference/t-digest.md) {applies_to}`stack: preview 9.3+` {applies_to}`serverless: preview`
+:   Pre-aggregated numerical values in the form of a T-Digest.
 
 
 ### Text search types [text-search-types]
 
-[`text` fields](/reference/elasticsearch/mapping-reference/text.md)
-:   The text family, including `text` and `match_only_text`. Analyzed, unstructured text.
+[`text` fields](/reference/elasticsearch/mapping-reference/text-type-family.md)
+:   The text family, including `text`, `match_only_text`, and `pattern_text`. Analyzed, unstructured text.
 
 [`annotated-text`](/reference/elasticsearch-plugins/mapper-annotated-text.md)
 :   Text containing special markup. Used for identifying named entities.
@@ -142,38 +151,3 @@ In {{es}}, arrays do not require a dedicated field data type. Any field can cont
 It is often useful to index the same field in different ways for different purposes. For instance, a `string` field could be mapped as a `text` field for full-text search, and as a `keyword` field for sorting or aggregations. Alternatively, you could index a text field with the [`standard` analyzer](/reference/text-analysis/analysis-standard-analyzer.md), the [`english`](/reference/text-analysis/analysis-lang-analyzer.md#english-analyzer) analyzer, and the [`french` analyzer](/reference/text-analysis/analysis-lang-analyzer.md#french-analyzer).
 
 This is the purpose of *multi-fields*. Most field types support multi-fields via the [`fields`](/reference/elasticsearch/mapping-reference/multi-fields.md) parameter.
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

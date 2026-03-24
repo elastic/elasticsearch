@@ -52,11 +52,12 @@ import org.elasticsearch.xpack.inference.services.azureaistudio.embeddings.Azure
 import org.elasticsearch.xpack.inference.services.azureaistudio.embeddings.AzureAiStudioEmbeddingsTaskSettings;
 import org.elasticsearch.xpack.inference.services.azureaistudio.rerank.AzureAiStudioRerankServiceSettings;
 import org.elasticsearch.xpack.inference.services.azureaistudio.rerank.AzureAiStudioRerankTaskSettings;
-import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiSecretSettings;
 import org.elasticsearch.xpack.inference.services.azureopenai.completion.AzureOpenAiCompletionServiceSettings;
 import org.elasticsearch.xpack.inference.services.azureopenai.completion.AzureOpenAiCompletionTaskSettings;
 import org.elasticsearch.xpack.inference.services.azureopenai.embeddings.AzureOpenAiEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.azureopenai.embeddings.AzureOpenAiEmbeddingsTaskSettings;
+import org.elasticsearch.xpack.inference.services.azureopenai.secrets.AzureOpenAiEntraIdApiKeySecrets;
+import org.elasticsearch.xpack.inference.services.azureopenai.secrets.AzureOpenAiOAuth2Secrets;
 import org.elasticsearch.xpack.inference.services.cohere.CohereServiceSettings;
 import org.elasticsearch.xpack.inference.services.cohere.completion.CohereCompletionServiceSettings;
 import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsServiceSettings;
@@ -432,10 +433,13 @@ public class InferenceNamedWriteablesProvider {
     private static void addAzureOpenAiNamedWriteables(List<NamedWriteableRegistry.Entry> namedWriteables) {
         namedWriteables.add(
             new NamedWriteableRegistry.Entry(
-                AzureOpenAiSecretSettings.class,
-                AzureOpenAiSecretSettings.NAME,
-                AzureOpenAiSecretSettings::new
+                SecretSettings.class,
+                AzureOpenAiEntraIdApiKeySecrets.NAME,
+                AzureOpenAiEntraIdApiKeySecrets::new
             )
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(SecretSettings.class, AzureOpenAiOAuth2Secrets.NAME, AzureOpenAiOAuth2Secrets::new)
         );
 
         namedWriteables.add(

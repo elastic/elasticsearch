@@ -45,7 +45,7 @@ public class RestUtils {
 
     /**
      * Parses a URL-encoded query string into a multi-value map, preserving all values for
-     * repeated parameters (e.g. {@code match[]=foo&match[]=bar} → {@code ["foo", "bar"]}).
+     * repeated parameters (e.g. {@code match[]=foo&match[]=bar} -> {@code ["foo", "bar"]}).
      *
      * @param s         the full string containing the query string
      * @param fromIndex the index at which the query string begins (i.e. one past the {@code ?})

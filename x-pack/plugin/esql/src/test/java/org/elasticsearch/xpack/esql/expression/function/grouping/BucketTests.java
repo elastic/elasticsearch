@@ -54,6 +54,7 @@ public class BucketTests extends AbstractConfigurationFunctionTestCase {
     public static Iterable<Object[]> parameters() {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
         dateCases(suppliers, "fixed date", () -> DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2023-02-17T09:00:00.00Z"));
+        dateRoundingHandlesNonNestedCalendarUnits(suppliers);
         dateNanosCases(suppliers, "fixed date nanos", () -> DateUtils.toLong(Instant.parse("2023-02-17T09:00:00.00Z")));
         dateCasesWithSpan(
             suppliers,
@@ -142,6 +143,50 @@ public class BucketTests extends AbstractConfigurationFunctionTestCase {
                 }));
             }
         }
+    }
+
+    private static void dateRoundingHandlesNonNestedCalendarUnits(List<TestCaseSupplier> suppliers) {
+        suppliers.add(
+            new TestCaseSupplier(
+                "month boundary can still be weekly",
+                List.of(DataType.DATETIME, DataType.INTEGER, DataType.DATETIME, DataType.DATETIME),
+                () -> {
+                    long date = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2024-02-01T12:00:00Z");
+                    List<TestCaseSupplier.TypedData> args = new ArrayList<>();
+                    args.add(new TestCaseSupplier.TypedData(date, DataType.DATETIME, "field"));
+                    args.add(new TestCaseSupplier.TypedData(1, DataType.INTEGER, "buckets").forceLiteral());
+                    args.add(dateBound("from", DataType.DATETIME, "2024-01-31T00:00:00Z"));
+                    args.add(dateBound("to", DataType.DATETIME, "2024-02-02T00:00:00Z"));
+                    return new TestCaseSupplier.TestCase(
+                        args,
+                        Matchers.containsString("rounding=Rounding[WEEK_OF_WEEKYEAR in Z][fixed to midnight]"),
+                        DataType.DATETIME,
+                        equalTo(Rounding.builder(Rounding.DateTimeUnit.WEEK_OF_WEEKYEAR).build().prepareForUnknown().round(date))
+                    ).withConfiguration(TEST_SOURCE, configurationForTimezone(ZoneOffset.UTC));
+                }
+            )
+        );
+
+        suppliers.add(
+            new TestCaseSupplier(
+                "week boundary can still be monthly",
+                List.of(DataType.DATETIME, DataType.INTEGER, DataType.DATETIME, DataType.DATETIME),
+                () -> {
+                    long date = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2024-01-08T12:00:00Z");
+                    List<TestCaseSupplier.TypedData> args = new ArrayList<>();
+                    args.add(new TestCaseSupplier.TypedData(date, DataType.DATETIME, "field"));
+                    args.add(new TestCaseSupplier.TypedData(1, DataType.INTEGER, "buckets").forceLiteral());
+                    args.add(dateBound("from", DataType.DATETIME, "2024-01-07T00:00:00Z"));
+                    args.add(dateBound("to", DataType.DATETIME, "2024-01-09T00:00:00Z"));
+                    return new TestCaseSupplier.TestCase(
+                        args,
+                        Matchers.containsString("rounding=Rounding[MONTH_OF_YEAR in Z][fixed to midnight]"),
+                        DataType.DATETIME,
+                        equalTo(Rounding.builder(Rounding.DateTimeUnit.MONTH_OF_YEAR).build().prepareForUnknown().round(date))
+                    ).withConfiguration(TEST_SOURCE, configurationForTimezone(ZoneOffset.UTC));
+                }
+            )
+        );
     }
 
     private static void dateTruncCases(List<TestCaseSupplier> suppliers) {

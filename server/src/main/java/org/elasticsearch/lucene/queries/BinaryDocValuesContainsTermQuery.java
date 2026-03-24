@@ -21,11 +21,11 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.ScorerSupplier;
-import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.mapper.blockloader.docvalues.MultiValueSeparateCountBinaryDocValuesReader;
 import org.elasticsearch.simdvec.ESVectorUtil;
+import org.elasticsearch.index.mapper.BlockLoader;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -58,28 +58,19 @@ public final class BinaryDocValuesContainsTermQuery extends Query {
                     return null;
                 }
 
-                final NumericDocValues counts = context.reader().getNumericDocValues(fieldName + COUNT_FIELD_SUFFIX);
+                final DocIdSetIterator containsIter = values instanceof BlockLoader.OptionalColumnAtATimeReader direct
+                    ? direct.tryContainsIterator(containsTerm)
+                    : null;
+
                 final DocIdSetIterator iterator;
-
-                // TODO This class would be simpler if it were a subclass of AbstractBinaryDocValuesQuery, but we
-                // intend to optimize the single value case with a `containsIterator` which pushes matching down to
-                // the codec. Since a separate class will then be needed, we will start with a standalone class.
-                Predicate<BytesRef> predicate = bytes -> contains(bytes, containsTerm);
-                iterator = TwoPhaseIterator.asDocIdSetIterator(new TwoPhaseIterator(counts) {
-                    final MultiValueSeparateCountBinaryDocValuesReader reader = new MultiValueSeparateCountBinaryDocValuesReader();
-
-                    @Override
-                    public boolean matches() throws IOException {
-                        values.advance(counts.docID());
-                        return reader.match(values.binaryValue(), counts.longValue(), predicate);
-                    }
-
-                    @Override
-                    public float matchCost() {
-                        return matchCost;
-                    }
-                });
-
+                if (containsIter != null) {
+                    iterator = containsIter;
+                } else {
+                    Predicate<BytesRef> predicate = bytes -> contains(bytes, containsTerm);
+                    String countsFieldName = fieldName + COUNT_FIELD_SUFFIX;
+                    final NumericDocValues counts = context.reader().getNumericDocValues(countsFieldName);
+                    iterator = AbstractBinaryDocValuesQuery.multiValuedIterator(values, counts, predicate, matchCost());
+                }
                 return ConstantScoreScorerSupplier.fromIterator(iterator, score(), scoreMode, context.reader().maxDoc());
             }
 
@@ -123,6 +114,10 @@ public final class BinaryDocValuesContainsTermQuery extends Query {
     }
 
     public static boolean contains(BytesRef value, BytesRef term) {
-        return ESVectorUtil.contains(value.bytes, value.offset, value.length, term.bytes, term.offset, term.length);
+        return contains(value.bytes, value.offset, value.length, term);
+    }
+
+    public static boolean contains(byte[] value, int offset, int length, BytesRef term) {
+        return ESVectorUtil.contains(value, offset, length, term.bytes, term.offset, term.length);
     }
 }

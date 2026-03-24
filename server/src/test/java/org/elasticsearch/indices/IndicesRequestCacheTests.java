@@ -506,6 +506,60 @@ public class IndicesRequestCacheTests extends ESTestCase {
         assertEquals(0, cache.numRegisteredCloseListeners());
     }
 
+    public void testInvalidateWithCustomCacheHelper() throws Exception {
+        ShardRequestCache requestCacheStats = new ShardRequestCache();
+        IndicesRequestCache cache = new IndicesRequestCache(Settings.EMPTY);
+        Directory dir = newDirectory();
+        IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig());
+
+        writer.addDocument(newDoc(0, "foo"));
+        MappingLookup.CacheKey mappingKey = MappingLookup.EMPTY.cacheKey();
+
+        // Wrap with a custom ESCacheHelper whose key differs from Lucene's native reader cache key,
+        // simulating FrozenEngine behavior where a stable cacheIdentity outlives individual readers.
+        Object cacheIdentity = new Object();
+        ESCacheHelper customCacheHelper = new ESCacheHelper() {
+            @Override
+            public Object getKey() {
+                return cacheIdentity;
+            }
+
+            @Override
+            public void addClosedListener(ClosedListener listener) {}
+        };
+        DirectoryReader reader = ElasticsearchDirectoryReader.wrap(
+            DirectoryReader.open(writer),
+            new ShardId("foo", "bar", 1),
+            customCacheHelper
+        );
+        TermQueryBuilder termQuery = new TermQueryBuilder("id", "0");
+        BytesReference termBytes = XContentHelper.toXContent(termQuery, XContentType.JSON, false);
+        AtomicBoolean indexShard = new AtomicBoolean(true);
+
+        // populate the cache
+        TestEntity entity = new TestEntity(requestCacheStats, indexShard);
+        Loader loader = new Loader(reader, 0);
+        BytesReference value = cache.getOrCompute(entity, loader, mappingKey, reader, termBytes);
+        assertEquals("foo", value.streamInput().readString());
+        assertFalse(loader.loadedFromCache);
+        assertEquals(1, cache.count());
+
+        // invalidate should remove the entry even though the ES cache key differs from Lucene's native key
+        entity = new TestEntity(requestCacheStats, indexShard);
+        cache.invalidate(entity, mappingKey, reader, termBytes);
+        assertEquals(0, cache.count());
+
+        // subsequent get should be a cache miss
+        entity = new TestEntity(requestCacheStats, indexShard);
+        loader = new Loader(reader, 0);
+        value = cache.getOrCompute(entity, loader, mappingKey, reader, termBytes);
+        assertEquals("foo", value.streamInput().readString());
+        assertFalse(loader.loadedFromCache);
+        assertEquals(2, requestCacheStats.stats().getMissCount());
+
+        IOUtils.close(reader, writer, dir, cache);
+    }
+
     public void testKeyEqualsAndHashCode() throws IOException {
         AtomicBoolean trueBoolean = new AtomicBoolean(true);
         AtomicBoolean falseBoolean = new AtomicBoolean(false);

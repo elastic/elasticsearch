@@ -20,7 +20,8 @@ import java.io.IOException;
  * Vector that stores float values.
  * This class is generated. Edit {@code X-Vector.java.st} instead.
  */
-public sealed interface FloatVector extends Vector permits ConstantFloatVector, FloatArrayVector, FloatBigArrayVector, ConstantNullVector {
+public sealed interface FloatVector extends Vector permits ConstantFloatVector, FloatArrayVector, FloatBigArrayVector, ConstantNullVector,
+    org.elasticsearch.compute.data.arrow.FloatArrowBufVector {
 
     float getFloat(int position);
 
@@ -48,6 +49,15 @@ public sealed interface FloatVector extends Vector permits ConstantFloatVector, 
 
     @Override
     ReleasableIterator<? extends FloatBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize);
+
+    /**
+     * Return a subset of this vector from {@code beginInclusive} to
+     * {@code endExclusive}. This <strong>may</strong> return the same
+     * instance if the range covers all positions, but if it does it
+     * will {@link #incRef()} it.
+     */
+    @Override
+    FloatVector slice(int beginInclusive, int endExclusive);
 
     /**
      * Compares the given object with this vector for equality. Returns {@code true} if and only if the

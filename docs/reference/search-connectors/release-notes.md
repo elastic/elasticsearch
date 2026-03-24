@@ -13,10 +13,26 @@ If you are an Enterprise Search user and want to upgrade to Elastic 9.0, refer t
 It includes detailed steps, tooling, and resources to help you transition to supported alternatives in 9.x, such as Elasticsearch, the Open Web Crawler, and self-managed connectors.
 :::
 
-## 9.3.1 [connectors-9.2.1-release-notes]
+## 9.3.2 [connectors-9.3.2-release-notes]
+
+### Fixes [connectors-9.3.2-fixes]
+* Fixed a bug where using `id_columns` in advanced sync rules with mixed-case table or column names caused all documents to receive the same `_id`, resulting in document overwrites and only 1 document being indexed instead of the expected count.[#3885](https://github.com/elastic/connectors/pull/3885),[#3884](https://github.com/elastic/connectors/issues/3884)
+* Fixed an issue with access control syncs crashing due to `noop` returned from `bulk` API was treated as a failure. [#3961](https://github.com/elastic/connectors/pull/3961), [#3957](https://github.com/elastic/connectors/issues/3957)
+
+## 9.2.7 [connectors-9.2.7-release-notes]
+
+### Fixes [connectors-9.2.7-fixes]
+* Fixed a bug where using `id_columns` in advanced sync rules with mixed-case table or column names caused all documents to receive the same `_id`, resulting in document overwrites and only 1 document being indexed instead of the expected count. [#3885](https://github.com/elastic/connectors/pull/3885),[#3884](https://github.com/elastic/connectors/issues/3884)
+* Fixed an issue with access control syncs crashing due to `noop` returned from `bulk` API was treated as a failure. [#3961](https://github.com/elastic/connectors/pull/3961), [#3957](https://github.com/elastic/connectors/issues/3957)
+
+## 9.3.1 [connectors-9.3.1-release-notes]
+
+### Fixes [connectors-9.3.1-fixes]
 * Fixed an issue where MultiService would enter an unresponsive state instead of shutting down cleanly when a managed service crashed with an unhandled exception. ([#3940](https://github.com/elastic/connectors/pull/3940),[#3939](https://github.com/elastic/connectors/issues/3939))
 
-## 9.2.6 [connectors-9.2.1-release-notes]
+## 9.2.6 [connectors-9.2.6-release-notes]
+
+### Fixes [connectors-9.2.6-fixes]
 * Fixed an issue where MultiService would enter an unresponsive  state instead of shutting down cleanly when a managed service crashed with an unhandled exception. ([#3940](https://github.com/elastic/connectors/pull/3940), [#3939](https://github.com/elastic/connectors/issues/3939))
 
 ## 9.3.0 [connectors-9.3.0-release-notes]

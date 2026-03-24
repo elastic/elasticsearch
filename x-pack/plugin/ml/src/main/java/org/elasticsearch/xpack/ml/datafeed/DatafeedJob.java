@@ -72,7 +72,7 @@ class DatafeedJob {
     private final DelayedDataDetector delayedDataDetector;
     private final Integer maxEmptySearches;
     private final long delayedDataCheckFreq;
-    private final CrossProjectSearchStats crossProjectSearchStats;
+    private final CrossClusterSearchStats crossProjectSearchStats;
 
     private volatile long lookbackStartTimeMs;
     private volatile long latestFinalBucketEndTimeMs;
@@ -102,7 +102,7 @@ class DatafeedJob {
         long latestRecordTimeMs,
         boolean haveSeenDataPreviously,
         long delayedDataCheckFreq,
-        CrossProjectSearchStats crossProjectSearchStats
+        CrossClusterSearchStats crossProjectSearchStats
     ) {
         this.jobId = jobId;
         this.dataDescription = Objects.requireNonNull(dataDescription);
@@ -463,7 +463,7 @@ class DatafeedJob {
                 dataExtractor.isCancelled()
             );
 
-            CrossProjectSearchStats.ScopeChangeResult scopeChange = updateCrossProjectSearchStats(linkedClusterStates);
+            CrossClusterSearchStats.ScopeChangeResult scopeChange = updateCrossClusterSearchStats(linkedClusterStates);
 
             // We can now throw any stored error as we have updated time.
             if (error != null) {
@@ -500,10 +500,10 @@ class DatafeedJob {
      * @return the scope change result if one was confirmed this cycle, or {@code null}
      */
     @Nullable
-    private CrossProjectSearchStats.ScopeChangeResult updateCrossProjectSearchStats(List<LinkedClusterState> linkedClusterStates) {
-        CrossProjectSearchStats.ScopeChangeResult scopeChangeResult = crossProjectSearchStats.update(linkedClusterStates);
+    private CrossClusterSearchStats.ScopeChangeResult updateCrossClusterSearchStats(List<LinkedClusterState> linkedClusterStates) {
+        CrossClusterSearchStats.ScopeChangeResult scopeChangeResult = crossProjectSearchStats.update(linkedClusterStates);
         if (scopeChangeResult.scopeChanged()) {
-            String message = CrossProjectSearchStats.buildScopeChangeMessage(scopeChangeResult);
+            String message = CrossClusterSearchStats.buildScopeChangeMessage(scopeChangeResult);
             LOGGER.info("[{}] {}", jobId, message);
             auditor.warning(jobId, message);
             persistScopeChangeAnnotation(scopeChangeResult, message);
@@ -512,7 +512,7 @@ class DatafeedJob {
         return null;
     }
 
-    private void persistScopeChangeAnnotation(CrossProjectSearchStats.ScopeChangeResult scopeChangeResult, String message) {
+    private void persistScopeChangeAnnotation(CrossClusterSearchStats.ScopeChangeResult scopeChangeResult, String message) {
         Date changeTime = Date.from(scopeChangeResult.changeTimestamp());
         Date now = new Date(currentTimeSupplier.get());
         Annotation annotation = new Annotation.Builder().setAnnotation(message)
@@ -535,7 +535,7 @@ class DatafeedJob {
      * elevated anomaly scores (>= 75). If found, emits a warning correlating the anomalies
      * with the scope change.
      */
-    private void checkForAnomaliesAfterScopeChange(CrossProjectSearchStats.ScopeChangeResult scopeChange) {
+    private void checkForAnomaliesAfterScopeChange(CrossClusterSearchStats.ScopeChangeResult scopeChange) {
         try {
             GetBucketsAction.Request request = new GetBucketsAction.Request(jobId);
             request.setStart(String.valueOf(scopeChange.changeTimestamp().toEpochMilli()));
@@ -566,7 +566,7 @@ class DatafeedJob {
         }
     }
 
-    private static String buildScopeChangeSummary(CrossProjectSearchStats.ScopeChangeResult result) {
+    private static String buildScopeChangeSummary(CrossClusterSearchStats.ScopeChangeResult result) {
         String linked = String.join(", ", new TreeSet<>(result.confirmedLinks()));
         String unlinked = String.join(", ", new TreeSet<>(result.confirmedUnlinks()));
         if (linked.isEmpty() == false && unlinked.isEmpty() == false) {
@@ -650,7 +650,7 @@ class DatafeedJob {
         return lastEndTimeMs;
     }
 
-    CrossProjectSearchStats getCrossProjectSearchStats() {
+    CrossClusterSearchStats getCrossClusterSearchStats() {
         return crossProjectSearchStats;
     }
 

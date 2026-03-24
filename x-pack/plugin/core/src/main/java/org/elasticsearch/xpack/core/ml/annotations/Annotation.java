@@ -27,7 +27,7 @@ import java.util.Objects;
 public class Annotation implements ToXContentObject, Writeable {
 
     private static final TransportVersion SEARCH_SCOPE_CHANGED_EVENT = TransportVersion.fromName(
-        "ml_annotation_project_scope_changed_event"
+        "ml_annotation_search_scope_changed_event"
     );
 
     public enum Type {

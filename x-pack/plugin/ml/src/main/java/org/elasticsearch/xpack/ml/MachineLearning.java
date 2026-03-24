@@ -309,7 +309,7 @@ import org.elasticsearch.xpack.ml.annotations.AnnotationPersister;
 import org.elasticsearch.xpack.ml.autoscaling.AbstractNodeAvailabilityZoneMapper;
 import org.elasticsearch.xpack.ml.autoscaling.MlAutoscalingDeciderService;
 import org.elasticsearch.xpack.ml.autoscaling.MlAutoscalingNamedWritableProvider;
-import org.elasticsearch.xpack.ml.datafeed.CrossProjectSearchStats;
+import org.elasticsearch.xpack.ml.datafeed.CrossClusterSearchStats;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedConfigAutoUpdater;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedContextProvider;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedJobBuilder;
@@ -771,7 +771,7 @@ public class MachineLearning extends Plugin
      */
     public static final Setting<Integer> CPS_STABILIZATION_CYCLES = Setting.intSetting(
         "xpack.ml.cps_stabilization_cycles",
-        CrossProjectSearchStats.DEFAULT_STABILIZATION_CYCLES,
+        CrossClusterSearchStats.DEFAULT_STABILIZATION_CYCLES,
         1,
         Property.Dynamic,
         Setting.Property.NodeScope
@@ -783,7 +783,7 @@ public class MachineLearning extends Plugin
      */
     public static final Setting<TimeValue> CPS_STABILIZATION_FLOOR = Setting.timeSetting(
         "xpack.ml.cps_stabilization_floor",
-        CrossProjectSearchStats.DEFAULT_MIN_STABILIZATION_DURATION_TIMEVALUE,
+        CrossClusterSearchStats.DEFAULT_MIN_STABILIZATION_DURATION_TIMEVALUE,
         TimeValue.ZERO,
         Property.Dynamic,
         Setting.Property.NodeScope

@@ -124,7 +124,7 @@ public class DatafeedJobBuilder {
                 parentTaskAssigningClient,
                 xContentRegistry
             );
-            CrossProjectSearchStats crossProjectSearchStats = new CrossProjectSearchStats(
+            CrossClusterSearchStats crossProjectSearchStats = new CrossClusterSearchStats(
                 () -> java.time.Instant.ofEpochMilli(currentTimeSupplier.get()),
                 cpsStabilizationCycles,
                 java.time.Duration.ofMillis(cpsStabilizationFloorMs)

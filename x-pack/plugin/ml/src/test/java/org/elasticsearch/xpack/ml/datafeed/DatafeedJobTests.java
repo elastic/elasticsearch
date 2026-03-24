@@ -550,7 +550,7 @@ public class DatafeedJobTests extends ESTestCase {
     }
 
     public void testScopeChangeAnnotationAndAnomalyLookback() throws Exception {
-        CrossProjectSearchStats stats = new CrossProjectSearchStats(() -> Instant.ofEpochMilli(currentTime));
+        CrossClusterSearchStats stats = new CrossClusterSearchStats(() -> Instant.ofEpochMilli(currentTime));
 
         List<LinkedClusterState> baseline = List.of(new LinkedClusterState("origin", LinkedClusterState.Status.AVAILABLE, null, 10));
         List<LinkedClusterState> withNewProject = List.of(
@@ -619,7 +619,7 @@ public class DatafeedJobTests extends ESTestCase {
     }
 
     public void testScopeChangeNoAnomaliesEmitsOnlyOneWarning() throws Exception {
-        CrossProjectSearchStats stats = new CrossProjectSearchStats(() -> Instant.ofEpochMilli(currentTime));
+        CrossClusterSearchStats stats = new CrossClusterSearchStats(() -> Instant.ofEpochMilli(currentTime));
 
         List<LinkedClusterState> baseline = List.of(new LinkedClusterState("origin", LinkedClusterState.Status.AVAILABLE, null, 10));
         List<LinkedClusterState> withNewProject = List.of(
@@ -653,7 +653,7 @@ public class DatafeedJobTests extends ESTestCase {
     }
 
     public void testUnlinkAnomalyCorrelationWarning() throws Exception {
-        CrossProjectSearchStats stats = new CrossProjectSearchStats(() -> Instant.ofEpochMilli(currentTime));
+        CrossClusterSearchStats stats = new CrossClusterSearchStats(() -> Instant.ofEpochMilli(currentTime));
 
         List<LinkedClusterState> baseline = List.of(
             new LinkedClusterState("origin", LinkedClusterState.Status.AVAILABLE, null, 10),
@@ -712,7 +712,7 @@ public class DatafeedJobTests extends ESTestCase {
     }
 
     public void testAnomalyCorrelationWithSimultaneousLinkAndUnlink() throws Exception {
-        CrossProjectSearchStats stats = new CrossProjectSearchStats(() -> Instant.ofEpochMilli(currentTime));
+        CrossClusterSearchStats stats = new CrossClusterSearchStats(() -> Instant.ofEpochMilli(currentTime));
 
         List<LinkedClusterState> baseline = List.of(
             new LinkedClusterState("origin", LinkedClusterState.Status.AVAILABLE, null, 10),
@@ -766,7 +766,7 @@ public class DatafeedJobTests extends ESTestCase {
     }
 
     public void testAnomalyLookbackErrorDoesNotPreventScopeChangeAnnotation() throws Exception {
-        CrossProjectSearchStats stats = new CrossProjectSearchStats(() -> Instant.ofEpochMilli(currentTime));
+        CrossClusterSearchStats stats = new CrossClusterSearchStats(() -> Instant.ofEpochMilli(currentTime));
 
         List<LinkedClusterState> baseline = List.of(new LinkedClusterState("origin", LinkedClusterState.Status.AVAILABLE, null, 10));
         List<LinkedClusterState> withNewProject = List.of(
@@ -809,7 +809,7 @@ public class DatafeedJobTests extends ESTestCase {
     }
 
     public void testScopeChangeAnnotationOnUnlink() throws Exception {
-        CrossProjectSearchStats stats = new CrossProjectSearchStats(() -> Instant.ofEpochMilli(currentTime));
+        CrossClusterSearchStats stats = new CrossClusterSearchStats(() -> Instant.ofEpochMilli(currentTime));
 
         List<LinkedClusterState> baseline = List.of(
             new LinkedClusterState("origin", LinkedClusterState.Status.AVAILABLE, null, 10),
@@ -859,7 +859,7 @@ public class DatafeedJobTests extends ESTestCase {
     }
 
     public void testScopeChangeAnnotationOnRelink() throws Exception {
-        CrossProjectSearchStats stats = new CrossProjectSearchStats(() -> Instant.ofEpochMilli(currentTime));
+        CrossClusterSearchStats stats = new CrossClusterSearchStats(() -> Instant.ofEpochMilli(currentTime));
 
         List<LinkedClusterState> baseline = List.of(
             new LinkedClusterState("origin", LinkedClusterState.Status.AVAILABLE, null, 10),
@@ -878,7 +878,7 @@ public class DatafeedJobTests extends ESTestCase {
         // Phase 2: "flapping" disappears and stabilizes as unlinked
         for (int i = 0; i < 12; i++) {
             currentTime += 30_000;
-            CrossProjectSearchStats.ScopeChangeResult r = stats.update(withoutFlapping);
+            CrossClusterSearchStats.ScopeChangeResult r = stats.update(withoutFlapping);
             if (i == 11) {
                 assertTrue("12th cycle should confirm unlink", r.scopeChanged());
                 assertThat(r.confirmedUnlinks(), equalTo(java.util.Set.of("flapping")));
@@ -922,7 +922,7 @@ public class DatafeedJobTests extends ESTestCase {
     }
 
     public void testBaselineCycleDoesNotTriggerAnnotation() throws Exception {
-        CrossProjectSearchStats stats = new CrossProjectSearchStats(() -> Instant.ofEpochMilli(currentTime));
+        CrossClusterSearchStats stats = new CrossClusterSearchStats(() -> Instant.ofEpochMilli(currentTime));
 
         List<LinkedClusterState> projects = List.of(new LinkedClusterState("origin", LinkedClusterState.Status.AVAILABLE, null, 10));
 
@@ -989,7 +989,7 @@ public class DatafeedJobTests extends ESTestCase {
             latestRecordTimeMs,
             haveSeenDataPreviously,
             DELAYED_DATA_CHECK_FREQ.get(Settings.EMPTY).millis(),
-            new CrossProjectSearchStats(() -> Instant.ofEpochMilli(currentTime))
+            new CrossClusterSearchStats(() -> Instant.ofEpochMilli(currentTime))
         );
     }
 
@@ -1008,7 +1008,7 @@ public class DatafeedJobTests extends ESTestCase {
             latestRecordTimeMs,
             haveSeenDataPreviously,
             delayedDataFreq,
-            new CrossProjectSearchStats(() -> Instant.ofEpochMilli(currentTime))
+            new CrossClusterSearchStats(() -> Instant.ofEpochMilli(currentTime))
         );
     }
 
@@ -1019,7 +1019,7 @@ public class DatafeedJobTests extends ESTestCase {
         long latestRecordTimeMs,
         boolean haveSeenDataPreviously,
         long delayedDataFreq,
-        CrossProjectSearchStats crossProjectSearchStats
+        CrossClusterSearchStats crossProjectSearchStats
     ) {
         Supplier<Long> currentTimeSupplier = () -> currentTime;
         return new DatafeedJob(

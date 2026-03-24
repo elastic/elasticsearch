@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.ml.datafeed;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.ml.datafeed.CrossProjectSearchStats.ScopeChangeResult;
+import org.elasticsearch.xpack.ml.datafeed.CrossClusterSearchStats.ScopeChangeResult;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -25,7 +25,7 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class CrossProjectSearchStatsTests extends ESTestCase {
+public class CrossClusterSearchStatsTests extends ESTestCase {
 
     private static final Duration ONE_MINUTE = Duration.ofMinutes(1);
 
@@ -43,7 +43,7 @@ public class CrossProjectSearchStatsTests extends ESTestCase {
 
     public void testEmptyCycleIsNoOp() {
         AtomicReference<Instant> clock = new AtomicReference<>(Instant.now());
-        CrossProjectSearchStats stats = new CrossProjectSearchStats(clock::get);
+        CrossClusterSearchStats stats = new CrossClusterSearchStats(clock::get);
 
         ScopeChangeResult result = stats.update(List.of());
 
@@ -56,7 +56,7 @@ public class CrossProjectSearchStatsTests extends ESTestCase {
 
     public void testFirstCycleEstablishesBaseline() {
         AtomicReference<Instant> clock = new AtomicReference<>(Instant.now());
-        CrossProjectSearchStats stats = new CrossProjectSearchStats(clock::get);
+        CrossClusterSearchStats stats = new CrossClusterSearchStats(clock::get);
 
         ScopeChangeResult result = stats.update(List.of(available("origin"), available("P1"), available("P2")));
 
@@ -70,7 +70,7 @@ public class CrossProjectSearchStatsTests extends ESTestCase {
 
     public void testLinkingRequires12ConsecutiveCycles() {
         AtomicReference<Instant> clock = new AtomicReference<>(Instant.EPOCH);
-        CrossProjectSearchStats stats = new CrossProjectSearchStats(clock::get);
+        CrossClusterSearchStats stats = new CrossClusterSearchStats(clock::get);
 
         stats.update(List.of(available("origin"), available("P1")));
 
@@ -91,7 +91,7 @@ public class CrossProjectSearchStatsTests extends ESTestCase {
 
     public void testUnlinkingRequires12ConsecutiveCycles() {
         AtomicReference<Instant> clock = new AtomicReference<>(Instant.EPOCH);
-        CrossProjectSearchStats stats = new CrossProjectSearchStats(clock::get);
+        CrossClusterSearchStats stats = new CrossClusterSearchStats(clock::get);
 
         stats.update(List.of(available("origin"), available("P1"), available("P2")));
 
@@ -112,7 +112,7 @@ public class CrossProjectSearchStatsTests extends ESTestCase {
 
     public void testLinkingTimeFloorPreventsEarlyStabilization() {
         AtomicReference<Instant> clock = new AtomicReference<>(Instant.EPOCH);
-        CrossProjectSearchStats stats = new CrossProjectSearchStats(clock::get);
+        CrossClusterSearchStats stats = new CrossClusterSearchStats(clock::get);
 
         stats.update(List.of(available("origin")));
 
@@ -135,7 +135,7 @@ public class CrossProjectSearchStatsTests extends ESTestCase {
 
     public void testUnlinkingTimeFloorPreventsEarlyStabilization() {
         AtomicReference<Instant> clock = new AtomicReference<>(Instant.EPOCH);
-        CrossProjectSearchStats stats = new CrossProjectSearchStats(clock::get);
+        CrossClusterSearchStats stats = new CrossClusterSearchStats(clock::get);
 
         stats.update(List.of(available("origin"), available("P1")));
 
@@ -158,7 +158,7 @@ public class CrossProjectSearchStatsTests extends ESTestCase {
 
     public void testLinkingPresenceGapResetsCounter() {
         AtomicReference<Instant> clock = new AtomicReference<>(Instant.EPOCH);
-        CrossProjectSearchStats stats = new CrossProjectSearchStats(clock::get);
+        CrossClusterSearchStats stats = new CrossClusterSearchStats(clock::get);
 
         stats.update(List.of(available("origin")));
 
@@ -186,7 +186,7 @@ public class CrossProjectSearchStatsTests extends ESTestCase {
 
     public void testUnlinkingAbsenceGapResetsCounter() {
         AtomicReference<Instant> clock = new AtomicReference<>(Instant.EPOCH);
-        CrossProjectSearchStats stats = new CrossProjectSearchStats(clock::get);
+        CrossClusterSearchStats stats = new CrossClusterSearchStats(clock::get);
 
         stats.update(List.of(available("origin"), available("P2")));
 
@@ -214,7 +214,7 @@ public class CrossProjectSearchStatsTests extends ESTestCase {
 
     public void testLinkingFlipFlapProducesNoConfirmation() {
         AtomicReference<Instant> clock = new AtomicReference<>(Instant.EPOCH);
-        CrossProjectSearchStats stats = new CrossProjectSearchStats(clock::get);
+        CrossClusterSearchStats stats = new CrossClusterSearchStats(clock::get);
 
         stats.update(List.of(available("origin")));
 
@@ -230,7 +230,7 @@ public class CrossProjectSearchStatsTests extends ESTestCase {
 
     public void testUnlinkingFlipFlapProducesNoConfirmation() {
         AtomicReference<Instant> clock = new AtomicReference<>(Instant.EPOCH);
-        CrossProjectSearchStats stats = new CrossProjectSearchStats(clock::get);
+        CrossClusterSearchStats stats = new CrossClusterSearchStats(clock::get);
 
         stats.update(List.of(available("origin"), available("P2")));
 
@@ -246,7 +246,7 @@ public class CrossProjectSearchStatsTests extends ESTestCase {
 
     public void testSimultaneousLinkingAndUnlinking() {
         AtomicReference<Instant> clock = new AtomicReference<>(Instant.EPOCH);
-        CrossProjectSearchStats stats = new CrossProjectSearchStats(clock::get);
+        CrossClusterSearchStats stats = new CrossClusterSearchStats(clock::get);
 
         stats.update(List.of(available("origin"), available("P1"), available("P2")));
 
@@ -271,7 +271,7 @@ public class CrossProjectSearchStatsTests extends ESTestCase {
 
     public void testMultipleProjectsStabilizingSimultaneously() {
         AtomicReference<Instant> clock = new AtomicReference<>(Instant.EPOCH);
-        CrossProjectSearchStats stats = new CrossProjectSearchStats(clock::get);
+        CrossClusterSearchStats stats = new CrossClusterSearchStats(clock::get);
 
         stats.update(List.of(available("origin")));
 
@@ -290,7 +290,7 @@ public class CrossProjectSearchStatsTests extends ESTestCase {
 
     public void testSingleProjectDatafeed() {
         AtomicReference<Instant> clock = new AtomicReference<>(Instant.EPOCH);
-        CrossProjectSearchStats stats = new CrossProjectSearchStats(clock::get);
+        CrossClusterSearchStats stats = new CrossClusterSearchStats(clock::get);
 
         stats.update(List.of(available("origin")));
         assertThat(stats.getConfirmedAliases(), equalTo(Set.of("origin")));
@@ -305,7 +305,7 @@ public class CrossProjectSearchStatsTests extends ESTestCase {
 
     public void testSkippedProjectCountsAsPresent() {
         AtomicReference<Instant> clock = new AtomicReference<>(Instant.EPOCH);
-        CrossProjectSearchStats stats = new CrossProjectSearchStats(clock::get);
+        CrossClusterSearchStats stats = new CrossClusterSearchStats(clock::get);
 
         stats.update(List.of(available("origin"), available("P1")));
 
@@ -325,7 +325,7 @@ public class CrossProjectSearchStatsTests extends ESTestCase {
 
     public void testFailedProjectCountsAsPresent() {
         AtomicReference<Instant> clock = new AtomicReference<>(Instant.EPOCH);
-        CrossProjectSearchStats stats = new CrossProjectSearchStats(clock::get);
+        CrossClusterSearchStats stats = new CrossClusterSearchStats(clock::get);
 
         stats.update(List.of(available("origin"), available("P1")));
 
@@ -340,7 +340,7 @@ public class CrossProjectSearchStatsTests extends ESTestCase {
 
     public void testConsecutiveSkipsTracking() {
         AtomicReference<Instant> clock = new AtomicReference<>(Instant.EPOCH);
-        CrossProjectSearchStats stats = new CrossProjectSearchStats(clock::get);
+        CrossClusterSearchStats stats = new CrossClusterSearchStats(clock::get);
 
         stats.update(List.of(available("origin"), available("P1")));
 
@@ -359,7 +359,7 @@ public class CrossProjectSearchStatsTests extends ESTestCase {
 
     public void testAvailabilityRatioUpdatesPerCycle() {
         AtomicReference<Instant> clock = new AtomicReference<>(Instant.EPOCH);
-        CrossProjectSearchStats stats = new CrossProjectSearchStats(clock::get);
+        CrossClusterSearchStats stats = new CrossClusterSearchStats(clock::get);
 
         stats.update(List.of(available("origin"), available("P1"), available("P2"), available("P3"), available("P4")));
         assertThat(stats.getAvailabilityRatio(), closeTo(1.0, 0.001));
@@ -374,7 +374,7 @@ public class CrossProjectSearchStatsTests extends ESTestCase {
 
     public void testChangeTimestampReflectsFirstObservation() {
         AtomicReference<Instant> clock = new AtomicReference<>(Instant.EPOCH);
-        CrossProjectSearchStats stats = new CrossProjectSearchStats(clock::get);
+        CrossClusterSearchStats stats = new CrossClusterSearchStats(clock::get);
 
         stats.update(List.of(available("origin")));
 
@@ -397,7 +397,7 @@ public class CrossProjectSearchStatsTests extends ESTestCase {
 
     public void testChangeTimestampUsesEarliestAmongSimultaneousChanges() {
         AtomicReference<Instant> clock = new AtomicReference<>(Instant.EPOCH);
-        CrossProjectSearchStats stats = new CrossProjectSearchStats(clock::get);
+        CrossClusterSearchStats stats = new CrossClusterSearchStats(clock::get);
 
         stats.update(List.of(available("origin"), available("P1")));
 
@@ -422,7 +422,7 @@ public class CrossProjectSearchStatsTests extends ESTestCase {
 
     public void testNoChangeAfterBaselineWhenProjectSetUnchanged() {
         AtomicReference<Instant> clock = new AtomicReference<>(Instant.EPOCH);
-        CrossProjectSearchStats stats = new CrossProjectSearchStats(clock::get);
+        CrossClusterSearchStats stats = new CrossClusterSearchStats(clock::get);
 
         stats.update(List.of(available("origin"), available("P1"), available("P2")));
 
@@ -435,7 +435,7 @@ public class CrossProjectSearchStatsTests extends ESTestCase {
 
     public void testLinkingConfirmationDoesNotRepeat() {
         AtomicReference<Instant> clock = new AtomicReference<>(Instant.EPOCH);
-        CrossProjectSearchStats stats = new CrossProjectSearchStats(clock::get);
+        CrossClusterSearchStats stats = new CrossClusterSearchStats(clock::get);
 
         stats.update(List.of(available("origin")));
 
@@ -459,7 +459,7 @@ public class CrossProjectSearchStatsTests extends ESTestCase {
 
     public void testStabilizedProjectAliasesReturnsDefensiveCopy() {
         AtomicReference<Instant> clock = new AtomicReference<>(Instant.EPOCH);
-        CrossProjectSearchStats stats = new CrossProjectSearchStats(clock::get);
+        CrossClusterSearchStats stats = new CrossClusterSearchStats(clock::get);
 
         stats.update(List.of(available("origin"), available("P1")));
 
@@ -469,7 +469,7 @@ public class CrossProjectSearchStatsTests extends ESTestCase {
 
     public void testConsecutiveSkipsReturnsDefensiveCopy() {
         AtomicReference<Instant> clock = new AtomicReference<>(Instant.EPOCH);
-        CrossProjectSearchStats stats = new CrossProjectSearchStats(clock::get);
+        CrossClusterSearchStats stats = new CrossClusterSearchStats(clock::get);
 
         stats.update(List.of(available("origin"), skipped("P1")));
 
@@ -479,7 +479,7 @@ public class CrossProjectSearchStatsTests extends ESTestCase {
 
     public void testFluctuatingProjectPresence() {
         AtomicReference<Instant> clock = new AtomicReference<>(Instant.EPOCH);
-        CrossProjectSearchStats stats = new CrossProjectSearchStats(clock::get);
+        CrossClusterSearchStats stats = new CrossClusterSearchStats(clock::get);
 
         stats.update(List.of(available("origin")));
 
@@ -494,7 +494,7 @@ public class CrossProjectSearchStatsTests extends ESTestCase {
 
     public void testSimultaneousLinkingAndUnlinkingWithDifferentStartTimes() {
         AtomicReference<Instant> clock = new AtomicReference<>(Instant.EPOCH);
-        CrossProjectSearchStats stats = new CrossProjectSearchStats(clock::get);
+        CrossClusterSearchStats stats = new CrossClusterSearchStats(clock::get);
 
         stats.update(List.of(available("origin"), available("P1")));
 
@@ -531,7 +531,7 @@ public class CrossProjectSearchStatsTests extends ESTestCase {
 
     public void testStaleEntryCleanup() {
         AtomicReference<Instant> clock = new AtomicReference<>(Instant.EPOCH);
-        CrossProjectSearchStats stats = new CrossProjectSearchStats(clock::get);
+        CrossClusterSearchStats stats = new CrossClusterSearchStats(clock::get);
 
         // Baseline with origin and P1, where P1 is skipped
         stats.update(List.of(available("origin"), skipped("P1")));
@@ -549,7 +549,7 @@ public class CrossProjectSearchStatsTests extends ESTestCase {
 
     public void testDelayedTimeBasedStabilization() {
         AtomicReference<Instant> clock = new AtomicReference<>(Instant.EPOCH);
-        CrossProjectSearchStats stats = new CrossProjectSearchStats(clock::get);
+        CrossClusterSearchStats stats = new CrossClusterSearchStats(clock::get);
 
         stats.update(List.of(available("origin")));
 
@@ -574,7 +574,7 @@ public class CrossProjectSearchStatsTests extends ESTestCase {
 
     public void testBuildScopeChangeMessageLinkingOnly() {
         ScopeChangeResult result = new ScopeChangeResult(Set.of("P3", "P4"), Set.of(), true, Instant.EPOCH);
-        String msg = CrossProjectSearchStats.buildScopeChangeMessage(result);
+        String msg = CrossClusterSearchStats.buildScopeChangeMessage(result);
         assertThat(msg, containsString("[P3, P4] linked"));
         assertThat(msg, containsString("new data sources"));
         assertThat(msg, not(containsString("unlinked")));
@@ -582,7 +582,7 @@ public class CrossProjectSearchStatsTests extends ESTestCase {
 
     public void testBuildScopeChangeMessageUnlinkingOnly() {
         ScopeChangeResult result = new ScopeChangeResult(Set.of(), Set.of("P2"), true, Instant.EPOCH);
-        String msg = CrossProjectSearchStats.buildScopeChangeMessage(result);
+        String msg = CrossClusterSearchStats.buildScopeChangeMessage(result);
         assertThat(msg, containsString("[P2] unlinked"));
         assertThat(msg, containsString("removed data sources"));
         assertThat(msg, not(containsString("linked,")));
@@ -590,7 +590,7 @@ public class CrossProjectSearchStatsTests extends ESTestCase {
 
     public void testBuildScopeChangeMessageBothLinkingAndUnlinking() {
         ScopeChangeResult result = new ScopeChangeResult(Set.of("P3"), Set.of("P2"), true, Instant.EPOCH);
-        String msg = CrossProjectSearchStats.buildScopeChangeMessage(result);
+        String msg = CrossClusterSearchStats.buildScopeChangeMessage(result);
         assertThat(msg, containsString("[P3] linked"));
         assertThat(msg, containsString("[P2] unlinked"));
         assertThat(msg, containsString("Data distribution may have changed"));
@@ -598,13 +598,13 @@ public class CrossProjectSearchStatsTests extends ESTestCase {
 
     public void testBuildScopeChangeMessageSortsAliases() {
         ScopeChangeResult result = new ScopeChangeResult(Set.of("Z1", "A1", "M1"), Set.of(), true, Instant.EPOCH);
-        String msg = CrossProjectSearchStats.buildScopeChangeMessage(result);
+        String msg = CrossClusterSearchStats.buildScopeChangeMessage(result);
         assertThat(msg, containsString("[A1, M1, Z1]"));
     }
 
     public void testUnlinkingConfirmationDoesNotRepeat() {
         AtomicReference<Instant> clock = new AtomicReference<>(Instant.EPOCH);
-        CrossProjectSearchStats stats = new CrossProjectSearchStats(clock::get);
+        CrossClusterSearchStats stats = new CrossClusterSearchStats(clock::get);
 
         stats.update(List.of(available("origin"), available("P1")));
 
@@ -628,7 +628,7 @@ public class CrossProjectSearchStatsTests extends ESTestCase {
 
     public void testMultipleProjectsUnlinkingSimultaneously() {
         AtomicReference<Instant> clock = new AtomicReference<>(Instant.EPOCH);
-        CrossProjectSearchStats stats = new CrossProjectSearchStats(clock::get);
+        CrossClusterSearchStats stats = new CrossClusterSearchStats(clock::get);
 
         stats.update(List.of(available("origin"), available("P1"), available("P2"), available("P3")));
 
@@ -647,7 +647,7 @@ public class CrossProjectSearchStatsTests extends ESTestCase {
 
     public void testMixedSkippedAndFailedStates() {
         AtomicReference<Instant> clock = new AtomicReference<>(Instant.EPOCH);
-        CrossProjectSearchStats stats = new CrossProjectSearchStats(clock::get);
+        CrossClusterSearchStats stats = new CrossClusterSearchStats(clock::get);
 
         stats.update(List.of(available("origin"), available("P1")));
 
@@ -666,7 +666,7 @@ public class CrossProjectSearchStatsTests extends ESTestCase {
 
     public void testCustomStabilizationCycles() {
         AtomicReference<Instant> clock = new AtomicReference<>(Instant.EPOCH);
-        CrossProjectSearchStats stats = new CrossProjectSearchStats(clock::get, 3, Duration.ZERO);
+        CrossClusterSearchStats stats = new CrossClusterSearchStats(clock::get, 3, Duration.ZERO);
 
         stats.update(List.of(available("origin")));
 
@@ -684,7 +684,7 @@ public class CrossProjectSearchStatsTests extends ESTestCase {
 
     public void testCustomStabilizationFloor() {
         AtomicReference<Instant> clock = new AtomicReference<>(Instant.EPOCH);
-        CrossProjectSearchStats stats = new CrossProjectSearchStats(clock::get, 2, Duration.ofSeconds(30));
+        CrossClusterSearchStats stats = new CrossClusterSearchStats(clock::get, 2, Duration.ofSeconds(30));
 
         stats.update(List.of(available("origin")));
 
@@ -706,7 +706,7 @@ public class CrossProjectSearchStatsTests extends ESTestCase {
         AtomicReference<Instant> clock = new AtomicReference<>(Instant.EPOCH);
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> new CrossProjectSearchStats(clock::get, 0, Duration.ZERO)
+            () -> new CrossClusterSearchStats(clock::get, 0, Duration.ZERO)
         );
         assertThat(e.getMessage(), containsString("stabilizationCycles must be >= 1"));
     }

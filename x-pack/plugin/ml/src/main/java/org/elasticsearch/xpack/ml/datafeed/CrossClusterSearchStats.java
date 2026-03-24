@@ -34,7 +34,7 @@ import java.util.function.Supplier;
  * Created when the datafeed starts and discarded when it stops. On the first search
  * cycle the observed cluster set is recorded as the baseline with no annotation.
  */
-public class CrossProjectSearchStats {
+public class CrossClusterSearchStats {
 
     public static final int DEFAULT_STABILIZATION_CYCLES = 12;
     static final Duration DEFAULT_MIN_STABILIZATION_DURATION = Duration.ofMinutes(5);
@@ -58,7 +58,7 @@ public class CrossProjectSearchStats {
     /**
      * Creates stats with production-default stabilization thresholds.
      */
-    public CrossProjectSearchStats(Supplier<Instant> clock) {
+    public CrossClusterSearchStats(Supplier<Instant> clock) {
         this(clock, DEFAULT_STABILIZATION_CYCLES, DEFAULT_MIN_STABILIZATION_DURATION);
     }
 
@@ -69,7 +69,7 @@ public class CrossProjectSearchStats {
      * @param stabilizationCycles       minimum consecutive cycles a change must persist before confirmation
      * @param minStabilizationDuration  minimum wall-clock duration since first observation before confirmation
      */
-    public CrossProjectSearchStats(Supplier<Instant> clock, int stabilizationCycles, Duration minStabilizationDuration) {
+    public CrossClusterSearchStats(Supplier<Instant> clock, int stabilizationCycles, Duration minStabilizationDuration) {
         this.clock = Objects.requireNonNull(clock);
         if (stabilizationCycles < 1) {
             throw new IllegalArgumentException("stabilizationCycles must be >= 1, got " + stabilizationCycles);
@@ -278,7 +278,7 @@ public class CrossProjectSearchStats {
             }
 
             @Override
-            Map<String, StabilizationTracker> getCandidates(CrossProjectSearchStats stats) {
+            Map<String, StabilizationTracker> getCandidates(CrossClusterSearchStats stats) {
                 return stats.pendingLinks;
             }
 
@@ -301,7 +301,7 @@ public class CrossProjectSearchStats {
             }
 
             @Override
-            Map<String, StabilizationTracker> getCandidates(CrossProjectSearchStats stats) {
+            Map<String, StabilizationTracker> getCandidates(CrossClusterSearchStats stats) {
                 return stats.pendingUnlinks;
             }
 
@@ -320,7 +320,7 @@ public class CrossProjectSearchStats {
 
         abstract void updateConfirmedSet(Set<String> confirmed, String alias);
 
-        abstract Map<String, StabilizationTracker> getCandidates(CrossProjectSearchStats stats);
+        abstract Map<String, StabilizationTracker> getCandidates(CrossClusterSearchStats stats);
 
         abstract Set<String> getPendingAliases(Set<String> current, Set<String> confirmed);
 

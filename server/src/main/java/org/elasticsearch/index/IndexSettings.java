@@ -909,7 +909,7 @@ public final class IndexSettings {
     public static final FeatureFlag INDEX_DISABLED_BY_DEFAULT_FEATURE_FLAG = new FeatureFlag("index_disabled_by_default");
     public static final Setting<Boolean> INDEX_DISABLED_BY_DEFAULT = Setting.boolSetting(
         "index.mapping.index_disabled_by_default",
-        false,
+        true,
         Property.IndexScope,
         Property.Final
     );

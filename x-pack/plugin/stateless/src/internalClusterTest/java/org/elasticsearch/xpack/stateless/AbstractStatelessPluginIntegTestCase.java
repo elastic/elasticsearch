@@ -1386,6 +1386,12 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
 
         final String settingsJson = addProjectIdToSettingsJson(fileSettingsService.watchedFile(), newVersion, projectId.id());
         final String repositoryJson = getRepositoryJson(repositoryMetadata);
+
+        String secretsSection = projectSecrets.isEmpty() ? "" : Strings.format("""
+            "project_secrets": {
+                "string_secrets": %s
+            },""", projectSecrets);
+
         final var projectSettingsJson = Strings.format("""
             {
                  "metadata": {
@@ -1393,27 +1399,13 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
                      "compatibility": "8.4.0"
                  },
                  "state": {
+                     %s
                      "project_settings": %s,
                      "snapshot_repositories": %s
                  }
-            }""", newVersion, projectSettings.toString(), repositoryJson);
-
-        final var projectSecretsJson = Strings.format("""
-            {
-                 "metadata": {
-                     "version": "%s",
-                     "compatibility": "8.4.0"
-                 },
-                 "state": {
-                     "project_secrets": {
-                        "string_secrets": %s,
-                        "file_secrets": %s
-                     }
-                 }
-            }""", newVersion, projectSecrets.toString(), "{}");
+            }""", newVersion, secretsSection, projectSettings, repositoryJson);
 
         Files.writeString(fileSettingsService.watchedFile().resolveSibling("project-" + projectId + ".json"), projectSettingsJson);
-        Files.writeString(fileSettingsService.watchedFile().resolveSibling("project-" + projectId + ".secrets.json"), projectSecretsJson);
         writeAndMoveContentAtomically(settingsJson, fileSettingsService.watchedFile());
         ensureProcessedFileBasedSettingsVersion(newVersion);
 
@@ -1452,18 +1444,6 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
         final var newVersion = nextReservedStateVersion();
 
         // Mark the project for deletion
-        // Project secrets file
-        final var projectSecretsPath = settingsJsonPath.resolveSibling("project-" + projectId + ".secrets.json");
-        {
-            final var map = XContentHelper.convertToMap(JSON.xContent(), Files.readString(projectSecretsPath), false);
-            final var metadata = (Map<String, Object>) map.get("metadata");
-            metadata.put("version", Strings.format("%s", newVersion));
-            writeAndMoveContentAtomically(
-                XContentHelper.convertToJson(XContentTestUtils.convertToXContent(map, JSON), false, XContentType.JSON),
-                projectSecretsPath
-            );
-        }
-        // Project settings file
         final var projectSettingsPath = settingsJsonPath.resolveSibling("project-" + projectId + ".json");
         {
             final var map = XContentHelper.convertToMap(JSON.xContent(), Files.readString(projectSettingsPath), false);
@@ -1480,9 +1460,6 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
 
     protected void ensureProjectRemovedAndCleanUp(ProjectId projectId) throws Exception {
         final var settingsJsonPath = getFileSettingsWatchedFile();
-        // Project secrets file
-        final var projectSecretsPath = settingsJsonPath.resolveSibling("project-" + projectId + ".secrets.json");
-        // Project settings file
         final var projectSettingsPath = settingsJsonPath.resolveSibling("project-" + projectId + ".json");
         // Wait for lease to be released and project metadata to be removed
         final var blobContainer = getCurrentMasterObjectStoreService().getClusterRootContainer();
@@ -1497,7 +1474,6 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
 
         // Clean up config files after project deletion
         // TODO: MultiProjectFileSettingsService does not handle file deletion. Enable the commented lines when ES-12411 is resolved.
-        // Files.deleteIfExists(projectSecretsPath);
         // Files.deleteIfExists(projectSettingsPath);
         final long versionWithCleanup = reservedStateVersionCounter.incrementAndGet();
         final String settingsJson = removeProjectIdFromSettingsJson(settingsJsonPath, versionWithCleanup, projectId.id());

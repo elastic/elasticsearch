@@ -15,6 +15,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentParsingException;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -53,6 +54,12 @@ public class UnsignedLongFieldMapperTests extends WholeNumberFieldMapperTests {
     }
 
     @Override
+    protected FieldMapper.DocValuesParameter.Values getDocValuesParameters(MapperService mapperService) {
+        UnsignedLongFieldMapper mapper = (UnsignedLongFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
+        return mapper.docValuesParameters();
+    }
+
+    @Override
     protected void minimalMapping(XContentBuilder b) throws IOException {
         b.field("type", "unsigned_long");
     }
@@ -73,6 +80,8 @@ public class UnsignedLongFieldMapperTests extends WholeNumberFieldMapperTests {
         checker.registerConflictCheck("index", b -> b.field("index", false));
         checker.registerConflictCheck("store", b -> b.field("store", true));
         checker.registerConflictCheck("null_value", b -> b.field("null_value", 1));
+        registerDimensionChecks(checker);
+        checker.registerConflictCheck("time_series_metric", b -> b.field("time_series_metric", "gauge"));
     }
 
     public void testDefaults() throws Exception {

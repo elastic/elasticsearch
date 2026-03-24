@@ -17,7 +17,7 @@ esplugin {
   name = 'esql-datasource-orc'
   description = 'ORC format support for ESQL external data sources'
   classname = 'org.elasticsearch.xpack.esql.datasource.orc.OrcDataSourcePlugin'
-  extendedPlugins = ['x-pack-esql']
+  extendedPlugins = ['x-pack-esql', 'esql-datasource-compression-libs']
 }
 
 base {
@@ -33,6 +33,10 @@ dependencies {
 
   implementation("org.apache.orc:orc-core:${versions.orc}") {
     exclude group: 'org.slf4j', module: 'slf4j-api'
+    // aircompressor and zstd-jni are provided by esql-datasource-compression-libs parent plugin
+    exclude group: 'io.airlift', module: 'aircompressor'
+    exclude group: 'com.github.luben', module: 'zstd-jni'
+    exclude group: 'com.aayushatharva.brotli4j', module: 'brotli4j'
   }
 
   // Hive storage API - provides VectorizedRowBatch and ColumnVector classes used by ORC's
@@ -58,11 +62,14 @@ dependencies {
 
   testImplementation project(':test:framework')
   testImplementation(testArtifact(project(xpackModule('core'))))
+  // At runtime these are provided by esql-datasource-compression-libs parent plugin;
+  // at test time we need them explicitly since there's no parent plugin classloader.
+  testImplementation "io.airlift:aircompressor:${versions.aircompressor}"
+  testImplementation "com.github.luben:zstd-jni:${versions.zstdJni}"
 }
 
-configurations.all {
-  resolutionStrategy.force "io.airlift:aircompressor:${versions.aircompressor}"
-}
+// aircompressor and zstd-jni are provided by esql-datasource-compression-libs parent plugin;
+// transitive copies excluded from orc-core above.
 
 tasks.named("javadoc").configure {
   // ORC/Hadoop dependency tree causes javadoc issues (unnamed vs named module conflicts)
@@ -74,12 +81,8 @@ tasks.withType(org.elasticsearch.gradle.internal.AbstractDependenciesTask).confi
   mapping from: /orc-.*/, to: 'orc'
   mapping from: /hadoop-.*/, to: 'hadoop'
   mapping from: /hive-.*/, to: 'orc'
-  mapping from: /aircompressor-.*/, to: 'orc'
   mapping from: /threeten-extra-.*/, to: 'orc'
   mapping from: /protobuf-.*/, to: 'orc'
-  mapping from: /brotli4j-.*/, to: 'orc'
-  mapping from: /service-.*/, to: 'orc'
-  mapping from: /zstd-jni-.*/, to: 'orc'
   mapping from: /jts-core-.*/, to: 'orc'
 }
 

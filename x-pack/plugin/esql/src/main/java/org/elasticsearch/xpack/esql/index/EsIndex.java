@@ -20,7 +20,7 @@ public record EsIndex(
     Map<String, IndexMode> indexNameWithModes,
     Map<String, List<String>> originalIndices, // keyed by cluster alias
     Map<String, List<String>> concreteIndices, // keyed by cluster alias
-    Map<String, Set<String>> fieldToUnmappedIndices // keyed by field name
+    Map<String, Set<String>> fieldToUnmappedIndices // keyed by field name; Set<String> are concrete index names.
 ) {
 
     public EsIndex {

@@ -87,8 +87,8 @@ public class ReplaceFieldWithConstantOrNull extends ParameterizedRule<LogicalPla
         // Do not use the attribute name, this can deviate from the field name for union types; use fieldName() instead.
         // Also retain fields from lookup indices and external sources because we do not have stats for these.
         Predicate<FieldAttribute> shouldBeRetained = f -> f instanceof TimeSeriesMetadataAttribute
-            || f.field() instanceof PotentiallyUnmappedKeywordEsField
-            || (f.field() instanceof MultiTypeEsField mtf && mtf.getPotentiallyUnmappedExpression() != null)
+            // We should still attempt to load potentially unmapped fields if they're unmapped; that's the whole point!
+            || isPotentiallyUnmapped(f)
             // The source (or doc) field is added to the relation output as a hack to enable late materialization in the reduce driver.
             || EsQueryExec.isDocAttribute(f)
             || localLogicalOptimizerContext.searchStats().exists(f.fieldName())
@@ -96,6 +96,11 @@ public class ReplaceFieldWithConstantOrNull extends ParameterizedRule<LogicalPla
             || externalFields.contains(f);
 
         return plan.transformUp(p -> replaceWithNullOrConstant(p, shouldBeRetained, attrToConstant));
+    }
+
+    private static boolean isPotentiallyUnmapped(FieldAttribute f) {
+        return f.field() instanceof PotentiallyUnmappedKeywordEsField
+            || (f.field() instanceof MultiTypeEsField mtf && mtf.getPotentiallyUnmappedExpression() != null);
     }
 
     private LogicalPlan replaceWithNullOrConstant(

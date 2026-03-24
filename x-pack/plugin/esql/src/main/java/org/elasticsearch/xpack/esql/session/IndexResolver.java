@@ -299,7 +299,8 @@ public class IndexResolver {
         OriginalIndexExtractor originalIndexExtractor
     ) {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH_COORDINATION); // too expensive to run this on a transport worker
-        int numberOfIndices = fieldsInfo.caps.getIndexResponses().size();
+        List<FieldCapabilitiesIndexResponse> indexResponses = fieldsInfo.caps.getIndexResponses();
+        int numberOfIndices = indexResponses.size();
         if (numberOfIndices == 0) {
             return allowEmpty ? IndexResolution.empty(indexPattern) : IndexResolution.notFound(indexPattern);
         }
@@ -309,10 +310,7 @@ public class IndexResolver {
         Map<String, IndexFieldCapabilitiesWithSourceHash> fieldsCaps = collectedFieldCaps.fieldsCaps;
         Map<String, Integer> indexMappingHashDuplicates = collectedFieldCaps.indexMappingHashDuplicates;
         Map<String, Set<String>> fieldToMappedIndices = collectedFieldCaps.fieldToMappedIndices;
-        Set<String> allIndexNames = fieldsInfo.caps.getIndexResponses()
-            .stream()
-            .map(FieldCapabilitiesIndexResponse::getIndexName)
-            .collect(Collectors.toSet());
+        Set<String> allIndexNames = indexResponses.stream().map(FieldCapabilitiesIndexResponse::getIndexName).collect(Collectors.toSet());
 
         // Build hierarchical fields - it's easier to do it in sorted order so the object fields come first.
         // TODO flattened is simpler - could we get away with that?
@@ -364,9 +362,9 @@ public class IndexResolver {
         }
 
         boolean allEmpty = true;
-        Map<String, IndexMode> indexNameWithModes = Maps.newMapWithExpectedSize(fieldsInfo.caps.getIndexResponses().size());
+        Map<String, IndexMode> indexNameWithModes = Maps.newMapWithExpectedSize(indexResponses.size());
         Map<String, List<String>> concreteIndices = Maps.newHashMapWithExpectedSize(8);
-        for (FieldCapabilitiesIndexResponse ir : fieldsInfo.caps.getIndexResponses()) {
+        for (FieldCapabilitiesIndexResponse ir : indexResponses) {
             allEmpty &= ir.get().isEmpty();
             indexNameWithModes.put(ir.getIndexName(), ir.getIndexMode());
             var parts = RemoteClusterAware.splitIndexName(ir.getIndexName());

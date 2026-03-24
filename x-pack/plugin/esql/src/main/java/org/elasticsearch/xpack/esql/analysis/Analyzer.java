@@ -1209,7 +1209,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // TODO: Should the check for partially unmapped fields be done specific to each sub-query in a fork?
             if (resolvedCol instanceof FieldAttribute fa && indices.stream().anyMatch(r -> r.get().isPartiallyUnmappedField(fa.name()))) {
                 // NOTE: We use indices.getFirst() here as a temporary solution. INSIST will be removed after load is in GA anyway.
-                return fa.dataType() == KEYWORD ? insistKeyword(fa) : invalidInsistAttribute(fa, indices.getFirst());
+                return fa.dataType() == KEYWORD ? insistKeyword(fa) : invalidInsistAttribute(fa, indices.getFirst().get());
             }
 
             // Either the field is mapped everywhere and we can just use the resolved column, or the INSIST clause isn't on top of a FROM
@@ -1217,8 +1217,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return resolvedCol;
         }
 
-        private static FieldAttribute invalidInsistAttribute(FieldAttribute fa, IndexResolution indexResolutions) {
-            InvalidMappedField field = InvalidMappedField.potentiallyUnmapped(fa.name(), getTypesToIndices(fa, indexResolutions.get()));
+        private static FieldAttribute invalidInsistAttribute(FieldAttribute fa, EsIndex esIndex) {
+            InvalidMappedField field = InvalidMappedField.potentiallyUnmapped(fa.name(), getTypesToIndices(fa, esIndex));
             return new FieldAttribute(fa.source(), null, fa.qualifier(), fa.name(), field);
         }
 
@@ -1248,14 +1248,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          */
         private static LogicalPlan resolvePartiallyMapped(LogicalPlan plan, AnalyzerContext context) {
             var indexResolutions = collectIndexResolutions(plan, context);
-            if (indexResolutions.isEmpty()) {
-                throw new IllegalStateException("Unmapped fields with empty index resolutions.");
-            }
-            if (indexResolutions.size() > 1) {
-                throw new IllegalStateException(
-                    Strings.format("Multiple index patterns should be disabled with unmapped fields", indexResolutions)
-                );
-            }
             Map<FieldAttribute, FieldAttribute> insistedMap = new HashMap<>();
             var transformed = plan.transformExpressionsOnly(FieldAttribute.class, fa -> {
                 var esField = fa.field();
@@ -1267,10 +1259,18 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 if (existing != null) { // field shows up multiple times in the node; return first processing
                     return existing;
                 }
-                if (indexResolutions.stream().anyMatch(r -> r.get().isPartiallyUnmappedField(fa.name()))) {
-                    FieldAttribute newFA = fa.dataType() == KEYWORD
-                        ? insistKeyword(fa)
-                        : invalidInsistAttribute(fa, indexResolutions.getFirst());
+
+                if (indexResolutions.isEmpty()) {
+                    throw new IllegalStateException("Unmapped fields with empty index resolutions.");
+                }
+                if (indexResolutions.size() > 1) {
+                    throw new IllegalStateException(
+                        Strings.format("Multiple index patterns should be disabled with unmapped fields", indexResolutions)
+                    );
+                }
+                EsIndex esIndex = indexResolutions.getFirst().get();
+                if (esIndex.isPartiallyUnmappedField(fa.name())) {
+                    FieldAttribute newFA = fa.dataType() == KEYWORD ? insistKeyword(fa) : invalidInsistAttribute(fa, esIndex);
                     insistedMap.put(fa, newFA);
                     return newFA;
                 }

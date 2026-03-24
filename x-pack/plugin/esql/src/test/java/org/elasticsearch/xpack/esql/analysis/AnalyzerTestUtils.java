@@ -276,10 +276,6 @@ public final class AnalyzerTestUtils {
         return analyzeStatement(query, indexResolutions(indexName), checkPlan);
     }
 
-    public static LogicalPlan analyzeStatement(String query, Map<IndexPattern, IndexResolution> indexResolutions) {
-        return analyzeStatement(query, indexResolutions, true);
-    }
-
     public static LogicalPlan analyzeStatement(String query, Map<IndexPattern, IndexResolution> indexResolutions, boolean checkPlan) {
         var statement = TEST_PARSER.createStatement(query);
         var analyzer = analyzer(indexResolutions, TEST_VERIFIER, configuration(query), statement);

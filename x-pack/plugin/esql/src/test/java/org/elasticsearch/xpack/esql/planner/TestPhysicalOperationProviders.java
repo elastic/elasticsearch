@@ -108,7 +108,6 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
             var result = IntStream.range(0, columnNames.size()).filter(i -> columnNames.get(i).equals(columnName)).findFirst();
             return result.isPresent() ? Optional.of(result.getAsInt()) : Optional.empty();
         }
-
     }
 
     private static AnalysisRegistry createAnalysisRegistry() throws IOException {

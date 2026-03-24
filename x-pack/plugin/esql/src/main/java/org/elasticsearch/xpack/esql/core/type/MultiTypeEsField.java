@@ -32,7 +32,9 @@ import java.util.Set;
  * type conversion is done at the data node level.
  */
 public class MultiTypeEsField extends EsField {
-    private static final TransportVersion UNMAPPED_FIELDS_LOAD = TransportVersion.fromName("esql_unmapped_fields_load");
+    private static final TransportVersion POTENTIALLY_UNMAPPED_EXPRESSION = TransportVersion.fromName(
+        "esql_potentially_unmapped_expression"
+    );
 
     private final Map<String, Expression> indexToConversionExpressions;
 
@@ -63,7 +65,7 @@ public class MultiTypeEsField extends EsField {
             in.readBoolean(),
             in.readImmutableMap(i -> i.readNamedWriteable(Expression.class)),
             readTimeSeriesFieldType(in),
-            in.getTransportVersion().supports(UNMAPPED_FIELDS_LOAD) ? in.readOptionalNamedWriteable(Expression.class) : null
+            in.getTransportVersion().supports(POTENTIALLY_UNMAPPED_EXPRESSION) ? in.readOptionalNamedWriteable(Expression.class) : null
         );
     }
 
@@ -74,7 +76,9 @@ public class MultiTypeEsField extends EsField {
         out.writeBoolean(isAggregatable());
         out.writeMap(getIndexToConversionExpressions(), (o, v) -> out.writeNamedWriteable(v));
         writeTimeSeriesFieldType(out);
-        out.writeOptionalNamedWriteable(out.getTransportVersion().supports(UNMAPPED_FIELDS_LOAD) ? potentiallyUnmappedExpression : null);
+        out.writeOptionalNamedWriteable(
+            out.getTransportVersion().supports(POTENTIALLY_UNMAPPED_EXPRESSION) ? potentiallyUnmappedExpression : null
+        );
     }
 
     public String getWriteableName(TransportVersion transportVersion) {
@@ -158,6 +162,6 @@ public class MultiTypeEsField extends EsField {
 
     @Override
     public String toString() {
-        return Strings.format("%s (%s, %)", super.toString(), indexToConversionExpressions, potentiallyUnmappedExpression);
+        return Strings.format("%s (%s, %s)", super.toString(), indexToConversionExpressions, potentiallyUnmappedExpression);
     }
 }

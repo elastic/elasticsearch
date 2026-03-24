@@ -546,10 +546,9 @@ public class AnalyzerUnmappedTests extends ESTestCase {
             ),
             List.of()
         );
-        verificationFailure(
+        typeConflictVerificationFailure(
             setUnmappedLoad("FROM foo, bar | SORT message"),
-            indexResolutions(mergedResolution("foo,bar", caps)),
-            "Cannot use field [message]"
+            indexResolutions(mergedResolution("foo,bar", caps))
         );
     }
 
@@ -564,10 +563,9 @@ public class AnalyzerUnmappedTests extends ESTestCase {
             ),
             List.of()
         );
-        verificationFailure(
+        typeConflictVerificationFailure(
             setUnmappedLoad("FROM foo, bar, baz | EVAL x = message + 1"),
-            indexResolutions(mergedResolution("foo,bar,baz", caps)),
-            "Cannot use field [message]"
+            indexResolutions(mergedResolution("foo,bar,baz", caps))
         );
     }
 
@@ -582,10 +580,9 @@ public class AnalyzerUnmappedTests extends ESTestCase {
             ),
             List.of()
         );
-        verificationFailure(
+        typeConflictVerificationFailure(
             setUnmappedLoad("FROM foo, bar, baz | SORT message"),
-            indexResolutions(mergedResolution("foo,bar,baz", caps)),
-            "Cannot use field [message]"
+            indexResolutions(mergedResolution("foo,bar,baz", caps))
         );
     }
 
@@ -599,10 +596,9 @@ public class AnalyzerUnmappedTests extends ESTestCase {
             ),
             List.of()
         );
-        verificationFailure(
+        typeConflictVerificationFailure(
             setUnmappedLoad("FROM foo, bar | EVAL x = message"),
-            indexResolutions(mergedResolution("foo,bar", caps)),
-            "Cannot use field [message]"
+            indexResolutions(mergedResolution("foo,bar", caps))
         );
     }
 
@@ -778,9 +774,9 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         assertThat(e.getMessage(), containsString(expectedFailure));
     }
 
-    private void verificationFailure(String statement, Map<IndexPattern, IndexResolution> indexResolutions, String expectedFailure) {
-        var e = expectThrows(VerificationException.class, () -> analyzeStatement(statement, indexResolutions));
-        assertThat(e.getMessage(), containsString(expectedFailure));
+    private void typeConflictVerificationFailure(String statement, Map<IndexPattern, IndexResolution> indexResolutions) {
+        var e = expectThrows(VerificationException.class, () -> analyzeStatement(statement, indexResolutions, true));
+        assertThat(e.getMessage(), containsString("Cannot use field [message]"));
     }
 
     private static String setUnmappedNullify(String query) {

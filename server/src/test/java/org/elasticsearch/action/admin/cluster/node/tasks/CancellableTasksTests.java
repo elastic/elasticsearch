@@ -254,20 +254,24 @@ public class CancellableTasksTests extends TaskManagerTestCase {
         // Block at least 1 node, otherwise it's quite easy to end up in a race condition where the node tasks
         // have finished before the cancel request has arrived
         int blockedNodesCount = randomIntBetween(1, runNodesCount);
-        CancellableTask mainTask = startCancellableTestNodesAction(waitForActionToStart, runNodesCount, blockedNodesCount,
+        CancellableTask mainTask = startCancellableTestNodesAction(
+            waitForActionToStart,
+            runNodesCount,
+            blockedNodesCount,
             new ActionListener<>() {
-            @Override
-            public void onResponse(NodesResponse listTasksResponse) {
-                responseReference.set(listTasksResponse);
-                responseLatch.countDown();
-            }
+                @Override
+                public void onResponse(NodesResponse listTasksResponse) {
+                    responseReference.set(listTasksResponse);
+                    responseLatch.countDown();
+                }
 
-            @Override
-            public void onFailure(Exception e) {
-                throwableReference.set(e);
-                responseLatch.countDown();
+                @Override
+                public void onFailure(Exception e) {
+                    throwableReference.set(e);
+                    responseLatch.countDown();
+                }
             }
-        });
+        );
 
         CancellableTestCancellationListener listenerAddedBeforeCancellation = new CancellableTestCancellationListener();
         mainTask.addListener(listenerAddedBeforeCancellation);

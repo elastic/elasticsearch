@@ -44,6 +44,7 @@ class ESSynonymMapBuilder {
     private int maxHorizontalContext;
     private final boolean dedup;
     private final CircuitBreaker circuitBreaker;
+    private int ruleCount = 0;
 
     private static class MapEntry {
         boolean includeOrig;
@@ -73,6 +74,10 @@ class ESSynonymMapBuilder {
             throw new IllegalArgumentException("output.length must be > 0 (got " + output.length + ")");
         }
 
+        if ((ruleCount++ & 0x3FF) == 0) {
+            circuitBreaker.addEstimateBytesAndMaybeBreak(0L, "Synonyms");
+        }
+
         // Lucene asserts no holes here. We're skipping that.
 
         utf8Scratch.copyChars(output.chars, output.offset, output.length);
@@ -95,6 +100,7 @@ class ESSynonymMapBuilder {
 
     SynonymMap build() throws IOException {
         ByteSequenceOutputs outputs = ByteSequenceOutputs.getSingleton();
+        // TODO: consider setting suffixRAMLimitMB to cap NodeHash memory during FST compilation
         FSTCompiler<BytesRef> fstCompiler = new FSTCompiler.Builder<>(FST.INPUT_TYPE.BYTE4, outputs).build();
 
         BytesRefBuilder scratch = new BytesRefBuilder();

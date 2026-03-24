@@ -24,10 +24,7 @@ import java.util.Set;
  * per key (e.g. repeated query parameters such as {@code match[]=foo&match[]=bar}).
  *
  * <p>Each key maps to a non-empty ordered list of values.  The standard {@link Map} interface
- * operates on the <em>last</em> value in that list:
- * <ul>
- *   <li>{@link #get(Object)} returns the last value for a key, or {@code null} if absent.</li>
- * </ul>
+ * operates on the <em>last</em> value in that list: {@link #get(Object)} returns the last value for a key, or {@code null} if absent.
  * Use {@link #getAll(String)} to retrieve all values for a repeated key.
  *
  * <p>Instances are <em>immutable</em>: mutation methods ({@code put}, {@code remove}, {@code clear})
@@ -135,11 +132,10 @@ public final class RequestParams extends AbstractMap<String, String> {
 
     /**
      * Returns the single value for {@code key}, or {@code null} if absent.
-     * Throws {@link IllegalArgumentException} if the key has more than one value.
      *
      * @param key the parameter name
      * @return the single value, or {@code null} if absent
-     * @throws IllegalArgumentException if the key has multiple values
+     * @throws RestRequest.BadParameterException if the key has multiple values
      */
     public String requireSingle(String key) {
         var list = map.get(key);
@@ -147,7 +143,9 @@ public final class RequestParams extends AbstractMap<String, String> {
             return null;
         }
         if (list.size() > 1) {
-            throw new IllegalArgumentException("parameter [" + key + "] must have a single value, but found: " + list);
+            throw new RestRequest.BadParameterException(
+                new IllegalArgumentException("parameter [" + key + "] must have a single value, but found: " + list)
+            );
         }
         return list.getFirst();
     }

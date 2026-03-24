@@ -81,7 +81,7 @@ public class RequestParamsTests extends ESTestCase {
 
     public void testRequireSingleThrowsOnMultipleValues() {
         var map = RequestParams.of(Map.of("k", List.of("a", "b")));
-        var ex = expectThrows(IllegalArgumentException.class, () -> map.requireSingle("k"));
+        var ex = expectThrows(RestRequest.BadParameterException.class, () -> map.requireSingle("k"));
         assertThat(ex.getMessage(), equalTo("parameter [k] must have a single value, but found: [a, b]"));
     }
 

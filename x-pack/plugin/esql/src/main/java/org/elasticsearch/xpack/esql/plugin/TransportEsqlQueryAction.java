@@ -21,15 +21,20 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.BlockFactoryProvider;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.injection.guice.Inject;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
@@ -71,6 +76,8 @@ import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
 public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRequest, EsqlQueryResponse>
     implements
         AsyncTaskManagementService.AsyncOperation<EsqlQueryRequest, EsqlQueryResponse, EsqlQueryTask> {
+
+    private static final Logger logger = LogManager.getLogger(TransportEsqlQueryAction.class);
 
     private final ThreadPool threadPool;
     private final PlanExecutor planExecutor;
@@ -232,6 +239,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     public void execute(EsqlQueryRequest request, EsqlQueryTask task, ActionListener<EsqlQueryResponse> listener) {
         // set EsqlExecutionInfo on async-search task so that it is accessible to GET _query/async while the query is still running
         task.setExecutionInfo(createEsqlExecutionInfo(request));
+        task.rescheduleCancellationOnExpiry();
         ActionListener.run(listener, l -> innerExecute(task, request, l));
     }
 
@@ -462,6 +470,23 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             @Override
             public Status getStatus() {
                 return new EsqlQueryStatus(asyncExecutionId);
+            }
+
+            @Override
+            protected Scheduler.ScheduledCancellable scheduleCancellationOnExpiry(long expirationTimeMillis) {
+                final long delay = Math.max(expirationTimeMillis - threadPool.absoluteTimeInMillis(), 0);
+                final CancellableTask task = this;
+                return threadPool.schedule(new AbstractRunnable() {
+                    @Override
+                    public void onFailure(Exception e) {
+                        logger.warn("failed to cancel async-query on expiry", e);
+                    }
+
+                    @Override
+                    protected void doRun() {
+                        taskManager.cancelTaskAndDescendants(task, "keep_alive expired", false, ActionListener.noop());
+                    }
+                }, TimeValue.timeValueMillis(delay), threadPool.generic());
             }
         };
     }

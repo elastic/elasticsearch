@@ -138,7 +138,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
             DEFAULT_REGION_UNAVAILABLE
         ) {
             private InetAddress[] resolveHost(String host) throws UnknownHostException {
-                assertEquals("127.0.0.1", host);
+                assertTrue(InetAddress.getByName(host).isLoopbackAddress());
                 if (shouldErrorOnDns && randomBoolean() && randomBoolean()) {
                     throw new UnknownHostException(host);
                 }
@@ -203,7 +203,8 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         final String clientName = randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
 
         final InetSocketAddress address = httpServer.getAddress();
-        final String endpoint = "http://" + InetAddresses.toUriString(address.getAddress()) + ":" + address.getPort();
+        String host = InetAddresses.toUriString(address.getAddress());
+        final String endpoint = "http://" + host + ":" + address.getPort();
         logger.info("--> creating client with endpoint [{}]", endpoint);
         clientSettings.put(ENDPOINT_SETTING.getConcreteSettingForNamespace(clientName).getKey(), endpoint);
 

@@ -197,11 +197,10 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
     ) {
 
         // TODO: https://github.com/elastic/elasticsearch/pull/144704#pullrequestreview-3991685487
-        //       We need a better explaination why this check is needed here.
-        //       The other applyAs methods in this class do not include this check.
+        // We need a better explaination why this check is needed here.
+        // The other applyAs methods in this class do not include this check.
         //
-        if (aliasFilter != null && aliasFilter != AliasFilter.EMPTY)
-            return false;
+        if (aliasFilter != null && aliasFilter != AliasFilter.EMPTY) return false;
 
         if (expressions.size() == 1) {
             Expression expr = expressions.get(0);

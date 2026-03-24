@@ -1,0 +1,5 @@
+area: TSDB
+issues: []
+pr: 144851
+summary: Support `best_compression` for synthetic ID indices
+type: feature

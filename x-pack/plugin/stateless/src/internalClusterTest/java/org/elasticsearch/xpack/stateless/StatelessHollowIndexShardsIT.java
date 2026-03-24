@@ -3123,7 +3123,8 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
 
         // In order to test that no extra blob read occurs on the source node during hollowing, we need to unhollow the shards on node B
         // to convert it in regular shards.
-        final int moreDocs = randomIntBetween(clusterInfo.numberOfShards() * 6, clusterInfo.numberOfShards() * 10);
+        // With 20 documents per shard and 5 shards, we should have 99.9999999 % chance to hit all the shards.
+        final int moreDocs = randomIntBetween(clusterInfo.numberOfShards() * 20, clusterInfo.numberOfShards() * 30);
         logger.info("--> ingesting {} more docs to unhollow shards", moreDocs);
         indexDocs(clusterInfo.indexName, moreDocs);
         // Wait until the shards are hollowable again

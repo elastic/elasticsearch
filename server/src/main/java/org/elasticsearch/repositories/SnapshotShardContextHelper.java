@@ -14,6 +14,8 @@ import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.IndexReshardService;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
@@ -23,6 +25,7 @@ import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.snapshots.Snapshot;
+import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -123,6 +126,29 @@ public class SnapshotShardContextHelper {
                 logger.warn(Strings.format("exception closing commit for [%s] in [%s]", shardId, snapshot), e);
             }
         }).onResponse(null);
+    }
+
+    public static Releasable withSnapshotIndexCommitRef(
+        ShardId shardId,
+        SnapshotId snapshotId,
+        SnapshotIndexCommit snapshotIndexCommit,
+        @Nullable IndexShardSnapshotStatus snapshotStatus // null if called on the primary node and snapshot runs on a different node
+    ) {
+        maybeEnsureNotAborted(snapshotStatus); // check this first to avoid acquiring a ref when aborted even if refs are available
+        if (snapshotIndexCommit.tryIncRef()) {
+            return Releasables.releaseOnce(snapshotIndexCommit::decRef);
+        } else {
+            assert snapshotStatus != null : "only snapshot running locally can receive concurrent abort notification at this stage";
+            maybeEnsureNotAborted(snapshotStatus);
+            assert false : shardId + " commit released earlier with status " + snapshotStatus;
+            throw new IndexShardSnapshotFailedException(shardId, "commit released while starting snapshot " + snapshotId);
+        }
+    }
+
+    public static void maybeEnsureNotAborted(@Nullable IndexShardSnapshotStatus snapshotStatus) {
+        if (snapshotStatus != null) {
+            snapshotStatus.ensureNotAborted();
+        }
     }
 
     private static int calculateMaximumShardIdForIndexInTheSnapshot(ShardId shardIdStartingASnapshot, SnapshotsInProgress.Entry entry) {

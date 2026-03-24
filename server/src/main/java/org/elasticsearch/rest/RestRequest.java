@@ -428,7 +428,7 @@ public class RestRequest implements ToXContent.Params, Traceable {
      * @param key the parameter name
      * @return all values for the parameter, or an empty list if the parameter was not present
      */
-    public List<String> paramAsList(String key) {
+    public List<String> repeatedParamAsList(String key) {
         consumedParams.add(key);
         return params.getAll(key);
     }

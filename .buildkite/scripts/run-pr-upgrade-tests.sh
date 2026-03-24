@@ -35,7 +35,7 @@ steps:
           agents:
             provider: gcp
             image: family/elasticsearch-ubuntu-2004
-            machineType: n1-standard-32
+            machineType: n2-standard-32
             buildDirectory: /dev/shm/bk
           matrix:
             setup:

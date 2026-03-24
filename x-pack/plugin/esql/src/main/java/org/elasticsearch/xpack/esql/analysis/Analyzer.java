@@ -2460,8 +2460,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         for (Map.Entry<String, Expression> entry : mtf.getIndexToConversionExpressions().entrySet()) {
                             String indexName = entry.getKey();
                             AbstractConvertFunction originalConversionFunction = (AbstractConvertFunction) entry.getValue();
-                            Expression originalField = originalConversionFunction.field();
-                            Expression newConvertFunction = convertExpression.replaceChildren(Collections.singletonList(originalField));
+                            Expression newConvertFunction = convertExpression.replaceChildren(
+                                Collections.singletonList(originalConversionFunction)
+                            );
                             indexToConversionExpressions.put(indexName, newConvertFunction);
                         }
                         MultiTypeEsField multiTypeEsField = new MultiTypeEsField(

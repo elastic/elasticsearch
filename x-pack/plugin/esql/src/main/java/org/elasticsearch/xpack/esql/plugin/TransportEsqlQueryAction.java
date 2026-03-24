@@ -86,6 +86,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
+import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME;
 
 public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRequest, EsqlQueryResponse>
     implements
@@ -209,7 +210,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         );
 
         OperatorFactoryRegistry operatorFactoryRegistry = planExecutor.dataSourceModule()
-            .createOperatorFactoryRegistry(threadPool.executor(ThreadPool.Names.SEARCH));
+            .createOperatorFactoryRegistry(externalSourceExecutor());
         FilterPushdownRegistry filterPushdownRegistry = planExecutor.dataSourceModule().filterPushdownRegistry();
         this.computeService = new ComputeService(
             services,
@@ -251,6 +252,15 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             .addSettingsUpdateConsumer(AnalyzerSettings.QUERY_TIMESERIES_RESULT_TRUNCATION_DEFAULT_SIZE, v -> {
                 timeseriesResultTruncationDefaultSize = v;
             });
+    }
+
+    /**
+     * Returns the executor used for external source I/O (e.g. {@code EXTERNAL/FROM external_source} operators).
+     * Isolated from {@link ThreadPool.Names#SEARCH} to prevent heavy external queries from starving regular ES operations.
+     * Currently shares {@code esql_worker} with compute drivers; override this method when a dedicated I/O pool is introduced.
+     */
+    protected Executor externalSourceExecutor() {
+        return threadPool.executor(ESQL_WORKER_THREAD_POOL_NAME);
     }
 
     @Override

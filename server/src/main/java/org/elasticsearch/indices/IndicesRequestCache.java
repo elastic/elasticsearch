@@ -44,9 +44,6 @@ import java.util.concurrent.ConcurrentMap;
  * <p>
  * Currently, the cache is only enabled for count requests, and can only be opted in on an index
  * level setting that can be dynamically changed and defaults to false.
- * <p>
- * There are still several TODOs left in this class, some easily addressable, some more complex, but the support
- * is functional.
  */
 public final class IndicesRequestCache implements Closeable {
 
@@ -111,7 +108,7 @@ public final class IndicesRequestCache implements Closeable {
         BytesReference value = cache.computeIfAbsent(key, cacheLoader);
         if (cacheLoader.isLoaded()) {
             key.entity.onMiss();
-            // see if its the first time we see this reader, and make sure to register a cleanup key
+            // see if it's the first time we see this reader, and make sure to register a cleanup key
             CleanupKey cleanupKey = new CleanupKey(cacheEntity, cacheHelper.getKey());
             if (registeredClosedListeners.containsKey(cleanupKey) == false) {
                 Boolean previous = registeredClosedListeners.putIfAbsent(cleanupKey, Boolean.TRUE);
@@ -135,14 +132,16 @@ public final class IndicesRequestCache implements Closeable {
     }
 
     /**
-     * Invalidates the given the cache entry for the given key and it's context
+     * Invalidates the given cache entry for the given key and its context
      * @param cacheEntity the cache entity to invalidate for
+     * @param mappingCacheKey the mapping cache key to invalidate the cache entry for
      * @param reader the reader to invalidate the cache entry for
      * @param cacheKey the cache key to invalidate
      */
     void invalidate(CacheEntity cacheEntity, MappingLookup.CacheKey mappingCacheKey, DirectoryReader reader, BytesReference cacheKey) {
-        assert reader.getReaderCacheHelper() != null;
-        cache.invalidate(new Key(cacheEntity, mappingCacheKey, reader.getReaderCacheHelper().getKey(), cacheKey));
+        final ESCacheHelper cacheHelper = ElasticsearchDirectoryReader.getESReaderCacheHelper(reader);
+        assert cacheHelper != null;
+        cache.invalidate(new Key(cacheEntity, mappingCacheKey, cacheHelper.getKey(), cacheKey));
     }
 
     private static class Loader implements CacheLoader<Key, BytesReference> {

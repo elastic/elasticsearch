@@ -547,6 +547,8 @@ public final class IndicesPermission {
                 return List.of();
             } else if (indexAbstraction.getType() == IndexAbstraction.Type.CONCRETE_INDEX) {
                 return List.of(indexAbstraction.getName());
+            } else if (indexAbstraction.getType() == IndexAbstraction.Type.VIEW) {
+                return List.of(indexAbstraction.getName());
             } else if (IndexComponentSelector.FAILURES.equals(selector)) {
                 final List<String> concreteIndexNames = new ArrayList<>(failureIndices.size());
                 for (var idx : failureIndices) {

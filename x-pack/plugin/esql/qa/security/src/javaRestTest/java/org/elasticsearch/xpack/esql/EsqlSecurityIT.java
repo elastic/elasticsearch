@@ -83,6 +83,10 @@ public class EsqlSecurityIT extends ESRestTestCase {
         .user("logs_foo_after_2021_alias", "x-pack-test-password", "logs_foo_after_2021_alias", false)
         .user("user_without_monitor_privileges", "x-pack-test-password", "user_without_monitor_privileges", false)
         .user("user_with_monitor_privileges", "x-pack-test-password", "user_with_monitor_privileges", false)
+        .user("view_dls_user", "x-pack-test-password", "view_dls_user", false)
+        .user("view_dls_nested_view_user", "x-pack-test-password", "view_dls_nested_view_user", false)
+        .user("view_fls_user", "x-pack-test-password", "view_fls_user", false)
+        .user("view_dls_fls_user", "x-pack-test-password", "view_dls_fls_user", false)
         .feature(FeatureFlag.ESQL_VIEWS)
         .build();
 
@@ -571,6 +575,84 @@ public class EsqlSecurityIT extends ESRestTestCase {
         String errorMessage = EntityUtils.toString(resp.getResponse().getEntity());
         assertThat(errorMessage, containsString("Unknown index [first-alias]"));
         assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
+    }
+
+    public void testViewWithDocumentLevelSecurity() throws Exception {
+        ResponseException resp = expectThrows(
+            ResponseException.class,
+            () -> runESQLCommand("view_dls_user", "FROM view-user1 | STATS sum=sum(value)")
+        );
+        assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_FORBIDDEN));
+        String errorMessage = EntityUtils.toString(resp.getResponse().getEntity());
+        assertThat(errorMessage, containsString("DLS/FLS restrictions applied"));
+        assertThat(errorMessage, containsString("view-user1"));
+    }
+
+    public void testViewWithFieldLevelSecurity() throws Exception {
+        ResponseException resp = expectThrows(
+            ResponseException.class,
+            () -> runESQLCommand("view_fls_user", "FROM view-user1 | STATS sum=sum(value)")
+        );
+        assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_FORBIDDEN));
+        String errorMessage = EntityUtils.toString(resp.getResponse().getEntity());
+        assertThat(errorMessage, containsString("DLS/FLS restrictions applied"));
+        assertThat(errorMessage, containsString("view-user1"));
+    }
+
+    public void testViewWithDocumentAndFieldLevelSecurity() throws Exception {
+        ResponseException resp = expectThrows(
+            ResponseException.class,
+            () -> runESQLCommand("view_dls_fls_user", "FROM view-user1 | STATS sum=sum(value)")
+        );
+        assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_FORBIDDEN));
+        String errorMessage = EntityUtils.toString(resp.getResponse().getEntity());
+        assertThat(errorMessage, containsString("DLS/FLS restrictions applied"));
+        assertThat(errorMessage, containsString("view-user1"));
+    }
+
+    public void testViewDlsOnWildcardPattern() throws Exception {
+        ResponseException resp = expectThrows(
+            ResponseException.class,
+            () -> runESQLCommand("view_dls_user", "FROM view-user* | STATS sum=sum(value)")
+        );
+        assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_FORBIDDEN));
+        String errorMessage = EntityUtils.toString(resp.getResponse().getEntity());
+        assertThat(errorMessage, containsString("DLS/FLS restrictions applied"));
+        assertThat(errorMessage, containsString("view-user1"));
+    }
+
+    /**
+     * tests a scenario where the parent view has DLS and the nested view has permissions that would allow access if the parent view
+     * didn't have DLS. This ensures that the DLS check is applied at the parent view level
+     */
+    public void testViewDlsOnNestedViewOuter() throws Exception {
+        createView("test-admin", "nested-dls-view-no-dls", "FROM view-user* | STATS sum=sum(value)");
+        createView("test-admin", "nested-dls-view-dls", "FROM nested-dls-view-no-dls");
+        ResponseException resp = expectThrows(
+            ResponseException.class,
+            () -> runESQLCommand("view_dls_nested_view_user", "FROM nested-dls-view-dls | STATS sum=sum(value)")
+        );
+        assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_FORBIDDEN));
+        String errorMessage = EntityUtils.toString(resp.getResponse().getEntity());
+        assertThat(errorMessage, containsString("DLS/FLS restrictions applied"));
+        assertThat(errorMessage, containsString("nested-dls-view-dls"));
+    }
+
+    /**
+     * tests a scenario, where the parent view has no dls or fls, but the nested view has DLS.
+     * This ensures that the DLS check is applied at the child view level
+     */
+    public void testViewDlsOnNestedViewInner() throws Exception {
+        createView("test-admin", "nested-dls-view-dls", "FROM view-user* | STATS sum=sum(value)");
+        createView("test-admin", "nested-dls-view-no-dls", "FROM nested-dls-view-dls");
+        ResponseException resp = expectThrows(
+            ResponseException.class,
+            () -> runESQLCommand("view_dls_nested_view_user", "FROM nested-dls-view-no-dls | STATS sum=sum(value)")
+        );
+        assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_FORBIDDEN));
+        String errorMessage = EntityUtils.toString(resp.getResponse().getEntity());
+        assertThat(errorMessage, containsString("DLS/FLS restrictions applied"));
+        assertThat(errorMessage, containsString("nested-dls-view-dls"));
     }
 
     public void testDocumentLevelSecurity() throws Exception {

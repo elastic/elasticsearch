@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.core.datastreams;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
@@ -144,7 +145,7 @@ public class DataStreamLifecycleConvertToFrozen implements Runnable {
             logger.info("DLM successfully cloned index [{}] to index [{}]", indexName, cloneIndexName);
             return cloneIndexName;
         } catch (Exception e) {
-            if (e instanceof InterruptedException) {
+            if (e instanceof InterruptedException || ExceptionsHelper.unwrapCause(e) instanceof IndexNotFoundException) {
                 Thread.currentThread().interrupt();
             }
             try {

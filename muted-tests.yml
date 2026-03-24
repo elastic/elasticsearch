@@ -354,18 +354,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.RestEsqlIT
   method: testForceSleepsProfile {SYNC}
   issue: https://github.com/elastic/elasticsearch/issues/144619
-- class: org.elasticsearch.xpack.esql.qa.multi_node.ExternalDistributedStressIT
-  method: testHeterogeneousSplitSizes
-  issue: https://github.com/elastic/elasticsearch/issues/144623
-- class: org.elasticsearch.xpack.esql.qa.multi_node.ExternalDistributedStressIT
-  method: testManyUniformSplitsWithAggregation
-  issue: https://github.com/elastic/elasticsearch/issues/144624
-- class: org.elasticsearch.xpack.esql.qa.multi_node.ExternalDistributedStressIT
-  method: testManyUniformSplitsWithTopN
-  issue: https://github.com/elastic/elasticsearch/issues/144625
-- class: org.elasticsearch.xpack.esql.qa.multi_node.ExternalDistributedStressIT
-  method: testManyUniformSplits
-  issue: https://github.com/elastic/elasticsearch/issues/144626
 
 # Examples:
 #

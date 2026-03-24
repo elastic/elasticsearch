@@ -114,9 +114,8 @@ public class PrometheusSeriesResponseListenerTests extends ESTestCase {
         assertThat(labels.get("__name__"), equalTo("up"));
     }
 
-    public void testBuildLabelMapNullMetricNameLeavesNoName() {
-        Map<String, String> labels = PrometheusSeriesResponseListener.buildLabelMap(null, "{}");
-        assertThat(labels.containsKey("__name__"), is(false));
+    public void testBuildLabelMapNullMetricNameAndEmptyDimensionsTripsAssertion() {
+        expectThrows(AssertionError.class, () -> PrometheusSeriesResponseListener.buildLabelMap(null, "{}"));
     }
 
     public void testBuildLabelMapWithDimensionsAndFallback() {

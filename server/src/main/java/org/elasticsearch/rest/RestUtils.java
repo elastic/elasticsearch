@@ -97,13 +97,13 @@ public class RestUtils {
         return params;
     }
 
+    private static String decodeQueryStringParam(final String s) {
+        return decodeComponent(s, StandardCharsets.UTF_8, true);
+    }
+
     private static void addParam(Map<String, List<String>> result, String name, String value) {
         checkReservedParam(name);
         result.computeIfAbsent(name, k -> new ArrayList<>()).add(value);
-    }
-
-    private static String decodeQueryStringParam(final String s) {
-        return decodeComponent(s, StandardCharsets.UTF_8, true);
     }
 
     private static void checkReservedParam(String name) {

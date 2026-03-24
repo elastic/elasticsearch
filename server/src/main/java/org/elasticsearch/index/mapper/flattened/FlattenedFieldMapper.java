@@ -206,16 +206,34 @@ public final class FlattenedFieldMapper extends FieldMapper {
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
+        private final Parameter<Map<String, FieldMapper.Builder>> properties;
+
         private final IndexMode indexMode;
         private final IndexVersion indexCreatedVersion;
         private final boolean usesBinaryDocValues;
         private final boolean isLegacyIndexWithRootValues;
         private final boolean forceStoreRootDocValues;
 
-        final Map<String, FieldMapper.Builder> propertyBuilders = new TreeMap<>();
-
         public static FieldMapper.Parameter<List<String>> dimensionsParam(Function<FieldMapper, List<String>> initializer) {
             return FieldMapper.Parameter.stringArrayParam(TIME_SERIES_DIMENSIONS_ARRAY_PARAM, false, initializer);
+        }
+
+        private static Parameter<Map<String, FieldMapper.Builder>> propertiesParam(
+            Function<FieldMapper, Map<String, FieldMapper.Builder>> initializer
+        ) {
+            var parameter = new Parameter<>(
+                "properties",
+                true,
+                TreeMap::new,
+                FlattenedFieldMapper.Builder::parseProperties,
+                initializer,
+                (b, n, v) -> {},
+                Objects::toString
+            );
+
+            // Serialization of properties is handled by doXContentBody using the built FieldMapper objects.
+            parameter.neverSerialize();
+            return parameter;
         }
 
         private static boolean usesBinaryDocValues(IndexSettings indexSettings) {
@@ -274,6 +292,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
             this.usesBinaryDocValues = usesBinaryDocValues;
             this.isLegacyIndexWithRootValues = isLegacyIndexWithRootValues;
             this.forceStoreRootDocValues = forceStoreRootDocValues;
+            this.properties = propertiesParam(m -> builder(m).properties.getValue());
         }
 
         @Override
@@ -289,7 +308,8 @@ public final class FlattenedFieldMapper extends FieldMapper {
                 similarity,
                 splitQueriesOnWhitespace,
                 meta,
-                dimensions };
+                dimensions,
+                properties };
         }
 
         @Override
@@ -308,6 +328,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
             }
 
             Map<String, FieldMapper> mappedSubFields = new TreeMap<>();
+            Map<String, FieldMapper.Builder> propertyBuilders = properties.getValue();
             if (propertyBuilders.isEmpty() == false) {
                 MapperBuilderContext childContext = context.createChildContext(leafName(), null);
                 for (Map.Entry<String, FieldMapper.Builder> entry : propertyBuilders.entrySet()) {
@@ -335,68 +356,39 @@ public final class FlattenedFieldMapper extends FieldMapper {
 
         @Override
         protected void mergeFromBuilder(FieldMapper.Builder incoming, Conflicts conflicts, MapperMergeContext mergeContext) {
+            Map<String, FieldMapper.Builder> currentProperties = new TreeMap<>(properties.getValue());
             super.mergeFromBuilder(incoming, conflicts, mergeContext);
             Builder incomingFlattened = (Builder) incoming;
-            for (Map.Entry<String, FieldMapper.Builder> entry : incomingFlattened.propertyBuilders.entrySet()) {
+            Map<String, FieldMapper.Builder> mergedProperties = new TreeMap<>(currentProperties);
+            for (Map.Entry<String, FieldMapper.Builder> entry : incomingFlattened.properties.getValue().entrySet()) {
                 String key = entry.getKey();
                 FieldMapper.Builder incomingPropBuilder = entry.getValue();
-                Mapper.Builder existingPropBuilder = propertyBuilders.get(key);
+                Mapper.Builder existingPropBuilder = currentProperties.get(key);
                 if (existingPropBuilder != null) {
                     MapperMergeContext childContext = MapperMergeContext.from(mergeContext.getMapperBuilderContext(), Long.MAX_VALUE);
                     Mapper.Builder merged = existingPropBuilder.mergeWith(incomingPropBuilder, childContext);
-                    propertyBuilders.put(key, (FieldMapper.Builder) merged);
+                    mergedProperties.put(key, (FieldMapper.Builder) merged);
                 } else {
-                    propertyBuilders.put(key, incomingPropBuilder);
+                    mergedProperties.put(key, incomingPropBuilder);
                 }
             }
-        }
-    }
-
-    private static final Set<String> ALLOWED_SUB_FIELD_TYPES = Set.of(
-        "keyword",
-        "constant_keyword",
-        "wildcard",
-        "text",
-        "long",
-        "integer",
-        "short",
-        "byte",
-        "double",
-        "float",
-        "half_float",
-        "scaled_float",
-        "unsigned_long",
-        "date",
-        "date_nanos",
-        "boolean",
-        "ip"
-    );
-
-    public static final Mapper.TypeParser PARSER = new Mapper.TypeParser() {
-        @Override
-        public Mapper.Builder parse(String name, Map<String, Object> node, MappingParserContext parserContext)
-            throws MapperParsingException {
-            Builder builder = new Builder(name, parserContext);
-            Object propertiesNode = node.remove("properties");
-            if (propertiesNode != null) {
-                parseProperties(builder, name, propertiesNode, parserContext);
-            }
-            builder.parse(name, parserContext, node);
-            return builder;
+            properties.setValue(mergedProperties);
         }
 
-        // Unlike ObjectMapper.Builder.parseProperties, flattened sub-fields are restricted to an explicit allow
-        // list of types, disallow copy_to/multi-fields, and are built into a flat map keyed by dotted path
-        // rather than a recursive object tree.
+        /**
+         * Parses sub-field properties for flattened fields. Unlike {@code ObjectMapper.Builder.parseProperties},
+         * flattened sub-fields are restricted to an explicit allow list of types, disallow copy_to/multi-fields,
+         * and are built into a flat map keyed by dotted path rather than a recursive object tree.
+         */
         @SuppressWarnings("unchecked")
-        private static void parseProperties(
-            Builder builder,
+        private static Map<String, FieldMapper.Builder> parseProperties(
             String flattenedName,
-            Object propertiesNode,
-            MappingParserContext parserContext
+            MappingParserContext parserContext,
+            Object propertiesNode
         ) {
+            Map<String, FieldMapper.Builder> propertyBuilders = new TreeMap<>();
             if (propertiesNode instanceof Collection<?> c && c.isEmpty()) {
-                return;
+                return propertyBuilders;
             }
             if (propertiesNode instanceof Map == false) {
                 throw new MapperParsingException("[properties] on flattened field [" + flattenedName + "] must be a map");
@@ -442,12 +434,35 @@ public final class FlattenedFieldMapper extends FieldMapper {
                 Mapper.Builder fieldBuilder = typeParser.parse(propertyName, propNode, parserContext);
                 assert fieldBuilder instanceof FieldMapper.Builder
                     : "allowed sub-field type [" + type + "] produced a non-FieldMapper builder";
-                builder.propertyBuilders.put(propertyName, (FieldMapper.Builder) fieldBuilder);
+                propertyBuilders.put(propertyName, (FieldMapper.Builder) fieldBuilder);
                 propNode.remove("type");
                 MappingParser.checkNoRemainingFields(propertyName, propNode);
             }
+            return propertyBuilders;
         }
-    };
+    }
+
+    private static final Set<String> ALLOWED_SUB_FIELD_TYPES = Set.of(
+        "keyword",
+        "constant_keyword",
+        "wildcard",
+        "text",
+        "long",
+        "integer",
+        "short",
+        "byte",
+        "double",
+        "float",
+        "half_float",
+        "scaled_float",
+        "unsigned_long",
+        "date",
+        "date_nanos",
+        "boolean",
+        "ip"
+    );
+
+    public static final FieldMapper.TypeParser PARSER = FieldMapper.createTypeParserWithLegacySupport(Builder::new);
 
     abstract static class BaseFlattenedFieldType extends StringFieldType {
         protected final IgnoreAbove ignoreAbove;
@@ -1413,12 +1428,14 @@ public final class FlattenedFieldMapper extends FieldMapper {
             builder.forceStoreRootDocValues
         );
         b.init(this);
+        Map<String, FieldMapper.Builder> propBuilders = new TreeMap<>();
         for (Map.Entry<String, FieldMapper> entry : mappedSubFields.entrySet()) {
             FieldMapper.Builder propMergeBuilder = entry.getValue().getMergeBuilder();
             if (propMergeBuilder != null) {
-                b.propertyBuilders.put(entry.getKey(), propMergeBuilder);
+                propBuilders.put(entry.getKey(), propMergeBuilder);
             }
         }
+        b.properties.setValue(propBuilders);
         return b;
     }
 

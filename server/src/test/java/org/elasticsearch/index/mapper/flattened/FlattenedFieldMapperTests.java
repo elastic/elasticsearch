@@ -115,6 +115,11 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
             b -> b.field("depth_limit", 10),
             m -> assertEquals(10, ((FlattenedFieldMapper) m).depthLimit())
         );
+        checker.registerUpdateCheck("properties", b -> {
+            b.startObject("properties");
+            b.startObject("host").field("type", "keyword").endObject();
+            b.endObject();
+        }, m -> assertNotNull(((FlattenedFieldMapper) m).fieldType().getChildFieldType("host")));
     }
 
     @Override
@@ -1103,8 +1108,18 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
         assertThat(e.getMessage(), containsString("[fields] (multi-fields) is not supported on properties of flattened field"));
     }
 
-    public void testFlattenedCannotBeUsedAsMultiField() {
-        MapperParsingException e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(mapping(b -> {
+    public void testPropertiesSubFieldMappingError() {
+        MapperParsingException e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
+            b.field("type", "flattened");
+            b.startObject("properties");
+            b.startObject("status").field("type", "keyword").field("not_a_real_param", true).endObject();
+            b.endObject();
+        })));
+        assertThat(e.getMessage(), containsString("unknown parameter [not_a_real_param] on mapper [status]"));
+    }
+
+    public void testFlattenedAsMultiFieldIsAccepted() throws Exception {
+        createDocumentMapper(mapping(b -> {
             b.startObject("my_field");
             {
                 b.field("type", "keyword");
@@ -1113,8 +1128,7 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
                 b.endObject();
             }
             b.endObject();
-        })));
-        assertThat(e.getMessage(), containsString("cannot be used in multi field"));
+        }));
     }
 
     public void testPropertiesTotalFieldsCount() throws Exception {

@@ -35,6 +35,31 @@ PUT _snapshot/my_s3_repository
 
 Most client settings can be added to the [`elasticsearch.yml`](docs-content://deploy-manage/stack-settings.md) configuration file with the exception of the secure settings, which you add to the {{es}} keystore. For more information about creating and updating the {{es}} keystore, refer to [Secure settings](docs-content://deploy-manage/security/secure-settings.md).
 
+For example, if you want to use specific credentials to access S3, then run the following commands to add these credentials to the keystore.
+
+```sh
+bin/elasticsearch-keystore add s3.client.default.access_key
+bin/elasticsearch-keystore add s3.client.default.secret_key
+# a session token is optional so the following command may not be needed
+bin/elasticsearch-keystore add s3.client.default.session_token
+```
+
+If you do not configure these settings then {{es}} will attempt to automatically obtain credentials from the environment in which it is running:
+
+* Nodes running on an instance in AWS EC2 will attempt to use the EC2 Instance Metadata Service (IMDS) to obtain instance role credentials. {{es}} supports IMDS version 2 only.
+* Nodes running in a container in AWS ECS and AWS EKS will attempt to obtain container role credentials similarly.
+
+You can switch from using specific credentials back to the default of using the instance role or container role by removing these settings from the keystore as follows:
+
+```sh
+bin/elasticsearch-keystore remove s3.client.default.access_key
+bin/elasticsearch-keystore remove s3.client.default.secret_key
+# a session token is optional so the following command may not be needed
+bin/elasticsearch-keystore remove s3.client.default.session_token
+```
+
+Define the relevant secure settings in each node's keystore before starting the node. The secure settings described here are all [reloadable](docs-content://deploy-manage/security/secure-settings.md#reloadable-secure-settings) so you may update the keystore contents on each node while the node is running and then call the [Nodes reload secure settings API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-nodes-reload-secure-settings) to apply the updated settings to the nodes in the cluster. After this API completes, {{es}} will use the updated setting values for all future snapshot operations, but ongoing operations may continue to use older setting values.
+
 The following list contains the available S3 client settings. Those that must be stored in the keystore are marked as "secure" and are **reloadable**; the other settings belong in the `elasticsearch.yml` file.
 
 `region`

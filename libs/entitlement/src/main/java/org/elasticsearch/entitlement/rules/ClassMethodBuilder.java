@@ -49,11 +49,12 @@ import java.util.List;
  * </ul>
  * <p>
  * Instance method rules are automatically inherited by subtypes: any class that extends or
- * implements the target class will have the same rules applied to its overriding methods.
+ * implements the target class will have the same rules applied to its methods.
  * A method reference is resolved to its declaring class in the type hierarchy, so
  * {@code .on(Concrete.class).calling(Interface::method)} attributes the rule to the
  * interface or superclass that actually declares the method, enabling correct inheritance.
- * Constructor rules ({@code protectedCtor()}) are not inherited.
+ * Defining a rule on a method that already has a rule on an ancestor or descendant type is
+ * forbidden. Constructor rules ({@code protectedCtor()}) are not inherited.
  * <p>
  * Methods are identified using method references, which are resolved at build time to
  * determine the actual method signatures. Type parameters can be specified using either

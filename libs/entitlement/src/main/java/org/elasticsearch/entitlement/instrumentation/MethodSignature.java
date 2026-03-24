@@ -14,7 +14,7 @@ import java.util.List;
 /**
  * A method signature without class information, used for hierarchy-aware rule lookups.
  * Unlike {@link MethodKey}, this does not include the class name, allowing rules defined
- * on a supertype to match overriding methods in subtypes.
+ * on a supertype to be inherited by subtypes.
  *
  * @param methodName     the method name
  * @param parameterTypes a list of "internal names" for the parameter types

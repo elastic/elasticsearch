@@ -38,4 +38,17 @@ public interface InternalInstrumentationRegistry extends InstrumentationRegistry
      * @throws IllegalStateException if a rule has already been registered for the same method
      */
     void registerRule(EntitlementRule rule);
+
+    /**
+     * Validates that no two types in the same hierarchy define a rule for the same non-constructor
+     * method signature. Must be called after all rules have been registered and before
+     * instrumentation begins.
+     * <p>
+     * This ensures that inherited rule resolution is always unambiguous: for any method on any
+     * class, there is at most one inherited rule in the supertype hierarchy. Constructors
+     * ({@code <init>}) are exempt because they are never inherited.
+     *
+     * @throws IllegalStateException if overlapping hierarchy rules are detected
+     */
+    void validate();
 }

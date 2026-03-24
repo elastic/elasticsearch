@@ -59,6 +59,13 @@ public final class InstrumenterImpl implements Instrumenter {
     private static final Logger logger = LogManager.getLogger(InstrumenterImpl.class);
     private static final String JAVA_LANG_OBJECT = "java/lang/Object";
 
+    private static final boolean ASSERTIONS_ENABLED;
+    static {
+        boolean enabled = false;
+        assert (enabled = true);
+        ASSERTIONS_ENABLED = enabled;
+    }
+
     private final String registryClassMethodDescriptor;
     private final String handleClass;
     private final Map<String, Map<MethodSignature, InstrumentationInfo>> rulesByClass;
@@ -257,10 +264,13 @@ public final class InstrumenterImpl implements Instrumenter {
 
         /**
          * Walk the supertype hierarchy (superclasses and interfaces) looking for an inherited rule
-         * matching this method signature. Uses BFS so that the nearest ancestor match is returned first.
+         * matching this method signature. At most one rule should exist in the hierarchy; if assertions
+         * are enabled, the entire hierarchy is walked to verify this invariant.
          */
         private InstrumentationInfo findInheritedRule(String methodName, List<String> paramTypes) {
             var sig = new MethodSignature(methodName, paramTypes);
+            InstrumentationInfo result = null;
+            String resultClass = null;
             Set<String> visited = new HashSet<>();
             Deque<String> queue = new ArrayDeque<>();
             if (superClassName != null) queue.add(superClassName);
@@ -272,12 +282,30 @@ public final class InstrumenterImpl implements Instrumenter {
                 if (classRules != null) {
                     var info = classRules.get(sig);
                     if (info != null) {
-                        return info;
+                        if (result == null) {
+                            result = info;
+                            resultClass = current;
+                            if (ASSERTIONS_ENABLED == false) {
+                                return result;
+                            }
+                        } else {
+                            throw new AssertionError(
+                                "Duplicate inherited rules for ["
+                                    + className
+                                    + "."
+                                    + sig
+                                    + "]: found on both ["
+                                    + resultClass
+                                    + "] and ["
+                                    + current
+                                    + "]"
+                            );
+                        }
                     }
                 }
                 Collections.addAll(queue, readDirectSupertypes(current));
             }
-            return null;
+            return result;
         }
 
         private static String getTypeName(Type type) {

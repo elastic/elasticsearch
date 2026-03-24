@@ -11,6 +11,8 @@ package org.elasticsearch.entitlement.rules;
 
 import org.elasticsearch.entitlement.instrumentation.MethodKey;
 import org.elasticsearch.entitlement.instrumentation.MethodSignature;
+import org.elasticsearch.entitlement.rules.function.CheckMethod;
+import org.elasticsearch.entitlement.rules.function.VarargCall;
 import org.elasticsearch.entitlement.runtime.registry.InstrumentationInfo;
 import org.elasticsearch.entitlement.runtime.registry.InstrumentationRegistryImpl;
 import org.elasticsearch.entitlement.runtime.registry.InternalInstrumentationRegistry;
@@ -40,6 +42,7 @@ public class EntitlementRulesBuilderTests extends ESTestCase {
     private static final String TARGET_IFACE_INTERNAL = "org/elasticsearch/entitlement/rules/DslTestTypes$TargetInterface";
     private static final String OTHER_DUMMY_INTERNAL = "org/elasticsearch/entitlement/rules/DslTestTypes$OtherDummy";
     private static final String IFACE_WITH_DEFAULT_INTERNAL = "org/elasticsearch/entitlement/rules/DslTestTypes$InterfaceWithDefault";
+    private static final String CONCRETE_WITH_DEFAULT_INTERNAL = "org/elasticsearch/entitlement/rules/DslTestTypes$ConcreteWithDefault";
     private static final String SUPER_WITH_METHOD_INTERNAL = "org/elasticsearch/entitlement/rules/DslTestTypes$SuperWithMethod";
     private static final String DUMMY_WITH_GENERIC_INTERNAL = "org/elasticsearch/entitlement/rules/DslTestTypes$DummyWithGeneric";
 
@@ -242,5 +245,42 @@ public class EntitlementRulesBuilderTests extends ESTestCase {
             .enforce(Policies::empty)
             .elseThrowNotEntitled();
         assertHasRule(registry, new MethodKey(SUPER_WITH_METHOD_INTERNAL, "inheritedMethod", List.of()));
+    }
+
+    public void testValidateThrowsForAncestorAndDescendantRules() {
+        var registry = newRegistry();
+        registry.registerRule(dummyRule(IFACE_WITH_DEFAULT_INTERNAL, "defaultMethod"));
+        registry.registerRule(dummyRule(CONCRETE_WITH_DEFAULT_INTERNAL, "defaultMethod"));
+
+        var e = expectThrows(IllegalStateException.class, registry::validate);
+        assertThat(e.getMessage(), org.hamcrest.Matchers.containsString("Overlapping rules for method"));
+        assertThat(e.getMessage(), org.hamcrest.Matchers.containsString("defaultMethod"));
+    }
+
+    public void testValidatePassesForUnrelatedTypesWithSameMethodName() {
+        var registry = newRegistry();
+        var builder = newBuilder(registry);
+        builder.on(Concrete.class).calling(Concrete::noArg).enforce(Policies::empty).elseThrowNotEntitled();
+        builder.on(OtherDummy.class).calling(OtherDummy::noArg).enforce(Policies::empty).elseThrowNotEntitled();
+
+        registry.validate();
+    }
+
+    public void testValidateSkipsConstructors() {
+        var registry = newRegistry();
+        var builder = newBuilder(registry);
+        builder.on(SuperWithMethod.class).protectedCtor().enforce(Policies::empty).elseThrowNotEntitled();
+        builder.on(SubWithoutOverride.class).protectedCtor().enforce(Policies::empty).elseThrowNotEntitled();
+
+        registry.validate();
+    }
+
+    private static EntitlementRule dummyRule(String className, String methodName) {
+        VarargCall<CheckMethod> noopCheck = args -> (callerClass, policyChecker) -> {};
+        return new EntitlementRule(
+            new MethodKey(className, methodName, List.of()),
+            noopCheck,
+            new DeniedEntitlementStrategy.NotEntitledDeniedEntitlementStrategy()
+        );
     }
 }

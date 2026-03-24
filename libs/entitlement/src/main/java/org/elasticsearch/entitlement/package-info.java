@@ -109,8 +109,9 @@
 /// subtype's methods. This eliminates the need to duplicate rules across concrete implementation classes; instead, rules can
 /// be defined once on a common supertype or interface.
 ///
-/// When rules exist at multiple levels in the type hierarchy, the most specific rule (nearest ancestor) takes precedence.
-/// This allows subtypes to override inherited rules with different enforcement behavior when needed.
+/// Defining rules for the same method signature at multiple levels in the type hierarchy is forbidden. The registry validates
+/// this constraint at startup and throws if two types in the same hierarchy both define a rule for the same method. This
+/// ensures that rule resolution is always unambiguous.
 ///
 /// Constructors ({@code <init>}) are not inherited: constructor rules apply only to the class on which they are defined.
 ///

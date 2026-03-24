@@ -250,15 +250,9 @@ public class NetworkInstrumentation implements InstrumentationConfig {
 
         builder.on(MulticastSocket.class, rule -> {
             rule.callingVoid(MulticastSocket::joinGroup, InetAddress.class).enforce(Policies::allNetworkAccess).elseThrow(IOException::new);
-            rule.callingVoid(MulticastSocket::joinGroup, SocketAddress.class, NetworkInterface.class)
-                .enforce(Policies::allNetworkAccess)
-                .elseThrow(IOException::new);
             rule.callingVoid(MulticastSocket::leaveGroup, InetAddress.class)
                 .enforce(Policies::allNetworkAccess)
                 .elseThrow(IOException::new);
-            rule.callingVoid(MulticastSocket::leaveGroup, SocketAddress.class, NetworkInterface.class)
-                .enforce(Policies::allNetworkAccess)
-                .elseThrowNotEntitled();
         });
 
         builder.on(SocketChannel.class, rule -> {

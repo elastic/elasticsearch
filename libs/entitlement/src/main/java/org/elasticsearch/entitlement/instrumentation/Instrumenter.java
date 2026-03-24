@@ -19,7 +19,8 @@ public interface Instrumenter {
      * <p>
      * For each method in the class, the instrumenter first checks for a direct rule matching the class and method.
      * If no direct rule is found and the method is a non-static instance method, it searches the supertype hierarchy
-     * (superclasses and interfaces via BFS) for an inherited rule. The nearest ancestor rule takes precedence.
+     * (superclasses and interfaces via BFS) for an inherited rule. At most one inherited rule may exist in the
+     * hierarchy; this invariant is enforced by the registry's {@code validate()} method at startup.
      * <p>
      * The injected prologue:
      * <ol>

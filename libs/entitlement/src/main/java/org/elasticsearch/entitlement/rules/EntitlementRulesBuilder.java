@@ -24,7 +24,8 @@ import java.util.function.Consumer;
  * Rules are hierarchy-aware: a rule defined on a class automatically applies to all subtypes
  * that inherit or override the instrumented method. This means rules should be defined on the
  * highest-level type that is relevant, avoiding duplication across concrete implementations.
- * If a more specific rule is defined on a subtype, it takes precedence over the inherited rule.
+ * Defining a rule on a method that already has a rule on an ancestor or descendant type is
+ * forbidden and will be rejected by the registry's {@code validate()} method at startup.
  * <p>
  * Example usage:
  * <pre>{@code

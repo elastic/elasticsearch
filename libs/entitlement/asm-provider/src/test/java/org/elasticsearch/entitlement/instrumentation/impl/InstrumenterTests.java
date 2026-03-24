@@ -14,6 +14,7 @@ import org.elasticsearch.entitlement.bridge.InstrumentationRegistry;
 import org.elasticsearch.entitlement.bridge.NotEntitledException;
 import org.elasticsearch.entitlement.instrumentation.Instrumenter;
 import org.elasticsearch.entitlement.rules.EntitlementRulesBuilder;
+import org.elasticsearch.entitlement.rules.Policies;
 import org.elasticsearch.entitlement.rules.function.Call0;
 import org.elasticsearch.entitlement.rules.function.CheckMethod;
 import org.elasticsearch.entitlement.rules.function.VarargCall;
@@ -167,6 +168,22 @@ public class InstrumenterTests extends ESTestCase {
         public double someMethodReturningDouble(double arg) {
             return -2.0;
         }
+    }
+
+    /** First interface for conflicting inherited rule tests. */
+    public interface TestInterfaceA {
+        void sharedMethod(int arg);
+    }
+
+    /** Second interface for conflicting inherited rule tests (unrelated to TestInterfaceA). */
+    public interface TestInterfaceB {
+        void sharedMethod(int arg);
+    }
+
+    /** Class implementing both unrelated interfaces, creating a conflicting inherited rule scenario. */
+    public static class TestConflictingSubclass implements TestInterfaceA, TestInterfaceB {
+        @Override
+        public void sharedMethod(int arg) {}
     }
 
     /**
@@ -1024,23 +1041,20 @@ public class InstrumenterTests extends ESTestCase {
     }
 
     /**
-     * Verifies that when both a superclass and a subclass define a rule for the same method,
-     * the subclass (more specific) rule takes precedence.
+     * Verifies that instrumenting a class which inherits rules from two unrelated interfaces
+     * for the same method throws an AssertionError.
      */
-    public void testSubclassRuleOverridesSuperclass() throws Exception {
-        var baseVerifier = new TestVerifier(TestBaseClass.class.getMethod("overriddenMethod", int.class));
-        var subVerifier = new TestVerifier(TestSubClass.class.getMethod("overriddenMethod", int.class));
-
+    public void testConflictingInheritedRulesThrows() throws Exception {
         InstrumentationRegistryImpl reg = new InstrumentationRegistryImpl(null);
         EntitlementRulesBuilder rulesBuilder = new EntitlementRulesBuilder(reg);
 
-        rulesBuilder.on(TestBaseClass.class)
-            .callingVoid(TestBaseClass::overriddenMethod, Integer.class)
-            .enforce(baseVerifier)
+        rulesBuilder.on(TestInterfaceA.class)
+            .callingVoid(TestInterfaceA::sharedMethod, Integer.class)
+            .enforce(Policies::empty)
             .elseThrowNotEntitled();
-        rulesBuilder.on(TestSubClass.class)
-            .callingVoid(TestSubClass::overriddenMethod, Integer.class)
-            .enforce(subVerifier)
+        rulesBuilder.on(TestInterfaceB.class)
+            .callingVoid(TestInterfaceB::sharedMethod, Integer.class)
+            .enforce(Policies::empty)
             .elseThrowNotEntitled();
 
         InstrumenterTests.registry = reg;
@@ -1050,12 +1064,7 @@ public class InstrumenterTests extends ESTestCase {
             reg.getInstrumentedMethods()
         );
 
-        var loader = instrumentTestClass(instrumenter, TestSubClass.class);
-        Testable instance = loader.newInstance();
-
-        expectThrows(NotEntitledException.class, () -> instance.overriddenMethod(42));
-        subVerifier.assertCalled(1);
-        baseVerifier.assertCalled(0);
+        expectThrows(AssertionError.class, () -> instrumentTestClass(instrumenter, TestConflictingSubclass.class));
     }
 
     private static TestLoader buildInstrumentationForSubclass(Consumer<EntitlementRulesBuilder> builderConsumer) throws Exception {

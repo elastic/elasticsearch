@@ -124,4 +124,17 @@ public final class DslTestTypes {
             return String.valueOf(i);
         }
     }
+
+    /** Sibling interface A for ambiguity detection tests. */
+    public interface SiblingInterfaceA {
+        void ambiguousMethod();
+    }
+
+    /** Sibling interface B for ambiguity detection tests (unrelated to SiblingInterfaceA). */
+    public interface SiblingInterfaceB {
+        void ambiguousMethod();
+    }
+
+    /** Child interface extending SiblingInterfaceA, for hierarchy overlap detection tests. */
+    public interface ChildOfA extends SiblingInterfaceA {}
 }

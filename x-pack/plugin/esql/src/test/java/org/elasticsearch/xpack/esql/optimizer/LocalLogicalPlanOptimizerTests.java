@@ -1385,6 +1385,8 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
         return optimize(analyzerWithNullifyMode().analyze(TEST_PARSER.parseQuery(query)));
     }
 
+    // Tests for project metadata field optimization (ReplaceFieldWithConstantOrNull)
+
     /**
      * Test that project metadata fields like _project.my_tag are replaced with their constant values in a Filter.
      * When the SearchStats returns a constant value for the project metadata field, the MetadataAttribute
@@ -1394,6 +1396,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
      * will fold this to true and potentially simplify the entire plan further.
      */
     public void testProjectMetadataFieldReplacedWithConstantInFilter() {
+        // Create an EsRelation with a project metadata attribute
         var projectTagAttr = new MetadataAttribute(EMPTY, "_project.my_tag", KEYWORD, false);
         var fieldAttr = getFieldAttribute("name");
         var relation = new EsRelation(
@@ -1406,12 +1409,15 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
             List.of(fieldAttr, projectTagAttr)
         );
 
+        // Create a filter that uses the project metadata attribute: WHERE _project.my_tag == "bar"
+        // (different value so constant folding doesn't eliminate the filter)
         var filter = new Filter(
             EMPTY,
             new Limit(EMPTY, L(1000), relation),
             new org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals(EMPTY, projectTagAttr, L("bar"))
         );
 
+        // Create SearchStats that returns a constant value for _project.my_tag
         var searchStats = new EsqlTestUtils.TestSearchStats() {
             @Override
             public String constantValue(FieldAttribute.FieldName name) {
@@ -1422,9 +1428,12 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
             }
         };
 
+        // Run the local optimizer
         var localContext = new LocalLogicalOptimizerContext(TEST_CFG, FoldContext.small(), searchStats);
         var optimizedPlan = new LocalLogicalPlanOptimizer(localContext).localOptimize(filter);
 
+        // When _project.my_tag is replaced with "foo" and compared to "bar", the result is false,
+        // which causes the optimizer to turn this into an empty LocalRelation
         var localRelation = as(optimizedPlan, org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation.class);
         assertThat(localRelation.supplier(), instanceOf(EmptyLocalSupplier.class));
     }
@@ -1436,6 +1445,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
      * let the normal ES|QL execution path handle it via block loaders.
      */
     public void testProjectMetadataFieldNotReplacedWhenConstantValueReturnsNull() {
+        // Create an EsRelation with a project metadata attribute
         var projectTagAttr = new MetadataAttribute(EMPTY, "_project.custom_tag", KEYWORD, false);
         var fieldAttr = getFieldAttribute("name");
         var relation = new EsRelation(
@@ -1448,23 +1458,32 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
             List.of(fieldAttr, projectTagAttr)
         );
 
+        // Create a filter that uses the project metadata attribute
         var filter = new Filter(
             EMPTY,
             new Limit(EMPTY, L(1000), relation),
             new org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals(EMPTY, projectTagAttr, L("bar"))
         );
 
+        // Create SearchStats that returns null for the project tag (simulating inability to get constant)
+        // The default implementation of constantValue already returns null, but we override for clarity
         var searchStats = new EsqlTestUtils.TestSearchStats() {
             @Override
             public String constantValue(FieldAttribute.FieldName name) {
+                // Return null for all fields (no constant values available)
                 return null;
             }
         };
 
+        // Run the local optimizer
         var localContext = new LocalLogicalOptimizerContext(TEST_CFG, FoldContext.small(), searchStats);
         var optimizedPlan = new LocalLogicalPlanOptimizer(localContext).localOptimize(filter);
 
+        // When constantValue returns null, we do NOT replace the attribute with null.
+        // Instead, we leave the filter as is and let execution handle it.
+        // The plan should still be a Filter (not an empty LocalRelation)
         var filterResult = as(optimizedPlan, Filter.class);
+        // The filter condition should still reference the original MetadataAttribute
         var equals = as(filterResult.condition(), org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals.class);
         assertThat(equals.left(), instanceOf(MetadataAttribute.class));
         assertThat(((MetadataAttribute) equals.left()).name(), equalTo("_project.custom_tag"));
@@ -1474,6 +1493,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
      * Test that project metadata fields are replaced with constant values in an Eval.
      */
     public void testProjectMetadataFieldReplacedWithConstantInEval() {
+        // Create an EsRelation with a project metadata attribute
         var projectTagAttr = new MetadataAttribute(EMPTY, "_project._alias", KEYWORD, false);
         var fieldAttr = getFieldAttribute("name");
         var relation = new EsRelation(
@@ -1486,8 +1506,10 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
             List.of(fieldAttr, projectTagAttr)
         );
 
+        // Create an eval that uses the project metadata attribute: EVAL project_alias = _project._alias
         var eval = new Eval(EMPTY, new Limit(EMPTY, L(1000), relation), List.of(new Alias(EMPTY, "project_alias", projectTagAttr)));
 
+        // Create SearchStats that returns a constant value for _project._alias
         var searchStats = new EsqlTestUtils.TestSearchStats() {
             @Override
             public String constantValue(FieldAttribute.FieldName name) {
@@ -1498,9 +1520,11 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
             }
         };
 
+        // Run the local optimizer
         var localContext = new LocalLogicalOptimizerContext(TEST_CFG, FoldContext.small(), searchStats);
         var optimizedPlan = new LocalLogicalPlanOptimizer(localContext).localOptimize(eval);
 
+        // Verify the MetadataAttribute was replaced with a Literal
         var optimizedEval = as(optimizedPlan, Eval.class);
         var alias = as(optimizedEval.fields().get(0), Alias.class);
         var literal = as(alias.child(), Literal.class);
@@ -1512,6 +1536,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
      * Standard metadata fields should remain unchanged.
      */
     public void testNonProjectMetadataFieldsNotReplaced() {
+        // Create an EsRelation with a standard metadata attribute (_index)
         var indexAttr = new MetadataAttribute(EMPTY, MetadataAttribute.INDEX, KEYWORD, true);
         var fieldAttr = getFieldAttribute("name");
         var relation = new EsRelation(
@@ -1524,20 +1549,25 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
             List.of(fieldAttr, indexAttr)
         );
 
+        // Create a filter that uses the _index metadata attribute
         var filter = new Filter(
             EMPTY,
             new Limit(EMPTY, L(1000), relation),
             new org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals(EMPTY, indexAttr, L("test"))
         );
 
+        // Create SearchStats (doesn't matter what it returns, _index shouldn't be processed)
         var searchStats = TEST_SEARCH_STATS;
 
+        // Run the local optimizer
         var localContext = new LocalLogicalOptimizerContext(TEST_CFG, FoldContext.small(), searchStats);
         var optimizedPlan = new LocalLogicalPlanOptimizer(localContext).localOptimize(filter);
 
+        // Verify the _index MetadataAttribute was NOT replaced
         var optimizedFilter = as(optimizedPlan, Filter.class);
         var equals = as(optimizedFilter.condition(), org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals.class);
 
+        // The left side should still be a MetadataAttribute
         var metadataAttr = as(equals.left(), MetadataAttribute.class);
         assertThat(metadataAttr.name(), equalTo("_index"));
     }

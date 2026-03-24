@@ -12,6 +12,7 @@ import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.RawLocalFileSystem;
 import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.hive.ql.exec.vector.BytesColumnVector;
+import org.apache.hadoop.hive.ql.exec.vector.DecimalColumnVector;
 import org.apache.hadoop.hive.ql.exec.vector.DoubleColumnVector;
 import org.apache.hadoop.hive.ql.exec.vector.ListColumnVector;
 import org.apache.hadoop.hive.ql.exec.vector.LongColumnVector;
@@ -20,6 +21,7 @@ import org.apache.hadoop.hive.ql.exec.vector.VectorizedRowBatch;
 import org.apache.hadoop.hive.ql.io.sarg.PredicateLeaf;
 import org.apache.hadoop.hive.ql.io.sarg.SearchArgument;
 import org.apache.hadoop.hive.ql.io.sarg.SearchArgumentFactory;
+import org.apache.hadoop.hive.serde2.io.HiveDecimalWritable;
 import org.apache.lucene.util.BytesRef;
 import org.apache.orc.CompressionKind;
 import org.apache.orc.OrcFile;
@@ -490,6 +492,9 @@ public class OrcFormatReaderTests extends ESTestCase {
         StorageObject storageObject = createStorageObject(orcData);
         OrcFormatReader reader = new OrcFormatReader(blockFactory);
 
+        SourceMetadata metadata = reader.metadata(storageObject);
+        assertEquals(DataType.DATE_NANOS, metadata.schema().get(1).dataType());
+
         try (CloseableIterator<Page> iterator = reader.read(storageObject, null, 1024)) {
             assertTrue(iterator.hasNext());
             Page page = iterator.next();
@@ -497,8 +502,8 @@ public class OrcFormatReaderTests extends ESTestCase {
             assertEquals(2, page.getPositionCount());
 
             LongBlock tsBlock = (LongBlock) page.getBlock(1);
-            assertEquals(epochMillis, tsBlock.getLong(0));
-            assertEquals(epochMillis + 3600_000, tsBlock.getLong(1));
+            assertEquals(epochMillis * 1_000_000L, tsBlock.getLong(0));
+            assertEquals((epochMillis + 3600_000) * 1_000_000L, tsBlock.getLong(1));
         }
     }
 
@@ -537,9 +542,9 @@ public class OrcFormatReaderTests extends ESTestCase {
             assertEquals(3, page.getPositionCount());
 
             LongBlock tsBlock = (LongBlock) page.getBlock(1);
-            assertEquals(epochMillis, tsBlock.getLong(0));
+            assertEquals(epochMillis * 1_000_000L, tsBlock.getLong(0));
             assertTrue(tsBlock.isNull(1));
-            assertEquals(epochMillis + 7200_000, tsBlock.getLong(2));
+            assertEquals((epochMillis + 7200_000) * 1_000_000L, tsBlock.getLong(2));
         }
     }
 
@@ -757,6 +762,209 @@ public class OrcFormatReaderTests extends ESTestCase {
             assertEquals(1, page.getBlockCount());
             BytesRefBlock nameBlock = (BytesRefBlock) page.getBlock(0);
             assertEquals("Alice", nameBlock.getBytesRef(0, new BytesRef()).utf8ToString());
+        }
+    }
+
+    public void testTimestampWithSubMillisPrecision() throws Exception {
+        TypeDescription schema = TypeDescription.createStruct().addField("event_time", TypeDescription.createTimestampInstant());
+
+        long epochMillis = Instant.parse("2024-01-15T10:30:00.123Z").toEpochMilli();
+
+        byte[] orcData = createOrcFile(schema, batch -> {
+            batch.size = 2;
+            TimestampColumnVector tsCol = (TimestampColumnVector) batch.cols[0];
+
+            tsCol.time[0] = epochMillis;
+            tsCol.nanos[0] = 123_456_789;
+
+            tsCol.time[1] = epochMillis;
+            tsCol.nanos[1] = 123_000_000;
+        });
+
+        StorageObject storageObject = createStorageObject(orcData);
+        OrcFormatReader reader = new OrcFormatReader(blockFactory);
+
+        try (CloseableIterator<Page> iterator = reader.read(storageObject, null, 1024)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+
+            assertEquals(2, page.getPositionCount());
+            LongBlock tsBlock = (LongBlock) page.getBlock(0);
+
+            long expectedSeconds = epochMillis / 1000;
+            assertEquals(expectedSeconds * 1_000_000_000L + 123_456_789L, tsBlock.getLong(0));
+            assertEquals(expectedSeconds * 1_000_000_000L + 123_000_000L, tsBlock.getLong(1));
+        }
+    }
+
+    public void testBinaryMapsToUnsupported() throws Exception {
+        TypeDescription schema = TypeDescription.createStruct()
+            .addField("id", TypeDescription.createLong())
+            .addField("payload", TypeDescription.createBinary());
+
+        byte[] rawBytes = new byte[] { 0x00, 0x01, (byte) 0xFF, (byte) 0xFE, 0x42 };
+        byte[] orcData = createOrcFile(schema, batch -> {
+            batch.size = 1;
+            ((LongColumnVector) batch.cols[0]).vector[0] = 1L;
+            ((BytesColumnVector) batch.cols[1]).setVal(0, rawBytes);
+        });
+
+        StorageObject storageObject = createStorageObject(orcData);
+        OrcFormatReader reader = new OrcFormatReader(blockFactory);
+
+        SourceMetadata metadata = reader.metadata(storageObject);
+        assertEquals(DataType.UNSUPPORTED, metadata.schema().get(1).dataType());
+
+        try (CloseableIterator<Page> iterator = reader.read(storageObject, null, 1024)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+
+            assertEquals(1, page.getPositionCount());
+            assertEquals(1L, ((LongBlock) page.getBlock(0)).getLong(0));
+            assertTrue(page.getBlock(1).isNull(0));
+        }
+    }
+
+    public void testReadDecimalColumn() throws Exception {
+        TypeDescription schema = TypeDescription.createStruct()
+            .addField("id", TypeDescription.createLong())
+            .addField("price", TypeDescription.createDecimal().withPrecision(10).withScale(2));
+
+        byte[] orcData = createOrcFile(schema, batch -> {
+            batch.size = 3;
+            LongColumnVector idCol = (LongColumnVector) batch.cols[0];
+            DecimalColumnVector priceCol = (DecimalColumnVector) batch.cols[1];
+
+            idCol.vector[0] = 1L;
+            priceCol.set(0, new HiveDecimalWritable("123.45"));
+
+            idCol.vector[1] = 2L;
+            priceCol.set(1, new HiveDecimalWritable("0.01"));
+
+            idCol.vector[2] = 3L;
+            priceCol.set(2, new HiveDecimalWritable("99999.99"));
+        });
+
+        StorageObject storageObject = createStorageObject(orcData);
+        OrcFormatReader reader = new OrcFormatReader(blockFactory);
+
+        SourceMetadata metadata = reader.metadata(storageObject);
+        assertEquals(DataType.DOUBLE, metadata.schema().get(1).dataType());
+
+        try (CloseableIterator<Page> iterator = reader.read(storageObject, null, 1024)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+
+            assertEquals(3, page.getPositionCount());
+
+            DoubleBlock priceBlock = (DoubleBlock) page.getBlock(1);
+            assertEquals(123.45, priceBlock.getDouble(0), 0.001);
+            assertEquals(0.01, priceBlock.getDouble(1), 0.001);
+            assertEquals(99999.99, priceBlock.getDouble(2), 0.001);
+        }
+    }
+
+    public void testReadDecimalColumnWithNulls() throws Exception {
+        TypeDescription schema = TypeDescription.createStruct()
+            .addField("amount", TypeDescription.createDecimal().withPrecision(10).withScale(2));
+
+        byte[] orcData = createOrcFile(schema, batch -> {
+            batch.size = 3;
+            DecimalColumnVector amountCol = (DecimalColumnVector) batch.cols[0];
+
+            amountCol.set(0, new HiveDecimalWritable("42.50"));
+
+            amountCol.noNulls = false;
+            amountCol.isNull[1] = true;
+
+            amountCol.set(2, new HiveDecimalWritable("100.00"));
+        });
+
+        StorageObject storageObject = createStorageObject(orcData);
+        OrcFormatReader reader = new OrcFormatReader(blockFactory);
+
+        try (CloseableIterator<Page> iterator = reader.read(storageObject, null, 1024)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+
+            assertEquals(3, page.getPositionCount());
+
+            DoubleBlock block = (DoubleBlock) page.getBlock(0);
+            assertEquals(42.50, block.getDouble(0), 0.001);
+            assertTrue(block.isNull(1));
+            assertEquals(100.00, block.getDouble(2), 0.001);
+        }
+    }
+
+    public void testReadDecimalHighPrecision() throws Exception {
+        TypeDescription schema = TypeDescription.createStruct()
+            .addField("value", TypeDescription.createDecimal().withPrecision(38).withScale(10));
+
+        byte[] orcData = createOrcFile(schema, batch -> {
+            batch.size = 2;
+            DecimalColumnVector valCol = (DecimalColumnVector) batch.cols[0];
+
+            valCol.set(0, new HiveDecimalWritable("1234567890.1234567890"));
+            valCol.set(1, new HiveDecimalWritable("-9876543210.0000000001"));
+        });
+
+        StorageObject storageObject = createStorageObject(orcData);
+        OrcFormatReader reader = new OrcFormatReader(blockFactory);
+
+        try (CloseableIterator<Page> iterator = reader.read(storageObject, null, 1024)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+
+            assertEquals(2, page.getPositionCount());
+
+            DoubleBlock block = (DoubleBlock) page.getBlock(0);
+            assertEquals(1234567890.1234567890, block.getDouble(0), 0.01);
+            assertEquals(-9876543210.0000000001, block.getDouble(1), 0.01);
+        }
+    }
+
+    public void testReadListDecimalColumn() throws Exception {
+        TypeDescription schema = TypeDescription.createStruct()
+            .addField("id", TypeDescription.createLong())
+            .addField("prices", TypeDescription.createList(TypeDescription.createDecimal().withPrecision(10).withScale(2)));
+
+        byte[] orcData = createOrcFile(schema, batch -> {
+            batch.size = 2;
+            LongColumnVector idCol = (LongColumnVector) batch.cols[0];
+            ListColumnVector pricesCol = (ListColumnVector) batch.cols[1];
+            DecimalColumnVector pricesChild = (DecimalColumnVector) pricesCol.child;
+
+            pricesChild.ensureSize(3, false);
+            idCol.vector[0] = 1L;
+            pricesCol.offsets[0] = 0;
+            pricesCol.lengths[0] = 2;
+            pricesChild.set(0, new HiveDecimalWritable("10.50"));
+            pricesChild.set(1, new HiveDecimalWritable("20.99"));
+
+            idCol.vector[1] = 2L;
+            pricesCol.offsets[1] = 2;
+            pricesCol.lengths[1] = 1;
+            pricesChild.set(2, new HiveDecimalWritable("99.00"));
+        });
+
+        StorageObject storageObject = createStorageObject(orcData);
+        OrcFormatReader reader = new OrcFormatReader(blockFactory);
+
+        SourceMetadata metadata = reader.metadata(storageObject);
+        assertEquals(DataType.DOUBLE, metadata.schema().get(1).dataType());
+
+        try (CloseableIterator<Page> iterator = reader.read(storageObject, null, 1024)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+
+            assertEquals(2, page.getPositionCount());
+
+            DoubleBlock pricesBlock = (DoubleBlock) page.getBlock(1);
+            assertEquals(2, pricesBlock.getValueCount(0));
+            assertEquals(10.50, pricesBlock.getDouble(0), 0.001);
+            assertEquals(20.99, pricesBlock.getDouble(1), 0.001);
+            assertEquals(1, pricesBlock.getValueCount(1));
+            assertEquals(99.00, pricesBlock.getDouble(2), 0.001);
         }
     }
 

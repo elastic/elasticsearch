@@ -63,7 +63,11 @@ public class MvPSeriesWeightedSum extends EsqlScalarFunction implements Evaluato
     )
     public MvPSeriesWeightedSum(
         Source source,
-        @Param(name = "number", type = { "double" }, description = "Multivalue expression.") Expression field,
+        @Param(
+            name = "number",
+            type = { "double" },
+            description = "Expression that can be null, a single value, or multiple values."
+        ) Expression field,
         @Param(
             name = "p",
             type = { "double" },

@@ -50,6 +50,7 @@ import org.elasticsearch.search.TooManyScrollContextsException;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.UnsupportedAggregationOnDownsampledIndex;
+import org.elasticsearch.search.crossproject.InvalidProjectRoutingException;
 import org.elasticsearch.search.crossproject.NoMatchingProjectException;
 import org.elasticsearch.search.query.SearchTimeoutException;
 import org.elasticsearch.transport.TcpTransport;
@@ -90,6 +91,7 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureFieldName;
 import static org.elasticsearch.index.engine.OCCNotSupportedException.OCC_NOT_SUPPORTED_EXCEPTION_VERSION;
 import static org.elasticsearch.search.crossproject.CrossProjectIndexExpressionsRewriter.NO_MATCHING_PROJECT_EXCEPTION_VERSION;
+import static org.elasticsearch.search.crossproject.InvalidProjectRoutingException.INVALID_PROJECT_ROUTING_EXCEPTION_VERSION;
 
 /**
  * A base class for all elasticsearch exceptions.
@@ -2081,6 +2083,12 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             org.elasticsearch.action.fieldcaps.RemoteViewNotSupportedException::new,
             191,
             org.elasticsearch.action.support.IndicesOptions.INDICES_OPTIONS_RESOLVE_VIEWS
+        ),
+        INVALID_PROJECT_ROUTING_EXCEPTION(
+            InvalidProjectRoutingException.class,
+            InvalidProjectRoutingException::new,
+            192,
+            INVALID_PROJECT_ROUTING_EXCEPTION_VERSION
         );
 
         final Class<? extends ElasticsearchException> exceptionClass;

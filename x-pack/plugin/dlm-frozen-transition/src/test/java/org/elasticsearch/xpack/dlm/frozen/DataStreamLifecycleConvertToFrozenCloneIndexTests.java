@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.core.datastreams;
+package org.elasticsearch.xpack.dlm.frozen;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
@@ -46,7 +46,7 @@ import org.junit.Before;
 
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.elasticsearch.xpack.core.datastreams.DataStreamLifecycleConvertToFrozen.CLONE_INDEX_PREFIX;
+import static org.elasticsearch.xpack.dlm.frozen.DataStreamLifecycleConvertToFrozen.CLONE_INDEX_PREFIX;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;

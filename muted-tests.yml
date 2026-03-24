@@ -180,9 +180,6 @@ tests:
 - class: org.elasticsearch.xpack.entsearch.EnterpriseSearchRestIT
   method: test {p0=entsearch/rules/40_rule_query_search/Perform a rule query with an organic query that must be rewritten to another query type}
   issue: https://github.com/elastic/elasticsearch/issues/141200
-- class: org.elasticsearch.snapshots.SnapshotStatusApisIT
-  method: testFailedSnapshot
-  issue: https://github.com/elastic/elasticsearch/issues/141279
 - class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
   method: test {csv-spec:boolean.convertFromIntAndLong}
   issue: https://github.com/elastic/elasticsearch/issues/141375
@@ -285,9 +282,6 @@ tests:
 - class: org.elasticsearch.test.apmintegration.MetricsApmIT
   method: testJvmMetrics {withOTel=false}
   issue: https://github.com/elastic/elasticsearch/issues/144167
-- class: org.elasticsearch.xpack.security.authc.service.ServiceAccountIT
-  method: testAuthenticateShouldNotFallThroughInCaseOfFailure
-  issue: https://github.com/elastic/elasticsearch/issues/144262
 - class: org.elasticsearch.test.apmintegration.MetricsApmIT
   method: testApmIntegration {withOTel=false}
   issue: https://github.com/elastic/elasticsearch/issues/144282
@@ -372,8 +366,8 @@ tests:
 - class: org.elasticsearch.index.store.StoreDirectoryMetricsIT
   method: testDirectoryMetrics
   issue: https://github.com/elastic/elasticsearch/issues/144702
-- class: org.elasticsearch.search.aggregations.metrics.TopHitsIT
-  issue: https://github.com/elastic/elasticsearch/issues/144709
+- class: org.elasticsearch.index.mapper.TsidExtractingIdFieldMapperTests
+  issue: https://github.com/elastic/elasticsearch/issues/144678
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:k8s-timeseries-avg-over-time.avg_over_time_of_integer}
   issue: https://github.com/elastic/elasticsearch/issues/144719
@@ -386,6 +380,27 @@ tests:
 - class: org.elasticsearch.xpack.ccr.index.engine.FollowingEngineTests
   method: testProcessOnceOnPrimary
   issue: https://github.com/elastic/elasticsearch/issues/144743
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {csv-spec:external-basic.operatorLikeRLike}
+  issue: https://github.com/elastic/elasticsearch/issues/144804
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {csv-spec:external-basic.enrichRemote}
+  issue: https://github.com/elastic/elasticsearch/issues/144805
+- class: org.elasticsearch.xpack.esql.CsvTests
+  method: test {csv-spec:external-basic.operatorLikeRLike}
+  issue: https://github.com/elastic/elasticsearch/issues/144807
+- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
+  method: test {csv-spec:external-basic.enrichRemote}
+  issue: https://github.com/elastic/elasticsearch/issues/144808
+- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
+  method: test {csv-spec:external-basic.operatorLikeRLike}
+  issue: https://github.com/elastic/elasticsearch/issues/144809
+- class: org.elasticsearch.xpack.esql.analysis.AnalyzerExternalTests
+  method: testWithMultiMatchFunctionRejected
+  issue: https://github.com/elastic/elasticsearch/issues/144811
+- class: org.elasticsearch.xpack.transform.transforms.ClientTransformIndexerTests
+  method: testDisablePitWhenCrossProjectSearchIsEnabled
+  issue: https://github.com/elastic/elasticsearch/issues/144822
 
 # Examples:
 #

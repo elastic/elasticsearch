@@ -5934,6 +5934,7 @@ emp_no:integer | language_name:keyword
 whereFalseBeforeLookupJoinWithMatch
 required_capability: join_lookup_v12
 required_capability: match_function
+required_capability: propagate_empty_relation_past_joins
 
 FROM sample_data
 | WHERE false
@@ -5949,6 +5950,7 @@ message:keyword | type:keyword
 whereFalseBeforeLookupJoinWithMatchPhrase
 required_capability: join_lookup_v12
 required_capability: match_phrase_function
+required_capability: propagate_empty_relation_past_joins
 
 FROM sample_data
 | WHERE false
@@ -5964,6 +5966,7 @@ message:keyword | type:keyword
 whereFalseBeforeLookupJoinWithMatchOperator
 required_capability: join_lookup_v12
 required_capability: match_operator_colon
+required_capability: propagate_empty_relation_past_joins
 
 FROM sample_data
 | WHERE false
@@ -5979,6 +5982,7 @@ message:keyword | type:keyword
 whereFalseWithEvalBeforeLookupJoinAndMatch
 required_capability: join_lookup_v12
 required_capability: match_function
+required_capability: propagate_empty_relation_past_joins
 
 FROM sample_data
 | WHERE false
@@ -5995,6 +5999,7 @@ message:keyword | type:keyword
 whereFalseBeforeLookupJoinWithFullTextDisjunction
 required_capability: join_lookup_v12
 required_capability: full_text_functions_disjunctions_compute_engine
+required_capability: propagate_empty_relation_past_joins
 
 FROM sample_data
 | WHERE false
@@ -6010,6 +6015,7 @@ message:keyword | type:keyword
 whereFalseBeforeLookupJoinWithMatchAndStats
 required_capability: join_lookup_v12
 required_capability: match_function
+required_capability: propagate_empty_relation_past_joins
 
 FROM sample_data
 | WHERE false
@@ -6027,6 +6033,7 @@ whereFalseBeforeLookupJoinWithMultipleFullTextFunctions
 required_capability: join_lookup_v12
 required_capability: match_function
 required_capability: match_phrase_function
+required_capability: propagate_empty_relation_past_joins
 
 FROM sample_data
 | WHERE false
@@ -6042,6 +6049,7 @@ message:keyword | type:keyword
 whereFalseBeforeLookupJoinWithMatchOnEmployees
 required_capability: join_lookup_v12
 required_capability: match_function
+required_capability: propagate_empty_relation_past_joins
 
 FROM employees
 | WHERE false

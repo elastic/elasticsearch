@@ -560,7 +560,7 @@ public class HttpRequest implements ToXContentObject {
                 }
                 String rawQuery = uri.getRawQuery();
                 if (Strings.hasLength(rawQuery)) {
-                    RestUtils.decodeQueryString(rawQuery, 0, params);
+                    setParams(RestUtils.decodeQueryStringMulti(rawQuery, 0));
                 }
             } catch (URISyntaxException e) {
                 throw new ElasticsearchParseException("Malformed URL [{}]", supposedUrl);

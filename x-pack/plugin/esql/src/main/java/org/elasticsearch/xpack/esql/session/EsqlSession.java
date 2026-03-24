@@ -84,6 +84,7 @@ import org.elasticsearch.xpack.esql.plan.QuerySetting;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.SettingsValidationContext;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
+import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
@@ -719,10 +720,16 @@ public class EsqlSession {
      */
     private void gatherPlanTelemetry(LogicalPlan plan, List<QuerySetting> settings) {
         EsqlFunctionRegistry registry = planTelemetry.functionRegistry().snapshotRegistry();
+        // Collect Aggregate nodes that are the inner aggregate of an INLINE STATS command; those
+        // should not be counted as standalone STATS commands.
+        Set<LogicalPlan> inlineStatsAggregates = new HashSet<>();
+        plan.forEachDown(InlineStats.class, inlineStats -> inlineStatsAggregates.add(inlineStats.aggregate()));
         plan.forEachDown(node -> {
-            if (node instanceof TelemetryAware ta && ta.telemetryLabel() != null) {
+            if (node instanceof TelemetryAware ta && ta.telemetryLabel() != null && inlineStatsAggregates.contains(node) == false) {
                 // Not all TelemetryAware nodes have a label — e.g. lookup index UnresolvedRelation
                 // nodes introduced by LOOKUP JOIN have a null command name; those are skipped.
+                // Aggregate nodes that are the inner aggregate of INLINE STATS are also skipped —
+                // the INLINE STATS node itself is counted instead.
                 planTelemetry.command(ta);
             }
             node.forEachExpression(Function.class, f -> {

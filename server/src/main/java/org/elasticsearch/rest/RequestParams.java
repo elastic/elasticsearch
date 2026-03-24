@@ -24,15 +24,15 @@ import java.util.Set;
  * per key (e.g. repeated query parameters such as {@code match[]=foo&match[]=bar}).
  *
  * <p>Each key maps to a non-empty ordered list of values.  The standard {@link Map} interface
- * operates on the <em>last</em> value in that list: {@link #get(Object)} returns the last value for a key, or {@code null} if absent.
+ * operates on the <em>last</em> value in that list: {@link #get(Object)} returns the last value for a key, or {@code null} if absent,
+ * and {@link #put(String, String)} sets a key to a single value (stored as a one-element list, so {@link #getAll(String)} returns
+ * a singleton list after a {@code put}).
  * Use {@link #getAll(String)} to retrieve all values for a repeated key.
  *
- * <p>Instances are <em>immutable</em>: mutation methods ({@code put}, {@code remove}, {@code clear})
- * throw {@link UnsupportedOperationException}.
+ * <p>The value lists returned by {@link #getAll(String)} are always non-empty and immutable, so
+ * {@link List#getFirst()} and {@link List#getLast()} are always safe to call on a non-{@code null} result.
  */
 public final class RequestParams extends AbstractMap<String, String> {
-
-    private static final RequestParams EMPTY = new RequestParams(Map.of());
 
     /** Single backing store: key → non-empty ordered list of all values. */
     private final LinkedHashMap<String, List<String>> map;
@@ -40,10 +40,10 @@ public final class RequestParams extends AbstractMap<String, String> {
     // Factory methods
 
     /**
-     * Returns a shared empty {@code RequestParams} instance.
+     * Returns an empty {@code RequestParams} instance.
      */
     public static RequestParams empty() {
-        return EMPTY;
+        return new RequestParams(Map.of());
     }
 
     /**
@@ -165,22 +165,17 @@ public final class RequestParams extends AbstractMap<String, String> {
         return list == null ? null : list.getLast();
     }
 
-    /** @throws UnsupportedOperationException always */
+    /**
+     * Sets {@code key} to a single {@code value}, replacing any previous values for that key.
+     * The value is stored as a one-element immutable list, so {@link #getAll(String)} will return
+     * a singleton list and {@link List#getFirst()}/{@link List#getLast()} remain safe to call.
+     *
+     * @return the previous last value for {@code key}, or {@code null} if absent
+     */
     @Override
     public String put(String key, String value) {
-        throw new UnsupportedOperationException("RequestParams is immutable");
-    }
-
-    /** @throws UnsupportedOperationException always */
-    @Override
-    public String remove(Object key) {
-        throw new UnsupportedOperationException("RequestParams is immutable");
-    }
-
-    /** @throws UnsupportedOperationException always */
-    @Override
-    public void clear() {
-        throw new UnsupportedOperationException("RequestParams is immutable");
+        var prev = map.put(key, List.of(value));
+        return prev == null ? null : prev.getLast();
     }
 
     @Override

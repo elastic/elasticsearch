@@ -87,7 +87,6 @@ public class RestRequest implements ToXContent.Params, Traceable {
 
     private final XContentParserConfiguration parserConfig;
     private final RequestParams params;
-    private final Set<String> markerParams = new HashSet<>();
     private final Map<String, List<String>> headers;
     private final String rawPath;
     private final Set<String> consumedParams = new HashSet<>();
@@ -171,7 +170,6 @@ public class RestRequest implements ToXContent.Params, Traceable {
         this.httpRequest = other.httpRequest;
         this.httpChannel = other.httpChannel;
         this.params = other.params;
-        this.markerParams.addAll(other.markerParams);
         this.rawPath = other.rawPath;
         this.headers = other.headers;
         this.requestId = other.requestId;
@@ -399,14 +397,13 @@ public class RestRequest implements ToXContent.Params, Traceable {
     }
 
     public final boolean hasParam(String key) {
-        return params.containsKey(key) || markerParams.contains(key);
+        return params.containsKey(key);
     }
 
     @Override
     public final String param(String key) {
         consumedParams.add(key);
-        String value = params.get(key);
-        return value != null ? value : (markerParams.contains(key) ? "true" : null);
+        return params.get(key);
     }
 
     @Override
@@ -727,10 +724,12 @@ public class RestRequest implements ToXContent.Params, Traceable {
     }
 
     private void setParamTrueOnceAndConsume(String param) {
-        if (hasParam(param)) {
+        if (params.containsKey(param)) {
             throw new IllegalArgumentException("The parameter [" + param + "] is already defined.");
         }
-        markerParams.add(param);
+        params.put(param, "true");
+        // this parameter is intended be consumed via ToXContent.Params.param(..), not this.params(..) so don't require it is consumed here
+        consumedParams.add(param);
     }
 
     @Override

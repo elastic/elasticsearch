@@ -285,12 +285,12 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                 final String srcObject = URLDecoder.decode(matcher.group("srcObject"), UTF_8);
                 final String dstObject = URLDecoder.decode(matcher.group("dstObject"), UTF_8);
 
-                final Map<String, String> params = new HashMap<>();
-                RestUtils.decodeQueryString(exchange.getRequestURI(), params);
+                final RequestParams params = RequestParams.from(exchange.getRequestURI());
                 final String rewriteToken = params.get("rewriteToken");
-                final long maxBytesRewrittenPerCall = Long.parseLong(
-                    params.getOrDefault("maxBytesRewrittenPerCall", String.valueOf(DEFAULT_MAX_BYTES_REWRITTEN_PER_CALL))
-                );
+                final String maxBytesStr = params.get("maxBytesRewrittenPerCall");
+                final long maxBytesRewrittenPerCall = maxBytesStr != null
+                    ? Long.parseLong(maxBytesStr)
+                    : DEFAULT_MAX_BYTES_REWRITTEN_PER_CALL;
 
                 var rewriteResponse = mockGcsBlobStore.rewrite(srcObject, dstObject, rewriteToken, maxBytesRewrittenPerCall);
                 try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {

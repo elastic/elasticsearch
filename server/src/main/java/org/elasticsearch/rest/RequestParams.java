@@ -65,7 +65,11 @@ public final class RequestParams extends AbstractMap<String, String> {
      * @return a {@code RequestParams} from parameter name to all its values, in encounter order
      */
     public static RequestParams fromQueryString(String queryString) {
-        return of(RestUtils.decodeQueryString(queryString, 0));
+        try {
+            return of(RestUtils.decodeQueryString(queryString, 0));
+        } catch (IllegalArgumentException e) {
+            throw new RestRequest.BadParameterException(e);
+        }
     }
 
     /**

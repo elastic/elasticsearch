@@ -198,7 +198,7 @@ public class RestRequest implements ToXContent.Params, Traceable {
      * @throws MediaTypeHeaderException if the Content-Type or Accept header can not be parsed
      */
     public static RestRequest request(XContentParserConfiguration parserConfig, HttpRequest httpRequest, HttpChannel httpChannel) {
-        RequestParams params = params(httpRequest.uri());
+        RequestParams params = RequestParams.fromUri(httpRequest.uri());
         return new RestRequest(
             parserConfig,
             params,
@@ -208,14 +208,6 @@ public class RestRequest implements ToXContent.Params, Traceable {
             httpChannel,
             requestIdGenerator.incrementAndGet()
         );
-    }
-
-    private static RequestParams params(final String uri) {
-        try {
-            return RequestParams.fromUri(uri);
-        } catch (final IllegalArgumentException e) {
-            throw new BadParameterException(e);
-        }
     }
 
     /**

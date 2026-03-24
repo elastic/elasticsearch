@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 144870
+pr: 144877
+summary: Fix union types with `date_nanos` conversion bug
+type: bug

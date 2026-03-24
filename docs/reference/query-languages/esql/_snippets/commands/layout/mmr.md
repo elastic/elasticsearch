@@ -25,8 +25,8 @@ MMR [query_vector] ON field LIMIT limit [WITH { "lambda": lambda_value }]
     Must have the same number of dimensions as the vector field you are searching against.
     Must be one of:
       - An array of floats
-      - A hex-encoded byte vector (one byte per dimension; for `bit`, one byte per 8 dimensions){applies_to}`stack: ga 9.0-9.3`
-      - A base64-encoded vector string. Base64 supports `float` and `bfloat16` (big-endian), `byte`, and `bit` encodings depending on the target field type. {applies_to}`stack: ga 9.4`
+      - A hex-encoded byte vector (one byte per dimension; for `bit`, one byte per 8 dimensions)
+      - A base64-encoded vector string. Base64 supports `float` and `bfloat16` (big-endian), `byte`, and `bit` encodings depending on the target field type.
       - A function or expression that returns a `dense_vector`
 
 `lambda_value`
@@ -36,11 +36,7 @@ MMR [query_vector] ON field LIMIT limit [WITH { "lambda": lambda_value }]
 ## Description
 
 Use the `MMR` command to return a limited, but diverse, set of row results.
-
 This is useful when you want to maximize diversity by preventing similar documents from dominating the top results returned from a search.
-Practical use cases include:
-- **eCommerce applications**: Show users a wider variety of products rather than multiple similar items
-- **Retrieval augmented generation (RAG) workflows**: Provide more diverse context to the LLM, reducing redundancy in the prompt
 
 The command uses [MMR (Maximum Marginal Relevance)](https://www.cs.cmu.edu/~jgc/publication/The_Use_MMR_Diversity_Based_LTMIR_1998.pdf) diversification to discard results that are too similar to each other.
 Similarity is determined based on the `field` parameter and the optionally provided `query_vector`.

@@ -31,8 +31,13 @@ public class ThreadedActionListenerTests extends ESTestCase {
 
     public void testRejectionHandling() throws InterruptedException {
         final var listenerCount = between(1, 1000);
+
+        // await the completion of some number of listeners before starting to shut the threadpool down ...
         final var startLatch = new CountDownLatch(between(1, listenerCount));
+
+        // ... but ensure that all the submitted listeners are completed somehow, even the ones submitted after the threadpool closes
         final var finishLatch = new CountDownLatch(listenerCount);
+
         final var threadPool = new TestThreadPool(
             "test",
             Settings.EMPTY,
@@ -79,7 +84,7 @@ public class ThreadedActionListenerTests extends ESTestCase {
                                 if (e instanceof EsRejectedExecutionException esRejectedExecutionException) {
                                     if (pool.equals("fixed-bounded-queue") == false || forceExecution) {
                                         assertTrue(esRejectedExecutionException.isExecutorShutdown());
-                                    }
+                                    } // else we might have been rejected because of the queue bound and that's ok too
                                     if (e.getSuppressed().length == 0) {
                                         return;
                                     }

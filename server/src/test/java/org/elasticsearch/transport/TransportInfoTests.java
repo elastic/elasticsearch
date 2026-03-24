@@ -36,13 +36,13 @@ public class TransportInfoTests extends ESTestCase {
     public void testCorrectlyDisplayPublishedCname() throws Exception {
         InetAddress address = InetAddress.getByName("localhost");
         int port = 9200;
-        assertPublishAddress(createTransportInfo(address, port, false), "localhost/" + NetworkAddress.format(address) + ':' + port);
+        assertPublishAddress(createTransportInfo(address, port, false), "localhost/" + NetworkAddress.format(address, port));
     }
 
     public void testDeprecatedWarningIfPropertySpecified() throws Exception {
         InetAddress address = InetAddress.getByName("localhost");
         int port = 9200;
-        assertPublishAddress(createTransportInfo(address, port, true), "localhost/" + NetworkAddress.format(address) + ':' + port);
+        assertPublishAddress(createTransportInfo(address, port, true), "localhost/" + NetworkAddress.format(address, port));
         assertWarnings(
             "es.transport.cname_in_publish_address system property is deprecated and no longer affects "
                 + "transport.publish_address formatting. Remove this property to get rid of this deprecation warning.",
@@ -55,7 +55,7 @@ public class TransportInfoTests extends ESTestCase {
     public void testCorrectDisplayPublishedIp() throws Exception {
         InetAddress address = InetAddress.getByName(NetworkAddress.format(InetAddress.getByName("localhost")));
         int port = 9200;
-        assertPublishAddress(createTransportInfo(address, port, false), NetworkAddress.format(address) + ':' + port);
+        assertPublishAddress(createTransportInfo(address, port, false), NetworkAddress.format(address, port));
     }
 
     public void testCorrectDisplayPublishedIpv6() throws Exception {

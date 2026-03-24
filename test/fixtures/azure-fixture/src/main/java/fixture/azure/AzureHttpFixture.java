@@ -13,6 +13,7 @@ import com.sun.net.httpserver.HttpsConfigurator;
 import com.sun.net.httpserver.HttpsServer;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.ssl.KeyStoreUtil;
 import org.elasticsearch.common.ssl.PemUtils;
 import org.elasticsearch.core.Nullable;
@@ -146,20 +147,30 @@ public class AzureHttpFixture extends ExternalResource {
     }
 
     public String getAddress() {
-        return scheme() + "://" + server.getAddress().getHostString() + ":" + server.getAddress().getPort() + "/" + account;
+        InetSocketAddress addr = server.getAddress();
+        // Use "localhost" for loopback addresses to work around Azure SDK's inability to parse bracketed IPv6 addresses
+        String host;
+        if (addr.getAddress().isLoopbackAddress()) {
+            host = "localhost";
+        } else {
+            host = InetAddresses.toUriString(addr.getAddress());
+        }
+
+        return scheme() + "://" + host + ":" + addr.getPort() + "/" + account;
     }
 
     public String getOAuthTokenServiceAddress() {
-        return scheme()
-            + "://"
-            + oauthTokenServiceServer.getAddress().getHostString()
-            + ":"
-            + oauthTokenServiceServer.getAddress().getPort()
-            + "/";
+        InetSocketAddress addr = oauthTokenServiceServer.getAddress();
+        // Use "localhost" for loopback addresses to work around Azure SDK's inability to parse bracketed IPv6 addresses
+        String host = addr.getAddress().isLoopbackAddress() ? "localhost" : addr.getHostString();
+        return scheme() + "://" + host + ":" + addr.getPort() + "/";
     }
 
     public String getMetadataAddress() {
-        return "http://" + metadataServer.getAddress().getHostString() + ":" + metadataServer.getAddress().getPort() + "/";
+        InetSocketAddress addr = metadataServer.getAddress();
+        // Use "localhost" for loopback addresses to work around Azure SDK's inability to parse bracketed IPv6 addresses
+        String host = addr.getAddress().isLoopbackAddress() ? "localhost" : addr.getHostString();
+        return "http://" + host + ":" + addr.getPort() + "/";
     }
 
     public String getFederatedToken() {

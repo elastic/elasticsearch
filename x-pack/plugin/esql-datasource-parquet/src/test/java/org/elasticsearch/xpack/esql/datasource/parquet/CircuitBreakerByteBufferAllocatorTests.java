@@ -132,7 +132,7 @@ public class CircuitBreakerByteBufferAllocatorTests extends ESTestCase {
         private final int maxAllocationSize;
         private final ByteBufferAllocator delegate = new HeapByteBufferAllocator();
 
-        public TestAllocator(int minAllocationSize, int maxAllocationSize) {
+        TestAllocator(int minAllocationSize, int maxAllocationSize) {
             this.minAllocationSize = minAllocationSize;
             this.maxAllocationSize = maxAllocationSize;
         }

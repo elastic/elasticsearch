@@ -27,7 +27,7 @@ import java.util.function.Supplier;
  * {@link IndexOrDocValuesQuery} is treated as a single clause and its inner queries are ignored,
  * and {@link IndexSortSortedNumericDocValuesRangeQuery} is skipped so only the fallback query is counted.
  */
-public class MaxClauseCountQueryVisitor extends QueryVisitor {
+public final class MaxClauseCountQueryVisitor extends QueryVisitor {
 
     private int numClauses;
     private final int maxClauseCount;
@@ -42,6 +42,17 @@ public class MaxClauseCountQueryVisitor extends QueryVisitor {
 
     public int getNumClauses() {
         return numClauses;
+    }
+
+    public void reset() {
+        numClauses = 0;
+    }
+
+    public void merge(MaxClauseCountQueryVisitor other) {
+        numClauses += other.numClauses;
+        if (numClauses > maxClauseCount) {
+            throw new IndexSearcher.TooManyNestedClauses();
+        }
     }
 
     @Override

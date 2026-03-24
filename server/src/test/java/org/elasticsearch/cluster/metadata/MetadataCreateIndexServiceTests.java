@@ -41,6 +41,7 @@ import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllo
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.ClusterStateTaskExecutorUtils;
 import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -60,6 +61,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.SearchExecutionContextHelper;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
@@ -136,9 +138,14 @@ import static org.hamcrest.Matchers.iterableWithSize;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
+import static org.mockito.AdditionalAnswers.returnsFirstArg;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class MetadataCreateIndexServiceTests extends ESTestCase {
 
@@ -1941,6 +1948,81 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         verify(indicesService).withTempIndexService(captor.capture(), any());
         IndexMetadata indexMetadata = captor.getValue();
         assertThat(indexMetadata.getSettings().get(IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_NAME.getKey()), equalTo("private_setting"));
+    }
+
+    public void testBatchedIndexCreationAndReroute() {
+        withTemporaryClusterService((clusterService, threadPool) -> {
+            final var allocationService = mock(AllocationService.class);
+            when(allocationService.reroute(any(ClusterState.class), any(String.class), any())).thenAnswer(returnsFirstArg());
+            when(allocationService.getShardRoutingRoleStrategy()).thenReturn(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
+            MetadataCreateIndexService service = new MetadataCreateIndexService(
+                Settings.EMPTY,
+                clusterService,
+                mockIndicesService(),
+                allocationService,
+                createTestShardLimitService(randomIntBetween(1, 1000), clusterService),
+                newEnvironment(),
+                new IndexScopedSettings(Settings.EMPTY, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS),
+                threadPool,
+                null,
+                EmptySystemIndices.INSTANCE,
+                false,
+                IndexSettingProviders.EMPTY
+            );
+
+            final int taskCount = randomIntBetween(2, 5);
+            final var validIndexNames = new ArrayList<String>();
+            final var tasks = new ArrayList<MetadataCreateIndexService.CreateIndexClusterStateUpdateTask>(taskCount);
+            for (int i = 0; i < taskCount; i++) {
+                final String indexName;
+                if (randomBoolean()) {
+                    indexName = randomIndexName();
+                    validIndexNames.add(indexName);
+                } else {
+                    // invalid index name
+                    indexName = randomIdentifier("INVALID_BECAUSE_UPPER_CASE_");
+                }
+                tasks.add(
+                    new MetadataCreateIndexService.CreateIndexClusterStateUpdateTask(
+                        new CreateIndexClusterStateUpdateRequest("test", projectId, indexName, indexName),
+                        TimeValue.THIRTY_SECONDS,
+                        ActionListener.noop()
+                    )
+                );
+            }
+            final ClusterState initialState = clusterService.state();
+            final ClusterState resultState;
+            try {
+                resultState = ClusterStateTaskExecutorUtils.executeHandlingResults(
+                    clusterService.state(),
+                    service.createIndexTaskExecutor,
+                    tasks,
+                    task -> {},
+                    (task, e) -> assertThat(e, instanceOf(InvalidIndexNameException.class))
+                );
+            } catch (Exception e) {
+                throw new AssertionError("Failed to test run cluster state update for batch index creation request", e);
+            }
+            if (validIndexNames.isEmpty()) {
+                assertSame("cluster state should not change when all requests are invalid", resultState, initialState);
+                verify(allocationService, never()).reroute(any(), any(), any());
+            } else {
+                final var stateIndices = resultState.metadata().getProject(projectId).indices().keySet();
+                assertTrue(
+                    "expected cluster state indices [" + stateIndices + "] to contain all [" + validIndexNames + "]",
+                    stateIndices.containsAll(validIndexNames)
+                );
+                verify(allocationService, times(1)).reroute(any(), eq("create-index"), any());
+            }
+        });
+    }
+
+    private IndicesService mockIndicesService() {
+        try {
+            return DataStreamTestHelper.mockIndicesServices(MappingLookup.EMPTY);
+        } catch (Exception e) {
+            throw new AssertionError("failed to setup indicesService", e);
+        }
     }
 
     private IndexTemplateMetadata addMatchingTemplate(Consumer<IndexTemplateMetadata.Builder> configurator) {

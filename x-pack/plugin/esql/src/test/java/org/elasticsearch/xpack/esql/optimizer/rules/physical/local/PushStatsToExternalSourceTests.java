@@ -25,10 +25,13 @@ import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.Abs;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
+import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 
 import java.util.HashMap;
 import java.util.List;
@@ -278,19 +281,239 @@ public class PushStatsToExternalSourceTests extends ESTestCase {
         assertEquals(java.util.Optional.of(100), SourceStatisticsSerializer.extractColumnMax(enriched, "col1"));
     }
 
+    // --- EvalExec intermediate node tests ---
+
+    /**
+     * EVAL age_years = age | STATS count(*)
+     * count(*) doesn't reference any aliased column so it should still push down.
+     */
+    public void testCountStarPushedThroughEval() {
+        Map<String, Object> metadata = statsMetadata(1000L, "age", 0L, null);
+        EvalExec eval = evalWithSimpleAlias(externalSource(metadata), "age_years", "age");
+        AggregateExec agg = aggregateExec(eval, countStarAlias());
+
+        PhysicalPlan result = applyRule(agg);
+
+        assertThat(result, instanceOf(LocalSourceExec.class));
+        LocalSourceExec local = (LocalSourceExec) result;
+        Page page = local.supplier().get();
+        assertEquals(1000L, ((LongBlock) page.getBlock(0)).getLong(0));
+    }
+
+    /**
+     * EVAL age_years = age | STATS count(age_years)
+     * count(age_years) references an alias for "age"; should resolve and push.
+     */
+    public void testCountFieldPushedThroughEval() {
+        Map<String, Object> metadata = statsMetadata(1000L, "age", 50L, null);
+        ReferenceAttribute ageRef = new ReferenceAttribute(Source.EMPTY, "age", DataType.INTEGER);
+        Alias evalAlias = new Alias(Source.EMPTY, "age_years", ageRef);
+        EvalExec eval = new EvalExec(Source.EMPTY, externalSource(metadata), List.of(evalAlias));
+        ReferenceAttribute aliasedField = (ReferenceAttribute) evalAlias.toAttribute();
+        AggregateExec agg = aggregateExec(eval, countFieldAlias(aliasedField));
+
+        PhysicalPlan result = applyRule(agg);
+
+        assertThat(result, instanceOf(LocalSourceExec.class));
+        LocalSourceExec local = (LocalSourceExec) result;
+        Page page = local.supplier().get();
+        assertEquals(950L, ((LongBlock) page.getBlock(0)).getLong(0));
+    }
+
+    /**
+     * EVAL age_years = age | STATS min(age_years)
+     * min(age_years) should resolve to min(age) via alias and push.
+     */
+    public void testMinPushedThroughEval() {
+        Map<String, Object> metadata = statsMetadata(100L, "age", 0L, null);
+        metadata.put("_stats.columns.age.min", 18);
+        ReferenceAttribute ageRef = new ReferenceAttribute(Source.EMPTY, "age", DataType.INTEGER);
+        Alias evalAlias = new Alias(Source.EMPTY, "age_years", ageRef);
+        EvalExec eval = new EvalExec(Source.EMPTY, externalSource(metadata), List.of(evalAlias));
+        ReferenceAttribute aliasedField = (ReferenceAttribute) evalAlias.toAttribute();
+        AggregateExec agg = aggregateExec(eval, new Alias(Source.EMPTY, "m", new Min(Source.EMPTY, aliasedField)));
+
+        PhysicalPlan result = applyRule(agg);
+
+        assertThat(result, instanceOf(LocalSourceExec.class));
+    }
+
+    /**
+     * EVAL age_years = age | STATS max(age_years)
+     * max(age_years) should resolve to max(age) via alias and push.
+     */
+    public void testMaxPushedThroughEval() {
+        Map<String, Object> metadata = statsMetadata(100L, "age", 0L, null);
+        metadata.put("_stats.columns.age.max", 99);
+        ReferenceAttribute ageRef = new ReferenceAttribute(Source.EMPTY, "age", DataType.INTEGER);
+        Alias evalAlias = new Alias(Source.EMPTY, "age_years", ageRef);
+        EvalExec eval = new EvalExec(Source.EMPTY, externalSource(metadata), List.of(evalAlias));
+        ReferenceAttribute aliasedField = (ReferenceAttribute) evalAlias.toAttribute();
+        AggregateExec agg = aggregateExec(eval, new Alias(Source.EMPTY, "m", new Max(Source.EMPTY, aliasedField)));
+
+        PhysicalPlan result = applyRule(agg);
+
+        assertThat(result, instanceOf(LocalSourceExec.class));
+    }
+
+    /**
+     * EVAL age_years = age | STATS count(*), min(age_years), max(age_years)
+     * All three aggregates should resolve through the alias and push.
+     */
+    public void testMultipleAggsPushedThroughEval() {
+        Map<String, Object> metadata = statsMetadata(500L, "age", 10L, null);
+        metadata.put("_stats.columns.age.min", 1);
+        metadata.put("_stats.columns.age.max", 100);
+        ReferenceAttribute ageRef = new ReferenceAttribute(Source.EMPTY, "age", DataType.INTEGER);
+        Alias evalAlias = new Alias(Source.EMPTY, "age_years", ageRef);
+        EvalExec eval = new EvalExec(Source.EMPTY, externalSource(metadata), List.of(evalAlias));
+        ReferenceAttribute aliasedField = (ReferenceAttribute) evalAlias.toAttribute();
+        AggregateExec agg = aggregateExec(
+            eval,
+            countStarAlias(),
+            new Alias(Source.EMPTY, "mn", new Min(Source.EMPTY, aliasedField)),
+            new Alias(Source.EMPTY, "mx", new Max(Source.EMPTY, aliasedField))
+        );
+
+        PhysicalPlan result = applyRule(agg);
+
+        assertThat(result, instanceOf(LocalSourceExec.class));
+        LocalSourceExec local = (LocalSourceExec) result;
+        assertEquals(3, local.output().size());
+    }
+
+    /**
+     * EVAL computed_val = abs(age) | STATS min(computed_val)
+     * The eval field is not a simple attribute alias (it's a function call),
+     * so no alias map entry is created and pushdown should fail.
+     */
+    public void testNotPushedThroughEvalWithComputedExpression() {
+        Map<String, Object> metadata = statsMetadata(100L, "age", 0L, null);
+        metadata.put("_stats.columns.age.min", 18);
+        ExternalSourceExec ext = externalSource(metadata);
+        ReferenceAttribute ageRef = new ReferenceAttribute(Source.EMPTY, "age", DataType.INTEGER);
+        Alias computedAlias = new Alias(Source.EMPTY, "computed_val", new Abs(Source.EMPTY, ageRef));
+        EvalExec eval = new EvalExec(Source.EMPTY, ext, List.of(computedAlias));
+        ReferenceAttribute computedRef = (ReferenceAttribute) computedAlias.toAttribute();
+        AggregateExec agg = aggregateExec(eval, new Alias(Source.EMPTY, "m", new Min(Source.EMPTY, computedRef)));
+
+        PhysicalPlan result = applyRule(agg);
+
+        assertThat(result, instanceOf(AggregateExec.class));
+    }
+
+    /**
+     * EVAL age_years = age | STATS count(*) BY age_years
+     * Grouped aggregates should not be pushed regardless of intermediate nodes.
+     */
+    public void testNotPushedWithGroupingsThroughEval() {
+        Map<String, Object> metadata = statsMetadata(1000L, null, null, null);
+        ReferenceAttribute ageRef = new ReferenceAttribute(Source.EMPTY, "age", DataType.INTEGER);
+        Alias evalAlias = new Alias(Source.EMPTY, "age_years", ageRef);
+        EvalExec eval = new EvalExec(Source.EMPTY, externalSource(metadata), List.of(evalAlias));
+        ReferenceAttribute groupField = (ReferenceAttribute) evalAlias.toAttribute();
+        AggregateExec agg = new AggregateExec(
+            Source.EMPTY,
+            eval,
+            List.of(groupField),
+            List.of(countStarAlias()),
+            AggregatorMode.SINGLE,
+            List.of(),
+            null
+        );
+
+        PhysicalPlan result = applyRule(agg);
+
+        assertThat(result, instanceOf(AggregateExec.class));
+    }
+
+    // --- ProjectExec intermediate node tests ---
+
+    /**
+     * RENAME salary AS pay | STATS min(pay)
+     * ProjectExec renames salary to pay; min(pay) should resolve to min(salary).
+     */
+    public void testMinPushedThroughProject() {
+        Map<String, Object> metadata = statsMetadata(100L, "salary", 0L, null);
+        metadata.put("_stats.columns.salary.min", 30000);
+        ExternalSourceExec ext = externalSource(metadata);
+        ReferenceAttribute salaryRef = new ReferenceAttribute(Source.EMPTY, "salary", DataType.INTEGER);
+        Alias renameAlias = new Alias(Source.EMPTY, "pay", salaryRef);
+        ProjectExec project = new ProjectExec(Source.EMPTY, ext, List.of(renameAlias));
+        ReferenceAttribute payRef = (ReferenceAttribute) renameAlias.toAttribute();
+        AggregateExec agg = aggregateExec(project, new Alias(Source.EMPTY, "m", new Min(Source.EMPTY, payRef)));
+
+        PhysicalPlan result = applyRule(agg);
+
+        assertThat(result, instanceOf(LocalSourceExec.class));
+    }
+
+    /**
+     * RENAME salary AS pay | STATS min(pay), max(pay)
+     * Both aggregates should resolve through the project rename.
+     */
+    public void testMultipleAggsPushedThroughProject() {
+        Map<String, Object> metadata = statsMetadata(100L, "salary", 0L, null);
+        metadata.put("_stats.columns.salary.min", 30000);
+        metadata.put("_stats.columns.salary.max", 150000);
+        ExternalSourceExec ext = externalSource(metadata);
+        ReferenceAttribute salaryRef = new ReferenceAttribute(Source.EMPTY, "salary", DataType.INTEGER);
+        Alias renameAlias = new Alias(Source.EMPTY, "pay", salaryRef);
+        ProjectExec project = new ProjectExec(Source.EMPTY, ext, List.of(renameAlias));
+        ReferenceAttribute payRef = (ReferenceAttribute) renameAlias.toAttribute();
+        AggregateExec agg = aggregateExec(
+            project,
+            new Alias(Source.EMPTY, "mn", new Min(Source.EMPTY, payRef)),
+            new Alias(Source.EMPTY, "mx", new Max(Source.EMPTY, payRef))
+        );
+
+        PhysicalPlan result = applyRule(agg);
+
+        assertThat(result, instanceOf(LocalSourceExec.class));
+        LocalSourceExec local = (LocalSourceExec) result;
+        assertEquals(2, local.output().size());
+    }
+
+    /**
+     * RENAME salary AS pay | STATS count(*)
+     * count(*) doesn't reference columns, so project intermediate should not prevent pushdown.
+     */
+    public void testCountStarPushedThroughProject() {
+        Map<String, Object> metadata = statsMetadata(1000L, null, null, null);
+        ExternalSourceExec ext = externalSource(metadata);
+        ReferenceAttribute salaryRef = new ReferenceAttribute(Source.EMPTY, "salary", DataType.INTEGER);
+        Alias renameAlias = new Alias(Source.EMPTY, "pay", salaryRef);
+        ProjectExec project = new ProjectExec(Source.EMPTY, ext, List.of(renameAlias));
+        AggregateExec agg = aggregateExec(project, countStarAlias());
+
+        PhysicalPlan result = applyRule(agg);
+
+        assertThat(result, instanceOf(LocalSourceExec.class));
+        LocalSourceExec local = (LocalSourceExec) result;
+        Page page = local.supplier().get();
+        assertEquals(1000L, ((LongBlock) page.getBlock(0)).getLong(0));
+    }
+
     // --- helpers ---
 
     private static ExternalSourceExec externalSource(Map<String, Object> sourceMetadata) {
         List<Attribute> attrs = List.of(
             new ReferenceAttribute(Source.EMPTY, "x", DataType.INTEGER),
             new ReferenceAttribute(Source.EMPTY, "age", DataType.INTEGER),
-            new ReferenceAttribute(Source.EMPTY, "score", DataType.DOUBLE)
+            new ReferenceAttribute(Source.EMPTY, "score", DataType.DOUBLE),
+            new ReferenceAttribute(Source.EMPTY, "salary", DataType.INTEGER)
         );
         return new ExternalSourceExec(Source.EMPTY, "file:///test.parquet", "parquet", attrs, Map.of(), sourceMetadata, null);
     }
 
-    private static AggregateExec aggregateExec(ExternalSourceExec child, NamedExpression... aggregates) {
+    private static AggregateExec aggregateExec(PhysicalPlan child, NamedExpression... aggregates) {
         return new AggregateExec(Source.EMPTY, child, List.of(), List.of(aggregates), AggregatorMode.SINGLE, List.of(), null);
+    }
+
+    private static EvalExec evalWithSimpleAlias(ExternalSourceExec child, String aliasName, String originalName) {
+        ReferenceAttribute originalRef = new ReferenceAttribute(Source.EMPTY, originalName, DataType.INTEGER);
+        Alias alias = new Alias(Source.EMPTY, aliasName, originalRef);
+        return new EvalExec(Source.EMPTY, child, List.of(alias));
     }
 
     private static Alias countStarAlias() {

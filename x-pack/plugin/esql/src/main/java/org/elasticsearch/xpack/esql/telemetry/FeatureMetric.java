@@ -46,6 +46,7 @@ import org.elasticsearch.xpack.esql.plan.logical.fuse.FuseScoreEval;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
+import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plan.logical.show.ShowInfo;
 
@@ -119,7 +120,8 @@ public enum FeatureMetric {
         Project.class,
         Limit.class, // LIMIT is managed in another way, see above
         FuseScoreEval.class,
-        Aggregate.class // STATS is managed in another way, see above
+        Aggregate.class, // STATS is managed in another way, see above
+        LocalRelation.class // produced as a short-circuit for empty index patterns (e.g. PROMQL on missing index)
     );
 
     private Predicate<LogicalPlan> planCheck;

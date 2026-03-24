@@ -100,7 +100,7 @@ public class MvIntersection extends MvSetOperationFunction {
                 "text",
                 "unsigned_long",
                 "version" },
-            description = "Multivalue expression. If null, the function returns null."
+            description = "Expression that can be null, a single value, or multiple values. If null, the function returns null."
         ) Expression field1,
         @Param(
             name = "field2",
@@ -123,7 +123,7 @@ public class MvIntersection extends MvSetOperationFunction {
                 "text",
                 "unsigned_long",
                 "version" },
-            description = "Multivalue expression. If null, the function returns null."
+            description = "Expression that can be null, a single value, or multiple values. If null, the function returns null."
         ) Expression field2
     ) {
         super(source, field1, field2);

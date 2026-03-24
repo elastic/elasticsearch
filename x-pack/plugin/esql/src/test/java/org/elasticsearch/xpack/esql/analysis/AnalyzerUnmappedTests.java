@@ -51,6 +51,15 @@ import static org.hamcrest.Matchers.not;
 
 // @TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
 public class AnalyzerUnmappedTests extends ESTestCase {
+
+    /**
+     * Query suffixes that use the unsupported type-conflict field [message] in different commands.
+     * Each type conflict test iterates over these to verify the error is raised regardless of how the field is used.
+     */
+    private static final String[] TYPE_CONFLICT_QUERY_SUFFIXES = new String[] {
+        "| SORT message",
+        "| EVAL x = message",
+        "| WHERE message IS NOT NULL" };
     public void testFailKeepAndNonMatchingStar() {
         var query = """
             FROM test
@@ -546,10 +555,10 @@ public class AnalyzerUnmappedTests extends ESTestCase {
             ),
             List.of()
         );
-        typeConflictVerificationFailure(
-            setUnmappedLoad("FROM foo, bar | SORT message"),
-            indexResolutions(mergedResolution("foo,bar", caps))
-        );
+        var resolutions = indexResolutions(mergedResolution("foo,bar", caps));
+        for (String suffix : TYPE_CONFLICT_QUERY_SUFFIXES) {
+            typeConflictVerificationFailure(setUnmappedLoad("FROM foo, bar " + suffix), resolutions);
+        }
     }
 
     public void testTypeConflictLongKeywordUnmappedNoCast() {
@@ -563,10 +572,10 @@ public class AnalyzerUnmappedTests extends ESTestCase {
             ),
             List.of()
         );
-        typeConflictVerificationFailure(
-            setUnmappedLoad("FROM foo, bar, baz | EVAL x = message + 1"),
-            indexResolutions(mergedResolution("foo,bar,baz", caps))
-        );
+        var resolutions = indexResolutions(mergedResolution("foo,bar,baz", caps));
+        for (String suffix : TYPE_CONFLICT_QUERY_SUFFIXES) {
+            typeConflictVerificationFailure(setUnmappedLoad("FROM foo, bar, baz " + suffix), resolutions);
+        }
     }
 
     public void testTypeConflictLongIntUnmappedNoCast() {
@@ -580,10 +589,10 @@ public class AnalyzerUnmappedTests extends ESTestCase {
             ),
             List.of()
         );
-        typeConflictVerificationFailure(
-            setUnmappedLoad("FROM foo, bar, baz | SORT message"),
-            indexResolutions(mergedResolution("foo,bar,baz", caps))
-        );
+        var resolutions = indexResolutions(mergedResolution("foo,bar,baz", caps));
+        for (String suffix : TYPE_CONFLICT_QUERY_SUFFIXES) {
+            typeConflictVerificationFailure(setUnmappedLoad("FROM foo, bar, baz " + suffix), resolutions);
+        }
     }
 
     public void testTypeConflictTextUnmappedNoCast() {
@@ -596,10 +605,10 @@ public class AnalyzerUnmappedTests extends ESTestCase {
             ),
             List.of()
         );
-        typeConflictVerificationFailure(
-            setUnmappedLoad("FROM foo, bar | EVAL x = message"),
-            indexResolutions(mergedResolution("foo,bar", caps))
-        );
+        var resolutions = indexResolutions(mergedResolution("foo,bar", caps));
+        for (String suffix : TYPE_CONFLICT_QUERY_SUFFIXES) {
+            typeConflictVerificationFailure(setUnmappedLoad("FROM foo, bar " + suffix), resolutions);
+        }
     }
 
     private static final String UNMAPPED_TIMESTAMP_SUFFIX = UnresolvedTimestamp.UNRESOLVED_SUFFIX + Verifier.UNMAPPED_TIMESTAMP_SUFFIX;

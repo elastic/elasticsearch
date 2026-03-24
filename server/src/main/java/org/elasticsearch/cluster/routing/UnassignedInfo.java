@@ -183,10 +183,10 @@ public record UnassignedInfo(
         /// node loss), where the unassignment should be reported as unhealthy without delay.
         public boolean isExpectedTransient() {
             return switch (this) {
-                case ALLOCATION_FAILED, NODE_LEFT, REINITIALIZED, REALLOCATED_REPLICA, PRIMARY_FAILED, NODE_RESTARTING -> false;
+                case ALLOCATION_FAILED, NODE_LEFT, REINITIALIZED, REALLOCATED_REPLICA, PRIMARY_FAILED, NODE_RESTARTING,
+                    UNPROMOTABLE_REPLICA, CLUSTER_RECOVERED, INDEX_CLOSED -> false;
                 case INDEX_CREATED, INDEX_REOPENED, DANGLING_INDEX_IMPORTED, NEW_INDEX_RESTORED, EXISTING_INDEX_RESTORED, REPLICA_ADDED,
-                    REROUTE_CANCELLED, FORCED_EMPTY_PRIMARY, MANUAL_ALLOCATION, INDEX_CLOSED, UNPROMOTABLE_REPLICA, RESHARD_ADDED,
-                    CLUSTER_RECOVERED -> true;
+                    REROUTE_CANCELLED, FORCED_EMPTY_PRIMARY, MANUAL_ALLOCATION, RESHARD_ADDED -> true;
             };
         }
     }

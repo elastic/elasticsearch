@@ -72,7 +72,6 @@ import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
-import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;

@@ -200,6 +200,11 @@ public class EsqlCapabilities {
         CASTING_OPERATOR_FOR_DATE,
 
         /**
+         * Support for the {@code ::tdigest} and {@code ::exponential_histogram} casting operators.
+         */
+        CASTING_OPERATOR_FOR_HISTOGRAM_TYPES,
+
+        /**
          * Blocks can be labelled with {@link org.elasticsearch.compute.data.Block.MvOrdering#SORTED_ASCENDING} for optimizations.
          */
         MV_ORDERING_SORTED_ASCENDING,
@@ -448,6 +453,16 @@ public class EsqlCapabilities {
          * Fix for spatial centroid when no records are found.
          */
         SPATIAL_CENTROID_NO_RECORDS,
+
+        /**
+         * Support for ST_CENTROID_AGG aggregation on geo_shape and cartesian_shape fields.
+         */
+        ST_CENTROID_AGG_SHAPES,
+
+        /**
+         * Support for ST_CENTROID_AGG aggregation on shapes from doc-values.
+         */
+        ST_CENTROID_AGG_SHAPES_DOC_VALUES,
 
         /**
          * Support ST_ENVELOPE function (and related ST_XMIN, etc.).
@@ -1077,11 +1092,6 @@ public class EsqlCapabilities {
          * Full text functions can be scored when being part of a disjunction
          */
         FULL_TEXT_FUNCTIONS_DISJUNCTIONS_SCORE,
-
-        /**
-         * Support for multi-match function.
-         */
-        MULTI_MATCH_FUNCTION(Build.current().isSnapshot()),
 
         /**
          * Do {@code TO_LOWER} and {@code TO_UPPER} process all field values?
@@ -1879,6 +1889,11 @@ public class EsqlCapabilities {
         TIME_SERIES_WINDOW_V1,
 
         /**
+         * Supporting grouping window in time-series where the window is smaller than the time bucket
+         */
+        TIME_SERIES_WINDOW_SMALLER_THAN_BUCKET,
+
+        /**
          * Support like/rlike parameters https://github.com/elastic/elasticsearch/issues/131356
          */
         LIKE_PARAMETER_SUPPORT,
@@ -1953,6 +1968,11 @@ public class EsqlCapabilities {
         PROMQL_IMPLICIT_RANGE_SELECTOR,
 
         /**
+         * Support for PromQL {@code without} grouping.
+         */
+        PROMQL_WITHOUT_GROUPING(false),
+
+        /**
          * Support for {@code TIME_SERIES_WITHOUT_GROUPING} capability for the
          * grouping function that excludes specific dimensions from time-series grouping.
          */
@@ -2005,11 +2025,6 @@ public class EsqlCapabilities {
          * https://github.com/elastic/elasticsearch/issues/138283
          */
         FIX_INLINE_STATS_INCORRECT_PRUNNING(INLINE_STATS.enabled),
-
-        /**
-         * Support for ST_CENTROID_AGG aggregation on geo_shape and cartesian_shape fields.
-         */
-        ST_CENTROID_AGG_SHAPES,
 
         /**
          * {@link ReplaceStatsFilteredOrNullAggWithEval} replaced a stats
@@ -2110,7 +2125,7 @@ public class EsqlCapabilities {
         /**
          * Support query approximation.
          */
-        APPROXIMATION_V3(Build.current().isSnapshot()),
+        APPROXIMATION_V5(Build.current().isSnapshot()),
 
         /**
          * Create a ScoreOperator only when shard contexts are available
@@ -2142,6 +2157,11 @@ public class EsqlCapabilities {
          * Support for the {@code TO_EXPONENTIAL_HISTOGRAM} conversion function.
          */
         TO_EXPONENTIAL_HISTOGRAM,
+
+        /**
+         * Support for converting {@code exponential_histogram} fields via {@code TO_TDIGEST}.
+         */
+        TO_TDIGEST_FROM_EXPONENTIAL_HISTOGRAM,
 
         /**
          * Support for {@code MEDIAN} aggregation on {@code tdigest} type fields.
@@ -2209,6 +2229,11 @@ public class EsqlCapabilities {
          * Support for the EXTERNAL command (datasource access).
          */
         EXTERNAL_COMMAND(Build.current().isSnapshot()),
+
+        /**
+         * Support for the EXTERNAL command (datasource access).
+         */
+        EXTERNAL_CSV_IP_SUPPORT(Build.current().isSnapshot()),
 
         /**
          * https://github.com/elastic/elasticsearch/issues/142219
@@ -2307,7 +2332,38 @@ public class EsqlCapabilities {
          * causing false type conflicts in ES|QL when querying across indices.
          * https://github.com/elastic/elasticsearch/issues/144179
          */
-        FIX_PASSTHROUGH_FIELD_CAPS_OBJECT_PARENT
+        FIX_PASSTHROUGH_FIELD_CAPS_OBJECT_PARENT,
+
+        /**
+         * LIMIT n BY expr1, expr2 support for retaining at most n docs per group.
+         * Enables the feature without a preceding SORT.
+         *
+         */
+        ESQL_LIMIT_BY(Build.current().isSnapshot()),
+
+        /**
+         * Fix window validation in time-series aggregations when TBUCKET uses a numeric target bucket count.
+         */
+        FIX_TBUCKET_TARGET_COUNT_WINDOW_VALIDATION,
+
+        /**
+         * Support the null column type for the CHANGE_POINT command
+         * <a href="https://github.com/elastic/elasticsearch/pull/144388"></a>
+         */
+        CHANGE_POINT_SUPPORT_NULL_COLUMN,
+
+        /**
+         * Reject loading sub-fields of flattened fields when {@code unmapped_fields="load"}
+         * See https://github.com/elastic/elasticsearch/issues/143494
+         */
+        REJECT_LOADING_FLATTENED_SUBFIELDS(OPTIONAL_FIELDS_V2.isEnabled()),
+
+        FIX_DIV_ERROR_MESSAGE,
+
+        /**
+         * Added {@link org.elasticsearch.xpack.esql.planner.PlannerSettings#DOC_THRESHOLD_AUTO_PARTITIONING}
+         */
+        AUTO_PARTITION_DOCS_THRESHOLD,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

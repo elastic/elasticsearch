@@ -130,7 +130,7 @@ EXPORT int32_t vec_dot7u_2(const int8_t* a, const int8_t* b, const int32_t dims)
     return res;
 }
 
-template <int64_t(*mapper)(int32_t, const int32_t*)>
+template <const int8_t*(*mapper)(const int8_t*, const int32_t, const int32_t*, const int32_t)>
 static inline void dot7u_inner_bulk(
     const int8_t* a,
     const int8_t* b,
@@ -144,20 +144,20 @@ static inline void dot7u_inner_bulk(
     const int lines_to_fetch = dims / CACHE_LINE_SIZE + 1;
     int c = 0;
 
-    const int8_t* a0 = safe_mapper_offset<int8_t, 0, mapper>(a, pitch, offsets, count);
-    const int8_t* a1 = safe_mapper_offset<int8_t, 1, mapper>(a, pitch, offsets, count);
-    const int8_t* a2 = safe_mapper_offset<int8_t, 2, mapper>(a, pitch, offsets, count);
-    const int8_t* a3 = safe_mapper_offset<int8_t, 3, mapper>(a, pitch, offsets, count);
+    const int8_t* a0 = count > 0 ? mapper(a, 0, offsets, pitch) : nullptr;
+    const int8_t* a1 = count > 1 ? mapper(a, 1, offsets, pitch) : nullptr;
+    const int8_t* a2 = count > 2 ? mapper(a, 2, offsets, pitch) : nullptr;
+    const int8_t* a3 = count > 3 ? mapper(a, 3, offsets, pitch) : nullptr;
 
     // Process a batch of 4 vectors at a time, after instructing the CPU to
     // prefetch the next batch.
     // Prefetching multiple memory locations while computing keeps the CPU
     // execution units busy.
     for (; c + 7 < count; c += 4) {
-        const int8_t* next_a0 = a + mapper(c + 4, offsets) * pitch;
-        const int8_t* next_a1 = a + mapper(c + 5, offsets) * pitch;
-        const int8_t* next_a2 = a + mapper(c + 6, offsets) * pitch;
-        const int8_t* next_a3 = a + mapper(c + 7, offsets) * pitch;
+        const int8_t* next_a0 = mapper(a, c + 4, offsets, pitch);
+        const int8_t* next_a1 = mapper(a, c + 5, offsets, pitch);
+        const int8_t* next_a2 = mapper(a, c + 6, offsets, pitch);
+        const int8_t* next_a3 = mapper(a, c + 7, offsets, pitch);
 
         prefetch(next_a0, lines_to_fetch);
         prefetch(next_a1, lines_to_fetch);
@@ -195,13 +195,13 @@ static inline void dot7u_inner_bulk(
 
     // Tail-handling: remaining vectors
     for (; c < count; c++) {
-        const int8_t* a0 = a + mapper(c, offsets) * pitch;
+        const int8_t* a0 = mapper(a, c, offsets, pitch);
         results[c] = (f32_t)vec_dot7u_2(a0, b, dims);
     }
 }
 
 EXPORT void vec_dot7u_bulk_2(const int8_t* a, const int8_t* b, const int32_t dims, const int32_t count, f32_t* results) {
-    dot7u_inner_bulk<identity_mapper>(a, b, dims, dims, NULL, count, results);
+    dot7u_inner_bulk<sequential_mapper>(a, b, dims, dims, NULL, count, results);
 }
 
 EXPORT void vec_dot7u_bulk_offsets_2(
@@ -212,7 +212,7 @@ EXPORT void vec_dot7u_bulk_offsets_2(
     const int32_t* offsets,
     const int32_t count,
     f32_t* results) {
-    dot7u_inner_bulk<array_mapper>(a, b, dims, pitch, offsets, count, results);
+    dot7u_inner_bulk<offsets_mapper>(a, b, dims, pitch, offsets, count, results);
 }
 
 template<int offsetRegs>
@@ -296,7 +296,7 @@ EXPORT int32_t vec_sqr7u_2(const int8_t* a, const int8_t* b, const int32_t dims)
     return res;
 }
 
-template <int64_t(*mapper)(int32_t, const int32_t*)>
+template <const int8_t*(*mapper)(const int8_t*, const int32_t, const int32_t*, const int32_t)>
 static inline void sqr7u_inner_bulk(
     const int8_t* a,
     const int8_t* b,
@@ -310,20 +310,20 @@ static inline void sqr7u_inner_bulk(
     const int lines_to_fetch = dims / CACHE_LINE_SIZE + 1;
     int c = 0;
 
-    const int8_t* a0 = safe_mapper_offset<int8_t, 0, mapper>(a, pitch, offsets, count);
-    const int8_t* a1 = safe_mapper_offset<int8_t, 1, mapper>(a, pitch, offsets, count);
-    const int8_t* a2 = safe_mapper_offset<int8_t, 2, mapper>(a, pitch, offsets, count);
-    const int8_t* a3 = safe_mapper_offset<int8_t, 3, mapper>(a, pitch, offsets, count);
+    const int8_t* a0 = count > 0 ? mapper(a, 0, offsets, pitch) : nullptr;
+    const int8_t* a1 = count > 1 ? mapper(a, 1, offsets, pitch) : nullptr;
+    const int8_t* a2 = count > 2 ? mapper(a, 2, offsets, pitch) : nullptr;
+    const int8_t* a3 = count > 3 ? mapper(a, 3, offsets, pitch) : nullptr;
 
     // Process a batch of 4 vectors at a time, after instructing the CPU to
     // prefetch the next batch.
     // Prefetching multiple memory locations while computing keeps the CPU
     // execution units busy.
     for (; c + 7 < count; c += 4) {
-        const int8_t* next_a0 = a + mapper(c + 4, offsets) * pitch;
-        const int8_t* next_a1 = a + mapper(c + 5, offsets) * pitch;
-        const int8_t* next_a2 = a + mapper(c + 6, offsets) * pitch;
-        const int8_t* next_a3 = a + mapper(c + 7, offsets) * pitch;
+        const int8_t* next_a0 = mapper(a, c + 4, offsets, pitch);
+        const int8_t* next_a1 = mapper(a, c + 5, offsets, pitch);
+        const int8_t* next_a2 = mapper(a, c + 6, offsets, pitch);
+        const int8_t* next_a3 = mapper(a, c + 7, offsets, pitch);
 
         prefetch(next_a0, lines_to_fetch);
         prefetch(next_a1, lines_to_fetch);
@@ -366,13 +366,13 @@ static inline void sqr7u_inner_bulk(
 
     // Tail-handling: remaining vectors
     for (; c < count; c++) {
-        const int8_t* a0 = a + mapper(c, offsets) * pitch;
+        const int8_t* a0 = mapper(a, c, offsets, pitch);
         results[c] = (f32_t)vec_sqr7u_2(a0, b, dims);
     }
 }
 
 EXPORT void vec_sqr7u_bulk_2(const int8_t* a, const int8_t* b, const int32_t dims, const int32_t count, f32_t* results) {
-    sqr7u_inner_bulk<identity_mapper>(a, b, dims, dims, NULL, count, results);
+    sqr7u_inner_bulk<sequential_mapper>(a, b, dims, dims, NULL, count, results);
 }
 
 EXPORT void vec_sqr7u_bulk_offsets_2(
@@ -383,7 +383,7 @@ EXPORT void vec_sqr7u_bulk_offsets_2(
     const int32_t* offsets,
     const int32_t count,
     f32_t* results) {
-    sqr7u_inner_bulk<array_mapper>(a, b, dims, pitch, offsets, count, results);
+    sqr7u_inner_bulk<offsets_mapper>(a, b, dims, pitch, offsets, count, results);
 }
 
 #ifdef __clang__

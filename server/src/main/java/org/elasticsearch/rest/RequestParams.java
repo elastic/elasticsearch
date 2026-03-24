@@ -12,7 +12,6 @@ package org.elasticsearch.rest;
 import java.net.URI;
 import java.util.AbstractMap;
 import java.util.AbstractSet;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
@@ -28,9 +27,11 @@ import java.util.Set;
  * operates on the <em>last</em> value in that list:
  * <ul>
  *   <li>{@link #get(Object)} returns the last value for a key, or {@code null} if absent.</li>
- *   <li>{@link #put(String, String)} replaces all existing values with a single new one.</li>
  * </ul>
  * Use {@link #getAll(String)} to retrieve all values for a repeated key.
+ *
+ * <p>Instances are <em>immutable</em>: mutation methods ({@code put}, {@code remove}, {@code clear})
+ * throw {@link UnsupportedOperationException}.
  */
 public final class RequestParams extends AbstractMap<String, String> {
 
@@ -107,9 +108,10 @@ public final class RequestParams extends AbstractMap<String, String> {
     }
 
     private RequestParams(Map<String, List<String>> multiValues) {
-        this.map = new LinkedHashMap<>(multiValues);
-        assert map.values().stream().allMatch(list -> list != null && list.isEmpty() == false)
-            : "RequestParams requires every value list to be non-empty";
+        LinkedHashMap<String, List<String>> copy = new LinkedHashMap<>(multiValues.size() * 2);
+        multiValues.forEach((k, v) -> copy.put(k, List.copyOf(v)));
+        assert copy.values().stream().allMatch(list -> list.isEmpty() == false) : "RequestParams requires every value list to be non-empty";
+        this.map = copy;
     }
 
     // -------------------------------------------------------------------------
@@ -125,7 +127,7 @@ public final class RequestParams extends AbstractMap<String, String> {
      */
     public List<String> getAll(String key) {
         var list = map.get(key);
-        return list == null ? List.of() : Collections.unmodifiableList(list);
+        return list == null ? List.of() : list;
     }
 
     /**
@@ -160,25 +162,22 @@ public final class RequestParams extends AbstractMap<String, String> {
         return list == null ? null : list.getLast();
     }
 
-    /**
-     * Associates {@code key} with {@code value}, replacing all previous values for that key.
-     * Returns the previous last value, or {@code null}.
-     */
+    /** @throws UnsupportedOperationException always */
     @Override
     public String put(String key, String value) {
-        var old = map.put(key, new ArrayList<>(List.of(value)));
-        return old == null ? null : old.getLast();
+        throw new UnsupportedOperationException("RequestParams is immutable");
     }
 
+    /** @throws UnsupportedOperationException always */
     @Override
     public String remove(Object key) {
-        var old = map.remove(key);
-        return old == null ? null : old.getLast();
+        throw new UnsupportedOperationException("RequestParams is immutable");
     }
 
+    /** @throws UnsupportedOperationException always */
     @Override
     public void clear() {
-        map.clear();
+        throw new UnsupportedOperationException("RequestParams is immutable");
     }
 
     @Override
@@ -191,15 +190,13 @@ public final class RequestParams extends AbstractMap<String, String> {
         return map.containsKey(key);
     }
 
-    /** Returns a live key set backed by the underlying map. */
     @Override
     public Set<String> keySet() {
-        return map.keySet();
+        return Collections.unmodifiableSet(map.keySet());
     }
 
     /**
-     * Returns a live entry set where each entry's value is the <em>last</em> value for that key.
-     * Removal through the iterator is supported and removes the key from the map entirely.
+     * Returns an unmodifiable entry set where each entry's value is the <em>last</em> value for that key.
      */
     @Override
     public Set<Entry<String, String>> entrySet() {
@@ -217,11 +214,6 @@ public final class RequestParams extends AbstractMap<String, String> {
                     public Entry<String, String> next() {
                         var e = inner.next();
                         return Map.entry(e.getKey(), e.getValue().getLast());
-                    }
-
-                    @Override
-                    public void remove() {
-                        inner.remove();
                     }
                 };
             }

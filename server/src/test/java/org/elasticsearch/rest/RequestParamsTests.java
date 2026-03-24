@@ -93,40 +93,22 @@ public class RequestParamsTests extends ESTestCase {
     }
 
     // -------------------------------------------------------------------------
-    // put / remove / clear
+    // immutability
     // -------------------------------------------------------------------------
 
-    public void testPutReplacesAllValues() {
+    public void testPutThrows() {
         var map = RequestParams.of(Map.of("k", List.of("a", "b")));
-        var previous = map.put("k", "new");
-        assertThat(previous, equalTo("b")); // previous last value
-        assertThat(map.get("k"), equalTo("new"));
-        assertThat(map.getAll("k"), equalTo(List.of("new")));
+        expectThrows(UnsupportedOperationException.class, () -> map.put("k", "new"));
     }
 
-    public void testPutNewKey() {
-        var map = RequestParams.empty();
-        var previous = map.put("k", "v");
-        assertThat(previous, nullValue());
-        assertThat(map.get("k"), equalTo("v"));
-    }
-
-    public void testRemove() {
+    public void testRemoveThrows() {
         var map = RequestParams.of(Map.of("k", List.of("a", "b")));
-        var removed = map.remove("k");
-        assertThat(removed, equalTo("b")); // last value
-        assertThat(map.containsKey("k"), is(false));
+        expectThrows(UnsupportedOperationException.class, () -> map.remove("k"));
     }
 
-    public void testRemoveAbsentKey() {
-        var map = RequestParams.empty();
-        assertThat(map.remove("missing"), nullValue());
-    }
-
-    public void testClear() {
+    public void testClearThrows() {
         var map = RequestParams.of(Map.of("a", List.of("1"), "b", List.of("2")));
-        map.clear();
-        assertThat(map.isEmpty(), is(true));
+        expectThrows(UnsupportedOperationException.class, map::clear);
     }
 
     // -------------------------------------------------------------------------
@@ -151,11 +133,10 @@ public class RequestParamsTests extends ESTestCase {
         assertThat(entry.getValue(), equalTo("last"));
     }
 
-    public void testEntrySetRemove() {
+    public void testEntrySetIteratorRemoveThrows() {
         var map = RequestParams.of(Map.of("a", List.of("1"), "b", List.of("2")));
         var it = map.entrySet().iterator();
         it.next();
-        it.remove();
-        assertThat(map.size(), equalTo(1));
+        expectThrows(UnsupportedOperationException.class, it::remove);
     }
 }

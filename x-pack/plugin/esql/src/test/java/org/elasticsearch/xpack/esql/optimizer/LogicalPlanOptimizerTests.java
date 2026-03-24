@@ -7911,8 +7911,14 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
                 """;
             planMetrics(query);
         });
-        assertThat(e.getMessage(), containsString("sub-buckets"));
-        assertThat(e.getMessage(), containsString("128"));
+        assertThat(
+            e.getMessage(),
+            equalTo(
+                "The window [301 second] and bucket [5 minute] combination requires [300] internal sub-buckets of size [1s]"
+                    + " per output bucket, which exceeds the limit of [128];"
+                    + " use a larger time bucket or adjust the window to be an exact multiple of the time bucket"
+            )
+        );
     }
 
     public void testMvSortInvalidOrder() {

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
 import org.apache.lucene.util.MathUtil;
 import org.elasticsearch.common.Rounding;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
@@ -481,12 +482,14 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
         long gcdMillis = bucketMillis;
         boolean hasNonMultipleWindow = false;
         List<Long> smallWindowMillis = new ArrayList<>();
+        List<String> allWindowSourceTexts = new ArrayList<>();
         for (NamedExpression ne : aggregates) {
             if (Alias.unwrap(ne) instanceof AggregateFunction af && af.hasWindow()) {
                 Expression window = af.window();
                 if (window.foldable() && window.fold(FoldContext.small()) instanceof Duration d) {
                     long windowMillis = d.toMillis();
                     if (windowMillis > 0) {
+                        allWindowSourceTexts.add(window.sourceText());
                         if (windowMillis < bucketMillis) {
                             smallWindowMillis.add(windowMillis);
                         } else {
@@ -515,10 +518,17 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
         }
         long subBuckets = bucketMillis / gcdMillis;
         if (subBuckets > MAX_SUB_BUCKETS) {
+            String windowSizes = allWindowSourceTexts.stream().distinct().toList().toString();
             throw new IllegalArgumentException(
-                "The window and time bucket combination requires ["
+                "The window "
+                    + windowSizes
+                    + " and bucket ["
+                    + userBucket.buckets().sourceText()
+                    + "] combination requires ["
                     + subBuckets
-                    + "] sub-buckets per output bucket, which exceeds the limit of ["
+                    + "] internal sub-buckets of size ["
+                    + TimeValue.timeValueMillis(gcdMillis)
+                    + "] per output bucket, which exceeds the limit of ["
                     + MAX_SUB_BUCKETS
                     + "]; use a larger time bucket or adjust the window to be an exact multiple of the time bucket"
             );

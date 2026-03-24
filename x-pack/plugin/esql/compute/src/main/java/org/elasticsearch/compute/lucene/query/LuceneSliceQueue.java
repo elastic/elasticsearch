@@ -320,8 +320,8 @@ public final class LuceneSliceQueue {
             @Override
             List<List<PartialLeafReaderContext>> groups(IndexSearcher searcher, int taskConcurrency) {
                 final int totalDocCount = searcher.getIndexReader().maxDoc();
-                // Cap at double MAX_DOCS_PER_SLICE since each slice spans multiple segments, reducing per-slice overhead.
-                final int docsPerSlice = Math.clamp(Math.ceilDiv(totalDocCount, taskConcurrency), 1, MAX_DOCS_PER_SLICE * 2);
+                // Cap at 4 * MAX_DOCS_PER_SLICE since each slice spans multiple segments, reducing per-slice overhead.
+                final int docsPerSlice = Math.clamp(Math.ceilDiv(totalDocCount, taskConcurrency), 1, MAX_DOCS_PER_SLICE * 4);
                 try {
                     return new TimeSeriesPartitioner().partition(searcher.getLeafContexts(), docsPerSlice);
                 } catch (IOException e) {
@@ -520,11 +520,11 @@ public final class LuceneSliceQueue {
         private List<List<PartialLeafReaderContext>> combineGroups(List<PrefixGroup> groups, int docsPerSlice) {
             Map<LeafReaderContext, PartialLeafReaderContext> current = new IdentityHashMap<>();
             List<List<PartialLeafReaderContext>> results = new ArrayList<>(groups.size());
-            final int minDocsPerSlice = Math.max(docsPerSlice * 3 / 4, 1); // 75%
-            final int maxDocsPerSlice = Math.max(docsPerSlice * 3 / 2, 1); // 150%
+            final int minDocsPerSlice = Math.max(docsPerSlice * 2 / 3, 1);
+            final int maxDocsPerSlice = Math.max(docsPerSlice * 3 / 2, 1);
             int pendingDocs = 0;
             for (PrefixGroup slice : groups) {
-                if (pendingDocs >= docsPerSlice || (pendingDocs >= minDocsPerSlice && (pendingDocs + slice.numDocs) >= maxDocsPerSlice)) {
+                if (pendingDocs >= docsPerSlice || (pendingDocs > minDocsPerSlice && (pendingDocs + slice.numDocs) > maxDocsPerSlice)) {
                     results.add(shuffle(current.values()));
                     current.clear();
                     pendingDocs = 0;

@@ -18,6 +18,7 @@ import org.elasticsearch.compute.operator.lookup.BulkKeywordLookup;
 import org.elasticsearch.compute.operator.lookup.LookupEnrichQueryGenerator;
 import org.elasticsearch.compute.operator.lookup.QueryList;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.Rewriteable;
@@ -149,6 +150,7 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
             extractFieldNames,
             context,
             lucenePushdownPredicates,
+            aliasFilter,
             warnings
         );
         return expressionQueryList;
@@ -165,10 +167,11 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
         List<String> extractFieldNames,
         SearchExecutionContext context,
         LucenePushdownPredicates lucenePushdownPredicates,
+        AliasFilter aliasFilter,
         Warnings warnings
     ) {
         List<Expression> expressions = Predicates.splitAnd(joinOnConditions);
-        if (applyAsBulkKeywordLookup(expressions, matchFields, extractFieldNames, context, clusterService, warnings)) {
+        if (applyAsBulkKeywordLookup(expressions, matchFields, extractFieldNames, context, clusterService, aliasFilter, warnings)) {
             // we managed to apply the whole condition as a fast keyword filter
             return;
         }
@@ -189,8 +192,17 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
         List<String> extractFieldNames,
         SearchExecutionContext context,
         ClusterService clusterService,
+        AliasFilter aliasFilter,
         Warnings warnings
     ) {
+
+        // TODO: https://github.com/elastic/elasticsearch/pull/144704#pullrequestreview-3991685487
+        //       We need a better explaination why this check is needed here.
+        //       The other applyAs methods in this class do not include this check.
+        //
+        if (aliasFilter != null && aliasFilter != AliasFilter.EMPTY)
+            return false;
+
         if (expressions.size() == 1) {
             Expression expr = expressions.get(0);
             if (expr instanceof EsqlBinaryComparison binaryComparison
@@ -224,7 +236,7 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
                     }
                     MappedFieldType rightFieldType = context.getFieldType(rightAttribute.name());
 
-                    if (extractChannelOffset != -1 && rightFieldType != null) {
+                    if (extractChannelOffset != -1 && rightFieldType instanceof KeywordFieldMapper.KeywordFieldType) {
                         // special handle Equals operator on keyword fields
                         // we can apply as a BulkKeywordLookup for better performance
                         if (binaryComparison instanceof Equals) {

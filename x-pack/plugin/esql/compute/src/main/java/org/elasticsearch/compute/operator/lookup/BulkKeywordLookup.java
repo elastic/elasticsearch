@@ -157,7 +157,7 @@ public class BulkKeywordLookup {
             for (int i = 0; i < numLeaves; i++) {
                 LeafReaderContext leafContext = indexReader.leaves().get(i);
                 Terms terms = leafContext.reader().terms(fieldName);
-                termsEnumCache[i] = terms.iterator();
+                termsEnumCache[i] = (terms == null) ? TermsEnum.EMPTY : terms.iterator();
             }
         }
     }

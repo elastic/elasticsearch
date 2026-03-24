@@ -15,6 +15,7 @@ import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -40,10 +41,22 @@ import java.util.Map;
 
 import static org.elasticsearch.health.node.selection.HealthNode.TASK_NAME;
 
-/**
- * Persistent task executor that is managing the {@link HealthNode}.
- */
-public final class HealthNodeTaskExecutor extends PersistentTasksExecutor<HealthNodeTaskParams> {
+/// [PersistentTasksExecutor] responsible for the lifecycle of the [HealthNode] persistent task.
+///
+/// On every cluster state change the master node reconciles the desired state: when the feature is enabled
+/// (see [ENABLED_SETTING][#ENABLED_SETTING]) and no [HealthNode] task exists yet, one is created; when disabled,
+/// any existing task is removed. Non-master nodes ignore the event.
+///
+/// Once the persistent task framework assigns the task to a node, that node becomes the health node. The
+/// [LocalHealthMonitor][org.elasticsearch.health.node.LocalHealthMonitor] and
+/// [HealthInfoCache][org.elasticsearch.health.node.HealthInfoCache] use [HealthNode#findHealthNode]
+/// to discover it.
+///
+/// @see HealthNode
+/// @see org.elasticsearch.health.node.LocalHealthMonitor
+/// @see org.elasticsearch.health.metadata.HealthMetadataService
+///
+public final class HealthNodeTaskExecutor extends PersistentTasksExecutor<HealthNodeTaskParams> implements ClusterStateListener {
 
     private static final Logger logger = LogManager.getLogger(HealthNodeTaskExecutor.class);
 
@@ -82,7 +95,7 @@ public final class HealthNodeTaskExecutor extends PersistentTasksExecutor<Health
     }
 
     private void registerListeners(ClusterSettings clusterSettings) {
-        clusterService.addListener(this::reconcileTask);
+        clusterService.addListener(this);
         clusterSettings.addSettingsUpdateConsumer(ENABLED_SETTING, enabled -> this.enabled = enabled);
     }
 
@@ -104,15 +117,15 @@ public final class HealthNodeTaskExecutor extends PersistentTasksExecutor<Health
         return new HealthNode(id, type, action, getDescription(taskInProgress), parentTaskId, headers);
     }
 
-    /**
-     * Reconciles the health node task with the desired state on every cluster state update.
-     * Only the master node triggers the lifecycle update. Other nodes return early.
-     */
-    private void reconcileTask(ClusterChangedEvent event) {
-        if (event.localNodeMaster() == false) {
+    /// Reconciles the health node task with the desired state on every cluster state update.
+    /// Only the master node triggers the lifecycle update. Other nodes return early.
+    @Override
+    public void clusterChanged(ClusterChangedEvent event) {
+        if (event.localNodeMaster() == false || event.state().clusterRecovered() == false) {
             return;
         }
-        if (enabled && event.state().clusterRecovered() && HealthNode.findTask(event.state()) == null) {
+        final var healthTask = HealthNode.findTask(event.state());
+        if (enabled && healthTask == null) {
             persistentTasksService.sendClusterStartRequest(
                 TASK_NAME,
                 TASK_NAME,
@@ -129,7 +142,7 @@ public final class HealthNodeTaskExecutor extends PersistentTasksExecutor<Health
                     }
                 })
             );
-        } else if (enabled == false && HealthNode.findTask(event.state()) != null) {
+        } else if (enabled == false && healthTask != null) {
             persistentTasksService.sendClusterRemoveRequest(
                 TASK_NAME,
                 TimeValue.THIRTY_SECONDS,

@@ -27,6 +27,7 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * Endpoint metadata contains descriptive information for an inference endpoint. This information allows an upstream service to communicate
@@ -104,6 +105,16 @@ public record EndpointMetadata(Heuristics heuristics, Internal internal, Display
         return this.equals(EMPTY_INSTANCE);
     }
 
+    public boolean fingerprintMatches(EndpointMetadata other) {
+        return Objects.equals(internal.fingerprint(), other.internal.fingerprint());
+    }
+
+    public boolean hasNewerVersionThan(EndpointMetadata other) {
+        long thisVersion = Optional.ofNullable(internal.version()).orElse(0L);
+        long otherVersion = Optional.ofNullable(other.internal.version()).orElse(0L);
+        return thisVersion > otherVersion;
+    }
+
     public Params getXContentParamsExcludeInternalFields() {
         return new ToXContent.MapParams(Map.of(INCLUDE_INTERNAL_FIELDS_PARAM_NAME, Boolean.FALSE.toString()));
     }
@@ -125,29 +136,32 @@ public record EndpointMetadata(Heuristics heuristics, Internal internal, Display
     }
 
     @Override
-    public String toString() {
-        return "EndpointMetadata{" + "heuristics=" + heuristics + ", internal=" + internal + ", display=" + display + '}';
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
         heuristics.writeTo(out);
         internal.writeTo(out);
         display.writeTo(out);
     }
 
-    public record Display(@Nullable String name) implements ToXContentObject, Writeable {
+    public record Display(@Nullable String name, @Nullable String modelCreator) implements ToXContentObject, Writeable {
 
-        public static final Display EMPTY_INSTANCE = new Display((String) null);
+        public static final Display EMPTY_INSTANCE = new Display(null, null);
+
         public static final String NAME_FIELD = "name";
+        public static final String MODEL_CREATOR_FIELD = "model_creator";
+
+        public static final TransportVersion MODEL_CREATOR_ADDED = TransportVersion.fromName(
+            "inference_endpoint_metadata_display_model_creator_added"
+        );
+
         private static final ConstructingObjectParser<Display, Void> PARSER = new ConstructingObjectParser<>(
             "endpoint_metadata_display",
             true,
-            args -> new Display((String) args[0])
+            args -> new Display((String) args[0], (String) args[1])
         );
 
         static {
             PARSER.declareStringOrNull(ConstructingObjectParser.optionalConstructorArg(), new ParseField(NAME_FIELD));
+            PARSER.declareStringOrNull(ConstructingObjectParser.optionalConstructorArg(), new ParseField(MODEL_CREATOR_FIELD));
         }
 
         public static Display parse(XContentParser parser) throws IOException {
@@ -155,7 +169,7 @@ public record EndpointMetadata(Heuristics heuristics, Internal internal, Display
         }
 
         public Display(StreamInput in) throws IOException {
-            this(in.readOptionalString());
+            this(in.readOptionalString(), in.getTransportVersion().supports(MODEL_CREATOR_ADDED) ? in.readOptionalString() : null);
         }
 
         @Override
@@ -164,18 +178,19 @@ public record EndpointMetadata(Heuristics heuristics, Internal internal, Display
             if (name != null) {
                 builder.field(NAME_FIELD, name);
             }
+            if (modelCreator != null) {
+                builder.field(MODEL_CREATOR_FIELD, modelCreator);
+            }
             builder.endObject();
             return builder;
         }
 
         @Override
-        public String toString() {
-            return "Display{" + "name=" + name + '}';
-        }
-
-        @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeOptionalString(name);
+            if (out.getTransportVersion().supports(MODEL_CREATOR_ADDED)) {
+                out.writeOptionalString(modelCreator);
+            }
         }
 
         public boolean isEmpty() {
@@ -274,23 +289,6 @@ public record EndpointMetadata(Heuristics heuristics, Internal internal, Display
         }
 
         @Override
-        public String toString() {
-            return "Heuristics{"
-                + "properties="
-                + properties
-                + ", status='"
-                + status
-                + '\''
-                + ", releaseDate='"
-                + releaseDate
-                + '\''
-                + ", endOfLifeDate='"
-                + endOfLifeDate
-                + '\''
-                + '}';
-        }
-
-        @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeStringCollection(properties);
             out.writeOptionalEnum(status);
@@ -355,11 +353,6 @@ public record EndpointMetadata(Heuristics heuristics, Internal internal, Display
 
             builder.endObject();
             return builder;
-        }
-
-        @Override
-        public String toString() {
-            return "Internal{" + "fingerprint=" + fingerprint + ", version=" + version + '}';
         }
 
         @Override

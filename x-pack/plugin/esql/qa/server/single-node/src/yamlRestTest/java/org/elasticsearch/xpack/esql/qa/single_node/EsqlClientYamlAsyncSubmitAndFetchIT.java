@@ -80,7 +80,11 @@ public class EsqlClientYamlAsyncSubmitAndFetchIT extends AbstractEsqlClientYamlI
                      * warnings folks have asked for.
                      */
                     original.failIfHasCatch(startResponse);
-                    original.checkWarningHeaders(startResponse.getWarningHeaders(), testPath(executionContext));
+                    original.checkWarningHeaders(
+                        startResponse.getWarningHeaders(),
+                        testPath(executionContext),
+                        original.getApiCallSection()
+                    );
                     return;
                 }
 
@@ -102,7 +106,7 @@ public class EsqlClientYamlAsyncSubmitAndFetchIT extends AbstractEsqlClientYamlI
                     original.getApiCallSection().getNodeSelector()
                 );
                 original.failIfHasCatch(fetchResponse);
-                original.checkWarningHeaders(fetchResponse.getWarningHeaders(), testPath(executionContext));
+                original.checkWarningHeaders(fetchResponse.getWarningHeaders(), testPath(executionContext), original.getApiCallSection());
             } catch (ClientYamlTestResponseException e) {
                 original.checkResponseException(e, executionContext);
             }

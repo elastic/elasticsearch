@@ -10,13 +10,17 @@ package org.elasticsearch.compute.test;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.lucene.IndexedByShardId;
+import org.elasticsearch.core.RefCounted;
 
 import java.util.List;
 
@@ -434,6 +438,70 @@ public abstract class TestBlockBuilder implements Block.Builder {
         @Override
         public BooleanBlock build() {
             return builder.build();
+        }
+
+        @Override
+        public void close() {
+            builder.close();
+        }
+    }
+
+    public static class DocBlockBuilder extends TestBlockBuilder {
+        private final DocBlock.Builder builder;
+        private final IndexedByShardId<RefCounted> shardRefCounters;
+
+        public DocBlockBuilder(BlockFactory blockFactory, IndexedByShardId<RefCounted> shardRefCounters) {
+            this.shardRefCounters = shardRefCounters;
+            this.builder = DocBlock.newBlockBuilder(blockFactory, 0);
+        }
+
+        @Override
+        public TestBlockBuilder appendObject(Object object) {
+            var doc = (BlockUtils.Doc) object;
+            builder.appendDoc(doc.doc());
+            builder.appendSegment(doc.segment());
+            builder.appendShard(doc.shard());
+            return this;
+        }
+
+        @Override
+        public TestBlockBuilder appendNull() {
+            builder.appendNull();
+            return this;
+        }
+
+        @Override
+        public TestBlockBuilder beginPositionEntry() {
+            builder.beginPositionEntry();
+            return this;
+        }
+
+        @Override
+        public TestBlockBuilder endPositionEntry() {
+            builder.endPositionEntry();
+            return this;
+        }
+
+        @Override
+        public Block.Builder copyFrom(Block block, int beginInclusive, int endExclusive) {
+            builder.copyFrom(block, beginInclusive, endExclusive);
+            return this;
+        }
+
+        @Override
+        public Block.Builder mvOrdering(Block.MvOrdering mvOrdering) {
+            builder.mvOrdering(mvOrdering);
+            return this;
+        }
+
+        @Override
+        public long estimatedBytes() {
+            return builder.estimatedBytes();
+        }
+
+        @Override
+        public Block build() {
+            return builder.shardRefCounters(shardRefCounters).build();
         }
 
         @Override

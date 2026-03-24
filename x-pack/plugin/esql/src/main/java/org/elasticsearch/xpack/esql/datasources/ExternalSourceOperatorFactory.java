@@ -15,11 +15,14 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 
+import java.io.IOException;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -44,6 +47,7 @@ public class ExternalSourceOperatorFactory implements SourceOperator.SourceOpera
     private final StoragePath path;
     private final List<Attribute> attributes;
     private final int batchSize;
+    private final int rowLimit;
     private final ExternalSliceQueue sliceQueue;
 
     public ExternalSourceOperatorFactory(
@@ -52,6 +56,7 @@ public class ExternalSourceOperatorFactory implements SourceOperator.SourceOpera
         StoragePath path,
         List<Attribute> attributes,
         int batchSize,
+        int rowLimit,
         @Nullable ExternalSliceQueue sliceQueue
     ) {
         if (storageProvider == null) {
@@ -75,6 +80,7 @@ public class ExternalSourceOperatorFactory implements SourceOperator.SourceOpera
         this.path = path;
         this.attributes = attributes;
         this.batchSize = batchSize;
+        this.rowLimit = rowLimit;
         this.sliceQueue = sliceQueue;
     }
 
@@ -85,7 +91,7 @@ public class ExternalSourceOperatorFactory implements SourceOperator.SourceOpera
         List<Attribute> attributes,
         int batchSize
     ) {
-        this(storageProvider, formatReader, path, attributes, batchSize, null);
+        this(storageProvider, formatReader, path, attributes, batchSize, FormatReader.NO_LIMIT, null);
     }
 
     @Override
@@ -96,12 +102,25 @@ public class ExternalSourceOperatorFactory implements SourceOperator.SourceOpera
         }
 
         if (sliceQueue != null) {
-            return new SliceQueueSourceOperator(storageProvider, formatReader, projectedColumns, batchSize, sliceQueue);
+            return new SliceQueueSourceOperator(
+                storageProvider,
+                formatReader,
+                projectedColumns,
+                attributes,
+                batchSize,
+                rowLimit,
+                sliceQueue
+            );
         }
 
         StorageObject storageObject = storageProvider.newObject(path);
         try {
-            CloseableIterator<Page> pages = formatReader.read(storageObject, projectedColumns, batchSize);
+            FormatReadContext ctx = FormatReadContext.builder()
+                .projectedColumns(projectedColumns)
+                .batchSize(batchSize)
+                .rowLimit(rowLimit)
+                .build();
+            CloseableIterator<Page> pages = formatReader.read(storageObject, ctx);
             return new ExternalSourceOperator(pages, driverContext);
         } catch (Exception e) {
             throw new RuntimeException("Failed to create external source operator for: " + path, e);
@@ -190,8 +209,11 @@ public class ExternalSourceOperatorFactory implements SourceOperator.SourceOpera
         private final StorageProvider storageProvider;
         private final FormatReader formatReader;
         private final List<String> projectedColumns;
+        private final List<Attribute> attributes;
         private final int batchSize;
+        private final int rowLimit;
         private final ExternalSliceQueue sliceQueue;
+        private final ArrayDeque<ExternalSplit> pendingChildren = new ArrayDeque<>();
         private CloseableIterator<Page> currentPages;
         private boolean finished = false;
 
@@ -199,13 +221,17 @@ public class ExternalSourceOperatorFactory implements SourceOperator.SourceOpera
             StorageProvider storageProvider,
             FormatReader formatReader,
             List<String> projectedColumns,
+            List<Attribute> attributes,
             int batchSize,
+            int rowLimit,
             ExternalSliceQueue sliceQueue
         ) {
             this.storageProvider = storageProvider;
             this.formatReader = formatReader;
             this.projectedColumns = projectedColumns;
+            this.attributes = attributes;
             this.batchSize = batchSize;
+            this.rowLimit = rowLimit;
             this.sliceQueue = sliceQueue;
         }
 
@@ -220,22 +246,55 @@ public class ExternalSourceOperatorFactory implements SourceOperator.SourceOpera
                         return currentPages.next();
                     }
                     closeCurrentPages();
-                    ExternalSplit split = sliceQueue.nextSplit();
-                    if (split == null) {
+                    ExternalSplit next = nextLeafSplit();
+                    if (next == null) {
                         finished = true;
                         return null;
                     }
-                    if (split instanceof FileSplit fileSplit) {
-                        StorageObject obj = storageProvider.newObject(fileSplit.path(), fileSplit.length());
-                        currentPages = formatReader.read(obj, projectedColumns, batchSize);
-                    } else {
-                        throw new IllegalArgumentException("Unsupported split type: " + split.getClass().getName());
-                    }
+                    currentPages = openFileSplit(next);
                 }
             } catch (Exception e) {
                 finished = true;
                 throw new RuntimeException("Error reading from external source split", e);
             }
+        }
+
+        private ExternalSplit nextLeafSplit() {
+            while (true) {
+                if (pendingChildren.isEmpty() == false) {
+                    return pendingChildren.poll();
+                }
+                ExternalSplit split = sliceQueue.nextSplit();
+                if (split == null) {
+                    return null;
+                }
+                if (split instanceof CoalescedSplit coalesced) {
+                    pendingChildren.addAll(coalesced.children());
+                } else {
+                    return split;
+                }
+            }
+        }
+
+        private CloseableIterator<Page> openFileSplit(ExternalSplit split) throws IOException {
+            if (split instanceof FileSplit fileSplit) {
+                StorageObject obj = storageProvider.newObject(fileSplit.path(), fileSplit.length());
+                boolean firstSplit = true;
+                boolean lastSplit = "true".equals(fileSplit.config().get(FileSplitProvider.LAST_SPLIT_KEY));
+                if (fileSplit.offset() > 0) {
+                    obj = new RangeStorageObject(obj, fileSplit.offset(), fileSplit.length());
+                    firstSplit = "true".equals(fileSplit.config().get(FileSplitProvider.FIRST_SPLIT_KEY));
+                }
+                FormatReadContext ctx = FormatReadContext.builder()
+                    .projectedColumns(projectedColumns)
+                    .batchSize(batchSize)
+                    .rowLimit(FormatReader.NO_LIMIT)
+                    .firstSplit(firstSplit)
+                    .lastSplit(lastSplit)
+                    .build();
+                return formatReader.read(obj, ctx);
+            }
+            throw new IllegalArgumentException("Unsupported split type: " + split.getClass().getName());
         }
 
         @Override

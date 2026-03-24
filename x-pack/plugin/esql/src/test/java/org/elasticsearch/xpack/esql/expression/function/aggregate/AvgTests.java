@@ -113,11 +113,17 @@ public class AvgTests extends AbstractAggregationTestCase {
             Double expected = null;
             List<String> warnings = null;
 
+            boolean divByZero = false;
+
             if (fieldData.size() == 1) {
                 // For single elements, we directly return them to avoid precision issues
                 expected = switch (dataType) {
                     case AGGREGATE_METRIC_DOUBLE -> {
                         var aggMetric = (AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral) fieldData.get(0);
+                        if (aggMetric.count() == 0) {
+                            divByZero = true;
+                            yield null;
+                        }
                         yield aggMetric.sum() / (aggMetric.count().doubleValue());
                     }
                     case EXPONENTIAL_HISTOGRAM -> {
@@ -129,10 +135,10 @@ public class AvgTests extends AbstractAggregationTestCase {
                     }
                     case TDIGEST -> {
                         var tDigest = (TDigestHolder) fieldData.get(0);
-                        if (tDigest.getValueCount() == 0) {
+                        if (tDigest.size() == 0) {
                             yield null;
                         }
-                        yield tDigest.getSum() / tDigest.getValueCount();
+                        yield tDigest.getSum() / tDigest.size();
                     }
                     default -> {
                         double value = ((Number) fieldData.get(0)).doubleValue();
@@ -157,6 +163,10 @@ public class AvgTests extends AbstractAggregationTestCase {
                         long count = fieldData.stream()
                             .mapToLong(v -> ((AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral) v).count())
                             .sum();
+                        if (count == 0) {
+                            divByZero = true;
+                            yield null;
+                        }
                         yield sum / count;
                     }
                     case EXPONENTIAL_HISTOGRAM -> {
@@ -169,7 +179,7 @@ public class AvgTests extends AbstractAggregationTestCase {
                     }
                     case TDIGEST -> {
                         double sum = fieldData.stream().mapToDouble(v -> ((TDigestHolder) v).getSum()).sum();
-                        double count = fieldData.stream().mapToLong(v -> ((TDigestHolder) v).getValueCount()).sum();
+                        double count = fieldData.stream().mapToLong(v -> ((TDigestHolder) v).size()).sum();
                         if (count == 0) {
                             yield null;
                         }
@@ -179,14 +189,17 @@ public class AvgTests extends AbstractAggregationTestCase {
                 };
             }
 
-            if (expected != null) {
-                if (Double.isFinite(expected) == false) {
-                    expected = null;
-                    warnings = List.of(
-                        "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
-                        "Line 1:1: java.lang.ArithmeticException: / by zero"
-                    );
-                }
+            if (divByZero) {
+                warnings = List.of(
+                    "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
+                    "Line 1:1: java.lang.ArithmeticException: / by zero"
+                );
+            } else if (expected != null && Double.isFinite(expected) == false) {
+                warnings = List.of(
+                    "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
+                    "Line 1:1: java.lang.ArithmeticException: not a finite double number: " + expected
+                );
+                expected = null;
             }
 
             return new TestCaseSupplier.TestCase(

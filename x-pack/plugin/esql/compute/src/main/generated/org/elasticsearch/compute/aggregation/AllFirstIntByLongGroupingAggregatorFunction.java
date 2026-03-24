@@ -37,16 +37,10 @@ public final class AllFirstIntByLongGroupingAggregatorFunction implements Groupi
 
   private final DriverContext driverContext;
 
-  public AllFirstIntByLongGroupingAggregatorFunction(List<Integer> channels,
-      AllFirstIntByLongAggregator.GroupingState state, DriverContext driverContext) {
+  AllFirstIntByLongGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext) {
     this.channels = channels;
-    this.state = state;
+    this.state = AllFirstIntByLongAggregator.initGrouping(driverContext);
     this.driverContext = driverContext;
-  }
-
-  public static AllFirstIntByLongGroupingAggregatorFunction create(List<Integer> channels,
-      DriverContext driverContext) {
-    return new AllFirstIntByLongGroupingAggregatorFunction(channels, AllFirstIntByLongAggregator.initGrouping(driverContext), driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

@@ -123,7 +123,7 @@ public class FsRepositoryTests extends ESTestCase {
 
             IndexCommit indexCommit = Lucene.getIndexCommit(Lucene.readSegmentInfos(store.directory()), store.directory());
             final PlainActionFuture<ShardSnapshotResult> snapshot1Future = new PlainActionFuture<>();
-            IndexShardSnapshotStatus snapshotStatus = IndexShardSnapshotStatus.newInitializing(null);
+            IndexShardSnapshotStatus snapshotStatus = IndexShardSnapshotStatus.newInitializing(null, randomLongBetween(1, Long.MAX_VALUE));
             repository.snapshotShard(
                 new LocalPrimarySnapshotShardContext(
                     store,
@@ -166,7 +166,10 @@ public class FsRepositoryTests extends ESTestCase {
             IndexCommit incIndexCommit = Lucene.getIndexCommit(Lucene.readSegmentInfos(store.directory()), store.directory());
             Collection<String> commitFileNames = incIndexCommit.getFileNames();
             final PlainActionFuture<ShardSnapshotResult> snapshot2future = new PlainActionFuture<>();
-            IndexShardSnapshotStatus snapshotStatus2 = IndexShardSnapshotStatus.newInitializing(shardGeneration);
+            IndexShardSnapshotStatus snapshotStatus2 = IndexShardSnapshotStatus.newInitializing(
+                shardGeneration,
+                randomLongBetween(1, Long.MAX_VALUE)
+            );
             repository.snapshotShard(
                 new LocalPrimarySnapshotShardContext(
                     store,
@@ -303,7 +306,7 @@ public class FsRepositoryTests extends ESTestCase {
             final IndexId indexId = new IndexId(idxSettings.getIndex().getName(), idxSettings.getUUID());
             IndexCommit indexCommit1 = Lucene.getIndexCommit(Lucene.readSegmentInfos(store1.directory()), store1.directory());
             final PlainActionFuture<ShardSnapshotResult> snapshot1Future = new PlainActionFuture<>();
-            IndexShardSnapshotStatus snapshotStatus1 = IndexShardSnapshotStatus.newInitializing(null);
+            IndexShardSnapshotStatus snapshotStatus1 = IndexShardSnapshotStatus.newInitializing(null, randomLongBetween(1, Long.MAX_VALUE));
 
             // Scenario 1 - Shard data files will be cleaned up if they fail to write
             canErrorForWriteBlob.set(true);
@@ -351,7 +354,7 @@ public class FsRepositoryTests extends ESTestCase {
                     indexId,
                     new SnapshotIndexCommit(new Engine.IndexCommitRef(indexCommit2, () -> {})),
                     null,
-                    IndexShardSnapshotStatus.newInitializing(null),
+                    IndexShardSnapshotStatus.newInitializing(null, randomLongBetween(1, Long.MAX_VALUE)),
                     IndexVersion.current(),
                     randomMillisUpToYear9999(),
                     snapshot2Future

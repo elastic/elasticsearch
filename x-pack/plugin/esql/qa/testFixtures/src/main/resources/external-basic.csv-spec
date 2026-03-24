@@ -3,6 +3,7 @@
 
 readAllEmployees
 required_capability: external_command
+
 EXTERNAL "{{employees}}"
 | KEEP emp_no, first_name, last_name, birth_date, gender, hire_date, languages, height, salary, still_hired
 | SORT emp_no
@@ -18,6 +19,7 @@ emp_no:integer | first_name:keyword | last_name:keyword | birth_date:date       
 
 selectSpecificColumns
 required_capability: external_command
+
 EXTERNAL "{{employees}}"
 | KEEP emp_no, first_name, last_name, salary
 | SORT emp_no
@@ -33,6 +35,7 @@ emp_no:integer | first_name:keyword | last_name:keyword | salary:integer
 
 filterByEmployeeNumber
 required_capability: external_command
+
 EXTERNAL "{{employees}}"
 | WHERE emp_no == 10001
 | KEEP emp_no, first_name, last_name;
@@ -43,6 +46,7 @@ emp_no:integer | first_name:keyword | last_name:keyword
 
 filterBySalaryRange
 required_capability: external_command
+
 EXTERNAL "{{employees}}"
 | WHERE salary > 60000 AND salary < 70000
 | KEEP emp_no, first_name, salary
@@ -59,6 +63,7 @@ emp_no:integer | first_name:keyword | salary:integer
 
 filterByGender
 required_capability: external_command
+
 EXTERNAL "{{employees}}"
 | WHERE gender == "F"
 | KEEP emp_no, first_name, last_name, gender
@@ -73,6 +78,7 @@ emp_no:integer | first_name:keyword | last_name:keyword | gender:keyword
 
 filterByEmploymentStatus
 required_capability: external_command
+
 EXTERNAL "{{employees}}"
 | WHERE still_hired == false
 | KEEP emp_no, first_name, last_name, still_hired
@@ -87,6 +93,7 @@ emp_no:integer | first_name:keyword | last_name:keyword | still_hired:boolean
 
 aggregateCount
 required_capability: external_command
+
 EXTERNAL "{{employees}}"
 | STATS count = COUNT(*);
 
@@ -96,6 +103,7 @@ count:long
 
 aggregateByGender
 required_capability: external_command
+
 EXTERNAL "{{employees}}"
 | STATS count = COUNT(*) BY gender
 | SORT gender;
@@ -108,6 +116,7 @@ count:long | gender:keyword
 
 aggregateAverageSalary
 required_capability: external_command
+
 EXTERNAL "{{employees}}"
 | STATS avg_salary = AVG(salary);
 
@@ -126,6 +135,7 @@ min_salary:integer | max_salary:integer | avg_salary:double
 
 aggregateSalaryByGender
 required_capability: external_command
+
 EXTERNAL "{{employees}}"
 | STATS avg_salary = AVG(salary), count = COUNT(*) BY gender
 | SORT gender;
@@ -138,6 +148,7 @@ avg_salary:double    | count:long | gender:keyword
 
 filterAndSort
 required_capability: external_command
+
 EXTERNAL "{{employees}}"
 | WHERE salary > 70000
 | KEEP emp_no, first_name, salary
@@ -154,6 +165,7 @@ emp_no:integer | first_name:keyword | salary:integer
 
 evalComputedColumn
 required_capability: external_command
+
 EXTERNAL "{{employees}}"
 | EVAL annual_bonus = salary * 0.1
 | KEEP emp_no, first_name, salary, annual_bonus
@@ -168,6 +180,7 @@ emp_no:integer | first_name:keyword | salary:integer | annual_bonus:double
 
 complexQuery
 required_capability: external_command
+
 EXTERNAL "{{employees}}"
 | WHERE still_hired == true AND salary > 55000
 | EVAL salary_category = CASE(salary < 60000, "standard", salary < 70000, "senior", "principal")
@@ -184,6 +197,7 @@ count:long | avg_salary:double | salary_category:keyword
 
 selectAdditionalColumns
 required_capability: external_command
+
 EXTERNAL "{{employees}}"
 | KEEP emp_no, first_name, `languages.long`, avg_worked_seconds
 | SORT emp_no
@@ -199,6 +213,7 @@ emp_no:integer | first_name:keyword | languages.long:long | avg_worked_seconds:l
 
 selectHeightVariants
 required_capability: external_command
+
 EXTERNAL "{{employees}}"
 | EVAL height_float_rounded = ROUND(`height.float`, 2), height_half_float_rounded = ROUND(`height.half_float`, 2)
 | KEEP emp_no, height, height_float_rounded, `height.scaled_float`, height_half_float_rounded
@@ -211,4 +226,636 @@ emp_no:integer | height:double | height_float_rounded:double | height.scaled_flo
 10003          | 1.83          | 1.83                        | 1.83                       | 1.83
 10004          | 1.78          | 1.78                        | 1.78                       | 1.78
 10005          | 2.05          | 2.05                        | 2.05                       | 2.05
+;
+
+// Pipeline breaker distribution tests
+// These exercise distributed execution paths for pipeline breakers (STATS, TopN, LIMIT)
+// across all distribution modes via ExternalDistributedSpecIT
+
+topNSortBySalaryDesc
+required_capability: external_command
+
+EXTERNAL "{{employees}}"
+| KEEP emp_no, first_name, salary
+| SORT salary DESC
+| LIMIT 3;
+
+emp_no:integer | first_name:keyword | salary:integer
+10029          | "Otmar"            | 74999
+10045          | "Moss"             | 74970
+10007          | "Tzvetan"          | 74572
+;
+
+topNFilteredSortBySalary
+required_capability: external_command
+
+EXTERNAL "{{employees}}"
+| WHERE gender == "F"
+| KEEP emp_no, first_name, salary
+| SORT salary DESC
+| LIMIT 3;
+
+emp_no:integer | first_name:keyword | salary:integer
+10007          | "Tzvetan"          | 74572
+10027          | "Divier"           | 73851
+10099          | "Valter"           | 73578
+;
+
+// DROP and RENAME commands with EXTERNAL
+
+dropColumn
+required_capability: external_command
+
+EXTERNAL "{{employees}}"
+| DROP birth_date, gender, hire_date, languages*, height*, still_hired, avg_worked_seconds, job_positions, is_rehired, salary_change*
+| SORT emp_no
+| LIMIT 3;
+
+emp_no:integer | first_name:keyword | last_name:keyword | salary:integer
+10001          | "Georgi"           | "Facello"         | 57305
+10002          | "Bezalel"          | "Simmel"          | 56371
+10003          | "Parto"            | "Bamford"         | 61805
+;
+
+renameColumn
+required_capability: external_command
+
+EXTERNAL "{{employees}}"
+| RENAME emp_no AS employee_id, first_name AS given_name
+| KEEP employee_id, given_name, last_name, salary
+| SORT employee_id
+| LIMIT 3;
+
+employee_id:integer | given_name:keyword | last_name:keyword | salary:integer
+10001          | "Georgi"           | "Facello"         | 57305
+10002          | "Bezalel"          | "Simmel"          | 56371
+10003          | "Parto"            | "Bamford"         | 61805
+;
+
+// Additional STATS aggregate: SUM
+
+aggregateSumSalary
+required_capability: external_command
+
+EXTERNAL "{{employees}}"
+| STATS total_salary = SUM(salary);
+
+total_salary:long
+4824855
+;
+
+dissectFullName
+required_capability: external_command
+
+EXTERNAL "{{employees}}"
+| DISSECT last_name "%{last}"
+| KEEP emp_no, first_name, last, salary
+| SORT emp_no
+| LIMIT 3;
+
+emp_no:integer | first_name:keyword | last:keyword | salary:integer
+10001          | "Georgi"           | "Facello"    | 57305
+10002          | "Bezalel"          | "Simmel"     | 56371
+10003          | "Parto"            | "Bamford"    | 61805
+;
+
+grokFullName
+required_capability: external_command
+
+EXTERNAL "{{employees}}"
+| GROK first_name "%{WORD:first}"
+| KEEP emp_no, first, last_name, salary
+| SORT emp_no
+| LIMIT 3;
+
+emp_no:integer | first:keyword | last_name:keyword | salary:integer
+10001          | "Georgi"      | "Facello"         | 57305
+10002          | "Bezalel"     | "Simmel"          | 56371
+10003          | "Parto"       | "Bamford"         | 61805
+;
+
+mvExpandFromSplit
+required_capability: external_command
+
+EXTERNAL "{{employees}}"
+| MV_EXPAND job_positions
+| KEEP emp_no, first_name, job_positions
+| SORT emp_no, job_positions
+| LIMIT 6;
+
+emp_no:integer | first_name:keyword | job_positions:keyword
+10001          | "Georgi"           | "Accountant"
+10001          | "Georgi"           | "Senior Python Developer"
+10002          | "Bezalel"          | "Senior Team Lead"
+10003          | "Parto"            | null
+10004          | "Chirstian"        | "Head Human Resources"
+10004          | "Chirstian"        | "Reporting Analyst"
+;
+
+sampleWithStats
+required_capability: external_command
+required_capability: sample_v3
+
+EXTERNAL "{{employees}}"
+| SAMPLE 0.5
+| STATS count = COUNT()
+;
+
+count:long
+30..70
+;
+
+forkTwoBranches
+required_capability: external_command
+required_capability: fork_v9
+
+EXTERNAL "{{employees}}"
+| FORK ( WHERE emp_no == 10001 )
+       ( WHERE emp_no == 10002 )
+| KEEP emp_no, first_name, _fork
+| SORT emp_no
+;
+
+emp_no:integer | first_name:keyword | _fork:keyword
+10001          | "Georgi"           | fork1
+10002          | "Bezalel"          | fork2
+;
+
+inlineStatsMaxSalary
+required_capability: external_command
+required_capability: inline_stats
+
+EXTERNAL "{{employees}}"
+| KEEP emp_no, salary
+| INLINE STATS max_salary = MAX(salary)
+| WHERE salary == max_salary
+| KEEP emp_no, salary, max_salary
+;
+
+emp_no:integer | salary:integer | max_salary:integer
+10029          | 74999          | 74999
+;
+
+uriPartsFromEval
+required_capability: external_command
+required_capability: external_csv_ip_support
+required_capability: uri_parts_command
+
+EXTERNAL "{{web_logs}}"
+| WHERE domain == "www.elastic.co"
+| URI_PARTS parts = uri
+| KEEP parts.scheme, parts.domain, parts.path
+| SORT parts.path
+;
+
+parts.scheme:keyword | parts.domain:keyword       | parts.path:keyword
+https                | www.elastic.co             | /downloads/elasticsearch
+https                | www.elastic.co             | /guide/en/elasticsearch/reference/current/esql.html
+;
+
+registeredDomainFromEval
+required_capability: external_command
+required_capability: external_csv_ip_support
+required_capability: registered_domain_command
+
+EXTERNAL "{{web_logs}}"
+| WHERE timestamp == "2024-01-10T10:00:00.000Z"
+| REGISTERED_DOMAIN rd = domain
+| KEEP rd.domain, rd.registered_domain, rd.top_level_domain, rd.subdomain
+;
+
+rd.domain:keyword    | rd.registered_domain:keyword | rd.top_level_domain:keyword | rd.subdomain:keyword
+www.elastic.co       | elastic.co                   | co                          | www
+;
+
+# lifted from change_point suite
+statsAfterChangePoint
+required_capability: external_command
+required_capability: change_point
+
+EXTERNAL "{{employees}}"
+| KEEP emp_no, salary
+| EVAL salary=CASE(emp_no==10042, 1000000, salary)
+| CHANGE_POINT salary ON emp_no
+| STATS COUNT() by type
+| SORT type
+;
+
+COUNT():long | type:keyword
+1            | spike
+99           | null
+;
+
+// Conversion functions: to_long, to_double, to_string
+
+convertToLong
+required_capability: external_command
+required_capability: casting_operator
+
+EXTERNAL "{{employees}}"
+| WHERE emp_no == 10001
+| EVAL emp_long = emp_no::long
+| KEEP emp_no, emp_long
+;
+
+emp_no:integer | emp_long:long
+10001          | 10001
+;
+
+convertToDouble
+required_capability: external_command
+required_capability: casting_operator
+
+EXTERNAL "{{employees}}"
+| WHERE emp_no == 10001
+| EVAL salary_dbl = salary::double
+| KEEP emp_no, salary, salary_dbl
+;
+
+emp_no:integer | salary:integer | salary_dbl:double
+10001          | 57305          | 57305.0
+;
+
+convertToString
+required_capability: external_command
+required_capability: casting_operator
+
+EXTERNAL "{{employees}}"
+| WHERE emp_no == 10001
+| EVAL emp_str = emp_no::keyword
+| KEEP emp_no, emp_str
+;
+
+emp_no:integer | emp_str:keyword
+10001          | "10001"
+;
+
+// Grouping: BUCKET
+
+bucketByHireDate
+required_capability: external_command
+
+EXTERNAL "{{employees}}"
+| WHERE hire_date >= "1985-01-01T00:00:00Z" AND hire_date < "1986-01-01T00:00:00Z"
+| STATS hd = MV_SORT(VALUES(hire_date)) BY b = BUCKET(hire_date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
+| SORT hd
+;
+
+hd:date                                 | b:date
+[1985-02-18T00:00:00.000Z, 1985-02-24T00:00:00.000Z] | 1985-02-01T00:00:00.000Z
+1985-05-13T00:00:00.000Z               | 1985-05-01T00:00:00.000Z
+1985-07-09T00:00:00.000Z               | 1985-07-01T00:00:00.000Z
+1985-09-17T00:00:00.000Z               | 1985-09-01T00:00:00.000Z
+[1985-10-14T00:00:00.000Z, 1985-10-20T00:00:00.000Z] | 1985-10-01T00:00:00.000Z
+[1985-11-19T00:00:00.000Z, 1985-11-20T00:00:00.000Z, 1985-11-21T00:00:00.000Z] | 1985-11-01T00:00:00.000Z
+;
+
+// Grouping: CATEGORIZE
+
+categorizeByFullName
+required_capability: external_command
+required_capability: categorize_v6
+
+EXTERNAL "{{employees}}"
+| STATS count = COUNT() BY category = CATEGORIZE(concat(first_name, " ", last_name))
+| SORT count DESC, category
+| LIMIT 5
+;
+ignoreOrder:true
+
+count:long | category:keyword
+{any} | {any}
+{any} | {any}
+{any} | {any}
+{any} | {any}
+{any} | {any}
+;
+
+// Multivalue functions: MvCount, MvConcat, MvDedupe, MvMin, MvMax, MvSum, MvAppend
+// Split is already covered by mvExpandFromSplit
+
+mvCountFromSplit
+required_capability: external_command
+
+EXTERNAL "{{employees}}"
+| WHERE emp_no == 10001
+| EVAL cnt = MV_COUNT(job_positions)
+| KEEP emp_no, job_positions, cnt
+;
+
+emp_no:integer | job_positions:keyword | cnt:integer
+10001          | [Senior Python Developer, Accountant] | 2
+;
+
+mvConcatFromSplit
+required_capability: external_command
+
+EXTERNAL "{{employees}}"
+| WHERE emp_no == 10001
+| EVAL joined = MV_CONCAT(job_positions, ", ")
+| KEEP emp_no, joined
+;
+
+emp_no:integer | joined:keyword
+10001          | "Senior Python Developer, Accountant"
+;
+
+mvDedupeFromSplit2
+required_capability: external_command
+
+EXTERNAL "{{employees}}"
+| WHERE emp_no == 10004
+| EVAL deduped = MV_DEDUPE(salary_change)
+| KEEP emp_no, deduped, first_name
+;
+
+emp_no:integer | deduped:double          | first_name:keyword
+10004          | [3.65,-0.35,1.13,13.48] | Chirstian
+;
+
+filterFirstRowAllColumns
+required_capability: external_command
+EXTERNAL "{{employees}}"
+| WHERE emp_no < 10003
+| SORT emp_no
+;
+birth_date:date          | emp_no:integer | first_name:keyword | gender:keyword | hire_date:date           | languages:integer | languages.long:long | languages.short:short | languages.byte:byte | last_name:keyword | salary:integer | height:double | height.float:double | height.scaled_float:double | height.half_float:double | still_hired:boolean | avg_worked_seconds:long | job_positions:keyword                 | is_rehired:boolean | salary_change:double | salary_change.int:integer | salary_change.long:long | salary_change.keyword:keyword
+1953-09-02T00:00:00.000Z | 10001          | Georgi             | M              | 1986-06-26T00:00:00.000Z | 2                 | 2                   | 2                     | 2                   | Facello           | 57305          | 2.03          | 2.03                | 2.03                       | 2.03                     | true                | 268728049               | [Senior Python Developer, Accountant] | [false, true]      | [1.19]               | [1]                       | [1]                     | [1.19]
+1964-06-02T00:00:00.000Z | 10002          | Bezalel            | F              | 1985-11-21T00:00:00.000Z | 5                 | 5                   | 5                     | 5                   | Simmel            | 56371          | 2.08          | 2.08                | 2.08                       | 2.08                     | true                | 328922887               | [Senior Team Lead]                    | [false,false]      | [-7.23,11.17]        | [-7,11]                   | [-7,11]                 | [-7.23,11.17]
+;
+
+mvDedupeFromSplit
+required_capability: external_command
+
+EXTERNAL "{{employees}}"
+| WHERE emp_no == 10002
+| EVAL deduped = MV_DEDUPE(job_positions)
+| KEEP emp_no, deduped
+;
+
+emp_no:integer | deduped:keyword
+10002          | [Senior Team Lead]
+;
+
+mvMinFromSplit
+required_capability: external_command
+
+EXTERNAL "{{employees}}"
+| WHERE emp_no == 10004
+| EVAL mn = MV_MIN(job_positions)
+| KEEP emp_no, mn
+;
+
+emp_no:integer | mn:keyword
+10004          | "Head Human Resources"
+;
+
+mvMaxFromSplit
+required_capability: external_command
+
+EXTERNAL "{{employees}}"
+| WHERE emp_no == 10004
+| EVAL mx = MV_MAX(job_positions)
+| KEEP emp_no, mx
+;
+
+emp_no:integer | mx:keyword
+10004          | "Tech Lead"
+;
+
+mvSumFromMvAppend
+required_capability: external_command
+required_capability: fn_mv_append
+
+EXTERNAL "{{employees}}"
+| WHERE emp_no == 10001
+| EVAL pair = MV_APPEND(emp_no, languages)
+| EVAL s = MV_SUM(pair)
+| KEEP emp_no, languages, s
+;
+
+emp_no:integer | languages:integer | s:integer
+10001          | 2                 | 10003
+;
+
+mvAppendFromScalars
+required_capability: external_command
+
+EXTERNAL "{{employees}}"
+| WHERE emp_no == 10001
+| KEEP emp_no, job_positions
+;
+
+emp_no:integer | job_positions:keyword
+10001          | [Senior Python Developer, Accountant]
+;
+
+// TRANGE and TBUCKET require @timestamp; RENAME hire_date to @timestamp for these tests.
+
+trangeOnHireDate
+required_capability: external_command
+required_capability: fn_trange
+
+EXTERNAL "{{employees}}"
+| RENAME hire_date AS @timestamp
+| WHERE TRANGE("1985-01-01T00:00:00.000Z", "1986-01-01T00:00:00.000Z")
+| KEEP emp_no, `@timestamp`
+| SORT emp_no
+| LIMIT 5
+;
+
+emp_no:integer | @timestamp:date
+10002          | 1985-11-21T00:00:00.000Z
+10009          | 1985-02-18T00:00:00.000Z
+10013          | 1985-10-20T00:00:00.000Z
+10029          | 1985-11-20T00:00:00.000Z
+10048          | 1985-02-24T00:00:00.000Z
+;
+
+tbucketByHireDate
+required_capability: external_command
+required_capability: tbucket
+
+EXTERNAL "{{employees}}"
+| RENAME hire_date AS @timestamp
+| STATS min = MIN(`@timestamp`), max = MAX(`@timestamp`) BY bucket = TBUCKET(1 year)
+| SORT min
+| LIMIT 5
+;
+
+min:datetime | max:datetime | bucket:datetime
+1985-02-18T00:00:00.000Z | 1985-11-21T00:00:00.000Z | 1985-01-01T00:00:00.000Z
+1986-02-04T00:00:00.000Z | 1986-12-01T00:00:00.000Z | 1986-01-01T00:00:00.000Z
+1987-03-04T00:00:00.000Z | 1987-11-02T00:00:00.000Z | 1987-01-01T00:00:00.000Z
+1988-01-19T00:00:00.000Z | 1988-10-18T00:00:00.000Z | 1988-01-01T00:00:00.000Z
+1989-02-10T00:00:00.000Z | 1989-12-17T00:00:00.000Z | 1989-01-01T00:00:00.000Z
+;
+
+lookupJoin
+required_capability: external_command
+required_capability: join_lookup_v12
+
+EXTERNAL "{{employees}}"
+| EVAL language_code = languages
+| LOOKUP JOIN languages_lookup ON language_code
+| WHERE emp_no >= 10091 AND emp_no < 10094
+| SORT emp_no
+| KEEP emp_no, language_code, language_name
+;
+
+emp_no:integer | language_code:integer | language_name:keyword
+10091          | 3                     | Spanish
+10092          | 1                     | English
+10093          | 3                     | Spanish
+;
+
+lookupJoinWithExpression
+required_capability: external_command
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_boolean_expression
+
+EXTERNAL "{{employees}}"
+| WHERE emp_no == 10001
+| LOOKUP JOIN languages_lookup ON languages >= language_code
+| KEEP emp_no, languages, language_code, language_name
+| SORT emp_no, languages, language_code, language_name
+;
+
+emp_no:integer | languages:integer | language_code:integer | language_name:keyword
+10001          | 2                 | 1                     | English
+10001          | 2                 | 2                     | French
+;
+
+lookupJoinAfterStats
+required_capability: external_command
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_boolean_expression
+
+EXTERNAL "{{employees}}"
+| STATS c = COUNT() BY languages, emp_no
+| WHERE emp_no == 10001
+| LOOKUP JOIN languages_lookup ON languages >= language_code
+| KEEP emp_no, languages, language_code, language_name
+| SORT emp_no, languages, language_code, language_name
+;
+
+emp_no:integer | languages:integer | language_code:integer | language_name:keyword
+10001          | 2                 | 1                     | English
+10001          | 2                 | 2                     | French
+;
+
+# requires further guards, TODO
+completion-Ignore
+required_capability: external_command
+required_capability: completion
+required_capability: match_operator_colon
+required_capability: routing_function_update
+
+EXTERNAL "{{books}}"
+| WHERE title:"war and peace" AND author:"Tolstoy"
+| LIMIT 2
+| COMPLETION title WITH { "inference_id" : "test_completion" }
+| KEEP title, completion
+;
+
+title:text                         | completion:keyword
+War and Peace                      | WAR AND PEACE
+War and Peace: A Novel (6 Volumes) | WAR AND PEACE: A NOVEL (6 VOLUMES)
+;
+
+enrich
+required_capability: external_command
+required_capability: enrich_load
+
+EXTERNAL "{{employees}}"
+| SORT emp_no
+| LIMIT 1
+| EVAL x = TO_STRING(languages)
+| ENRICH languages_policy ON x
+| KEEP emp_no, language_name
+;
+
+emp_no:integer | language_name:keyword
+10001          | French
+;
+
+enrichRemote
+required_capability: external_command
+required_capability: enrich_load
+
+EXTERNAL "{{employees}}"
+| SORT emp_no
+| LIMIT 1
+| EVAL x = TO_STRING(languages)
+| ENRICH _remote:languages_policy ON x
+| KEEP emp_no, language_name
+;
+
+emp_no:integer | language_name:keyword
+10001          | French
+;
+
+decayFunction
+required_capability: external_command
+required_capability: decay_function
+
+EXTERNAL "{{employees}}"
+| EVAL d = DECAY(emp_no, 0, 100, {"type": "linear"})
+| KEEP emp_no, d
+| SORT emp_no
+| LIMIT 2
+;
+
+emp_no:integer |d:double
+10001          |0.0            
+10002          |0.0            
+;
+
+topSnippetsFunction
+required_capability: external_command
+required_capability: top_snippets_function
+
+EXTERNAL "{{books}}"
+| EVAL snippets = TOP_SNIPPETS(description, "Tolkien")
+| KEEP book_no, title, description, snippets
+| WHERE book_no::INTEGER == 9607
+;
+
+book_no:keyword|title:text                           |description:text                                                                                   |snippets:keyword
+9607           |Beowolf: The monsters and the critics|A collection of seven essays by J.R.R. Tolkien arising out of Tolkien's work in medieval literature|A collection of seven essays by J.R.R. Tolkien arising out of Tolkien's work in medieval literature
+;
+
+scoreFunction
+required_capability: external_command
+required_capability: top_snippets_function
+required_capability: score_function
+
+EXTERNAL "{{books}}"
+| EVAL score = SCORE(TOP_SNIPPETS(description, "Tolkien"))
+| KEEP book_no, title, description, score
+| WHERE book_no::INTEGER == 9607
+;
+
+book_no:keyword|title:text                           |description:text                                                                                   |score:double
+9607           |Beowolf: The monsters and the critics|A collection of seven essays by J.R.R. Tolkien arising out of Tolkien's work in medieval literature|0.0
+;
+
+
+operatorLikeRLike
+required_capability: external_command
+
+EXTERNAL "{{employees}}"
+| KEEP emp_no, first_name, job_positions
+| WHERE job_positions LIKE "Senior*"
+| WHERE job_positions RLIKE "Senior.*"
+| SORT emp_no
+;
+
+emp_no:integer |first_name:keyword|job_positions:keyword
+10002          |Bezalel        |Senior Team Lead
+10027          |Divier         |Senior Python Developer
+10036          |null           |Senior Python Developer
+10056          |Brendon        |Senior Team Lead
+10080          |Premal         |Senior Python Developer
+10086          |Somnath        |Senior Python Developer
 ;

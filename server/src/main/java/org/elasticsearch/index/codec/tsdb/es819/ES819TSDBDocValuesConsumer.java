@@ -44,6 +44,7 @@ import org.apache.lucene.util.compress.LZ4;
 import org.apache.lucene.util.packed.DirectMonotonicWriter;
 import org.apache.lucene.util.packed.PackedInts;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.codec.tsdb.BinaryDVCompressionMode;
 import org.elasticsearch.index.codec.tsdb.TSDBDocValuesEncoder;
 
@@ -55,8 +56,6 @@ import java.util.Arrays;
 import java.util.List;
 
 import static org.elasticsearch.index.codec.tsdb.es819.DocValuesConsumerUtil.compatibleWithOptimizedMerge;
-import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat.BLOCK_BYTES_THRESHOLD;
-import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat.BLOCK_COUNT_THRESHOLD;
 import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat.DIRECT_MONOTONIC_BLOCK_SHIFT;
 import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat.SKIP_INDEX_LEVEL_SHIFT;
 import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat.SKIP_INDEX_MAX_LEVEL;
@@ -79,6 +78,9 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
     final BinaryDVCompressionMode binaryDVCompressionMode;
     private final boolean enablePerBlockCompression; // only false for testing
     private final DocOffsetsCodec.Encoder docOffsetsEncoder;
+    private final int blockBytesThreshold;
+    private final int blockCountThreshold;
+    private final boolean writePrefixPartitions;
 
     ES819TSDBDocValuesConsumer(
         BinaryDVCompressionMode binaryDVCompressionMode,
@@ -89,14 +91,19 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
         int minDocsPerOrdinalForOrdinalRangeEncoding,
         boolean enableOptimizedMerge,
         int numericBlockShift,
+        int blockBytesThreshold,
+        int blockCountThreshold,
         String dataCodec,
         String dataExtension,
         String metaCodec,
-        String metaExtension
+        String metaExtension,
+        boolean writePrefixPartitions
     ) throws IOException {
         this.binaryDVCompressionMode = binaryDVCompressionMode;
         this.enablePerBlockCompression = enablePerBlockCompression;
         this.docOffsetsEncoder = docOffsetsEncoder;
+        this.blockBytesThreshold = blockBytesThreshold;
+        this.blockCountThreshold = blockCountThreshold;
         this.state = state;
         this.termsDictBuffer = new byte[1 << 14];
         this.dir = state.directory;
@@ -132,6 +139,7 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
             maxDoc = state.segmentInfo.maxDoc();
             this.skipIndexIntervalSize = skipIndexIntervalSize;
             this.enableOptimizedMerge = enableOptimizedMerge;
+            this.writePrefixPartitions = writePrefixPartitions;
             success = true;
         } finally {
             if (success == false) {
@@ -154,7 +162,7 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
             writeSkipIndex(field, producer);
         }
 
-        writeField(field, producer, -1, null);
+        writeField(field, producer, -1, null, null);
     }
 
     private boolean shouldEncodeOrdinalRange(FieldInfo field, long maxOrd, int numDocsWithValue, long numValues) {
@@ -164,8 +172,13 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
             && (numDocsWithValue / maxOrd) >= minDocsPerOrdinalForOrdinalRangeEncoding;
     }
 
-    private long[] writeField(FieldInfo field, TsdbDocValuesProducer valuesProducer, long maxOrd, OffsetsAccumulator offsetsAccumulator)
-        throws IOException {
+    private long[] writeField(
+        FieldInfo field,
+        TsdbDocValuesProducer valuesProducer,
+        long maxOrd,
+        OffsetsAccumulator offsetsAccumulator,
+        PrefixedPartitionsWriter partitionsWriter
+    ) throws IOException {
         int numDocsWithValue = 0;
         long numValues = 0;
 
@@ -196,6 +209,9 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
                 if (maxOrd == 1) {
                     // Special case for maxOrd of 1, signal -1 that no blocks will be written
                     meta.writeInt(-1);
+                    if (partitionsWriter != null) {
+                        partitionsWriter.trackDoc(0, 0);
+                    }
                 } else if (shouldEncodeOrdinalRange(field, maxOrd, numDocsWithValue, numValues)) {
                     assert offsetsAccumulator == null;
                     // When a field is sorted, use ordinal range encode for long runs of the same ordinal.
@@ -214,6 +230,9 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
                     );
                     long lastOrd = 0;
                     startDocs.add(0);
+                    if (partitionsWriter != null) {
+                        partitionsWriter.trackDoc(0, lastOrd);
+                    }
                     for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
                         if (disiAccumulator != null) {
                             disiAccumulator.addDocId(doc);
@@ -222,6 +241,9 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
                         if (nextOrd != lastOrd) {
                             lastOrd = nextOrd;
                             startDocs.add(doc);
+                            if (partitionsWriter != null) {
+                                partitionsWriter.trackDoc(doc, nextOrd);
+                            }
                         }
                     }
                     startDocs.add(maxDoc);
@@ -251,7 +273,11 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
                             offsetsAccumulator.addDoc(count);
                         }
                         for (int i = 0; i < count; ++i) {
-                            buffer[bufferSize++] = values.nextValue();
+                            final long v = values.nextValue();
+                            buffer[bufferSize++] = v;
+                            if (partitionsWriter != null) {
+                                partitionsWriter.trackDoc(doc, v);
+                            }
                             if (bufferSize == numericBlockSize) {
                                 indexWriter.add(data.getFilePointer() - valuesDataOffset);
                                 if (maxOrd >= 0) {
@@ -534,7 +560,7 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
     private final class CompressedBinaryBlockWriter implements BinaryWriter {
         final Compressor compressor;
 
-        final int[] docOffsets = new int[BLOCK_COUNT_THRESHOLD + 1]; // start for each doc plus start of doc that would be after last
+        final int[] docOffsets = new int[blockCountThreshold + 1];
 
         int uncompressedBlockLength = 0;
         int maxUncompressedBlockLength = 0;
@@ -561,7 +587,7 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
             numDocsInCurrentBlock++;
             docOffsets[numDocsInCurrentBlock] = uncompressedBlockLength;
 
-            if (uncompressedBlockLength >= BLOCK_BYTES_THRESHOLD || numDocsInCurrentBlock >= BLOCK_COUNT_THRESHOLD) {
+            if (uncompressedBlockLength >= blockBytesThreshold || numDocsInCurrentBlock >= blockCountThreshold) {
                 flushData();
             }
         }
@@ -690,13 +716,23 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
         if (addTypeByte) {
             meta.writeByte((byte) 0); // multiValued (0 = singleValued)
         }
-        SortedDocValues sorted = valuesProducer.getSorted(field);
-        int maxOrd = sorted.getValueCount();
-        writeField(field, producer, maxOrd, null);
-        addTermsDict(DocValues.singleton(valuesProducer.getSorted(field)));
+        final SortedDocValues sorted = valuesProducer.getSorted(field);
+        final int maxOrd = sorted.getValueCount();
+        var partitionWriter = primarySortFieldNumber == field.number && writePrefixPartitions ? new PrefixedPartitionsWriter() : null;
+        addTermsDict(DocValues.singleton(sorted), partitionWriter);
+        if (partitionWriter != null) {
+            partitionWriter.prepareForTrackingDocs();
+        }
+        writeField(field, producer, maxOrd, null, partitionWriter);
+        if (primarySortFieldNumber == field.number) {
+            meta.writeByte(partitionWriter != null ? (byte) 1 : (byte) 0);
+        }
+        if (partitionWriter != null) {
+            partitionWriter.flush(data, meta);
+        }
     }
 
-    private void addTermsDict(SortedSetDocValues values) throws IOException {
+    private void addTermsDict(SortedSetDocValues values, @Nullable PrefixedPartitionsWriter partitionWriter) throws IOException {
         final long size = values.getValueCount();
         meta.writeVLong(size);
 
@@ -750,6 +786,9 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
                     bufferedOutput.writeVInt(suffixLength - 16);
                 }
                 bufferedOutput.writeBytes(term.bytes, term.offset + prefixLength, suffixLength);
+            }
+            if (partitionWriter != null) {
+                partitionWriter.trackTerm(term, ord);
             }
             maxLength = Math.max(maxLength, term.length);
             previous.copyBytes(term);
@@ -856,16 +895,16 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
             int numDocsWithField = valuesProducer.mergeStats.sumNumDocsWithField();
             long numValues = valuesProducer.mergeStats.sumNumValues();
             if (numDocsWithField == numValues) {
-                writeField(field, valuesProducer, maxOrd, null);
+                writeField(field, valuesProducer, maxOrd, null, null);
             } else {
                 assert numValues > numDocsWithField;
                 try (var accumulator = new OffsetsAccumulator(dir, context, data, numDocsWithField)) {
-                    writeField(field, valuesProducer, maxOrd, accumulator);
+                    writeField(field, valuesProducer, maxOrd, accumulator, null);
                     accumulator.build(meta, data);
                 }
             }
         } else {
-            long[] stats = writeField(field, valuesProducer, maxOrd, null);
+            long[] stats = writeField(field, valuesProducer, maxOrd, null, null);
             int numDocsWithField = Math.toIntExact(stats[0]);
             long numValues = stats[1];
             assert numValues >= numDocsWithField;
@@ -1008,7 +1047,7 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
             }
         }, maxOrd);
 
-        addTermsDict(valuesProducer.getSortedSet(field));
+        addTermsDict(valuesProducer.getSortedSet(field), null);
     }
 
     @Override

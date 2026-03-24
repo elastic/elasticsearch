@@ -16,6 +16,7 @@ import org.elasticsearch.test.ListMatcher;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -34,24 +35,29 @@ public class HeapAttackSubqueryIT extends HeapAttackTestCase {
     // Reuse HeapAttackIT methods to prepare the indices
     private static final HeapAttackIT heapAttackIT = new HeapAttackIT();
 
-    // the default number of subqueries used by this test, more than 2 subqueries OOMs in some tests
-    private static final int DEFAULT_SUBQUERIES = 2;
+    private static final int MIN_SUBQUERIES = 2;
 
     // the upper limit is defined in {@code Fork.MAX_BRANCHES}
     private static final int MAX_SUBQUERIES = 8;
+
+    private static final int MAX_SUBQUERIES_SERVERLESS = 4;
+
+    private static final int MAX_STRING_FIELDS = 1000;
+
+    private static final int MAX_STRING_FIELD_SERVERLESS = 600;
+
+    private static final int MAX_DOC = 200;
+
+    private static final int MAX_DOC_SERVERLESS = 100;
 
     @Before
     public void checkCapability() {
         assumeTrue("Subquery is behind snapshot", Build.current().isSnapshot());
     }
 
-    /*
-     * The index's size is 1MB * 500, with only 10 unique keyword values. and these queries don't have aggregation or sort.
-     * CBE is not expected to be triggered here.
-     */
     public void testManyKeywordFieldsWith10UniqueValuesInSubqueryIntermediateResults() throws IOException {
-        heapAttackIT.initManyBigFieldsIndex(500, "keyword", false);
-        for (int subquery : List.of(DEFAULT_SUBQUERIES, MAX_SUBQUERIES)) {
+        heapAttackIT.initManyBigFieldsIndex(MAX_DOC, "keyword", false, MAX_STRING_FIELDS);
+        for (int subquery : List.of(MIN_SUBQUERIES, MAX_SUBQUERIES)) {
             ListMatcher columns = matchesList();
             int fieldsToRead = subquery < MAX_SUBQUERIES ? 1000 : 600; // with 1000 fields we circuit break
             StringBuilder query = new StringBuilder("manybigfields | KEEP ");
@@ -63,293 +69,244 @@ public class HeapAttackSubqueryIT extends HeapAttackTestCase {
                 }
                 query.append('f').append(String.format(Locale.ROOT, "%03d", f));
             }
-            Map<?, ?> response = buildSubqueries(subquery, query.toString(), "");
+            Map<?, ?> response = buildSubqueries(subquery, query.toString());
             assertMap(response, matchesMap().entry("columns", columns));
         }
     }
 
-    /*
-     * The index's size is 1MB * 500, each field has 500 unique/random keyword values, and these queries don't have aggregation or sort.
-     * CBE is not triggered here.
-     */
     public void testManyRandomKeywordFieldsInSubqueryIntermediateResults() throws IOException {
-        // 500MB random/unique keyword values trigger CBE, should not OOM
-        int docs = 500;
-        heapAttackIT.initManyBigFieldsIndex(docs, "keyword", true);
-        for (int subquery : List.of(DEFAULT_SUBQUERIES, MAX_SUBQUERIES)) {
-            assertCircuitBreaks(attempt -> buildSubqueries(subquery, "manybigfields", ""));
-        }
+        int docs = docs();
+        heapAttackIT.initManyBigFieldsIndex(docs, "keyword", true, fields());
+        assertCircuitBreaks(attempt -> buildSubqueries(maxSubqueries(), "manybigfields"));
     }
 
-    /*
-     * The index's size is 1MB * 500, each field has 500 unique/random keyword values.
-     * And these queries have sort on one field, there are 500 distinct values, each value is 1KB.
-     * This is mainly to test TopNOperator, addInput triggers CBE.
-     */
     public void testManyRandomKeywordFieldsInSubqueryIntermediateResultsWithSortOneField() throws IOException {
-        int docs = 500; // 500MB random/unique keyword values
-        heapAttackIT.initManyBigFieldsIndex(docs, "keyword", true);
-        for (int subquery : List.of(DEFAULT_SUBQUERIES, MAX_SUBQUERIES)) {
-            assertCircuitBreaks(attempt -> buildSubqueriesWithSort(subquery, "manybigfields", " f000 "));
+        int docs = docs();
+        heapAttackIT.initManyBigFieldsIndex(docs, "keyword", true, fields());
+        int subqueries = isServerless() ? MIN_SUBQUERIES : MAX_SUBQUERIES;
+        ListMatcher columns = matchesList();
+        for (int f = 0; f < fields(); f++) {
+            columns = columns.item(matchesMap().entry("name", "f" + String.format(Locale.ROOT, "%03d", f)).entry("type", "keyword"));
+        }
+        // serverless behaves differently from stateful
+        try {
+            Map<?, ?> response = buildSubqueriesWithSort(subqueries, "manybigfields", "f000");
+            assertMap(response, matchesMap().entry("columns", columns));
+        } catch (ResponseException e) {
+            Map<?, ?> map = responseAsMap(e.getResponse());
+            assertMap(
+                map,
+                matchesMap().entry("status", 429).entry("error", matchesMap().extraOk().entry("type", "circuit_breaking_exception"))
+            );
         }
     }
 
-    /*
-     * The index's size is 1MB * 500, each field has 500 unique/random keyword values.
-     * And these queries have sort on 100 fields, there are 500 * 100 distinct values, each value is 1KB.
-     * This is mainly to test TopNOperator.
-     */
     public void testManyRandomKeywordFieldsInSubqueryIntermediateResultsWithSortManyFields() throws IOException {
-        int docs = 500; // 500MB random/unique keyword values
-        heapAttackIT.initManyBigFieldsIndex(docs, "keyword", true);
+        int docs = docs();
+        heapAttackIT.initManyBigFieldsIndex(docs, "keyword", true, fields());
         StringBuilder sortKeys = new StringBuilder();
         sortKeys.append("f000");
-        for (int f = 1; f < 100; f++) {
+        for (int f = 1; f < 11; f++) {
             sortKeys.append(", f").append(String.format(Locale.ROOT, "%03d", f));
         }
-        for (int subquery : List.of(DEFAULT_SUBQUERIES, MAX_SUBQUERIES)) {
-            assertCircuitBreaks(attempt -> buildSubqueriesWithSort(subquery, "manybigfields", sortKeys.toString()));
+        int subqueries = isServerless() ? MIN_SUBQUERIES : MAX_SUBQUERIES;
+        ListMatcher columns = matchesList();
+        for (int f = 0; f < fields(); f++) {
+            columns = columns.item(matchesMap().entry("name", "f" + String.format(Locale.ROOT, "%03d", f)).entry("type", "keyword"));
+        }
+        // serverless behaves differently from stateful
+        try {
+            Map<?, ?> response = buildSubqueriesWithSort(subqueries, "manybigfields", sortKeys.toString());
+            assertMap(response, matchesMap().entry("columns", columns));
+        } catch (ResponseException e) {
+            Map<?, ?> map = responseAsMap(e.getResponse());
+            assertMap(
+                map,
+                matchesMap().entry("status", 429).entry("error", matchesMap().extraOk().entry("type", "circuit_breaking_exception"))
+            );
         }
     }
 
     public void testManyRandomNumericFieldsInSubqueryIntermediateResultsWithSortManyFields() throws IOException {
         int docs = 1000;
+        int fields = 1000;
         String type = randomFrom("integer", "long", "double");
-        heapAttackIT.initManyBigFieldsIndex(docs, type, true);
+        heapAttackIT.initManyBigFieldsIndex(docs, type, true, fields);
         StringBuilder sortKeys = new StringBuilder();
         sortKeys.append("f000");
         for (int f = 1; f < 100; f++) {
             sortKeys.append(", f").append(String.format(Locale.ROOT, "%03d", f));
         }
         ListMatcher columns = matchesList();
-        for (int f = 0; f < 1000; f++) {
+        for (int f = 0; f < fields; f++) {
             columns = columns.item(matchesMap().entry("name", "f" + String.format(Locale.ROOT, "%03d", f)).entry("type", type));
         }
-        for (int subquery : List.of(MAX_SUBQUERIES)) {
-            // results are returned from non-serverless environment, but CBE is expected in serverless
-            try {
-                Map<?, ?> response = buildSubqueriesWithSort(subquery, "manybigfields", sortKeys.toString());
-                assertMap(response, matchesMap().entry("columns", columns));
-            } catch (ResponseException e) {
-                Map<?, ?> map = responseAsMap(e.getResponse());
-                assertMap(
-                    map,
-                    matchesMap().entry("status", 429).entry("error", matchesMap().extraOk().entry("type", "circuit_breaking_exception"))
-                );
-            }
+        // results are returned from non-serverless environment, but CBE is expected in serverless
+        try {
+            Map<?, ?> response = buildSubqueriesWithSort(MAX_SUBQUERIES, "manybigfields", sortKeys.toString());
+            assertMap(response, matchesMap().entry("columns", columns));
+        } catch (ResponseException e) {
+            Map<?, ?> map = responseAsMap(e.getResponse());
+            assertMap(
+                map,
+                matchesMap().entry("status", 429).entry("error", matchesMap().extraOk().entry("type", "circuit_breaking_exception"))
+            );
         }
     }
 
-    /*
-     * The index's size is 1MB * 500, each field has 500 unique/random text values, and these queries don't have aggregation or sort.
-     * CBE is not triggered here.
-     */
     public void testManyRandomTextFieldsInSubqueryIntermediateResults() throws IOException {
-        if (isServerless()) {
-            return;
-        }
-        // 500MB random/unique keyword values trigger CBE, should not OOM
-        // serverless CI does not OOM or CB with 100 docs.
-        int docs = 500;
-        heapAttackIT.initManyBigFieldsIndex(docs, "text", true);
-        // 2 subqueries are enough to trigger CBE, confirmed where this CBE happens in ExchangeService.doFetchPageAsync,
-        // as a few big pages are loaded into the exchange buffer
-        // TODO 8 subqueries OOM, because the memory consumed by lucene is not properly tracked in ValuesSourceReaderOperator yet.
-        // Lucene90DocValuesProducer are on the top of objects list, also BlockSourceReader.scratch is not tracked by circuit breaker yet,
-        // skip 8 subqueries for now
-        for (int subquery : List.of(DEFAULT_SUBQUERIES)) {
-            assertCircuitBreaks(attempt -> buildSubqueries(subquery, "manybigfields", ""));
-        }
+        int docs = docs();
+        heapAttackIT.initManyBigFieldsIndex(docs, "text", true, fields());
+        assertCircuitBreaks(attempt -> buildSubqueries(maxSubqueries(), "manybigfields"));
     }
 
-    /*
-     * The index's size is 1MB * 500, each field has 500 unique/random text values.
-     * And these queries have sort on one field, there are 500 distinct values, each value is 1KB.
-     * This is mainly to test TopNOperator, addInput triggers CBE.
-     */
     public void testManyRandomTextFieldsInSubqueryIntermediateResultsWithSortOneField() throws IOException {
-        if (isServerless()) {
-            return;
-        }
-        int docs = 500; // 500MB random/unique keyword values
-        heapAttackIT.initManyBigFieldsIndex(docs, "text", true);
-        // the sort of text field is not pushed to lucene, different from keyword, this test should CB
-        // TODO 8 subqueries OOMs during ValuesSourceReaderOperator, similar to no sort case, skip it for now
-        for (int subquery : List.of(DEFAULT_SUBQUERIES)) {
-            assertCircuitBreaks(attempt -> buildSubqueriesWithSort(subquery, "manybigfields", " f000 "));
-        }
+        int docs = docs();
+        heapAttackIT.initManyBigFieldsIndex(docs, "text", true, fields());
+        assertCircuitBreaks(attempt -> buildSubqueriesWithSort(maxSubqueries(), "manybigfields", " substring(f000, 5) "));
     }
 
-    /*
-     * The index's size is 1MB * 500, each field has 500 unique/random text values.
-     * And these queries have sort on 100 fields, there are 500 * 100 distinct values, each value is 1KB.
-     * This is mainly to test TopNOperator.
-     */
     public void testManyRandomTextFieldsInSubqueryIntermediateResultsWithSortManyFields() throws IOException {
-        if (isServerless()) { // both 100 and 500 docs OOM in serverless
-            return;
-        }
-        int docs = 500; // // 500MB random/unique keyword values
-        heapAttackIT.initManyBigFieldsIndex(docs, "text", true);
+        int docs = docs();
+        heapAttackIT.initManyBigFieldsIndex(docs, "text", true, fields());
         StringBuilder sortKeys = new StringBuilder();
-        sortKeys.append("f000");
-        for (int f = 1; f < 999; f++) {
-            sortKeys.append(", f").append(String.format(Locale.ROOT, "%03d", f));
+        sortKeys.append(" substring(f000, 5) ");
+        for (int f = 1; f < 5; f++) {
+            sortKeys.append(", substring(f").append(String.format(Locale.ROOT, "%03d", f)).append(", 5) ");
         }
-        // the sort of text field is not pushed to lucene, different from keyword, this test should CB
-        // TODO 8 subqueries OOMs during ValuesSourceReaderOperator, similar to no sort case, skip it for now
-        for (int subquery : List.of(DEFAULT_SUBQUERIES)) {
-            assertCircuitBreaks(attempt -> buildSubqueriesWithSort(subquery, "manybigfields", sortKeys.toString()));
-        }
+        assertCircuitBreaks(attempt -> buildSubqueriesWithSort(maxSubqueries(), "manybigfields", sortKeys.toString()));
     }
 
-    /*
-     * The index's size is 1MB * 500, with only 10 unique keyword values. and these queries have aggregation without grouping.
-     * CBE is not triggered here.
-     */
     public void testManyKeywordFieldsWith10UniqueValuesInSubqueryIntermediateResultsWithAggNoGrouping() throws IOException {
-        int docs = 500; // 10 unique keyword values do not trigger CBE
-        heapAttackIT.initManyBigFieldsIndex(docs, "keyword", false);
+        int docs = docs();
+        heapAttackIT.initManyBigFieldsIndex(docs, "keyword", false, MAX_STRING_FIELDS);
         ListMatcher columns = matchesList().item(matchesMap().entry("name", "sum").entry("type", "long"));
-        for (int subquery : List.of(DEFAULT_SUBQUERIES, MAX_SUBQUERIES)) {
-            Map<?, ?> response = buildSubqueriesWithAgg(subquery, "manybigfields", "sum = SUM(LENGTH(f999))", null);
-            ListMatcher values = matchesList();
-            for (int i = 0; i < subquery; i++) {
-                values = values.item(matchesList().item(1024 * docs));
-            }
-            assertMap(response, matchesMap().entry("columns", columns).entry("values", values));
+        Map<?, ?> response = buildSubqueriesWithAgg(MAX_SUBQUERIES, "manybigfields", "sum = SUM(LENGTH(f999))", null);
+        ListMatcher values = matchesList();
+        for (int i = 0; i < MAX_SUBQUERIES; i++) {
+            values = values.item(matchesList().item(1024 * docs));
         }
+        assertMap(response, matchesMap().entry("columns", columns).entry("values", values));
     }
 
-    /*
-     * The index's size is 1MB * 500, each field has 500 unique/random keyword values, and these queries have aggregation without grouping.
-     * CBE is not triggered here.
-     */
     public void testManyRandomKeywordFieldsInSubqueryIntermediateResultsWithAggNoGrouping() throws IOException {
-        int docs = 500; // 500MB random/unique keyword values
-        heapAttackIT.initManyBigFieldsIndex(docs, "keyword", true);
+        int docs = docs();
+        heapAttackIT.initManyBigFieldsIndex(docs, "keyword", true, MAX_STRING_FIELDS);
         ListMatcher columns = matchesList().item(matchesMap().entry("name", "sum").entry("type", "long"));
-        for (int subquery : List.of(DEFAULT_SUBQUERIES, MAX_SUBQUERIES)) {
-            Map<?, ?> response = buildSubqueriesWithAgg(subquery, "manybigfields", "sum = SUM(LENGTH(f999))", null);
-            ListMatcher values = matchesList();
-            for (int i = 0; i < subquery; i++) {
-                values = values.item(matchesList().item(1024 * docs));
-            }
-            assertMap(response, matchesMap().entry("columns", columns).entry("values", values));
+        Map<?, ?> response = buildSubqueriesWithAgg(MAX_SUBQUERIES, "manybigfields", "sum = SUM(LENGTH(f999))", null);
+        ListMatcher values = matchesList();
+        for (int i = 0; i < MAX_SUBQUERIES; i++) {
+            values = values.item(matchesList().item(1024 * docs));
         }
+        assertMap(response, matchesMap().entry("columns", columns).entry("values", values));
     }
 
-    /*
-     * The index's size is 1MB * 500, each field has 500 unique/random keyword values.
-     * And these queries have aggregation with grouping by one field, there are 500 buckets.
-     * This is mainly to test HashAggregationOperator, CBE is not triggered here.
-     */
     public void testManyRandomKeywordFieldsInSubqueryIntermediateResultsWithAggWithGBYOneField() throws IOException {
-        int docs = 500; // 500MB random/unique keyword values
-        heapAttackIT.initManyBigFieldsIndex(docs, "keyword", true);
-        // group by f000 which has about 500 unique buckets/values, group by 50 fields works fine for 8 subqueries as well
+        int docs = docs();
+        heapAttackIT.initManyBigFieldsIndex(docs, "keyword", true, MAX_STRING_FIELDS);
         var columns = List.of(Map.of("name", "sum", "type", "long"), Map.of("name", "f000", "type", "keyword"));
-        for (int subquery : List.of(DEFAULT_SUBQUERIES, MAX_SUBQUERIES)) {
-            Map<?, ?> response = buildSubqueriesWithAgg(subquery, "manybigfields", "sum = SUM(LENGTH(f999))", "f000");
-            var values = response.get("values");
-            assertEquals(columns, response.get("columns"));
-            assertTrue(values instanceof List<?> l && l.size() <= docs * subquery);
-        }
+        Map<?, ?> response = buildSubqueriesWithAgg(MAX_SUBQUERIES, "manybigfields", "sum = SUM(LENGTH(f999))", "f000");
+        var values = response.get("values");
+        assertEquals(columns, response.get("columns"));
+        assertTrue(values instanceof List<?> l && l.size() <= docs * MAX_SUBQUERIES);
     }
 
-    /*
-     * The index's size is 1MB * 500, each field has 500 unique/random keyword values.
-     * And these queries have aggregation with grouping by 100 fields, there are 500 * 100 buckets.
-     * This is mainly to test HashAggregationOperator and ValuesSourceReaderOperator, CBE is expected to be triggered here.
-     */
     public void testManyRandomKeywordFieldsInSubqueryIntermediateResultsWithAggGBYManyFields() throws IOException {
-        if (isServerless()) { // skip this test in serverless, as it OOMs with 100 fields and 2 subqueries
-            return;
-        }
-        // GBY 100 fields CB and 500 fields docs OOM with 2 subqueries
-        int docs = 500; // 500MB random/unique keyword values
-        heapAttackIT.initManyBigFieldsIndex(docs, "keyword", true);
-        // Some data points:
-        // 1. group by 50 fields completes successfully for 2/8 subqueries, there is no CBE
-        // 2. group by 100 fields with 2 subqueries completes successfully, 8 subqueries triggers CBE
-        // 3. group by 500 fields, HashAggregationOperator.addInput triggers CBE for 2 subqueries locally, however it OOMs in serverless CI,
-        // TODO 8 subqueries trigger OOM, skip group by 500 fields with 8 subqueries,
-        // the walkaround that prevents the OOM is setting FIELD_EXTRACT_PREFERENCE=STORED
+        int docs = docs();
+        heapAttackIT.initManyBigFieldsIndex(docs, "keyword", true, fields());
         StringBuilder grouping = new StringBuilder();
         grouping.append("f000");
         int groupBySize = 100;
         for (int f = 1; f < groupBySize; f++) {
             grouping.append(", f").append(String.format(Locale.ROOT, "%03d", f));
         }
-        Map<?, ?> response = buildSubqueriesWithAgg(DEFAULT_SUBQUERIES, "manybigfields", "c = COUNT_DISTINCT(f999)", grouping.toString());
-        assertTrue(response.get("columns") instanceof List<?> l && l.size() == (groupBySize + 1));
-        assertCircuitBreaks(
-            attempt -> buildSubqueriesWithAgg(MAX_SUBQUERIES, "manybigfields", "c = COUNT_DISTINCT(f999)", grouping.toString())
-        );
+        try {
+            Map<?, ?> response = buildSubqueriesWithAgg(maxSubqueries(), "manybigfields", "c = COUNT_DISTINCT(f499)", grouping.toString());
+            assertTrue(response.get("columns") instanceof List<?> l && l.size() == (groupBySize + 1));
+        } catch (ResponseException e) {
+            Map<?, ?> map = responseAsMap(e.getResponse());
+            assertMap(
+                map,
+                matchesMap().entry("status", 429).entry("error", matchesMap().extraOk().entry("type", "circuit_breaking_exception"))
+            );
+        }
     }
 
-    // It is likely the lack of memory tracking for BlockSourceReader.scratch cause OOM instead of CBE here.
     public void testGiantTextFieldInSubqueryIntermediateResults() throws IOException {
-        if (isServerless()) { // 40 docs OOM in serverless
-            return;
-        }
-        // OOM heap dump shows around 45 docs/pages in it locally, which means fetching 45 docs will cause OOM, each page is 5MB.
-        // 2 subqueries and 8 subqueries both OOM, however they have different patterns in the heap dump.
-        // 1. According to the heap dump of 2 subqueries, the OOM happened during adding page into OutputOperator for returning results,
-        // pages and blocks are tracked by CB, BlockSourceReader also show in the heap dump but its scratch is not tracked by CB.
-        // 2. According to the heap dump of 8 subqueries, the pattern is very similar as OOM of 8 subqueries in
-        // testManyRandomKeywordFieldsInSubqueryIntermediateResults, BlockSourceReader.scratch is not tracked by CB,
-        // the constrain is in reading data.
-        // TODO improve memory tracking in BlockSourceReader.scratch
-        int docs = 40; // 40 docs *5MB does not OOM without subquery, 2 or 8 subqueries OOM
-        int limit = 30; // we should not need a limit here, this is temporary to include some coverage on this pattern
+        int docs = 20;
         heapAttackIT.initGiantTextField(docs, false, 5);
-        for (int subquery : List.of(DEFAULT_SUBQUERIES)) {
-            // TODO remove the limit when BlockSourceReader.scratch memory tracking is improved
-            Map<?, ?> response = buildSubqueries(subquery, "bigtext", " | limit " + limit);
-            // Map<?, ?> response = buildSubqueries(subquery, "bigtext", "");
-            ListMatcher columns = matchesList().item(matchesMap().entry("name", "f").entry("type", "text"));
-            assertMap(response, matchesMap().entry("columns", columns));
-        }
+        assertCircuitBreaks(attempt -> buildSubqueries(maxSubqueries(), "bigtext"));
     }
 
-    // It is likely the lack of memory tracking for BlockSourceReader.scratch cause OOM instead of CBE here.
     public void testGiantTextFieldInSubqueryIntermediateResultsWithSort() throws IOException {
-        if (isServerless()) { // 40 docs OOM in serverless
-            return;
-        }
-        // Similar observation as no sort case, 2 or 8 subqueries both OOM.
-        // TODO improve memory tracking in BlockSourceReader.scratch
-        int docs = 40; // 40 docs *5MB does not OOM without subquery
+        int docs = 20;
         heapAttackIT.initGiantTextField(docs, false, 5);
-        for (int subquery : List.of(DEFAULT_SUBQUERIES)) {
-            assertCircuitBreaks(attempt -> buildSubqueriesWithSort(subquery, "bigtext", " f "));
-        }
+        assertCircuitBreaks(attempt -> buildSubqueriesWithSort(maxSubqueries(), "bigtext", " substring(f, 5) "));
     }
 
     public void testGiantTextFieldInSubqueryIntermediateResultsWithAggNoGrouping() throws IOException {
         int docs = 100;
         heapAttackIT.initGiantTextField(docs, false, 5);
         ListMatcher columns = matchesList().item(matchesMap().entry("name", "sum").entry("type", "long"));
-        for (int subquery : List.of(DEFAULT_SUBQUERIES, MAX_SUBQUERIES)) {
-            Map<?, ?> response = buildSubqueriesWithAgg(subquery, "bigtext", "sum = SUM(LENGTH(f))", null);
-            ListMatcher values = matchesList();
-            for (int i = 0; i < subquery; i++) {
-                values = values.item(matchesList().item(1024 * 1024 * 5 * docs));
+        Map<?, ?> response = buildSubqueriesWithAgg(MAX_SUBQUERIES, "bigtext", "sum = SUM(LENGTH(f))", null);
+        ListMatcher values = matchesList();
+        for (int i = 0; i < MAX_SUBQUERIES; i++) {
+            values = values.item(matchesList().item(1024 * 1024 * 5 * docs));
+        }
+        assertMap(response, matchesMap().entry("columns", columns).entry("values", values));
+    }
+
+    public void testLoadDocSequenceReturnsCorrectResultsKeyword() throws IOException {
+        int docs = 20;
+        heapAttackIT.initManyBigFieldsIndex(docs, "keyword", false, MAX_STRING_FIELDS);
+        verifyLoadDocSequenceResults(docs, "keyword");
+    }
+
+    public void testLoadDocSequenceReturnsCorrectResultsText() throws IOException {
+        int docs = 20;
+        heapAttackIT.initManyBigFieldsIndex(docs, "text", false, MAX_STRING_FIELDS);
+        verifyLoadDocSequenceResults(docs, "text");
+    }
+
+    private void verifyLoadDocSequenceResults(int docs, String dataType) throws IOException {
+        List<Map<String, String>> columns = new ArrayList<>();
+        for (int f = 0; f < MAX_STRING_FIELDS; f++) {
+            Map<String, String> column = Map.of("name", "f" + String.format(Locale.ROOT, "%03d", f), "type", dataType);
+            columns.add(column);
+        }
+
+        // serverless triggers CBE occasionally.
+        try {
+            Map<?, ?> response = buildSubqueriesWithSortInMainQuery(MAX_SUBQUERIES, "manybigfields", "f000");
+            assertEquals(columns, response.get("columns"));
+
+            List<?> values = (List<?>) response.get("values");
+            assertEquals(docs * MAX_SUBQUERIES, values.size());
+
+            for (Object rowObj : values) {
+                List<?> row = (List<?>) rowObj;
+                assertEquals(1000, row.size());
+                for (int f = 0; f < 1000; f++) {
+                    assertEquals(Integer.toString(f % 10).repeat(1024), row.get(f));
+                }
             }
-            assertMap(response, matchesMap().entry("columns", columns).entry("values", values));
+        } catch (ResponseException e) {
+            Map<?, ?> map = responseAsMap(e.getResponse());
+            assertMap(
+                map,
+                matchesMap().entry("status", 429).entry("error", matchesMap().extraOk().entry("type", "circuit_breaking_exception"))
+            );
         }
     }
 
-    private Map<String, Object> buildSubqueries(int subqueries, String indexName, String limit) throws IOException {
+    private Map<String, Object> buildSubqueries(int subqueries, String indexName) throws IOException {
         StringBuilder query = startQuery();
         String subquery = "(FROM " + indexName + " )";
         query.append("FROM ").append(subquery);
         for (int i = 1; i < subqueries; i++) {
             query.append(", ").append(subquery);
         }
-        // the limit should not be necessary, it is just to limit the result size for giant text test temporarily
-        query.append(limit).append(" \"}");
+        query.append(" \"}");
         return responseAsMap(query(query.toString(), "columns"));
     }
 
@@ -373,7 +330,6 @@ public class HeapAttackSubqueryIT extends HeapAttackTestCase {
     private Map<String, Object> buildSubqueriesWithSort(int subqueries, String indexName, String sortKeys) throws IOException {
         StringBuilder query = startQuery();
         StringBuilder subquery = new StringBuilder();
-        // the limit is added to avoid unbounded sort
         subquery.append("(FROM ").append(indexName).append(" | SORT ").append(sortKeys).append(" )");
         query.append("FROM ").append(subquery);
         for (int i = 1; i < subqueries; i++) {
@@ -381,5 +337,34 @@ public class HeapAttackSubqueryIT extends HeapAttackTestCase {
         }
         query.append(" \"}");
         return responseAsMap(query(query.toString(), "columns"));
+    }
+
+    private Map<String, Object> buildSubqueriesWithSortInMainQuery(int subqueries, String indexName, String sortKeys) throws IOException {
+        StringBuilder query = startQuery();
+        String subquery = "(FROM " + indexName + " )";
+        query.append("FROM ").append(subquery);
+        for (int i = 1; i < subqueries; i++) {
+            query.append(", ").append(subquery);
+        }
+        query.append(" | SORT ").append(sortKeys).append(" \"}");
+        return responseAsMap(query(query.toString(), "columns, values"));
+    }
+
+    private static int docs() throws IOException {
+        // serverless has 6 shards, non-serverless has 1 shard,
+        // limiting the number of docs to reduce the gc lagging and intermittent OOMs in serverless
+        return isServerless() ? MAX_DOC_SERVERLESS : MAX_DOC;
+    }
+
+    private static int fields() throws IOException {
+        // serverless has 6 shards, non-serverless has 1 shard,
+        // limiting the number of keyword/text fields to reduce the gc lagging and intermittent OOMs in serverless
+        return isServerless() ? MAX_STRING_FIELD_SERVERLESS : MAX_STRING_FIELDS;
+    }
+
+    private static int maxSubqueries() throws IOException {
+        // serverless has 6 shards, non-serverless has 1 shard, the number of exchange operators increases when the number of subqueries
+        // increase, limiting the number of subqueries to reduce the gc lagging and intermittent OOMs in serverless
+        return isServerless() ? MAX_SUBQUERIES_SERVERLESS : MAX_SUBQUERIES;
     }
 }

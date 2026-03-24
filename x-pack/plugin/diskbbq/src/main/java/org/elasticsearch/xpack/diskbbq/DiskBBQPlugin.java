@@ -11,6 +11,7 @@ import org.elasticsearch.Build;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat;
+import org.elasticsearch.index.codec.vectors.diskbbq.es94.ES940DiskBBQVectorsFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.VectorsFormatProvider;
@@ -50,7 +51,7 @@ public class DiskBBQPlugin extends Plugin implements InternalVectorFormatProvide
                 int flatIndexThreshold = diskbbq.getFlatIndexThreshold();
                 if (Build.current().isSnapshot()) {
                     return new ESNextDiskBBQVectorsFormat(
-                        ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY,
+                        ESNextDiskBBQVectorsFormat.QuantEncoding.fromBits((byte) diskbbq.getBits()),
                         clusterSize,
                         ES920DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
                         elementType,
@@ -62,13 +63,16 @@ public class DiskBBQPlugin extends Plugin implements InternalVectorFormatProvide
                         flatIndexThreshold
                     );
                 }
-                return new ES920DiskBBQVectorsFormat(
+                return new ES940DiskBBQVectorsFormat(
+                    ES940DiskBBQVectorsFormat.QuantEncoding.fromBits((byte) diskbbq.getBits()),
                     clusterSize,
                     ES920DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
                     elementType,
                     onDiskRescore,
                     mergingExecutorService,
                     maxMergingWorkers,
+                    doPrecondition,
+                    ESNextDiskBBQVectorsFormat.DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
                     flatIndexThreshold
                 );
             }

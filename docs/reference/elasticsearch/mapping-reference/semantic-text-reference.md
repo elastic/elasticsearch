@@ -17,7 +17,7 @@ The `semantic_text` field type uses default indexing settings based on the [{{in
 
 `inference_id`
 :   (Optional, string) {{infer-cap}} endpoint that will be used to generate
-embeddings for the field. If `search_inference_id` is specified, the {{infer}}
+embeddings for the field. For default values, refer to [default endpoints](./semantic-text-setup-configuration.md#default-endpoints). If `search_inference_id` is specified, the {{infer}}
 endpoint will only be used at index time. Learn more about [configuring this parameter](#configuring-inference-endpoints).
 
 **Updating the `inference_id` parameter**
@@ -55,6 +55,10 @@ the [Update mapping API](https://www.elastic.co/docs/api/doc/elasticsearch/opera
 `index_options` {applies_to}`stack: ga 9.1`
 :   (Optional, object) Specifies the index options to override default values
 for the field. Currently, `dense_vector` and `sparse_vector` index options are supported. For text embeddings, `index_options` may match any allowed.
+
+    :::{note}
+    This parameter configures vector indexing structures. It is distinct from the [`index_options`](/reference/elasticsearch/mapping-reference/index-options.md) parameter used by term-based fields to control whether term frequencies, positions, and offsets are stored in the inverted index.
+    :::
 
 - [dense_vector index options](/reference/elasticsearch/mapping-reference/dense-vector.md#dense-vector-index-options)
 
@@ -119,7 +123,7 @@ The `semantic_text` field type specifies an {{infer}} endpoint identifier (`infe
 
 The following {{infer}} endpoint configurations are available:
 
-- [Default and preconfigured endpoints](./semantic-text-setup-configuration.md#default-and-preconfigured-endpoints): Use `semantic_text` without creating an {{infer}} endpoint manually.
+- [Default](./semantic-text-setup-configuration.md#default-endpoints) and [preconfigured](./semantic-text-setup-configuration.md#preconfigured-endpoints) endpoints: Use `semantic_text` without creating an {{infer}} endpoint manually.
 
 - [ELSER on EIS](./semantic-text-setup-configuration.md#using-elser-on-eis): Use the ELSER model through the Elastic {{infer-cap}} Service.
 

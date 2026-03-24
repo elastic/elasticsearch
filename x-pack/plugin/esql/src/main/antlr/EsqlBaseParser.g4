@@ -72,10 +72,11 @@ processingCommand
     | uriPartsCommand
     | metricsInfoCommand
     | registeredDomainCommand
+    | tsInfoCommand
+    | mmrCommand
     // in development
     | {this.isDevVersion()}? lookupCommand
     | {this.isDevVersion()}? insistCommand
-    | {this.isDevVersion()}? mmrCommand
     ;
 
 whereCommand
@@ -220,7 +221,11 @@ stringOrParameter
     ;
 
 limitCommand
-    : LIMIT constant
+    : LIMIT constant limitByGroupKey?
+    ;
+
+limitByGroupKey:
+    {this.isDevVersion()}? BY booleanExpression (COMMA booleanExpression)*
     ;
 
 sortCommand
@@ -360,6 +365,10 @@ metricsInfoCommand
     : METRICS_INFO
     ;
 
+tsInfoCommand
+    : TS_INFO
+    ;
+
 //
 // In development
 //
@@ -388,7 +397,7 @@ setField
     ;
 
 mmrCommand
-    :  DEV_MMR (queryVector=mmrQueryVectorParams)? ON diversifyField=qualifiedName MMR_LIMIT limitValue=integerValue commandNamedParameters
+    :  MMR (queryVector=mmrQueryVectorParams)? ON diversifyField=qualifiedName MMR_LIMIT limitValue=integerValue commandNamedParameters
     ;
 
 mmrQueryVectorParams

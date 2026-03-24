@@ -56,6 +56,11 @@ public class LocalStateInferencePlugin extends LocalStateCompositeXPackPlugin {
                     TestStreamingCompletionServiceExtension.TestInferenceService::new
                 );
             }
+
+            @Override
+            public void loadExtensions(ExtensionLoader loader) {
+                // nothing, else it would clash with super class which already loads inference services
+            }
         };
         plugins.add(inferencePlugin);
     }

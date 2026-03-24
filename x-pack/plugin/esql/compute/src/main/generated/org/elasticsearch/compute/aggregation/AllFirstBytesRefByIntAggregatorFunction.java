@@ -36,16 +36,10 @@ public final class AllFirstBytesRefByIntAggregatorFunction implements Aggregator
 
   private final List<Integer> channels;
 
-  public AllFirstBytesRefByIntAggregatorFunction(DriverContext driverContext,
-      List<Integer> channels, AllIntBytesRefState state) {
+  AllFirstBytesRefByIntAggregatorFunction(DriverContext driverContext, List<Integer> channels) {
     this.driverContext = driverContext;
     this.channels = channels;
-    this.state = state;
-  }
-
-  public static AllFirstBytesRefByIntAggregatorFunction create(DriverContext driverContext,
-      List<Integer> channels) {
-    return new AllFirstBytesRefByIntAggregatorFunction(driverContext, channels, AllFirstBytesRefByIntAggregator.initSingle(driverContext));
+    this.state = AllFirstBytesRefByIntAggregator.initSingle(driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

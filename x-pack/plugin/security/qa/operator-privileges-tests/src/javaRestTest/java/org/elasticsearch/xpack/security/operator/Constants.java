@@ -264,6 +264,7 @@ public class Constants {
         "cluster:admin/xpack/security/api_key/query",
         "cluster:admin/xpack/security/api_key/update",
         "cluster:admin/xpack/security/api_key/bulk_update",
+        "cluster:admin/xpack/security/api_key/clone",
         "cluster:admin/xpack/security/cache/clear",
         "cluster:admin/xpack/security/cross_cluster/api_key/create",
         "cluster:admin/xpack/security/cross_cluster/api_key/update",
@@ -593,6 +594,7 @@ public class Constants {
         "indices:data/read/esql/async/get",
         "indices:data/read/esql/async/stop",
         "indices:data/read/esql/resolve_fields",
+        "indices:data/read/esql/resolve_views",
         "indices:data/read/esql/search_shards",
         "indices:data/read/explain",
         "indices:data/read/field_caps",
@@ -679,12 +681,6 @@ public class Constants {
         "indices:admin/index/create_from_source",
         "indices:admin/index/copy_lifecycle_index_metadata",
         "internal:admin/repository/verify",
-        "internal:admin/repository/verify/coordinate",
-        "indices:admin/sample",
-        "indices:admin/sample/config/update",
-        "indices:admin/sample/stats",
-        "indices:admin/sample/config/delete",
-        "indices:monitor/sample/config/get",
-        "indices:monitor/sample/config/get_all"
+        "internal:admin/repository/verify/coordinate"
     ).filter(Objects::nonNull).collect(Collectors.toUnmodifiableSet());
 }

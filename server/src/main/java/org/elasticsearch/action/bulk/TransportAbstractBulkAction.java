@@ -42,7 +42,6 @@ import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.ingest.IngestService;
-import org.elasticsearch.ingest.SamplingService;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -97,7 +96,6 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
     protected final Executor systemCoordinationExecutor;
     private final ActionType<BulkResponse> bulkAction;
     protected final FeatureService featureService;
-    protected final SamplingService samplingService;
 
     public TransportAbstractBulkAction(
         ActionType<BulkResponse> action,
@@ -111,8 +109,7 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
         SystemIndices systemIndices,
         ProjectResolver projectResolver,
         LongSupplier relativeTimeNanosProvider,
-        FeatureService featureService,
-        SamplingService samplingService
+        FeatureService featureService
     ) {
         super(action.name(), transportService, actionFilters, requestReader, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.threadPool = threadPool;
@@ -128,7 +125,6 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
         clusterService.addStateApplier(this.ingestForwarder);
         this.relativeTimeNanosProvider = relativeTimeNanosProvider;
         this.bulkAction = action;
-        this.samplingService = samplingService;
     }
 
     @Override
@@ -318,16 +314,6 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
                 }
             });
             return true;
-        } else if (haveRunIngestService == false && samplingService != null && samplingService.atLeastOneSampleConfigured(project)) {
-            /*
-             * Else ample only if this request has not passed through IngestService::executeBulkRequest. Otherwise, some request within the
-             * bulk had pipelines and we sampled in IngestService already.
-             */
-            for (DocWriteRequest<?> actionRequest : bulkRequest.requests) {
-                if (actionRequest instanceof IndexRequest ir) {
-                    samplingService.maybeSample(project, ir);
-                }
-            }
         }
         return false;
     }

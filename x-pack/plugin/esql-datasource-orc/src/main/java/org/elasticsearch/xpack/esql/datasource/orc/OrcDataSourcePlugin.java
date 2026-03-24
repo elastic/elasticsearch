@@ -10,7 +10,9 @@ package org.elasticsearch.xpack.esql.datasource.orc;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderFactory;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatSpec;
 
 import java.util.Map;
 import java.util.Set;
@@ -28,17 +30,17 @@ import java.util.Set;
 public class OrcDataSourcePlugin extends Plugin implements DataSourcePlugin {
 
     @Override
-    public Set<String> supportedFormats() {
-        return Set.of("orc");
-    }
-
-    @Override
-    public Set<String> supportedExtensions() {
-        return Set.of(".orc");
+    public Set<FormatSpec> formatSpecs() {
+        return Set.of(FormatSpec.of("orc", ".orc"));
     }
 
     @Override
     public Map<String, FormatReaderFactory> formatReaders(Settings settings) {
         return Map.of("orc", (s, blockFactory) -> new OrcFormatReader(blockFactory));
+    }
+
+    @Override
+    public Map<String, FilterPushdownSupport> filterPushdownSupport(Settings settings) {
+        return Map.of("orc", new OrcFilterPushdownSupport());
     }
 }

@@ -15,12 +15,10 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
-import org.elasticsearch.xpack.esql.core.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -30,8 +28,10 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
 
 import java.io.IOException;
+import java.util.List;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
@@ -64,8 +64,8 @@ public class Magnitude extends UnaryScalarFunction implements EvaluatorMapper, V
     }
 
     @Override
-    protected UnaryScalarFunction replaceChild(Expression newChild) {
-        return new Magnitude(source(), newChild);
+    public Expression replaceChildren(List<Expression> newChildren) {
+        return new Magnitude(source(), newChildren.getFirst());
     }
 
     @Override
@@ -105,23 +105,16 @@ public class Magnitude extends UnaryScalarFunction implements EvaluatorMapper, V
     }
 
     @Override
-    public Object fold(FoldContext ctx) {
-        return EvaluatorMapper.super.fold(source(), ctx);
-    }
-
-    @Override
-    public final EvalOperator.ExpressionEvaluator.Factory toEvaluator(EvaluatorMapper.ToEvaluator toEvaluator) {
+    public final ExpressionEvaluator.Factory toEvaluator(EvaluatorMapper.ToEvaluator toEvaluator) {
         return new ScalarEvaluatorFactory(toEvaluator.apply(field()), SCALAR_FUNCTION, getClass().getSimpleName() + "Evaluator");
     }
 
-    private record ScalarEvaluatorFactory(
-        EvalOperator.ExpressionEvaluator.Factory child,
-        ScalarEvaluatorFunction scalarFunction,
-        String evaluatorName
-    ) implements EvalOperator.ExpressionEvaluator.Factory {
+    private record ScalarEvaluatorFactory(ExpressionEvaluator.Factory child, ScalarEvaluatorFunction scalarFunction, String evaluatorName)
+        implements
+            ExpressionEvaluator.Factory {
 
         @Override
-        public EvalOperator.ExpressionEvaluator get(DriverContext context) {
+        public ExpressionEvaluator get(DriverContext context) {
             // TODO check whether to use this custom evaluator or reuse / define an existing one
             return new ScalarEvaluator(child.get(context), scalarFunction, evaluatorName, context.blockFactory());
         }
@@ -133,11 +126,11 @@ public class Magnitude extends UnaryScalarFunction implements EvaluatorMapper, V
     }
 
     private record ScalarEvaluator(
-        EvalOperator.ExpressionEvaluator child,
+        ExpressionEvaluator child,
         ScalarEvaluatorFunction scalarFunction,
         String evaluatorName,
         BlockFactory blockFactory
-    ) implements EvalOperator.ExpressionEvaluator {
+    ) implements ExpressionEvaluator {
 
         private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ScalarEvaluator.class);
 

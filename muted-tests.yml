@@ -371,9 +371,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:k8s-timeseries-avg-over-time.avg_over_time_of_integer}
   issue: https://github.com/elastic/elasticsearch/issues/144719
-- class: org.elasticsearch.cluster.metadata.MetadataCreateIndexServiceTests
-  method: testBatchedIndexCreationAndReroute
-  issue: https://github.com/elastic/elasticsearch/issues/144723
 - class: org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT
   method: testEndpointGetsUpdated_GivenFingerprintChanges_FromNonNull
   issue: https://github.com/elastic/elasticsearch/issues/144731

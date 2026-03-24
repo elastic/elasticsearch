@@ -173,7 +173,22 @@ public record UnassignedInfo(
         /**
          * New shard added as part of index re-sharding operation
          */
-        RESHARD_ADDED
+        RESHARD_ADDED;
+
+        /// Returns `true` if this unassignment reason represents an expected transient event (e.g. index creation,
+        /// replica addition) where the shard is anticipated to be assigned shortly and brief unassignment is
+        /// not a sign of a problem.
+        ///
+        /// Returns `false` for reasons that indicate something went wrong (e.g. allocation failure,
+        /// node loss), where the unassignment should be reported as unhealthy without delay.
+        public boolean isExpectedTransient() {
+            return switch (this) {
+                case ALLOCATION_FAILED, NODE_LEFT, REINITIALIZED, REALLOCATED_REPLICA, PRIMARY_FAILED, NODE_RESTARTING -> false;
+                case INDEX_CREATED, INDEX_REOPENED, DANGLING_INDEX_IMPORTED, NEW_INDEX_RESTORED, EXISTING_INDEX_RESTORED, REPLICA_ADDED,
+                    REROUTE_CANCELLED, FORCED_EMPTY_PRIMARY, MANUAL_ALLOCATION, INDEX_CLOSED, UNPROMOTABLE_REPLICA, RESHARD_ADDED,
+                    CLUSTER_RECOVERED -> true;
+            };
+        }
     }
 
     /**

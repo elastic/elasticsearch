@@ -436,7 +436,9 @@ public abstract class ShardsAvailabilityHealthIndicatorService implements Health
     /// @param projectId the project owning the shard
     /// @param routing the shard routing to inspect
     /// @param state the current cluster state
-    /// @param gracePeriodCutoffTime epoch millis before which a shard is considered outside the grace period
+    /// @param gracePeriodCutoffTime inclusive lower bound on {@link UnassignedInfo#unassignedTimeMillis()} for treating
+    /// the replica as still within the grace window (typically {@code Instant.now().toEpochMilli() - bufferMillis}).
+    /// Unassignment timestamps strictly less than this value are older than the buffer and are outside the grace window.
     ///
     private static boolean isUnassignedReplicaWithinGracePeriod(
         ProjectId projectId,
@@ -462,12 +464,7 @@ public abstract class ShardsAvailabilityHealthIndicatorService implements Health
         if (unassignedInfo.unassignedTimeMillis() < gracePeriodCutoffTime) {
             return false;
         }
-        return switch (unassignedInfo.reason()) {
-            case ALLOCATION_FAILED, NODE_LEFT, REINITIALIZED, REALLOCATED_REPLICA, PRIMARY_FAILED, NODE_RESTARTING -> false;
-            case INDEX_CREATED, INDEX_REOPENED, DANGLING_INDEX_IMPORTED, NEW_INDEX_RESTORED, EXISTING_INDEX_RESTORED, REPLICA_ADDED,
-                REROUTE_CANCELLED, FORCED_EMPTY_PRIMARY, MANUAL_ALLOCATION, INDEX_CLOSED, UNPROMOTABLE_REPLICA, RESHARD_ADDED,
-                CLUSTER_RECOVERED -> true;
-        };
+        return unassignedInfo.reason().isExpectedTransient();
     }
 
     private static boolean isUnassignedDueToTimelyRestart(ShardRouting routing, NodesShutdownMetadata shutdowns) {

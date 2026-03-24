@@ -78,6 +78,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.mockito.stubbing.Answer;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -888,37 +889,14 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
     }
 
     public void testReplicaUnassignedWithinGracePeriod() {
-        final var acceptableReasons = List.of(
-            UnassignedInfo.Reason.INDEX_CREATED,
-            UnassignedInfo.Reason.REPLICA_ADDED,
-            UnassignedInfo.Reason.NEW_INDEX_RESTORED,
-            UnassignedInfo.Reason.EXISTING_INDEX_RESTORED,
-            UnassignedInfo.Reason.CLUSTER_RECOVERED,
-            UnassignedInfo.Reason.INDEX_REOPENED,
-            UnassignedInfo.Reason.DANGLING_INDEX_IMPORTED,
-            UnassignedInfo.Reason.REROUTE_CANCELLED,
-            UnassignedInfo.Reason.FORCED_EMPTY_PRIMARY,
-            UnassignedInfo.Reason.MANUAL_ALLOCATION,
-            UnassignedInfo.Reason.INDEX_CLOSED,
-            UnassignedInfo.Reason.UNPROMOTABLE_REPLICA,
-            UnassignedInfo.Reason.RESHARD_ADDED
-        );
-        final var unacceptableReasons = List.of(
-            UnassignedInfo.Reason.ALLOCATION_FAILED,
-            UnassignedInfo.Reason.NODE_LEFT,
-            UnassignedInfo.Reason.REINITIALIZED,
-            UnassignedInfo.Reason.REALLOCATED_REPLICA,
-            UnassignedInfo.Reason.PRIMARY_FAILED,
-            UnassignedInfo.Reason.NODE_RESTARTING
-        );
         final var unassignedTimeWithinGracePeriod = new TimeValue(
             System.currentTimeMillis() + TimeValue.timeValueHours(1).getMillis(),
             TimeUnit.MILLISECONDS
         );
         for (int i = 0; i < 10; i++) {
             final var projectId = randomProjectIdOrDefault();
-            final boolean isAcceptable = randomBoolean();
-            final var reason = isAcceptable ? randomFrom(acceptableReasons) : randomFrom(unacceptableReasons);
+            final boolean gracePeriodReason = randomBoolean();
+            final var reason = gracePeriodReason ? randomUnassignedInfoReason(true) : randomUnassignedInfoReason(false);
             final var clusterState = createClusterStateWith(
                 projectId,
                 List.of(
@@ -937,15 +915,15 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
                 Collections.emptyMap()
             );
             final var result = service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO);
-            if (isAcceptable) {
-                assertThat("expected GREEN for acceptable reason " + reason, result.status(), equalTo(GREEN));
+            if (gracePeriodReason) {
+                assertThat("expected GREEN for grace period reason " + reason, result.status(), equalTo(GREEN));
                 assertThat(
                     "expected creating replica symptom for reason " + reason,
                     result.symptom(),
                     equalTo("This cluster has 1 creating replica shard.")
                 );
             } else {
-                assertThat("expected YELLOW for unacceptable reason " + reason, result.status(), equalTo(YELLOW));
+                assertThat("expected YELLOW for grace period reason " + reason, result.status(), equalTo(YELLOW));
                 assertThat(
                     "expected unavailable replica symptom for reason " + reason,
                     result.symptom(),
@@ -997,34 +975,9 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
             System.currentTimeMillis() - TimeValue.timeValueSeconds(randomIntBetween(20, 200)).getMillis(),
             TimeUnit.MILLISECONDS
         );
-        final var acceptableReasons = List.of(
-            UnassignedInfo.Reason.INDEX_CREATED,
-            UnassignedInfo.Reason.REPLICA_ADDED,
-            UnassignedInfo.Reason.NEW_INDEX_RESTORED,
-            UnassignedInfo.Reason.EXISTING_INDEX_RESTORED,
-            UnassignedInfo.Reason.CLUSTER_RECOVERED,
-            UnassignedInfo.Reason.INDEX_REOPENED,
-            UnassignedInfo.Reason.DANGLING_INDEX_IMPORTED,
-            UnassignedInfo.Reason.REROUTE_CANCELLED,
-            UnassignedInfo.Reason.FORCED_EMPTY_PRIMARY,
-            UnassignedInfo.Reason.MANUAL_ALLOCATION,
-            UnassignedInfo.Reason.INDEX_CLOSED,
-            UnassignedInfo.Reason.UNPROMOTABLE_REPLICA,
-            UnassignedInfo.Reason.RESHARD_ADDED
-        );
-        final var unacceptableReasons = List.of(
-            UnassignedInfo.Reason.ALLOCATION_FAILED,
-            UnassignedInfo.Reason.NODE_LEFT,
-            UnassignedInfo.Reason.REINITIALIZED,
-            UnassignedInfo.Reason.REALLOCATED_REPLICA,
-            UnassignedInfo.Reason.PRIMARY_FAILED,
-            UnassignedInfo.Reason.NODE_RESTARTING
-        );
-        final var allReasons = Stream.concat(unacceptableReasons.stream(), acceptableReasons.stream()).toList();
-
-        final var unassignedReason1 = randomFrom(allReasons);
-        final var unassignedReason2 = randomFrom(allReasons);
-        final var unassignedReason3 = randomFrom(allReasons);
+        final var unassignedReason1 = randomFrom(UnassignedInfo.Reason.values());
+        final var unassignedReason2 = randomFrom(UnassignedInfo.Reason.values());
+        final var unassignedReason3 = randomFrom(UnassignedInfo.Reason.values());
         final var expired1 = randomBoolean();
         final var expired2 = randomBoolean();
         final var expired3 = randomBoolean();
@@ -1060,9 +1013,9 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
             Collections.emptyMap()
         );
 
-        final int unavailableCount = (unacceptableReasons.contains(unassignedReason1) || expired1 ? 1 : 0) + (unacceptableReasons.contains(
-            unassignedReason2
-        ) || expired2 ? 1 : 0) + (unacceptableReasons.contains(unassignedReason3) || expired3 ? 1 : 0);
+        final int unavailableCount = (unassignedReason1.isExpectedTransient() == false || expired1 ? 1 : 0) + (unassignedReason2
+            .isExpectedTransient() == false
+            || expired2 ? 1 : 0) + (unassignedReason3.isExpectedTransient() == false || expired3 ? 1 : 0);
         final int creatingCount = 3 - unavailableCount;
         final var expectedHealth = unavailableCount > 0 ? YELLOW : GREEN;
 
@@ -2791,6 +2744,12 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
 
     private static UnassignedInfo decidersNo() {
         return decidersNo(TimeValue.timeValueMillis(0));
+    }
+
+    private static UnassignedInfo.Reason randomUnassignedInfoReason(boolean expectedTransient) {
+        return randomFrom(
+            Arrays.stream(UnassignedInfo.Reason.values()).filter(reason -> reason.isExpectedTransient() == expectedTransient).toList()
+        );
     }
 
     private static UnassignedInfo decidersNo(TimeValue unassignedTime) {

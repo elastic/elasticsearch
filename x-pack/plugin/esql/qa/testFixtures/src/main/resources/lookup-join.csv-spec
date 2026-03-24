@@ -5930,10 +5930,7 @@ FROM employees
 emp_no:integer | language_name:keyword
 ;
 
-###############################################
-# Empty relation propagation through lookup joins with full-text functions
-# Covers the fix for https://github.com/elastic/elasticsearch/issues/144329
-
+// See https://github.com/elastic/elasticsearch/issues/144329
 whereFalseBeforeLookupJoinWithMatch
 required_capability: join_lookup_v12
 required_capability: match_function
@@ -5948,6 +5945,7 @@ FROM sample_data
 message:keyword | type:keyword
 ;
 
+// See https://github.com/elastic/elasticsearch/issues/144329
 whereFalseBeforeLookupJoinWithMatchPhrase
 required_capability: join_lookup_v12
 required_capability: match_phrase_function
@@ -5962,6 +5960,7 @@ FROM sample_data
 message:keyword | type:keyword
 ;
 
+// See https://github.com/elastic/elasticsearch/issues/144329
 whereFalseBeforeLookupJoinWithMatchOperator
 required_capability: join_lookup_v12
 required_capability: match_operator_colon
@@ -5976,6 +5975,7 @@ FROM sample_data
 message:keyword | type:keyword
 ;
 
+// See https://github.com/elastic/elasticsearch/issues/144329
 whereFalseWithEvalBeforeLookupJoinAndMatch
 required_capability: join_lookup_v12
 required_capability: match_function
@@ -5991,21 +5991,22 @@ FROM sample_data
 message:keyword | type:keyword
 ;
 
+// See https://github.com/elastic/elasticsearch/issues/144329
 whereFalseBeforeLookupJoinWithFullTextDisjunction
 required_capability: join_lookup_v12
-required_capability: multi_match_function
 required_capability: full_text_functions_disjunctions_compute_engine
 
 FROM sample_data
 | WHERE false
 | LOOKUP JOIN message_types_lookup ON message
-| WHERE multi_match("Connection error", message) OR type LIKE "Success"
+| WHERE match(message, "Connection error") OR type LIKE "Success"
 | KEEP message, type
 ;
 
 message:keyword | type:keyword
 ;
 
+// See https://github.com/elastic/elasticsearch/issues/144329
 whereFalseBeforeLookupJoinWithMatchAndStats
 required_capability: join_lookup_v12
 required_capability: match_function
@@ -6021,6 +6022,7 @@ c:long
 0
 ;
 
+// See https://github.com/elastic/elasticsearch/issues/144329
 whereFalseBeforeLookupJoinWithMultipleFullTextFunctions
 required_capability: join_lookup_v12
 required_capability: match_function
@@ -6036,6 +6038,7 @@ FROM sample_data
 message:keyword | type:keyword
 ;
 
+// See https://github.com/elastic/elasticsearch/issues/144329
 whereFalseBeforeLookupJoinWithMatchOnEmployees
 required_capability: join_lookup_v12
 required_capability: match_function

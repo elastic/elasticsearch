@@ -44,6 +44,7 @@ public class PropagateEmptyRelation extends OptimizerRules.ParameterizedOptimize
     @Override
     protected LogicalPlan rule(LogicalPlan plan, LogicalOptimizerContext ctx) {
         if (plan instanceof UnaryPlan unary && unary.child() instanceof LocalRelation local && local.hasEmptySupplier()) {
+            // only care about non-grouped aggs might return something (count)
             if (plan instanceof Aggregate agg && agg.groupings().isEmpty()) {
                 List<Block> emptyBlocks = aggsFromEmpty(ctx.foldCtx(), agg.aggregates());
                 return new LocalRelation(

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.license.XPackLicenseState;
@@ -99,7 +100,7 @@ public class Verifier {
      * Verify that a {@link LogicalPlan} can be executed (no unmapped-field resolution context).
      */
     Collection<Failure> verify(LogicalPlan plan, BitSet partialMetrics) {
-        return verify(plan, partialMetrics, null);
+        return verify(plan, partialMetrics, null, null);
     }
 
     /**
@@ -111,6 +112,24 @@ public class Verifier {
      * @return a collection of verification failures; empty if and only if the plan is valid
      */
     Collection<Failure> verify(LogicalPlan plan, BitSet partialMetrics, UnmappedResolution unmappedResolution) {
+        return verify(plan, partialMetrics, unmappedResolution, null);
+    }
+
+    /**
+     * Verify that a {@link LogicalPlan} can be executed.
+     *
+     * @param plan The logical plan to be verified
+     * @param partialMetrics a bitset indicating a certain command (or "telemetry feature") is present in the query
+     * @param unmappedResolution the active unmapped-field resolution strategy; used to gate commands unsupported in certain modes
+     * @param analyzerContext if non-null, used for load-mode checks that need index resolution (e.g. partially mapped non-KEYWORD fields)
+     * @return a collection of verification failures; empty if and only if the plan is valid
+     */
+    Collection<Failure> verify(
+        LogicalPlan plan,
+        BitSet partialMetrics,
+        UnmappedResolution unmappedResolution,
+        @Nullable AnalyzerContext analyzerContext
+    ) {
         assert partialMetrics != null;
         Failures failures = new Failures();
         boolean unmappedTimestampHandled = unmappedResolution != UnmappedResolution.FAIL && isTimestampUnmappedInAllIndices(plan, failures);
@@ -129,6 +148,9 @@ public class Verifier {
             checkLoadModeDisallowedCommands(plan, failures);
             checkLoadModeDisallowedFunctions(plan, failures);
             checkFlattenedSubFieldLoad(plan, failures);
+            if (failures.hasFailures() == false) {
+                LoadPartialMappingChecks.checkPartialNonKeywordWithLoad(plan, analyzerContext, failures);
+            }
         }
 
         // collect plan checkers

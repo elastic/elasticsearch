@@ -81,13 +81,9 @@ public class TopHitsAggExtractorTests extends AbstractSqlWireSerializingTestCase
         TopHitsAggExtractor extractor = new TopHitsAggExtractor("topHitsAgg", DataTypes.KEYWORD, UTC);
 
         String value = "Str_Value";
-        InternalTopHits agg = new InternalTopHits(extractor.name(), 0, 1, null, searchHitsOf(value), null);
+        InternalAggregation agg = new InternalTopHits(extractor.name(), 0, 1, null, searchHitsOf(value), null);
         Bucket bucket = new TestBucket(emptyMap(), 0, InternalAggregations.from(singletonList(agg)));
-        try {
-            assertEquals(value, extractor.extract(bucket));
-        } finally {
-            agg.getHits().decRef();
-        }
+        assertEquals(value, extractor.extract(bucket));
     }
 
     public void testExtractDateValue() {
@@ -95,7 +91,7 @@ public class TopHitsAggExtractorTests extends AbstractSqlWireSerializingTestCase
         TopHitsAggExtractor extractor = new TopHitsAggExtractor("topHitsAgg", DataTypes.DATETIME, zoneId);
 
         long value = 123456789L;
-        InternalTopHits agg = new InternalTopHits(
+        InternalAggregation agg = new InternalTopHits(
             extractor.name(),
             0,
             1,
@@ -104,11 +100,7 @@ public class TopHitsAggExtractorTests extends AbstractSqlWireSerializingTestCase
             null
         );
         Bucket bucket = new TestBucket(emptyMap(), 0, InternalAggregations.from(singletonList(agg)));
-        try {
-            assertEquals(DateUtils.asDateTimeWithMillis(value, zoneId), extractor.extract(bucket));
-        } finally {
-            agg.getHits().decRef();
-        }
+        assertEquals(DateUtils.asDateTimeWithMillis(value, zoneId), extractor.extract(bucket));
     }
 
     public void testExtractUnsignedLong() {
@@ -116,13 +108,9 @@ public class TopHitsAggExtractorTests extends AbstractSqlWireSerializingTestCase
         Object value = bi.compareTo(BigInteger.valueOf(Long.MAX_VALUE)) <= 0 ? bi.longValue() : bi;
 
         TopHitsAggExtractor extractor = new TopHitsAggExtractor(randomAlphaOfLength(10), DataTypes.UNSIGNED_LONG, randomZone());
-        InternalTopHits agg = new InternalTopHits(extractor.name(), 0, 1, null, searchHitsOf(value), null);
+        InternalAggregation agg = new InternalTopHits(extractor.name(), 0, 1, null, searchHitsOf(value), null);
         Bucket bucket = new TestBucket(emptyMap(), 0, InternalAggregations.from(singletonList(agg)));
-        try {
-            assertEquals(bi, extractor.extract(bucket));
-        } finally {
-            agg.getHits().decRef();
-        }
+        assertEquals(bi, extractor.extract(bucket));
     }
 
     private SearchHits searchHitsOf(Object value) {
@@ -135,6 +123,6 @@ public class TopHitsAggExtractorTests extends AbstractSqlWireSerializingTestCase
                 new DocumentField("_ignored", Collections.singletonList(randomValueOtherThan(value, () -> randomAlphaOfLength(5))))
             )
         );
-        return new SearchHits(new SearchHit[] { searchHit }, totalHits, 0.0f);
+        return SearchHits.unpooled(new SearchHit[] { searchHit }, totalHits, 0.0f);
     }
 }

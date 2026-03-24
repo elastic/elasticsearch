@@ -1,0 +1,69 @@
+setup:
+  - requires:
+      test_runner_features: [capabilities, allowed_warnings]
+      reason: Task management deprecation uses Warning headers; dedicated reindex APIs must exist
+      capabilities:
+        - method: GET
+          path: /_reindex/{task_id}
+          capabilities: [reindex_management_api]
+        - method: POST
+          path: /_reindex/{task_id}/_cancel
+          capabilities: [reindex_management_api]
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{ "create": { "_index": "source" } }'
+          - '{ "test_key": "v1" }'
+          - '{ "create": { "_index": "source" } }'
+          - '{ "test_key": "v2" }'
+          - '{ "create": { "_index": "source" } }'
+          - '{ "test_key": "v3" }'
+          - '{ "create": { "_index": "source" } }'
+          - '{ "test_key": "v4" }'
+          - '{ "create": { "_index": "source" } }'
+          - '{ "test_key": "v5" }'
+
+---
+"tasks.get warns when retrieving a parent reindex task":
+  - do:
+      reindex:
+        wait_for_completion: false
+        body:
+          source:
+            index: source
+          dest:
+            index: dest
+  - is_true: task
+  - set: { task: taskId }
+
+  - do:
+      allowed_warnings:
+        - "Using the task management APIs to get reindex tasks is deprecated. Use the dedicated reindex API instead, GET /_reindex/<task_id>."
+      tasks.get:
+        task_id: $taskId
+        wait_for_completion: true
+
+---
+"tasks.cancel warns when cancelling a parent reindex task":
+  - do:
+      reindex:
+        wait_for_completion: false
+        requests_per_second: 0.1
+        slices: 1
+        body:
+          source:
+            index: source
+            size: 1
+          dest:
+            index: dest
+  - is_true: task
+  - set: { task: taskId }
+
+  - do:
+      allowed_warnings:
+        - "Using the task management APIs to cancel reindex tasks is deprecated. Use the dedicated reindex API instead, POST /_reindex/<task_id>/_cancel."
+      tasks.cancel:
+        task_id: $taskId
+        wait_for_completion: true

@@ -9,17 +9,25 @@
 
 package org.elasticsearch.rest.action.admin.cluster;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.index.reindex.ReindexTaskManagementFeatures;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.tasks.TaskInfo;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -28,10 +36,15 @@ import static org.elasticsearch.rest.action.admin.cluster.RestListTasksAction.li
 
 @ServerlessScope(INTERNAL)
 public class RestCancelTasksAction extends BaseRestHandler {
-    private final Supplier<DiscoveryNodes> nodesInCluster;
 
-    public RestCancelTasksAction(Supplier<DiscoveryNodes> nodesInCluster) {
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestCancelTasksAction.class);
+
+    private final Supplier<DiscoveryNodes> nodesInCluster;
+    private final Predicate<NodeFeature> clusterSupportsFeature;
+
+    public RestCancelTasksAction(Supplier<DiscoveryNodes> nodesInCluster, Predicate<NodeFeature> clusterSupportsFeature) {
         this.nodesInCluster = nodesInCluster;
+        this.clusterSupportsFeature = clusterSupportsFeature;
     }
 
     @Override
@@ -58,9 +71,38 @@ public class RestCancelTasksAction extends BaseRestHandler {
         cancelTasksRequest.setActions(actions);
         cancelTasksRequest.setTargetParentTaskId(parentTaskId);
         cancelTasksRequest.setWaitForCompletion(request.paramAsBoolean("wait_for_completion", cancelTasksRequest.waitForCompletion()));
-        return channel -> client.admin()
-            .cluster()
-            .cancelTasks(cancelTasksRequest, listTasksResponseListener(nodesInCluster, groupBy, channel));
+        return channel -> {
+            ActionListener<ListTasksResponse> delegate = listTasksResponseListener(nodesInCluster, groupBy, channel);
+            client.admin().cluster().cancelTasks(cancelTasksRequest, new ActionListener<>() {
+                @Override
+                public void onResponse(ListTasksResponse response) {
+                    softDeprecateReindexingTasks(response);
+                    delegate.onResponse(response);
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    delegate.onFailure(e);
+                }
+            });
+        };
+    }
+
+    private void softDeprecateReindexingTasks(ListTasksResponse response) {
+        if (clusterSupportsFeature.test(ReindexTaskManagementFeatures.REINDEX_MANAGEMENT_ENDPOINTS) == false) {
+            return;
+        }
+        for (TaskInfo task : response.getTasks()) {
+            if (RestGetTaskAction.isParentReindexTask(task)) {
+                deprecationLogger.warn(
+                    DeprecationCategory.API,
+                    "cancel-api-deprecated-for-reindexing-tasks",
+                    "Using the task management APIs to cancel reindex tasks is deprecated. "
+                        + "Use the dedicated reindex API instead, POST /_reindex/<task_id>/_cancel."
+                );
+                return;
+            }
+        }
     }
 
     @Override

@@ -1371,9 +1371,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         private LogicalPlan resolvePromql(PromqlCommand promql, List<Attribute> childrenOutput) {
             // When the index pattern resolves to no concrete indices (e.g. the data stream hasn't been created yet),
             // the EsRelation has an empty mapping. Trying to resolve the metric field name would leave it as an
-            // UnresolvedAttribute, causing a VerificationException. Short-circuit to an empty local relation instead
-            // — Prometheus expects empty results (not errors) when the queried data does not exist.
-            if (promql.child() instanceof EsRelation esRelation && esRelation.concreteQualifiedIndices().isEmpty()) {
+            // UnresolvedAttribute, causing a VerificationException. 
+            // Prometheus expects empty results (not errors) so we short-circuit to an empty local relation.
+            if ((promql.child() instanceof EsRelation esRelation) && esRelation.concreteQualifiedIndices().isEmpty()) {
                 var source = promql.source();
                 var localRelation = new LocalRelation(
                     source,

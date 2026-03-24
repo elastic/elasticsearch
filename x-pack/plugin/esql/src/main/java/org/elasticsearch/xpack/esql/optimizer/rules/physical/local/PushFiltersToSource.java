@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
@@ -34,6 +35,7 @@ import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.ParameterizedQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -90,6 +92,16 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
                 aliasReplacedByBuilder.put(alias.toAttribute(), attr);
             }
         });
+        return aliasReplacedByBuilder.build();
+    }
+
+    static AttributeMap<Attribute> getAliasReplacedBy(ProjectExec projectExec) {
+        AttributeMap.Builder<Attribute> aliasReplacedByBuilder = AttributeMap.builder();
+        for (NamedExpression ne : projectExec.projections()) {
+            if (ne instanceof Alias alias && alias.child() instanceof Attribute attr) {
+                aliasReplacedByBuilder.put(alias.toAttribute(), attr);
+            }
+        }
         return aliasReplacedByBuilder.build();
     }
 

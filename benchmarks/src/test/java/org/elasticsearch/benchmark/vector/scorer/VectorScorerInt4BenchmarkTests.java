@@ -11,8 +11,10 @@ package org.elasticsearch.benchmark.vector.scorer;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.simdvec.VectorSimilarityType;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.BeforeClass;
 import org.openjdk.jmh.annotations.Param;
 
 import java.util.Arrays;
@@ -28,28 +30,35 @@ public class VectorScorerInt4BenchmarkTests extends ESTestCase {
         this.dims = dims;
     }
 
+    private VectorScorerInt4Benchmark createBench(VectorImplementation impl, VectorScorerInt4Benchmark.VectorData data) throws Exception {
+        var bench = new VectorScorerInt4Benchmark();
+        bench.function = function;
+        bench.implementation = impl;
+        bench.dims = dims;
+        bench.setup(data);
+        return bench;
+    }
+
+    @BeforeClass
+    public static void skipWindows() {
+        assumeFalse("doesn't work on windows yet", Constants.WINDOWS);
+    }
+
     public void testScores() throws Exception {
         for (int i = 0; i < 100; i++) {
             var data = new VectorScorerInt4Benchmark.VectorData(dims);
-
-            var scalar = new VectorScorerInt4Benchmark();
-            scalar.function = function;
-            scalar.implementation = VectorImplementation.SCALAR;
-            scalar.dims = dims;
-            scalar.setup(data);
-
-            var lucene = new VectorScorerInt4Benchmark();
-            lucene.function = function;
-            lucene.implementation = VectorImplementation.LUCENE;
-            lucene.dims = dims;
-            lucene.setup(data);
+            var scalar = createBench(VectorImplementation.SCALAR, data);
+            var lucene = createBench(VectorImplementation.LUCENE, data);
+            var nativeBench = createBench(VectorImplementation.NATIVE, data);
 
             try {
                 float expected = scalar.score();
                 assertEquals("LUCENE score", expected, lucene.score(), delta);
+                assertEquals("NATIVE score", expected, nativeBench.score(), delta);
             } finally {
                 scalar.teardown();
                 lucene.teardown();
+                nativeBench.teardown();
             }
         }
     }
@@ -57,25 +66,18 @@ public class VectorScorerInt4BenchmarkTests extends ESTestCase {
     public void testQueryScores() throws Exception {
         for (int i = 0; i < 100; i++) {
             var data = new VectorScorerInt4Benchmark.VectorData(dims);
-
-            var scalar = new VectorScorerInt4Benchmark();
-            scalar.function = function;
-            scalar.implementation = VectorImplementation.SCALAR;
-            scalar.dims = dims;
-            scalar.setup(data);
-
-            var lucene = new VectorScorerInt4Benchmark();
-            lucene.function = function;
-            lucene.implementation = VectorImplementation.LUCENE;
-            lucene.dims = dims;
-            lucene.setup(data);
+            var scalar = createBench(VectorImplementation.SCALAR, data);
+            var lucene = createBench(VectorImplementation.LUCENE, data);
+            var nativeBench = createBench(VectorImplementation.NATIVE, data);
 
             try {
                 float expected = scalar.scoreQuery();
                 assertEquals("LUCENE scoreQuery", expected, lucene.scoreQuery(), delta);
+                assertEquals("NATIVE scoreQuery", expected, nativeBench.scoreQuery(), delta);
             } finally {
                 scalar.teardown();
                 lucene.teardown();
+                nativeBench.teardown();
             }
         }
     }

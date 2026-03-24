@@ -64,7 +64,6 @@ import java.util.function.BiFunction;
 import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.not;
 
 public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
 
@@ -205,9 +204,7 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
 
     public void testTemporalityForMissingSetting() throws IOException {
         SearchExecutionContext searchExecutionContext = createSearchExecutionContext(
-            createMapperService(
-                mapping(b -> b.startObject("metric_temporality").field("type", "keyword").endObject())
-            ),
+            createMapperService(mapping(b -> b.startObject("metric_temporality").field("type", "keyword").endObject())),
             null
         );
         var shardContext = new EsPhysicalOperationProviders.DefaultShardContext(
@@ -231,13 +228,15 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
         SearchExecutionContext searchExecutionContext = createSearchExecutionContext(
             createMapperService(
                 tsdbSettings(temporalityField),
-                mapping(b -> b.startObject("@timestamp")
-                    .field("type", "date")
-                    .endObject()
-                    .startObject(temporalityField)
-                    .field("type", "keyword")
-                    .field("time_series_dimension", true)
-                    .endObject())
+                mapping(
+                    b -> b.startObject("@timestamp")
+                        .field("type", "date")
+                        .endObject()
+                        .startObject(temporalityField)
+                        .field("type", "keyword")
+                        .field("time_series_dimension", true)
+                        .endObject()
+                )
             ),
             null
         );
@@ -263,13 +262,15 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
         SearchExecutionContext searchExecutionContext = createSearchExecutionContext(
             createMapperService(
                 tsdbSettings(temporalityField),
-                mapping(b -> b.startObject("@timestamp")
-                    .field("type", "date")
-                    .endObject()
-                    .startObject("host")
-                    .field("type", "keyword")
-                    .field("time_series_dimension", true)
-                    .endObject())
+                mapping(
+                    b -> b.startObject("@timestamp")
+                        .field("type", "date")
+                        .endObject()
+                        .startObject("host")
+                        .field("type", "keyword")
+                        .field("time_series_dimension", true)
+                        .endObject()
+                )
             ),
             null
         );
@@ -294,13 +295,15 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
         SearchExecutionContext searchExecutionContext = createSearchExecutionContext(
             createMapperService(
                 tsdbSettings(temporalityField),
-                mapping(b -> b.startObject("@timestamp")
-                    .field("type", "date")
-                    .endObject()
-                    .startObject(temporalityField)
-                    .field("type", "long")
-                    .field("time_series_dimension", true)
-                    .endObject())
+                mapping(
+                    b -> b.startObject("@timestamp")
+                        .field("type", "date")
+                        .endObject()
+                        .startObject(temporalityField)
+                        .field("type", "long")
+                        .field("time_series_dimension", true)
+                        .endObject()
+                )
             ),
             null
         );
@@ -329,12 +332,14 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
         SearchExecutionContext searchExecutionContext = createSearchExecutionContext(
             createMapperService(
                 tsdbSettings(temporalityField),
-                mapping(b -> b.startObject("@timestamp")
-                    .field("type", "date")
-                    .endObject()
-                    .startObject(temporalityField)
-                    .field("type", "keyword")
-                    .endObject())
+                mapping(
+                    b -> b.startObject("@timestamp")
+                        .field("type", "date")
+                        .endObject()
+                        .startObject(temporalityField)
+                        .field("type", "keyword")
+                        .endObject()
+                )
             ),
             null
         );

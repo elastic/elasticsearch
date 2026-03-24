@@ -12,28 +12,17 @@ import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.message.BasicHeader;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiModel;
-import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiSecretSettings;
 import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiTaskSettings;
 
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.inference.external.request.RequestUtils.createAuthBearerHeader;
-import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiSecretSettings.API_KEY;
-import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiSecretSettings.ENTRA_ID;
-import static org.elasticsearch.xpack.inference.services.azureopenai.request.AzureOpenAiUtils.API_KEY_HEADER;
-
 public abstract class AzureOpenAiRequest<M extends AzureOpenAiModel> implements Request {
-
-    public static final String MISSING_AUTHENTICATION_ERROR_MESSAGE =
-        "The request does not have any authentication methods set. One of [%s] or [%s] is required.";
 
     protected final M model;
     private final AzureOpenAiTaskSettings<?> taskSettings;
@@ -52,7 +41,7 @@ public abstract class AzureOpenAiRequest<M extends AzureOpenAiModel> implements 
         ByteArrayEntity byteEntity = new ByteArrayEntity(requestEntity.getBytes(StandardCharsets.UTF_8));
         httpPost.setEntity(byteEntity);
 
-        decorateWithAuthHeader(httpPost, model.getSecretSettings());
+        httpPost.setHeader(new BasicHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaType()));
 
         var headers = taskSettings.headers();
         if (headers.mapValue().isPresent()) {
@@ -61,26 +50,9 @@ public abstract class AzureOpenAiRequest<M extends AzureOpenAiModel> implements 
             }
         }
 
-        listener.onResponse(new HttpRequest(httpPost, getInferenceEntityId()));
-    }
-
-    // Default for testing
-    static void decorateWithAuthHeader(HttpPost httpPost, AzureOpenAiSecretSettings secretSettings) {
-        httpPost.setHeader(new BasicHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaType()));
-
-        var entraId = secretSettings.entraId();
-        var apiKey = secretSettings.apiKey();
-
-        if (entraId != null && entraId.isEmpty() == false) {
-            httpPost.setHeader(createAuthBearerHeader(entraId));
-        } else if (apiKey != null && apiKey.isEmpty() == false) {
-            httpPost.setHeader(new BasicHeader(API_KEY_HEADER, apiKey.toString()));
-        } else {
-            // should never happen due to the checks on the secret settings, but just in case
-            ValidationException validationException = new ValidationException();
-            validationException.addValidationError(Strings.format(MISSING_AUTHENTICATION_ERROR_MESSAGE, API_KEY, ENTRA_ID));
-            throw validationException;
-        }
+        model.secretsApplier().applyTo(httpPost, listener.delegateFailureAndWrap((httpRequestActionListener, httpRequestBase) -> {
+            httpRequestActionListener.onResponse(new HttpRequest(httpRequestBase, getInferenceEntityId()));
+        }));
     }
 
     @Override

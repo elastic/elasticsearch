@@ -1,0 +1,5 @@
+area: Distributed
+issues: []
+pr: 144773
+summary: Health reports GREEN when provisionally unassigned replica
+type: feature

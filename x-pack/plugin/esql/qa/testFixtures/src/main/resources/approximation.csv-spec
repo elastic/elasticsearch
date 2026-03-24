@@ -436,7 +436,7 @@ median:double | _approximation_confidence_interval(median):double | _approximati
 ;
 
 
-Duplicate aggs
+Duplicate aggs-Ignore
 required_capability: approximation_v6
 
 SET approximation={"rows":10000}\;

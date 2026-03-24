@@ -37,6 +37,7 @@ import static org.elasticsearch.xpack.esql.action.EsqlQueryProfile.DEPENDENCY_RE
 import static org.elasticsearch.xpack.esql.action.EsqlQueryProfile.PARSING;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryProfile.PLANNING;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryProfile.PRE_ANALYSIS;
+import static org.elasticsearch.xpack.esql.action.EsqlQueryProfile.VIEW_RESOLUTION;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLog.ELASTICSEARCH_QUERYLOG_ERROR_MESSAGE;
 import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLog.ELASTICSEARCH_QUERYLOG_ERROR_TYPE;
@@ -191,7 +192,7 @@ public class EsqlQueryLogIT extends AbstractEsqlIntegTestCase {
                     assertThat(tookMillis, is(tookMillisExpected));
 
                     if (expectedException == null) {
-                        for (String timing : List.of(PLANNING, PARSING, PRE_ANALYSIS, DEPENDENCY_RESOLUTION, ANALYSIS)) {
+                        for (String timing : List.of(PLANNING, PARSING, VIEW_RESOLUTION, PRE_ANALYSIS, DEPENDENCY_RESOLUTION, ANALYSIS)) {
                             long timingTook = Long.valueOf(
                                 msg.get(ELASTICSEARCH_QUERYLOG_PREFIX + timing + ELASTICSEARCH_QUERYLOG_TOOK_SUFFIX)
                             );

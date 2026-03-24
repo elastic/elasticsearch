@@ -249,6 +249,8 @@ public class EsqlSession {
         EsqlStatement statement = parse(request);
         gatherSettingsMetrics(statement);
         parsingProfile.stop();
+        TimeSpanMarker viewResolutionProfile = executionInfo.queryProfile().viewResolution();
+        viewResolutionProfile.start();
         viewResolver.replaceViews(
             statement.plan(),
             (query, viewName) -> parser.parseView(
@@ -259,9 +261,10 @@ public class EsqlSession {
                 inferenceService.inferenceSettings(),
                 viewName
             ).plan(),
-            listener.delegateFailureAndWrap(
-                (l, viewResolution) -> analyseAndExecute(request, executionInfo, planRunner, statement, viewResolution, l)
-            )
+            listener.delegateFailureAndWrap((l, viewResolution) -> {
+                viewResolutionProfile.stop();
+                analyseAndExecute(request, executionInfo, planRunner, statement, viewResolution, l);
+            })
         );
     }
 

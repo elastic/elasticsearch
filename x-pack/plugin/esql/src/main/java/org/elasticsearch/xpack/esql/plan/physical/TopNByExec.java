@@ -23,6 +23,10 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 
+/**
+ * Physical plan node for {@code SORT order1, order2 | LIMIT N BY grouping1, grouping2, ...}.
+ * Sorts the input rows retaining at most N rows per group defined by the grouping expressions.
+ */
 public class TopNByExec extends UnaryExec implements EstimatesRowSize {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         PhysicalPlan.class,
@@ -32,6 +36,8 @@ public class TopNByExec extends UnaryExec implements EstimatesRowSize {
 
     private final Expression limitPerGroup;
     private final List<Order> order;
+    private final List<Expression> groupings;
+
     /**
      * Attributes that may be extracted as doc values even if that makes them
      * less accurate. This is mostly used for geo fields which lose a lot of
@@ -48,8 +54,6 @@ public class TopNByExec extends UnaryExec implements EstimatesRowSize {
      * the stream of pages is consumed.
      */
     private final Integer estimatedRowSize;
-
-    private final List<Expression> groupings;
 
     public TopNByExec(
         Source source,

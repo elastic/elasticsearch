@@ -524,24 +524,24 @@ sortLimitByNullsLast
 required_capability: esql_topn_by
 
 FROM employees
-| SORT is_rehired ASC NULLS LAST
+| SORT is_rehired ASC NULLS LAST, emp_no
 | LIMIT 2 BY languages
 | KEEP first_name, last_name, languages, is_rehired
 ;
 
 first_name:keyword | last_name:keyword | languages:integer | is_rehired:boolean
 Georgi             | Facello           | 2                 | [false, true]
-Saniya             | Kalloufi          | 2                 | [false, true]
-Patricio           | Bridgland         | 5                 | [false, false, true, true]
 Bezalel            | Simmel            | 5                 | [false, false]
-Duangkaew          | Piveteau          | 4                 | [false, false, true, true]
-Tzvetan            | Zielinski         | 4                 | [false, false, true, true]
-Lillian            | Haddadi           | 1                 | [false, false]
 Kyoichi            | Maliniak          | 1                 | [false, false, false, true]
-null               | Reistad           | 3                 | [false, false]
-null               | Demeyer           | 3                 | [false, false, true]
+Tzvetan            | Zielinski         | 4                 | [false, false, true, true]
+Saniya             | Kalloufi          | 2                 | [false, true]
+Duangkaew          | Piveteau          | 4                 | [false, false, true, true]
+Patricio           | Bridgland         | 5                 | [false, false, true, true]
+Lillian            | Haddadi           | 1                 | [false, false]
+Mayuko             | Warwick           | null              | [false, true, true]
 Shahaf             | Famili            | null              | [false, true]
-Mayuko             | Warwick           | null              | [false, true, true]          
+null               | Demeyer           | 3                 | [false, false, true]
+null               | Reistad           | 3                 | [false, false]        
 ;
 
 sortLimitByExpression
@@ -986,4 +986,51 @@ FROM employees
 emp_no:integer | first_name:keyword | salary:integer | job_positions:keyword                 | is_rehired:boolean
 10001          | Georgi             | 57305          | [Accountant, Senior Python Developer] | [false, true]
 10002          | Bezalel            | 56371          | Senior Team Lead                      | [false, false]
+;
+
+sortLimitByWithLookupJoin
+required_capability: esql_topn_by
+required_capability: join_lookup_v12
+
+FROM employees
+| WHERE emp_no IN (10001, 10002, 10003, 10004, 10005)
+| EVAL language_code = languages
+| LOOKUP JOIN languages_lookup_non_unique_key ON language_code
+| SORT emp_no, language_code, language_name
+| LIMIT 2 BY emp_no
+| KEEP emp_no, language_code, language_name
+;
+
+emp_no:integer | language_code:integer | language_name:keyword
+10001          | 2                     | German
+10001          | 2                     | German
+10002          | 5                     | null
+10003          | 4                     | Quenya
+10004          | 5                     | null
+10005          | 1                     | English
+10005          | 1                     | English
+;
+
+sortLimitByShadowedNonJoinField
+required_capability: esql_topn_by
+required_capability: join_lookup_v12
+
+FROM employees
+| WHERE emp_no IN (10001, 10002, 10003, 10004, 10005)
+| EVAL language_code = languages
+| EVAL language_name = 2*salary
+| LOOKUP JOIN languages_lookup_non_unique_key ON language_code
+| SORT emp_no, language_code, language_name
+| LIMIT 2 BY language_name
+| KEEP emp_no, language_code, language_name
+;
+
+emp_no:integer | language_code:integer | language_name:keyword
+10001          | 2                     | German
+10001          | 2                     | German
+10002          | 5                     | null
+10003          | 4                     | Quenya
+10004          | 5                     | null
+10005          | 1                     | English
+10005          | 1                     | English
 ;

@@ -38,7 +38,7 @@ public class LimitByGoldenTests extends GoldenTestCase {
     }
 
     public void testSortLimitBy() {
-        assumeTrue("LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_TOPN_BY.isEnabled());
+        assumeTrue("SORT | LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_TOPN_BY.isEnabled());
         runGoldenTest(
             """
                 FROM employees

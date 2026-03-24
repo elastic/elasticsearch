@@ -55,16 +55,6 @@ public final class CombineLimitTopN extends OptimizerRules.OptimizerRule<UnaryPl
                 return new TopNBy(topnBy.source(), topnBy.child(), topnBy.order(), limitBy.limitPerGroup(), topnBy.groupings());
             }
         }
-
-        if (plan.child() instanceof Project proj) {
-            // It is possible that Project is sitting on top of TopN. Swap limit and project then.
-            // For LimitBy, only swap if the groupings don't reference aliases introduced by the Project.
-            if (plan instanceof LimitBy limitBy
-                && Expressions.references(limitBy.groupings()).subsetOf(proj.child().outputSet()) == false) {
-                return plan;
-            }
-            return proj.replaceChild(plan.replaceChild(proj.child()));
-        }
         return plan;
     }
 }

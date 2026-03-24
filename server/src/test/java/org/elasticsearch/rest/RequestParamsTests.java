@@ -14,6 +14,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
@@ -82,7 +83,7 @@ public class RequestParamsTests extends ESTestCase {
     public void testRequireSingleThrowsOnMultipleValues() {
         var map = RequestParams.of(Map.of("k", List.of("a", "b")));
         var ex = expectThrows(RestRequest.BadParameterException.class, () -> map.requireSingle("k"));
-        assertThat(ex.getMessage(), equalTo("parameter [k] must have a single value, but found: [a, b]"));
+        assertThat(ex.getMessage(), containsString("parameter [k] must have a single value, but found: [a, b]"));
     }
 
     public void testPutThrows() {

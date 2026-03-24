@@ -30,6 +30,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.parser.EsqlConfig;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
@@ -194,7 +195,8 @@ public abstract class AbstractEsqlIntegTestCase extends ESIntegTestCase {
             return request;
         }
         var parser = new EsqlParser(new EsqlConfig(new EsqlFunctionRegistry()));
-        var statement = parser.createStatement(request.query(), request.params());
+        var inferenceSettings = new InferenceSettings(clusterService().state().metadata().settings());
+        var statement = parser.parse(request.query(), request.params(), inferenceSettings);
         return PreparedEsqlQueryRequest.from(request, statement, "pre-built statement for testing");
     }
 

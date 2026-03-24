@@ -24,8 +24,10 @@ import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.GlobalRoutingTable;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingTable;
@@ -1166,8 +1168,12 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
             .settings(indexSettings(IndexVersion.current(), 1, 0))
             .build();
         final var stateForNewShard = ClusterState.builder(ClusterName.DEFAULT)
-            .metadata(Metadata.builder().put(indexMetadata, false))
-            .routingTable(RoutingTable.builder().add(IndexRoutingTable.builder(newPrimary.index()).addShard(newPrimary)))
+            .metadata(Metadata.builder().put(ProjectMetadata.builder(ProjectId.DEFAULT).put(indexMetadata, false)).build())
+            .routingTable(
+                GlobalRoutingTable.builder()
+                    .put(ProjectId.DEFAULT, RoutingTable.builder().add(IndexRoutingTable.builder(newPrimary.index()).addShard(newPrimary)))
+                    .build()
+            )
             .nodes(DiscoveryNodes.builder().add(DiscoveryNodeUtils.create(nodeId)).build())
             .build();
 
@@ -1181,8 +1187,22 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
         final String targetNodeId = "node-1";
         final var startedPrimary = newShardRouting(new ShardId("reloc-index", "_na_", 0), sourceNodeId, true, STARTED);
         final var stateForRelocation = ClusterState.builder(ClusterName.DEFAULT)
-            .metadata(Metadata.builder().put(IndexMetadata.builder("reloc-index").settings(indexSettings(IndexVersion.current(), 1, 0))))
-            .routingTable(RoutingTable.builder().add(IndexRoutingTable.builder(startedPrimary.index()).addShard(startedPrimary)))
+            .metadata(
+                Metadata.builder()
+                    .put(
+                        ProjectMetadata.builder(ProjectId.DEFAULT)
+                            .put(IndexMetadata.builder("reloc-index").settings(indexSettings(IndexVersion.current(), 1, 0)))
+                    )
+                    .build()
+            )
+            .routingTable(
+                GlobalRoutingTable.builder()
+                    .put(
+                        ProjectId.DEFAULT,
+                        RoutingTable.builder().add(IndexRoutingTable.builder(startedPrimary.index()).addShard(startedPrimary).build())
+                    )
+                    .build()
+            )
             .nodes(
                 DiscoveryNodes.builder().add(DiscoveryNodeUtils.create(sourceNodeId)).add(DiscoveryNodeUtils.create(targetNodeId)).build()
             )

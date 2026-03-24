@@ -125,6 +125,40 @@ public class IndexResolutionIT extends AbstractEsqlIntegTestCase {
         );
     }
 
+    // TODO: FROM ds::failures on an existing data stream with no failure store should return 0 rows
+    // (matching search API behavior) instead of throwing VerificationException.
+    public void testResolvesDataStreamWithDisabledFailureStore() {
+        assertAcked(
+            client().execute(
+                TransportPutComposableIndexTemplateAction.TYPE,
+                new TransportPutComposableIndexTemplateAction.Request("no-fs-template").indexTemplate(
+                    ComposableIndexTemplate.builder()
+                        .indexPatterns(List.of("no-fs-ds*"))
+                        .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                        .build()
+                )
+            )
+        );
+        assertAcked(
+            client().execute(
+                CreateDataStreamAction.INSTANCE,
+                new CreateDataStreamAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "no-fs-ds")
+            )
+        );
+
+        client().bulk(new BulkRequest().add(prepareIndex("no-fs-ds").setOpType(OpType.CREATE).setSource("@timestamp", 1).request()))
+            .actionGet();
+
+        try (var response = run(syncEsqlQueryRequest("FROM no-fs-ds::data"))) {
+            assertOk(response);
+        }
+        expectThrows(
+            VerificationException.class,
+            containsString("Unknown index [no-fs-ds::failures]"),
+            () -> run(syncEsqlQueryRequest("FROM no-fs-ds::failures"))
+        );
+    }
+
     public void testResolvesDateMath() {
         var date = LocalDate.ofInstant(Instant.now(), ZoneOffset.UTC);
         var index = DateTimeFormatter.ofPattern("'index-'yyyy.MM", Locale.ROOT).format(date);

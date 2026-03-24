@@ -13,6 +13,7 @@ import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.codecs.lucene90.Lucene90DocValuesFormat;
+import org.elasticsearch.cluster.routing.TsidBuilder;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
@@ -198,10 +199,19 @@ public class PerFieldFormatSupplier {
         }
 
         if (useTSDBDocValuesFormat(field)) {
-            var indexCreatedVersion = mapperService.getIndexSettings().getIndexVersionCreated();
+            IndexSettings indexSettings = mapperService.getIndexSettings();
+            var indexCreatedVersion = indexSettings.getIndexVersionCreated();
             boolean useLargeNumericBlockSize = mapperService.getIndexSettings().isUseTimeSeriesDocValuesFormatLargeNumericBlockSize();
             boolean useLargeBinaryBlockSize = mapperService.getIndexSettings().isUseTimeSeriesDocValuesFormatLargeBinaryBlockSize();
-            return TSDBDocValuesFormatFactory.createDocValuesFormat(indexCreatedVersion, useLargeNumericBlockSize, useLargeBinaryBlockSize);
+            boolean writePartitions = indexSettings.getMode() == IndexMode.TIME_SERIES
+                && TsidBuilder.useSingleBytePrefixLayout(indexCreatedVersion)
+                && indexCreatedVersion.onOrAfter(IndexVersions.WRITE_TSID_PREFIX_PARTITION);
+            return TSDBDocValuesFormatFactory.createDocValuesFormat(
+                indexCreatedVersion,
+                useLargeNumericBlockSize,
+                useLargeBinaryBlockSize,
+                writePartitions
+            );
         }
 
         return docValuesFormat;

@@ -1,6 +1,6 @@
 version: 9.2.7
-released: false
-generated: 2026-03-16T22:24:51.176277889Z
+released: true
+generated: 2026-03-19T12:39:33.413642251Z
 changelogs:
   - pr: 140049
     summary: "[JupiterOne] Add `manage`, `create_index`, `read`, `index`, `write`, `delete`, permission for third party agent indices `kibana_system`"

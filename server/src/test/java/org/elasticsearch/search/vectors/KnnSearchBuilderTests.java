@@ -23,6 +23,7 @@ import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.search.internal.MaxClauseCountQueryVisitor;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -367,7 +368,7 @@ public class KnnSearchBuilderTests extends AbstractXContentSerializingTestCase<K
         }
 
         @Override
-        protected Query doToQuery(SearchExecutionContext context) throws IOException {
+        protected Query doToQuery(SearchExecutionContext context, MaxClauseCountQueryVisitor queryVisitor) throws IOException {
             throw new UnsupportedOperationException();
         }
 

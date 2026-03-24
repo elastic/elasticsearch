@@ -712,6 +712,37 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         );
     }
 
+    /**
+     * Verify that PromQL queries are rejected when unmapped_fields=load
+     */
+    public void testUnmappedFieldLoadRejectionWithPromQl() {
+        TestAnalyzer analyzer = test().addIndex("test", "tsdb-mapping.json");
+
+        assertUnmappedLoadError(
+            analyzer,
+            "PROMQL index=test step=5m avg(network.bytes_in)",
+            allOf(containsString("Found 1 problem"), containsString("line 1:29: PROMQL is not supported with unmapped_fields=\"load\""))
+        );
+
+        assertUnmappedLoadError(
+            analyzer,
+            "PROMQL index=test step=5m rate(network.bytes_in[5m])",
+            allOf(containsString("Found 1 problem"), containsString("line 1:29: PROMQL is not supported with unmapped_fields=\"load\""))
+        );
+
+        assertUnmappedLoadError(
+            analyzer,
+            "PROMQL index=test step=5m avg(network.bytes_in) + avg(network.bytes_out)",
+            allOf(containsString("Found 1 problem"), containsString("line 1:29: PROMQL is not supported with unmapped_fields=\"load\""))
+        );
+
+        assertUnmappedLoadError(
+            analyzer,
+            "PROMQL index=test start=\"2025-01-01T00:00:00Z\" end=\"2025-01-01T01:00:00Z\" buckets=10 avg(network.bytes_in)",
+            allOf(containsString("Found 1 problem"), containsString("line 1:29: PROMQL is not supported with unmapped_fields=\"load\""))
+        );
+    }
+
     private Matcher<String> unmappedLoadAndFlattenedSubfieldHelper(String... pairs) {
         assert pairs.length % 2 == 0;
         String errorMessage =
@@ -777,12 +808,6 @@ public class AnalyzerUnmappedTests extends ESTestCase {
             setUnmappedLoad("FROM test | WHERE match_phrase(first_name, \"foo bar\") | KEEP first_name"),
             containsString("does not support full-text search function [MatchPhrase]")
         );
-        if (EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.isEnabled()) {
-            analyzer.statementError(
-                setUnmappedLoad("FROM test | WHERE multi_match(\"foo\", first_name) | KEEP first_name"),
-                containsString("does not support full-text search function [MultiMatch]")
-            );
-        }
         if (EsqlCapabilities.Cap.QSTR_FUNCTION.isEnabled()) {
             analyzer.statementError(
                 setUnmappedLoad("FROM test | WHERE qstr(\"first_name: foo\") | KEEP first_name"),

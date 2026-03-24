@@ -17,7 +17,7 @@ esplugin {
   name = 'esql-datasource-parquet'
   description = 'Parquet format support for ESQL external data sources'
   classname = 'org.elasticsearch.xpack.esql.datasource.parquet.ParquetDataSourcePlugin'
-  extendedPlugins = ['x-pack-esql']
+  extendedPlugins = ['x-pack-esql', 'esql-datasource-compression-libs']
 }
 
 base {

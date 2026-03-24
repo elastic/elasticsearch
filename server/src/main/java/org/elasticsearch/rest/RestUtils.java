@@ -102,16 +102,12 @@ public class RestUtils {
     }
 
     private static void addParam(Map<String, List<String>> result, String name, String value) {
-        checkReservedParam(name);
-        result.computeIfAbsent(name, k -> new ArrayList<>()).add(value);
-    }
-
-    private static void checkReservedParam(String name) {
         for (var reservedParameter : INTERNAL_MARKER_REQUEST_PARAMETERS) {
             if (reservedParameter.equalsIgnoreCase(name)) {
                 throw new IllegalArgumentException("parameter [" + name + "] is reserved and may not be set");
             }
         }
+        result.computeIfAbsent(name, k -> new ArrayList<>()).add(value);
     }
 
     /**

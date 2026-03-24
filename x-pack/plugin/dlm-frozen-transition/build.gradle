@@ -13,7 +13,7 @@ esplugin {
   name = 'dlm-frozen-transition'
   description = 'A plugin for the frozen tier functionality of DLM'
   classname = 'org.elasticsearch.xpack.dlm.frozen.DlmFrozenTransitionPlugin'
-  extendedPlugins = ['data-streams']
+  extendedPlugins = ['data-streams', 'x-pack-core']
 }
 base {
   archivesName = 'x-pack-dlm-frozen-transition'

@@ -17,6 +17,8 @@ import org.elasticsearch.xpack.esql.ConfigurationTestUtils;
 import org.elasticsearch.xpack.esql.SerializationTestUtils;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.common.Failure;
+import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -24,6 +26,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Abs;
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
+import org.elasticsearch.xpack.esql.optimizer.LogicalVerifier;
 import org.elasticsearch.xpack.esql.parser.AbstractStatementParserTests;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.SettingsValidationContext;
@@ -57,11 +60,13 @@ import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.equalToIgnoringIds;
 import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -1060,9 +1065,239 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         }
     }
 
+    /**
+     * Tests a 12x10 matrix of nesting depth x branching width with compactable views.
+     * Compactable views are simple aliases (just {@code FROM <target>}), which the ViewResolver
+     * compacts into a single FROM clause, eliminating any FORK branching.
+     * Nesting depths beyond the max view depth (default 10) hit a depth limit error.
+     */
+    public void testCompactableViewNestingBranchingMatrix() {
+        assumeTrue("Requires views with branching support", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
+        int maxViewDepth = ViewResolver.MAX_VIEW_DEPTH_SETTING.getDefault(Settings.EMPTY);
+        try (var matrixService = matrixViewService()) {
+            var matrixResolver = matrixService.getViewResolver();
+            for (int nesting = 1; nesting <= 12; nesting++) {
+                for (int branching = 1; branching <= 10; branching++) {
+                    matrixService.clearAllViewsAndIndices();
+                    buildNestingBranchingViewTree(nesting, branching, true, matrixService);
+                    final String queryStr = buildNestingBranchingQuery(nesting, branching, true);
+
+                    if (nesting > maxViewDepth) {
+                        var e = expectThrows(VerificationException.class, () -> replaceViews(query(queryStr), matrixResolver));
+                        assertThat(
+                            "nesting=" + nesting + ", branching=" + branching,
+                            e.getMessage(),
+                            startsWith("The maximum allowed view depth of " + maxViewDepth + " has been exceeded")
+                        );
+                    } else {
+                        LogicalPlan result = replaceViews(query(queryStr), matrixResolver);
+                        assertThat(
+                            "Compactable views should compact to a single UnresolvedRelation"
+                                + " for nesting="
+                                + nesting
+                                + ", branching="
+                                + branching,
+                            result,
+                            instanceOf(UnresolvedRelation.class)
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Tests a 12x10 matrix of nesting depth x branching width with non-compactable views.
+     * Non-compactable views have a LIMIT command (e.g., {@code FROM idx | LIMIT 1000}) that prevents
+     * compaction, forcing each view reference to become a separate branch in a FORK.
+     * <p>
+     * The view tree has branching at every nesting level including the query itself:
+     * <ul>
+     *   <li>Level 1: {@code branching} leaf views, each referencing a unique index</li>
+     *   <li>Level 2: a wrapper view referencing all level-1 leaves</li>
+     *   <li>Level k (k &gt; 2): a wrapper view referencing the level-(k-1) wrapper + (branching-1) new leaf views,
+     *       maintaining {@code branching} total FORK branches at each level</li>
+     *   <li>Query level: the top wrapper + (branching-1) extra leaf views</li>
+     * </ul>
+     * Expected outcomes:
+     * <ul>
+     *   <li>nesting &gt; max view depth (10): view depth exceeded error (takes priority)</li>
+     *   <li>branching &gt; {@link Fork#MAX_BRANCHES}: FORK branching error at the first level with too many branches</li>
+     *   <li>branching &le; {@link Fork#MAX_BRANCHES}: resolution succeeds, producing nested {@link ViewUnionAll}
+     *       structures for nesting &ge; 2 with branching &ge; 2</li>
+     * </ul>
+     */
+    public void testNonCompactableViewNestingBranchingMatrix() {
+        assumeTrue("Requires views with branching support", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
+        int maxViewDepth = ViewResolver.MAX_VIEW_DEPTH_SETTING.getDefault(Settings.EMPTY);
+        LogicalVerifier verifier = LogicalVerifier.INSTANCE;
+        try (var matrixService = matrixViewService()) {
+            var matrixResolver = matrixService.getViewResolver();
+            for (int nesting = 1; nesting <= 12; nesting++) {
+                for (int branching = 1; branching <= 10; branching++) {
+                    matrixService.clearAllViewsAndIndices();
+                    buildNestingBranchingViewTree(nesting, branching, false, matrixService);
+                    final String queryStr = buildNestingBranchingQuery(nesting, branching, false);
+
+                    if (nesting > maxViewDepth) {
+                        var e = expectThrows(VerificationException.class, () -> replaceViews(query(queryStr), matrixResolver));
+                        assertThat(
+                            "nesting=" + nesting + ", branching=" + branching,
+                            e.getMessage(),
+                            startsWith("The maximum allowed view depth of " + maxViewDepth + " has been exceeded")
+                        );
+                    } else if (branching > Fork.MAX_BRANCHES) {
+                        var e = expectThrows(IllegalArgumentException.class, () -> replaceViews(query(queryStr), matrixResolver));
+                        assertThat(
+                            "nesting=" + nesting + ", branching=" + branching,
+                            e.getMessage(),
+                            containsString("FORK supports up to " + Fork.MAX_BRANCHES + " branches")
+                        );
+                    } else {
+                        LogicalPlan result = replaceViews(query(queryStr), matrixResolver);
+                        assertNotNull(
+                            "Non-compactable resolution should succeed for nesting=" + nesting + ", branching=" + branching,
+                            result
+                        );
+                        if (branching >= 2) {
+                            Failures failures = new Failures();
+                            Failures depFailures = new Failures();
+                            verifier.checkPlanConsistency(result, failures, depFailures);
+                            if (nesting >= 2) {
+                                assertTrue(
+                                    "Expected nested ViewUnionAll for nesting=" + nesting + ", branching=" + branching,
+                                    containsNestedViewUnionAll(result)
+                                );
+                                assertThat("Expect failure count", failures.failures().size(), equalTo(nesting - 1));
+                                var failureMessages = failures.failures().stream().map(Failure::message).collect(Collectors.toSet());
+                                assertThat("Expect failure message", failureMessages, contains("Nested subqueries are not supported"));
+                            } else {
+                                assertFalse(
+                                    "No nested ViewUnionAll expected for nesting=" + nesting + ", branching=" + branching,
+                                    failures.hasFailures()
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Builds a view tree for testing nesting and branching combinations.
+     * <p>
+     * Structure for (nesting=N, branching=B):
+     * <ul>
+     *   <li>Level 1: B leaf views, each referencing a unique index</li>
+     *   <li>Level 2: one wrapper view referencing all B level-1 leaves</li>
+     *   <li>Level k (k &gt; 2): one wrapper referencing the level-(k-1) wrapper + (B-1) new leaf views</li>
+     *   <li>Query level (N &ge; 2): B-1 extra leaf views so the query also has B branches</li>
+     * </ul>
+     * Every level including the query has B total view references, ensuring B FORK branches at every level
+     * when non-compactable.
+     * <p>
+     * For compactable views, definitions are plain {@code FROM target} (simple aliases).
+     * For non-compactable views, {@code | LIMIT 1000} is appended to block compaction.
+     */
+    private void buildNestingBranchingViewTree(int nesting, int branching, boolean compactable, InMemoryViewService service) {
+        String suffix = compactable ? "" : " | LIMIT 1000";
+
+        // Level 1: leaf views referencing unique indices
+        for (int j = 1; j <= branching; j++) {
+            String idx = "idx_1_" + j;
+            service.addIndex(projectId, idx);
+            addView("leaf_1_" + j, "FROM " + idx + suffix, service);
+        }
+
+        if (nesting < 2) {
+            return;
+        }
+
+        // Level 2: wrapper referencing all level-1 leaves
+        StringBuilder from = new StringBuilder("FROM ");
+        for (int j = 1; j <= branching; j++) {
+            if (j > 1) from.append(", ");
+            from.append("leaf_1_").append(j);
+        }
+        addView("w_2", from + suffix, service);
+
+        // Levels 3 through N: wrapper + (B-1) new leaf views
+        for (int k = 3; k <= nesting; k++) {
+            for (int j = 2; j <= branching; j++) {
+                String idx = "idx_" + k + "_" + j;
+                service.addIndex(projectId, idx);
+                addView("leaf_" + k + "_" + j, "FROM " + idx + suffix, service);
+            }
+            StringBuilder sb = new StringBuilder("FROM w_").append(k - 1);
+            for (int j = 2; j <= branching; j++) {
+                sb.append(", leaf_").append(k).append("_").append(j);
+            }
+            addView("w_" + k, sb + suffix, service);
+        }
+
+        // Query-level leaf views so the top-level query also has B branches
+        for (int j = 2; j <= branching; j++) {
+            String idx = "qidx_" + j;
+            service.addIndex(projectId, idx);
+            addView("qleaf_" + j, "FROM " + idx + suffix, service);
+        }
+    }
+
+    /**
+     * Builds the query string for the nesting/branching matrix test.
+     * For nesting=1, queries all leaf views directly.
+     * For nesting &ge; 2, queries the top-level wrapper view plus (B-1) extra leaf views,
+     * ensuring B branches at the query level too.
+     * All queries append {@code | LIMIT 1000} to mirror real ES|QL behaviour
+     * (which always adds an implicit limit).
+     */
+    private String buildNestingBranchingQuery(int nesting, int branching, boolean compactable) {
+        String suffix = compactable ? "" : " | LIMIT 1000";
+        if (nesting == 1) {
+            StringBuilder sb = new StringBuilder("FROM ");
+            for (int j = 1; j <= branching; j++) {
+                if (j > 1) sb.append(", ");
+                sb.append("leaf_1_").append(j);
+            }
+            return sb.toString() + suffix;
+        }
+        StringBuilder sb = new StringBuilder("FROM w_").append(nesting);
+        for (int j = 2; j <= branching; j++) {
+            sb.append(", qleaf_").append(j);
+        }
+        return sb.toString() + suffix;
+    }
+
+    /**
+     * Checks whether the plan contains nested {@link ViewUnionAll} nodes,
+     * i.e., a ViewUnionAll whose subtree contains another ViewUnionAll.
+     */
+    private static boolean containsNestedViewUnionAll(LogicalPlan plan) {
+        boolean[] found = { false };
+        plan.forEachDown(ViewUnionAll.class, outer -> {
+            if (found[0]) return;
+            for (LogicalPlan child : outer.children()) {
+                child.forEachDown(ViewUnionAll.class, inner -> found[0] = true);
+            }
+        });
+        return found[0];
+    }
+
+    /**
+     * Creates a view service with increased max views count for the nesting/branching matrix tests.
+     */
+    private InMemoryViewService matrixViewService() {
+        return viewService.withSettings(Settings.builder().put(ViewService.MAX_VIEWS_COUNT_SETTING.getKey(), 200).build());
+    }
+
     private LogicalPlan replaceViews(LogicalPlan plan) {
+        return replaceViews(plan, viewResolver);
+    }
+
+    private LogicalPlan replaceViews(LogicalPlan plan, ViewResolver resolver) {
         PlainActionFuture<ViewResolver.ViewResolutionResult> future = new PlainActionFuture<>();
-        viewResolver.replaceViews(plan, this::parse, future);
+        resolver.replaceViews(plan, this::parse, future);
         return future.actionGet().plan();
     }
 

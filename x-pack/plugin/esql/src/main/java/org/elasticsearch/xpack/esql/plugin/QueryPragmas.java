@@ -300,6 +300,13 @@ public final class QueryPragmas implements Writeable {
         return defaultThreshold;
     }
 
+    public int docsThresholdForAutoPartitioning(int defaultThreshold) {
+        if (settings.hasValue(PlannerSettings.DOC_THRESHOLD_AUTO_PARTITIONING.getKey())) {
+            return PlannerSettings.DOC_THRESHOLD_AUTO_PARTITIONING.get(settings);
+        }
+        return defaultThreshold;
+    }
+
     public boolean isEmpty() {
         return settings.isEmpty();
     }

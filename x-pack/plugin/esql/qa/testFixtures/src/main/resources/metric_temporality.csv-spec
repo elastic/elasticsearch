@@ -24,7 +24,7 @@ rateByTBucket
 required_capability: ts_command_v0
 
 TS metric_temporality
- | STATS bytes_per_second = ROUND(SUM(rate(network.total_bytes_in)),7) BY cluster, @timestamp = TBUCKET(5m)
+ | STATS bytes_per_second = ROUND(SUM(rate(network.total_bytes_in)),7) BY cluster, @timestamp = TBUCKET(300s)
  | KEEP @timestamp, cluster, bytes_per_second
  | SORT @timestamp, cluster
 ;

@@ -12,7 +12,7 @@ esplugin {
   name = 'esql-datasource-zstd'
   description = 'Zstd decompression support for ESQL external data sources'
   classname = 'org.elasticsearch.xpack.esql.datasource.zstd.ZstdDataSourcePlugin'
-  extendedPlugins = ['x-pack-esql']
+  extendedPlugins = ['x-pack-esql', 'esql-datasource-compression-libs']
 }
 
 base {
@@ -26,12 +26,11 @@ dependencies {
   compileOnly project(':server')
   compileOnly project(xpackModule('esql:compute'))
 
-  implementation "com.github.luben:zstd-jni:${versions.zstdJni}"
+  // zstd-jni provided by esql-datasource-compression-libs parent plugin at runtime;
+  // compileOnly for compilation, testImplementation for test-time resolution
+  compileOnly "com.github.luben:zstd-jni:${versions.zstdJni}"
 
   testImplementation project(':test:framework')
   testImplementation(testArtifact(project(xpackModule('core'))))
-}
-
-tasks.withType(org.elasticsearch.gradle.internal.AbstractDependenciesTask).configureEach {
-  mapping from: /zstd-jni-.*/, to: 'zstd'
+  testImplementation "com.github.luben:zstd-jni:${versions.zstdJni}"
 }

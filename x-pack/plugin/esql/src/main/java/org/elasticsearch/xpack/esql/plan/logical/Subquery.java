@@ -88,12 +88,4 @@ public class Subquery extends UnaryPlan implements TelemetryAware, SortAgnostic 
     public LogicalPlan plan() {
         return child();
     }
-
-    public String name() {
-        return name;
-    }
-
-    public boolean isView() {
-        return name != null;
-    }
 }

@@ -107,7 +107,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
         FloatVectorValues values,
         float visitRatio
     ) throws IOException {
-        final FieldEntry fieldEntry = fields.get(fieldInfo.number);
+        final NextFieldEntry fieldEntry = fields.get(fieldInfo.number);
         int bulkSize = fieldEntry.getBulkSize();
         float approximateDocsPerCentroid = approximateCost / numCentroids;
         if (approximateDocsPerCentroid <= 1.25) {

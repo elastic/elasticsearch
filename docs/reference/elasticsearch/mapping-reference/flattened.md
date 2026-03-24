@@ -250,8 +250,9 @@ POST events/_search
 }
 ```
 
-Only leaf field types are allowed as sub-field types. Object, nested, and flattened types cannot be used as properties of a flattened field.
-
+Only leaf field types are allowed as sub-field types.
+Object, nested, and flattened types cannot be used as properties of a flattened field.
+Sub-fields may not use `copy_to` or `fields` (multi-fields) parameters.
 
 ## Parameters for flattened object fields [flattened-params]
 

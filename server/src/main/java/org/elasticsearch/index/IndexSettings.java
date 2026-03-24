@@ -799,6 +799,8 @@ public final class IndexSettings {
                 return "true";
             }
             return "false";
+        } else if (MODE.get(s) == IndexMode.LOGSDB) {
+            return iv.onOrAfter(IndexVersions.SKIPPERS_ENABLED_BY_DEFAULT_IN_LOGSDB) ? "true" : "false";
         } else {
             return "false";
         }

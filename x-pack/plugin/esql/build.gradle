@@ -67,9 +67,13 @@ dependencies {
 
   testImplementation project(path: xpackModule('esql-datasource-csv'))
   testImplementation project(path: xpackModule('esql-datasource-http'))
+  testImplementation project(path: xpackModule('esql-datasource-compression-libs'))
   testImplementation project(path: xpackModule('esql-datasource-gzip'))
   testImplementation project(path: xpackModule('esql-datasource-zstd'))
   testImplementation project(path: xpackModule('esql-datasource-bzip2'))
+  testImplementation project(path: xpackModule('esql-datasource-lz4'))
+  testImplementation project(path: xpackModule('esql-datasource-snappy'))
+  testImplementation project(path: xpackModule('esql-datasource-brotli'))
   testImplementation "com.github.luben:zstd-jni:${versions.zstdJni}"
   testImplementation "org.apache.commons:commons-compress:${versions.esql_commons_compress}"
   testImplementation project(path: ':modules:reindex')

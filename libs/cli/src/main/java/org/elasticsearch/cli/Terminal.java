@@ -184,6 +184,10 @@ public abstract class Terminal {
         }
     }
 
+    protected final boolean isErrorWriter(PrintWriter writer) {
+        return writer == errWriter;
+    }
+
     /** Prints a line to the terminal's standard error at {@link Verbosity#NORMAL} verbosity level, without a newline. */
     public final void errorPrint(Verbosity verbosity, String msg) {
         print(verbosity, errWriter, msg, false, true);

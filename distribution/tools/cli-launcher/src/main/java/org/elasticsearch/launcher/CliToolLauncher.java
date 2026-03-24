@@ -69,6 +69,7 @@ class CliToolLauncher {
 
         command = CliToolProvider.load(pinfo.sysprops(), toolname, libs).create();
         Terminal terminal = originalStdOut != null ? new RedirectedStdoutTerminal(originalStdOut) : Terminal.DEFAULT;
+        terminal = command.configureTerminal(terminal);
         Runtime.getRuntime().addShutdownHook(createShutdownHook(terminal, command));
 
         int exitCode = command.main(args, terminal, pinfo);

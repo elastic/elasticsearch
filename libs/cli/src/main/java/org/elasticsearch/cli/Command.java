@@ -153,6 +153,13 @@ public abstract class Command implements Closeable {
      * Any runtime user errors (like an input file that does not exist), should throw a {@link UserException}. */
     protected abstract void execute(Terminal terminal, OptionSet options, ProcessInfo processInfo) throws Exception;
 
+    /**
+     * Hook to support command-specific modifications of the terminal behavior.
+     */
+    public Terminal configureTerminal(Terminal terminal) {
+        return terminal;
+    }
+
     @Override
     public void close() throws IOException {
 

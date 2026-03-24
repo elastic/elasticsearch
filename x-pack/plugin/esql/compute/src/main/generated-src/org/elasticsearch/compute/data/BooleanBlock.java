@@ -63,6 +63,18 @@ public sealed interface BooleanBlock extends Block permits BooleanArrayBlock, Bo
     ToMask toMask();
 
     @Override
+    default BooleanBlock slice(int beginInclusive, int endExclusive) {
+        if (beginInclusive == 0 && endExclusive == getPositionCount()) {
+            incRef();
+            return this;
+        }
+        try (BooleanBlock.Builder builder = blockFactory().newBooleanBlockBuilder(endExclusive - beginInclusive)) {
+            builder.copyFrom(this, beginInclusive, endExclusive);
+            return builder.build();
+        }
+    }
+
+    @Override
     BooleanBlock filter(boolean mayContainDuplicates, int... positions);
 
     /**

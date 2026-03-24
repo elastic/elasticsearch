@@ -631,12 +631,16 @@ public class CancellableTasksTests extends TaskManagerTestCase {
         final Thread reader = new Thread(() -> {
             safeAwait(start);
             while (task.isCancelled() == false) {
-                Thread.onSpinWait();
+                assertThat(
+                    "toString should consistently render status and reason",
+                    task.toString(),
+                    anyOf(endsWith("reason='null', isCancelled=false}"), endsWith("reason='test-reason', isCancelled=true}"))
+                );
             }
             assertThat(
-                "toString should consistently render status and reason",
+                "toString should consistently render status and reason when task is cancelled",
                 task.toString(),
-                anyOf(endsWith("reason='null', isCancelled=false}"), endsWith("reason='test-reason', isCancelled=true}"))
+                endsWith("reason='test-reason', isCancelled=true}")
             );
         });
         reader.start();

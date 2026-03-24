@@ -464,6 +464,57 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
         assertThat(failure.getMessage(), containsString("Unknown index [hosts-old]"));
     }
 
+    public void testTsStatsLastWithTimestampSort() {
+        // TS two-phase semantics: first phase computes LastOverTime(cpu) and MAX(@timestamp) per _tsid,
+        // second phase picks LAST(cpu_result, max_ts) per host (the result from the time series with the latest timestamp).
+        record TsKey(String host, String cluster) {}
+        Map<TsKey, Doc> lastPerTs = new HashMap<>();
+        for (Doc doc : docs) {
+            lastPerTs.merge(new TsKey(doc.host, doc.cluster), doc, (a, b) -> a.timestamp > b.timestamp ? a : b);
+        }
+        Map<String, Doc> lastByHost = new HashMap<>();
+        for (var entry : lastPerTs.entrySet()) {
+            lastByHost.merge(entry.getKey().host, entry.getValue(), (a, b) -> a.timestamp > b.timestamp ? a : b);
+        }
+        try (var resp = run("TS hosts | STATS last_cpu = LAST(cpu, @timestamp) BY host | SORT host")) {
+            List<List<Object>> rows = EsqlTestUtils.getValuesList(resp);
+            List<String> sortedHosts = lastByHost.keySet().stream().sorted().toList();
+            assertThat(rows, hasSize(sortedHosts.size()));
+            for (int i = 0; i < rows.size(); i++) {
+                String host = sortedHosts.get(i);
+                assertThat(rows.get(i).get(1), equalTo(host));
+                assertThat((double) rows.get(i).get(0), equalTo(lastByHost.get(host).cpu));
+            }
+        }
+    }
+
+    public void testTsStatsFirstWithTimestampSort() {
+        // TS two-phase semantics for FIRST: first phase computes FirstOverTime(cpu) and MIN(@timestamp) per _tsid,
+        // second phase picks FIRST(cpu_result, min_ts) per host (the result from the time series with the earliest timestamp).
+        record TsKey(String host, String cluster) {}
+        // First phase: FirstOverTime picks the value at the EARLIEST timestamp per time series
+        Map<TsKey, Doc> firstPerTs = new HashMap<>();
+        for (Doc doc : docs) {
+            firstPerTs.merge(new TsKey(doc.host, doc.cluster), doc, (a, b) -> a.timestamp < b.timestamp ? a : b);
+        }
+        // Second phase: FIRST picks the result from the time series with the earliest MIN(@timestamp)
+        Map<String, Doc> firstByHost = new HashMap<>();
+        for (var entry : firstPerTs.entrySet()) {
+            String host = entry.getKey().host;
+            firstByHost.merge(host, entry.getValue(), (a, b) -> a.timestamp < b.timestamp ? a : b);
+        }
+        try (var resp = run("TS hosts | STATS first_cpu = FIRST(cpu, @timestamp) BY host | SORT host")) {
+            List<List<Object>> rows = EsqlTestUtils.getValuesList(resp);
+            List<String> sortedHosts = firstByHost.keySet().stream().sorted().toList();
+            assertThat(rows, hasSize(sortedHosts.size()));
+            for (int i = 0; i < rows.size(); i++) {
+                String host = sortedHosts.get(i);
+                assertThat(rows.get(i).get(1), equalTo(host));
+                assertThat((double) rows.get(i).get(0), equalTo(firstByHost.get(host).cpu));
+            }
+        }
+    }
+
     public void testFieldDoesNotExist() {
         // the old-hosts index doesn't have the cpu field
         Settings settings = Settings.builder().put("mode", "time_series").putList("routing_path", List.of("host", "cluster")).build();

@@ -43,6 +43,8 @@ public final class SearchShardsResponse extends ActionResponse {
     public static final TransportVersion SEARCH_SHARDS_RESOLVED_INDEX_EXPRESSIONS = TransportVersion.fromName(
         "search_shards_resolved_index_expressions"
     );
+
+    public static final TransportVersion SEARCH_SHARDS_NUM_SKIPPED = TransportVersion.fromName("search_shards_num_skipped");
     public static final TransportVersion SEARCH_SHARDS_NUM_SKIPPED2 = TransportVersion.fromName("search_shards_num_skipped2");
 
     public SearchShardsResponse(

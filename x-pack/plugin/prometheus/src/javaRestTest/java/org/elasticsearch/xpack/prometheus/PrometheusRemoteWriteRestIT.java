@@ -74,8 +74,8 @@ public class PrometheusRemoteWriteRestIT extends ESRestTestCase {
 
     public void testRemoteWriteEndpointWithEmptyBody() throws Exception {
         sendEmptyBodyAndAssertSuccess("/_prometheus/api/v1/write");
-        sendEmptyBodyAndAssertSuccess("/_prometheus/myapp/api/v1/write");
-        sendEmptyBodyAndAssertSuccess("/_prometheus/myapp/production/api/v1/write");
+        sendEmptyBodyAndAssertSuccess("/_prometheus/metrics/myapp/api/v1/write");
+        sendEmptyBodyAndAssertSuccess("/_prometheus/metrics/myapp/production/api/v1/write");
     }
 
     public void testRemoteWriteIndexesGaugeMetric() throws Exception {
@@ -199,7 +199,7 @@ public class PrometheusRemoteWriteRestIT extends ESRestTestCase {
 
     public void testRemoteWriteWithCustomDataset() throws Exception {
         String metricName = "custom_dataset_metric";
-        sendAndAssertSuccess(simpleWriteRequest(metricName), "/_prometheus/myapp/api/v1/write");
+        sendAndAssertSuccess(simpleWriteRequest(metricName), "/_prometheus/metrics/myapp/api/v1/write");
 
         ObjectPath source = searchSingleDoc("metrics-myapp.prometheus-default", metricName);
         assertThat(source.evaluate("data_stream.type"), equalTo("metrics"));
@@ -209,7 +209,7 @@ public class PrometheusRemoteWriteRestIT extends ESRestTestCase {
 
     public void testRemoteWriteWithCustomDatasetAndNamespace() throws Exception {
         String metricName = "custom_ns_metric";
-        sendAndAssertSuccess(simpleWriteRequest(metricName), "/_prometheus/myapp/production/api/v1/write");
+        sendAndAssertSuccess(simpleWriteRequest(metricName), "/_prometheus/metrics/myapp/production/api/v1/write");
 
         ObjectPath source = searchSingleDoc("metrics-myapp.prometheus-production", metricName);
         assertThat(source.evaluate("data_stream.type"), equalTo("metrics"));
@@ -218,12 +218,15 @@ public class PrometheusRemoteWriteRestIT extends ESRestTestCase {
     }
 
     public void testRemoteWriteWithInvalidCustomDatasetReturns400() throws Exception {
-        String body = sendAndAssertBadRequest(simpleWriteRequest("invalid_dataset_metric"), "/_prometheus/my-app/api/v1/write");
+        String body = sendAndAssertBadRequest(simpleWriteRequest("invalid_dataset_metric"), "/_prometheus/metrics/my-app/api/v1/write");
         assertThat(body, containsString("data stream dataset 'my-app' contains disallowed characters, must conform to regex ["));
     }
 
     public void testRemoteWriteWithInvalidCustomNamespaceReturns400() throws Exception {
-        String body = sendAndAssertBadRequest(simpleWriteRequest("invalid_namespace_metric"), "/_prometheus/myapp/foo:bar/api/v1/write");
+        String body = sendAndAssertBadRequest(
+            simpleWriteRequest("invalid_namespace_metric"),
+            "/_prometheus/metrics/myapp/foo:bar/api/v1/write"
+        );
         assertThat(body, containsString("data stream namespace 'foo:bar' contains disallowed characters, must conform to regex ["));
     }
 

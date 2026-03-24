@@ -797,8 +797,11 @@ public class EsqlSession {
         // Initialize the PreAnalysisResult with the local cluster's minimum transport version, so our planning will be correct also in
         // case of ROW queries. ROW queries can still require inter-node communication (for ENRICH and LOOKUP JOIN execution) with an older
         // node in the same cluster; so assuming that all nodes are on the same version as this node will be wrong and may cause bugs.
-        PreAnalysisResult result = FieldNameUtils.resolveFieldNames(parsed, preAnalysis.enriches().isEmpty() == false)
-            .withMinimumTransportVersion(localClusterMinimumVersion);
+        PreAnalysisResult result = FieldNameUtils.resolveFieldNames(
+            parsed,
+            preAnalysis.enriches().isEmpty() == false,
+            unmappedResolution == UnmappedResolution.LOAD
+        ).withMinimumTransportVersion(localClusterMinimumVersion);
         String description = requestFilter == null ? "the only attempt without filter" : "first attempt with filter";
 
         resolveIndicesAndAnalyze(
@@ -1383,7 +1386,14 @@ public class EsqlSession {
         QueryBuilder requestFilter
     ) throws Exception {
         handleFieldCapsFailures(configuration.allowPartialResults(), executionInfo, r.indexResolution());
-        var timestampBounds = QueryDslTimestampBoundsExtractor.extractTimestampBounds(requestFilter);
+        var timestampBounds = QueryDslTimestampBoundsExtractor.extractTimestampBounds(
+            requestFilter,
+            // Resolve date math against the query start time. If this uses the wall clock during planning instead,
+            // filters like [@timestamp >= now-5m AND @timestamp <= now] drift relative to Configuration.now(), so inferred
+            // timestamp bounds can shift within one request and misanchor TBUCKET/TSTEP bucketing.
+            // TODO: support nanos resolution for date_nanos fields
+            configuration::absoluteStartedTimeInMillis
+        );
         AnalyzerContext analyzerContext = new AnalyzerContext(
             configuration,
             functionRegistry,

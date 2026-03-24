@@ -25,7 +25,6 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsExecutors.TaskTrackingConfig;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchShardTarget;
@@ -44,7 +43,6 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
@@ -67,31 +65,26 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
     public void setup() {
         searchPhaseController = new SearchPhaseController((t, s) -> new AggregationReduceContext.Builder() {
             @Override
-            public AggregationReduceContext forPartialReduction(
-                @Nullable Collection<org.elasticsearch.search.SearchHits> topHitsToRelease
-            ) {
+            public AggregationReduceContext forPartialReduction() {
                 return new AggregationReduceContext.ForPartial(
                     BigArrays.NON_RECYCLING_INSTANCE,
                     null,
                     t,
                     mock(AggregationBuilder.class),
-                    b -> {},
-                    topHitsToRelease
+                    b -> {}
                 );
             }
 
-            @Override
-            public AggregationReduceContext forFinalReduction(@Nullable Collection<org.elasticsearch.search.SearchHits> topHitsToRelease) {
+            public AggregationReduceContext forFinalReduction() {
                 return new AggregationReduceContext.ForFinal(
                     BigArrays.NON_RECYCLING_INSTANCE,
                     null,
                     t,
                     mock(AggregationBuilder.class),
                     b -> {},
-                    PipelineAggregator.PipelineTree.EMPTY,
-                    topHitsToRelease
+                    PipelineAggregator.PipelineTree.EMPTY
                 );
-            }
+            };
         });
         threadPool = new TestThreadPool(SearchPhaseControllerTests.class.getName());
         executor = EsExecutors.newFixed(

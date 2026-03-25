@@ -271,7 +271,7 @@ public class SingletonOrdinalsBuilder implements BlockLoader.SingletonOrdinalsBu
     boolean shouldBuildOrdinalsBlock() {
         if (minOrd <= maxOrd) {
             int numOrds = maxOrd - minOrd + 1;
-            if(OrdinalBytesRefBlock.isDense(ords.length, numOrds) == false){
+            if (OrdinalBytesRefBlock.isDense(ords.length, numOrds) == false) {
                 System.err.println("--> max-ordinals=" + maxOrd + " min-ordinal=" + minOrd + " length=" + ords.length);
                 return false;
             }

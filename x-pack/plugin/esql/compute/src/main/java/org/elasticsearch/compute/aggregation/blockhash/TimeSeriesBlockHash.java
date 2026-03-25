@@ -66,7 +66,16 @@ public final class TimeSeriesBlockHash extends BlockHash {
 
     @Override
     public void close() {
-        System.err.println("--> adding constants=" + constants + " ordinal-constants=" + ordinalsConstants + " ordinals-loop=" + ordinalsLoop + " vectors=" + vectors);
+        System.err.println(
+            "--> adding constants="
+                + constants
+                + " ordinal-constants="
+                + ordinalsConstants
+                + " ordinals-loop="
+                + ordinalsLoop
+                + " vectors="
+                + vectors
+        );
         Releasables.close(tsidHash, finalHash);
     }
 

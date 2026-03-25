@@ -29,6 +29,7 @@ import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.IndexVersion;
@@ -41,6 +42,7 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.ShardSnapshotResult;
+import org.elasticsearch.repositories.SnapshotIndexCommit;
 import org.elasticsearch.repositories.SnapshotShardContext;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
@@ -56,6 +58,8 @@ import java.util.function.BiFunction;
 import java.util.zip.CRC32;
 import java.util.zip.Checksum;
 
+import static org.elasticsearch.repositories.SnapshotShardContextHelper.withSnapshotIndexCommitRef;
+
 /**
  * A {@link SnapshotShardContext} implementation that reads shard data from an object store instead of a local shard.
  */
@@ -64,6 +68,8 @@ public class StatelessSnapshotShardContext extends SnapshotShardContext {
     private static final Logger logger = LogManager.getLogger(StatelessSnapshotShardContext.class);
 
     private final ShardId shardId;
+    @Nullable // when snapshot runs on a different node from the primary
+    private final SnapshotIndexCommit snapshotIndexCommit;
     private final Store.MetadataSnapshot metadataSnapshot;
     private final Map<String, BlobLocation> fileToBlobLocations;
     private final BiFunction<ShardId, Long, BlobContainer> blobContainerFunc;
@@ -72,10 +78,11 @@ public class StatelessSnapshotShardContext extends SnapshotShardContext {
         ShardId shardId,
         SnapshotId snapshotId,
         IndexId indexId,
-        String shardStateIdentifier,
+        @Nullable String shardStateIdentifier,
         IndexShardSnapshotStatus snapshotStatus,
         IndexVersion repositoryMetaVersion,
         long snapshotStartTime,
+        @Nullable SnapshotIndexCommit snapshotIndexCommit,
         Store.MetadataSnapshot metadataSnapshot,
         Map<String, BlobLocation> fileToBlobLocations,
         BiFunction<ShardId, Long, BlobContainer> blobContainerFunc,
@@ -83,6 +90,7 @@ public class StatelessSnapshotShardContext extends SnapshotShardContext {
     ) {
         super(snapshotId, indexId, shardStateIdentifier, snapshotStatus, repositoryMetaVersion, snapshotStartTime, listener);
         this.shardId = shardId;
+        this.snapshotIndexCommit = snapshotIndexCommit;
         this.metadataSnapshot = metadataSnapshot;
         this.fileToBlobLocations = fileToBlobLocations;
         this.blobContainerFunc = blobContainerFunc;
@@ -91,11 +99,6 @@ public class StatelessSnapshotShardContext extends SnapshotShardContext {
     @Override
     public ShardId shardId() {
         return shardId;
-    }
-
-    @Override
-    public Releasable withCommitRef() {
-        return () -> {}; // No need to retain extra ref since we read from the blobstore
     }
 
     @Override
@@ -147,13 +150,18 @@ public class StatelessSnapshotShardContext extends SnapshotShardContext {
 
     @Override
     public FileReader fileReader(String file, StoreFileMetadata metadata) throws IOException {
+        final Releasable commitRefReleasable = snapshotIndexCommit != null
+            ? withSnapshotIndexCommitRef(shardId, snapshotId(), snapshotIndexCommit, status())
+            : null;
         final BlobLocation blobLocation = fileToBlobLocations.get(file);
         assert blobLocation != null : "Blob location for file [" + file + "] not found in " + fileToBlobLocations;
         final BlobContainer blobContainer = blobContainerFunc.apply(shardId, blobLocation.primaryTerm());
-        return new BlobStoreFileReader(blobContainer, blobLocation);
+        return new BlobStoreFileReader(blobContainer, blobLocation, commitRefReleasable);
     }
 
     static class BlobStoreFileReader implements SnapshotShardContext.FileReader {
+        @Nullable // when snapshot runs on a different node from the primary
+        private final Releasable commitRefReleasable;
         private final BlobContainer blobContainer;
         private final BlobLocation blobLocation;
         private final FileChecksum fileChecksum;
@@ -161,9 +169,10 @@ public class StatelessSnapshotShardContext extends SnapshotShardContext {
         private long readPosition; // relative to the start of the file
         private InputStream currentStream; // closed when openInput is called to create a new InputStream and on close()
 
-        BlobStoreFileReader(BlobContainer blobContainer, BlobLocation blobLocation) {
+        BlobStoreFileReader(BlobContainer blobContainer, BlobLocation blobLocation, Releasable commitRefReleasable) {
             this.blobContainer = blobContainer;
             this.blobLocation = blobLocation;
+            this.commitRefReleasable = commitRefReleasable;
             this.fileChecksum = new FileChecksum(blobLocation.fileLength());
             this.nextPositionInBlobFile = blobLocation.offset();
             this.readPosition = 0;
@@ -309,7 +318,7 @@ public class StatelessSnapshotShardContext extends SnapshotShardContext {
 
         @Override
         public void close() throws IOException {
-            closeCurrentStream();
+            IOUtils.close(commitRefReleasable, this::closeCurrentStream);
         }
     }
 

@@ -10,6 +10,7 @@ package org.elasticsearch.compute.lucene.query;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Weight;
@@ -219,6 +220,9 @@ public final class LuceneSliceQueue {
 
         int nextSliceId = 0;
         for (ShardContext ctx : contexts.iterable()) {
+            if (ctx.searcher().getIndexReader().maxDoc() == 0) {
+                continue;
+            }
             long startShard = System.nanoTime();
             try {
                 for (QueryAndTags queryAndExtra : queryFunction.apply(ctx)) {
@@ -236,6 +240,9 @@ public final class LuceneSliceQueue {
                         query = ctx.searcher().rewrite(query);
                     } catch (IOException e) {
                         throw new UncheckedIOException(e);
+                    }
+                    if (query instanceof MatchNoDocsQuery) {
+                        continue;
                     }
                     var partitioning = PartitioningStrategy.pick(dataPartitioning, autoStrategy, docThresholdForAutoStrategy, ctx, query);
                     partitioningStrategies.put(ctx.shardIdentifier(), partitioning);

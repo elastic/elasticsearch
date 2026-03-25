@@ -581,7 +581,7 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
         Settings indexSettings = Settings.builder()
             .put("mode", "time_series")
             .putList("routing_path", List.of("host", "cluster"))
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 3))
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .put("index.routing.allocation.require._id", dataNode)
             .put("index.codec", "default")

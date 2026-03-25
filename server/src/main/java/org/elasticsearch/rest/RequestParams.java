@@ -14,6 +14,7 @@ import org.elasticsearch.common.util.Maps;
 import java.net.URI;
 import java.util.AbstractMap;
 import java.util.AbstractSet;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
@@ -37,7 +38,7 @@ import java.util.Set;
 public final class RequestParams extends AbstractMap<String, String> {
 
     /** Single backing store: key → non-empty ordered list of all values. */
-    private final LinkedHashMap<String, List<String>> map;
+    private final Map<String, List<String>> map;
 
     // Factory methods
 
@@ -45,7 +46,7 @@ public final class RequestParams extends AbstractMap<String, String> {
      * Returns an empty {@code RequestParams} instance.
      */
     public static RequestParams empty() {
-        return new RequestParams(Map.of());
+        return new RequestParams(new LinkedHashMap<>());
     }
 
     /**
@@ -56,7 +57,14 @@ public final class RequestParams extends AbstractMap<String, String> {
      * @throws IllegalArgumentException if any value list is empty
      */
     static RequestParams of(Map<String, List<String>> multiValues) {
-        return new RequestParams(multiValues);
+        LinkedHashMap<String, List<String>> copy = Maps.newLinkedHashMapWithExpectedSize(multiValues.size());
+        multiValues.forEach((k, v) -> {
+            if (v.isEmpty()) {
+                throw new IllegalArgumentException("value list for parameter [" + k + "] must not be empty");
+            }
+            copy.put(k, List.copyOf(v));
+        });
+        return new RequestParams(copy);
     }
 
     /**
@@ -69,7 +77,7 @@ public final class RequestParams extends AbstractMap<String, String> {
      */
     public static RequestParams fromQueryString(String queryString) {
         try {
-            return of(RestUtils.decodeQueryString(queryString, 0));
+            return RestUtils.decodeQueryString(queryString, 0);
         } catch (IllegalArgumentException e) {
             throw new RestRequest.BadParameterException(e);
         }
@@ -114,34 +122,28 @@ public final class RequestParams extends AbstractMap<String, String> {
         return new RequestParams(wrapped);
     }
 
-    private RequestParams(Map<String, List<String>> multiValues) {
-        LinkedHashMap<String, List<String>> copy = Maps.newLinkedHashMapWithExpectedSize(multiValues.size());
-        multiValues.forEach((k, v) -> {
-            if (v.isEmpty()) {
-                throw new IllegalArgumentException("value list for parameter [" + k + "] must not be empty");
-            }
-            copy.put(k, List.copyOf(v));
-        });
-        this.map = copy;
+    private RequestParams(Map<String, List<String>> map) {
+        this.map = map;
     }
 
-    /** Wraps an already-validated map directly, without copying. Used by {@link #fromSingleValues}. */
-    private RequestParams(LinkedHashMap<String, List<String>> validatedMap) {
-        this.map = validatedMap;
+    /**
+     * Appends {@code value} to the list of values for {@code key}.
+     * If the key is not yet present, a new entry is created.
+     */
+    void addValue(String key, String value) {
+        map.computeIfAbsent(key, k -> new ArrayList<>(1)).add(value);
     }
-
-    // Multi-value API
 
     /**
      * Returns all values for {@code key} in the order they were added,
      * or an empty list if the key is absent.
      *
      * @param key the parameter name
-     * @return a non-empty list of all values, or an empty list if absent; never {@code null}
+     * @return an unmodifiable non-empty list of all values, or an empty list if absent; never {@code null}
      */
     public List<String> getAll(String key) {
         var list = map.get(key);
-        return list == null ? List.of() : list;
+        return list == null ? List.of() : Collections.unmodifiableList(list);
     }
 
     /**
@@ -163,8 +165,6 @@ public final class RequestParams extends AbstractMap<String, String> {
         }
         return list.getFirst();
     }
-
-    // Map<String, String> — single-value view over the backing list map
 
     /**
      * Returns the last value associated with {@code key}, or {@code null} if absent.
@@ -188,7 +188,7 @@ public final class RequestParams extends AbstractMap<String, String> {
      */
     @Override
     public String put(String key, String value) {
-        var prev = map.put(key, List.of(value));
+        var prev = map.put(key, Collections.singletonList(value));
         return prev == null ? null : prev.getLast();
     }
 

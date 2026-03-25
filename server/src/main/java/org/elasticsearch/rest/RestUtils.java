@@ -22,11 +22,7 @@ import org.elasticsearch.core.UpdateForV10;
 
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.function.UnaryOperator;
 import java.util.regex.Pattern;
@@ -49,10 +45,10 @@ public class RestUtils {
      *
      * @param s         the full string containing the query string
      * @param fromIndex the index at which the query string begins (i.e. one past the {@code ?})
-     * @return a map from parameter name to all its values, in encounter order
+     * @return a {@link RequestParams} from parameter name to all its values, in encounter order
      */
-    static Map<String, List<String>> decodeQueryString(String s, int fromIndex) {
-        Map<String, List<String>> params = new LinkedHashMap<>();
+    static RequestParams decodeQueryString(String s, int fromIndex) {
+        RequestParams params = RequestParams.empty();
         if (fromIndex < 0 || fromIndex >= s.length()) {
             return params;
         }
@@ -101,13 +97,13 @@ public class RestUtils {
         return decodeComponent(s, StandardCharsets.UTF_8, true);
     }
 
-    private static void addParam(Map<String, List<String>> result, String name, String value) {
+    private static void addParam(RequestParams result, String name, String value) {
         for (var reservedParameter : INTERNAL_MARKER_REQUEST_PARAMETERS) {
             if (reservedParameter.equalsIgnoreCase(name)) {
                 throw new IllegalArgumentException("parameter [" + name + "] is reserved and may not be set");
             }
         }
-        result.computeIfAbsent(name, k -> new ArrayList<>()).add(value);
+        result.addValue(name, value);
     }
 
     /**

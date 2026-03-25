@@ -1,0 +1,5 @@
+area: Search
+issues: []
+pr: 144937
+summary: Fix adaptive replica selection flooding new nodes with requests
+type: bug

@@ -12,6 +12,8 @@ package org.elasticsearch.telemetry.apm.internal;
 import io.opentelemetry.api.GlobalOpenTelemetry;
 import io.opentelemetry.api.OpenTelemetry;
 
+import io.opentelemetry.api.metrics.Meter;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -36,34 +38,58 @@ public class APMMeterService extends AbstractLifecycleComponent {
     private final MeterSupplier otelMeterSupplier;
     private final MeterSupplier noopMeterSupplier;
 
-    /**
-     * Bounded wait when metrics are backed by the Elastic APM agent: {@code 2 * metrics_interval}.
-     * The agent offers no flush API, so this is only a best-effort pause; the first intake request to the
-     * APM server can still be delayed well beyond this window.
-     */
-    private final long agentFlushWaitMs;
-
     protected volatile boolean enabled;
 
     public APMMeterService(Settings settings) {
-        this(settings, createOtelMeterSupplier(settings), () -> OpenTelemetry.noop().getMeter("noop"));
+        this(settings, createOtelMeterSupplier(settings), new NoOpMeterSupplier());
     }
 
     public APMMeterService(Settings settings, MeterSupplier otelMeterSupplier, MeterSupplier noopMeterSupplier) {
-        this(
-            APMAgentSettings.TELEMETRY_METRICS_ENABLED_SETTING.get(settings),
-            otelMeterSupplier,
-            noopMeterSupplier,
-            2 * agentMetricsInterval(settings).millis()
-        );
-    }
-
-    private APMMeterService(boolean enabled, MeterSupplier otelMeterSupplier, MeterSupplier noopMeterSupplier, long agentFlushWaitMs) {
-        this.enabled = enabled;
+        this.enabled = APMAgentSettings.TELEMETRY_METRICS_ENABLED_SETTING.get(settings);
         this.otelMeterSupplier = otelMeterSupplier;
         this.noopMeterSupplier = noopMeterSupplier;
-        this.agentFlushWaitMs = agentFlushWaitMs;
         this.meterRegistry = new APMMeterRegistry(enabled ? otelMeterSupplier.get() : noopMeterSupplier.get());
+    }
+
+    private static MeterSupplier createOtelMeterSupplier(Settings settings) {
+        boolean otelMetricsEnabled = Booleans.parseBoolean(System.getProperty(OTEL_METRICS_ENABLED_SYSTEM_PROPERTY, "false"));
+        if (otelMetricsEnabled) {
+            return new OTelSdkMeterSupplier(settings);
+        } else {
+            // CONFUSION ALERT: When we do `GlobalOpenTelemetry.get()`, we're actually getting an OpenTelemetry
+            // object that routes telemetry to the APM agent; that is, we're still using OTel to report telemetry
+            // from the code, but we're using the APM agent (instead of the OTel SDK) to export it.
+            // That's why this "else" branch, where otelMetricsEnabled is false, is still using OpenTelemetry.
+
+            /*
+             * The agent offers no flush API, so this is only a best-effort pause that exceeds
+             * the agent reporting interval, making it extremely likely that all telemetry
+             * has been exported.
+             *
+             * Note that the first intake request to the APM server can still be delayed beyond this window:
+             * the APM agent checks for configuration changes only periodically,
+             * so the setting changes we made during initialization don't take effect immediately.
+             */
+            long agentFlushWaitMs = 2 * agentMetricsInterval(settings).millis();
+
+            return new MeterSupplier() {
+                @Override
+                public Meter get() {
+                    return GlobalOpenTelemetry.get().getMeter("elasticsearch");
+                }
+
+                @Override
+                public void attemptFlushMetrics() {
+                    try {
+                        LOGGER.info("Waiting {} ms for APM agent to flush metrics", agentFlushWaitMs);
+                        Thread.sleep(agentFlushWaitMs);
+                    } catch (InterruptedException e) {
+                        // Flush is best-effort. We can reestablish the interrupt flag and proceed.
+                        Thread.currentThread().interrupt();
+                    }
+                }
+            };
+        }
     }
 
     private static TimeValue agentMetricsInterval(Settings settings) {
@@ -72,13 +98,6 @@ public class APMMeterService extends AbstractLifecycleComponent {
             return TimeValue.parseTimeValue(intervalStr, "telemetry.agent.metrics_interval");
         }
         return DEFAULT_AGENT_INTERVAL;
-    }
-
-    private static MeterSupplier createOtelMeterSupplier(Settings settings) {
-        if (Booleans.parseBoolean(System.getProperty(OTEL_METRICS_ENABLED_SYSTEM_PROPERTY, "false")) == false) {
-            return () -> GlobalOpenTelemetry.get().getMeter("elasticsearch");
-        }
-        return new OTelSdkMeterSupplier(settings);
     }
 
     public APMMeterRegistry getMeterRegistry() {
@@ -94,21 +113,8 @@ public class APMMeterService extends AbstractLifecycleComponent {
      * take substantially longer than this sleep.
      */
     public void attemptFlushMetrics() {
-        if (enabled == false) {
-            return;
-        }
-        if (otelMeterSupplier instanceof OTelSdkMeterSupplier otelSupplier) {
-            otelSupplier.attemptFlushMetrics();
-        } else {
-            // This side covers the case where the APM agent has installed a meter supplier.
-            // The APM agent offers no way to flush, so we simply wait.
-            try {
-                LOGGER.info("Waiting {} ms for APM agent to flush metrics", agentFlushWaitMs);
-                Thread.sleep(agentFlushWaitMs);
-            } catch (InterruptedException e) {
-                // Flush is best-effort. We can reestablish the interrupt flag and proceed.
-                Thread.currentThread().interrupt();
-            }
+        if (enabled) {
+            otelMeterSupplier.attemptFlushMetrics();
         }
     }
 
@@ -135,4 +141,16 @@ public class APMMeterService extends AbstractLifecycleComponent {
 
     @Override
     protected void doClose() {}
+
+    private static final class NoOpMeterSupplier implements MeterSupplier {
+        @Override
+        public Meter get() {
+            return OpenTelemetry.noop().getMeter("noop");
+        }
+
+        @Override
+        public void attemptFlushMetrics() {
+            // No-op
+        }
+    }
 }

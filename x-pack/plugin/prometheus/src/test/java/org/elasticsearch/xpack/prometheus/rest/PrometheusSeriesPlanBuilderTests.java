@@ -40,10 +40,6 @@ public class PrometheusSeriesPlanBuilderTests extends ESTestCase {
     private static final Instant START = Instant.ofEpochSecond(1_700_000_000L);
     private static final Instant END = Instant.ofEpochSecond(1_700_003_600L);
 
-    // -------------------------------------------------------------------------
-    // Plan structure tests
-    // -------------------------------------------------------------------------
-
     public void testBuildPlanWithoutLimitHasExpectedShape() {
         LogicalPlan plan = PrometheusSeriesPlanBuilder.buildPlan("*", List.of("up"), START, END, 0);
 
@@ -75,10 +71,6 @@ public class PrometheusSeriesPlanBuilderTests extends ESTestCase {
         assertThat(plan, instanceOf(TsInfo.class));
     }
 
-    // -------------------------------------------------------------------------
-    // Time range tests
-    // -------------------------------------------------------------------------
-
     public void testBuildPlanFilterContainsTimeRangeCondition() {
         LogicalPlan plan = PrometheusSeriesPlanBuilder.buildPlan("*", List.of("up"), START, END, 0);
         Filter filter = findFilter(plan);
@@ -87,10 +79,6 @@ public class PrometheusSeriesPlanBuilderTests extends ESTestCase {
         assertThat(containsExpressionOfType(filter.condition(), GreaterThanOrEqual.class), is(true));
         assertThat(containsExpressionOfType(filter.condition(), LessThanOrEqual.class), is(true));
     }
-
-    // -------------------------------------------------------------------------
-    // Selector condition tests
-    // -------------------------------------------------------------------------
 
     public void testBuildPlanRejectsRangeSelector() {
         IllegalArgumentException ex = expectThrows(
@@ -158,10 +146,6 @@ public class PrometheusSeriesPlanBuilderTests extends ESTestCase {
         assertThat(plan, notNullValue());
     }
 
-    // -------------------------------------------------------------------------
-    // buildSelectorCondition unit tests
-    // -------------------------------------------------------------------------
-
     public void testBuildSelectorConditionReturnsNullForBareMetricName() {
         // A bare metric name like "up" carries only an EQ __name__ matcher; the resulting
         // condition should be IsNotNull(series), not null.
@@ -217,10 +201,6 @@ public class PrometheusSeriesPlanBuilderTests extends ESTestCase {
         Expression cond = PrometheusPlanBuilderUtils.buildSelectorCondition(selector);
         assertThat(cond, nullValue());
     }
-
-    // -------------------------------------------------------------------------
-    // Helpers
-    // -------------------------------------------------------------------------
 
     private static InstantSelector parseInstantSelector(String selector) {
         PromqlParser parser = new PromqlParser();

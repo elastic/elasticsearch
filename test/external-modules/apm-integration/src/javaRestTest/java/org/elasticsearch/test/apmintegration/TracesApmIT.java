@@ -116,6 +116,7 @@ public class TracesApmIT extends ESRestTestCase {
         nodeStatsRequest.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader(Task.TRACE_PARENT_HTTP_HEADER, traceParentValue).build());
 
         client().performRequest(nodeStatsRequest);
+        client().performRequest(new Request("GET", "/_flush_telemetry"));
 
         var completed = finished.await(30, TimeUnit.SECONDS);
         assertTrue("Timeout when waiting for assertions to complete", completed);

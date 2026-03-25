@@ -136,7 +136,21 @@ public interface VectorSimilarityFunctions {
          *     <li>Score results, as 4-byte floats, in order of iteration through the offset array</li>
          * </ol>
          */
-        BULK_OFFSETS
+        BULK_OFFSETS,
+        /**
+         * Scores multiple vectors against a single vector, using an array of direct memory addresses
+         * to locate each vector.
+         * <p>
+         * Method handle takes arguments {@code (MemorySegment, MemorySegment, int, int, MemorySegment)}:
+         * <ol>
+         *     <li>Array of 8-byte longs containing the native memory address of each vector</li>
+         *     <li>Single vector to score against</li>
+         *     <li>Number of dimensions, or for bbq, the number of index bytes</li>
+         *     <li>Number of vectors to score</li>
+         *     <li>Score results, as 4-byte floats</li>
+         * </ol>
+         */
+        BULK_SPARSE
     }
 
     MethodHandle getHandle(Function function, DataType dataType, Operation operation);

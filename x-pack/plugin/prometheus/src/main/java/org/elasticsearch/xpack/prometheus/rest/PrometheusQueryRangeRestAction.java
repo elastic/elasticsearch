@@ -13,7 +13,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
-import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
+import org.elasticsearch.xpack.esql.action.PreparedEsqlQueryRequest;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 
 import java.util.List;
@@ -33,6 +33,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 @ServerlessScope(Scope.PUBLIC)
 public class PrometheusQueryRangeRestAction extends BaseRestHandler {
 
+    private static final String INDEX_PARAM = "index";
     private static final String QUERY_PARAM = "query";
     private static final String START_PARAM = "start";
     private static final String END_PARAM = "end";
@@ -44,7 +45,7 @@ public class PrometheusQueryRangeRestAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(GET, "/_prometheus/api/v1/query_range"));
+        return List.of(new Route(GET, "/_prometheus/api/v1/query_range"), new Route(GET, "/_prometheus/{index}/api/v1/query_range"));
     }
 
     @Override
@@ -53,8 +54,9 @@ public class PrometheusQueryRangeRestAction extends BaseRestHandler {
         String start = getRequiredParam(request, START_PARAM);
         String end = getRequiredParam(request, END_PARAM);
         String step = getRequiredParam(request, PrometheusQueryRangeResponseListener.STEP_PARAM);
+        String index = request.param(INDEX_PARAM, "*");
 
-        EsqlStatement statement = PromqlQueryPlanBuilder.buildStatement(query, "*", start, end, step);
+        EsqlStatement statement = PromqlQueryPlanBuilder.buildStatement(query, index, start, end, step);
         EsqlQueryRequest esqlRequest = PreparedEsqlQueryRequest.sync(statement);
 
         return channel -> client.execute(EsqlQueryAction.INSTANCE, esqlRequest, new PrometheusQueryRangeResponseListener(channel));

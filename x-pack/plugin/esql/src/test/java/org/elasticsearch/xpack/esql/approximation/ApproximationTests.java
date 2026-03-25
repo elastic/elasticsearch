@@ -33,7 +33,7 @@ public class ApproximationTests extends ApproximationTestCase {
     public void testVerify_validQuery() throws Exception {
         verify("FROM test | WHERE emp_no<99 | SORT last_name | MV_EXPAND salary | STATS COUNT() BY gender");
         verify("FROM test | CHANGE_POINT salary ON emp_no | EVAL x=1 | DROP emp_no | STATS SUM(salary) BY x");
-        verify("FROM test | LIMIT 1000 | KEEP gender, emp_no | RENAME gender AS whatever | STATS MEDIAN(emp_no)");
+        verify("FROM test | KEEP gender, emp_no | RENAME gender AS whatever | STATS MEDIAN(emp_no) | LIMIT 1000");
         verify("FROM test | EVAL blah=1 | GROK last_name \"%{IP:x}\" | SAMPLE 0.1 | STATS a=COUNT() | LIMIT 100 | SORT a");
         verify("ROW i=[1,2,3] | EVAL x=TO_STRING(i) | DISSECT x \"%{x}\" | STATS i=10*POW(PERCENTILE(i, 0.5), 2) | LIMIT 10");
         verify("FROM test | URI_PARTS parts = last_name | STATS scheme_count = COUNT() BY parts.scheme | LIMIT 10");
@@ -54,10 +54,6 @@ public class ApproximationTests extends ApproximationTestCase {
             equalTo(new Approximation.QueryProperties(false, true, false))
         );
         assertThat(
-            verify("FROM test | LIMIT 3 | STATS COUNT(), SUM(emp_no) BY emp_no"),
-            equalTo(new Approximation.QueryProperties(true, true, false))
-        );
-        assertThat(
             verify("FROM test | SAMPLE 0.3 | STATS COUNT() BY emp_no"),
             equalTo(new Approximation.QueryProperties(true, true, false))
         );
@@ -66,7 +62,7 @@ public class ApproximationTests extends ApproximationTestCase {
             equalTo(new Approximation.QueryProperties(true, false, true))
         );
         assertThat(
-            verify("FROM test | MV_EXPAND gender | LIMIT 42 | STATS COUNT()"),
+            verify("FROM test | MV_EXPAND gender | WHERE emp_no < 3 | STATS COUNT()"),
             equalTo(new Approximation.QueryProperties(false, true, true))
         );
     }
@@ -117,6 +113,13 @@ public class ApproximationTests extends ApproximationTestCase {
         assertError(
             "FROM test | STATS emp_no=COUNT() | LOOKUP JOIN test_lookup ON emp_no | FORK (EVAL x=1) (EVAL y=1)",
             equalTo("line 1:36: approximation not supported: query with [LOOKUP JOIN test_lookup ON emp_no] cannot be approximated")
+        );
+    }
+
+    public void testVerify_incompatibleProcessingCommandBeforeStats() {
+        assertError(
+            "FROM test | LIMIT 1000 | STATS COUNT()",
+            equalTo("line 1:13: approximation not supported: query with [LIMIT 1000] before [STATS] cannot be approximated")
         );
     }
 
@@ -275,13 +278,6 @@ public class ApproximationTests extends ApproximationTestCase {
         assertThat(subplan, hasPlan(Filter.class));
         assertThat(subplan, not(hasPlan(Aggregate.class)));
         assertThat(subplan, hasPlan(SampledAggregate.class, withProbability(1e-6), withAggs(CountApproximate.class)));
-
-        // Filtered count of 0, so increase the sample probability.
-        approximation.newMainPlan(newCountResult(0));
-        subplan = approximation.firstSubPlan();
-        assertThat(subplan, hasPlan(Filter.class));
-        assertThat(subplan, not(hasPlan(Aggregate.class)));
-        assertThat(subplan, hasPlan(SampledAggregate.class, withProbability(1e-2), withAggs(CountApproximate.class)));
 
         // Filtered count of 0, so no more subplans.
         mainPlan = approximation.newMainPlan(newCountResult(0));

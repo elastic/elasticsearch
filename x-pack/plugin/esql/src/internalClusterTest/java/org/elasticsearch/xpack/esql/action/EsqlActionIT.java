@@ -2214,6 +2214,8 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
             // Normalize source position references like @1:19 or @_:19
             .replaceAll("@\\d+:\\d+", "@_:_")
             .replaceAll("@_:\\d+", "@_:_")
+            // Normalize source text (may be absent when query is null, e.g. PreparedEsqlQueryRequest)
+            .replaceAll("(\"source\":\"?)[^@\"]*(@_:_)", "$1$2")
             // Remove memory addresses
             .replaceAll("@[0-9a-f]+", "@_")
             // Remove UUIDs

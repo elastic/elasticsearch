@@ -20,7 +20,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.core.common.socket.SocketAccess;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 
@@ -136,7 +135,7 @@ public class HttpClient implements Closeable {
         // The caller must call start() first before attempting to send a request
         assert status.get() == Status.STARTED : "call start() before attempting to send a request";
 
-        SocketAccess.doPrivileged(() -> client.execute(request.httpRequestBase(), context, new FutureCallback<>() {
+        client.execute(request.httpRequestBase(), context, new FutureCallback<>() {
             @Override
             public void completed(HttpResponse response) {
                 respondUsingResponseThread(response, request, listener);
@@ -155,7 +154,7 @@ public class HttpClient implements Closeable {
                     listener
                 );
             }
-        }));
+        });
     }
 
     private void respondUsingResponseThread(HttpResponse response, HttpRequest request, ActionListener<HttpResult> listener) {
@@ -185,7 +184,7 @@ public class HttpClient implements Closeable {
 
         var streamingProcessor = new StreamingHttpResultPublisher(threadPool, settings, listener);
 
-        SocketAccess.doPrivileged(() -> client.execute(request.requestProducer(), streamingProcessor, context, new FutureCallback<>() {
+        client.execute(request.requestProducer(), streamingProcessor, context, new FutureCallback<>() {
             @Override
             public void completed(Void response) {
                 streamingProcessor.close();
@@ -207,7 +206,7 @@ public class HttpClient implements Closeable {
                         )
                     );
             }
-        }));
+        });
     }
 
     @Override

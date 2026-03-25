@@ -537,6 +537,38 @@ public class Int7uOSQVectorScorerFactoryTests extends org.elasticsearch.simdvec.
         }
     }
 
+    // Verifies that bulkScore with zero nodes returns NEGATIVE_INFINITY without throwing,
+    // as Lucene's exactSearch path can call bulkScore with an empty batch when filters exclude all docs.
+    public void testBulkScoreWithZeroNodes() throws IOException {
+        assumeTrue(notSupportedMsg(), supported());
+        var factory = org.elasticsearch.simdvec.AbstractVectorTestCase.factory.get();
+        final int dims = 1024;
+        final int size = randomIntBetween(2, 100);
+        final float[] centroid = FLOAT_ARRAY_RANDOM_FUNC.apply(dims);
+        final float centroidDP = VectorUtil.dotProduct(centroid, centroid);
+
+        try (Directory dir = new MMapDirectory(createTempDir("testBulkScoreWithZeroNodes"))) {
+            String fileName = "testBulkScoreWithZeroNodes-" + dims;
+            try (IndexOutput out = dir.createOutput(fileName, IOContext.DEFAULT)) {
+                for (int i = 0; i < size; i++) {
+                    var vec = vector(i, dims);
+                    var correction = randomCorrection(vec);
+                    writeVectorWithCorrection(out, vec, correction);
+                }
+            }
+            try (IndexInput in = dir.openInput(fileName, IOContext.DEFAULT)) {
+                for (var sim : List.of(DOT_PRODUCT, EUCLIDEAN, MAXIMUM_INNER_PRODUCT)) {
+                    var values = vectorValues(dims, size, centroid, centroidDP, in, sim.function());
+                    var supplier = factory.getInt7uOSQVectorScorerSupplier(sim, in, values).orElseThrow();
+                    var scorer = supplier.scorer();
+                    scorer.setScoringOrdinal(0);
+                    float result = scorer.bulkScore(new int[0], new float[0], 0);
+                    assertEquals(Float.NEGATIVE_INFINITY, result, 0f);
+                }
+            }
+        }
+    }
+
     public void testRace() throws Exception {
         testRaceImpl(DOT_PRODUCT);
         testRaceImpl(EUCLIDEAN);

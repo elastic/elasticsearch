@@ -51,7 +51,7 @@ public class PrometheusSeriesResponseListener implements ActionListener<EsqlQuer
         // decRef() after this method returns, which is the correct single release.
         try {
             List<Map<String, String>> seriesList = extractSeries(response);
-            replaySuccess(seriesList);
+            sendSuccess(seriesList);
         } catch (Exception e) {
             logger.debug("Failed to build series response", e);
             PrometheusErrorResponse.send(channel, e, logger);
@@ -147,7 +147,7 @@ public class PrometheusSeriesResponseListener implements ActionListener<EsqlQuer
         return labels;
     }
 
-    private void replaySuccess(List<Map<String, String>> seriesList) throws IOException {
+    private void sendSuccess(List<Map<String, String>> seriesList) throws IOException {
         XContentBuilder builder = JsonXContent.contentBuilder();
         builder.startObject();
         builder.field("status", "success");

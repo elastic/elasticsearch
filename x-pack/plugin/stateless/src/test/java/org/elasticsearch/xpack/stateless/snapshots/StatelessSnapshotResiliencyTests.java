@@ -805,7 +805,13 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                 TelemetryProvider.NOOP
             );
             clusterService.addListener(statelessCommitService);
-            this.snapshotsCommitService = new SnapshotsCommitService(clusterService, services.indicesService(), statelessCommitService);
+            this.snapshotsCommitService = new SnapshotsCommitService(
+                clusterService,
+                services.indicesService(),
+                statelessCommitService,
+                threadPool,
+                MeterRegistry.NOOP
+            );
             clusterService.addListener(snapshotsCommitService);
             this.closedShardService = new ClosedShardService();
             this.translogReplicator = new TranslogReplicator(threadPool, settings, objectStoreService, consistencyService);

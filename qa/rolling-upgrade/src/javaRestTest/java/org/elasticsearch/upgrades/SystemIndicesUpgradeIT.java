@@ -71,12 +71,7 @@ public class SystemIndicesUpgradeIT extends AbstractRollingUpgradeTestCase {
             getTask.addParameter("wait_for_completion", "true");
             getTask.setOptions(
                 RequestOptions.DEFAULT.toBuilder()
-                    .setWarningsHandler(
-                        warnings -> warningsShouldFailGetCompletedReindexTask(
-                            warnings,
-                            reindexTaskGetApiDeprecation
-                        )
-                    )
+                    .setWarningsHandler(warnings -> warningsShouldFailGetCompletedReindexTask(warnings, reindexTaskGetApiDeprecation))
                     .build()
             );
             client().performRequest(getTask);
@@ -138,10 +133,7 @@ public class SystemIndicesUpgradeIT extends AbstractRollingUpgradeTestCase {
      * {@code GET /_tasks} with {@code wait_for_completion=true} may return the reindex-tasks deprecation and/or a system-index access
      * warning. Fail only on unexpected warnings.
      */
-    private static boolean warningsShouldFailGetCompletedReindexTask(
-        List<String> warnings,
-        String reindexTaskGetApiDeprecation
-    ) {
+    private static boolean warningsShouldFailGetCompletedReindexTask(List<String> warnings, String reindexTaskGetApiDeprecation) {
         for (String w : warnings) {
             if (reindexTaskGetApiDeprecation.equals(w) == false) {
                 return true;

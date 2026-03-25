@@ -38,8 +38,9 @@ public class ReindexManagementMultiProjectIT extends ESRestTestCase {
 
     private static final String REINDEX_TASK_GET_API_DEPRECATION = "Using the task management APIs to get reindex tasks is deprecated. "
         + "Use the dedicated reindex API instead, GET /_reindex/<task_id>.";
-    private static final String REINDEX_TASK_CANCEL_API_DEPRECATION = "Using the task management APIs to cancel reindex tasks is deprecated. "
-        + "Use the dedicated reindex API instead, POST /_reindex/<task_id>/_cancel.";
+    private static final String REINDEX_TASK_CANCEL_API_DEPRECATION =
+        "Using the task management APIs to cancel reindex tasks is deprecated. "
+            + "Use the dedicated reindex API instead, POST /_reindex/<task_id>/_cancel.";
 
     private static final String SOURCE_INDEX = "reindex_src";
     private static final String DEST_INDEX = "reindex_dst";

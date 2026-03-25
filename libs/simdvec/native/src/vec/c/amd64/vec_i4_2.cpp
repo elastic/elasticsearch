@@ -43,6 +43,7 @@ static inline int32_t doti4_inner_avx512(const int8_t* query, const int8_t* doc,
         __m512i acc_high16 = _mm512_setzero_si512();
         __m512i acc_low16 = _mm512_setzero_si512();
         const int end_raw = i + chunk;
+        // TODO: replace with std::min when we solve the gcc #pragma target inline bug
         const int end = end_raw < blk ? end_raw : blk;
 
         for (; i < end; i += stride) {
@@ -144,6 +145,7 @@ static inline void doti4_bulk_impl_avx512(
             });
 
             const int end_raw = i + chunk;
+            // TODO: replace with std::min when we solve the gcc #pragma target inline bug
             const int end = end_raw < blk ? end_raw : blk;
 
             for (; i < end; i += stride) {
@@ -188,6 +190,7 @@ static inline void doti4_bulk_impl_avx512(
             });
         }
 
+        // TODO: consider replacing with std::copy_n when we solve the gcc #pragma target inline bug
         apply_indexed<batches>([&](auto I) {
             results[c + I] = (f32_t)res[I];
         });

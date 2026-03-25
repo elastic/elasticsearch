@@ -26,6 +26,7 @@ import org.junit.ClassRule;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
@@ -35,6 +36,11 @@ import static org.hamcrest.Matchers.instanceOf;
 
 /** Tests that endpoints in reindex-management module are project-aware and behave as expected in multi-project environments. */
 public class ReindexManagementMultiProjectIT extends ESRestTestCase {
+
+    private static final String REINDEX_TASK_GET_API_DEPRECATION = "Using the task management APIs to get reindex tasks is deprecated. "
+        + "Use the dedicated reindex API instead, GET /_reindex/<task_id>.";
+    private static final String REINDEX_TASK_CANCEL_API_DEPRECATION = "Using the task management APIs to cancel reindex tasks is deprecated. "
+        + "Use the dedicated reindex API instead, POST /_reindex/<task_id>/_cancel.";
 
     private static final String SOURCE_INDEX = "reindex_src";
     private static final String DEST_INDEX = "reindex_dst";
@@ -205,6 +211,11 @@ public class ReindexManagementMultiProjectIT extends ESRestTestCase {
 
     private static boolean runningTaskExistsInProject(final TaskId taskId, final String projectId) throws IOException {
         final Request request = new Request("GET", "/_tasks/" + taskId);
+        request.setOptions(
+            RequestOptions.DEFAULT.toBuilder()
+                .setWarningsHandler(warnings -> warningsShouldFailUnlessAllowed(warnings, Set.of(REINDEX_TASK_GET_API_DEPRECATION)))
+                .build()
+        );
         setRequestProjectId(request, projectId);
         try {
             final Response response = assertOK(client().performRequest(request));
@@ -267,7 +278,22 @@ public class ReindexManagementMultiProjectIT extends ESRestTestCase {
         final Request cancelRequest = new Request("POST", "/_tasks/_cancel");
         cancelRequest.addParameter("actions", ReindexAction.NAME);
         cancelRequest.addParameter("wait_for_completion", "true");
+        cancelRequest.setOptions(
+            RequestOptions.DEFAULT.toBuilder()
+                .setWarningsHandler(warnings -> warningsShouldFailUnlessAllowed(warnings, Set.of(REINDEX_TASK_CANCEL_API_DEPRECATION)))
+                .build()
+        );
         assertOK(adminClient().performRequest(cancelRequest));
+    }
+
+    /** @return {@code true} if the request should fail due to unexpected warning headers */
+    private static boolean warningsShouldFailUnlessAllowed(List<String> warnings, Set<String> allowedMessages) {
+        for (String w : warnings) {
+            if (allowedMessages.contains(w) == false) {
+                return true;
+            }
+        }
+        return false;
     }
 
 }

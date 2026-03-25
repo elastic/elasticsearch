@@ -12,10 +12,12 @@ package org.elasticsearch.upgrades;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.XContentTestUtils.JsonMapView;
 
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.SYSTEM_INDEX_ENFORCEMENT_INDEX_VERSION;
@@ -67,10 +69,17 @@ public class SystemIndicesUpgradeIT extends AbstractRollingUpgradeTestCase {
             // wait for task
             Request getTask = new Request("GET", "/_tasks/" + taskId);
             getTask.addParameter("wait_for_completion", "true");
-            getTask.setOptions(expectVersionSpecificWarnings(v -> {
-                v.current(reindexTaskGetApiDeprecation);
-                v.compatible(reindexTaskGetApiDeprecation);
-            }));
+            getTask.setOptions(
+                RequestOptions.DEFAULT.toBuilder()
+                    .setWarningsHandler(
+                        warnings -> warningsShouldFailGetCompletedReindexTask(
+                            warnings,
+                            reindexTaskGetApiDeprecation,
+                            systemIndexWarning
+                        )
+                    )
+                    .build()
+            );
             client().performRequest(getTask);
 
             // make sure .tasks index exists
@@ -124,5 +133,22 @@ public class SystemIndicesUpgradeIT extends AbstractRollingUpgradeTestCase {
                 }
             });
         }
+    }
+
+    /**
+     * {@code GET /_tasks} with {@code wait_for_completion=true} may return the reindex-tasks deprecation and/or a system-index access
+     * warning. Fail only on unexpected warnings.
+     */
+    private static boolean warningsShouldFailGetCompletedReindexTask(
+        List<String> warnings,
+        String reindexTaskGetApiDeprecation,
+        String systemIndexWarning
+    ) {
+        for (String w : warnings) {
+            if (reindexTaskGetApiDeprecation.equals(w) == false && systemIndexWarning.equals(w) == false) {
+                return true;
+            }
+        }
+        return false;
     }
 }

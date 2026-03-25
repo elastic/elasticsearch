@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
+package org.elasticsearch.xpack.esql.expression.function.scalar.spatial;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -19,19 +19,21 @@ import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class ToGeohexhErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
+public class StIsEmptyErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
     @Override
     protected List<TestCaseSupplier> cases() {
-        return paramsToSuppliers(ToGeohexTests.parameters());
+        return paramsToSuppliers(StIsEmptyTests.parameters());
     }
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new ToGeohex(source, args.get(0));
+        return new StIsEmpty(source, args.get(0));
     }
 
     @Override
     protected Matcher<String> expectedTypeErrorMatcher(List<Set<DataType>> validPerPosition, List<DataType> signature) {
-        return equalTo(typeErrorMessage(false, validPerPosition, signature, (v, p) -> "geohex or long or string"));
+        return equalTo(
+            typeErrorMessage(false, validPerPosition, signature, (v, p) -> "geo_point, cartesian_point, geo_shape or cartesian_shape")
+        );
     }
 }

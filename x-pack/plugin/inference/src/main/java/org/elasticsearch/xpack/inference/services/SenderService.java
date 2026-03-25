@@ -177,7 +177,7 @@ public abstract class SenderService<M extends Model> implements InferenceService
                 }
                 yield new QueryAndDocsInputs(query, input, returnDocuments, topN, stream);
             }
-            case TEXT_EMBEDDING, SPARSE_EMBEDDING, EMBEDDING -> {
+            case TEXT_EMBEDDING, SPARSE_EMBEDDING -> {
                 ValidationException validationException = new ValidationException();
                 service.validateInputType(inputType, model, validationException);
                 if (validationException.validationErrors().isEmpty() == false) {

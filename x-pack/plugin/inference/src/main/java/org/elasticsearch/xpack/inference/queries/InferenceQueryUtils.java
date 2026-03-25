@@ -34,6 +34,7 @@ import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceFieldsInternalAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
+import org.elasticsearch.xpack.core.inference.action.InferenceActionProxy;
 import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.MlDenseEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
@@ -572,7 +573,7 @@ public final class InferenceQueryUtils {
             executeAsyncWithOrigin(
                 client,
                 ML_ORIGIN,
-                InferenceAction.INSTANCE,
+                InferenceActionProxy.INSTANCE,
                 inferenceRequest,
                 gal.delegateFailureAndWrap((l, inferenceActionResponse) -> {
                     InferenceResults inferenceResults = validateAndConvertInferenceResults(

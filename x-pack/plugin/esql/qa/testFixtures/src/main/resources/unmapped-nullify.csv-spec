@@ -291,6 +291,7 @@ foo:integer
 
 statsAggs
 required_capability: optional_fields_nullify_tech_preview
+required_capability: fix_sum_of_null_optimization
 
 SET unmapped_fields="nullify"\;
 ROW x = 1
@@ -315,6 +316,7 @@ null
 
 statsAggsGrouped
 required_capability: optional_fields_nullify_tech_preview
+required_capability: fix_sum_of_null_optimization
 
 SET unmapped_fields="nullify"\;
 ROW x = 1
@@ -583,6 +585,7 @@ null           | 1985           | null           | abc            | fork3
 
 inlinestatsCount
 required_capability: optional_fields_nullify_tech_preview
+required_capability: fix_sum_of_null_optimization
 
 SET unmapped_fields="nullify"\;
 ROW x = 1
@@ -818,6 +821,7 @@ null     | 2024-05-10T00:00:00.000Z
 maxOverTimeOfDoubleNoGroupingUnmappedNullify
 required_capability: optional_fields_nullify_tech_preview
 required_capability: ts_command_v0
+required_capability: fix_sum_of_null_optimization
 
 SET unmapped_fields="nullify"\;
 TS k8s_unmapped

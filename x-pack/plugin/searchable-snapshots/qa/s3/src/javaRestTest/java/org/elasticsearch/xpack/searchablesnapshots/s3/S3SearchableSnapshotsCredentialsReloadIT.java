@@ -16,6 +16,7 @@ import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.entity.ContentType;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
@@ -272,14 +273,8 @@ public class S3SearchableSnapshotsCredentialsReloadIT extends ESRestTestCase {
             final Request searchRequest = new Request("GET", mountedIndexName + "/_search");
             searchRequest.addParameter("size", "10000");
             assertThat(
-                /**
-                 * New behaviour https://elasticco.atlassian.net/browse/ES-13905
-                 * 403 is considered CSP transient eventual consistency issue with IAM.
-                 * Suppressed: software.amazon.awssdk.services.s3.model.S3Exception: Access denied
-                 * Therefore, Blobstore infinitely retries with linear backoff until timeout.
-                 */
-                expectThrows(SocketTimeoutException.class, () -> client().performRequest(searchRequest)).getMessage(),
-                allOf(containsString("60.000 milliseconds timeout"), containsString("failed to read data from cache"))
+                expectThrows(ResponseException.class, () -> client().performRequest(searchRequest)).getMessage(),
+                allOf(containsString("Access denied"), containsString("Status Code: 403"), containsString("failed to read data from cache"))
             );
         }
     }

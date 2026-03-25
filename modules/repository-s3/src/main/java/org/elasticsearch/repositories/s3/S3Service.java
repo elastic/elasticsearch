@@ -339,6 +339,11 @@ class S3Service extends AbstractLifecycleComponent {
         var retryStrategyBuilder = AwsRetryStrategy.standardRetryStrategy()
             .toBuilder()
             .maxAttempts(clientSettings.maxRetries + 1 /* first attempt is not a retry */);
+        if (isStateless) {
+            // Create a 403 error retryable policy. In serverless we sometimes get 403s because of delays in propagating updated credentials
+            // because IAM is not strongly consistent.
+            retryStrategyBuilder.retryOnException(S3Service::isInvalidAccessKeyIdException);
+        }
         clientOverrideConfiguration.retryStrategy(retryStrategyBuilder.build());
         final long apiCallTimeoutMillis = clientSettings.apiCallTimeout.millis();
         if (apiCallTimeoutMillis >= 0) {

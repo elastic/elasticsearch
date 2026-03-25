@@ -3264,18 +3264,18 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             Map<Integer, UnsupportedAttribute> unsupportedAttributes
         ) {
             Attribute unionAttr = unionAll.output().get(columnIndex);
-            List<String> dataTypes = collectIncompatibleTypes(columnIndex, outputs);
-
             // Create the UnsupportedAttribute once — used in both branches.
             // Its presence in unsupportedAttributes also signals that commonType should be UNSUPPORTED.
-            UnsupportedAttribute unsupported = new UnsupportedAttribute(
-                oldAttr.source(),
-                oldAttr.name(),
-                new UnsupportedEsField(oldAttr.name(), dataTypes),
-                "Column [" + oldAttr.name() + "] has conflicting data types in subqueries: " + dataTypes,
-                oldAttr.id()
-            );
-            unsupportedAttributes.putIfAbsent(columnIndex, unsupported);
+            UnsupportedAttribute unsupported = unsupportedAttributes.computeIfAbsent(columnIndex, k -> {
+                List<String> dataTypes = collectIncompatibleTypes(k, outputs);
+                return new UnsupportedAttribute(
+                    oldAttr.source(),
+                    oldAttr.name(),
+                    new UnsupportedEsField(oldAttr.name(), dataTypes),
+                    "Column [" + oldAttr.name() + "] has conflicting data types in subqueries: " + dataTypes,
+                    oldAttr.id()
+                );
+            });
 
             if (outputToPlans.containsKey(unionAttr)) {
                 // Referenced by downstream plans — return UnsupportedAttribute directly (causes verification error)

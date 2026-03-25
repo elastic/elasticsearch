@@ -923,7 +923,7 @@ FROM sample_data, sample_data_str,
 
 subqueryInFromWithUnionTypesWithoutCommonTypesWithoutExplicitCasting
 required_capability: subquery_in_from_command
-required_capability: union_types_conflict_resolution
+required_capability: subquery_in_from_command_union_types_conflict_resolution
 
 FROM sample_data, sample_data_str,
            (FROM sample_data_ts_nanos
@@ -1010,7 +1010,7 @@ FROM k8s-downsampled, (FROM sample_data)
 
 subqueryInFromWithTimeSeriesDataTypesInMainQueryAndSubquery
 required_capability: subquery_in_from_command
-required_capability: union_types_conflict_resolution
+required_capability: subquery_in_from_command_union_types_conflict_resolution
 
 FROM k8s, (FROM k8s-downsampled | WHERE @timestamp <= "2024-05-09T23:30:00.000Z")
 | WHERE @timestamp <= "2024-05-10T00:01:00.000Z"
@@ -1074,7 +1074,7 @@ author:text | emp_no:long
 subqueryInFromUnionConflictingTypes
 
 required_capability: subquery_in_from_command
-required_capability: union_types_conflict_resolution
+required_capability: subquery_in_from_command_union_types_conflict_resolution
 
 FROM (FROM sample_data), (FROM sample_data_str)
 | KEEP client_ip

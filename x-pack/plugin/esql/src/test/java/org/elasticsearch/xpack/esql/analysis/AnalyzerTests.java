@@ -5648,8 +5648,8 @@ public class AnalyzerTests extends ESTestCase {
 
     /*
      * When there are mixed date types between the main query and the subquery, the fields/references need to be casted to a common type
-     * in the UnionAll legs, otherwise  FORK's postAnalysisPlanVerification will fail. The common type can be date_nanos,
-     * keyword with null if the fields are not referenced in the main query, or unsupported if the fields are referenced in the main query.
+     * in the UnionAll legs, otherwise FORK's postAnalysisPlanVerification will fail. The common type can be date_nanos,
+     * or unsupported if the fields have conflicting types (regardless of whether they are referenced in the main query).
      */
     public void testMixedDataTypesInSubquery() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
@@ -5916,7 +5916,7 @@ public class AnalyzerTests extends ESTestCase {
     public void testUnionAllWithConflictingTypesFromSubqueries() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
 
-        LogicalPlan plan = analyze("""
+        LogicalPlan plan = sampleData().query("""
             FROM (FROM sample_data), (FROM sample_data | EVAL client_ip = 1) | keep client_ip
             """);
 
@@ -5973,6 +5973,48 @@ public class AnalyzerTests extends ESTestCase {
         assertEquals(1, one.value());
         assertEquals(INTEGER, one.dataType());
         EsRelation rightRelation = as(innerEval.child(), EsRelation.class);
+    }
+
+    public void testUnionAllWithConflictingTypesFromSubqueriesWithoutUsageInMainQuery() {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+
+        LogicalPlan plan = sampleData().query("""
+            FROM (FROM sample_data), (FROM sample_data | EVAL client_ip = 1)
+            """);
+
+        // Limit[1000]
+        Limit limit = as(plan, Limit.class);
+
+        // Limit directly over UnionAll since there is no keep/project
+        UnionAll unionAll = as(limit.child(), UnionAll.class);
+        assertEquals(2, unionAll.children().size());
+
+        List<Attribute> output = unionAll.output();
+        Attribute clientIpAttr = output.stream().filter(a -> "client_ip".equals(a.name())).findFirst().orElseThrow();
+        UnsupportedAttribute ua = as(clientIpAttr, UnsupportedAttribute.class);
+        assertEquals(UNSUPPORTED, ua.dataType());
+        assertThat(ua.originalTypes(), is(List.of(IP.esType(), INTEGER.esType())));
+        assertEquals("client_ip", ua.name());
+    }
+
+    public void testUnionAllWithConflictingNumericTypesFromSubqueries() {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+
+        LogicalPlan plan = defaultMapping().addDefaultIncompatible().query("""
+            FROM test, (FROM test_mixed_types) | keep emp_no
+            """);
+
+        // Limit[1000]
+        Limit limit = as(plan, Limit.class);
+
+        // Project[[!emp_no]]
+        Project project = as(limit.child(), Project.class);
+        var projections = project.projections();
+        assertThat(projections, hasSize(1));
+        UnsupportedAttribute ua = as(projections.getFirst(), UnsupportedAttribute.class);
+        assertEquals(UNSUPPORTED, ua.dataType());
+        assertThat(ua.originalTypes(), is(List.of(INTEGER.esType(), LONG.esType())));
+        assertEquals("emp_no", ua.name());
     }
 
     public void testSubqueryWithTimeSeriesIndexInMainQuery() {

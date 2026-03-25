@@ -1193,6 +1193,12 @@ public class EsqlCapabilities {
         SUBQUERY_IN_FROM_COMMAND_APPEND_IMPLICIT_LIMIT_TO_UNBOUNDED_SORT_IN_SUBQUERY(Build.current().isSnapshot()),
 
         /**
+         * Fix for union types when fields have conflicting types between subqueries.
+         * https://github.com/elastic/elasticsearch/issues/142499
+         */
+        SUBQUERY_IN_FROM_COMMAND_SUBQUERY_IN_FROM_COMMAND_UNION_TYPES_CONFLICT_RESOLUTION(Build.current().isSnapshot()),
+
+        /**
          * Support for views in cluster state (and REST API).
          */
         VIEWS_IN_CLUSTER_STATE(EsqlFeatureFlags.ESQL_VIEWS_FEATURE_FLAG.isEnabled()),
@@ -2306,12 +2312,6 @@ public class EsqlCapabilities {
          * https://github.com/elastic/elasticsearch/issues/143859
          */
         FIX_FULL_TEXT_FUNCTIONS_ON_RENAMED_FIELDS,
-
-        /**
-         * Fix for union types when fields have conflicting types between subqueries.
-         * https://github.com/elastic/elasticsearch/issues/142499
-         */
-        UNION_TYPES_CONFLICT_RESOLUTION,
 
         /**
          * TOP_SNIPPETS checks that the query is foldable

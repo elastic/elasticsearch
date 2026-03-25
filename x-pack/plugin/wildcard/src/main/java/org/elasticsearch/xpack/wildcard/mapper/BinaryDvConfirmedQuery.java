@@ -130,7 +130,7 @@ abstract class BinaryDvConfirmedQuery extends Query {
     public Query rewrite(IndexSearcher searcher) throws IOException {
         Query approxRewrite = approxQuery.rewrite(searcher);
         if (approxRewrite instanceof MatchNoDocsQuery) {
-            return MatchNoDocsQuery.INSTANCE;
+            return approxRewrite;
         }
         if (approxQuery != approxRewrite) {
             return rewrite(approxRewrite);

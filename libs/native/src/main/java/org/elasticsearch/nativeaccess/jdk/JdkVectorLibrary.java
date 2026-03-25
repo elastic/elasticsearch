@@ -301,6 +301,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
         ) {
             long rowBytes = (long) length * elementBits / 8;
             if (pitch < rowBytes) throw new IllegalArgumentException("Pitch needs to be at least " + length);
+            Objects.checkFromIndexSize(0L, (long) pitch * count, a.byteSize());
             Objects.checkFromIndexSize(0L, rowBytes, b.byteSize());
             Objects.checkFromIndexSize(0L, (long) count * Integer.BYTES, offsets.byteSize());
             Objects.checkFromIndexSize(0L, (long) count * Float.BYTES, result.byteSize());

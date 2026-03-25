@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+  - 138798
+pr: 138973
+summary: overflowing division in ROW gives wrong error message
+type: bug

@@ -129,6 +129,7 @@ import org.elasticsearch.xpack.esql.plan.physical.EnrichExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec.FieldSort;
 import org.elasticsearch.xpack.esql.plan.physical.EsSourceExec;
+import org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
@@ -201,7 +202,6 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.statsForMissingField;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.SerializationTestUtils.assertSerialization;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.INLINE_STATS;
-import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyze;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultLookupResolution;
 import static org.elasticsearch.xpack.esql.core.expression.Expressions.name;
 import static org.elasticsearch.xpack.esql.core.expression.Expressions.names;
@@ -6882,26 +6882,19 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(alias.name(), is("distance"));
         as(eval.child(), EsRelation.class);
 
-        // Now optimize the plan
+        // Now optimize the plan — stats are pushed through the EvalExec to the source
         var optimized = optimizedPlan(plan);
         var topLimit = as(optimized, LimitExec.class);
         var aggExec = as(topLimit.child(), AggregateExec.class);
         var exchangeExec = as(aggExec.child(), ExchangeExec.class);
-        var aggExec2 = as(exchangeExec.child(), AggregateExec.class);
-        // TODO: Remove the eval entirely, since the distance is no longer required after filter pushdown
-        // Right now we don't mark the distance field as doc-values, introducing a performance hit
-        // However, fixing this to doc-values is not as good as removing the EVAL entirely, which is a more sensible optimization
-        var evalExec = as(aggExec2.child(), EvalExec.class);
-        var stDistance = as(evalExec.fields().get(0).child(), StDistance.class);
-        assertThat("Expect distance function to expect doc-values", stDistance.leftDocValues(), is(false));
-        var source = assertChildIsGeoPointExtract(evalExec, FieldExtractPreference.NONE);
+        var statsQuery = as(exchangeExec.child(), EsStatsQueryExec.class);
 
-        // No sort is pushed down
-        assertThat(source.limit(), nullValue());
-        assertThat(source.sorts(), nullValue());
+        // Verify COUNT(*) was pushed to source
+        var stat = as(statsQuery.stat(), EsStatsQueryExec.BasicStat.class);
+        assertThat(stat.type(), is(EsStatsQueryExec.StatsType.COUNT));
 
-        // Fine-grained checks on the pushed down query
-        var bool = as(source.query(), BoolQueryBuilder.class);
+        // Fine-grained checks on the pushed down spatial query
+        var bool = as(statsQuery.query(), BoolQueryBuilder.class);
         var shapeQueryBuilders = bool.must().stream().filter(p -> p instanceof SpatialRelatesQuery.ShapeQueryBuilder).toList();
         assertShapeQueryRange(shapeQueryBuilders, 10000.0, 1000000.0);
     }
@@ -8953,8 +8946,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             | RENAME languages AS int
             | LOOKUP_🐔 int_number_names ON int""";
         if (Build.current().isSnapshot() == false) {
-            var e = expectThrows(ParsingException.class, () -> analyze(query));
-            assertThat(e.getMessage(), containsString("line 3:3: mismatched input 'LOOKUP' expecting {"));
+            analyzer().addEmployees("test")
+                .error(query, ParsingException.class, containsString("line 3:3: mismatched input 'LOOKUP' expecting {"));
             return;
         }
         PhysicalPlan plan = physicalPlan(query);
@@ -9003,8 +8996,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             | RENAME int AS languages, name AS lang_name
             | KEEP emp_no, languages, lang_name""";
         if (Build.current().isSnapshot() == false) {
-            var e = expectThrows(ParsingException.class, () -> analyze(query));
-            assertThat(e.getMessage(), containsString("line 5:3: mismatched input 'LOOKUP_🐔' expecting {"));
+            analyzer().addEmployees("employees")
+                .error(query, ParsingException.class, containsString("line 5:3: mismatched input 'LOOKUP_🐔' expecting {"));
             return;
         }
         PhysicalPlan plan = optimizedPlan(physicalPlan(query));
@@ -9061,8 +9054,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             | KEEP languages, emp_no
             | SORT languages ASC, emp_no ASC""";
         if (Build.current().isSnapshot() == false) {
-            var e = expectThrows(ParsingException.class, () -> analyze(query));
-            assertThat(e.getMessage(), containsString("line 3:3: mismatched input 'LOOKUP_🐔' expecting {"));
+            analyzer().addEmployees("employees")
+                .error(query, ParsingException.class, containsString("line 3:3: mismatched input 'LOOKUP_🐔' expecting {"));
             return;
         }
 

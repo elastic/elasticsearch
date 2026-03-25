@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.core.util.Queries;
 import org.elasticsearch.xpack.esql.datasources.FilterPushdownRegistry;
+import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamWrapperQueryBuilder;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalOptimizerContext;
@@ -197,15 +198,6 @@ public class PlannerUtils {
         return new ReducedPlan(EstimatesRowSize.estimateRowSize(estimatedRowSize, plan));
     }
 
-    public static boolean requiresSortedTimeSeriesSource(PhysicalPlan plan) {
-        return plan.anyMatch(e -> {
-            if (e instanceof FragmentExec f) {
-                return f.fragment().anyMatch(l -> l instanceof EsRelation r && r.indexMode() == IndexMode.TIME_SERIES);
-            }
-            return false;
-        });
-    }
-
     public static void forEachRelation(PhysicalPlan plan, Consumer<EsRelation> action) {
         plan.forEachDown(FragmentExec.class, f -> f.fragment().forEachDown(EsRelation.class, r -> {
             if (r.indexMode() != IndexMode.LOOKUP) {
@@ -308,9 +300,31 @@ public class PlannerUtils {
         FilterPushdownRegistry filterPushdownRegistry,
         PlanTimeProfile planTimeProfile
     ) {
+        return localPlan(plannerSettings, flags, configuration, foldCtx, plan, searchStats, filterPushdownRegistry, null, planTimeProfile);
+    }
+
+    public static PhysicalPlan localPlan(
+        PlannerSettings plannerSettings,
+        EsqlFlags flags,
+        Configuration configuration,
+        FoldContext foldCtx,
+        PhysicalPlan plan,
+        SearchStats searchStats,
+        FilterPushdownRegistry filterPushdownRegistry,
+        FormatReaderRegistry formatReaderRegistry,
+        PlanTimeProfile planTimeProfile
+    ) {
         final var logicalOptimizer = new LocalLogicalPlanOptimizer(new LocalLogicalOptimizerContext(configuration, foldCtx, searchStats));
         var physicalOptimizer = new LocalPhysicalPlanOptimizer(
-            new LocalPhysicalOptimizerContext(plannerSettings, flags, configuration, foldCtx, searchStats, filterPushdownRegistry)
+            new LocalPhysicalOptimizerContext(
+                plannerSettings,
+                flags,
+                configuration,
+                foldCtx,
+                searchStats,
+                filterPushdownRegistry,
+                formatReaderRegistry
+            )
         );
 
         return localPlan(plan, logicalOptimizer, physicalOptimizer, planTimeProfile);

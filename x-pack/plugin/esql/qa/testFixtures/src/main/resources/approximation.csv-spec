@@ -464,6 +464,19 @@ median:double | p50:double | key:keyword | _approximation_confidence_interval(me
 ;
 
 
+Sum of nulls-Ignore
+// caused by: https://github.com/elastic/elasticsearch/issues/144914
+required_capability: approximation_v6
+
+SET approximation={"rows":10000}\;
+FROM employees | STATS s_null = sum(null)
+;
+
+s_null:double | _approximation_confidence_interval(s_null):double | _approximation_certified(s_null):boolean
+null          | null                                              | null
+;
+
+
 Warn on no stats
 required_capability: approximation_v6
 

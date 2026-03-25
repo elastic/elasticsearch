@@ -474,8 +474,6 @@ setup:
         body:
           settings:
             index:
-              number_of_shards: 1
-              number_of_replicas: 0
               sort.field: labels.priority
               sort.order: asc
           mappings:
@@ -497,8 +495,13 @@ setup:
           - '{ "labels": { "priority": 1, "name": "high" } }'
           - '{ "index": { "_id": "3" } }'
           - '{ "labels": { "priority": 2, "name": "medium" } }'
-
   - match: { errors: false }
+
+  # force merge to guarantee sort order
+  - do:
+      indices.forcemerge:
+        index: test
+        max_num_segments: 1
 
   - do:
       search:

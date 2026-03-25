@@ -161,4 +161,4 @@ setup:
   - contains: { error.reason: 'line 1:82: Loading subfield [foo...] when parent [foo] is of flattened field type is not supported with unmapped_fields="load"' }
   - contains: { error.reason: 'line 1:92: Loading subfield [foo....] when parent [foo] is of flattened field type is not supported with unmapped_fields="load"' }
   - contains: { error.reason: 'line 1:103: Loading subfield [foo.*] when parent [foo] is of flattened field type is not supported with unmapped_fields="load"' }
-  - contains: { error.reason: 'line 1:112: Loading subfield [bar.baz.a] when parent [bar].[baz] is of flattened field type is not supported with unmapped_fields="load"' }
+  - contains: { error.reason: 'line 1:112: Loading subfield [bar.baz.a] when parent [bar.baz] is of flattened field type is not supported with unmapped_fields="load"' }

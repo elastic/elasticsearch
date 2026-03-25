@@ -350,6 +350,10 @@ public class EsqlFunctionRegistry {
         return defs.containsKey(functionName);
     }
 
+    public boolean functionExists(Class<? extends Function> clazz) {
+        return names.containsKey(clazz);
+    }
+
     public String functionName(Class<? extends Function> clazz) {
         String name = names.get(clazz);
         Check.notNull(name, "Cannot find function by class {}", clazz);

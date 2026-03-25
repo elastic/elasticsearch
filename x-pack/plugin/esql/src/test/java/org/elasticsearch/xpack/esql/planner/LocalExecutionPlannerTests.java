@@ -73,14 +73,11 @@ import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
 import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
-import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.MetricsInfoExec;
-import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
-import org.elasticsearch.xpack.esql.plan.physical.TsInfoExec;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.spatial.SpatialPlugin;
@@ -417,12 +414,10 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
     }
 
     /**
-     * When the logical optimizer inserts a {@code ProjectExec[[]]} between {@code [MetricsInfoExecINITIAL]}
-     * and the underlying {@code EsQueryExec}, the planner must look through the empty projection to
-     * find the {@code _doc} attribute and build the full pipeline (LuceneSourceOperator), not
-     * short-circuit to an empty LocalSourceOperator.
+     * When the child EsQueryExec contains a {@code _doc} attribute, the planner should
+     * build the full LuceneSourceOperator pipeline for MetricsInfoExec.
      */
-    public void testPlanMetricsInfoSkipsThroughProjectExec() throws IOException {
+    public void testPlanMetricsInfoBuildsLuceneSourceWhenDocAttributePresent() throws IOException {
         FieldAttribute docAttr = new FieldAttribute(Source.EMPTY, EsQueryExec.DOC_ID_FIELD.getName(), EsQueryExec.DOC_ID_FIELD);
         EsQueryExec queryExec = new EsQueryExec(
             Source.EMPTY,
@@ -434,12 +429,11 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             1,
             List.of(new EsQueryExec.QueryBuilderAndTags(null, List.of()))
         );
-        ProjectExec projectExec = new ProjectExec(Source.EMPTY, queryExec, List.of());
 
         List<Attribute> outputAttrs = buildMetricsInfoAttributes();
         MetricsInfoExec metricsInfoExec = new MetricsInfoExec(
             Source.EMPTY,
-            projectExec,
+            queryExec,
             outputAttrs,
             outputAttrs,
             MetricsInfoExec.Mode.INITIAL
@@ -455,50 +449,14 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         assertThat(plan.driverFactories.size(), equalTo(1));
         var sourceFactory = plan.driverFactories.get(0).driverSupplier().physicalOperation().sourceOperatorFactory;
         assertThat(
-            "Expected LuceneSourceOperator when ProjectExec wraps an EsQueryExec with _doc",
+            "Expected LuceneSourceOperator when EsQueryExec child has _doc",
             sourceFactory,
             instanceOf(LuceneSourceOperator.Factory.class)
         );
     }
 
     /**
-     * Same as {@link #testPlanMetricsInfoSkipsThroughProjectExec()} but for {@code TsInfoExec}.
-     */
-    public void testPlanTsInfoSkipsThroughProjectExec() throws IOException {
-        FieldAttribute docAttr = new FieldAttribute(Source.EMPTY, EsQueryExec.DOC_ID_FIELD.getName(), EsQueryExec.DOC_ID_FIELD);
-        EsQueryExec queryExec = new EsQueryExec(
-            Source.EMPTY,
-            EsIndexGenerator.esIndex("test").name(),
-            IndexMode.STANDARD,
-            List.of(docAttr),
-            null,
-            null,
-            1,
-            List.of(new EsQueryExec.QueryBuilderAndTags(null, List.of()))
-        );
-        ProjectExec projectExec = new ProjectExec(Source.EMPTY, queryExec, List.of());
-
-        List<Attribute> outputAttrs = buildTsInfoAttributes();
-        TsInfoExec tsInfoExec = new TsInfoExec(Source.EMPTY, projectExec, outputAttrs, outputAttrs, TsInfoExec.Mode.INITIAL);
-
-        LocalExecutionPlanner.LocalExecutionPlan plan = planner().plan(
-            "test",
-            FoldContext.small(),
-            PlannerSettings.DEFAULTS,
-            tsInfoExec,
-            EmptyIndexedByShardId.instance()
-        );
-        assertThat(plan.driverFactories.size(), equalTo(1));
-        var sourceFactory = plan.driverFactories.get(0).driverSupplier().physicalOperation().sourceOperatorFactory;
-        assertThat(
-            "Expected LuceneSourceOperator when ProjectExec wraps an EsQueryExec with _doc",
-            sourceFactory,
-            instanceOf(LuceneSourceOperator.Factory.class)
-        );
-    }
-
-    /**
-     * When neither the child nor any wrapped ProjectExec contain a {@code _doc} attribute,
+     * When the child plan does not contain a {@code _doc} attribute,
      * the planner should correctly fall back to an empty source.
      */
     public void testPlanMetricsInfoEmptySourceWhenNoDocAttribute() throws IOException {
@@ -546,13 +504,6 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         return attributes;
     }
 
-    private static List<Attribute> buildTsInfoAttributes() {
-        List<Attribute> attributes = new ArrayList<>();
-        for (String name : TsInfo.ATTRIBUTES) {
-            attributes.add(new ReferenceAttribute(Source.EMPTY, null, name, DataType.KEYWORD));
-        }
-        return attributes;
-    }
 
     private ValuesSourceReaderOperator.LoaderAndConverter constructBlockLoader() throws IOException {
         EsQueryExec queryExec = new EsQueryExec(

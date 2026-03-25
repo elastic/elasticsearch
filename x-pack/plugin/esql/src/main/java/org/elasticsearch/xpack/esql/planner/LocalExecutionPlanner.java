@@ -1011,11 +1011,12 @@ public class LocalExecutionPlanner {
             return planMetricsInfoFinal(metricsInfoExec, context);
         }
         // INITIAL mode: extraction on data nodes.
-        // Skip through ProjectExec (which may have an empty output set) to find the
-        // underlying EsQueryExec with _doc. MetricsInfo handles its own field extraction
-        // so an intervening empty projection is harmless and must not short-circuit planning.
-        PhysicalPlan dataChild = skipProject(metricsInfoExec.child());
-        if (FieldExtractExec.extractSourceAttributesFrom(dataChild) == null) {
+        if (FieldExtractExec.extractSourceAttributesFrom(metricsInfoExec.child()) == null) {
+            logger.debug(
+                "planMetricsInfo: no _doc attribute found in child [{}], outputSet [{}]; falling back to empty source",
+                metricsInfoExec.child().nodeName(),
+                metricsInfoExec.child().outputSet()
+            );
             return emptySourceForAttributes(metricsInfoExec.output());
         }
         // Step 1: Extract _tsid only
@@ -1030,7 +1031,7 @@ public class LocalExecutionPlanner {
 
         FieldExtractExec tsidExtractExec = new FieldExtractExec(
             metricsInfoExec.source(),
-            dataChild,
+            metricsInfoExec.child(),
             List.of(tsidAttr),
             MappedFieldType.FieldExtractPreference.DOC_VALUES
         );
@@ -1115,9 +1116,12 @@ public class LocalExecutionPlanner {
             return planTsInfoFinal(tsInfoExec, context);
         }
         // INITIAL mode: extraction on data nodes.
-        // See planMetricsInfo for why we skip through ProjectExec here.
-        PhysicalPlan dataChild = skipProject(tsInfoExec.child());
-        if (FieldExtractExec.extractSourceAttributesFrom(dataChild) == null) {
+        if (FieldExtractExec.extractSourceAttributesFrom(tsInfoExec.child()) == null) {
+            logger.debug(
+                "planTsInfo: no _doc attribute found in child [{}], outputSet [{}]; falling back to empty source",
+                tsInfoExec.child().nodeName(),
+                tsInfoExec.child().outputSet()
+            );
             return emptySourceForAttributes(tsInfoExec.output());
         }
         // Step 1: Extract _tsid only
@@ -1132,7 +1136,7 @@ public class LocalExecutionPlanner {
 
         FieldExtractExec tsidExtractExec = new FieldExtractExec(
             tsInfoExec.source(),
-            dataChild,
+            tsInfoExec.child(),
             List.of(tsidAttr),
             MappedFieldType.FieldExtractPreference.DOC_VALUES
         );
@@ -1214,19 +1218,6 @@ public class LocalExecutionPlanner {
         layout.append(attributes);
         LocalSourceOperator.PageSupplier empty = () -> null;
         return PhysicalOperation.fromSource(new LocalSourceFactory(() -> new LocalSourceOperator(empty)), layout.build());
-    }
-
-    /**
-     * Unwraps an intervening {@link ProjectExec} (typically with an empty projection list) that
-     * the logical optimizer may insert between MetricsInfoExec/TsInfoExec and the underlying
-     * EsQueryExec. These commands handle their own field extraction, so the projection is
-     * irrelevant and must not hide the {@code _doc} attribute from the planner.
-     */
-    private static PhysicalPlan skipProject(PhysicalPlan plan) {
-        while (plan instanceof ProjectExec project) {
-            plan = project.child();
-        }
-        return plan;
     }
 
     private MetricsInfoOperator.MetricFieldLookup createMetricFieldLookup(IndexedByShardId<? extends ShardContext> shardContexts) {

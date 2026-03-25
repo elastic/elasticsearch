@@ -877,7 +877,6 @@ FROM partial_mapping_sample_data
 // Confirm that the employees_no_names index does not have first_name and last_name mapped.
 employeesNoNamesFieldsRemoved
 required_capability: index_metadata_field
-required_capability: optional_fields_v2
 
 FROM employees, employees_no_names METADATA _index
 | KEEP emp_no, first_name, last_name, _index
@@ -896,7 +895,7 @@ emp_no:integer | first_name:keyword | last_name:keyword | _index:keyword
 
 employeesNoNamesLoad
 required_capability: index_metadata_field
-required_capability: optional_fields_v2
+required_capability: optional_fields_fix_load_partially_mapped_keyword
 
 SET unmapped_fields="load"\;
 FROM employees, employees_no_names METADATA _index
@@ -920,7 +919,7 @@ emp_no:integer | first_name:keyword | last_name:keyword | _index:keyword
 // from _source even when not explicitly referenced in a downstream expression like KEEP.
 fieldIsPartiallyUnmappedMultiIndexWithoutKeep
 required_capability: index_metadata_field
-required_capability: optional_fields_v2
+required_capability: optional_fields_fix_load_partially_mapped_keyword
 
 SET unmapped_fields="load"\;
 FROM sample_data, no_mapping_sample_data METADATA _index
@@ -949,7 +948,7 @@ Connected to 10.1.0.1  | sample_data
 // referenced by any command — they remain in the output implicitly and get loaded.
 fieldIsPartiallyUnmappedWithEvalOnOtherMappedField
 required_capability: index_metadata_field
-required_capability: optional_fields_v2
+required_capability: optional_fields_fix_load_partially_mapped_keyword
 
 SET unmapped_fields="load"\;
 FROM employees, employees_no_names METADATA _index
@@ -970,7 +969,7 @@ emp_no:integer | first_name:keyword | last_name:keyword | _index:keyword     | s
 
 fieldIsPartiallyUnmappedWithRenameOnOtherMappedField
 required_capability: index_metadata_field
-required_capability: optional_fields_v2
+required_capability: optional_fields_fix_load_partially_mapped_keyword
 
 SET unmapped_fields="load"\;
 FROM employees, employees_no_names METADATA _index
@@ -993,7 +992,7 @@ emp_no:integer | first_name:keyword | last_name:keyword | pay:integer | _index:k
 // first_name is not referenced by any command but must still be loaded.
 fieldIsPartiallyUnmappedWithEvalOnOtherPartiallyUnmappedField
 required_capability: index_metadata_field
-required_capability: optional_fields_v2
+required_capability: optional_fields_fix_load_partially_mapped_keyword
 
 SET unmapped_fields="load"\;
 FROM employees, employees_no_names METADATA _index
@@ -1014,7 +1013,7 @@ emp_no:integer | first_name:keyword | _index:keyword     | last_name:keyword
 
 fieldIsPartiallyUnmappedWithRenameOnOtherPartiallyUnmappedField
 required_capability: index_metadata_field
-required_capability: optional_fields_v2
+required_capability: optional_fields_fix_load_partially_mapped_keyword
 
 SET unmapped_fields="load"\;
 FROM employees, employees_no_names METADATA _index
@@ -1036,7 +1035,7 @@ emp_no:integer | first_name:keyword | surname:keyword | salary:integer | _index:
 // Wildcard DROP leaving the partially-mapped keyword field (message) implicit — no explicit reference.
 fieldIsPartiallyUnmappedMultiIndexWithWildcardDrop
 required_capability: index_metadata_field
-required_capability: optional_fields_v2
+required_capability: optional_fields_fix_load_partially_mapped_keyword
 
 SET unmapped_fields="load"\;
 FROM sample_data, no_mapping_sample_data METADATA _index

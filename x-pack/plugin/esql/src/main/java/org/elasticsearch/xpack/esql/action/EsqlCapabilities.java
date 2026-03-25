@@ -254,6 +254,13 @@ public class EsqlCapabilities {
         OPTIONAL_FIELDS_V2(Build.current().isSnapshot()),
 
         /**
+         * Fix for partially mapped keyword fields not being loaded from _source even when not explicitly referenced
+         * by a downstream command (e.g. KEEP, WHERE, SORT).
+         * See https://github.com/elastic/elasticsearch/issues/141994
+         */
+        OPTIONAL_FIELDS_FIX_LOAD_PARTIALLY_MAPPED_KEYWORD(OPTIONAL_FIELDS_V2.isEnabled()),
+
+        /**
          * Support specifically for *just* the _index METADATA field. Used by CsvTests, since that is the only metadata field currently
          * supported.
          */

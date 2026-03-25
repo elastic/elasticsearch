@@ -1,6 +1,13 @@
 area: ES|QL
+breaking:
+  area: ES|QL
+  details: Please describe the details of this change for the release notes. You can
+    use asciidoc.
+  impact: Please describe the impact of this change to users
+  notable: false
+  title: Fix union types with `date_nanos` conversion bug
 issues:
  - 144870
 pr: 144877
 summary: Fix union types with `date_nanos` conversion bug
-type: bug
+type: "breaking, bug"

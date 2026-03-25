@@ -54,14 +54,14 @@ public class PrometheusSeriesResponseListener implements ActionListener<EsqlQuer
             replaySuccess(seriesList);
         } catch (Exception e) {
             logger.debug("Failed to build series response", e);
-            replayError(e);
+            PrometheusErrorResponse.send(channel, e, logger);
         }
     }
 
     @Override
     public void onFailure(Exception e) {
         logger.debug("Series query failed", e);
-        replayError(e);
+        PrometheusErrorResponse.send(channel, e, logger);
     }
 
     private static List<Map<String, String>> extractSeries(EsqlQueryResponse response) {
@@ -164,7 +164,4 @@ public class PrometheusSeriesResponseListener implements ActionListener<EsqlQuer
         channel.sendResponse(new RestResponse(RestStatus.OK, CONTENT_TYPE, Strings.toString(builder)));
     }
 
-    private void replayError(Exception e) {
-        PrometheusErrorResponse.send(channel, e, logger);
-    }
 }

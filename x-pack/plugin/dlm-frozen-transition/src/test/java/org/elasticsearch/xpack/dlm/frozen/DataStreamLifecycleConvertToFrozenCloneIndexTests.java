@@ -183,6 +183,35 @@ public class DataStreamLifecycleConvertToFrozenCloneIndexTests extends ESTestCas
         assertThat(indexForForceMerge, equalTo(indexName));
     }
 
+    public void testMaybeCloneIndexCreatesCloneWithCorrectSettings() {
+        ProjectState projectState = createProjectState(2); // replicas > 0 to trigger cloning
+        DataStreamLifecycleConvertToFrozen convert = new DataStreamLifecycleConvertToFrozen(indexName, client, projectState, licenseState);
+        mockCloneResponse.set(new CreateIndexResponse(true, true, convert.getDLMCloneIndexName()));
+        convert.maybeCloneIndex();
+
+        assertThat(capturedResizeRequest.get(), is(notNullValue()));
+        assertThat(capturedResizeRequest.get().getSourceIndex(), equalTo(indexName));
+        assertThat(capturedResizeRequest.get().getTargetIndexRequest().index(), containsString("dlm-clone-"));
+        assertThat(capturedResizeRequest.get().getTargetIndexRequest().settings().get("index.number_of_replicas"), equalTo("0"));
+        assertTrue(capturedResizeRequest.get().getTargetIndexRequest().settings().keySet().contains("index.auto_expand_replicas"));
+        assertNull(capturedResizeRequest.get().getTargetIndexRequest().settings().get("index.auto_expand_replicas"));
+    }
+
+    public void testExecuteWithFailedCloneResponse() {
+        ProjectState projectState = createProjectState(2); // replicas > 0 to trigger cloning
+        mockCloneFailure.set(new ElasticsearchException("clone failed"));
+        mockDeleteResponse.set(AcknowledgedResponse.of(true));
+
+        DataStreamLifecycleConvertToFrozen convert = new DataStreamLifecycleConvertToFrozen(indexName, client, projectState, licenseState);
+        ElasticsearchException exception = expectThrows(ElasticsearchException.class, convert::maybeCloneIndex);
+        assertThat(exception.getMessage(), containsString("failed to clone"));
+
+        // Should attempt to delete the clone index on failure
+        String cloneIndexName = convert.getDLMCloneIndexName();
+        assertThat(capturedDeleteRequest.get(), is(notNullValue()));
+        assertThat(capturedDeleteRequest.get().indices()[0], equalTo(cloneIndexName));
+    }
+
     public void testDeleteCloneSuccessfully() {
         ProjectState projectState = createProjectState(1);
         mockDeleteResponse.set(AcknowledgedResponse.of(true));

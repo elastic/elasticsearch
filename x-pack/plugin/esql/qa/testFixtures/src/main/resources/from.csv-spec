@@ -136,11 +136,12 @@ c:l | name:k
 projectRouting_docsOnly-Ignore
 
 // tag::project-routing[]
-SET project_routing = "_alias:my_project"\;
-FROM apps
+SET project_routing="_alias:my-project";
+FROM logs*
+| STATS COUNT(*)
 // end::project-routing[]
 ;
 
-id:integer | name:keyword   | version:version
+count(*):long
 ;
 

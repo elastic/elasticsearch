@@ -264,6 +264,9 @@ class StatelessIndexEventListener implements IndexEventListener {
     private void beforeRecoveryOnIndexingShard(IndexShard indexShard, BlobContainer shardContainer, ActionListener<Void> listener) {
         assert indexShard.store().refCount() > 0 : indexShard.shardId();
         assert indexShard.routingEntry().isPromotableToPrimary();
+        final var recoveryInfoFromSource = statelessCommitService.getRecoveryInfoFromSourceEntry(indexShard.shardId());
+        final var sourceBlobsInfo = recoveryInfoFromSource == null ? null : recoveryInfoFromSource.sourceBlobsInfo();
+        final var hasRecentIdLookup = recoveryInfoFromSource == null ? false : recoveryInfoFromSource.hasRecentIdLookup();
         SubscribableListener.<ObjectStoreService.IndexingShardState>newForked(l -> {
             if (shardContainer == null) {
                 ActionListener.completeWith(l, () -> ObjectStoreService.IndexingShardState.EMPTY);
@@ -278,15 +281,18 @@ class StatelessIndexEventListener implements IndexEventListener {
                 statelessCommitService.useReplicatedRanges(),
                 bccHeaderReadExecutor,
                 true,
-                statelessCommitService.getSourceBlobsEntry(indexShard.shardId()),
+                sourceBlobsInfo,
                 l
             );
-        }).<Void>andThen((l, state) -> recoverBatchedCompoundCommitOnIndexShard(indexShard, state, l)).addListener(listener);
+        })
+            .<Void>andThen((l, state) -> recoverBatchedCompoundCommitOnIndexShard(indexShard, state, hasRecentIdLookup, l))
+            .addListener(listener);
     }
 
     private void recoverBatchedCompoundCommitOnIndexShard(
         IndexShard indexShard,
         ObjectStoreService.IndexingShardState indexingShardState,
+        boolean hasRecentIdLookup,
         ActionListener<Void> listener
     ) {
         ActionListener.completeWith(listener, () -> {
@@ -314,7 +320,14 @@ class StatelessIndexEventListener implements IndexEventListener {
                     // We must use a copied instance for warming as the index directory will move forward with new commits
                     var warmingDirectory = indexDirectory.getBlobStoreCacheDirectory().createNewBlobStoreCacheDirectoryForWarming();
                     warmingDirectory.updateMetadata(blobFileRanges, recoveryCommit.getAllFilesSizeInBytes());
-                    warmingService.warmCacheForShardRecovery(INDEXING, indexShard, recoveryCommit, warmingDirectory, null);
+                    warmingService.warmCacheForShardRecovery(
+                        INDEXING,
+                        indexShard,
+                        recoveryCommit,
+                        warmingDirectory,
+                        null,
+                        hasRecentIdLookup
+                    );
                 }
             }
             final var segmentInfos = SegmentInfos.readLatestCommit(indexDirectory);

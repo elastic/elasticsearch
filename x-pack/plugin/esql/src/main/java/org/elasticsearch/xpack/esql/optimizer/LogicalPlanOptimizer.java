@@ -59,7 +59,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownLimitAndOrde
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownRegexExtract;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushLimitToKnn;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.RemoveStatsOverride;
-import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReoderLimitProjectAndOrderBy;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReorderLimitProjectAndOrderBy;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceAggregateAggExpressionWithEval;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceAggregateNestedExpressionWithEval;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceAliasingEvalWithProject;
@@ -265,7 +265,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new ReplaceRowAsLocalRelation(),
             new PropgateUnmappedFields(),
             new CombineLimitTopN(),
-            new ReoderLimitProjectAndOrderBy()
+            new ReorderLimitProjectAndOrderBy()
         );
     }
 

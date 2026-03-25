@@ -190,7 +190,7 @@ public final class Expressions {
         return true;
     }
 
-    public static boolean listSemanticEquals(List<Expression> left, List<Expression> right) {
+    public static boolean listSemanticEqualsIgnoreOrder(List<Expression> left, List<Expression> right) {
         if (left.size() != right.size()) {
             return false;
         }

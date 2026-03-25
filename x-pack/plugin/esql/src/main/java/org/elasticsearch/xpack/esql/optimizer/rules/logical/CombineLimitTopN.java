@@ -15,7 +15,7 @@ import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 
-import static org.elasticsearch.xpack.esql.core.expression.Expressions.listSemanticEquals;
+import static org.elasticsearch.xpack.esql.core.expression.Expressions.listSemanticEqualsIgnoreOrder;
 
 /**
  * Combines a Limit immediately followed by a TopN into a single TopN.
@@ -44,7 +44,7 @@ public final class CombineLimitTopN extends OptimizerRules.OptimizerRule<UnaryPl
         }
         if (plan instanceof LimitBy limitBy
             && limitBy.child() instanceof TopNBy topnBy
-            && listSemanticEquals(limitBy.groupings(), topnBy.groupings())) {
+            && listSemanticEqualsIgnoreOrder(limitBy.groupings(), topnBy.groupings())) {
             int thisLimitValue = Foldables.limitValue(limitBy.limitPerGroup(), limitBy.sourceText());
             int topNValue = Foldables.limitValue(topnBy.limitPerGroup(), topnBy.sourceText());
             if (topNValue <= thisLimitValue) {

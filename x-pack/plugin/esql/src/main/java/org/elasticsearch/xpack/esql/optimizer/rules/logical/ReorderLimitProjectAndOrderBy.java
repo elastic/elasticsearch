@@ -21,8 +21,8 @@ import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
  * We should always end up with Limit on top of OrderBy so we can turn it into TopN
  * We should always end up with LimitBy on top of OrderBy so we can turn it into TopNBy
  */
-public final class ReoderLimitProjectAndOrderBy extends OptimizerRules.OptimizerRule<UnaryPlan> {
-    public ReoderLimitProjectAndOrderBy() {
+public final class ReorderLimitProjectAndOrderBy extends OptimizerRules.OptimizerRule<UnaryPlan> {
+    public ReorderLimitProjectAndOrderBy() {
         super(OptimizerRules.TransformDirection.DOWN);
     }
 

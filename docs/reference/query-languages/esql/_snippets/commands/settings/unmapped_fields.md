@@ -5,7 +5,7 @@
 serverless: preview
 stack: preview 9.3.0
 ```
-Defines how unmapped fields are treated. Possible values are: "DEFAULT" (default) - uses the default behavior for the query type; "NULLIFY" - treats unmapped fields as null values. 
+Defines how unmapped fields are treated. Possible values are: "DEFAULT" (default) - standard ESQL queries fail when referencing unmapped fields, while other query types (e.g. PromQL) may treat them differently; "NULLIFY" - treats unmapped fields as null values. 
 
 **Type**: `keyword`
 

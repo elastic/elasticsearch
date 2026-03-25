@@ -80,7 +80,8 @@ public class QuerySettings {
         type = { "keyword" },
         since = "9.3.0",
         description = "Defines how unmapped fields are treated. Possible values are: "
-            + "\"DEFAULT\" (default) - uses the default behavior for the query type; "
+            + "\"DEFAULT\" (default) - standard ESQL queries fail when referencing unmapped fields, "
+            + "while other query types (e.g. PromQL) may treat them differently; "
             + "\"NULLIFY\" - treats unmapped fields as null values. "
         // + "\"LOAD\" - attempts to load the fields from the source." Commented out since LOAD is currently only under snapshot.
     )

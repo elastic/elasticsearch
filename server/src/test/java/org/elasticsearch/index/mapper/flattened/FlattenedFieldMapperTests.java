@@ -29,6 +29,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.BlockLoader;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -38,12 +39,14 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperTestCase;
+import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.TestBlock;
 import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper.KeyedFlattenedFieldType;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper.RootFlattenedFieldType;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.junit.AssumptionViolatedException;
@@ -1478,6 +1481,38 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
     }
 
     public void testSyntheticSourceWithOnlyIgnoredValues() throws IOException {
+        // given
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.name()).build();
+        DocumentMapper mapper = createMapperService(
+            IndexVersions.STORE_IGNORED_FLATTENED_FIELDS_IN_BINARY_DOC_VALUES,
+            settings,
+            mapping(b -> {
+                b.startObject("field").field("type", "flattened").field("ignore_above", 1).endObject();
+            })
+        ).documentMapper();
+
+        // when
+        var syntheticSource = syntheticSource(mapper, b -> {
+            b.startObject("field");
+            {
+                b.field("key1", "val1");
+                b.startObject("obj1");
+                {
+                    b.field("key2", "val2");
+                    b.field("key3", List.of("val3", "val4"));
+                }
+                b.endObject();
+            }
+            b.endObject();
+            b.field("@timestamp", "2025-01-01T00:00:00Z");
+        });
+
+        // then
+        assertThat(syntheticSource, equalTo("""
+            {"@timestamp":"2025-01-01T00:00:00.000Z","field":{"key1":"val1","obj1":{"key2":"val2","key3":["val3","val4"]}}}"""));
+    }
+
+    public void testSyntheticSourceWithOnlyIgnoredValuesStoredFields() throws IOException {
         DocumentMapper mapper = createSytheticSourceMapperService(mapping(b -> {
             b.startObject("field").field("type", "flattened").field("ignore_above", 1).endObject();
         })).documentMapper();
@@ -2004,4 +2039,81 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
     protected boolean supportsDocValuesSkippers() {
         return false;
     }
+
+    public void testIgnoredFieldStoredInBinaryDocValuesForLogsDbIndex() throws IOException {
+        // given
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.name()).build();
+        DocumentMapper mapper = createMapperService(
+            IndexVersions.STORE_IGNORED_FLATTENED_FIELDS_IN_BINARY_DOC_VALUES,
+            settings,
+            fieldMapping(b -> b.field("type", "flattened").field("ignore_above", 5))
+        ).documentMapper();
+
+        // when
+        ParsedDocument doc = mapper.parse(
+            source(b -> b.startObject("field").field("key", "valuetoolong").endObject().field("@timestamp", "2025-01-01T00:00:00Z"))
+        );
+
+        // then
+        assertFalse(
+            doc.rootDoc().getFields("field._keyed._ignored").stream().anyMatch(f -> f instanceof org.apache.lucene.document.StoredField)
+        );
+        assertTrue(doc.rootDoc().getFields("field._keyed._ignored").stream().anyMatch(f -> f instanceof MultiValuedBinaryDocValuesField));
+    }
+
+    /**
+     * Standard indices don't use TSDB's doc values format (useTimeSeriesDocValuesFormat), hence binary doc values should not be enabled.
+     */
+    public void testIgnoredFieldStoredInStoredFieldsForStandardIndex() throws IOException {
+        // given
+        Settings settings = Settings.builder().put("index.mapping.source.mode", "synthetic").build();
+        DocumentMapper mapper = createMapperService(
+            IndexVersions.STORE_IGNORED_FLATTENED_FIELDS_IN_BINARY_DOC_VALUES,
+            settings,
+            fieldMapping(b -> b.field("type", "flattened").field("ignore_above", 5))
+        ).documentMapper();
+
+        // when
+        ParsedDocument doc = mapper.parse(source(b -> b.startObject("field").field("key", "valuetoolong").endObject()));
+
+        // then
+        assertTrue(
+            doc.rootDoc().getFields("field._keyed._ignored").stream().anyMatch(f -> f instanceof org.apache.lucene.document.StoredField)
+        );
+        assertFalse(doc.rootDoc().getFields("field._keyed._ignored").stream().anyMatch(f -> f instanceof MultiValuedBinaryDocValuesField));
+    }
+
+    /**
+     * Previous index version doesn't support using binary doc values for ignored fields, hence it must default to stored fields.
+     */
+    public void testIgnoredFieldStoredInStoredFieldsInPreviousIndexVersion() throws IOException {
+        // given
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.name()).build();
+        DocumentMapper mapper = createMapperService(
+            IndexVersionUtils.getPreviousVersion(IndexVersions.STORE_IGNORED_FLATTENED_FIELDS_IN_BINARY_DOC_VALUES),
+            settings,
+            fieldMapping(b -> b.field("type", "flattened").field("ignore_above", 5))
+        ).documentMapper();
+
+        // when
+        ParsedDocument doc = mapper.parse(
+            source(b -> b.startObject("field").field("key", "valuetoolong").endObject().field("@timestamp", "2025-01-01T00:00:00Z"))
+        );
+
+        // then
+        assertTrue(
+            doc.rootDoc().getFields("field._keyed._ignored").stream().anyMatch(f -> f instanceof org.apache.lucene.document.StoredField)
+        );
+        assertFalse(doc.rootDoc().getFields("field._keyed._ignored").stream().anyMatch(f -> f instanceof MultiValuedBinaryDocValuesField));
+    }
+
+    public void testSyntheticFieldLoaderRejectsIgnoredBinaryDocValuesWithoutBinaryDocValues() {
+        // storeIgnoredFieldsInBinaryDocValues=true requires usesBinaryDocValues=true
+        AssertionError e = expectThrows(
+            AssertionError.class,
+            () -> new FlattenedDocValuesSyntheticFieldLoader("field", "field._keyed", "field._keyed._ignored", "field", false, true)
+        );
+        assertThat(e.getMessage(), containsString("storeIgnoredFieldsInBinaryDocValues requires usesBinaryDocValues"));
+    }
+
 }

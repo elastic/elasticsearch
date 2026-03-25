@@ -63,6 +63,7 @@ import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
 import org.elasticsearch.xpack.esql.plan.logical.UriParts;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
+import org.elasticsearch.xpack.esql.plan.logical.local.CopyingLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.session.Result;
 
@@ -317,8 +318,15 @@ public class Approximation {
     }
 
     Approximation(LogicalPlan logicalPlan, ApproximationSettings settings) {
-        this.logicalPlan = logicalPlan;
         this.queryProperties = verifyPlanOrThrow(logicalPlan);
+        // The plan is executed multiple times. Use CopyingLocalSupplier to
+        // make sure the page is not released between executions.
+        this.logicalPlan = logicalPlan.transformUp(LocalRelation.class, lr -> {
+            if (lr.supplier() instanceof CopyingLocalSupplier == false) {
+                return new LocalRelation(lr.source(), lr.output(), new CopyingLocalSupplier(lr.supplier().get()));
+            }
+            return lr;
+        });
 
         if (settings.rows() != null) {
             sampleRowCount = settings.rows();
@@ -547,7 +555,6 @@ public class Approximation {
             }
             return plan;
         });
-
         countPlan.setOptimized();
         return countPlan;
     }

@@ -70,97 +70,15 @@ public abstract class GenerativeApproximationRestTest extends EsqlSpecTestCase {
     @Override
     protected void shouldSkipTest(String testName) throws IOException {
         super.shouldSkipTest(testName);
-
         assumeFalse(
             "Approximation tests must not be approximated",
             testCase.requiredCapabilities.contains(APPROXIMATION_V6.capabilityName())
         );
         assumeTrue("Test must contain STATS to be included in approximation tests", testCase.query.toLowerCase().contains("stats"));
-
-        // stats
-        assumeFalse("bug: https://github.com/elastic/elasticsearch/issues/144914", "sumOfConst".equals(testName));
-
-        assumeFalse("...", "docsCountWithExpression".equals(testName));  // can't release already released object
-        assumeFalse("...", "countNull".equals(testName));  // can't read released page
-        assumeFalse("...", "count_mv".equals(testName));  // can't read released page
-        assumeFalse("...", "countWithConditions".equals(testName));  // can't read released page
-        assumeFalse("...", "groupByNull".equals(testName));  // can't read released page
-        assumeFalse("...", "groupByNullAndString".equals(testName));  // can't read released page
-        assumeFalse("...", "avgWithConditions".equals(testName));  // can't read released page
-        assumeFalse("...", "medianWithConditions".equals(testName));  // can't read released page
-        assumeFalse("...", "percentileWithConditions".equals(testName));  // can't read released page
-        assumeFalse("...", "weightedAvgWithConditions".equals(testName));  // can't read released page
-        assumeFalse("...", "countMultiValuesRow".equals(testName));  // can't read released page
-        assumeFalse("...", "groupByStringAndNull".equals(testName));  // can't read released page
-        assumeFalse("...", "stdDevRow".equals(testName));  // can't read released page
-
-        assumeFalse("...", "count_or_null".equals(testName));  // can't release already released object
-        assumeFalse("...", "statsMvConstantGroupByAggExpr".equals(testName));  // can't release already released object
-        assumeFalse("...", "weightedAvgConstant".equals(testName));  // can't release already released object
-        assumeFalse("...", "weightedAvgBothConstantsMvWarning".equals(testName));  // can't release already released object
-        assumeFalse("...", "sumRowMany".equals(testName));  // can't release already released object
-        assumeFalse("...", "sumRowManyTwo".equals(testName));  // can't release already released object
-        assumeFalse("...", "statsMvConstantGroupByWhere".equals(testName));  // can't release already released object
-        assumeFalse("...", "statsMvConstantGroupByEval".equals(testName));  // can't release already released object
-
-        // stats_percentile
-        assumeFalse("...", "constantsRow".equals(testName));  // can't read released page
-        assumeFalse("...", "percentile precision tests with row".equals(testName));  // can't read released page
-
-        // unmapped-nullify
-        assumeFalse("...", "statsFilteredAggsAndGroups".equals(testName));  // can't release already released object
-        assumeFalse("...", "statsGroups".equals(testName));  // can't release already released object
-        assumeFalse("...", "statsExpressions".equals(testName));  // can't release already released object
-        assumeFalse("...", "statsExpressionsWithAliases".equals(testName));  // can't release already released object
-        assumeFalse("...", "statsAggsGrouped".equals(testName));  // can't release already released object
-
-        // bucket
-        assumeFalse("...", "bucketNumericMixedTypes".equals(testName));  // can't release already released object
-        assumeFalse("...", "binNumericMixedTypes".equals(testName));  // can't release already released object
-        assumeFalse("...", "bucketNumericMixedTypesIntegerSpans".equals(testName));  // can't release already released object
-
-        // drop
-        assumeFalse("...", "dropGrouping".equals(testName));  // can't read released page
-        assumeFalse("...", "dropGroupingMulti".equals(testName));  // can't read released page
-        assumeFalse("...", "dropGroupingMulti2".equals(testName));  // can't read released page
-
-        // categorize
-        assumeFalse("...", "row rename".equals(testName));  // can't read released page
-        assumeFalse("...", "row drop".equals(testName));  // can't read released page
-        assumeFalse("...", "category value processing".equals(testName));  // can't read released page
-        assumeFalse("...", "row aliases".equals(testName));  // can't read released page
-        assumeFalse("...", "row aliases with keep".equals(testName));  // can't read released page
-        assumeFalse("...", "skips stopwords".equals(testName));  // can't read released page
-
-        // row
-        assumeFalse("...", "rowStatsProjectGroupByLong".equals(testName));  // can't read released page
-        assumeFalse("...", "rowStatsProjectGroupByDouble".equals(testName));  // can't read released page
-        assumeFalse("...", "rowWithNullsInCount".equals(testName));  // can't read released page
-        assumeFalse("...", "rowStatsProjectGroupByInt".equals(testName));  // can't read released page
-        assumeFalse("...", "rowWithNullsInAvg".equals(testName));  // can't read released page
-        assumeFalse("...", "rowStatsProjectGroupByKeyword".equals(testName));  // can't read released page
-        assumeFalse("...", "rowWithNullsInAvg2".equals(testName));  // can't release already released object
-        assumeFalse("...", "sum".equals(testName));  // can't release already released object
+        assumeFalse("bug: https://github.com/elastic/elasticsearch/issues/144914", "sumOfConst".equals(testName));  // file: stats.csv-spec
 
         // dense_vector
-        assumeFalse("...", "denseVectorLiteralCount".equals(testName));  // can't read released page
-
-        // dense_vector-bit
-        assumeFalse("...", "denseVectorCount".equals(testName));  // can't read released page
-
-        // ip
-        assumeFalse("...", "toIpInAgg".equals(testName));  // can't release already released object
-        assumeFalse("...", "toIpInAggOctal".equals(testName));  // can't release already released object
-
-        // math
-        assumeFalse("...", "functionUnderArithmeticOperationAggString".equals(testName));  // can't release already released object
-
-        // mv_expand
-        assumeFalse("...", "expandAfterDuplicateAggsComplex".equals(testName));  // can't read released page
-        assumeFalse("...", "explosionStats".equals(testName));  // can't read released page
-
-        // median_absolute_deviation
-        assumeFalse("...", "medianAbsoluteDeviationFold".equals(testName));  // can't release already released object
-        assumeFalse("...", "medianAbsoluteDeviationWithConditions".equals(testName));  // can't read released page
+        assumeFalse("...", "denseVectorLiteralCount".equals(testName));
+        assumeFalse("...", "denseVectorCount".equals(testName));
     }
 }

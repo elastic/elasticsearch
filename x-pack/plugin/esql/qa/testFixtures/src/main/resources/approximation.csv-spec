@@ -436,7 +436,7 @@ median:double | _approximation_confidence_interval(median):double | _approximati
 ;
 
 
-Duplicate aggs-Ignore
+Row with duplicate aggs
 required_capability: approximation_v6
 
 SET approximation={"rows":10000}\;
@@ -445,8 +445,8 @@ ROW x = [1, 2, 3]
 | EVAL x = a + c + b
 ;
 
-b:long    | c:long    | x:long
-3         | 3         | 9
+a:long | b:long | c:long | x:long | _approximation_confidence_interval(a):long | _approximation_certified(a):boolean | _approximation_confidence_interval(b):long | _approximation_certified(b):boolean | _approximation_confidence_interval(c):long | _approximation_certified(c):boolean | _approximation_confidence_interval(x):long | _approximation_certified(x):boolean
+1      | 1      | 6      | 8      | [1, 1]                                     | true                                | [1, 1]                                     | true                                | [6, 6]                                     | true                                | [8, 8]                                     | true
 ;
 
 

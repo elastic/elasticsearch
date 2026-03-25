@@ -597,7 +597,11 @@ public class ApproximationPlan {
      * For PROJECT, if it renames a field with buckets, add the renamed field
      * to the map of fields with buckets.
      */
-    private static LogicalPlan projectIncludingBuckets(Project project, Map<NameId, List<Attribute>> fieldBuckets, Map<NameId, Attribute> notRoundedExpressions) {
+    private static LogicalPlan projectIncludingBuckets(
+        Project project,
+        Map<NameId, List<Attribute>> fieldBuckets,
+        Map<NameId, Attribute> notRoundedExpressions
+    ) {
         if (fieldBuckets == null) {
             return project;
         }

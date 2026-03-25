@@ -320,7 +320,7 @@ public class LeaderChecker {
                             return;
                         }
 
-                        logger.debug(
+                        logger.warn(
                             () -> format(
                                 "%s consecutive failures (limit [%s] is %s) with leader [%s]",
                                 failureCount,

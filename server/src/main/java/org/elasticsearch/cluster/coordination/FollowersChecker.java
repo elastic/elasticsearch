@@ -351,7 +351,7 @@ public final class FollowersChecker {
                                 + failureCountSinceLastSuccess
                                 + "]";
                         } else {
-                            logger.debug(() -> format("%s failed, retrying", FollowerChecker.this), exp);
+                            logger.warn(() -> format("%s failed, retrying", FollowerChecker.this), exp);
                             scheduleNextWakeUp();
                             return;
                         }

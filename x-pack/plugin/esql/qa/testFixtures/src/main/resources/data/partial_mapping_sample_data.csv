@@ -1,4 +1,4 @@
-@timestamp:date,client_ip:ip,event_duration:long,message:keyword,unmapped_message:keyword,unmapped_event_duration:long,unmapped.nested:keyword
+@timestamp:date,client_ip:ip,event_duration:long,message:keyword,unmapped_message:keyword,unmapped_event_duration:keyword,unmapped.nested:keyword
 2024-10-23T13:55:01.543Z,173.21.3.15,1756466,Connected to 10.1.0.1!,Disconnected from 10.1.0.1,1756468,a
 2024-10-23T13:53:55.832Z,173.21.3.15,5033754,Connection error?,Disconnection error,5033756,b
 2024-10-23T13:52:55.015Z,173.21.3.15,8268152,Connection error?,Disconnection error,8268154,c

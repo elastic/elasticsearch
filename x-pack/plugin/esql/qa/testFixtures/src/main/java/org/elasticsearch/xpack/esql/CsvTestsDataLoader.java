@@ -438,8 +438,17 @@ public class CsvTestsDataLoader {
         boolean supportsSourceFieldMapping,
         boolean inferenceEnabled
     ) throws IOException {
-        loadDataSetIntoEs(client, supportsIndexModeLookup, supportsSourceFieldMapping, inferenceEnabled, false, cap -> false);
+        loadDataSetIntoEs(client, supportsIndexModeLookup, supportsSourceFieldMapping, inferenceEnabled, false, cap -> false, null);
     }
+
+    private static final IndexCreator INDEX_CREATOR = (restClient, indexName, indexMapping, indexSettings) -> ESRestTestCase.createIndex(
+        restClient,
+        indexName,
+        indexSettings,
+        indexMapping,
+        null,
+        DEPRECATED_DEFAULT_METRIC_WARNING_HANDLER
+    );
 
     public static void loadDataSetIntoEs(
         RestClient client,
@@ -449,26 +458,68 @@ public class CsvTestsDataLoader {
         boolean timeSeriesOnly,
         Predicate<EsqlCapabilities.Cap> capabilityCheck
     ) throws IOException {
-        loadDataSets(
+        loadDataSetIntoEs(
             client,
             supportsIndexModeLookup,
             supportsSourceFieldMapping,
             inferenceEnabled,
             timeSeriesOnly,
             capabilityCheck,
-            (restClient, indexName, indexMapping, indexSettings) -> {
-                ESRestTestCase.createIndex(
-                    restClient,
-                    indexName,
-                    indexSettings,
-                    indexMapping,
-                    null,
-                    DEPRECATED_DEFAULT_METRIC_WARNING_HANDLER
-                );
-            }
+            null
         );
-        if (timeSeriesOnly == false) {
-            loadEnrichPolicies(client);
+    }
+
+    /**
+     * Load test datasets into Elasticsearch.
+     *
+     * @param indicesToLoad null to load all indices (default); empty list to load nothing; non-empty list to load only those indices
+     */
+    public static void loadDataSetIntoEs(
+        RestClient client,
+        boolean supportsIndexModeLookup,
+        boolean supportsSourceFieldMapping,
+        boolean inferenceEnabled,
+        boolean timeSeriesOnly,
+        Predicate<EsqlCapabilities.Cap> capabilityCheck,
+        @Nullable List<String> indicesToLoad
+    ) throws IOException {
+        if (indicesToLoad != null && indicesToLoad.isEmpty()) {
+            return;
+        }
+        if (indicesToLoad != null) {
+            loadDatasetsIntoEs(client, indicesToLoad);
+        } else {
+            loadDataSets(
+                client,
+                supportsIndexModeLookup,
+                supportsSourceFieldMapping,
+                inferenceEnabled,
+                timeSeriesOnly,
+                capabilityCheck,
+                INDEX_CREATOR
+            );
+            if (timeSeriesOnly == false) {
+                loadEnrichPolicies(client);
+            }
+        }
+    }
+
+    /**
+     * Load only the specified indices from CSV_DATASET into the cluster.
+     * Used by external source tests that need lookup indices (e.g. languages_lookup) for LOOKUP JOIN.
+     */
+    public static void loadDatasetsIntoEs(RestClient client, List<String> indexNames) throws IOException {
+        Set<String> loadedDatasets = new HashSet<>();
+        for (String indexName : indexNames) {
+            TestDataset dataset = CSV_DATASET.get(indexName);
+            if (dataset == null) {
+                throw new IllegalArgumentException("Dataset [" + indexName + "] not found in CSV_DATASET");
+            }
+            load(client, dataset, INDEX_CREATOR);
+            loadedDatasets.add(dataset.indexName());
+        }
+        if (loadedDatasets.isEmpty() == false) {
+            forceMerge(client, loadedDatasets);
         }
     }
 
@@ -614,7 +665,7 @@ public class CsvTestsDataLoader {
     private static void loadView(RestClient client, ViewConfig view) throws IOException {
         logger.debug("Loading view [{}] from file [/views/{}.esql]", view.name, view.name);
         Request request = new Request("PUT", "/_query/view/" + view.name);
-        request.setJsonEntity("{\"query\":\"" + view.loadQuery().replace("\"", "\\\"").replace("\n", "") + "\"}");
+        request.setJsonEntity("{\"query\":\"" + view.loadQuery().replace("\"", "\\\"").replace("\r", "").replace("\n", "") + "\"}");
         client.performRequest(request);
     }
 

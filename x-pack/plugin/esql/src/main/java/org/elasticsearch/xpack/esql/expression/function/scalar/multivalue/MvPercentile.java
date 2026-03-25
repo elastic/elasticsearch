@@ -66,7 +66,11 @@ public class MvPercentile extends EsqlScalarFunction {
     )
     public MvPercentile(
         Source source,
-        @Param(name = "number", type = { "double", "integer", "long" }, description = "Multivalue expression.") Expression field,
+        @Param(
+            name = "number",
+            type = { "double", "integer", "long" },
+            description = "Expression that can be null, a single value, or multiple values."
+        ) Expression field,
         @Param(
             name = "percentile",
             type = { "double", "integer", "long" },

@@ -12,9 +12,12 @@ import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hive.ql.exec.vector.BytesColumnVector;
 import org.apache.hadoop.hive.ql.exec.vector.ColumnVector;
 import org.apache.hadoop.hive.ql.exec.vector.DoubleColumnVector;
+import org.apache.hadoop.hive.ql.exec.vector.ListColumnVector;
 import org.apache.hadoop.hive.ql.exec.vector.LongColumnVector;
 import org.apache.hadoop.hive.ql.exec.vector.TimestampColumnVector;
 import org.apache.hadoop.hive.ql.exec.vector.VectorizedRowBatch;
+import org.apache.hadoop.hive.ql.io.sarg.PredicateLeaf;
+import org.apache.hadoop.hive.ql.io.sarg.SearchArgument;
 import org.apache.orc.ColumnStatistics;
 import org.apache.orc.DoubleColumnStatistics;
 import org.apache.orc.IntegerColumnStatistics;
@@ -47,6 +50,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
@@ -72,22 +76,55 @@ public class OrcFormatReader implements FormatReader {
     private static final long MILLIS_PER_DAY = Duration.ofDays(1).toMillis();
 
     private final BlockFactory blockFactory;
+    private final SearchArgument pushedFilter;
 
     public OrcFormatReader(BlockFactory blockFactory) {
+        this(blockFactory, null);
+    }
+
+    private OrcFormatReader(BlockFactory blockFactory, SearchArgument pushedFilter) {
         this.blockFactory = blockFactory;
+        this.pushedFilter = pushedFilter;
+    }
+
+    @Override
+    public FormatReader withPushedFilter(Object pushedFilter) {
+        if (pushedFilter == null) {
+            return this;
+        }
+        return new OrcFormatReader(this.blockFactory, (SearchArgument) pushedFilter);
     }
 
     @Override
     public SourceMetadata metadata(StorageObject object) throws IOException {
         OrcStorageObjectAdapter fs = new OrcStorageObjectAdapter(object);
         Path path = new Path(object.path().toString());
-        OrcFile.ReaderOptions options = OrcFile.readerOptions(new Configuration(false)).filesystem(fs);
+        OrcFile.ReaderOptions options = orcReaderOptions(fs);
         try (Reader reader = OrcFile.createReader(path, options)) {
             TypeDescription schema = reader.getSchema();
             List<Attribute> attributes = convertOrcSchemaToAttributes(schema);
             SourceStatistics statistics = extractStatistics(reader, schema);
             return new SimpleSourceMetadata(attributes, formatName(), object.path().toString(), statistics, null);
         }
+    }
+
+    /**
+     * Creates ORC reader options with consistent configuration.
+     * <p>
+     * Sets {@code useUTCTimestamp(true)} which is required for correct timestamp predicate
+     * pushdown. This is a reader-level flag (not per-column) that controls how SargApplier
+     * reads timestamp column statistics: {@code true} uses getMinimumUTC/getMaximumUTC,
+     * {@code false} uses getMinimum/getMaximum which applies a local-timezone shift. Without
+     * it, predicates against TIMESTAMP_INSTANT columns cause false stripe exclusions.
+     * <p>
+     * This is safe because ESQL maps all date types to DATETIME using UTC epoch millis,
+     * and the ORC files use TIMESTAMP_INSTANT (UTC-anchored) columns. If we ever support
+     * files with plain TIMESTAMP columns (writer-local timezone), this flag would incorrectly
+     * treat their statistics as UTC too — at that point we'd need per-column evaluation by
+     * bypassing SearchArgument and reading stripe statistics directly (the Trino approach).
+     */
+    private static OrcFile.ReaderOptions orcReaderOptions(OrcStorageObjectAdapter fs) {
+        return OrcFile.readerOptions(new Configuration(false)).filesystem(fs).useUTCTimestamp(true);
     }
 
     private static SourceStatistics extractStatistics(Reader reader, TypeDescription schema) {
@@ -181,7 +218,7 @@ public class OrcFormatReader implements FormatReader {
 
         OrcStorageObjectAdapter fs = new OrcStorageObjectAdapter(object);
         Path path = new Path(object.path().toString());
-        OrcFile.ReaderOptions readerOptions = OrcFile.readerOptions(new Configuration(false)).filesystem(fs);
+        OrcFile.ReaderOptions readerOptions = orcReaderOptions(fs);
         Reader reader = OrcFile.createReader(path, readerOptions);
 
         TypeDescription schema = reader.getSchema();
@@ -211,7 +248,7 @@ public class OrcFormatReader implements FormatReader {
                     Integer idx = nameToIndex.get(columnName);
                     if (idx != null) {
                         TypeDescription child = schema.getChildren().get(idx);
-                        include[child.getId()] = true;
+                        includeColumnForType(include, child);
                     }
                 } else {
                     attr = new ReferenceAttribute(Source.EMPTY, columnName, DataType.NULL);
@@ -224,10 +261,33 @@ public class OrcFormatReader implements FormatReader {
         if (include != null) {
             readOptions.include(include);
         }
+        if (pushedFilter != null) {
+            List<PredicateLeaf> leaves = pushedFilter.getLeaves();
+            LinkedHashSet<String> nameSet = new LinkedHashSet<>(leaves.size());
+            for (PredicateLeaf leaf : leaves) {
+                nameSet.add(leaf.getColumnName());
+            }
+            readOptions.searchArgument(pushedFilter, nameSet.toArray(new String[0]));
+        }
         RecordReader rows = reader.rows(readOptions);
 
         CloseableIterator<Page> iter = new OrcPageIterator(reader, rows, schema, projectedAttributes, batchSize, blockFactory);
         return rowLimit != NO_LIMIT ? new RowLimitingIterator(iter, rowLimit) : iter;
+    }
+
+    /**
+     * Include a column and its children in the ORC read mask.
+     * For LIST and MAP types, recurses into children so list/map element data is read.
+     * For scalars and other types, only the type itself is included.
+     */
+    private static void includeColumnForType(boolean[] include, TypeDescription type) {
+        include[type.getId()] = true;
+        var category = type.getCategory();
+        if (category == TypeDescription.Category.LIST || category == TypeDescription.Category.MAP) {
+            for (TypeDescription child : type.getChildren()) {
+                includeColumnForType(include, child);
+            }
+        }
     }
 
     @Override
@@ -267,6 +327,7 @@ public class OrcFormatReader implements FormatReader {
             case BINARY -> DataType.KEYWORD;
             case TIMESTAMP, TIMESTAMP_INSTANT, DATE -> DataType.DATETIME;
             case DECIMAL -> DataType.DOUBLE;
+            case LIST -> convertOrcTypeToEsql(orcType.getChildren().get(0));
             default -> DataType.UNSUPPORTED;
         };
     }
@@ -274,7 +335,6 @@ public class OrcFormatReader implements FormatReader {
     private static class OrcPageIterator implements CloseableIterator<Page> {
         private final Reader reader;
         private final RecordReader rows;
-        private final TypeDescription schema;
         private final List<Attribute> attributes;
         private final BlockFactory blockFactory;
         private final VectorizedRowBatch batch;
@@ -292,7 +352,6 @@ public class OrcFormatReader implements FormatReader {
         ) {
             this.reader = reader;
             this.rows = rows;
-            this.schema = schema;
             this.attributes = attributes;
             this.blockFactory = blockFactory;
             this.batch = schema.createRowBatch(batchSize);
@@ -361,6 +420,9 @@ public class OrcFormatReader implements FormatReader {
         }
 
         private Block createBlock(ColumnVector vector, DataType dataType, int rowCount) {
+            if (vector instanceof ListColumnVector listCol) {
+                return createListBlock(listCol, dataType, rowCount);
+            }
             return switch (dataType) {
                 case BOOLEAN -> ColumnBlockConversions.booleanColumnFromLongs(
                     blockFactory,
@@ -391,6 +453,182 @@ public class OrcFormatReader implements FormatReader {
                 case DATETIME -> createDatetimeBlock(vector, rowCount);
                 default -> blockFactory.newConstantNullBlock(rowCount);
             };
+        }
+
+        private Block createListBlock(ListColumnVector listCol, DataType elementType, int rowCount) {
+            return switch (elementType) {
+                case KEYWORD, TEXT -> createListBytesRefBlock(listCol, rowCount);
+                case INTEGER -> createListIntBlock(listCol, rowCount);
+                case LONG -> createListLongBlock(listCol, rowCount);
+                case DOUBLE -> createListDoubleBlock(listCol, rowCount);
+                case BOOLEAN -> createListBooleanBlock(listCol, rowCount);
+                case DATETIME -> createListDatetimeBlock(listCol, rowCount);
+                default -> blockFactory.newConstantNullBlock(rowCount);
+            };
+        }
+
+        private Block createListBytesRefBlock(ListColumnVector listCol, int rowCount) {
+            BytesColumnVector child = (BytesColumnVector) listCol.child;
+            try (var builder = blockFactory.newBytesRefBlockBuilder(rowCount)) {
+                for (int i = 0; i < rowCount; i++) {
+                    if (listCol.noNulls == false && listCol.isNull[i]) {
+                        builder.appendNull();
+                    } else {
+                        int start = (int) listCol.offsets[i];
+                        int len = (int) listCol.lengths[i];
+                        builder.beginPositionEntry();
+                        for (int j = 0; j < len; j++) {
+                            int idx = start + j;
+                            if (child.noNulls == false && child.isNull[idx]) {
+                                builder.appendBytesRef(new org.apache.lucene.util.BytesRef());
+                            } else {
+                                builder.appendBytesRef(
+                                    new org.apache.lucene.util.BytesRef(child.vector[idx], child.start[idx], child.length[idx])
+                                );
+                            }
+                        }
+                        builder.endPositionEntry();
+                    }
+                }
+                return builder.build();
+            }
+        }
+
+        private Block createListIntBlock(ListColumnVector listCol, int rowCount) {
+            LongColumnVector child = (LongColumnVector) listCol.child;
+            try (var builder = blockFactory.newIntBlockBuilder(rowCount)) {
+                for (int i = 0; i < rowCount; i++) {
+                    if (listCol.noNulls == false && listCol.isNull[i]) {
+                        builder.appendNull();
+                    } else {
+                        int start = (int) listCol.offsets[i];
+                        int len = (int) listCol.lengths[i];
+                        builder.beginPositionEntry();
+                        for (int j = 0; j < len; j++) {
+                            int idx = start + j;
+                            if (child.noNulls == false && child.isNull[idx]) {
+                                builder.appendInt(0);
+                            } else {
+                                builder.appendInt((int) child.vector[idx]);
+                            }
+                        }
+                        builder.endPositionEntry();
+                    }
+                }
+                return builder.build();
+            }
+        }
+
+        private Block createListLongBlock(ListColumnVector listCol, int rowCount) {
+            LongColumnVector child = (LongColumnVector) listCol.child;
+            try (var builder = blockFactory.newLongBlockBuilder(rowCount)) {
+                for (int i = 0; i < rowCount; i++) {
+                    if (listCol.noNulls == false && listCol.isNull[i]) {
+                        builder.appendNull();
+                    } else {
+                        int start = (int) listCol.offsets[i];
+                        int len = (int) listCol.lengths[i];
+                        builder.beginPositionEntry();
+                        for (int j = 0; j < len; j++) {
+                            int idx = start + j;
+                            if (child.noNulls == false && child.isNull[idx]) {
+                                builder.appendLong(0L);
+                            } else {
+                                builder.appendLong(child.vector[idx]);
+                            }
+                        }
+                        builder.endPositionEntry();
+                    }
+                }
+                return builder.build();
+            }
+        }
+
+        private Block createListDoubleBlock(ListColumnVector listCol, int rowCount) {
+            DoubleColumnVector child = (DoubleColumnVector) listCol.child;
+            try (var builder = blockFactory.newDoubleBlockBuilder(rowCount)) {
+                for (int i = 0; i < rowCount; i++) {
+                    if (listCol.noNulls == false && listCol.isNull[i]) {
+                        builder.appendNull();
+                    } else {
+                        int start = (int) listCol.offsets[i];
+                        int len = (int) listCol.lengths[i];
+                        builder.beginPositionEntry();
+                        for (int j = 0; j < len; j++) {
+                            int idx = start + j;
+                            if (child.noNulls == false && child.isNull[idx]) {
+                                builder.appendDouble(0.0);
+                            } else {
+                                builder.appendDouble(child.vector[idx]);
+                            }
+                        }
+                        builder.endPositionEntry();
+                    }
+                }
+                return builder.build();
+            }
+        }
+
+        private Block createListBooleanBlock(ListColumnVector listCol, int rowCount) {
+            LongColumnVector child = (LongColumnVector) listCol.child;
+            try (var builder = blockFactory.newBooleanBlockBuilder(rowCount)) {
+                for (int i = 0; i < rowCount; i++) {
+                    if (listCol.noNulls == false && listCol.isNull[i]) {
+                        builder.appendNull();
+                    } else {
+                        int start = (int) listCol.offsets[i];
+                        int len = (int) listCol.lengths[i];
+                        builder.beginPositionEntry();
+                        for (int j = 0; j < len; j++) {
+                            int idx = start + j;
+                            if (child.noNulls == false && child.isNull[idx]) {
+                                builder.appendBoolean(false);
+                            } else {
+                                builder.appendBoolean(child.vector[idx] != 0);
+                            }
+                        }
+                        builder.endPositionEntry();
+                    }
+                }
+                return builder.build();
+            }
+        }
+
+        private Block createListDatetimeBlock(ListColumnVector listCol, int rowCount) {
+            ColumnVector child = listCol.child;
+            try (var builder = blockFactory.newLongBlockBuilder(rowCount)) {
+                for (int i = 0; i < rowCount; i++) {
+                    if (listCol.noNulls == false && listCol.isNull[i]) {
+                        builder.appendNull();
+                    } else {
+                        int start = (int) listCol.offsets[i];
+                        int len = (int) listCol.lengths[i];
+                        builder.beginPositionEntry();
+                        for (int j = 0; j < len; j++) {
+                            int idx = start + j;
+                            long millis;
+                            if (child instanceof TimestampColumnVector ts) {
+                                if (ts.noNulls == false && ts.isNull[idx]) {
+                                    millis = 0L;
+                                } else {
+                                    millis = ts.getTime(idx);
+                                }
+                            } else if (child instanceof LongColumnVector lv) {
+                                if (lv.noNulls == false && lv.isNull[idx]) {
+                                    millis = 0L;
+                                } else {
+                                    millis = lv.vector[idx] * MILLIS_PER_DAY;
+                                }
+                            } else {
+                                millis = 0L;
+                            }
+                            builder.appendLong(millis);
+                        }
+                        builder.endPositionEntry();
+                    }
+                }
+                return builder.build();
+            }
         }
 
         private Block createDoubleBlock(ColumnVector vector, int rowCount) {

@@ -48,6 +48,7 @@ import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.codec.tsdb.BinaryDVCompressionMode;
+import org.elasticsearch.index.codec.tsdb.PartitionedDocValues;
 import org.elasticsearch.index.codec.tsdb.TSDBDocValuesEncoder;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
@@ -1295,7 +1296,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         };
     }
 
-    abstract class BaseSortedDocValues extends SortedDocValues implements BlockLoader.OptionalColumnAtATimeReader {
+    abstract class BaseSortedDocValues extends SortedDocValues implements BlockLoader.OptionalColumnAtATimeReader, PartitionedDocValues {
 
         final SortedEntry entry;
         final TermsEnum termsEnum;
@@ -1345,6 +1346,24 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
 
         BlockLoader.Block tryReadAHead(BlockLoader.BlockFactory factory, BlockLoader.Docs docs, int offset) throws IOException {
             return null;
+        }
+
+        @Override
+        public int prefixPartitionBits() {
+            if (entry instanceof PrefixPartitionedEntry partition) {
+                return partition.partitionNumBits;
+            }
+            return 0;
+        }
+
+        @Override
+        public PrefixPartitions prefixPartitions(PrefixPartitions reused) throws IOException {
+            if (entry instanceof PrefixPartitionedEntry partitioned) {
+                var slice = data.slice("partitioning", partitioned.partitionStartPointer, partitioned.partitionDataLength);
+                return PrefixedPartitionsReader.prefixPartitions(slice, reused);
+            } else {
+                return null;
+            }
         }
     }
 
@@ -1956,9 +1975,9 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
             } else if (type == ES819TSDBDocValuesFormat.BINARY) {
                 binaries.put(info.number, readBinary(meta, version));
             } else if (type == ES819TSDBDocValuesFormat.SORTED) {
-                sorted.put(info.number, readSorted(meta, numericBlockShift));
+                sorted.put(info.number, readSorted(version, meta, numericBlockShift, info.number == primarySortFieldNumber));
             } else if (type == ES819TSDBDocValuesFormat.SORTED_SET) {
-                sortedSets.put(info.number, readSortedSet(meta, numericBlockShift));
+                sortedSets.put(info.number, readSortedSet(version, meta, numericBlockShift, info.number == primarySortFieldNumber));
             } else if (type == ES819TSDBDocValuesFormat.SORTED_NUMERIC) {
                 sortedNumerics.put(info.number, readSortedNumeric(meta, numericBlockShift));
             } else {
@@ -2081,21 +2100,36 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         return entry;
     }
 
-    private static SortedEntry readSorted(IndexInput meta, int numericBlockShift) throws IOException {
+    private static SortedEntry readSorted(int version, IndexInput meta, int numericBlockShift, boolean primarySorted) throws IOException {
         SortedEntry entry = new SortedEntry();
         entry.ordsEntry = new NumericEntry();
-        readNumeric(meta, entry.ordsEntry, numericBlockShift);
         entry.termsDictEntry = new TermsDictEntry();
-        readTermDict(meta, entry.termsDictEntry);
+        if (version >= ES819TSDBDocValuesFormat.VERSION_PREFIX_PARTITIONS) {
+            readTermDict(meta, entry.termsDictEntry);
+            readNumeric(meta, entry.ordsEntry, numericBlockShift);
+            if (primarySorted && meta.readByte() == 1) {
+                PrefixPartitionedEntry partitioned = new PrefixPartitionedEntry();
+                partitioned.ordsEntry = entry.ordsEntry;
+                partitioned.termsDictEntry = entry.termsDictEntry;
+                partitioned.partitionNumBits = meta.readByte();
+                partitioned.partitionStartPointer = meta.readLong();
+                partitioned.partitionDataLength = meta.readVLong();
+                return partitioned;
+            }
+        } else {
+            readNumeric(meta, entry.ordsEntry, numericBlockShift);
+            readTermDict(meta, entry.termsDictEntry);
+        }
         return entry;
     }
 
-    private static SortedSetEntry readSortedSet(IndexInput meta, int numericBlockShift) throws IOException {
+    private static SortedSetEntry readSortedSet(int version, IndexInput meta, int numericBlockShift, boolean primarySorted)
+        throws IOException {
         SortedSetEntry entry = new SortedSetEntry();
         byte multiValued = meta.readByte();
         switch (multiValued) {
             case 0: // singlevalued
-                entry.singleValueEntry = readSorted(meta, numericBlockShift);
+                entry.singleValueEntry = readSorted(version, meta, numericBlockShift, primarySorted);
                 return entry;
             case 1: // multivalued
                 break;
@@ -2779,6 +2813,12 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
     static class SortedEntry {
         NumericEntry ordsEntry;
         TermsDictEntry termsDictEntry;
+    }
+
+    static class PrefixPartitionedEntry extends SortedEntry {
+        int partitionNumBits;
+        long partitionStartPointer;
+        long partitionDataLength;
     }
 
     static class SortedSetEntry {

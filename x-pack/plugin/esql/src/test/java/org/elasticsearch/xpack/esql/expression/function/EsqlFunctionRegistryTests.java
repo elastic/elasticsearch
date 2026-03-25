@@ -361,6 +361,9 @@ public class EsqlFunctionRegistryTests extends ESTestCase {
             if (Expression.class.isAssignableFrom(p.getType())) {
                 return true;
             }
+            if (List.class.isAssignableFrom(p.getType())) {
+                return true;
+            }
             throw new IllegalStateException("unknown argument type " + p);
         }
         return false;

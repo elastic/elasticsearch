@@ -133,6 +133,11 @@ public class CacheFileReader {
         return cacheFile.withByteBufferSlice(offset, length, action);
     }
 
+    public final boolean withByteBufferSlices(long[] offsets, int length, int count, CheckedConsumer<ByteBuffer[], IOException> action)
+        throws IOException {
+        return cacheFile.withByteBufferSlices(offsets, length, count, action);
+    }
+
     /**
      * Reads byte(s) from the cache, potentially fetching the data from a remote source if the data are not present in cache (slow path).
      *

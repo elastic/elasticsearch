@@ -146,54 +146,61 @@ public final class EnrichQuerySourceOperator extends SourceOperator {
             if (indexReader.leaves().size() > 1) {
                 segmentsBuilder = blockFactory.newIntVectorBuilder(estimatedSize);
             }
+
             if (queryList.getBulkKeywordLookup() != null) {
                 return processBulkQueries(inputPage, positionsBuilder, segmentsBuilder, docsBuilder);
+            } else {
+                return processQueries(docsBuilder, segmentsBuilder, positionsBuilder);
             }
-            int totalMatches = 0;
-            do {
-                Query query;
-                try {
-                    query = nextQuery();
-                    if (query == null) {
-                        assert isFinished();
-                        break;
-                    }
-                    query = searcher.rewrite(new ConstantScoreQuery(query));
-                } catch (Exception e) {
-                    warnings.registerException(e);
-                    continue;
-                }
-                final var weight = searcher.createWeight(query, ScoreMode.COMPLETE_NO_SCORES, 1.0f);
-                if (weight == null) {
-                    continue;
-                }
-                for (LeafReaderContext leaf : indexReader.leaves()) {
-                    var scorer = weight.bulkScorer(leaf);
-                    if (scorer == null) {
-                        continue;
-                    }
-                    final DocCollector collector = new DocCollector(docsBuilder);
-                    scorer.score(collector, leaf.reader().getLiveDocs(), 0, DocIdSetIterator.NO_MORE_DOCS);
-                    int matches = collector.matches;
-
-                    if (segmentsBuilder != null) {
-                        for (int i = 0; i < matches; i++) {
-                            segmentsBuilder.appendInt(leaf.ord);
-                        }
-                    }
-                    for (int i = 0; i < matches; i++) {
-                        positionsBuilder.appendInt(queryPosition);
-                    }
-                    totalMatches += matches;
-                }
-            } while (totalMatches < maxPageSize);
-
-            return buildPage(totalMatches, positionsBuilder, segmentsBuilder, docsBuilder);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         } finally {
             Releasables.close(docsBuilder, segmentsBuilder, positionsBuilder);
         }
+    }
+
+    private Page processQueries(IntVector.Builder docsBuilder, IntVector.Builder segmentsBuilder, IntVector.Builder positionsBuilder)
+        throws IOException {
+        int totalMatches = 0;
+        do {
+            Query query;
+            try {
+                query = nextQuery();
+                if (query == null) {
+                    assert isFinished();
+                    break;
+                }
+                query = searcher.rewrite(new ConstantScoreQuery(query));
+            } catch (Exception e) {
+                warnings.registerException(e);
+                continue;
+            }
+            final var weight = searcher.createWeight(query, ScoreMode.COMPLETE_NO_SCORES, 1.0f);
+            if (weight == null) {
+                continue;
+            }
+            for (LeafReaderContext leaf : indexReader.leaves()) {
+                var scorer = weight.bulkScorer(leaf);
+                if (scorer == null) {
+                    continue;
+                }
+                final DocCollector collector = new DocCollector(docsBuilder);
+                scorer.score(collector, leaf.reader().getLiveDocs(), 0, DocIdSetIterator.NO_MORE_DOCS);
+                int matches = collector.matches;
+
+                if (segmentsBuilder != null) {
+                    for (int i = 0; i < matches; i++) {
+                        segmentsBuilder.appendInt(leaf.ord);
+                    }
+                }
+                for (int i = 0; i < matches; i++) {
+                    positionsBuilder.appendInt(queryPosition);
+                }
+                totalMatches += matches;
+            }
+        } while (totalMatches < maxPageSize);
+
+        return buildPage(totalMatches, positionsBuilder, segmentsBuilder, docsBuilder);
     }
 
     private Page processBulkQueries(
@@ -202,24 +209,24 @@ public final class EnrichQuerySourceOperator extends SourceOperator {
         IntVector.Builder segmentsBuilder,
         IntVector.Builder docsBuilder
     ) throws IOException {
-        queryPosition++;
-        BulkKeywordLookup bulkKeywordLookup = queryList.getBulkKeywordLookup();
-        int totalMatches = 0;
-        bulkKeywordLookup.initializeCaches(indexReader);
-        while (queryPosition < queryList.getPositionCount(inputPage)) {
-            int matches = bulkKeywordLookup.processQuery(
-                inputPage,
-                queryPosition,
-                indexReader,
-                docsBuilder,
-                segmentsBuilder,
-                positionsBuilder
-            );
-            totalMatches += matches;
+        final BulkKeywordLookup bulkKeywordLookup = queryList.getBulkKeywordLookup();
+        if (queryPosition < 0) {
+            queryPosition = 0;
+            bulkKeywordLookup.initializeCaches(indexReader);
+        }
+        final int matches = bulkKeywordLookup.processMatches(
+            inputPage,
+            queryPosition,
+            indexReader,
+            maxPageSize,
+            docsBuilder,
+            segmentsBuilder,
+            positionsBuilder
+        );
+        if (matches != maxPageSize) { // stay on same position until all matches processed by subsequent calls
             queryPosition++;
         }
-        final Page result = buildPage(totalMatches, positionsBuilder, segmentsBuilder, docsBuilder);
-
+        final Page result = buildPage(matches, positionsBuilder, segmentsBuilder, docsBuilder);
         return result;
     }
 

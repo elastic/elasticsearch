@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.aggregation.Aggregator;
 import org.elasticsearch.compute.aggregation.AggregatorFunction;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
@@ -26,6 +28,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.IntStream;
@@ -35,6 +38,7 @@ import java.util.stream.IntStream;
  */
 public class FromPartial extends AggregateFunction implements ToAggregator {
     private static final String NAME = "FromPartial";
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, NAME, FromPartial::new);
 
     private final Expression function;
 
@@ -45,6 +49,11 @@ public class FromPartial extends AggregateFunction implements ToAggregator {
     public FromPartial(Source source, Expression field, Expression filter, Expression window, Expression function) {
         super(source, field, filter, window, List.of(function));
         this.function = function;
+    }
+
+    private FromPartial(StreamInput in) throws IOException {
+        super(in);
+        this.function = parameters().getFirst();
     }
 
     @Override

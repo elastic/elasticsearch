@@ -57,7 +57,9 @@ public class AggregateWritables {
             DimensionValues.ENTRY,
             HistogramMerge.ENTRY,
             HistogramMergeOverTime.ENTRY,
-            Sparkline.ENTRY
+            Sparkline.ENTRY,
+            ToPartial.ENTRY,
+            FromPartial.ENTRY
         );
     }
 }

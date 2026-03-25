@@ -2361,6 +2361,11 @@ public class EsqlCapabilities {
         CHANGE_POINT_SUPPORT_NULL_COLUMN,
 
         /**
+         * Support CHANGE_POINT arguments in any order
+         */
+        CHANGE_POINT_ARGS_ANY_ORDER,
+
+        /**
          * Reject loading sub-fields of flattened fields when {@code unmapped_fields="load"}
          * See https://github.com/elastic/elasticsearch/issues/143494
          */

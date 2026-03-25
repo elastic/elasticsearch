@@ -330,13 +330,17 @@ public class SynonymsManagementAPIService {
         }
 
         SearchScrollRequest scrollRequest = new SearchScrollRequest(scrollId).scroll(scrollTimeout);
-        client.execute(TransportSearchScrollAction.TYPE, scrollRequest, ActionListener.wrap(
-            nextResponse -> scrollAllRules(nextResponse.getScrollId(), scrollTimeout, totalHits, accumulated, nextResponse, listener),
-            e -> {
-                clearScrollSilently(scrollId);
-                listener.onFailure(e);
-            }
-        ));
+        client.execute(
+            TransportSearchScrollAction.TYPE,
+            scrollRequest,
+            ActionListener.wrap(
+                nextResponse -> scrollAllRules(nextResponse.getScrollId(), scrollTimeout, totalHits, accumulated, nextResponse, listener),
+                e -> {
+                    clearScrollSilently(scrollId);
+                    listener.onFailure(e);
+                }
+            )
+        );
     }
 
     private void clearScrollSilently(String scrollId) {

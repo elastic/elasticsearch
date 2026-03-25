@@ -38,7 +38,7 @@ public class EsqlLogContext extends ActivityLoggerContext {
     }
 
     String getQuery() {
-        return request.query();
+        return request.queryDescription();
     }
 
     public Optional<ShardInfo> shardInfo() {

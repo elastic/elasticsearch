@@ -44,13 +44,10 @@ import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Insist;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
-import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
-import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
-import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.session.FieldNameUtils;
@@ -157,7 +154,6 @@ public class Verifier {
             checkUnsupportedAttributeRenaming(p, failures);
             checkInsist(p, failures);
             checkLimitBeforeInlineStats(p, failures);
-            checkLimitBy(p, failures);
         });
 
         if (failures.hasFailures() == false) {
@@ -370,23 +366,6 @@ public class Verifier {
                         firstLimit.source().source().toString()
                     )
                 );
-            }
-        }
-    }
-
-    // TODO: remove this check when SORT + LIMIT BY (TopN) support is added
-    private static void checkLimitBy(LogicalPlan plan, Failures failures) {
-        if (plan instanceof LimitBy limitBy) {
-            LogicalPlan child = limitBy.child();
-            while (child instanceof UnaryPlan unary) {
-                if (child instanceof OrderBy) {
-                    failures.add(fail(limitBy, "SORT cannot be used before LIMIT BY"));
-                    break;
-                }
-                if (child instanceof Limit) {
-                    break;
-                }
-                child = unary.child();
             }
         }
     }

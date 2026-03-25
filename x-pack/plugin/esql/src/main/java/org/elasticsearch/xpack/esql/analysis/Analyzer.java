@@ -348,16 +348,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
             var attributes = mappingAsAttributes(plan.source(), esIndex.mapping());
             attributes.addAll(metadata.stream().map(NamedExpression::toAttribute).toList());
-            // TODO: at least factor out into a helper method.
-            if (context.unmappedResolution() == UnmappedResolution.LOAD && plan.indexMode() != IndexMode.LOOKUP) {
-                for (int i = 0; i < attributes.size(); i++) {
-                    if (attributes.get(i) instanceof FieldAttribute fa
-                        && fa.dataType() == KEYWORD
-                        && esIndex.isPartiallyUnmappedField(fa.name())) {
-                        attributes.set(i, ResolveRefs.insistKeyword(fa));
-                    }
-                }
+
+            if (context.unmappedResolution() == UnmappedResolution.LOAD) {
+                loadPartiallyMappedKeywordFields(attributes, esIndex, plan.indexMode());
             }
+
             return new EsRelation(
                 plan.source(),
                 esIndex.name(),
@@ -367,6 +362,23 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 esIndex.indexNameWithModes(),
                 attributes.isEmpty() ? NO_FIELDS : attributes
             );
+        }
+
+        /**
+         * When {@code SET unmapped_fields="load"}, convert partially-mapped keyword fields to use
+         * {@link PotentiallyUnmappedKeywordEsField} so they are loaded from {@code _source} on shards where they are unmapped.
+         * Non-keyword fields are left unchanged (they will return null on unmapped shards, consistent with their default behavior).
+         */
+        private static void loadPartiallyMappedKeywordFields(List<Attribute> attributes, EsIndex esIndex, IndexMode indexMode) {
+            if (indexMode != IndexMode.LOOKUP) {
+                for (int i = 0; i < attributes.size(); i++) {
+                    if (attributes.get(i) instanceof FieldAttribute fa
+                        && fa.dataType() == KEYWORD
+                        && esIndex.isPartiallyUnmappedField(fa.name())) {
+                        attributes.set(i, ResolveRefs.insistKeyword(fa));
+                    }
+                }
+            }
         }
 
         private List<NamedExpression> resolveMetadata(List<NamedExpression> metadata, AnalyzerContext context) {

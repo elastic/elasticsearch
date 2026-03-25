@@ -68,6 +68,8 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class FlattenedFieldMapperTests extends MapperTestCase {
 
@@ -1753,6 +1755,91 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
             b.endObject();
         });
         assertThat(syntheticSource, equalTo("{\"field\":{\"unmapped\":\"value\"}}"));
+    }
+
+    public void testKeyedFlattenedDocValuesBlockLoaderWithMappedProperties() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
+            b.field("type", "flattened");
+            b.startObject("properties");
+            {
+                b.startObject("status").field("type", "keyword").endObject();
+                b.startObject("code").field("type", "long").endObject();
+            }
+            b.endObject();
+        }));
+
+        MappedFieldType unmappedKeyType = mapperService.fieldType("field.unmapped_key");
+        assertThat(unmappedKeyType, instanceOf(KeyedFlattenedFieldType.class));
+        BlockLoader unmappedBlockLoader = unmappedKeyType.blockLoader(null);
+        assertThat(unmappedBlockLoader, instanceOf(KeyedFlattenedDocValuesBlockLoader.class));
+
+        MappedFieldType.BlockLoaderContext blContext = mock(MappedFieldType.BlockLoaderContext.class);
+        when(blContext.fieldExtractPreference()).thenReturn(MappedFieldType.FieldExtractPreference.DOC_VALUES);
+        when(blContext.ordinalsByteSize()).thenReturn(ByteSizeValue.ofMb(1));
+
+        MappedFieldType statusFieldType = mapperService.fieldType("field.status");
+        assertEquals("keyword", statusFieldType.typeName());
+        BlockLoader statusBlockLoader = statusFieldType.blockLoader(blContext);
+
+        MappedFieldType codeFieldType = mapperService.fieldType("field.code");
+        assertEquals("long", codeFieldType.typeName());
+        BlockLoader codeBlockLoader = codeFieldType.blockLoader(blContext);
+
+        withLuceneIndex(mapperService, iw -> {
+            iw.addDocument(
+                mapperService.documentMapper()
+                    .parse(
+                        source(
+                            b -> b.startObject("field")
+                                .field("status", "ok")
+                                .field("code", 200)
+                                .field("unmapped_key", "some_value")
+                                .endObject()
+                        )
+                    )
+                    .rootDoc()
+            );
+            iw.addDocument(
+                mapperService.documentMapper()
+                    .parse(source(b -> b.startObject("field").field("status", "active").field("code", 201).endObject()))
+                    .rootDoc()
+            );
+        }, reader -> {
+            LeafReaderContext leaf = reader.leaves().get(0);
+
+            BlockLoader.ColumnAtATimeReader unmappedReader = unmappedBlockLoader.columnAtATimeReader(leaf)
+                .apply(newLimitedBreaker(ByteSizeValue.ofMb(1)));
+            try {
+                TestBlock block = (TestBlock) unmappedReader.read(TestBlock.factory(), TestBlock.docs(0, 1), 0, false);
+                assertThat(block.size(), equalTo(2));
+                assertThat(block.get(0), equalTo(new BytesRef("some_value")));
+                assertNull("doc without the unmapped key should be null", block.get(1));
+            } finally {
+                unmappedReader.close();
+            }
+
+            BlockLoader.ColumnAtATimeReader statusReader = statusBlockLoader.columnAtATimeReader(leaf)
+                .apply(newLimitedBreaker(ByteSizeValue.ofMb(1)));
+            try {
+                TestBlock block = (TestBlock) statusReader.read(TestBlock.factory(), TestBlock.docs(0, 1), 0, false);
+                assertThat(block.size(), equalTo(2));
+                assertThat(block.get(0), equalTo(new BytesRef("ok")));
+                assertThat(block.get(1), equalTo(new BytesRef("active")));
+            } finally {
+                statusReader.close();
+            }
+
+            BlockLoader.ColumnAtATimeReader codeReader = codeBlockLoader.columnAtATimeReader(leaf)
+                .apply(newLimitedBreaker(ByteSizeValue.ofMb(1)));
+            try {
+                TestBlock block = (TestBlock) codeReader.read(TestBlock.factory(), TestBlock.docs(0, 1), 0, false);
+                assertThat(block.size(), equalTo(2));
+                assertThat(block.get(0), equalTo(200L));
+                assertThat(block.get(1), equalTo(201L));
+            } finally {
+                codeReader.close();
+            }
+        });
     }
 
     public void testBlockLoaderIncludesMappedProperties() throws IOException {

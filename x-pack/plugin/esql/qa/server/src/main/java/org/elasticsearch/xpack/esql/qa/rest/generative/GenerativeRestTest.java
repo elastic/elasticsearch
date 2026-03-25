@@ -67,6 +67,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         "argument of \\[count.*\\] must",
         "Cannot use field \\[.*\\] with unsupported type \\[.*\\]",
         "Unbounded SORT not supported yet",
+        "MV_EXPAND .* cannot yet have an unbounded SORT .* before it",
         "The field names are too complex to process", // field_caps problem
         "must be \\[any type except counter types\\]", // TODO refine the generation of count()
         "INLINE STATS cannot be used after an explicit or implicit LIMIT command",
@@ -80,6 +81,8 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         "Can't parse boolean value \\[.*\\], expected \\[true\\] or \\[false\\]",
         // full-text function trying to parse text as date field and failing
         "failed to parse date field \\[.*\\] with format",
+        // full-text function trying to parse a non-IP string
+        "is not an IP string literal",
 
         // Awaiting fixes for query failure
         "Unknown column \\[<all-fields-projected>\\]", // https://github.com/elastic/elasticsearch/issues/121741,
@@ -670,7 +673,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
     }
 
     private static final Pattern FULL_TEXT_AFTER_WHERE_PATTERN = Pattern.compile(
-        ".*(?:(?:\\[(?:KQL|QSTR|MATCH|MultiMatch|MatchPhrase)] function)|(?:\\[:\\] operator)) cannot be used after \\(?WHERE.*",
+        ".*(?:(?:\\[(?:KQL|QSTR|MATCH|MatchPhrase)] function)|(?:\\[:\\] operator)) cannot be used after \\(?WHERE.*",
         Pattern.DOTALL
     );
 
@@ -683,9 +686,6 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         return FULL_TEXT_AFTER_WHERE_PATTERN.matcher(errorWithoutLineBreaks).matches();
     }
 
-    private static final Pattern MULTI_MATCH_LENIENT_FALSE_PATTERN = Pattern.compile(
-        "(?i)\\bmulti_match\\s*\\([^)]*\\{[^}]*[\"']lenient[\"']\\s*:\\s*false[^}]*}[^)]*\\)"
-    );
     private static final Pattern MATCH_LENIENT_FALSE_PATTERN = Pattern.compile(
         "(?i)\\bmatch\\s*\\([^)]*\\{[^}]*[\"']lenient[\"']\\s*:\\s*false[^}]*}[^)]*\\)"
     );
@@ -701,9 +701,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         if (errorWithoutLineBreaks.contains("failed to create query: For input string") == false) {
             return false;
         }
-        return MULTI_MATCH_LENIENT_FALSE_PATTERN.matcher(query).find()
-            || MATCH_LENIENT_FALSE_PATTERN.matcher(query).find()
-            || QSTR_LENIENT_FALSE_PATTERN.matcher(query).find();
+        return MATCH_LENIENT_FALSE_PATTERN.matcher(query).find() || QSTR_LENIENT_FALSE_PATTERN.matcher(query).find();
     }
 
     @Override

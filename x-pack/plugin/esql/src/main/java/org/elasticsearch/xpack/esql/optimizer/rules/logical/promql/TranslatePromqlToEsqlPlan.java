@@ -128,26 +128,48 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
 
     // TODO make configurable via lookback_delta parameter and (cluster?) setting
     public static final Duration DEFAULT_LOOKBACK = Duration.ofMinutes(5);
-    public static final String STEP_COLUMN_NAME = "step";
 
     public TranslatePromqlToEsqlPlan() {
         super(OptimizerRules.TransformDirection.UP);
     }
 
     /**
-     * Holds ESQL plan built so far, an expression representing the node value,
-     * and an optional selector filter that has not yet been consumed by an aggregate.
+     * Upward-flowing result of translating a single PromQL node.
      */
-    private record TranslationResult(LogicalPlan plan, Expression expression, Expression selectorFilter) {
+    private record TranslationResult(
+        /* ESQL plan built so far. */
+        LogicalPlan plan,
+        /* Reference to this node's numeric value, composed into parent expressions. */
+        Expression expression,
+        /* Selector filter not yet consumed by an aggregate; null when already applied. */
+        Expression selectorFilter,
+        /* Labels this node exports upward for grouping. */
+        List<Attribute> exposedLabels,
+        /* Labels excluded by a WITHOUT modifier; empty for BY/NONE. */
+        List<Attribute> excludedLabels
+    ) {
         TranslationResult(LogicalPlan plan, Expression expression) {
-            this(plan, expression, null);
+            this(plan, expression, null, List.of(), List.of());
+        }
+
+        TranslationResult(LogicalPlan plan, Expression expression, Expression selectorFilter) {
+            this(plan, expression, selectorFilter, List.of(), List.of());
         }
     }
 
     /**
-     * Holds context passed through the recursive translation.
+     * Downward-flowing context passed through recursive translation.
      */
-    private record TranslationContext(PromqlCommand promqlCommand, LogicalOptimizerContext optimizerContext, Alias stepBucketAlias) {
+    private record TranslationContext(
+        /* The root PromQL command being translated. */
+        PromqlCommand promqlCommand,
+        /* Optimizer context (configuration, transport version, etc.). */
+        LogicalOptimizerContext optimizerContext,
+        /* Alias for the step bucket expression used in all aggregation groupings. */
+        Alias stepBucketAlias,
+        /* Concrete labels the parent demands from this subtree. */
+        List<Attribute> requiredLabels
+    ) {
         Attribute stepAttr() {
             return stepBucketAlias.toAttribute();
         }
@@ -160,8 +182,8 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
         // Base plan EsRelation with timestamp filter
         LogicalPlan basePlan = withTimestampFilter(promqlCommand, promqlCommand.child());
 
-        // Create translation context
-        TranslationContext ctx = new TranslationContext(promqlCommand, context, stepBucketAlias);
+        // TODO: A follow-up change will propagate required labels through this context
+        TranslationContext ctx = new TranslationContext(promqlCommand, context, stepBucketAlias, List.of());
 
         TranslationResult result = translateNode(promqlCommand.promqlPlan(), basePlan, ctx);
 
@@ -177,7 +199,7 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
         // TODO: If we ever support metric references without last_over_time, we could
         // skip TimeSeriesAggregate and use plain Aggregate instead (see #141501 discussion).
         if (containsAggregation(plan) == false) {
-            plan = createInnerAggregate(ctx, plan, promqlCommand.promqlPlan().output(), valueExpr);
+            plan = createInnerAggregate(ctx, plan, promqlCommand.promqlPlan().output(), List.of(), valueExpr);
             valueExpr = plan.output().getFirst().toAttribute();
         }
 
@@ -219,17 +241,20 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
     private TranslationResult translateAcrossSeriesAggregate(AcrossSeriesAggregate agg, LogicalPlan currentPlan, TranslationContext ctx) {
         TranslationResult childResult = translateNode(agg.child(), currentPlan, ctx);
         Expression aggExpr = buildAggregateExpression(agg, childResult.expression(), ctx);
+        // TODO: A follow-up change will wire these through createOuterAggregate
+        List<Attribute> exposedLabels = List.of();
+        List<Attribute> excludedLabels = List.of();
         if (containsAggregation(childResult.plan())) {
             // Child already has an aggregate: create outer Aggregate
-            LogicalPlan aggregatePlan = createOuterAggregate(ctx, childResult.plan(), agg, aggExpr);
+            LogicalPlan aggregatePlan = createOuterAggregate(ctx, childResult.plan(), agg, exposedLabels, excludedLabels, aggExpr);
             Expression outputRef = getValueOutput(aggregatePlan);
-            return new TranslationResult(aggregatePlan, outputRef, childResult.selectorFilter());
+            return new TranslationResult(aggregatePlan, outputRef, childResult.selectorFilter(), exposedLabels, excludedLabels);
         } else {
             // No aggregate yet: create the innermost TimeSeriesAggregate, folding within-series
             // function expressions into the aggregation.
-            LogicalPlan timeSeriesAgg = createInnerAggregate(ctx, childResult.plan(), agg.output(), aggExpr);
+            LogicalPlan timeSeriesAgg = createInnerAggregate(ctx, childResult.plan(), agg.output(), excludedLabels, aggExpr);
             Expression outputRef = getValueOutput(timeSeriesAgg);
-            return new TranslationResult(timeSeriesAgg, outputRef, childResult.selectorFilter());
+            return new TranslationResult(timeSeriesAgg, outputRef, childResult.selectorFilter(), exposedLabels, excludedLabels);
         }
     }
 
@@ -268,7 +293,7 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
             return new TranslationResult(aggregate, getValueOutput(aggregate), childResult.selectorFilter());
         }
 
-        LogicalPlan timeSeriesAgg = createInnerAggregate(ctx, childResult.plan(), scalarFunc.output(), scalarExpr);
+        LogicalPlan timeSeriesAgg = createInnerAggregate(ctx, childResult.plan(), scalarFunc.output(), List.of(), scalarExpr);
         return new TranslationResult(timeSeriesAgg, getValueOutput(timeSeriesAgg), childResult.selectorFilter());
     }
 
@@ -522,8 +547,10 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
         TranslationContext ctx,
         LogicalPlan basePlan,
         List<Attribute> labelGroupings,
+        List<Attribute> excludedLabels,
         Expression aggExpr
     ) {
+        // TODO: A follow-up change will map non-empty exclusions into `_timeseries` grouping
         PromqlCommand promqlCommand = ctx.promqlCommand();
         List<NamedExpression> aggs = new ArrayList<>();
         List<Expression> groupings = new ArrayList<>();
@@ -560,8 +587,11 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
         TranslationContext ctx,
         LogicalPlan childPlan,
         AcrossSeriesAggregate agg,
+        List<Attribute> exposedLabels,
+        List<Attribute> excludedLabels,
         Expression aggExpr
     ) {
+        // TODO: A follow-up change will use explicit exposed/excluded labels instead of re-deriving grouping from AST query shape
         PromqlCommand promqlCommand = ctx.promqlCommand();
         Attribute stepAttr = ctx.stepAttr();
 
@@ -689,7 +719,7 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
             null,
             ConfigurationAware.CONFIGURATION_MARKER
         );
-        return new Alias(b.source(), STEP_COLUMN_NAME, b, promqlCommand.stepId());
+        return new Alias(b.source(), promqlCommand.stepColumnName(), b, promqlCommand.stepId());
     }
 
     private static Expression resolveTimeBucketSize(PromqlCommand promqlCommand) {

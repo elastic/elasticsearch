@@ -1,6 +1,0 @@
-area: ES|QL
-issues:
- - 142219
-pr: 142882
-summary: Account for missing `StubRelation` due to `SurrogateExpressions` replacement
-type: bug

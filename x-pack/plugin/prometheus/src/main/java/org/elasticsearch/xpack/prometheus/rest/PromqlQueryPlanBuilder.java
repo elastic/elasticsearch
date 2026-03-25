@@ -18,7 +18,6 @@ import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.SourceCommand;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
@@ -83,12 +82,11 @@ class PromqlQueryPlanBuilder {
                 promqlCommand.output().stream().filter(a -> a.name().equals(PromqlCommand.STEP_COLUMN_NAME)).findFirst().get()
             )
         );
+        // Eval's mergeOutputAttributes drops step(datetime) and appends step_alias(long) at the end,
+        // producing [value, ...dimensions, step(long)] — the order the response listener expects.
         Eval eval = new Eval(Source.EMPTY, promqlCommand, List.of(stepAlias));
 
-        // Eval appends the replaced step column at the end; project to restore the original PromqlCommand column order.
-        Project project = new Project(Source.EMPTY, eval, promqlCommand.output());
-
-        return new EsqlStatement(project, List.of());
+        return new EsqlStatement(eval, List.of());
     }
 
     private static Duration parseStep(Source source, String value) {

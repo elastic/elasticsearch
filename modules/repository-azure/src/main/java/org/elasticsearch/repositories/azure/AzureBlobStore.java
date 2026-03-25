@@ -237,8 +237,15 @@ public class AzureBlobStore implements BlobStore {
 
     @Override
     public BlobContainer blobContainer(BlobPath path) {
-        // TO DO: create configurable property.
-        return new AzureTenaciousRetryBlobContainer(new AzureBlobContainer(path, this), Integer.MAX_VALUE, TimeValue.timeValueMillis(50));
+        if (service.isStateless()) {
+            return new AzureTenaciousRetryBlobContainer(
+                new AzureBlobContainer(path, this),
+                Integer.MAX_VALUE,
+                TimeValue.timeValueMillis(50)
+            );
+        }
+
+        return new AzureBlobContainer(path, this);
     }
 
     @Override

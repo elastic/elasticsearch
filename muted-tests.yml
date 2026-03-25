@@ -371,24 +371,6 @@ tests:
 - class: org.elasticsearch.xpack.ccr.index.engine.FollowingEngineTests
   method: testProcessOnceOnPrimary
   issue: https://github.com/elastic/elasticsearch/issues/144743
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
-  method: test {csv-spec:external-basic.operatorLikeRLike}
-  issue: https://github.com/elastic/elasticsearch/issues/144804
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
-  method: test {csv-spec:external-basic.enrichRemote}
-  issue: https://github.com/elastic/elasticsearch/issues/144805
-- class: org.elasticsearch.xpack.esql.CsvTests
-  method: test {csv-spec:external-basic.operatorLikeRLike}
-  issue: https://github.com/elastic/elasticsearch/issues/144807
-- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
-  method: test {csv-spec:external-basic.enrichRemote}
-  issue: https://github.com/elastic/elasticsearch/issues/144808
-- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
-  method: test {csv-spec:external-basic.operatorLikeRLike}
-  issue: https://github.com/elastic/elasticsearch/issues/144809
-- class: org.elasticsearch.xpack.esql.analysis.AnalyzerExternalTests
-  method: testWithMultiMatchFunctionRejected
-  issue: https://github.com/elastic/elasticsearch/issues/144811
 - class: org.elasticsearch.xpack.transform.transforms.ClientTransformIndexerTests
   method: testDisablePitWhenCrossProjectSearchIsEnabled
   issue: https://github.com/elastic/elasticsearch/issues/144822

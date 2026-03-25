@@ -1209,6 +1209,10 @@ public class EsqlCapabilities {
          * Views with branching (requires subqueries/FORK).
          */
         VIEWS_WITH_BRANCHING(VIEWS_WITH_NO_BRANCHING.isEnabled() && SUBQUERY_IN_FROM_COMMAND.isEnabled()),
+        /**
+         * Added telemetry for views
+         */
+        VIEWS_TELEMETRY,
 
         /**
          * Support for the {@code leading_zeros} named parameter.
@@ -2355,6 +2359,11 @@ public class EsqlCapabilities {
          * <a href="https://github.com/elastic/elasticsearch/pull/144388"></a>
          */
         CHANGE_POINT_SUPPORT_NULL_COLUMN,
+
+        /**
+         * Support CHANGE_POINT arguments in any order
+         */
+        CHANGE_POINT_ARGS_ANY_ORDER,
 
         /**
          * Reject loading sub-fields of flattened fields when {@code unmapped_fields="load"}

@@ -9,13 +9,11 @@
 
 package org.elasticsearch.test.apmintegration;
 
-import com.carrotsearch.randomizedtesting.annotations.Name;
-import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-
 import org.elasticsearch.client.Request;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
-import org.elasticsearch.test.cluster.MutableSettingsProvider;
-import org.elasticsearch.test.cluster.MutableSystemPropertyProvider;
+import org.elasticsearch.test.cluster.local.LocalClusterSpecBuilder;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentParser;
@@ -23,14 +21,12 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.spi.XContentProvider;
 import org.hamcrest.Matcher;
 import org.hamcrest.StringDescription;
-import org.junit.Before;
-import org.junit.ClassRule;
+import org.junit.runners.model.Statement;
 
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -46,60 +42,45 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
-public class MetricsApmIT extends ESRestTestCase {
+/**
+ * Ensures metrics are being exported as expected.
+ */
+public abstract class AbstractMetricsIT extends ESRestTestCase {
     private static final XContentProvider.FormatProvider XCONTENT = XContentProvider.provider().getJsonXContent();
-    private static final MutableSettingsProvider clusterSettings = new MutableSettingsProvider();
-    private static final MutableSystemPropertyProvider systemProperties = new MutableSystemPropertyProvider();
-    private final boolean withOTel;
+    private static final Logger logger = LogManager.getLogger(AbstractMetricsIT.class);
 
-    @ClassRule
-    public static RecordingApmServer recordingApmServer = new RecordingApmServer();
+    protected static RecordingApmServer recordingApmServer = new RecordingApmServer();
 
-    public MetricsApmIT(@Name("withOTel") boolean withOTel) {
-        this.withOTel = withOTel;
-    }
-
-    @ParametersFactory
-    public static Iterable<Object[]> parameters() throws Exception {
-        return List.of(new Object[] { true }, new Object[] { false });
-    }
-
-    @ClassRule
-    public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
-        .distribution(DistributionType.INTEG_TEST)
-        .module("test-apm-integration")
-        .module("apm")
-        .setting("telemetry.metrics.enabled", "true")
-        .settings(clusterSettings)
-        .systemProperties(systemProperties)
-        .build();
-
-    @Override
-    protected String getTestRestCluster() {
-        return cluster.getHttpAddresses();
+    /**
+     * Returns a builder with common cluster settings (distribution, modules, telemetry.metrics.enabled).
+     * Subclasses add mode-specific settings and call {@code .build()}.
+     */
+    protected static LocalClusterSpecBuilder<ElasticsearchCluster> baseClusterBuilder() {
+        return ElasticsearchCluster.local()
+            .distribution(DistributionType.INTEG_TEST)
+            .module("test-apm-integration")
+            .module("apm")
+            .setting("telemetry.metrics.enabled", "true");
     }
 
     /**
-     * Restarts the shared test cluster when needed so the parameterized cluster settings and system properties
-     * for the current test instance take effect. This follows the same pattern used in {@code AbstractNetty4IT}.
+     * Builds the rule chain for a subclass: recording server first, then cluster, then closeClients in finally.
      */
-    @Before
-    public void maybeRestart() throws IOException {
-        String current = systemProperties.get(null).get("telemetry.otel.metrics.enabled");
-        if (current == null || current.equals(Boolean.toString(withOTel)) == false) {
-            systemProperties.get(null).put("telemetry.otel.metrics.enabled", String.valueOf(withOTel));
-            if (withOTel) {
-                clusterSettings.get(null).put("telemetry.otel.metrics.interval", "1s");
-                clusterSettings.get(null)
-                    .put("telemetry.otel.metrics.endpoint", "http://" + recordingApmServer.getHttpAddress() + "/v1/metrics");
-            } else {
-                clusterSettings.get(null).put("telemetry.agent.metrics_interval", "1s");
-                clusterSettings.get(null).put("telemetry.agent.server_url", "http://" + recordingApmServer.getHttpAddress());
+    protected static org.junit.rules.TestRule buildRuleChain(RecordingApmServer server, ElasticsearchCluster cluster) {
+        return org.junit.rules.RuleChain.outerRule(server).around(cluster).around((base, description) -> new Statement() {
+            @Override
+            public void evaluate() throws Throwable {
+                try {
+                    base.evaluate();
+                } finally {
+                    try {
+                        closeClients();
+                    } catch (IOException e) {
+                        logger.error("failed to close REST clients after test", e);
+                    }
+                }
             }
-            cluster.restart(false);
-            closeClients();
-            initClient();
-        }
+        });
     }
 
     @SuppressWarnings("unchecked")
@@ -121,7 +102,6 @@ public class MetricsApmIT extends ESRestTestCase {
 
         CountDownLatch finished = new CountDownLatch(1);
 
-        // a consumer that will remove the assertions from a map once it matched
         Consumer<String> messageConsumer = (String message) -> {
             var apmMessage = parseMap(message);
             if (isElasticsearchMetric(apmMessage)) {
@@ -131,11 +111,11 @@ public class MetricsApmIT extends ESRestTestCase {
                 var samples = (Map<String, Object>) metricset.get("samples");
 
                 samples.forEach((key, value) -> {
-                    var valueAssertion = valueAssertions.get(key);// sample name
+                    var valueAssertion = valueAssertions.get(key);
                     if (valueAssertion != null) {
                         logger.info("Matched {}:{}", key, value);
                         var sampleObject = (Map<String, Object>) value;
-                        if (valueAssertion.test(sampleObject)) {// sample object
+                        if (valueAssertion.test(sampleObject)) {
                             logger.info("{} assertion PASSED", key);
                             valueAssertions.remove(key);
                         } else {
@@ -236,7 +216,7 @@ public class MetricsApmIT extends ESRestTestCase {
         assertTrue("Timeout waiting for JVM metrics. Missing: " + remaining, completed);
     }
 
-    private <T> Map.Entry<String, Predicate<Map<String, Object>>> assertion(
+    protected <T> Map.Entry<String, Predicate<Map<String, Object>>> assertion(
         String sampleKeyName,
         Function<Map<String, Object>, T> accessor,
         Matcher<T> expected
@@ -257,13 +237,13 @@ public class MetricsApmIT extends ESRestTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    private static boolean isElasticsearchMetric(Map<String, Object> apmMessage) {
+    protected static boolean isElasticsearchMetric(Map<String, Object> apmMessage) {
         var metricset = (Map<String, Object>) apmMessage.getOrDefault("metricset", Collections.emptyMap());
         var tags = (Map<String, Object>) metricset.getOrDefault("tags", Collections.emptyMap());
         return "elasticsearch".equals(tags.get("otel_instrumentation_scope_name"));
     }
 
-    private Map<String, Object> parseMap(String message) {
+    protected Map<String, Object> parseMap(String message) {
         try (XContentParser parser = XCONTENT.XContent().createParser(XContentParserConfiguration.EMPTY, message)) {
             return parser.map();
         } catch (IOException e) {
@@ -271,5 +251,4 @@ public class MetricsApmIT extends ESRestTestCase {
             return Collections.emptyMap();
         }
     }
-
 }

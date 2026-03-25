@@ -417,7 +417,7 @@ took:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ snapshot_test_for_telemetry_v2 ]
+          capabilities: [ views_telemetry ]
         - method: GET
           path: /_query/view
           capabilities: [ view_index_abstraction ]

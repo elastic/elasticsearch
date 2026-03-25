@@ -122,7 +122,7 @@ public final class EngineConfig {
                 }
                 return s;
         }
-    }, Property.IndexScope, Property.NodeScope, Property.ServerlessPublic);
+    }, Property.IndexScope, Property.NodeScope, Property.ServerlessPublic, Property.Final);
 
     // don't convert to Setting<> and register... we only set this in tests and register via a test plugin
     public static final String USE_COMPOUND_FILE = "index.use_compound_file";

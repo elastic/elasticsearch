@@ -20,6 +20,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Stream;
 
@@ -58,6 +59,10 @@ public final class Mapping implements ToXContentFragment {
 
     private final FieldNamesFieldMapper fieldNamesFieldMapper; // cached from metadataMappersByClass
 
+    // this allows the document parser (for example) to find the leaf mapper for a field with a single map lookup,
+    // rather than checking two maps (with the first check usually being a miss)
+    private final Map<String, Mapper> mergedRootAndMetadataMappers;
+
     // IntelliJ doesn't think that we need a rawtypes suppression here, but gradle fails to compile this file without it
     @SuppressWarnings({ "unchecked", "rawtypes" })
     public Mapping(RootObjectMapper rootObjectMapper, MetadataFieldMapper[] metadataMappers, Map<String, Object> meta) {
@@ -78,6 +83,12 @@ public final class Mapping implements ToXContentFragment {
 
         // cache the field names field mapper
         this.fieldNamesFieldMapper = (FieldNamesFieldMapper) this.metadataMappersByName.get(FieldNamesFieldMapper.NAME);
+
+        // squash together the root object mappers, overriding them with the metadataMappers
+        var mappers = new HashMap<String, Mapper>();
+        mappers.putAll(rootObjectMapper.getMappers());
+        mappers.putAll(this.metadataMappersByName);
+        this.mergedRootAndMetadataMappers = Map.copyOf(mappers);
     }
 
     /**
@@ -122,6 +133,10 @@ public final class Mapping implements ToXContentFragment {
 
     public MetadataFieldMapper getMetadataMapperByName(String mapperName) {
         return metadataMappersByName.get(mapperName);
+    }
+
+    public Mapper findMetadataOrRootMapper(String mapperName) {
+        return mergedRootAndMetadataMappers.get(mapperName);
     }
 
     void validate(MappingLookup mappers) {

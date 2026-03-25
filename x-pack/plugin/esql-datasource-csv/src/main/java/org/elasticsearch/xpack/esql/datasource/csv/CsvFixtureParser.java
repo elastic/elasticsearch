@@ -191,6 +191,13 @@ public final class CsvFixtureParser {
         if (current.length() > 0) {
             entries.add(current.toString().trim());
         }
+        // Trailing delimiter (RFC 4180): one more empty field after the last comma, unless escaped as \,
+        if (line.endsWith(String.valueOf(delim)) && inQuotes == false) {
+            int last = line.length() - 1;
+            if (last == 0 || line.charAt(last - 1) != esc) {
+                entries.add("");
+            }
+        }
         return entries.toArray(String[]::new);
     }
 

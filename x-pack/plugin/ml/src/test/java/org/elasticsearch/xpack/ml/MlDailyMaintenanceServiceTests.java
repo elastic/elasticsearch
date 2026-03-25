@@ -44,10 +44,12 @@ import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteExpiredDataAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteJobAction;
+import org.elasticsearch.xpack.core.ml.action.GetDatafeedsAction;
 import org.elasticsearch.xpack.core.ml.action.GetJobsAction;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.core.ml.action.ResetJobAction;
 import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
+import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
@@ -363,6 +365,7 @@ public class MlDailyMaintenanceServiceTests extends ESTestCase {
         addJobTask(tasksBuilder, "idle-job", JobState.OPENED);
 
         when(clusterService.state()).thenReturn(createClusterStateWithTasks(tasksBuilder.build()));
+        doAnswer(withDatafeedResponse("idle-job")).when(client).execute(same(GetDatafeedsAction.INSTANCE), any(), any());
 
         long threeDaysAgo = threadPool.absoluteTimeInMillis() - TimeValue.timeValueHours(72).millis();
         doAnswer(withSearchResponse("idle-job", threeDaysAgo)).when(client).execute(same(TransportSearchAction.TYPE), any(), any());
@@ -385,6 +388,7 @@ public class MlDailyMaintenanceServiceTests extends ESTestCase {
         addJobTask(tasksBuilder, "active-job", JobState.OPENED);
 
         when(clusterService.state()).thenReturn(createClusterStateWithTasks(tasksBuilder.build()));
+        doAnswer(withDatafeedResponse("active-job")).when(client).execute(same(GetDatafeedsAction.INSTANCE), any(), any());
 
         long oneHourAgo = threadPool.absoluteTimeInMillis() - TimeValue.timeValueHours(1).millis();
         doAnswer(withSearchResponse("active-job", oneHourAgo)).when(client).execute(same(TransportSearchAction.TYPE), any(), any());
@@ -406,6 +410,26 @@ public class MlDailyMaintenanceServiceTests extends ESTestCase {
         addJobTask(tasksBuilder, "closed-job", JobState.CLOSED);
 
         when(clusterService.state()).thenReturn(createClusterStateWithTasks(tasksBuilder.build()));
+
+        MlDailyMaintenanceService service = createMaintenanceService();
+
+        CountDownLatch latch = new CountDownLatch(1);
+        service.triggerCloseIdleJobsWithStoppedDatafeeds(ActionListener.wrap(r -> {
+            assertTrue(r.isAcknowledged());
+            latch.countDown();
+        }, e -> fail(e.getMessage())));
+        assertTrue(latch.await(5, TimeUnit.SECONDS));
+
+        verify(client, never()).execute(same(TransportSearchAction.TYPE), any(), any());
+        verify(client, never()).execute(same(CloseJobAction.INSTANCE), any(), any());
+    }
+
+    public void testCloseIdleJobsSkipsJobsWithoutConfiguredDatafeed() throws InterruptedException {
+        PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
+        addJobTask(tasksBuilder, "no-datafeed-job", JobState.OPENED);
+
+        when(clusterService.state()).thenReturn(createClusterStateWithTasks(tasksBuilder.build()));
+        doAnswer(withDatafeedResponse()).when(client).execute(same(GetDatafeedsAction.INSTANCE), any(), any());
 
         MlDailyMaintenanceService service = createMaintenanceService();
 
@@ -466,6 +490,20 @@ public class MlDailyMaintenanceServiceTests extends ESTestCase {
             )
             .nodes(DiscoveryNodes.builder().build())
             .build();
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Answer<Void> withDatafeedResponse(String... jobIds) {
+        return invocationOnMock -> {
+            ActionListener<GetDatafeedsAction.Response> listener = (ActionListener<GetDatafeedsAction.Response>) invocationOnMock
+                .getArguments()[2];
+            List<DatafeedConfig> datafeeds = new java.util.ArrayList<>();
+            for (String jobId : jobIds) {
+                datafeeds.add(new DatafeedConfig.Builder("datafeed-" + jobId, jobId).setIndices(List.of("index")).build());
+            }
+            listener.onResponse(new GetDatafeedsAction.Response(new QueryPage<>(datafeeds, datafeeds.size(), new ParseField(""))));
+            return null;
+        };
     }
 
     @SuppressWarnings("unchecked")

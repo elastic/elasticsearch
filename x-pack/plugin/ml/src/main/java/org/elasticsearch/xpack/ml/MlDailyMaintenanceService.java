@@ -59,9 +59,11 @@ import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteExpiredDataAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteJobAction;
+import org.elasticsearch.xpack.core.ml.action.GetDatafeedsAction;
 import org.elasticsearch.xpack.core.ml.action.GetJobsAction;
 import org.elasticsearch.xpack.core.ml.action.ResetJobAction;
 import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
+import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
@@ -124,6 +126,7 @@ public class MlDailyMaintenanceService implements Releasable {
     private volatile float deleteExpiredDataRequestsPerSecond;
     private volatile ByteSizeValue rolloverMaxSize;
     private volatile TimeValue idleJobAutoCloseTimeout;
+    private volatile AnomalyDetectionAuditor idleJobAuditor;
 
     MlDailyMaintenanceService(
         Settings settings,
@@ -657,9 +660,10 @@ public class MlDailyMaintenanceService implements Releasable {
     }
 
     /**
-     * Closes anomaly detection jobs that are open but have a stopped datafeed and have not
-     * received any data within the configured idle timeout. Disabled when the timeout is set
-     * to {@code -1}.
+     * Closes anomaly detection jobs that have a configured datafeed which is stopped and have
+     * not received any data within the configured idle timeout. Jobs without a configured
+     * datafeed (e.g. those fed via the POST data API) are not affected. Disabled when the
+     * timeout is set to {@code -1}.
      */
     // Visible for testing
     public void triggerCloseIdleJobsWithStoppedDatafeeds(ActionListener<AcknowledgedResponse> finalListener) {
@@ -690,21 +694,45 @@ public class MlDailyMaintenanceService implements Releasable {
             return taskState != null && taskState.getState() == JobState.OPENED;
         }).map(t -> t.getId().substring(MlTasks.JOB_TASK_ID_PREFIX.length())).collect(toSet());
 
-        Set<String> candidateJobIds = Sets.difference(openJobIds, jobsWithRunningDatafeeds);
-        if (candidateJobIds.isEmpty()) {
-            logger.debug("[ML] no open jobs with stopped datafeeds found");
+        Set<String> openJobsWithoutRunningDatafeeds = Sets.difference(openJobIds, jobsWithRunningDatafeeds);
+        if (openJobsWithoutRunningDatafeeds.isEmpty()) {
             finalListener.onResponse(AcknowledgedResponse.TRUE);
             return;
         }
 
-        logger.info("[ML] checking {} open job(s) with stopped datafeeds for idle auto-close", candidateJobIds.size());
+        executeAsyncWithOrigin(
+            client,
+            ML_ORIGIN,
+            GetDatafeedsAction.INSTANCE,
+            new GetDatafeedsAction.Request("*"),
+            finalListener.delegateFailureAndWrap((delegate, getDatafeedsResponse) -> {
+                Set<String> jobsWithConfiguredDatafeeds = getDatafeedsResponse.getResponse()
+                    .results()
+                    .stream()
+                    .map(DatafeedConfig.class::cast)
+                    .map(DatafeedConfig::getJobId)
+                    .collect(toSet());
 
+                Set<String> candidateJobIds = Sets.intersection(openJobsWithoutRunningDatafeeds, jobsWithConfiguredDatafeeds);
+                if (candidateJobIds.isEmpty()) {
+                    logger.debug("[ML] no open jobs with stopped datafeeds found");
+                    delegate.onResponse(AcknowledgedResponse.TRUE);
+                    return;
+                }
+
+                logger.info("[ML] checking {} open job(s) with stopped datafeeds for idle auto-close", candidateJobIds.size());
+                closeIdleJobs(candidateJobIds, timeout, delegate);
+            })
+        );
+    }
+
+    private void closeIdleJobs(Set<String> candidateJobIds, TimeValue timeout, ActionListener<AcknowledgedResponse> finalListener) {
         long cutoffMillis = threadPool.absoluteTimeInMillis() - timeout.millis();
 
         TypedChainTaskExecutor<Tuple<String, Boolean>> chainTaskExecutor = new TypedChainTaskExecutor<>(
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             Predicates.always(),
-            Predicates.always()
+            Predicates.never()
         );
 
         for (String jobId : candidateJobIds) {
@@ -782,11 +810,19 @@ public class MlDailyMaintenanceService implements Releasable {
 
     private void auditIdleJobClosed(String jobId, TimeValue timeout) {
         try {
-            AnomalyDetectionAuditor auditor = new AnomalyDetectionAuditor(client, clusterService, expressionResolver, true);
-            auditor.warning(jobId, Messages.getMessage(Messages.JOB_AUDIT_IDLE_JOB_CLOSED, timeout));
+            getOrCreateAuditor().warning(jobId, Messages.getMessage(Messages.JOB_AUDIT_IDLE_JOB_CLOSED, timeout));
         } catch (Exception e) {
             logger.warn(() -> "[" + jobId + "] failed to write audit message for idle job auto-close", e);
         }
+    }
+
+    private AnomalyDetectionAuditor getOrCreateAuditor() {
+        AnomalyDetectionAuditor existing = idleJobAuditor;
+        if (existing != null) {
+            return existing;
+        }
+        idleJobAuditor = new AnomalyDetectionAuditor(client, clusterService, expressionResolver, true);
+        return idleJobAuditor;
     }
 
     /**

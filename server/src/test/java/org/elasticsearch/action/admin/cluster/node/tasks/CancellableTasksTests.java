@@ -541,7 +541,7 @@ public class CancellableTasksTests extends TaskManagerTestCase {
             request
         );
 
-        assertThat("Shouldn't have cancelled anything", response.getTasks(), empty());
+        assertThat("Expected no tasks in response of non existing task cancellation request", response.getTasks(), empty());
 
         assertBusy(() -> {
             // Make sure that main task is no longer running

@@ -1137,8 +1137,10 @@ public class IndexSettingsTests extends ESTestCase {
         var builder = Settings.builder().put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true);
         var indexMetadata = newIndexMeta("some-index", builder.build(), indexVersion);
 
-        assertThat(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.get(indexMetadata.getSettings()),
-            equalTo(SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY));
+        assertThat(
+            IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.get(indexMetadata.getSettings()),
+            equalTo(SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY)
+        );
     }
 
     public void testDisableSequenceNumbersRequiresDocValuesOnly() {
@@ -1151,8 +1153,7 @@ public class IndexSettingsTests extends ESTestCase {
         var e = assertThrows(IllegalArgumentException.class, () -> new IndexSettings(indexMetadata, Settings.EMPTY));
         assertThat(
             e.getMessage(),
-            Matchers
-                .containsString(
+            Matchers.containsString(
                 String.format(
                     Locale.ROOT,
                     "The setting [%s] is only permitted when [%s] is set to [%s]. Current value: [%s].",

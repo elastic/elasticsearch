@@ -346,7 +346,7 @@ public final class LuceneSliceQueue {
         public void writeTo(StreamOutput out) throws IOException {
             byte val = id;
             if (this == TIME_SERIES && out.getTransportVersion().supports(TIME_SERIES_PARTITIONING) == false) {
-                val = DOC.id; // make time-series as DOC
+                val = DOC.id; // fall back to DOC partitioning strategy for time-series
             }
             out.writeByte(val);
         }
@@ -488,11 +488,11 @@ public final class LuceneSliceQueue {
             final Map<Integer, Map<Integer, PrefixGroup>> firstByteGroups = new TreeMap<>();
             PartitionedDocValues.PrefixPartitions prefixPartitions = null;
             for (LeafReaderContext leaf : leaves) {
-                var tsid = leaf.reader().getSortedDocValues(TimeSeriesIdFieldMapper.NAME);
-                if (tsid == null) {
+                var tsidValues = leaf.reader().getSortedDocValues(TimeSeriesIdFieldMapper.NAME);
+                if (tsidValues == null) {
                     continue; // empty
                 }
-                var partitionedDV = (PartitionedDocValues) tsid;
+                var partitionedDV = (PartitionedDocValues) tsidValues;
                 if (prefixBitsShift == -1) {
                     prefixBitsShift = partitionedDV.prefixPartitionBits() - Byte.SIZE;
                 }
@@ -526,6 +526,13 @@ public final class LuceneSliceQueue {
             return results;
         }
 
+        /**
+         * Combines prefix groups into slices, targeting at least {@code taskConcurrency} slices
+         * for each metric (indicated via the first prefix byte). Each slice contains at least
+         * {@code maxDocsPerLeave} docs to avoid tiny slices, but flushes early when any
+         * single leaf within a slice reaches {@code maxDocsPerLeave} docs to bound per-leaf
+         * processing cost.
+         */
         private List<List<PartialLeafReaderContext>> combineSlices(List<PrefixGroup> slices, int taskConcurrency, int maxDocsPerLeave) {
             final int totalDocs = slices.stream().mapToInt(s -> s.numDocs).sum();
             final int docsPerSlice = Math.max(Math.ceilDiv(totalDocs, taskConcurrency), maxDocsPerLeave);

@@ -28,6 +28,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
@@ -89,6 +90,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.function.BiFunction;
+import java.util.function.Supplier;
 
 import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.equalTo;
@@ -694,7 +696,6 @@ public class WildcardFieldMapperTests extends MapperTestCase {
     }
 
     public void testQueryCachingEqualityFromTerms() {
-        ;
         Query csQ = BinaryDvConfirmedQuery.fromTerms(Queries.ALL_DOCS_INSTANCE, "field", new BytesRef("termA"));
         Query ciQ = BinaryDvConfirmedQuery.fromTerms(Queries.ALL_DOCS_INSTANCE, "field", new BytesRef("termB"));
         assertNotEquals(csQ, ciQ);
@@ -704,6 +705,28 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         Query csQ2 = BinaryDvConfirmedQuery.fromTerms(Queries.ALL_DOCS_INSTANCE, "field", new BytesRef("termA"));
         assertEquals(csQ, csQ2);
         assertEquals(csQ.hashCode(), csQ2.hashCode());
+    }
+
+    public void testVisit() {
+        Query query = wildcardFieldType.fieldType().wildcardQuery("*00363faa-1a2a-af71-8353*", null, MOCK_CONTEXT);
+        int[] totalQueries = new int[] { 0 };
+        query.visit(new QueryVisitor() {
+            @Override
+            public void visitLeaf(Query query) {
+                totalQueries[0]++;
+            }
+
+            @Override
+            public void consumeTerms(Query query, Term... terms) {
+                totalQueries[0]++;
+            }
+
+            @Override
+            public void consumeTermsMatching(Query query, String field, Supplier<ByteRunAutomaton> automaton) {
+                totalQueries[0]++;
+            }
+        });
+        assertThat(totalQueries[0], equalTo(11));
     }
 
     @Override

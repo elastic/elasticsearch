@@ -33,17 +33,17 @@ TS metric_temporality
  | SORT bucket, cluster
 ;
 
-bucket:datetime      | cluster:keyword | bytes_per_second:double
+bucket:datetime          | cluster:keyword | bytes_per_second:double
 2024-05-10T00:00:00.000Z | prod-cumulative | 0.33
 2024-05-10T00:00:00.000Z | prod-delta      | 0.2266667
 2024-05-10T00:00:00.000Z | prod-null       | 0.33
-2024-05-10T00:05:00.000Z | prod-cumulative | 0.2766667
-2024-05-10T00:05:00.000Z | prod-delta      | 0.1733333
-2024-05-10T00:05:00.000Z | prod-null       | 0.2766667
-2024-05-10T00:10:00.000Z | prod-cumulative | 0.2733333
-2024-05-10T00:10:00.000Z | prod-delta      | 0.1766667
-2024-05-10T00:10:00.000Z | prod-null       | 0.2733333
-2024-05-10T00:15:00.000Z | prod-cumulative | 0.03
-2024-05-10T00:15:00.000Z | prod-delta      | 0.03
-2024-05-10T00:15:00.000Z | prod-null       | 0.03   
+2024-05-10T00:05:00.000Z | prod-cumulative | 0.2719509
+2024-05-10T00:05:00.000Z | prod-delta      | 0.1696655
+2024-05-10T00:05:00.000Z | prod-null       | 0.2719509
+2024-05-10T00:10:00.000Z | prod-cumulative | 0.2751714
+2024-05-10T00:10:00.000Z | prod-delta      | 0.1774567
+2024-05-10T00:10:00.000Z | prod-null       | 0.2751714
+2024-05-10T00:15:00.000Z | prod-cumulative | 0.5786293
+2024-05-10T00:15:00.000Z | prod-delta      | 0.5786293
+2024-05-10T00:15:00.000Z | prod-null       | 0.5786293
 ;

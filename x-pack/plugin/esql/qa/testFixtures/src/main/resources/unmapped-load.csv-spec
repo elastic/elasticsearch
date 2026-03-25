@@ -914,6 +914,28 @@ emp_no:integer | first_name:keyword | last_name:keyword | _index:keyword
 ;
 
 
+// Verify that a partially-mapped TEXT field is not automatically loaded from _source.
+// gender is mapped as text in employees_gender_text and unmapped in employees_no_gender.
+partiallyMappedTextFieldNotLoaded
+required_capability: index_metadata_field
+required_capability: optional_fields_fix_load_partially_mapped_keyword
+
+SET unmapped_fields="load"\;
+FROM employees_gender_text, employees_no_gender METADATA _index
+| DROP first_name, last_name, birth_date, hire_date, languages*, salary, height*, still_hired, avg_worked_seconds, job_positions, is_rehired, salary_change*
+| SORT emp_no, _index
+| LIMIT 6
+;
+
+emp_no:integer | gender:text           | _index:keyword
+10001          | M                     | employees_gender_text
+10001          | null                  | employees_no_gender
+10002          | F                     | employees_gender_text
+10002          | null                  | employees_no_gender
+10003          | M                     | employees_gender_text
+10003          | null                  | employees_no_gender
+;
+
 // https://github.com/elastic/elasticsearch/issues/141994
 // A partially-mapped keyword field (message, mapped in sample_data but not in no_mapping_sample_data) should be loaded
 // from _source even when not explicitly referenced in a downstream expression like KEEP.

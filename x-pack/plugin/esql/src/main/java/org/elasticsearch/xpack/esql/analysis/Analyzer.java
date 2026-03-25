@@ -672,9 +672,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 default -> plan.transformExpressionsOnly(UnresolvedAttribute.class, ua -> maybeResolveAttribute(ua, childrenOutput));
             };
 
-            // TODO: this looks at used partially mapped field attributes. It should probably get (mostly?) obsolete with the change to
-            // ResolveTables. Also has overlap with Shmuel's work.
-            return context.unmappedResolution() == UnmappedResolution.LOAD ? resolvePartiallyMapped(resolved, context) : resolved;
+            return resolved;
         }
 
         private LogicalPlan resolveAggregate(Aggregate aggregate, List<Attribute> childrenOutput) {
@@ -1248,54 +1246,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 attribute.name(),
                 new PotentiallyUnmappedKeywordEsField(attribute.name())
             );
-        }
-
-        /**
-         * This will inspect current node/{@code plan}'s expressions and check if any of the {@code FieldAttribute}s refer to fields that
-         * are partially unmapped across the indices involved in the plan fragment. If so, replace their field with an "insisted" EsField.
-         */
-        private static LogicalPlan resolvePartiallyMapped(LogicalPlan plan, AnalyzerContext context) {
-            var indexResolutions = collectIndexResolutions(plan, context);
-            Map<FieldAttribute, FieldAttribute> insistedMap = new HashMap<>();
-            var transformed = plan.transformExpressionsOnly(FieldAttribute.class, fa -> {
-                var esField = fa.field();
-                var isInsisted = esField instanceof PotentiallyUnmappedKeywordEsField || esField instanceof InvalidMappedField;
-                if (isInsisted == false) {
-                    var existing = insistedMap.get(fa);
-                    if (existing != null) { // field shows up multiple times in the node; return first processing
-                        return existing;
-                    }
-                    // Field is partially unmapped.
-                    if (indexResolutions.stream().anyMatch(r -> r.get().isPartiallyUnmappedField(fa.name()))) {
-                        FieldAttribute newFA = fa.dataType() == KEYWORD ? insistKeyword(fa) : invalidInsistAttribute(fa);
-                        insistedMap.put(fa, newFA);
-                        return newFA;
-                    }
-                }
-                return fa;
-            });
-            return insistedMap.isEmpty() ? transformed : propagateInsistedFields(transformed, insistedMap);
-        }
-
-        /**
-         * Push only those fields from the {@code insistedMap} into {@code EsRelation}s in the {@code plan} that wrap a
-         * {@code PotentiallyUnmappedKeywordEsField}.
-         */
-        private static LogicalPlan propagateInsistedFields(LogicalPlan plan, Map<? extends Attribute, FieldAttribute> insistedMap) {
-            return plan.transformUp(EsRelation.class, esr -> {
-                var newOutput = new ArrayList<Attribute>();
-                boolean updated = false;
-                for (Attribute attr : esr.output()) {
-                    var newFA = insistedMap.get(attr);
-                    if (newFA != null && newFA.field() instanceof PotentiallyUnmappedKeywordEsField) {
-                        newOutput.add(newFA);
-                        updated = true;
-                    } else {
-                        newOutput.add(attr);
-                    }
-                }
-                return updated ? esr.withAttributes(newOutput) : esr;
-            });
         }
 
         private LogicalPlan resolveFuse(Fuse fuse, List<Attribute> childrenOutput) {

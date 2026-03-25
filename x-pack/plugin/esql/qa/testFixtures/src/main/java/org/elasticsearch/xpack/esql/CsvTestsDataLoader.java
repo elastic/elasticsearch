@@ -93,6 +93,13 @@ public class CsvTestsDataLoader {
             .withTypeMapping(removeFields("first_name", "last_name"))
             .withDynamic("false")
             .noSubfields(),
+        new TestDataset("employees", "mapping-default.json", "employees.csv").withIndex("employees_gender_text")
+            .withTypeMapping(Map.of("gender", "text"))
+            .noSubfields(),
+        new TestDataset("employees", "mapping-default.json", "employees.csv").withIndex("employees_no_gender")
+            .withTypeMapping(removeFields("gender"))
+            .withDynamic("false")
+            .noSubfields(),
         new TestDataset("all_types", "mapping-all-types.json", "all-types.csv"),
         new TestDataset("hosts"),
         new TestDataset("apps"),

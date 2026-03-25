@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.KeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
+import org.elasticsearch.xpack.esql.core.type.TextEsField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
@@ -618,6 +619,36 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         assertThat(fieldAttr.field(), not(instanceOf(PotentiallyUnmappedKeywordEsField.class)));
         assertThat(fieldAttr.field().getClass(), is(EsField.class));
         assertThat(fieldAttr.field().getDataType(), is(DataType.INTEGER));
+    }
+
+    /**
+     * Verify that a partially-mapped text field is NOT converted to {@link PotentiallyUnmappedKeywordEsField},
+     * since the fix only applies to keyword fields. Text fields should not be loaded from _source.
+     */
+    public void testPartiallyMappedTextFieldNotLoaded() {
+        var plan = analyzer().addIndex(
+            new EsIndex(
+                "test*",
+                EsqlTestUtils.loadMapping("mapping-basic.json"),
+                Map.of("test1", IndexMode.STANDARD, "test2", IndexMode.STANDARD),
+                Map.of(),
+                Map.of(),
+                Set.of("gender") // gender is text, not keyword
+            )
+        ).statement(setUnmappedLoad("""
+            FROM test*
+            | SORT emp_no
+            """));
+
+        var limit = as(plan, Limit.class);
+        var order = as(limit.child(), OrderBy.class);
+        var relation = as(order.child(), EsRelation.class);
+
+        var genderAttr = relation.output().stream().filter(a -> a.name().equals("gender")).findFirst().orElseThrow();
+        var fieldAttr = as(genderAttr, FieldAttribute.class);
+        assertThat(fieldAttr.field(), not(instanceOf(PotentiallyUnmappedKeywordEsField.class)));
+        assertThat(fieldAttr.field(), instanceOf(TextEsField.class));
+        assertThat(fieldAttr.field().getDataType(), is(DataType.TEXT));
     }
 
     /**

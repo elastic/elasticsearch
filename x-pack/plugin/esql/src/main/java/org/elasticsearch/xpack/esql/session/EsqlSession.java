@@ -98,6 +98,7 @@ import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
 import org.elasticsearch.xpack.esql.planner.premapper.PreMapper;
 import org.elasticsearch.xpack.esql.plugin.ComputeService;
 import org.elasticsearch.xpack.esql.plugin.TransportActionServices;
+import org.elasticsearch.xpack.esql.telemetry.FeatureMetric;
 import org.elasticsearch.xpack.esql.telemetry.Metrics;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
 import org.elasticsearch.xpack.esql.view.ViewResolver;
@@ -276,7 +277,13 @@ public class EsqlSession {
         ActionListener<Versioned<Result>> listener
     ) {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH);
+
+        // this is stack telemetry
+        gatherViewMetrics(viewResolution);
+
+        // this is APM
         gatherPlanTelemetry(viewResolution.plan(), statement.settings());
+
         PlanTimeProfile planTimeProfile = request.profile() ? new PlanTimeProfile() : null;
 
         ZoneId timeZone = request.timeZone() == null
@@ -759,6 +766,13 @@ public class EsqlSession {
         // (e.g., snapshot-only settings are not registered in non-snapshot builds).
         // incSetting() silently ignores settings that don't have a registered counter.
         statement.settings().stream().map(QuerySetting::name).distinct().forEach(metrics::incSetting);
+    }
+
+    private void gatherViewMetrics(ViewResolver.ViewResolutionResult viewResolution) {
+        if (metrics == null || viewResolution.viewQueries().isEmpty()) {
+            return;
+        }
+        metrics.inc(FeatureMetric.VIEW);
     }
 
     /**

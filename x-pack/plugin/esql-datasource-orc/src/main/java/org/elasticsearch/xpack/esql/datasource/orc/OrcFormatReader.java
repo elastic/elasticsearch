@@ -323,7 +323,8 @@ public class OrcFormatReader implements FormatReader {
             case BYTE, SHORT, INT -> DataType.INTEGER;
             case LONG -> DataType.LONG;
             case FLOAT, DOUBLE -> DataType.DOUBLE;
-            case STRING, VARCHAR, CHAR -> DataType.KEYWORD;
+            case STRING -> DataType.TEXT;
+            case VARCHAR, CHAR -> DataType.KEYWORD;
             case BINARY -> DataType.KEYWORD;
             case TIMESTAMP, TIMESTAMP_INSTANT, DATE -> DataType.DATETIME;
             case DECIMAL -> DataType.DOUBLE;

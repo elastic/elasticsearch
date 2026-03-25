@@ -87,6 +87,35 @@ public class GetShutdownStatusResponseTests extends AbstractWireSerializingTestC
         );
     }
 
+    public void testOverallStatusIncludeShardSnapshotStatus() {
+        final var metadata = randomNodeShutdownMetadata();
+        final var shardMigrationStatus = new ShutdownShardMigrationStatus(SingleNodeShutdownMetadata.Status.COMPLETE, 0, 0, 0);
+        final var persistentTasksStatus = ShutdownPersistentTasksStatus.fromRemainingTasks(0, 0);
+        final var pluginsStatus = new ShutdownPluginsStatus(true);
+
+        assertThat(
+            new SingleNodeShutdownStatus(
+                metadata,
+                shardMigrationStatus,
+                persistentTasksStatus,
+                pluginsStatus,
+                ShutdownShardSnapshotsStatus.fromShardCounts(between(0, 100), between(0, 100), between(1, 100))
+            ).overallStatus(),
+            equalTo(SingleNodeShutdownMetadata.Status.IN_PROGRESS)
+        );
+
+        assertThat(
+            new SingleNodeShutdownStatus(
+                metadata,
+                shardMigrationStatus,
+                persistentTasksStatus,
+                pluginsStatus,
+                ShutdownShardSnapshotsStatus.fromShardCounts(between(0, 100), between(0, 100), 0)
+            ).overallStatus(),
+            equalTo(SingleNodeShutdownMetadata.Status.COMPLETE)
+        );
+    }
+
     public void testSerializationBwc() throws IOException {
         final var oldVersion = TransportVersionUtils.getPreviousVersion(ShutdownShardSnapshotsStatus.SHUTDOWN_SHARD_SNAPSHOTS_STATUS);
         final BytesStreamOutput out = new BytesStreamOutput();

@@ -55,14 +55,12 @@ public class ShutdownShardSnapshotsStatus implements Writeable, ToXContentObject
     private boolean assertStateConsistency() {
         assert (status == SingleNodeShutdownMetadata.Status.NOT_STARTED && completedShards == 0 && pausedShards == 0 && runningShards == 0)
             || (status == SingleNodeShutdownMetadata.Status.IN_PROGRESS && runningShards > 0)
-            || (status == SingleNodeShutdownMetadata.Status.COMPLETE && runningShards == 0);
+            || (status == SingleNodeShutdownMetadata.Status.COMPLETE && runningShards == 0) : this;
         return true;
     }
 
     public static ShutdownShardSnapshotsStatus fromShardCounts(long completedShards, long pausedShards, long runningShards) {
-        final SingleNodeShutdownMetadata.Status status = runningShards == 0
-            ? SingleNodeShutdownMetadata.Status.COMPLETE
-            : SingleNodeShutdownMetadata.Status.IN_PROGRESS;
+        final var status = runningShards == 0 ? SingleNodeShutdownMetadata.Status.COMPLETE : SingleNodeShutdownMetadata.Status.IN_PROGRESS;
         return new ShutdownShardSnapshotsStatus(status, completedShards, pausedShards, runningShards);
     }
 

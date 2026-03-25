@@ -55,7 +55,7 @@ public class PromqlCommand extends UnaryPlan
     /**
      * The name of the column containing the step value (aka time bucket) in range queries.
      */
-    private static final String STEP_COLUMN_NAME = "step";
+    public static final String STEP_COLUMN_NAME = "step";
 
     private final LogicalPlan promqlPlan;
     private final Literal start;
@@ -262,6 +262,10 @@ public class PromqlCommand extends UnaryPlan
         return valueColumnName;
     }
 
+    public String stepColumnName() {
+        return STEP_COLUMN_NAME;
+    }
+
     public NameId valueId() {
         return valueId;
     }
@@ -281,7 +285,7 @@ public class PromqlCommand extends UnaryPlan
             List<Attribute> additionalOutput = promqlPlan.output();
             output = new ArrayList<>(additionalOutput.size() + 2);
             output.add(new ReferenceAttribute(source(), null, valueColumnName, DataType.DOUBLE, Nullability.FALSE, valueId, false));
-            output.add(new ReferenceAttribute(source(), null, STEP_COLUMN_NAME, DataType.DATETIME, Nullability.FALSE, stepId, false));
+            output.add(new ReferenceAttribute(source(), null, stepColumnName(), DataType.DATETIME, Nullability.FALSE, stepId, false));
             output.addAll(additionalOutput);
         }
         return output;

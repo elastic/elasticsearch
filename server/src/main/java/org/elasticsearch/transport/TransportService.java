@@ -49,6 +49,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.node.ReportingService;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.telemetry.TelemetryProvider;
@@ -281,6 +282,7 @@ public class TransportService extends AbstractLifecycleComponent
             taskManger,
             new ClusterSettingsLinkedProjectConfigService(settings, clusterSettings, DefaultProjectResolver.INSTANCE),
             TelemetryProvider.NOOP,
+            CrossProjectModeDecider.NOOP,
             DefaultProjectResolver.INSTANCE
         );
     }
@@ -297,6 +299,7 @@ public class TransportService extends AbstractLifecycleComponent
         TaskManager taskManger,
         LinkedProjectConfigService linkedProjectConfigService,
         TelemetryProvider telemetryProvider,
+        CrossProjectModeDecider crossProjectModeDecider,
         ProjectResolver projectResolver
     ) {
         this.transport = transport;
@@ -314,7 +317,7 @@ public class TransportService extends AbstractLifecycleComponent
         this.enableStackOverflowAvoidance = ENABLE_STACK_OVERFLOW_AVOIDANCE.get(settings);
         this.linkedProjectConfigService = linkedProjectConfigService;
         this.telemetryProvider = telemetryProvider;
-        remoteClusterService = new RemoteClusterService(settings, this, projectResolver);
+        remoteClusterService = new RemoteClusterService(settings, this, crossProjectModeDecider, projectResolver);
         responseHandlers = transport.getResponseHandlers();
         if (clusterSettings != null) {
             clusterSettings.addSettingsUpdateConsumer(TransportSettings.TRACE_LOG_INCLUDE_SETTING, this::setTracerLogInclude);

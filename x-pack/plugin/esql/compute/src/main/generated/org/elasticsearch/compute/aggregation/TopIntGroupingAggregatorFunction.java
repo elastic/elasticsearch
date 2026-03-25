@@ -36,19 +36,13 @@ public final class TopIntGroupingAggregatorFunction implements GroupingAggregato
 
   private final boolean ascending;
 
-  public TopIntGroupingAggregatorFunction(List<Integer> channels,
-      TopIntAggregator.GroupingState state, DriverContext driverContext, int limit,
+  TopIntGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext, int limit,
       boolean ascending) {
-    this.channels = channels;
-    this.state = state;
-    this.driverContext = driverContext;
     this.limit = limit;
     this.ascending = ascending;
-  }
-
-  public static TopIntGroupingAggregatorFunction create(List<Integer> channels,
-      DriverContext driverContext, int limit, boolean ascending) {
-    return new TopIntGroupingAggregatorFunction(channels, TopIntAggregator.initGrouping(driverContext.bigArrays(), limit, ascending), driverContext, limit, ascending);
+    this.channels = channels;
+    this.state = TopIntAggregator.initGrouping(driverContext.bigArrays(), limit, ascending);
+    this.driverContext = driverContext;
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

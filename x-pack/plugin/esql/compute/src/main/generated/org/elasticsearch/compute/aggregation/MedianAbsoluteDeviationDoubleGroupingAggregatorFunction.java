@@ -36,16 +36,11 @@ public final class MedianAbsoluteDeviationDoubleGroupingAggregatorFunction imple
 
   private final DriverContext driverContext;
 
-  public MedianAbsoluteDeviationDoubleGroupingAggregatorFunction(List<Integer> channels,
-      QuantileStates.GroupingState state, DriverContext driverContext) {
+  MedianAbsoluteDeviationDoubleGroupingAggregatorFunction(List<Integer> channels,
+      DriverContext driverContext) {
     this.channels = channels;
-    this.state = state;
+    this.state = MedianAbsoluteDeviationDoubleAggregator.initGrouping(driverContext);
     this.driverContext = driverContext;
-  }
-
-  public static MedianAbsoluteDeviationDoubleGroupingAggregatorFunction create(
-      List<Integer> channels, DriverContext driverContext) {
-    return new MedianAbsoluteDeviationDoubleGroupingAggregatorFunction(channels, MedianAbsoluteDeviationDoubleAggregator.initGrouping(driverContext), driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

@@ -77,6 +77,7 @@ public final class TransportSqlQueryAction extends HandledTransportAction<SqlQue
     private final PlanExecutor planExecutor;
     private final SqlLicenseChecker sqlLicenseChecker;
     private final TransportService transportService;
+    private final CrossProjectModeDecider crossProjectModeDecider;
     private final AsyncTaskManagementService<SqlQueryRequest, SqlQueryResponse, SqlQueryTask> asyncTaskManagementService;
     private final ActivityLogger<SqlLogContext> activityLogger;
 
@@ -91,7 +92,8 @@ public final class TransportSqlQueryAction extends HandledTransportAction<SqlQue
         SqlLicenseChecker sqlLicenseChecker,
         BigArrays bigArrays,
         ActionLoggingFieldsProvider fieldProvider,
-        ActivityLogWriterProvider logWriterProvider
+        ActivityLogWriterProvider logWriterProvider,
+        CrossProjectModeDecider crossProjectModeDecider
     ) {
         super(SqlQueryAction.NAME, transportService, actionFilters, SqlQueryRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
 
@@ -102,6 +104,7 @@ public final class TransportSqlQueryAction extends HandledTransportAction<SqlQue
         this.planExecutor = planExecutor;
         this.sqlLicenseChecker = sqlLicenseChecker;
         this.transportService = transportService;
+        this.crossProjectModeDecider = crossProjectModeDecider;
 
         asyncTaskManagementService = new AsyncTaskManagementService<>(
             XPackPlugin.ASYNC_RESULTS_INDEX,
@@ -127,7 +130,6 @@ public final class TransportSqlQueryAction extends HandledTransportAction<SqlQue
     @Override
     protected void doExecute(Task task, SqlQueryRequest request, ActionListener<SqlQueryResponse> listener) {
         sqlLicenseChecker.checkIfSqlAllowed(request.mode());
-        listener = activityLogger.wrap(listener, new SqlLogContextBuilder(task, request));
         if (request.waitForCompletionTimeout() != null && request.waitForCompletionTimeout().getMillis() >= 0) {
             asyncTaskManagementService.asyncExecute(
                 request,
@@ -137,7 +139,17 @@ public final class TransportSqlQueryAction extends HandledTransportAction<SqlQue
                 listener
             );
         } else {
-            operation(planExecutor, (SqlQueryTask) task, request, listener, username(securityContext), transportService, clusterService);
+            operation(
+                planExecutor,
+                (SqlQueryTask) task,
+                request,
+                listener,
+                username(securityContext),
+                transportService,
+                clusterService,
+                crossProjectModeDecider,
+                activityLogger
+            );
         }
     }
 
@@ -148,14 +160,17 @@ public final class TransportSqlQueryAction extends HandledTransportAction<SqlQue
         PlanExecutor planExecutor,
         SqlQueryTask task,
         SqlQueryRequest request,
-        ActionListener<SqlQueryResponse> listener,
+        ActionListener<SqlQueryResponse> operationListener,
         String username,
         TransportService transportService,
-        ClusterService clusterService
+        ClusterService clusterService,
+        CrossProjectModeDecider crossProjectModeDecider,
+        ActivityLogger<SqlLogContext> activityLogger
     ) {
+        ActionListener<SqlQueryResponse> listener = activityLogger.wrap(operationListener, new SqlLogContextBuilder(task, request));
         // The configuration is always created however when dealing with the next page, only the timeouts are relevant
         // the rest having default values (since the query is already created)
-        boolean crossProjectEnabled = new CrossProjectModeDecider(clusterService.getSettings()).crossProjectEnabled();
+        boolean crossProjectEnabled = crossProjectModeDecider.crossProjectEnabled();
         boolean allowPartialSearchResults = request.allowPartialSearchResults() != null
             ? request.allowPartialSearchResults()
             : crossProjectEnabled;
@@ -180,7 +195,6 @@ public final class TransportSqlQueryAction extends HandledTransportAction<SqlQue
             crossProjectEnabled,
             request.projectRouting()
         );
-
         if (Strings.hasText(request.cursor()) == false) {
             planExecutor.sql(
                 cfg,
@@ -295,7 +309,17 @@ public final class TransportSqlQueryAction extends HandledTransportAction<SqlQue
 
     @Override
     public void execute(SqlQueryRequest request, SqlQueryTask task, ActionListener<SqlQueryResponse> listener) {
-        operation(planExecutor, task, request, listener, username(securityContext), transportService, clusterService);
+        operation(
+            planExecutor,
+            task,
+            request,
+            listener,
+            username(securityContext),
+            transportService,
+            clusterService,
+            crossProjectModeDecider,
+            activityLogger
+        );
     }
 
     @Override

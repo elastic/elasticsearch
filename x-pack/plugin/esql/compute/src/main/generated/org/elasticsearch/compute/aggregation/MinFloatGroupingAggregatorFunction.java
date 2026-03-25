@@ -36,16 +36,10 @@ public final class MinFloatGroupingAggregatorFunction implements GroupingAggrega
 
   private final DriverContext driverContext;
 
-  public MinFloatGroupingAggregatorFunction(List<Integer> channels, FloatArrayState state,
-      DriverContext driverContext) {
+  MinFloatGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext) {
     this.channels = channels;
-    this.state = state;
+    this.state = new FloatArrayState(driverContext.bigArrays(), MinFloatAggregator.init());
     this.driverContext = driverContext;
-  }
-
-  public static MinFloatGroupingAggregatorFunction create(List<Integer> channels,
-      DriverContext driverContext) {
-    return new MinFloatGroupingAggregatorFunction(channels, new FloatArrayState(driverContext.bigArrays(), MinFloatAggregator.init()), driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

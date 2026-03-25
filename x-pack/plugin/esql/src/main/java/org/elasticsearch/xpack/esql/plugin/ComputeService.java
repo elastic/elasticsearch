@@ -56,6 +56,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.datasources.FilterPushdownRegistry;
+import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
 import org.elasticsearch.xpack.esql.datasources.OperatorFactoryRegistry;
 import org.elasticsearch.xpack.esql.datasources.SplitCoalescer;
 import org.elasticsearch.xpack.esql.datasources.SplitDiscoveryPhase;
@@ -170,6 +171,7 @@ public class ComputeService {
     private final PlannerSettings.Holder plannerSettings;
     private final OperatorFactoryRegistry operatorFactoryRegistry;
     private final FilterPushdownRegistry filterPushdownRegistry;
+    private final FormatReaderRegistry formatReaderRegistry;
 
     @SuppressWarnings("this-escape")
     public ComputeService(
@@ -180,7 +182,8 @@ public class ComputeService {
         BigArrays bigArrays,
         BlockFactory blockFactory,
         OperatorFactoryRegistry operatorFactoryRegistry,
-        FilterPushdownRegistry filterPushdownRegistry
+        FilterPushdownRegistry filterPushdownRegistry,
+        FormatReaderRegistry formatReaderRegistry
     ) {
         this.searchService = transportActionServices.searchService();
         this.transportService = transportActionServices.transportService();
@@ -213,6 +216,7 @@ public class ComputeService {
         this.plannerSettings = transportActionServices.plannerSettings();
         this.operatorFactoryRegistry = operatorFactoryRegistry;
         this.filterPushdownRegistry = filterPushdownRegistry != null ? filterPushdownRegistry : FilterPushdownRegistry.empty();
+        this.formatReaderRegistry = formatReaderRegistry;
     }
 
     PlannerSettings.Holder plannerSettings() {
@@ -221,6 +225,10 @@ public class ComputeService {
 
     FilterPushdownRegistry filterPushdownRegistry() {
         return filterPushdownRegistry;
+    }
+
+    FormatReaderRegistry formatReaderRegistry() {
+        return formatReaderRegistry;
     }
 
     PhysicalPlan discoverSplits(PhysicalPlan plan) {
@@ -801,40 +809,38 @@ public class ComputeService {
                 })
             )
         ) {
-            try (Releasable ignored = exchangeSource.addEmptySink()) {
-                // Run the coordinator plan
-                runCompute(
-                    rootTask,
-                    new ComputeContext(
-                        sessionId,
-                        profileDescription(profileQualifier, "final"),
-                        LOCAL_CLUSTER,
-                        flags,
-                        EmptyIndexedByShardId.instance(),
-                        configuration,
-                        foldContext,
-                        exchangeSource::createExchangeSource,
-                        exchangeSinkSupplier
-                    ),
-                    coordinatorPlan,
-                    plannerSettings.get(),
-                    LocalPhysicalOptimization.ENABLED,
-                    planTimeProfile,
-                    computeListener.acquireCompute()
-                );
-                // Dispatch to each data node with its assigned splits
-                dataNodeComputeHandler.startExternalComputeOnDataNodes(
+            // Run the coordinator plan
+            runCompute(
+                rootTask,
+                new ComputeContext(
                     sessionId,
-                    rootTask,
+                    profileDescription(profileQualifier, "final"),
+                    LOCAL_CLUSTER,
                     flags,
+                    EmptyIndexedByShardId.instance(),
                     configuration,
-                    dataNodePlan,
-                    distributionPlan,
-                    exchangeSource,
-                    cancelQueryOnFailure,
-                    computeListener
-                );
-            }
+                    foldContext,
+                    exchangeSource::createExchangeSource,
+                    exchangeSinkSupplier
+                ),
+                coordinatorPlan,
+                plannerSettings.get(),
+                LocalPhysicalOptimization.ENABLED,
+                planTimeProfile,
+                computeListener.acquireCompute()
+            );
+            // Dispatch to each data node with its assigned splits
+            dataNodeComputeHandler.startExternalComputeOnDataNodes(
+                sessionId,
+                rootTask,
+                flags,
+                configuration,
+                dataNodePlan,
+                distributionPlan,
+                exchangeSource,
+                cancelQueryOnFailure,
+                computeListener
+            );
         }
     }
 
@@ -983,6 +989,7 @@ public class ComputeService {
                         plan,
                         SearchContextStats.from(localContexts),
                         filterPushdownRegistry,
+                        formatReaderRegistry,
                         planTimeProfile
                     );
                     logicalPlanString = null;

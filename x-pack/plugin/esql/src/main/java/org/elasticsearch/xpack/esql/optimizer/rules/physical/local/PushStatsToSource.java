@@ -17,15 +17,21 @@ import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.util.Queries;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.CountApproximate;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerRules;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec;
+import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.planner.AbstractPhysicalOperationProviders;
 
 import java.util.ArrayList;
@@ -45,28 +51,84 @@ public class PushStatsToSource extends PhysicalOptimizerRules.ParameterizedOptim
 
     @Override
     protected PhysicalPlan rule(AggregateExec aggregateExec, LocalPhysicalOptimizerContext context) {
-        PhysicalPlan plan = aggregateExec;
-        if (aggregateExec.child() instanceof EsQueryExec queryExec) {
-            var tuple = pushableStats(aggregateExec.groupings(), aggregateExec.aggregates(), context);
+        PhysicalPlan child = aggregateExec.child();
+        EsQueryExec queryExec;
+        AttributeMap<Attribute> aliasReplacedBy;
 
-            // for the moment support pushing count just for one field
-            List<EsStatsQueryExec.Stat> stats = tuple.v2();
-            if (stats.size() != 1 || stats.size() != aggregateExec.aggregates().size()) {
-                return aggregateExec;
-            }
-
-            // TODO: handle case where some aggs cannot be pushed down by breaking the aggs into two sources (regular + stats) + union
-            // use the stats since the attributes are larger in size (due to seen)
-            plan = new EsStatsQueryExec(
-                aggregateExec.source(),
-                queryExec.indexPattern(),
-                queryExec.query(),
-                queryExec.limit(),
-                tuple.v1(),
-                stats.get(0)
-            );
+        if (child instanceof EsQueryExec qe) {
+            queryExec = qe;
+            aliasReplacedBy = AttributeMap.emptyAttributeMap();
+        } else if (child instanceof EvalExec evalExec && evalExec.child() instanceof EsQueryExec qe) {
+            queryExec = qe;
+            aliasReplacedBy = PushFiltersToSource.getAliasReplacedBy(evalExec);
+        } else if (child instanceof ProjectExec projectExec && projectExec.child() instanceof EsQueryExec qe) {
+            queryExec = qe;
+            aliasReplacedBy = PushFiltersToSource.getAliasReplacedBy(projectExec);
+        } else {
+            return aggregateExec;
         }
+
+        List<? extends NamedExpression> aggregates = aggregateExec.aggregates();
+        if (aliasReplacedBy.isEmpty() == false) {
+            aggregates = resolveAliases(aggregates, aliasReplacedBy);
+        }
+
+        var tuple = pushableStats(aggregateExec.groupings(), aggregates, context);
+
+        // for the moment support pushing count just for one field
+        List<EsStatsQueryExec.Stat> stats = tuple.v2();
+        if (stats.size() != 1 || stats.size() != aggregates.size()) {
+            return aggregateExec;
+        }
+
+        // TODO: handle case where some aggs cannot be pushed down by breaking the aggs into two sources (regular + stats) + union
+        // use the stats since the attributes are larger in size (due to seen)
+        PhysicalPlan plan = new EsStatsQueryExec(
+            aggregateExec.source(),
+            queryExec.indexPattern(),
+            queryExec.query(),
+            queryExec.limit(),
+            tuple.v1(),
+            stats.get(0)
+        );
+
+        if (aggregateExec.aggregates().getFirst() instanceof Alias alias && alias.child() instanceof CountApproximate) {
+            Attribute originalCount = aggregateExec.intermediateAttributes().get(0);
+            Attribute originalSeen = aggregateExec.intermediateAttributes().get(1);
+            Attribute count = tuple.v1().get(0);
+            Attribute seen = tuple.v1().get(1);
+            plan = new EvalExec(
+                plan.source(),
+                plan,
+                List.of(
+                    new Alias(count.source(), count.name(), new ToDouble(Source.EMPTY, count), originalCount.id()),
+                    new Alias(seen.source(), seen.name(), seen, originalSeen.id())
+                )
+            );
+            plan = new ProjectExec(aggregateExec.source(), plan, aggregateExec.output());
+        }
+
         return plan;
+    }
+
+    /**
+     * Resolves aliased attribute references in aggregate expressions, replacing
+     * references to eval/project output attributes with their underlying source attributes.
+     */
+    private static List<NamedExpression> resolveAliases(
+        List<? extends NamedExpression> aggregates,
+        AttributeMap<Attribute> aliasReplacedBy
+    ) {
+        List<NamedExpression> resolved = new ArrayList<>(aggregates.size());
+        for (NamedExpression agg : aggregates) {
+            if (agg instanceof Alias alias) {
+                Expression child = alias.child().transformDown(ReferenceAttribute.class, r -> aliasReplacedBy.resolve(r, r));
+                resolved.add(new Alias(alias.source(), alias.name(), child, alias.id()));
+            } else {
+                resolved.add(agg);
+            }
+        }
+        return resolved;
     }
 
     static Tuple<List<Attribute>, List<EsStatsQueryExec.Stat>> pushableStats(
@@ -123,8 +185,17 @@ public class PushStatsToSource extends PhysicalOptimizerRules.ParameterizedOptim
                     return null;
                 });
                 if (stat != null) {
+                    NamedExpression aggForIntermediate = agg;
+                    if (agg instanceof Alias as && as.child() instanceof CountApproximate ca) {
+                        aggForIntermediate = new Alias(
+                            as.source(),
+                            as.name(),
+                            new Count(ca.source(), ca.field(), ca.filter(), ca.window()),
+                            as.id()
+                        );
+                    }
                     List<Attribute> intermediateAttributes = AbstractPhysicalOperationProviders.intermediateAttributes(
-                        singletonList(agg),
+                        singletonList(aggForIntermediate),
                         emptyList()
                     );
                     // TODO: the attributes have been recreated here; they will have wrong name ids, and the dependency check will

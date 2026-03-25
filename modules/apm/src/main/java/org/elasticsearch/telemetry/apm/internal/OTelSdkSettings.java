@@ -28,4 +28,10 @@ public class OTelSdkSettings {
         TimeValue.timeValueSeconds(10),
         NodeScope
     );
+
+    public static final Setting<Boolean> TELEMETRY_OTEL_METRICS_ENABLED = Setting.boolSetting(
+        "telemetry.otel.metrics.enabled",
+        false,
+        NodeScope
+    );
 }

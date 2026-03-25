@@ -42,8 +42,8 @@ public class EsqlLogContext extends ActivityLoggerContext implements QueryLogger
     }
 
     @Override
-    public String getQuery() {
-        return request.query();
+    String getQuery() {
+        return request.queryDescription();
     }
 
     public Optional<ShardInfo> shardInfo() {

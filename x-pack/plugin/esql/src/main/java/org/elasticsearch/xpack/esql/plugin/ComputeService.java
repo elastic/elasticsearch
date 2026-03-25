@@ -56,6 +56,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.datasources.FilterPushdownRegistry;
+import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
 import org.elasticsearch.xpack.esql.datasources.OperatorFactoryRegistry;
 import org.elasticsearch.xpack.esql.datasources.SplitCoalescer;
 import org.elasticsearch.xpack.esql.datasources.SplitDiscoveryPhase;
@@ -170,6 +171,7 @@ public class ComputeService {
     private final PlannerSettings.Holder plannerSettings;
     private final OperatorFactoryRegistry operatorFactoryRegistry;
     private final FilterPushdownRegistry filterPushdownRegistry;
+    private final FormatReaderRegistry formatReaderRegistry;
 
     @SuppressWarnings("this-escape")
     public ComputeService(
@@ -180,7 +182,8 @@ public class ComputeService {
         BigArrays bigArrays,
         BlockFactory blockFactory,
         OperatorFactoryRegistry operatorFactoryRegistry,
-        FilterPushdownRegistry filterPushdownRegistry
+        FilterPushdownRegistry filterPushdownRegistry,
+        FormatReaderRegistry formatReaderRegistry
     ) {
         this.searchService = transportActionServices.searchService();
         this.transportService = transportActionServices.transportService();
@@ -213,6 +216,7 @@ public class ComputeService {
         this.plannerSettings = transportActionServices.plannerSettings();
         this.operatorFactoryRegistry = operatorFactoryRegistry;
         this.filterPushdownRegistry = filterPushdownRegistry != null ? filterPushdownRegistry : FilterPushdownRegistry.empty();
+        this.formatReaderRegistry = formatReaderRegistry;
     }
 
     PlannerSettings.Holder plannerSettings() {
@@ -221,6 +225,10 @@ public class ComputeService {
 
     FilterPushdownRegistry filterPushdownRegistry() {
         return filterPushdownRegistry;
+    }
+
+    FormatReaderRegistry formatReaderRegistry() {
+        return formatReaderRegistry;
     }
 
     PhysicalPlan discoverSplits(PhysicalPlan plan) {
@@ -981,6 +989,7 @@ public class ComputeService {
                         plan,
                         SearchContextStats.from(localContexts),
                         filterPushdownRegistry,
+                        formatReaderRegistry,
                         planTimeProfile
                     );
                     logicalPlanString = null;

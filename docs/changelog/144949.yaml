@@ -1,6 +1,0 @@
-area: "TSDB, ES|QL"
-issues:
- - 144463
-pr: 144949
-summary: Fix METRICS_INFO / TS_INFO returning empty results for multi-index TS queries
-type: enhancement

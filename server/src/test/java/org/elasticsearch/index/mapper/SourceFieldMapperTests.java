@@ -57,11 +57,13 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
             dm -> {}
         );
         checker.registerUpdateCheck(
+            "enabled",
             topMapping(b -> b.startObject(SourceFieldMapper.NAME).field("enabled", true).endObject()),
             topMapping(b -> b.startObject(SourceFieldMapper.NAME).field("enabled", false).endObject()),
             dm -> assertFalse(dm.metadataMapper(SourceFieldMapper.class).enabled())
         );
         checker.registerUpdateCheck(
+            "mode",
             topMapping(b -> b.startObject(SourceFieldMapper.NAME).field("mode", "stored").endObject()),
             topMapping(b -> b.startObject(SourceFieldMapper.NAME).field("mode", "synthetic").endObject()),
             dm -> {}

@@ -332,14 +332,14 @@ public class CrossProjectIndexExpressionsRewriterTests extends ESTestCase {
 
         {
             // Cannot apply exclusion for both the project and the index
-            final var messageMatcher = containsString("Cannot apply exclusion for both the project and the index expression");
+            final var messageMatcher = containsString("cannot apply exclusion for both the project and the index expression");
             expectThrows(
-                IllegalArgumentException.class,
+                InvalidIndexNameException.class,
                 messageMatcher,
                 () -> rewriteIndexExpressions(origin, linked, "-_origin:-metrics*")
             );
-            expectThrows(IllegalArgumentException.class, messageMatcher, () -> rewriteIndexExpressions(origin, linked, "-P0:-metrics*"));
-            expectThrows(IllegalArgumentException.class, messageMatcher, () -> rewriteIndexExpressions(origin, linked, "-P1:-metrics*"));
+            expectThrows(InvalidIndexNameException.class, messageMatcher, () -> rewriteIndexExpressions(origin, linked, "-P0:-metrics*"));
+            expectThrows(InvalidIndexNameException.class, messageMatcher, () -> rewriteIndexExpressions(origin, linked, "-P1:-metrics*"));
         }
     }
 
@@ -642,7 +642,7 @@ public class CrossProjectIndexExpressionsRewriterTests extends ESTestCase {
      * @param linkedProjects the list of linked and available projects to consider for a request
      * @param originalIndices the array of index expressions to be rewritten to canonical CCS
      * @return a map from original index expressions to lists of canonical index expressions
-     * @throws IllegalArgumentException if exclusions, date math or selectors are present in the index expressions
+     * @throws InvalidIndexNameException if exclusions are applied to both the project and the index expression
      * @throws NoMatchingProjectException if a qualified resource cannot be resolved because a project is missing
      */
     private static Map<String, CrossProjectIndexExpressionsRewriter.IndexRewriteResult> rewriteIndexExpressions(

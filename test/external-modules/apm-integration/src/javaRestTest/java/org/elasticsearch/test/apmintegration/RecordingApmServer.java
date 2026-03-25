@@ -93,7 +93,7 @@ public class RecordingApmServer extends ExternalResource {
                 try (InputStream requestBody = exchange.getRequestBody()) {
                     if (requestBody != null) {
                         if ("/v1/metrics".equals(path)) {
-                            OtlpMetricsParser.parse(requestBody).forEach(received::add);
+                            received.addAll(OtlpMetricsParser.parse(requestBody));
                         } else {
                             List<String> lines = readJsonMessages(requestBody);
                             for (String line : lines) {

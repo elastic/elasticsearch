@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
 import java.util.List;
 
 import static java.util.function.Predicate.not;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.hamcrest.Matchers.contains;
 
 public class PromqlFakeResolverTests extends AbstractLogicalPlanOptimizerTests {
@@ -43,9 +44,9 @@ public class PromqlFakeResolverTests extends AbstractLogicalPlanOptimizerTests {
     }
 
     private List<Attribute> extractAttributes(String query) {
-        var plan = parser.parseQuery(query);
+        var plan = TEST_PARSER.parseQuery(query);
         plan = resolver.apply(plan);
-        plan = analyzer.analyze(plan);
+        plan = defaultAnalyzer().buildAnalyzer().analyze(plan);
         plan = logicalOptimizer.optimize(plan);
         return plan.collect(LeafPlan.class).getFirst().output();
     }

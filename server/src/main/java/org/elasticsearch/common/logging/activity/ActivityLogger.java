@@ -73,7 +73,6 @@ public class ActivityLogger<Context extends ActivityLoggerContext> {
     );
 
     public ActivityLogger(
-        String name,
         ClusterSettings settings,
         ActivityLogProducer<Context> producer,
         ActivityLogWriterProvider writerProvider,

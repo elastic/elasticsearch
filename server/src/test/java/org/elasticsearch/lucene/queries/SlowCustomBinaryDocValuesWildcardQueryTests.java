@@ -34,8 +34,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.lucene.queries.SlowCustomBinaryDocValuesWildcardQuery.getContainsPattern;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.nullValue;
 
 public class SlowCustomBinaryDocValuesWildcardQueryTests extends ESTestCase {
 
@@ -55,7 +58,7 @@ public class SlowCustomBinaryDocValuesWildcardQueryTests extends ESTestCase {
 
                         var field = new MultiValuedBinaryDocValuesField.SeparateCount("field", false);
                         field.add(new BytesRef(entry.getKey().getBytes(StandardCharsets.UTF_8)));
-                        var countField = new NumericDocValuesField("field.counts", 1);
+                        var countField = NumericDocValuesField.indexedField("field.counts", 1);
 
                         if (randomBoolean()) {
                             field.add(new BytesRef("z".getBytes(StandardCharsets.UTF_8)));
@@ -101,7 +104,7 @@ public class SlowCustomBinaryDocValuesWildcardQueryTests extends ESTestCase {
 
                 var field = new MultiValuedBinaryDocValuesField.SeparateCount("field", false);
                 field.add(new BytesRef("a".getBytes(StandardCharsets.UTF_8)));
-                var countField = new NumericDocValuesField("field.counts", 1);
+                var countField = NumericDocValuesField.indexedField("field.counts", 1);
                 document.add(field);
                 document.add(countField);
 
@@ -127,7 +130,7 @@ public class SlowCustomBinaryDocValuesWildcardQueryTests extends ESTestCase {
 
                     var binaryDVField = new MultiValuedBinaryDocValuesField.SeparateCount("contender_field", false);
                     binaryDVField.add(new BytesRef(randomValue.getBytes(StandardCharsets.UTF_8)));
-                    var countField = new NumericDocValuesField("contender_field.counts", 1);
+                    var countField = NumericDocValuesField.indexedField("contender_field.counts", 1);
                     document.add(binaryDVField);
                     document.add(countField);
 
@@ -164,6 +167,114 @@ public class SlowCustomBinaryDocValuesWildcardQueryTests extends ESTestCase {
                 }
             }
         }
+    }
+
+    public void testGetContainsPattern() {
+        assertThat(getContainsPattern("*foo*"), equalTo("foo"));
+        assertThat(getContainsPattern("*hello world*"), equalTo("hello world"));
+        assertThat(getContainsPattern("*a*"), equalTo("a"));
+
+        assertThat(getContainsPattern("**"), nullValue());
+        assertThat(getContainsPattern("*"), nullValue());
+        assertThat(getContainsPattern(""), nullValue());
+        assertThat(getContainsPattern("foo*"), nullValue());
+        assertThat(getContainsPattern("*foo"), nullValue());
+        assertThat(getContainsPattern("foo"), nullValue());
+        assertThat(getContainsPattern("*foo*bar*"), nullValue());
+        assertThat(getContainsPattern("*fo?*"), nullValue());
+        assertThat(getContainsPattern("*fo\\**"), nullValue());
+    }
+
+    public void testRewriteToContainsQuery() throws IOException {
+        String fieldName = "field";
+        try (Directory dir = newDirectory()) {
+            try (RandomIndexWriter writer = newRandomIndexWriter(dir)) {
+                addDoc(writer, fieldName, "elasticsearch");
+                addDoc(writer, fieldName, "kibana");
+                addDoc(writer, fieldName, "research");
+                addDoc(writer, fieldName, "logstash");
+                addDoc(writer, fieldName, "searching");
+
+                try (IndexReader reader = writer.getReader()) {
+                    IndexSearcher searcher = newSearcher(reader);
+                    Query query = new SlowCustomBinaryDocValuesWildcardQuery(fieldName, "*search*", false);
+                    Query rewritten = query.rewrite(searcher);
+                    assertThat(rewritten, instanceOf(BinaryDocValuesContainsTermQuery.class));
+                    assertEquals(3, searcher.count(rewritten));
+                }
+            }
+        }
+    }
+
+    public void testRewriteToContainsQueryMultiValued() throws IOException {
+        String fieldName = "field";
+        try (Directory dir = newDirectory()) {
+            try (RandomIndexWriter writer = newRandomIndexWriter(dir)) {
+                addDoc(writer, fieldName, "hello", "world");
+                addDoc(writer, fieldName, "foo", "bar");
+                addDoc(writer, fieldName, "wellcome", "to");
+                addDoc(writer, fieldName, "abc");
+
+                try (IndexReader reader = writer.getReader()) {
+                    IndexSearcher searcher = newSearcher(reader);
+                    Query query = new SlowCustomBinaryDocValuesWildcardQuery(fieldName, "*ell*", false);
+                    Query rewritten = query.rewrite(searcher);
+                    assertThat(rewritten, instanceOf(BinaryDocValuesContainsTermQuery.class));
+                    assertEquals(2, searcher.count(rewritten));
+                }
+            }
+        }
+    }
+
+    public void testCaseInsensitiveNotRewrittenToContains() throws IOException {
+        String fieldName = "field";
+        try (Directory dir = newDirectory()) {
+            try (RandomIndexWriter writer = newRandomIndexWriter(dir)) {
+                addDoc(writer, fieldName, "Elasticsearch");
+
+                try (IndexReader reader = writer.getReader()) {
+                    IndexSearcher searcher = newSearcher(reader);
+                    Query query = new SlowCustomBinaryDocValuesWildcardQuery(fieldName, "*search*", true);
+                    Query rewritten = query.rewrite(searcher);
+                    assertThat(rewritten, instanceOf(SlowCustomBinaryDocValuesWildcardQuery.class));
+                    assertEquals(1, searcher.count(rewritten));
+                }
+            }
+        }
+    }
+
+    public void testNonContainsPatternNotRewritten() throws IOException {
+        String fieldName = "field";
+        try (Directory dir = newDirectory()) {
+            try (RandomIndexWriter writer = newRandomIndexWriter(dir)) {
+                addDoc(writer, fieldName, "foobar");
+
+                try (IndexReader reader = writer.getReader()) {
+                    IndexSearcher searcher = newSearcher(reader);
+
+                    Query prefixQuery = new SlowCustomBinaryDocValuesWildcardQuery(fieldName, "foo*", false);
+                    assertThat(prefixQuery.rewrite(searcher), instanceOf(SlowCustomBinaryDocValuesWildcardQuery.class));
+
+                    Query multiWildcard = new SlowCustomBinaryDocValuesWildcardQuery(fieldName, "*foo*bar*", false);
+                    assertThat(multiWildcard.rewrite(searcher), instanceOf(SlowCustomBinaryDocValuesWildcardQuery.class));
+
+                    Query singleCharWildcard = new SlowCustomBinaryDocValuesWildcardQuery(fieldName, "*fo?*", false);
+                    assertThat(singleCharWildcard.rewrite(searcher), instanceOf(SlowCustomBinaryDocValuesWildcardQuery.class));
+                }
+            }
+        }
+    }
+
+    private static void addDoc(RandomIndexWriter writer, String fieldName, String... values) throws IOException {
+        Document document = new Document();
+        var field = new MultiValuedBinaryDocValuesField.SeparateCount(fieldName, false);
+        for (String value : values) {
+            field.add(new BytesRef(value.getBytes(StandardCharsets.UTF_8)));
+        }
+        var countField = NumericDocValuesField.indexedField(fieldName + ".counts", field.count());
+        document.add(field);
+        document.add(countField);
+        writer.addDocument(document);
     }
 
     private static RandomIndexWriter newRandomIndexWriter(Directory dir) throws IOException {

@@ -69,7 +69,7 @@ public class ES91OSQVectorScorerTests extends BaseVectorizationTests {
         final byte[] qVector = new byte[length];
         final float[] centroid = new float[dimensions];
         VectorSimilarityFunction similarityFunction = randomFrom(VectorSimilarityFunction.values());
-        randomVector(centroid, similarityFunction);
+        VectorScorerTestUtils.randomVector(random(), centroid, similarityFunction);
         OptimizedScalarQuantizer quantizer = new OptimizedScalarQuantizer(similarityFunction);
         int padding = random().nextInt(100);
         byte[] paddingBytes = new byte[padding];
@@ -78,7 +78,7 @@ public class ES91OSQVectorScorerTests extends BaseVectorizationTests {
                 random().nextBytes(paddingBytes);
                 out.writeBytes(paddingBytes, 0, padding);
                 for (float[] vector : vectors) {
-                    randomVector(vector, similarityFunction);
+                    VectorScorerTestUtils.randomVector(random(), vector, similarityFunction);
                     OptimizedScalarQuantizer.QuantizationResult result = quantizer.scalarQuantize(
                         vector,
                         residualScratch,
@@ -95,7 +95,7 @@ public class ES91OSQVectorScorerTests extends BaseVectorizationTests {
                 }
             }
             final float[] query = new float[dimensions];
-            randomVector(query, similarityFunction);
+            VectorScorerTestUtils.randomVector(random(), query, similarityFunction);
             OptimizedScalarQuantizer.QuantizationResult queryCorrections = quantizer.scalarQuantize(
                 query,
                 residualScratch,
@@ -169,7 +169,7 @@ public class ES91OSQVectorScorerTests extends BaseVectorizationTests {
         final byte[] qVector = new byte[length];
         final float[] centroid = new float[dimensions];
         VectorSimilarityFunction similarityFunction = randomFrom(VectorSimilarityFunction.values());
-        randomVector(centroid, similarityFunction);
+        VectorScorerTestUtils.randomVector(random(), centroid, similarityFunction);
         OptimizedScalarQuantizer quantizer = new OptimizedScalarQuantizer(similarityFunction);
         int padding = random().nextInt(100);
         byte[] paddingBytes = new byte[padding];
@@ -181,7 +181,7 @@ public class ES91OSQVectorScorerTests extends BaseVectorizationTests {
                 OptimizedScalarQuantizer.QuantizationResult[] results = new OptimizedScalarQuantizer.QuantizationResult[bulkSize];
                 for (int i = 0; i < limit; i += bulkSize) {
                     for (int j = 0; j < bulkSize; j++) {
-                        randomVector(vectors[i + j], similarityFunction);
+                        VectorScorerTestUtils.randomVector(random(), vectors[i + j], similarityFunction);
                         results[j] = quantizer.scalarQuantize(vectors[i + j], residualScratch, scratch, (byte) 1, centroid);
                         ESVectorUtil.packAsBinary(scratch, qVector);
                         out.writeBytes(qVector, 0, qVector.length);
@@ -190,7 +190,7 @@ public class ES91OSQVectorScorerTests extends BaseVectorizationTests {
                 }
             }
             final float[] query = new float[dimensions];
-            randomVector(query, similarityFunction);
+            VectorScorerTestUtils.randomVector(random(), query, similarityFunction);
             OptimizedScalarQuantizer.QuantizationResult queryCorrections = quantizer.scalarQuantize(
                 query,
                 residualScratch,
@@ -255,15 +255,6 @@ public class ES91OSQVectorScorerTests extends BaseVectorizationTests {
         }
         for (OptimizedScalarQuantizer.QuantizationResult correction : corrections) {
             out.writeInt(Float.floatToIntBits(correction.additionalCorrection()));
-        }
-    }
-
-    private void randomVector(float[] vector, VectorSimilarityFunction vectorSimilarityFunction) {
-        for (int i = 0; i < vector.length; i++) {
-            vector[i] = random().nextFloat();
-        }
-        if (vectorSimilarityFunction != VectorSimilarityFunction.EUCLIDEAN) {
-            VectorUtil.l2normalize(vector);
         }
     }
 

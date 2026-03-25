@@ -11,8 +11,10 @@ package org.elasticsearch.simdvec.internal.vectorization;
 
 import org.apache.lucene.store.FilterIndexInput;
 import org.apache.lucene.store.IndexInput;
+import org.elasticsearch.nativeaccess.NativeAccess;
 import org.elasticsearch.simdvec.ES91OSQVectorsScorer;
 import org.elasticsearch.simdvec.ES92Int7VectorsScorer;
+import org.elasticsearch.simdvec.ES93BinaryQuantizedVectorScorer;
 import org.elasticsearch.simdvec.ESNextOSQVectorsScorer;
 import org.elasticsearch.simdvec.MemorySegmentAccessInputAccess;
 import org.elasticsearch.simdvec.internal.MemorySegmentES92Int7VectorsScorer;
@@ -22,6 +24,8 @@ import java.io.IOException;
 final class PanamaESVectorizationProvider extends ESVectorizationProvider {
 
     private final ESVectorUtilSupport vectorUtilSupport;
+
+    private static final boolean NATIVE_SUPPORTED = NativeAccess.instance().getVectorSimilarityFunctions().isPresent();
 
     PanamaESVectorizationProvider() {
         vectorUtilSupport = new PanamaESVectorUtilSupport();
@@ -42,6 +46,7 @@ final class PanamaESVectorizationProvider extends ESVectorizationProvider {
         int bulkSize
     ) {
         if (PanamaESVectorUtilSupport.HAS_FAST_INTEGER_VECTORS
+            && dataLength >= 16
             && ((queryBits == 4 && (indexBits == 1 || indexBits == 2 || indexBits == 4)) || (queryBits == 7 && indexBits == 7))) {
             IndexInput unwrappedInput = FilterIndexInput.unwrapOnlyTest(input);
             unwrappedInput = MemorySegmentAccessInputAccess.unwrap(unwrappedInput);
@@ -65,5 +70,16 @@ final class PanamaESVectorizationProvider extends ESVectorizationProvider {
         IndexInput unwrappedInput = FilterIndexInput.unwrapOnlyTest(input);
         unwrappedInput = MemorySegmentAccessInputAccess.unwrap(unwrappedInput);
         return new MemorySegmentES92Int7VectorsScorer(unwrappedInput, dimension, bulkSize);
+    }
+
+    @Override
+    public ES93BinaryQuantizedVectorScorer newES93BinaryQuantizedVectorScorer(IndexInput input, int dimensions, int vectorLengthInBytes)
+        throws IOException {
+        if (NATIVE_SUPPORTED) {
+            IndexInput unwrappedInput = FilterIndexInput.unwrapOnlyTest(input);
+            unwrappedInput = MemorySegmentAccessInputAccess.unwrap(unwrappedInput);
+            return new NativeBinaryQuantizedVectorScorer(unwrappedInput, dimensions, vectorLengthInBytes);
+        }
+        return new DefaultES93BinaryQuantizedVectorScorer(input, dimensions, vectorLengthInBytes);
     }
 }

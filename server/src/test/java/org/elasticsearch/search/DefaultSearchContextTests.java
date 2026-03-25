@@ -77,12 +77,14 @@ import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortAndFormats;
+import org.elasticsearch.search.sort.SortBuilderTests;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -664,8 +666,33 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
             System.currentTimeMillis(),
             null
         );
+        assertNumberOfSlices(singleSliceReq, 10, 1);
+    }
+
+    public void testDetermineMaximumNumberOfSlicesMultipleSort() {
+        IndexShard indexShard = mock(IndexShard.class);
+        when(indexShard.shardId()).thenReturn(new ShardId("index", "uuid", 0));
+        var sorts = new ArrayList<>(SortBuilderTests.randomSortBuilderList(false));
+        ShardSearchRequest req = new ShardSearchRequest(
+            OriginalIndices.NONE,
+            new SearchRequest().allowPartialSearchResults(randomBoolean()).source(new SearchSourceBuilder().sort(sorts)),
+            indexShard.shardId(),
+            0,
+            1,
+            AliasFilter.EMPTY,
+            1f,
+            System.currentTimeMillis(),
+            null
+        );
+        sorts.set(0, SortBuilders.scoreSort());
+        assertNumberOfSlices(req, 10, 10);
+
+        sorts.set(0, SortBuilders.fieldSort(FieldSortBuilder.DOC_FIELD_NAME));
+        assertNumberOfSlices(req, 10, 1);
+    }
+
+    private void assertNumberOfSlices(ShardSearchRequest request, int executorPoolSize, int expectedNumberOfSlices) {
         ToLongFunction<String> fieldCardinality = name -> { throw new UnsupportedOperationException(); };
-        int executorPoolSize = randomIntBetween(1, 100);
         ThreadPoolExecutor threadPoolExecutor = EsExecutors.newFixed(
             "test",
             executorPoolSize,
@@ -679,17 +706,17 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
             executorPoolSize,
             DefaultSearchContext.determineMaximumNumberOfSlices(
                 threadPoolExecutor,
-                singleSliceReq,
+                request,
                 SearchService.ResultsType.DFS,
                 true,
                 fieldCardinality
             )
         );
         assertEquals(
-            1,
+            expectedNumberOfSlices,
             DefaultSearchContext.determineMaximumNumberOfSlices(
                 threadPoolExecutor,
-                singleSliceReq,
+                request,
                 SearchService.ResultsType.QUERY,
                 true,
                 fieldCardinality

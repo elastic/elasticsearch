@@ -9,7 +9,7 @@
 
 package org.elasticsearch.index.codec.tsdb;
 
-import org.apache.lucene.codecs.lucene103.Lucene103Codec;
+import org.apache.lucene.codecs.lucene104.Lucene104Codec;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
@@ -483,7 +483,7 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
             final var indexWriterConfig = newIndexWriterConfig();
             indexWriterConfig.setCodec(
                 new ES93TSDBDefaultCompressionLucene103Codec(
-                    new LegacyPerFieldMapperCodec(Lucene103Codec.Mode.BEST_SPEED, mapperService, BigArrays.NON_RECYCLING_INSTANCE, null)
+                    new LegacyPerFieldMapperCodec(Lucene104Codec.Mode.BEST_SPEED, mapperService, BigArrays.NON_RECYCLING_INSTANCE, null)
                 )
             );
             // Configure the index writer for time-series indices
@@ -667,7 +667,7 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
     private static BytesRef buildTsId(Doc doc) {
         return new TsidBuilder().addStringDimension("hostname", doc.hostName())
             .addStringDimension("metric.field", doc.metricField())
-            .buildTsid();
+            .buildTsid(IndexVersion.current());
     }
 
     /**

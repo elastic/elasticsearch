@@ -453,7 +453,7 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
 
     private void verifyNoModelRegistryMutations() {
         verify(mockModelRegistry, never()).storeModel(any(), any(), any());
-        verify(mockModelRegistry, never()).storeModels(any(), any(), any());
+        verify(mockModelRegistry, never()).storeModels(any(), anyBoolean(), any(), any());
         verify(mockModelRegistry, never()).updateModelTransaction(any(), any(), any());
     }
 

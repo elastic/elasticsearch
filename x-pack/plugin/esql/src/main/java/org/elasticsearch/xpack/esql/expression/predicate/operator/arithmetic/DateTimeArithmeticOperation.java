@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.ExceptionUtils;
 import org.elasticsearch.xpack.esql.capabilities.ConfigurationAware;
 import org.elasticsearch.xpack.esql.core.expression.Expression;

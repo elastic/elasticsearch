@@ -25,6 +25,7 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.LocalCircuitBreaker;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.lucene.query.DataPartitioning;
 import org.elasticsearch.compute.lucene.query.LuceneOperator;
@@ -35,9 +36,9 @@ import org.elasticsearch.compute.operator.ColumnLoadOperator;
 import org.elasticsearch.compute.operator.DistinctByOperator;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.EvalOperatorFactory;
 import org.elasticsearch.compute.operator.FilterOperator.FilterOperatorFactory;
+import org.elasticsearch.compute.operator.GroupedLimitOperator;
 import org.elasticsearch.compute.operator.LimitOperator;
 import org.elasticsearch.compute.operator.LocalSourceOperator;
 import org.elasticsearch.compute.operator.LocalSourceOperator.LocalSourceFactory;
@@ -145,6 +146,7 @@ import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.FuseScoreEvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.GrokExec;
 import org.elasticsearch.xpack.esql.plan.physical.HashJoinExec;
+import org.elasticsearch.xpack.esql.plan.physical.LimitByExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
@@ -311,6 +313,8 @@ public class LocalExecutionPlanner {
             return planProject(project, context);
         } else if (node instanceof FilterExec filter) {
             return planFilter(filter, context);
+        } else if (node instanceof LimitByExec limitBy) {
+            return planLimitBy(limitBy, context);
         } else if (node instanceof LimitExec limit) {
             return planLimit(limit, context);
         } else if (node instanceof MvExpandExec mvExpand) {
@@ -410,11 +414,7 @@ public class LocalExecutionPlanner {
         String inferenceId = BytesRefs.toString(completion.inferenceId().fold(context.foldCtx()));
         Map<String, Object> taskSettings = completion.taskSettings().toFoldedMap(context.foldCtx());
         Layout outputLayout = source.layout.builder().append(completion.targetField()).build();
-        EvalOperator.ExpressionEvaluator.Factory promptEvaluatorFactory = EvalMapper.toEvaluator(
-            context.foldCtx(),
-            completion.prompt(),
-            source.layout
-        );
+        ExpressionEvaluator.Factory promptEvaluatorFactory = EvalMapper.toEvaluator(context.foldCtx(), completion.prompt(), source.layout);
 
         return source.with(
             new CompletionOperator.Factory(inferenceService, inferenceId, promptEvaluatorFactory, taskSettings),
@@ -572,12 +572,7 @@ public class LocalExecutionPlanner {
             };
         }
         List<TopNOperator.SortOrder> orders = topNExec.order().stream().map(order -> {
-            int sortByChannel;
-            if (order.child() instanceof Attribute a) {
-                sortByChannel = source.layout.get(a.id()).channel();
-            } else {
-                throw new EsqlIllegalArgumentException("order by expression must be an attribute");
-            }
+            int sortByChannel = getAttributeChannel(order.child(), source.layout, "order by expression must be an attribute");
 
             return new TopNOperator.SortOrder(
                 sortByChannel,
@@ -606,6 +601,14 @@ public class LocalExecutionPlanner {
             ),
             source.layout
         );
+    }
+
+    private static int getAttributeChannel(Expression expression, Layout layout, String errMessage) {
+        if (expression instanceof Attribute a) {
+            return layout.get(a.id()).channel();
+        } else {
+            throw new EsqlIllegalArgumentException(errMessage);
+        }
     }
 
     private static MappedFieldType.FieldExtractPreference fieldExtractPreference(TopNExec topNExec, Set<NameId> nameIds) {
@@ -718,7 +721,7 @@ public class LocalExecutionPlanner {
     private PhysicalOperation planRerank(RerankExec rerank, LocalExecutionPlannerContext context) {
         PhysicalOperation source = plan(rerank.child(), context);
 
-        List<EvalOperator.ExpressionEvaluator.Factory> rerankFieldsEvaluators = rerank.rerankFields()
+        List<ExpressionEvaluator.Factory> rerankFieldsEvaluators = rerank.rerankFields()
             .stream()
             .map(rerankField -> EvalMapper.toEvaluator(context.foldCtx(), rerankField.child(), source.layout))
             .toList();
@@ -903,16 +906,14 @@ public class LocalExecutionPlanner {
                 join.joinOnConditions(),
                 useStreamingOperator,
                 context.queryPragmas().exchangeBufferSize(),
-                configuration.profile()
+                configuration.profile(),
+                configuration
             ),
             layout
         );
     }
 
-    /**
-     * The transport version that introduced streaming lookup support.
-     */
-    private static final TransportVersion ESQL_STREAMING_LOOKUP_JOIN = TransportVersion.fromName("esql_streaming_lookup_join");
+    private static final TransportVersion ESQL_LOOKUP_PLANNING = TransportVersion.fromName("esql_lookup_planning");
 
     /**
      * Determines whether streaming lookup should be used based on the target node's transport version.
@@ -941,12 +942,12 @@ public class LocalExecutionPlanner {
                     DiscoveryNode node = clusterState.nodes().get(shardRouting.currentNodeId());
                     Transport.Connection connection = service.getTransportService().getConnection(node);
                     TransportVersion nodeVersion = connection.getTransportVersion();
-                    if (nodeVersion.supports(ESQL_STREAMING_LOOKUP_JOIN) == false) {
+                    if (nodeVersion.supports(ESQL_LOOKUP_PLANNING) == false) {
                         logger.debug(
                             "Using non-streaming lookup operator: node [{}] has transport version [{}] which does not support [{}]",
                             node.getId(),
                             nodeVersion,
-                            ESQL_STREAMING_LOOKUP_JOIN
+                            ESQL_LOOKUP_PLANNING
                         );
                         return false;
                     }
@@ -983,6 +984,9 @@ public class LocalExecutionPlanner {
             return planMetricsInfoFinal(metricsInfoExec, context);
         }
         // INITIAL mode: extraction on data nodes.
+        if (FieldExtractExec.extractSourceAttributesFrom(metricsInfoExec.child()) == null) {
+            return emptySourceForAttributes(metricsInfoExec.output());
+        }
         // Step 1: Extract _tsid only
         FieldAttribute tsidAttr = new FieldAttribute(
             metricsInfoExec.source(),
@@ -1015,7 +1019,7 @@ public class LocalExecutionPlanner {
             new FunctionEsField(
                 new EsField(SourceFieldMapper.NAME, DataType.KEYWORD, Map.of(), false, EsField.TimeSeriesFieldType.DIMENSION),
                 DataType.KEYWORD,
-                new BlockLoaderFunctionConfig.JustFunction(BlockLoaderFunctionConfig.Function.TIME_SERIES_METRICS_AND_DIMENSIONS)
+                new BlockLoaderFunctionConfig.TimeSeriesMetadata(true, Set.of())
             ),
             true
         );
@@ -1079,7 +1083,10 @@ public class LocalExecutionPlanner {
         if (tsInfoExec.mode() == TsInfoExec.Mode.FINAL || tsInfoExec.mode() == TsInfoExec.Mode.INTERMEDIATE) {
             return planTsInfoFinal(tsInfoExec, context);
         }
-        // INITIAL mode: extraction on data nodes — identical field extraction pipeline as MetricsInfo.
+        // INITIAL mode: extraction on data nodes.
+        if (FieldExtractExec.extractSourceAttributesFrom(tsInfoExec.child()) == null) {
+            return emptySourceForAttributes(tsInfoExec.output());
+        }
         // Step 1: Extract _tsid only
         FieldAttribute tsidAttr = new FieldAttribute(
             tsInfoExec.source(),
@@ -1112,7 +1119,7 @@ public class LocalExecutionPlanner {
             new FunctionEsField(
                 new EsField(SourceFieldMapper.NAME, DataType.KEYWORD, Map.of(), false, EsField.TimeSeriesFieldType.DIMENSION),
                 DataType.KEYWORD,
-                new BlockLoaderFunctionConfig.JustFunction(BlockLoaderFunctionConfig.Function.TIME_SERIES_METRICS_AND_DIMENSIONS)
+                new BlockLoaderFunctionConfig.TimeSeriesMetadata(true, Set.of())
             ),
             true
         );
@@ -1169,7 +1176,14 @@ public class LocalExecutionPlanner {
         return source.with(new TsInfoOperator.FinalFactory(channels), layoutBuilder.build());
     }
 
-    private static MetricsInfoOperator.MetricFieldLookup createMetricFieldLookup(IndexedByShardId<? extends ShardContext> shardContexts) {
+    private PhysicalOperation emptySourceForAttributes(List<Attribute> attributes) {
+        Layout.Builder layout = new Layout.Builder();
+        layout.append(attributes);
+        LocalSourceOperator.PageSupplier empty = () -> null;
+        return PhysicalOperation.fromSource(new LocalSourceFactory(() -> new LocalSourceOperator(empty)), layout.build());
+    }
+
+    private MetricsInfoOperator.MetricFieldLookup createMetricFieldLookup(IndexedByShardId<? extends ShardContext> shardContexts) {
         Map<String, MappingLookup> mappingsByIndex = new HashMap<>();
         for (ShardContext shard : shardContexts.iterable()) {
             if (shard.indexSettings().getMode() == IndexMode.TIME_SERIES) {
@@ -1178,7 +1192,8 @@ public class LocalExecutionPlanner {
         }
 
         return (indexName, fieldName) -> {
-            MappingLookup mappingLookup = mappingsByIndex.get(indexName);
+            String localIndexName = RemoteClusterAware.getLocalIndexName(RemoteClusterAware.splitIndexName(indexName));
+            MappingLookup mappingLookup = mappingsByIndex.get(localIndexName);
             if (mappingLookup == null) {
                 return null;
             }
@@ -1239,16 +1254,40 @@ public class LocalExecutionPlanner {
             projectedColumns.add(attr.name());
         }
 
+        int pushedLimit = externalSource.pushedLimit();
+
+        // Shrink buffer for small limits
+        int effectiveBufferSize = 10;
+        if (pushedLimit != FormatReader.NO_LIMIT) {
+            effectiveBufferSize = Math.min(10, (pushedLimit + pageSize - 1) / pageSize + 1);
+        }
+
+        FileSet fileSet = externalSource.fileSet();
         int splitCount = externalSource.splits().size();
         ExternalSliceQueue sliceQueue = null;
         int instanceCount = 1;
 
-        if (splitCount > 1) {
+        /*
+         * Data nodes don't have a resolved FileSet (it isn't serialized), so they must rely on explicit splits.
+         * If we received a single coalesced split, we still need to route execution through the slice queue so
+         * the operator can expand it into its leaf FileSplits. Otherwise we'd fall back to opening the original
+         * (potentially globbed) source path as a single object.
+         */
+        boolean useSliceQueue = splitCount > 0 && (splitCount > 1 || fileSet == null || fileSet.isResolved() == false);
+        if (useSliceQueue) {
             sliceQueue = new ExternalSliceQueue(externalSource.splits());
-            instanceCount = Math.min(splitCount, context.queryPragmas().taskConcurrency());
         }
-
-        FileSet fileSet = externalSource.fileSet();
+        if (splitCount > 1) {
+            int maxParallelism = context.queryPragmas().taskConcurrency();
+            if (pushedLimit != FormatReader.NO_LIMIT && pushedLimit <= pageSize) {
+                instanceCount = 1;
+            } else if (pushedLimit != FormatReader.NO_LIMIT) {
+                int pagesNeeded = Math.max(1, (pushedLimit + pageSize - 1) / pageSize);
+                instanceCount = Math.min(pagesNeeded, Math.min(splitCount, maxParallelism));
+            } else {
+                instanceCount = Math.min(splitCount, maxParallelism);
+            }
+        }
         Set<String> partitionColumnNames = Set.of();
         if (fileSet != null) {
             PartitionMetadata pm = fileSet.partitionMetadata();
@@ -1263,7 +1302,8 @@ public class LocalExecutionPlanner {
             .projectedColumns(projectedColumns)
             .attributes(externalSource.output())
             .batchSize(pageSize)
-            .maxBufferSize(10)
+            .maxBufferSize(effectiveBufferSize)
+            .rowLimit(pushedLimit)
             .executor(operatorFactoryRegistry.executor())
             .config(externalSource.config())
             .sourceMetadata(externalSource.sourceMetadata())
@@ -1271,6 +1311,7 @@ public class LocalExecutionPlanner {
             .fileSet(fileSet)
             .partitionColumnNames(partitionColumnNames)
             .sliceQueue(sliceQueue)
+            .parsingParallelism(context.queryPragmas().parsingParallelism())
             .build();
 
         SourceOperator.SourceOperatorFactory factory = operatorFactoryRegistry.factory(operatorContext);
@@ -1307,13 +1348,14 @@ public class LocalExecutionPlanner {
         // Parse the storage path
         StoragePath path = StoragePath.of(externalSource.sourcePath());
 
-        // Create the operator factory using the generic abstraction
         SourceOperator.SourceOperatorFactory factory = new ExternalSourceOperatorFactory(
             storageProvider,
             formatReader,
             path,
             externalSource.output(),
-            pageSize
+            pageSize,
+            externalSource.pushedLimit(),
+            null
         );
 
         // Set driver parallelism to 1 for now (can be optimized later with file splitting)
@@ -1382,6 +1424,22 @@ public class LocalExecutionPlanner {
     private PhysicalOperation planLimit(LimitExec limit, LocalExecutionPlannerContext context) {
         PhysicalOperation source = plan(limit.child(), context);
         return source.with(new LimitOperator.Factory((Integer) limit.limit().fold(context.foldCtx)), source.layout);
+    }
+
+    private PhysicalOperation planLimitBy(LimitByExec limitBy, LocalExecutionPlannerContext context) {
+        PhysicalOperation source = plan(limitBy.child(), context);
+        int limitValue = (Integer) limitBy.limitPerGroup().fold(context.foldCtx);
+        Layout layout = source.layout;
+        List<Integer> groupKeys = limitBy.groupings()
+            .stream()
+            .map(g -> getAttributeChannel(g, layout, "LIMIT BY expression must be an attribute"))
+            .toList();
+        List<Layout.ChannelSet> inverse = layout.inverse();
+        List<ElementType> elementTypes = new ArrayList<>(layout.numberOfChannels());
+        for (int channel = 0; channel < inverse.size(); channel++) {
+            elementTypes.add(PlannerUtils.toElementType(inverse.get(channel).type()));
+        }
+        return source.with(new GroupedLimitOperator.Factory(limitValue, groupKeys, elementTypes), source.layout);
     }
 
     private PhysicalOperation planMvExpand(MvExpandExec mvExpandExec, LocalExecutionPlannerContext context) {

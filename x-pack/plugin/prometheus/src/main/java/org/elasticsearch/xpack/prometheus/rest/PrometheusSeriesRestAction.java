@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.prometheus.rest;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
@@ -23,14 +22,13 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.List;
-import java.util.Set;
 
 import static java.time.temporal.ChronoUnit.HOURS;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 /**
  * REST handler for the Prometheus {@code GET /api/v1/series} endpoint.
- * Returns the list of time series matching one or more label selectors.
+ * Returns the list of time series matching a label selector.
  * Only GET is supported. POST with {@code application/x-www-form-urlencoded} bodies is rejected
  * at the HTTP layer as a CSRF safeguard before this handler is ever reached — see
  * {@code RestController#isContentTypeDisallowed}.
@@ -53,23 +51,18 @@ public class PrometheusSeriesRestAction extends BaseRestHandler {
     }
 
     @Override
-    protected Set<String> responseParams() {
-        // match[] is parsed directly from the URI (to support multiple values) rather than via
-        // request.param(), so it must be declared here to avoid "unrecognized parameter" errors.
-        return Set.of(MATCH_PARAM);
-    }
-
-    @Override
     public List<Route> routes() {
         return List.of(new Route(GET, "/_prometheus/api/v1/series"), new Route(GET, "/_prometheus/{index}/api/v1/series"));
     }
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        List<String> matchSelectors = collectMatchSelectors(request);
-        if (matchSelectors.isEmpty()) {
+        // TODO: support multiple match[] values once multi-value query param support lands
+        String matchSelector = request.param(MATCH_PARAM);
+        if (matchSelector == null) {
             throw new IllegalArgumentException("At least one [match[]] selector is required");
         }
+        List<String> matchSelectors = List.of(matchSelector);
 
         // Time range
         String endParam = request.param(END_PARAM);
@@ -90,19 +83,4 @@ public class PrometheusSeriesRestAction extends BaseRestHandler {
         return channel -> client.execute(EsqlQueryAction.INSTANCE, esqlRequest, new PrometheusSeriesResponseListener(channel));
     }
 
-    /**
-     * Collects {@code match[]} selectors from the URL query string.
-     *
-     * <p>The query string is parsed directly (not via {@code request.param()}) to correctly handle
-     * multiple {@code match[]=...} entries — Prometheus clients send one entry per selector.
-     */
-    private static List<String> collectMatchSelectors(RestRequest request) {
-        String uri = request.uri();
-        int queryIdx = uri.indexOf('?');
-        if (queryIdx < 0) {
-            return List.of();
-        }
-        List<String> matches = RestUtils.decodeQueryStringMulti(uri, queryIdx + 1).get(MATCH_PARAM);
-        return matches != null ? matches : List.of();
-    }
 }

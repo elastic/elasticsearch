@@ -155,36 +155,37 @@ public class PrometheusSeriesRestIT extends ESRestTestCase {
     // Helpers
     // -------------------------------------------------------------------------
 
-    /** Builds a series request with {@code match[]} parameters added via the API (no manual URL encoding needed). */
-    private static Request seriesRequest(String... matchers) {
-        return seriesRequest(matchers);
+    /**
+     * Builds a series request with a single {@code match[]} parameter.
+     * TODO: support multiple {@code match[]} values once multi-value query param support lands.
+     */
+    private static Request seriesRequest(String matcher) {
+        return seriesRequest(null, matcher);
     }
 
-    private static Request seriesRequest(String index, String... matchers) {
+    private static Request seriesRequest(String index, String matcher) {
         String path = index == null ? "/_prometheus/api/v1/series" : "/_prometheus/" + index + "/api/v1/series";
         Request request = new Request("GET", path);
-        for (String matcher : matchers) {
-            request.addParameter("match[]", matcher);
-        }
+        request.addParameter("match[]", matcher);
         return request;
     }
 
-    private Response querySeries(String... matchers) throws IOException {
-        return querySeries(matchers);
+    private Response querySeries(String matcher) throws IOException {
+        return querySeries(null, matcher);
     }
 
-    private Response querySeries(String index, String... matchers) throws IOException {
-        return client().performRequest(seriesRequest(index, matchers));
-    }
-
-    @SuppressWarnings("unchecked")
-    private List<Map<String, Object>> querySeriesData(String... matchers) throws IOException {
-        return querySeriesData(matchers);
+    private Response querySeries(String index, String matcher) throws IOException {
+        return client().performRequest(seriesRequest(index, matcher));
     }
 
     @SuppressWarnings("unchecked")
-    private List<Map<String, Object>> querySeriesData(String index, String... matchers) throws IOException {
-        return seriesData(querySeries(index, matchers));
+    private List<Map<String, Object>> querySeriesData(String matcher) throws IOException {
+        return querySeriesData(null, matcher);
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<Map<String, Object>> querySeriesData(String index, String matcher) throws IOException {
+        return seriesData(querySeries(index, matcher));
     }
 
     @SuppressWarnings("unchecked")

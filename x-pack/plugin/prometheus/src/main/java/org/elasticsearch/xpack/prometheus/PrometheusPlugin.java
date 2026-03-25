@@ -101,11 +101,8 @@ public class PrometheusPlugin extends Plugin implements ActionPlugin {
             assert indexingPressure.get() != null : "indexing pressure must be set if plugin is enabled";
             return List.of(
                 new PrometheusRemoteWriteRestAction(indexingPressure.get(), maxProtobufContentLengthBytes, recycler.get()),
-<<<<<<< HEAD
-                new PrometheusSeriesRestAction()
-=======
+                new PrometheusSeriesRestAction(),
                 new PrometheusQueryRangeRestAction()
->>>>>>> origin/main
             );
         }
         return List.of();

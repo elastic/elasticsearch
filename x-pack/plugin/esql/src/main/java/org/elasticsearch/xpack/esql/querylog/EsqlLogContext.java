@@ -42,7 +42,7 @@ public class EsqlLogContext extends ActivityLoggerContext implements QueryLogger
     }
 
     @Override
-    String getQuery() {
+    public String getQuery() {
         return request.queryDescription();
     }
 

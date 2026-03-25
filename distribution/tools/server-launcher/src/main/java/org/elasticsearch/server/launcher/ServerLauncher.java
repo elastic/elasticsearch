@@ -53,7 +53,10 @@ public class ServerLauncher<D extends LaunchDescriptor> {
 
     protected void run(String[] args) throws Exception {
         Process preparerProcess = startPreparer(args);
+        PreparerOutputPump outputPump = new PreparerOutputPump(preparerProcess.getErrorStream(), System.out, System.err);
+        outputPump.start();
         D descriptor = readDescriptorFromPreparer(preparerProcess);
+        outputPump.drain();
         if (descriptor == null) {
             return;
         }
@@ -211,7 +214,7 @@ public class ServerLauncher<D extends LaunchDescriptor> {
         ProcessBuilder pb = new ProcessBuilder(command);
         pb.redirectInput(ProcessBuilder.Redirect.INHERIT);
         pb.redirectOutput(ProcessBuilder.Redirect.PIPE);
-        pb.redirectError(ProcessBuilder.Redirect.INHERIT);
+        pb.redirectError(ProcessBuilder.Redirect.PIPE);
         pb.environment().put("ES_REDIRECT_STDOUT_TO_STDERR", "true");
 
         return pb.start();

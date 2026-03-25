@@ -18,6 +18,7 @@ import org.elasticsearch.entitlement.rules.function.Call3;
 import org.elasticsearch.entitlement.rules.function.Call4;
 import org.elasticsearch.entitlement.rules.function.Call5;
 import org.elasticsearch.entitlement.rules.function.Call6;
+import org.elasticsearch.entitlement.rules.function.VarargCallAdapter;
 import org.elasticsearch.entitlement.rules.function.VoidCall0;
 import org.elasticsearch.entitlement.rules.function.VoidCall1;
 import org.elasticsearch.entitlement.rules.function.VoidCall2;
@@ -26,10 +27,14 @@ import org.elasticsearch.entitlement.rules.function.VoidCall4;
 import org.elasticsearch.entitlement.rules.function.VoidCall5;
 import org.elasticsearch.entitlement.rules.function.VoidCall6;
 import org.elasticsearch.entitlement.runtime.registry.InternalInstrumentationRegistry;
+import org.elasticsearch.entitlement.util.TypeUtils;
 
 import java.lang.invoke.SerializedLambda;
+import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
+import java.lang.reflect.Proxy;
 import java.util.Arrays;
+import java.util.List;
 
 /**
  * Builder for selecting and configuring methods to be instrumented with entitlement checks.
@@ -1079,30 +1084,90 @@ public class ClassMethodBuilder<T> {
     @SuppressForbidden(reason = "relies on reflection")
     private static MethodKey resolveMethodReference(Class<?> clazz, Object ref, Class<?>... args) {
         try {
-            Method writeReplace = ref.getClass().getDeclaredMethod("writeReplace");
-            writeReplace.setAccessible(true);
-
-            SerializedLambda serialized = (SerializedLambda) writeReplace.invoke(ref);
-            String className = serialized.getImplClass();
-            String methodName = serialized.getImplMethodName();
-
-            assertImplementationClass(clazz, className);
-
-            return new MethodKey(
-                resolveDeclaringClass(clazz, methodName, args).getTypeName().replace(".", "/"),
-                methodName,
-                Arrays.stream(args).map(ClassMethodBuilder::getParameterTypeName).toList()
-            );
+            return resolveMethodReferenceViaSerializedLambda(clazz, ref, args);
         } catch (Exception e) {
+            if (clazz.isInterface()) {
+                try {
+                    return resolveMethodReferenceViaProxy(clazz, ref, args);
+                } catch (Exception proxyException) {
+                    proxyException.addSuppressed(e);
+                    throw new RuntimeException(
+                        "Error occurred when inspecting class: "
+                            + clazz.getName()
+                            + "; SerializedLambda resolution failed and proxy fallback failed",
+                        proxyException
+                    );
+                }
+            }
             throw new RuntimeException("Error occurred when inspecting class: " + clazz.getName(), e);
         }
     }
 
-    private static String getParameterTypeName(Class<?> clazz) {
-        if (clazz.isArray()) {
-            return clazz.getComponentType().getName() + "[]";
+    @SuppressForbidden(reason = "relies on reflection")
+    private static MethodKey resolveMethodReferenceViaSerializedLambda(Class<?> clazz, Object ref, Class<?>... args) throws Exception {
+        Method writeReplace = ref.getClass().getDeclaredMethod("writeReplace");
+        writeReplace.setAccessible(true);
+
+        SerializedLambda serialized = (SerializedLambda) writeReplace.invoke(ref);
+        String className = serialized.getImplClass();
+        String methodName = serialized.getImplMethodName();
+
+        assertImplementationClass(clazz, className);
+
+        return new MethodKey(
+            resolveDeclaringClass(clazz, methodName, args).getTypeName().replace(".", "/"),
+            methodName,
+            Arrays.stream(args).map(TypeUtils::getParameterTypeName).toList()
+        );
+    }
+
+    /**
+     * Resolves a method reference for an interface type by invoking the lambda with a recording proxy.
+     * The proxy records which method was invoked; we then build a MethodKey from that Method.
+     * Only used when SerializedLambda resolution fails (e.g. interface method refs pointing at synthetic classes).
+     */
+    @SuppressForbidden(reason = "relies on reflection")
+    private static MethodKey resolveMethodReferenceViaProxy(Class<?> clazz, Object ref, Class<?>... args) throws Exception {
+        var holder = new Object() {
+            Method recordedMethod;
+        };
+        InvocationHandler handler = (proxy, method, methodArgs) -> {
+            holder.recordedMethod = method;
+            return TypeUtils.defaultValueFor(method.getReturnType());
+        };
+        Object proxy = Proxy.newProxyInstance(clazz.getClassLoader(), new Class<?>[] { clazz }, handler);
+
+        Object[] callArgs = new Object[1 + args.length];
+        callArgs[0] = proxy;
+        for (int i = 0; i < args.length; i++) {
+            callArgs[1 + i] = TypeUtils.defaultValueFor(args[i]);
         }
-        return clazz.getName();
+
+        if (ref instanceof VarargCallAdapter<?> adapter) {
+            adapter.asVarargCall().call(callArgs);
+        } else {
+            Class<?>[] paramTypes = new Class<?>[1 + args.length];
+            paramTypes[0] = clazz;
+            System.arraycopy(args, 0, paramTypes, 1, args.length);
+            Method callMethod = ref.getClass().getMethod("call", paramTypes);
+            callMethod.invoke(ref, callArgs);
+        }
+
+        if (holder.recordedMethod == null) {
+            throw new IllegalStateException(
+                "Proxy fallback only supports instance method references; no method was invoked on the proxy for "
+                    + clazz.getName()
+                    + ". If this is a static method reference, resolution must use SerializedLambda."
+            );
+        }
+        return methodKeyFromMethod(holder.recordedMethod);
+    }
+
+    private static MethodKey methodKeyFromMethod(Method method) {
+        String className = method.getDeclaringClass().getName().replace(".", "/");
+        String methodName = method.getName();
+        List<String> parameterTypes = Arrays.stream(method.getParameterTypes()).map(TypeUtils::getParameterTypeName).toList();
+        return new MethodKey(className, methodName, parameterTypes);
     }
 
     private static void assertImplementationClass(Class<?> clazz, String implClassName) throws ClassNotFoundException {
@@ -1120,7 +1185,7 @@ public class ClassMethodBuilder<T> {
             return clazz;
         }
 
-        Class<?>[] resolvedArgs = Arrays.stream(args).map(ClassMethodBuilder::toPrimitiveIfBoxed).toArray(Class[]::new);
+        Class<?>[] resolvedArgs = Arrays.stream(args).map(TypeUtils::toPrimitive).toArray(Class[]::new);
         Class<?> current = clazz;
         while (current != null) {
             try {
@@ -1132,37 +1197,6 @@ public class ClassMethodBuilder<T> {
         }
 
         throw new NoSuchMethodException("Method " + methodName + " not found on class hierarchy of " + clazz.getName());
-    }
-
-    private static Class<?> toPrimitiveIfBoxed(Class<?> type) {
-        if (type == Boolean.class) {
-            return boolean.class;
-        }
-        if (type == Byte.class) {
-            return byte.class;
-        }
-        if (type == Short.class) {
-            return short.class;
-        }
-        if (type == Character.class) {
-            return char.class;
-        }
-        if (type == Integer.class) {
-            return int.class;
-        }
-        if (type == Long.class) {
-            return long.class;
-        }
-        if (type == Float.class) {
-            return float.class;
-        }
-        if (type == Double.class) {
-            return double.class;
-        }
-        if (type == Void.class) {
-            return void.class;
-        }
-        return type;
     }
 
     private MethodKey getConstructorMethodKey(Class<?>... args) {

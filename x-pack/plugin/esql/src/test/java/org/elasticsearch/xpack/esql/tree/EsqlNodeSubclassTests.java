@@ -54,6 +54,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
+import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinType;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
@@ -89,6 +90,7 @@ import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -158,7 +160,13 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
             .toList();
     }
 
-    private static final List<Class<?>> CLASSES_WITH_MIN_TWO_CHILDREN = List.of(Concat.class, CIDRMatch.class, Fork.class, UnionAll.class);
+    private static final List<Class<?>> CLASSES_WITH_MIN_TWO_CHILDREN = List.of(
+        Concat.class,
+        CIDRMatch.class,
+        Fork.class,
+        UnionAll.class,
+        ViewUnionAll.class
+    );
 
     // List of classes that are "unresolved" NamedExpression subclasses, therefore not suitable for use with logical/physical plan nodes.
     private static final List<Class<?>> UNRESOLVED_CLASSES = List.of(
@@ -363,6 +371,9 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
     private static Object makeArg(Class<? extends Node<?>> toBuildClass, Type argType) throws Exception {
 
         if (argType instanceof ParameterizedType pt) {
+            if (pt.getRawType() == LinkedHashMap.class) {
+                return makeOrderedMap(toBuildClass, pt);
+            }
             if (pt.getRawType() == Map.class) {
                 return makeMap(toBuildClass, pt);
             }
@@ -466,10 +477,11 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
             return randomInt();
         } else if (argClass == JoinType.class) {
             return JoinTypes.LEFT;
-        } else if (List.of(Fork.class, MergeExec.class, UnionAll.class).contains(toBuildClass) && argType == LogicalPlan.class) {
-            // limit recursion of plans, in order to prevent stackoverflow errors
-            return randomEsRelation();
-        }
+        } else if (List.of(Fork.class, MergeExec.class, UnionAll.class, ViewUnionAll.class).contains(toBuildClass)
+            && argType == LogicalPlan.class) {
+                // limit recursion of plans, in order to prevent stackoverflow errors
+                return randomEsRelation();
+            }
 
         if (Expression.class == argClass) {
             /*
@@ -505,6 +517,9 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
         }
         if (argClass == int.class) {
             return randomInt();
+        }
+        if (argClass == long.class) {
+            return randomLong();
         }
         if (argClass == String.class) {
             // Nor strings
@@ -573,6 +588,17 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
 
     private static Object makeMap(Class<? extends Node<?>> toBuildClass, ParameterizedType pt) throws Exception {
         Map<Object, Object> map = new HashMap<>();
+        int size = randomSizeForCollection(toBuildClass);
+        while (map.size() < size) {
+            Object key = makeArg(toBuildClass, pt.getActualTypeArguments()[0]);
+            Object value = makeArg(toBuildClass, pt.getActualTypeArguments()[1]);
+            map.put(key, value);
+        }
+        return map;
+    }
+
+    private static Object makeOrderedMap(Class<? extends Node<?>> toBuildClass, ParameterizedType pt) throws Exception {
+        LinkedHashMap<Object, Object> map = new LinkedHashMap<>();
         int size = randomSizeForCollection(toBuildClass);
         while (map.size() < size) {
             Object key = makeArg(toBuildClass, pt.getActualTypeArguments()[0]);

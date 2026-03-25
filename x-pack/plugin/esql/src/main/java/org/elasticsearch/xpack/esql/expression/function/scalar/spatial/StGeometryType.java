@@ -127,7 +127,7 @@ public class StGeometryType extends SpatialUnaryDocValuesFunction {
             case GEOMETRYCOLLECTION -> "ST_GeometryCollection";
             case LINEARRING -> "ST_LineString";
             case ENVELOPE -> "ST_Polygon";
-            case CIRCLE -> "ST_Point";
+            case CIRCLE -> "ST_Polygon";
         };
     }
 

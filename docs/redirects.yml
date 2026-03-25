@@ -368,12 +368,6 @@ redirects:
         anchors: {'esql-st_npoints'}
       - to: 'reference/query-languages/esql/functions-operators/spatial-functions/st_simplify.md'
         anchors: {'esql-st_simplify'}
-      - to: 'reference/query-languages/esql/functions-operators/spatial-functions/st_geometrytype.md'
-        anchors: {'esql-st_geometrytype'}
-      - to: 'reference/query-languages/esql/functions-operators/spatial-functions/st_dimension.md'
-        anchors: {'esql-st_dimension'}
-      - to: 'reference/query-languages/esql/functions-operators/spatial-functions/st_isempty.md'
-        anchors: {'esql-st_isempty'}
       - to: 'reference/query-languages/esql/functions-operators/spatial-functions/st_envelope.md'
         anchors: {'esql-st_envelope'}
       - to: 'reference/query-languages/esql/functions-operators/spatial-functions/st_xmax.md'

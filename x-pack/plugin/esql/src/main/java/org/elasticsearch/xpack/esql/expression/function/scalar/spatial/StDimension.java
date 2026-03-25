@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.spatial;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.ann.Evaluator;
@@ -136,7 +137,7 @@ public class StDimension extends SpatialUnaryDocValuesFunction {
         int firstValueIndex = wkbBlock.getFirstValueIndex(p);
         int valueCount = wkbBlock.getValueCount(p);
         int maxDimension = 0;
-        for (int i = 0; i < valueCount; i++) {
+        for (int i = 0; i < valueCount && maxDimension < 2; i++) {
             BytesRef wkb = wkbBlock.getBytesRef(firstValueIndex + i, scratch);
             Geometry geometry = UNSPECIFIED.wkbToGeometry(wkb);
             int dimension = geometry.visit(DIMENSION_VISITOR);
@@ -150,6 +151,7 @@ public class StDimension extends SpatialUnaryDocValuesFunction {
      * Used for point types where the dimension is always 0.
      */
     static class ConstantPointDimensionEvaluator implements ExpressionEvaluator {
+        private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ConstantPointDimensionEvaluator.class);
         private final DriverContext context;
         private final ExpressionEvaluator field;
 
@@ -184,7 +186,9 @@ public class StDimension extends SpatialUnaryDocValuesFunction {
 
         @Override
         public long baseRamBytesUsed() {
-            return field.baseRamBytesUsed();
+            long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+            baseRamBytesUsed += field.baseRamBytesUsed();
+            return baseRamBytesUsed;
         }
 
         @Override
@@ -226,6 +230,9 @@ public class StDimension extends SpatialUnaryDocValuesFunction {
             int maxDimension = 0;
             for (Geometry geometry : collection) {
                 maxDimension = Math.max(maxDimension, geometry.visit(this));
+                if (maxDimension == 2) {
+                    break;
+                }
             }
             return maxDimension;
         }

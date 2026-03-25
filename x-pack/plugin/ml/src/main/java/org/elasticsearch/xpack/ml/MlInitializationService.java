@@ -121,6 +121,11 @@ public final class MlInitializationService implements ClusterStateListener {
                         MachineLearning.RESULTS_INDEX_ROLLOVER_MAX_SIZE,
                         mlDailyMaintenanceService::setRolloverMaxSize
                     );
+                clusterService.getClusterSettings()
+                    .addSettingsUpdateConsumer(
+                        MachineLearning.IDLE_JOB_AUTO_CLOSE_TIMEOUT,
+                        mlDailyMaintenanceService::setIdleJobAutoCloseTimeout
+                    );
 
             }
 

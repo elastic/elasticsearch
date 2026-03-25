@@ -8,17 +8,23 @@ package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.Blocked;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
+import org.elasticsearch.xpack.core.ml.job.config.JobState;
+import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.MlAssignmentNotifier;
 import org.elasticsearch.xpack.ml.MlDailyMaintenanceService;
 import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
@@ -33,8 +39,10 @@ import java.util.function.Consumer;
 
 import static java.util.stream.Collectors.toSet;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class MlDailyMaintenanceServiceIT extends MlNativeAutodetectIntegTestCase {
 
@@ -83,6 +91,73 @@ public class MlDailyMaintenanceServiceIT extends MlNativeAutodetectIntegTestCase
 
         blockingCall(maintenanceService::triggerDeleteJobsInStateDeletingWithoutDeletionTask);
         assertThat(getJobIds(), containsInAnyOrder("maintenance-test-1"));
+    }
+
+    /**
+     * Verifies that the idle job auto-close maintenance task closes an open job whose datafeed
+     * is stopped and whose last data is older than the configured timeout, while leaving an
+     * open job (with no datafeed but also no stale data) alone.
+     */
+    public void testTriggerCloseIdleJobsWithStoppedDatafeeds() throws Exception {
+        String idleJobId = "idle-job-test";
+        String activeJobId = "active-job-test";
+
+        putJob(idleJobId);
+        putJob(activeJobId);
+
+        long nowSeconds = System.currentTimeMillis() / 1000;
+        long threeDaysAgoSeconds = nowSeconds - TimeValue.timeValueHours(72).seconds();
+
+        StringBuilder data = new StringBuilder();
+        for (int i = 0; i < 10; i++) {
+            long ts = threeDaysAgoSeconds - TimeValue.timeValueHours(i).seconds();
+            data.append("{\"time\":").append(ts).append(",\"value\":").append(randomIntBetween(1, 100)).append("}\n");
+        }
+
+        openJob(idleJobId);
+        postData(idleJobId, data.toString());
+        flushJob(idleJobId, false);
+
+        openJob(activeJobId);
+
+        assertThat(getJobState(idleJobId), equalTo(JobState.OPENED));
+        assertThat(getJobState(activeJobId), equalTo(JobState.OPENED));
+
+        ClusterState state = client().admin().cluster().prepareState(TimeValue.timeValueSeconds(30)).get().getState();
+        ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.state()).thenReturn(state);
+
+        ThreadPool realThreadPool = new TestThreadPool("idle-job-test");
+        try {
+            MlDailyMaintenanceService maintenanceService = new MlDailyMaintenanceService(
+                Settings.builder().put(MachineLearning.IDLE_JOB_AUTO_CLOSE_TIMEOUT.getKey(), "24h").build(),
+                ClusterName.DEFAULT,
+                realThreadPool,
+                client(),
+                clusterService,
+                mock(MlAssignmentNotifier.class),
+                mock(IndexNameExpressionResolver.class),
+                true,
+                true,
+                true,
+                true
+            );
+
+            blockingCall(maintenanceService::triggerCloseIdleJobsWithStoppedDatafeeds);
+        } finally {
+            terminate(realThreadPool);
+        }
+
+        assertThat(getJobState(idleJobId), equalTo(JobState.CLOSED));
+        assertThat(getJobState(activeJobId), equalTo(JobState.OPENED));
+
+        closeJob(activeJobId);
+    }
+
+    private JobState getJobState(String jobId) {
+        GetJobsStatsAction.Request request = new GetJobsStatsAction.Request(jobId);
+        GetJobsStatsAction.Response response = client().execute(GetJobsStatsAction.INSTANCE, request).actionGet();
+        return response.getResponse().results().get(0).getState();
     }
 
     private <T> void blockingCall(Consumer<ActionListener<T>> function) throws InterruptedException {

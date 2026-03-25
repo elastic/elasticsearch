@@ -12,6 +12,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.TransportListTasksAction;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
+import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.AdminClient;
 import org.elasticsearch.client.internal.Client;
@@ -21,23 +23,34 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
+import org.elasticsearch.xpack.core.ml.MlTasks;
+import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteExpiredDataAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteJobAction;
 import org.elasticsearch.xpack.core.ml.action.GetJobsAction;
+import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.core.ml.action.ResetJobAction;
+import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
+import org.elasticsearch.xpack.core.ml.job.config.JobState;
+import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
 import org.junit.After;
 import org.junit.Before;
 import org.mockito.Mockito;
@@ -309,6 +322,171 @@ public class MlDailyMaintenanceServiceTests extends ESTestCase {
             MlDailyMaintenanceService service = createService(indexName, testCase.hasIlmPolicy, testCase.isIlmEnabled);
             assertThat(testCase.description, service.hasIlm(indexName), equalTo(testCase.expected));
         }
+    }
+
+    public void testCloseIdleJobsDisabledWhenTimeoutIsNegative() throws InterruptedException {
+        MlDailyMaintenanceService service = createMaintenanceService();
+        service.setIdleJobAutoCloseTimeout(TimeValue.MINUS_ONE);
+
+        CountDownLatch latch = new CountDownLatch(1);
+        service.triggerCloseIdleJobsWithStoppedDatafeeds(ActionListener.wrap(r -> {
+            assertTrue(r.isAcknowledged());
+            latch.countDown();
+        }, e -> fail(e.getMessage())));
+        assertTrue(latch.await(5, TimeUnit.SECONDS));
+
+        verify(client, never()).execute(same(CloseJobAction.INSTANCE), any(), any());
+    }
+
+    public void testCloseIdleJobsNoCandidatesWhenAllHaveDatafeeds() throws InterruptedException {
+        PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
+        addJobTask(tasksBuilder, "job-1", JobState.OPENED);
+        addDatafeedTask(tasksBuilder, "datafeed-1", "job-1");
+
+        when(clusterService.state()).thenReturn(createClusterStateWithTasks(tasksBuilder.build()));
+
+        MlDailyMaintenanceService service = createMaintenanceService();
+
+        CountDownLatch latch = new CountDownLatch(1);
+        service.triggerCloseIdleJobsWithStoppedDatafeeds(ActionListener.wrap(r -> {
+            assertTrue(r.isAcknowledged());
+            latch.countDown();
+        }, e -> fail(e.getMessage())));
+        assertTrue(latch.await(5, TimeUnit.SECONDS));
+
+        verify(client, never()).execute(same(TransportSearchAction.TYPE), any(), any());
+        verify(client, never()).execute(same(CloseJobAction.INSTANCE), any(), any());
+    }
+
+    public void testCloseIdleJobsClosesJobWithOldData() throws InterruptedException {
+        PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
+        addJobTask(tasksBuilder, "idle-job", JobState.OPENED);
+
+        when(clusterService.state()).thenReturn(createClusterStateWithTasks(tasksBuilder.build()));
+
+        long threeDaysAgo = threadPool.absoluteTimeInMillis() - TimeValue.timeValueHours(72).millis();
+        doAnswer(withSearchResponse("idle-job", threeDaysAgo)).when(client).execute(same(TransportSearchAction.TYPE), any(), any());
+        doAnswer(withResponse(new CloseJobAction.Response(true))).when(client).execute(same(CloseJobAction.INSTANCE), any(), any());
+
+        MlDailyMaintenanceService service = createMaintenanceService();
+
+        CountDownLatch latch = new CountDownLatch(1);
+        service.triggerCloseIdleJobsWithStoppedDatafeeds(ActionListener.wrap(r -> {
+            assertTrue(r.isAcknowledged());
+            latch.countDown();
+        }, e -> fail(e.getMessage())));
+        assertTrue(latch.await(5, TimeUnit.SECONDS));
+
+        verify(client).execute(same(CloseJobAction.INSTANCE), any(), any());
+    }
+
+    public void testCloseIdleJobsSkipsJobWithRecentData() throws InterruptedException {
+        PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
+        addJobTask(tasksBuilder, "active-job", JobState.OPENED);
+
+        when(clusterService.state()).thenReturn(createClusterStateWithTasks(tasksBuilder.build()));
+
+        long oneHourAgo = threadPool.absoluteTimeInMillis() - TimeValue.timeValueHours(1).millis();
+        doAnswer(withSearchResponse("active-job", oneHourAgo)).when(client).execute(same(TransportSearchAction.TYPE), any(), any());
+
+        MlDailyMaintenanceService service = createMaintenanceService();
+
+        CountDownLatch latch = new CountDownLatch(1);
+        service.triggerCloseIdleJobsWithStoppedDatafeeds(ActionListener.wrap(r -> {
+            assertTrue(r.isAcknowledged());
+            latch.countDown();
+        }, e -> fail(e.getMessage())));
+        assertTrue(latch.await(5, TimeUnit.SECONDS));
+
+        verify(client, never()).execute(same(CloseJobAction.INSTANCE), any(), any());
+    }
+
+    public void testCloseIdleJobsSkipsClosedJobs() throws InterruptedException {
+        PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
+        addJobTask(tasksBuilder, "closed-job", JobState.CLOSED);
+
+        when(clusterService.state()).thenReturn(createClusterStateWithTasks(tasksBuilder.build()));
+
+        MlDailyMaintenanceService service = createMaintenanceService();
+
+        CountDownLatch latch = new CountDownLatch(1);
+        service.triggerCloseIdleJobsWithStoppedDatafeeds(ActionListener.wrap(r -> {
+            assertTrue(r.isAcknowledged());
+            latch.countDown();
+        }, e -> fail(e.getMessage())));
+        assertTrue(latch.await(5, TimeUnit.SECONDS));
+
+        verify(client, never()).execute(same(TransportSearchAction.TYPE), any(), any());
+        verify(client, never()).execute(same(CloseJobAction.INSTANCE), any(), any());
+    }
+
+    private MlDailyMaintenanceService createMaintenanceService() {
+        return new MlDailyMaintenanceService(
+            Settings.EMPTY,
+            threadPool,
+            client,
+            clusterService,
+            mlAssignmentNotifier,
+            () -> TimeValue.timeValueDays(1),
+            TestIndexNameExpressionResolver.newInstance(),
+            true,
+            true,
+            true,
+            true
+        );
+    }
+
+    private static void addJobTask(PersistentTasksCustomMetadata.Builder builder, String jobId, JobState state) {
+        builder.addTask(
+            MlTasks.jobTaskId(jobId),
+            MlTasks.JOB_TASK_NAME,
+            new OpenJobAction.JobParams(jobId),
+            PersistentTasksCustomMetadata.INITIAL_ASSIGNMENT
+        );
+        builder.updateTaskState(MlTasks.jobTaskId(jobId), new JobTaskState(state, builder.getLastAllocationId(), null, null));
+    }
+
+    private static void addDatafeedTask(PersistentTasksCustomMetadata.Builder builder, String datafeedId, String jobId) {
+        StartDatafeedAction.DatafeedParams params = new StartDatafeedAction.DatafeedParams(datafeedId, 0);
+        params.setJobId(jobId);
+        builder.addTask(
+            MlTasks.datafeedTaskId(datafeedId),
+            MlTasks.DATAFEED_TASK_NAME,
+            params,
+            PersistentTasksCustomMetadata.INITIAL_ASSIGNMENT
+        );
+    }
+
+    private static ClusterState createClusterStateWithTasks(PersistentTasksCustomMetadata tasks) {
+        return ClusterState.builder(new ClusterName("MlDailyMaintenanceServiceTests"))
+            .metadata(
+                Metadata.builder()
+                    .putCustom(PersistentTasksCustomMetadata.TYPE, tasks)
+                    .putCustom(MlMetadata.TYPE, new MlMetadata.Builder().build())
+            )
+            .nodes(DiscoveryNodes.builder().build())
+            .build();
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Answer<Void> withSearchResponse(String jobId, long latestRecordTimestamp) {
+        return invocationOnMock -> {
+            ActionListener<SearchResponse> listener = (ActionListener<SearchResponse>) invocationOnMock.getArguments()[2];
+            try {
+                XContentBuilder sourceBuilder = JsonXContent.contentBuilder();
+                sourceBuilder.startObject();
+                sourceBuilder.field("latest_record_timestamp", latestRecordTimestamp);
+                sourceBuilder.endObject();
+                SearchHit hit = SearchHit.unpooled(0);
+                hit.sourceRef(BytesReference.bytes(sourceBuilder));
+                SearchHits hits = SearchHits.unpooled(new SearchHit[] { hit }, null, 1.0f);
+                SearchResponse response = new SearchResponse(hits, null, null, false, null, null, 1, null, 1, 1, 0, 100, null, null);
+                listener.onResponse(response);
+            } catch (Exception e) {
+                listener.onFailure(e);
+            }
+            return null;
+        };
     }
 
     private MlDailyMaintenanceService createService(String indexName, boolean hasIlmPolicy, boolean isIlmEnabled) {

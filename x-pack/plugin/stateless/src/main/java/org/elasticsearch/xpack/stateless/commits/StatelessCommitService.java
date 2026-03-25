@@ -1127,21 +1127,23 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         return commitCleaner;
     }
 
+    public record RecoveryInfoFromSource(@Nullable SourceBlobsInfo sourceBlobsInfo, boolean hasRecentIdLookup) {}
+
     public record SourceBlobsInfo(BlobFile latestBlobFile, long latestBlobFileLength, Set<BlobFile> otherBlobs) {}
 
-    public @Nullable SourceBlobsInfo getSourceBlobsEntry(ShardId shardId) {
+    public @Nullable RecoveryInfoFromSource getRecoveryInfoFromSourceEntry(ShardId shardId) {
         ShardCommitState commitState = getSafe(shardsCommitsStates, shardId);
-        return commitState.blobsReceivedFromSource;
+        return commitState.recoveryInfoFromSource;
     }
 
-    public void clearSourceBlobsEntry(ShardId shardId) {
+    public void clearRecoveryInfoFromSourceEntry(ShardId shardId) {
         ShardCommitState commitState = getSafe(shardsCommitsStates, shardId);
-        commitState.blobsReceivedFromSource = null;
+        commitState.recoveryInfoFromSource = null;
     }
 
-    public void putSourceBlobsEntry(ShardId shardId, BlobFile latestBlobFile, long latestBlobFileLength, Set<BlobFile> otherBlobs) {
+    public void putRecoveryInfoFromSourceEntry(ShardId shardId, RecoveryInfoFromSource recoveryInfoFromSource) {
         ShardCommitState commitState = getSafe(shardsCommitsStates, shardId);
-        commitState.blobsReceivedFromSource = new SourceBlobsInfo(latestBlobFile, latestBlobFileLength, otherBlobs);
+        commitState.recoveryInfoFromSource = recoveryInfoFromSource;
     }
 
     @Nullable
@@ -1250,10 +1252,10 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         @Nullable
         private Map<PrimaryTermAndGeneration, Set<String>> trackedSearchNodesPerCommitOnRelocationTarget = null;
 
-        // This field is used to pass the blobs received from the source during peer recovery from TransportStatelessPrimaryRelocationAction
-        // to ObjectStoreService#readIndexingShardState. It is a workaround to avoid modifying the IndexShard#preRecovery code.
+        // This field is used to pass recovery info received from the source during peer recovery from
+        // TransportStatelessPrimaryRelocationAction. It is a workaround to avoid modifying the IndexShard#preRecovery code.
         @Nullable
-        private volatile SourceBlobsInfo blobsReceivedFromSource = null;
+        private volatile RecoveryInfoFromSource recoveryInfoFromSource = null;
 
         private final Set<ShardId> copyTargets = ConcurrentHashMap.newKeySet();
 

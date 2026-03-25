@@ -62,9 +62,7 @@ public class AzureAiStudioChatCompletionTaskSettings implements TaskSettings {
             validationException
         );
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new AzureAiStudioChatCompletionTaskSettings(temperature, topP, doSample, maxNewTokens);
     }

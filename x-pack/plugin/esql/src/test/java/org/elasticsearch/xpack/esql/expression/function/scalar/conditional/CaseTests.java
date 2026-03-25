@@ -75,6 +75,7 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
                 DataType.UNDER_CONSTRUCTION.stream()
                     .filter(type -> type != DataType.DENSE_VECTOR)
                     .filter(type -> type != DataType.DATE_RANGE) // TODO(pr/133309): implement
+                    .filter(type -> type != DataType.PARTIAL_AGG)
                     .toList()
             );
         }

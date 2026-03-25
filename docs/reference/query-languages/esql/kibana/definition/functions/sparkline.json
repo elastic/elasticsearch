@@ -116,6 +116,6 @@
   "examples" : [
     "FROM employees\n| STATS sparkline = SPARKLINE(COUNT(*), hire_date, 20, \"1985-01-01T00:00:00Z\", \"1985-12-31T00:00:00Z\")"
   ],
-  "preview" : false,
+  "preview" : true,
   "snapshot_only" : true
 }

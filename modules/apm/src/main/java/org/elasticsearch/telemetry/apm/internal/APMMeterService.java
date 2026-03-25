@@ -103,6 +103,7 @@ public class APMMeterService extends AbstractLifecycleComponent {
             // This side covers the case where the APM agent has installed a meter supplier.
             // The APM agent offers no way to flush, so we simply wait.
             try {
+                LOGGER.info("Waiting {} ms for APM agent to flush metrics", agentFlushWaitMs);
                 Thread.sleep(agentFlushWaitMs);
             } catch (InterruptedException e) {
                 // Flush is best-effort. We can reestablish the interrupt flag and proceed.

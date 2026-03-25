@@ -2647,10 +2647,12 @@ The Distributed team owns Elasticsearch's write path. A typical write begins as 
 the appropriate primary shard, is applied to the shard's engine and translog, and is finally replicated across replicas
 before an ack is sent back to the client.
 
-The Distributed team also owns select parts of the read path (e.g. real-time `GET` requests targeting the translog),
-but broader search capabilities like query execution, scoring, and aggregations fall under the Search team.
+The Distributed team also owns select parts of the read path (e.g. real-time `GET` requests targeting the
+[translog](#translog)), but broader search capabilities like query execution, scoring, and aggregations fall under 
+the Search team.
 
-This section follows a single document index request end to end, using [RestIndexAction] as the starting point.
+This section follows a single document index request end to end, using the [RestIndexAction] class as the starting 
+point.
 
 ## The Write Path
 
@@ -2662,7 +2664,7 @@ parses path parameters (`index`, optional `id`, optional `routing`, etc.) and th
 It [builds](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/rest/action/document/RestIndexAction.java#L131)
 an [IndexRequest] and [prepares](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/rest/action/document/RestIndexAction.java#L156)
 the next action, `AbstractClient::index`, which will execute [TransportIndexAction] on the receiving node (see the
-[Transport](#transport) section).
+[Transport](#transport) section for more details).
 
 The node that received the request is the coordinating node for this request. On that node, `TransportIndexAction` wraps
 the `IndexRequest` in a one-item [BulkRequest] and delegates to [TransportBulkAction], which eventually runs
@@ -2687,7 +2689,7 @@ items by shard before dispatching each shard’s work to the appropriate primari
 
 #### Primary Routing
 
-Elasticsearch uses primary–backup replication: the primary shard copy defines the ordered write history and replicas
+Elasticsearch uses primary–backup replication. The primary shard copy defines the ordered write history and replicas
 apply the same operations.
 
 After matching each document to a shard, [BulkOperation] will
@@ -2712,20 +2714,22 @@ Once the request
 [reaches](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/support/replication/TransportReplicationAction.java#L964)
 the node that actually hosts the primary, it will get
 [wrapped](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/support/replication/TransportReplicationAction.java#L988)
-in a `ConcreteShardRequest` that includes the shard’s primary term and target allocation id. That lets the primary and
-replicas refuse operations that were built for a superseded primary generation.
+in a [ConcreteShardRequest](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/support/replication/TransportReplicationAction.java#L1388) 
+that includes the shard’s primary term and target allocation id. That lets the primary and replicas refuse operations 
+that were built for a superseded primary generation.
 
 #### Primary Execution
 
 On the primary node, `TransportShardBulkAction`
 [applies](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/bulk/TransportShardBulkAction.java#L441)
 the shard's bulk items through [IndexShard], the single entry point for shard-level work
-(see [IndexShard](#indexshard) in [Engine & Store](#engine--store)).
+(see [IndexShard](#indexshard) in [Engine & Store](#engine--store) sections for more details).
 
 The primary will first try to
 [acquire](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/support/replication/TransportReplicationAction.java#L484)
-an operation permit via [IndexShardOperationPermits]. Note that recovery and relocation are operations that can grab
-all available permits and block in-flight writes. If the permit is successfully acquired, it will then validate and
+an operation permit via [IndexShardOperationPermits]. Note that recovery and relocation are operations that can 
+intentionally grab all available permits with the goal of blocking in-flight writes. If the permit is successfully 
+acquired, the primary will then validate and
 [prepare](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/shard/IndexShard.java#L1026)
 the operation: create the mapping (if not already existing), parse the source, etc. `IndexShard` will then hand over the
 request to the engine (typically [InternalEngine], see [Engine](#engine) section for more details) that

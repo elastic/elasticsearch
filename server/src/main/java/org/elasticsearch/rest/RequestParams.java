@@ -191,6 +191,17 @@ public final class RequestParams extends AbstractMap<String, String> {
     }
 
     @Override
+    public String remove(Object key) {
+        var prev = map.remove(key);
+        return prev == null ? null : prev.getLast();
+    }
+
+    @Override
+    public void clear() {
+        map.clear();
+    }
+
+    @Override
     public boolean containsKey(Object key) {
         return map.containsKey(key);
     }
@@ -201,7 +212,8 @@ public final class RequestParams extends AbstractMap<String, String> {
     }
 
     /**
-     * Returns an unmodifiable entry set where each entry's value is the <em>last</em> value for that key.
+     * Returns an entry set where each entry's value is the <em>last</em> value for that key.
+     * Supports removal via the iterator, which removes the entire key from the underlying map.
      */
     @Override
     public Set<Entry<String, String>> entrySet() {
@@ -220,12 +232,22 @@ public final class RequestParams extends AbstractMap<String, String> {
                         var e = inner.next();
                         return Map.entry(e.getKey(), e.getValue().getLast());
                     }
+
+                    @Override
+                    public void remove() {
+                        inner.remove();
+                    }
                 };
             }
 
             @Override
             public int size() {
                 return map.size();
+            }
+
+            @Override
+            public void clear() {
+                map.clear();
             }
         };
     }

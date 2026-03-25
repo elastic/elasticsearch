@@ -282,7 +282,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         if (ESQL_VIEWS_FEATURE_FLAG.isEnabled()) {
             components = new ArrayList<>(components);
             components.add(new ViewResolver(services.clusterService(), services.projectResolver(), services.client()));
-            components.add(new ViewService(services.clusterService(), functionRegistry, parser));
+            components.add(new ViewService(services.clusterService(), parser));
         }
         return components;
     }

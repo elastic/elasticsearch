@@ -136,7 +136,12 @@ public abstract class AbstractXPackRestTest extends ESClientYamlSuiteTestCase {
     protected Predicate<String> waitForPendingTasksFilter() {
         return task -> {
             // Don't check rollup jobs or data stream reindex tasks because we clear them in the superclass.
-            return task.contains(RollupJob.NAME) || task.contains("reindex-data-stream");
+            // Also ignore autoscaling shard-size push and inference cache invalidation tasks, which are
+            // background cluster operations that may still be in-flight during test teardown.
+            return task.contains(RollupJob.NAME)
+                || task.contains("reindex-data-stream")
+                || task.startsWith("cluster:monitor/stateless/autoscaling/push_shard_sizes")
+                || task.startsWith("cluster:internal/xpack/inference/clear_inference_endpoint_cache");
         };
     }
 

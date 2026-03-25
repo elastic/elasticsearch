@@ -143,6 +143,7 @@ import static org.elasticsearch.client.RestClient.IGNORE_RESPONSE_CODES_PARAM;
 import static org.elasticsearch.cluster.ClusterState.VERSION_INTRODUCING_TRANSPORT_VERSIONS;
 import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_CHECK_ACTION_NAME;
 import static org.elasticsearch.cluster.coordination.LeaderChecker.LEADER_CHECK_ACTION_NAME;
+import static org.elasticsearch.cluster.service.MasterService.STATE_UPDATE_ACTION_NAME;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
@@ -735,6 +736,7 @@ public abstract class ESRestTestCase extends ESTestCase {
                                 || taskName.startsWith(HealthNode.TASK_NAME)
                                 || taskName.startsWith(LEADER_CHECK_ACTION_NAME)
                                 || taskName.startsWith(FOLLOWER_CHECK_ACTION_NAME)
+                                || taskName.startsWith(STATE_UPDATE_ACTION_NAME)
                                 || taskFilter.test(taskName)) {
                                 continue;
                             }

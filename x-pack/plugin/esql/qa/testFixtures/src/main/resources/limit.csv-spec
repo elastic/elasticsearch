@@ -500,24 +500,24 @@ sortLimitByNullsFirst
 required_capability: esql_topn_by
 
 FROM employees
-| SORT is_rehired ASC NULLS FIRST
+| SORT is_rehired ASC NULLS FIRST, emp_no
 | LIMIT 2 BY languages
 | KEEP first_name, last_name, languages, is_rehired
 ;
 
 first_name:keyword | last_name:keyword | languages:integer | is_rehired:boolean
-Basil              | Tramer            | 5                 | null
+Parto              | Bamford           | 4                 | null
+Anneke             | Preusig           | 3                 | null
+Sumant             | Peac              | 1                 | null
 Berni              | Genin             | 5                 | null
 null               | Lortz             | 4                 | null
-Parto              | Bamford           | 4                 | null
 Uri                | Lenart            | 1                 | null
-Sumant             | Peac              | 1                 | null
 Magy               | Stamatiou         | 3                 | null
-Anneke             | Preusig           | 3                 | null
+Basil              | Tramer            | 5                 | null
 Georgi             | Facello           | 2                 | [false, true]
 Saniya             | Kalloufi          | 2                 | [false, true]
-Shahaf             | Famili            | null              | [false, true]
-Mayuko             | Warwick           | null              | [false, true, true]     
+Mayuko             | Warwick           | null              | [false, true, true]
+Shahaf             | Famili            | null              | [false, true]  
 ;
 
 sortLimitByNullsLast

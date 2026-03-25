@@ -2633,6 +2633,7 @@ Tasks are integrated with the ElasticSearch APM infrastructure. They implement t
 [TransportWriteAction]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/support/replication/TransportWriteAction.java
 [IndexRequest]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/index/IndexRequest.java
 [DeleteRequest]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/delete/DeleteRequest.java
+[GlobalCheckpointSyncAction]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/seqno/GlobalCheckpointSyncAction.java
 [UpdateRequest]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/update/UpdateRequest.java
 [BulkRequest]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/bulk/BulkRequest.java
 [IndexShardOperationPermits]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/shard/IndexShardOperationPermits.java
@@ -2642,9 +2643,9 @@ Tasks are integrated with the ElasticSearch APM infrastructure. They implement t
 [SeqNoFieldMapper]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/mapper/SeqNoFieldMapper.java
 [ReplicationOperation]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/support/replication/ReplicationOperation.java
 
-The Distributed team owns Elasticsearch's write path. A typical write begins as an HTTP/REST request,
-and is then routed to the appropriate primary shard, gets applied to the shard's engine and translog, and is 
-finally replicated across replicas before an ack is sent back to the client.
+The Distributed team owns Elasticsearch's write path. A typical write begins as an HTTP/REST request, is routed to
+the appropriate primary shard, is applied to the shard's engine and translog, and is finally replicated across replicas
+before an ack is sent back to the client.
 
 The Distributed team also owns select parts of the read path (e.g. real-time `GET` requests targeting the translog),
 but broader search capabilities like query execution, scoring, and aggregations fall under the Search team.
@@ -2734,7 +2735,7 @@ Lucene via an `IndexWriter`, and then
 [appends](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/engine/InternalEngine.java#L1276)
 the operation to the [Translog](#translog).
 
-Note that updates and deletes use soft deletes in Lucene (tombstones and retention policies), not physical row removal,
+Note that updates and deletes use soft deletes in Lucene (tombstones and retention policies), not physical deletion,
 and are therefore quite similar to writes.
 See [Engine & Store](#engine--store) and [Segment Merges](#segment-merges) for more details.
 
@@ -2803,7 +2804,7 @@ helpers are defined on [SequenceNumbers] (for example `UNASSIGNED_SEQ_NO` on the
 `UNASSIGNED_PRIMARY_TERM` before a shard is operational).
 
 The primary term is a monotonically increasing counter per shard, recorded in cluster state metadata (see
-[`IndexMetadata#primaryTerm`](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/metadata/IndexMetadata.java#L1199)).
+[IndexMetadata#primaryTerm](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/metadata/IndexMetadata.java#L1199)).
 It advances when a primary is (re)selected, e.g. after a full restart or when a replica is promoted. The shard stamps
 all operations with the [current term](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/shard/IndexShard.java#L514).
 
@@ -2818,8 +2819,8 @@ Both values are stored in Lucene for each live document. [SeqNoFieldMapper] inde
 search and sort) and stores the primary term in doc values. If two copies
 ever share the same `_seq_no` (for example after a primary promotion), the copy with the higher primary term wins.
 Clients can also supply `if_seq_no` / `if_primary_term` on write requests (see
-[`IndexRequest#setIfSeqNo`](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/index/IndexRequest.java#L623)),
-in which case the engine will use optimistic concurrency control against the last known sequence id.
+[IndexRequest#setIfSeqNo](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/index/IndexRequest.java#L623)),
+in which case the engine will use optimistic concurrency control against the last known sequence number.
 
 ```mermaid
 flowchart LR
@@ -2836,11 +2837,52 @@ flowchart LR
     TX --> REP[Replica engine applies fixed seq_no + term]
 ```
 
-### Checkpoints, gaps, and out-of-order replication
+### Checkpoints & Gaps
 
-### Refresh, visibility, and "real-time GET"
+Each shard copy tracks how far it has applied the shared history of `seq_no` values using a local checkpoint: the highest
+sequence number for which that copy has processed every earlier `seq_no` (inclusive). The [InternalEngine] holds a 
+[LocalCheckpointTracker] 
+[field](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/engine/InternalEngine.java#L172)
+that maintains that marker and a separate persisted checkpoint for what is durably on disk.
 
-### Locking and write concurrency
+The primary also tracks a
+[global checkpoint](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/seqno/ReplicationTracker.java#L147),
+which is the sequence number up to which all in-sync copies have
+processed every earlier operation. The [ReplicationTracker] computes it as the minimum of those per-copy local checkpoints among in-sync shard copies.
+The primary [updates](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/seqno/ReplicationTracker.java#L1375)
+the global checkpoint whenever an in-sync copy’s local checkpoint advances, when the primary activates or takes over 
+after relocation, when a copy becomes in-sync, or when cluster state drops tracked copies.
+During operation replication,
+[replica responses carry](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/support/replication/ReplicationOperation.java#L290)
+local and global checkpoint fields so the primary can [derive](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/seqno/ReplicationTracker.java#L1320)
+peer progress.
+
+The global checkpoint is the replication-group safety line: it is the highest `seq_no` known to be processed
+on every in-sync copy, so it underpins
+[retention leases](https://www.elastic.co/docs/reference/elasticsearch/index-settings/history-retention),
+[translog](#translog) truncation, [soft-delete retention](#segment-merges), and [peer recovery](#peer-recovery)
+coordination.
+
+Because replication fan-out is concurrent, a replica may receive operations with out-of-order `seq_no` values.
+The engine still applies each operation once its prerequisites are satisfied. The `LocalCheckpointTracker`
+[records](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/engine/InternalEngine.java#L1299)
+which sequence numbers have been processed (including pending gaps) so the local checkpoint only advances when
+the [contiguous prefix is complete](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/seqno/LocalCheckpointTracker.java#L194).
+To save memory, `LocalCheckpointTracker` tracks which `seq_no` values are still pending
+[using sparse bit sets](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/seqno/LocalCheckpointTracker.java#L32)
+in chunk-keyed maps.
+
+Replicas cache the global checkpoint value the primary advertises and refresh it from ongoing replication traffic
+(for example, each [ConcreteReplicaRequest](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/support/replication/TransportReplicationAction.java#L1525)
+carries the primary’s global checkpoint for the replica permit path,
+and each [ReplicaResponse](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/support/replication/TransportReplicationAction.java#L1284)
+returns the replica’s local checkpoint and last synced global checkpoint).
+
+Note that the `InternalEngine` also tracks the
+[maxSeqNoOfUpdatesOrDeletes](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/engine/Engine.java#L2512)
+(MSU) for write path optimization purposes. The [Engine](#engine)
+[javadoc](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/engine/Engine.java#L2479)
+goes into details about the `LCP < MSU` versus `MSU <= LCP` cases.
 
 # Server Startup
 

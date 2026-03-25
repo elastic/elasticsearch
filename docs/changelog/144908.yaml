@@ -1,0 +1,6 @@
+pr: 144908
+summary: Add backslash escape support in FilterPath for source filtering
+area: Search
+type: bug
+issues:
+ - 136302

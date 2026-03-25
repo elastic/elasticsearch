@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.ShutdownPersistentTasksStatus;
 import org.elasticsearch.cluster.metadata.ShutdownPluginsStatus;
 import org.elasticsearch.cluster.metadata.ShutdownShardMigrationStatus;
+import org.elasticsearch.cluster.metadata.ShutdownShardSnapshotsStatus;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -137,7 +138,8 @@ public class SigtermTerminationHandlerTests extends ESTestCase {
                                     .build(),
                                 new ShutdownShardMigrationStatus(SingleNodeShutdownMetadata.Status.COMPLETE, 0, 0, 0),
                                 ShutdownPersistentTasksStatus.fromRemainingTasks(0, 0),
-                                new ShutdownPluginsStatus(true)
+                                new ShutdownPluginsStatus(true),
+                                ShutdownShardSnapshotsStatus.fromShardCounts(0, 0, 0)
                             )
                         )
                     )
@@ -442,7 +444,8 @@ public class SigtermTerminationHandlerTests extends ESTestCase {
                                     .build(),
                                 new ShutdownShardMigrationStatus(status, 0, 0, 0),
                                 ShutdownPersistentTasksStatus.fromRemainingTasks(0, 0),
-                                new ShutdownPluginsStatus(true)
+                                new ShutdownPluginsStatus(true),
+                                ShutdownShardSnapshotsStatus.fromShardCounts(0, 0, 0)
                             )
                         )
                     )

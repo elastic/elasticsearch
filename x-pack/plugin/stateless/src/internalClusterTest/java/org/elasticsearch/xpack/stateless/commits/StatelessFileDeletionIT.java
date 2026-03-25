@@ -805,14 +805,6 @@ public class StatelessFileDeletionIT extends AbstractStatelessPluginIntegTestCas
         testCommitsRetainementWithSearchScroll(TestSearchScrollCase.COMMITS_DROPPED_AFTER_SCROLL_CLOSES_AND_INDEXING_INACTIVITY);
     }
 
-    @TestLogging(
-        reason = "flaky test diagnostics",
-        value = "org.elasticsearch.xpack.stateless.commits.StatelessCommitService:TRACE,"
-            + "org.elasticsearch.xpack.stateless.action.TransportNewCommitNotificationAction:TRACE,"
-            + "org.elasticsearch.xpack.stateless.commits.StatelessCommitNotificationPublisher:TRACE,"
-            + "org.elasticsearch.xpack.stateless.engine.SearchEngine:TRACE,"
-            + "org.elasticsearch.cluster.metadata.MetadataIndexStateService:DEBUG"
-    )
     public void testCommitsOfScrollAreDeletedAfterIndexIsClosedAndOpened() throws Exception {
         testCommitsRetainementWithSearchScroll(TestSearchScrollCase.COMMITS_OF_SCROLL_DELETED_AFTER_INDEX_CLOSED_AND_OPENED);
     }

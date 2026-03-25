@@ -52,8 +52,9 @@ class DlmFrozenTransitionService implements ClusterStateListener, Closeable {
 
     static final Setting<Integer> MAX_CONCURRENCY_SETTING = Setting.intSetting(
         "dlm.frozen_transition.max_concurrency",
-        100,
+        10,
         1,
+        100,
         Setting.Property.NodeScope
     );
 

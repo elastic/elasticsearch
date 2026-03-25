@@ -1,5 +1,5 @@
 ```yaml {applies_to}
-stack: preview 8.11-9.3, ga 9.4+
+stack: preview 9.0-9.3, ga 9.4+
 serverless: ga
 ```
 

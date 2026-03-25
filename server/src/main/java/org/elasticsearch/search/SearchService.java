@@ -80,6 +80,8 @@ import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.store.DirectoryMetrics;
+import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.ExecutorSelector;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -110,6 +112,7 @@ import org.elasticsearch.search.fetch.subphase.FetchFieldsContext;
 import org.elasticsearch.search.fetch.subphase.ScriptFieldsContext.ScriptField;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
+import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.InternalScrollSearchRequest;
 import org.elasticsearch.search.internal.LegacyReaderContext;
 import org.elasticsearch.search.internal.PitReaderContext;
@@ -183,6 +186,8 @@ import static org.elasticsearch.search.rank.feature.RankFeatureShardPhase.EMPTY_
 
 public class SearchService extends AbstractLifecycleComponent implements IndexEventListener {
     private static final Logger logger = LogManager.getLogger(SearchService.class);
+
+    public static final String BYTES_READ_RESPONSE_HEADER = "X-Elasticsearch-Bytes-Read";
 
     // we can have 5 minutes here, since we make sure to clean with search requests and when shard/index closes
     public static final Setting<TimeValue> DEFAULT_KEEPALIVE_SETTING = Setting.positiveTimeSetting(
@@ -769,12 +774,14 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     private DfsSearchResult executeDfsPhase(ShardSearchRequest request, SearchShardTask task) throws IOException {
+        final Supplier<DirectoryMetrics> metricsDelta = directoryMetricsDeltaOrNull();
         ReaderContext readerContext = createOrGetReaderContext(request, task);
         try (@SuppressWarnings("unused") // withScope call is necessary to instrument search execution
         Releasable scope = tracer.withScope(task);
             Releasable ignored = readerContext.markAsUsed(getKeepAlive(request));
             SearchContext context = createContext(readerContext, request, task, ResultsType.DFS, false)
         ) {
+            setupWorkerBytesTracking(context.searcher());
             final long beforeQueryTime = System.nanoTime();
             var opsListener = context.indexShard().getSearchOperationListener();
             opsListener.onPreDfsPhase(context);
@@ -787,7 +794,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     opsListener.onFailedDfsPhase(context);
                 }
             }
-            return context.dfsResult();
+            DfsSearchResult result = context.dfsResult();
+            result.setDirectoryMetrics(resolveDirectoryMetrics(metricsDelta, context.searcher()));
+            return result;
         } catch (Exception e) {
             logger.trace("Dfs phase failed", e);
             processFailure(readerContext, e);
@@ -1025,10 +1034,12 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
      */
     private SearchPhaseResult executeQueryPhase(ShardSearchRequest request, CancellableTask task, ReaderContext readerContext)
         throws Exception {
+        final Supplier<DirectoryMetrics> metricsDelta = directoryMetricsDeltaOrNull();
         try (
             Releasable scope = tracer.withScope(task);
             SearchContext context = createContext(readerContext, request, task, ResultsType.QUERY, true)
         ) {
+            setupWorkerBytesTracking(context.searcher());
             tracer.startTrace("executeQueryPhase", Map.of());
             final long afterQueryTime;
             final long beforeQueryTime = System.nanoTime();
@@ -1062,7 +1073,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     });
                 }
                 context.addFetchResult();
-                return executeFetchPhase(readerContext, context, afterQueryTime);
+                SearchPhaseResult result = executeFetchPhase(readerContext, context, afterQueryTime);
+                result.setDirectoryMetrics(resolveDirectoryMetrics(metricsDelta, context.searcher()));
+                return result;
             } else {
                 // Pass the rescoreDocIds to the queryResult to send them the coordinating node and receive them back in the fetch phase.
                 // We also pass the rescoreDocIds to the LegacyReaderContext in case the search state needs to stay in the data node.
@@ -1071,6 +1084,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 readerContext.setRescoreDocIds(rescoreDocIds);
                 // inc-ref query result because we close the SearchContext that references it in this try-with-resources block
                 context.queryResult().incRef();
+                context.queryResult().setDirectoryMetrics(resolveDirectoryMetrics(metricsDelta, context.searcher()));
                 return context.queryResult();
             }
         } catch (Exception e) {
@@ -1083,6 +1097,33 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             logger.trace("Query phase failed", e);
             throw e;
         }
+    }
+
+    private Supplier<DirectoryMetrics> directoryMetricsDeltaOrNull() {
+        if (Store.DIRECTORY_METRICS_FEATURE_FLAG.isEnabled()) {
+            return indicesService.directoryMetricsDelta();
+        }
+        return null;
+    }
+
+    /**
+     * Sets up worker-thread byte tracking on the searcher so that bytes read by parallel
+     * collection threads are captured. Must be called before query execution; after execution,
+     * call {@link #resolveDirectoryMetrics(Supplier, ContextIndexSearcher)} to fold worker bytes
+     * into the calling thread's metrics before computing the delta.
+     */
+    private void setupWorkerBytesTracking(ContextIndexSearcher searcher) {
+        if (Store.DIRECTORY_METRICS_FEATURE_FLAG.isEnabled()) {
+            searcher.setThreadBytesRead(() -> indicesService.currentThreadStoreMetrics().getBytesRead());
+        }
+    }
+
+    private DirectoryMetrics resolveDirectoryMetrics(Supplier<DirectoryMetrics> metricsDelta, ContextIndexSearcher searcher) {
+        if (metricsDelta == null) {
+            return DirectoryMetrics.EMPTY;
+        }
+        indicesService.currentThreadStoreMetrics().addBytesRead(searcher.getWorkerDirectoryBytesRead());
+        return metricsDelta.get();
     }
 
     public void executeRankFeaturePhase(RankFeatureShardRequest request, SearchShardTask task, ActionListener<RankFeatureResult> listener) {
@@ -1099,7 +1140,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         );
         final Releasable markAsUsed = readerContext.markAsUsed(getKeepAlive(shardSearchRequest));
         runAsync(getExecutor(readerContext.indexShard()), () -> {
+            final Supplier<DirectoryMetrics> metricsDelta = directoryMetricsDeltaOrNull();
             try (SearchContext searchContext = createContext(readerContext, shardSearchRequest, task, ResultsType.RANK_FEATURE, false)) {
+                setupWorkerBytesTracking(searchContext.searcher());
                 int[] docIds = request.getDocIds();
                 if (docIds == null || docIds.length == 0) {
                     searchContext.rankFeatureResult().shardResult(EMPTY_RESULT);
@@ -1111,6 +1154,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 RankFeatureShardPhase.processFetch(searchContext);
                 var rankFeatureResult = searchContext.rankFeatureResult();
                 rankFeatureResult.incRef();
+                rankFeatureResult.setDirectoryMetrics(resolveDirectoryMetrics(metricsDelta, searchContext.searcher()));
                 return rankFeatureResult;
             } catch (Exception e) {
                 assert TransportActions.isShardNotAvailableException(e) == false : new AssertionError(e);
@@ -1308,8 +1352,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
         Executor executor = getExecutor(readerContext.indexShard());
         runAsync(executor, () -> {
+            final Supplier<DirectoryMetrics> metricsDelta = directoryMetricsDeltaOrNull();
             final ShardSearchRequest shardSearchRequest = readerContext.getShardSearchRequest(null);
             try (SearchContext searchContext = createContext(readerContext, shardSearchRequest, task, ResultsType.QUERY, false);) {
+                setupWorkerBytesTracking(searchContext.searcher());
                 var opsListener = searchContext.indexShard().getSearchOperationListener();
                 final long beforeQueryTime = System.nanoTime();
                 opsListener.onPreQueryPhase(searchContext);
@@ -1326,7 +1372,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 }
                 readerContext.setRescoreDocIds(searchContext.rescoreDocIds());
                 // ScrollQuerySearchResult will incRef the QuerySearchResult when it gets constructed.
-                return new ScrollQuerySearchResult(searchContext.queryResult(), searchContext.shardTarget());
+                ScrollQuerySearchResult result = new ScrollQuerySearchResult(searchContext.queryResult(), searchContext.shardTarget());
+                result.setDirectoryMetrics(resolveDirectoryMetrics(metricsDelta, searchContext.searcher()));
+                return result;
             } catch (Exception e) {
                 logger.trace("Query phase failed", e);
                 // we handle the failure in the failure listener below
@@ -1366,8 +1414,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             // fork the execution in the search thread pool
             Executor executor = getExecutor(readerContext.indexShard());
             runAsync(executor, () -> {
+                final Supplier<DirectoryMetrics> metricsDelta = directoryMetricsDeltaOrNull();
                 readerContext.setAggregatedDfs(request.dfs());
                 try (SearchContext searchContext = createContext(readerContext, shardSearchRequest, task, ResultsType.QUERY, true);) {
+                    setupWorkerBytesTracking(searchContext.searcher());
                     final QuerySearchResult queryResult;
                     var opsListener = searchContext.indexShard().getSearchOperationListener();
                     final long before = System.nanoTime();
@@ -1395,6 +1445,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     readerContext.setRescoreDocIds(rescoreDocIds);
                     // inc-ref query result because we close the SearchContext that references it in this try-with-resources block
                     queryResult.incRef();
+                    queryResult.setDirectoryMetrics(resolveDirectoryMetrics(metricsDelta, searchContext.searcher()));
                     return queryResult;
                 } catch (Exception e) {
                     assert TransportActions.isShardNotAvailableException(e) == false : new AssertionError(e);
@@ -1437,8 +1488,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
 
         runAsync(getExecutor(readerContext.indexShard()), () -> {
+            final Supplier<DirectoryMetrics> metricsDelta = directoryMetricsDeltaOrNull();
             final ShardSearchRequest shardSearchRequest = readerContext.getShardSearchRequest(null);
             try (SearchContext searchContext = createContext(readerContext, shardSearchRequest, task, ResultsType.FETCH, false);) {
+                setupWorkerBytesTracking(searchContext.searcher());
                 var opsListener = readerContext.indexShard().getSearchOperationListener();
                 final long beforeQueryTime = System.nanoTime();
                 final long afterQueryTime;
@@ -1458,7 +1511,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     }
                 }
                 QueryFetchSearchResult fetchSearchResult = executeFetchPhase(readerContext, searchContext, afterQueryTime);
-                return new ScrollQueryFetchSearchResult(fetchSearchResult, searchContext.shardTarget());
+                ScrollQueryFetchSearchResult result = new ScrollQueryFetchSearchResult(fetchSearchResult, searchContext.shardTarget());
+                result.setDirectoryMetrics(resolveDirectoryMetrics(metricsDelta, searchContext.searcher()));
+                return result;
             } catch (Exception e) {
                 assert TransportActions.isShardNotAvailableException(e) == false : new AssertionError(e);
                 logger.trace("Fetch phase failed", e);

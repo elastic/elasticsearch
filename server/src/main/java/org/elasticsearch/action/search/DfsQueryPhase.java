@@ -111,6 +111,7 @@ class DfsQueryPhase extends SearchPhase {
                             if (dfsResult.searchTimedOut()) {
                                 response.queryResult().searchTimedOut(true);
                             }
+                            context.accumulateDirectoryMetrics(response.getDirectoryMetrics());
                             counter.onResult(response);
                         } catch (Exception e) {
                             context.onPhaseFailure(NAME, "", e);

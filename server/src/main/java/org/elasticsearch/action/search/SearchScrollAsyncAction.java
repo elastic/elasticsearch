@@ -18,7 +18,10 @@ import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.store.DirectoryMetrics;
+import org.elasticsearch.index.store.StoreMetrics;
 import org.elasticsearch.search.SearchPhaseResult;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.InternalScrollSearchRequest;
 import org.elasticsearch.search.internal.SearchContext;
@@ -55,6 +58,7 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> {
     private final long startTime;
     private final List<ShardSearchFailure> shardFailures = new ArrayList<>();
     private final AtomicInteger successfulOps;
+    private volatile DirectoryMetrics mergedDirectoryMetrics = DirectoryMetrics.EMPTY;
 
     protected SearchScrollAsyncAction(
         ParsedScrollId scrollId,
@@ -176,6 +180,7 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> {
                 protected void innerOnResponse(T result) {
                     assert shardIndex == result.getShardIndex()
                         : "shard index mismatch: " + shardIndex + " but got: " + result.getShardIndex();
+                    accumulateDirectoryMetrics(result.getDirectoryMetrics());
                     onFirstPhaseResult(shardIndex, result);
                     if (counter.countDown()) {
                         SearchPhase phase = moveToNextPhase(clusterNodeLookup);
@@ -243,11 +248,26 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> {
         };
     }
 
+    protected synchronized void accumulateDirectoryMetrics(DirectoryMetrics metrics) {
+        if (metrics != DirectoryMetrics.EMPTY) {
+            mergedDirectoryMetrics = mergedDirectoryMetrics.merge(metrics);
+        }
+    }
+
     protected final void sendResponse(
         SearchPhaseController.ReducedQueryPhase queryPhase,
         final AtomicArray<? extends SearchPhaseResult> fetchResults
     ) {
         try {
+            long bytesRead = 0;
+            DirectoryMetrics.PluggableMetrics<?> storeMetrics = mergedDirectoryMetrics.metrics("store");
+            if (storeMetrics != null) {
+                bytesRead = storeMetrics.cast(StoreMetrics.class).getBytesRead();
+            }
+            searchTransportService.transportService()
+                .getThreadPool()
+                .getThreadContext()
+                .addResponseHeader(SearchService.BYTES_READ_RESPONSE_HEADER, Long.toString(bytesRead));
             // the scroll ID never changes we always return the same ID. This ID contains all the shards and their context ids
             // such that we can talk to them again in the next roundtrip.
             String scrollId = null;

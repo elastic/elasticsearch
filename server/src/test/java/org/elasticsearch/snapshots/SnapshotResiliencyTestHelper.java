@@ -181,6 +181,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
@@ -422,7 +423,11 @@ public class SnapshotResiliencyTestHelper {
             );
 
             private final NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(
-                Stream.concat(ClusterModule.getNamedWriteables().stream(), NetworkModule.getNamedWriteables().stream()).toList()
+                Stream.of(
+                    ClusterModule.getNamedWriteables().stream(),
+                    IndicesModule.getNamedWriteables().stream(),
+                    NetworkModule.getNamedWriteables().stream()
+                ).flatMap(Function.identity()).toList()
             );
 
             private final TransportInterceptorFactory transportInterceptorFactory;

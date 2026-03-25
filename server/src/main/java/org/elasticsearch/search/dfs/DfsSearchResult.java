@@ -16,6 +16,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.store.DirectoryMetrics;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.ShardSearchContextId;
@@ -61,6 +62,9 @@ public final class DfsSearchResult extends SearchPhaseResult {
         searchProfileDfsPhaseResult = in.readOptionalWriteable(SearchProfileDfsPhaseResult::new);
         if (in.getTransportVersion().supports(DFS_SEARCH_TIMED_OUT)) {
             searchTimedOut = in.readBoolean();
+        }
+        if (in.getTransportVersion().supports(SEARCH_PHASE_BYTES_READ)) {
+            setDirectoryMetrics(new DirectoryMetrics(in));
         }
     }
 
@@ -143,6 +147,9 @@ public final class DfsSearchResult extends SearchPhaseResult {
         out.writeOptionalWriteable(searchProfileDfsPhaseResult);
         if (out.getTransportVersion().supports(DFS_SEARCH_TIMED_OUT)) {
             out.writeBoolean(searchTimedOut);
+        }
+        if (out.getTransportVersion().supports(SEARCH_PHASE_BYTES_READ)) {
+            getDirectoryMetrics().writeTo(out);
         }
     }
 

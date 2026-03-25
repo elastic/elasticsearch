@@ -17,6 +17,7 @@ import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.SimpleRefCounted;
+import org.elasticsearch.index.store.DirectoryMetrics;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchPhaseResult;
@@ -71,13 +72,15 @@ public final class FetchSearchResult extends SearchPhaseResult {
         contextId = new ShardSearchContextId(in);
         hits = SearchHits.readFrom(in);
         profileResult = in.readOptionalWriteable(ProfileResult::new);
-
         if (in.getTransportVersion().supports(CHUNKED_FETCH_PHASE)) {
             lastChunkSequenceStart = in.readLong();
             lastChunkHitCount = in.readInt();
             if (lastChunkHitCount > 0) {
                 lastChunkBytes = in.readReleasableBytesReference();
             }
+        }
+        if (in.getTransportVersion().supports(SearchPhaseResult.SEARCH_PHASE_BYTES_READ)) {
+            setDirectoryMetrics(new DirectoryMetrics(in));
         }
     }
 
@@ -87,13 +90,15 @@ public final class FetchSearchResult extends SearchPhaseResult {
         contextId.writeTo(out);
         hits.writeTo(out);
         out.writeOptionalWriteable(profileResult);
-
         if (out.getTransportVersion().supports(CHUNKED_FETCH_PHASE)) {
             out.writeLong(lastChunkSequenceStart);
             out.writeInt(lastChunkHitCount);
             if (lastChunkHitCount > 0 && lastChunkBytes != null) {
                 out.writeBytesReference(lastChunkBytes);
             }
+        }
+        if (out.getTransportVersion().supports(SearchPhaseResult.SEARCH_PHASE_BYTES_READ)) {
+            getDirectoryMetrics().writeTo(out);
         }
     }
 

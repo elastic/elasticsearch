@@ -31,9 +31,12 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.store.DirectoryMetrics;
+import org.elasticsearch.index.store.StoreMetrics;
 import org.elasticsearch.rest.action.search.SearchResponseMetrics;
 import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.search.SearchPhaseResult;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -74,6 +77,7 @@ import static org.elasticsearch.core.Strings.format;
  */
 abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> extends SearchPhase {
     protected static final float DEFAULT_INDEX_BOOST = 1.0f;
+
     private final Logger logger;
     private final NamedWriteableRegistry namedWriteableRegistry;
     protected final SearchTransportService searchTransportService;
@@ -109,6 +113,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     protected final Map<String, Object> searchRequestAttributes;
     private final boolean isPitRelocationEnabled;
     protected long phaseStartTimeInNanos;
+    private volatile DirectoryMetrics mergedDirectoryMetrics = DirectoryMetrics.EMPTY;
 
     // protected for tests
     protected final SubscribableListener<Void> doneFuture = new SubscribableListener<>();
@@ -508,6 +513,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     protected void onShardResult(Result result) {
         assert result.getShardIndex() != -1 : "shard index is not set";
         assert result.getSearchShardTarget() != null : "search shard target must not be null";
+        accumulateDirectoryMetrics(result.getDirectoryMetrics());
         hasShardResponse.set(true);
         if (logger.isTraceEnabled()) {
             logger.trace("got first-phase result from {}", result != null ? result.getSearchShardTarget() : null);
@@ -523,6 +529,12 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             successfulOps.incrementAndGet();
             finishOneShard();
         });
+    }
+
+    synchronized void accumulateDirectoryMetrics(DirectoryMetrics metrics) {
+        if (metrics != DirectoryMetrics.EMPTY) {
+            mergedDirectoryMetrics = mergedDirectoryMetrics.merge(metrics);
+        }
     }
 
     /**
@@ -605,6 +617,15 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
       * @param queryResults           the results of the query phase
       */
     public void sendSearchResponse(SearchResponseSections internalSearchResponse, AtomicArray<SearchPhaseResult> queryResults) {
+        long bytesRead = 0;
+        DirectoryMetrics.PluggableMetrics<?> storeMetrics = mergedDirectoryMetrics.metrics("store");
+        if (storeMetrics != null) {
+            bytesRead = storeMetrics.cast(StoreMetrics.class).getBytesRead();
+        }
+        searchTransportService.transportService()
+            .getThreadPool()
+            .getThreadContext()
+            .addResponseHeader(SearchService.BYTES_READ_RESPONSE_HEADER, Long.toString(bytesRead));
         ShardSearchFailure[] failures = buildShardFailures();
         Boolean allowPartialResults = request.allowPartialSearchResults();
         assert allowPartialResults != null : "SearchRequest missing setting for allowPartialSearchResults";

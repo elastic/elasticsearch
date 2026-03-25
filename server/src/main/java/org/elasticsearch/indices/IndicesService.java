@@ -2073,4 +2073,11 @@ public class IndicesService extends AbstractLifecycleComponent
         T result = block.get();
         return Tuple.tuple(result, delta.get());
     }
+
+    /**
+     * Returns the store-level metrics instance for the current thread.
+     */
+    public StoreMetrics currentThreadStoreMetrics() {
+        return storeMetricHolder.instance();
+    }
 }

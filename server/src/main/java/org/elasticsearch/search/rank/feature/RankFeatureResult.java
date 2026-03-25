@@ -11,6 +11,7 @@ package org.elasticsearch.search.rank.feature;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.store.DirectoryMetrics;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.ShardSearchContextId;
@@ -41,6 +42,9 @@ public class RankFeatureResult extends SearchPhaseResult {
         rankShardResult = in.readOptionalWriteable(RankFeatureShardResult::new);
         setShardSearchRequest(in.readOptionalWriteable(ShardSearchRequest::new));
         setSearchShardTarget(in.readOptionalWriteable(SearchShardTarget::new));
+        if (in.getTransportVersion().supports(SEARCH_PHASE_BYTES_READ)) {
+            setDirectoryMetrics(new DirectoryMetrics(in));
+        }
     }
 
     @Override
@@ -50,6 +54,9 @@ public class RankFeatureResult extends SearchPhaseResult {
         out.writeOptionalWriteable(rankShardResult);
         out.writeOptionalWriteable(getShardSearchRequest());
         out.writeOptionalWriteable(getSearchShardTarget());
+        if (out.getTransportVersion().supports(SEARCH_PHASE_BYTES_READ)) {
+            getDirectoryMetrics().writeTo(out);
+        }
     }
 
     @Override

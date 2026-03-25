@@ -21,9 +21,11 @@ import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.action.search.SearchResponseMetrics;
@@ -32,11 +34,13 @@ import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
+import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -60,8 +64,21 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class SearchAsyncActionTests extends ESTestCase {
+
+    private static TransportService mockTransportService() {
+        ThreadPool threadPool = mock(ThreadPool.class);
+        when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
+        TransportService transportService = mock(TransportService.class);
+        when(transportService.getThreadPool()).thenReturn(threadPool);
+        return transportService;
+    }
+
+    private static SearchTransportService mockSearchTransportService() {
+        return new SearchTransportService(mockTransportService(), null, null);
+    }
 
     public void testSkipSearchShards() throws InterruptedException {
         SearchRequest request = new SearchRequest();
@@ -94,7 +111,7 @@ public class SearchAsyncActionTests extends ESTestCase {
         CountDownLatch latch = new CountDownLatch(1);
         AtomicBoolean searchPhaseDidRun = new AtomicBoolean(false);
 
-        SearchTransportService transportService = new SearchTransportService(null, null, null);
+        SearchTransportService transportService = mockSearchTransportService();
         Map<String, Transport.Connection> lookup = new HashMap<>();
         Map<ShardId, Boolean> seenShard = new ConcurrentHashMap<>();
         lookup.put(primaryNode.getId(), new MockConnection(primaryNode));
@@ -204,7 +221,7 @@ public class SearchAsyncActionTests extends ESTestCase {
             primaryNode,
             replicaNode
         );
-        SearchTransportService transportService = new SearchTransportService(null, null, null);
+        SearchTransportService transportService = mockSearchTransportService();
         Map<String, Transport.Connection> lookup = new HashMap<>();
         Map<ShardId, Boolean> seenShard = new ConcurrentHashMap<>();
         lookup.put(primaryNode.getId(), new MockConnection(primaryNode));
@@ -313,7 +330,7 @@ public class SearchAsyncActionTests extends ESTestCase {
             replicaNode
         );
         AtomicInteger numFreedContext = new AtomicInteger();
-        SearchTransportService transportService = new SearchTransportService(null, null, null) {
+        SearchTransportService transportService = new SearchTransportService(mockTransportService(), null, null) {
             @Override
             public void sendFreeContext(
                 Transport.Connection connection,
@@ -448,7 +465,7 @@ public class SearchAsyncActionTests extends ESTestCase {
             replicaNode
         );
         AtomicInteger numFreedContext = new AtomicInteger();
-        SearchTransportService transportService = new SearchTransportService(null, null, null) {
+        SearchTransportService transportService = new SearchTransportService(mockTransportService(), null, null) {
 
             @Override
             public void sendFreeContext(
@@ -573,7 +590,7 @@ public class SearchAsyncActionTests extends ESTestCase {
         );
         CountDownLatch latch = new CountDownLatch(1);
 
-        SearchTransportService transportService = new SearchTransportService(null, null, null);
+        SearchTransportService transportService = mockSearchTransportService();
         Map<String, Transport.Connection> lookup = new HashMap<>();
         Map<ShardId, AtomicInteger> seenShard = new ConcurrentHashMap<>();
         lookup.put(primaryNode.getId(), new MockConnection(primaryNode));
@@ -676,7 +693,7 @@ public class SearchAsyncActionTests extends ESTestCase {
             "test",
             logger,
             null,
-            new SearchTransportService(null, null, null),
+            mockSearchTransportService(),
             new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofBytes(Long.MAX_VALUE)),
             (cluster, node) -> {
                 assert cluster == null : "cluster was not null: " + cluster;

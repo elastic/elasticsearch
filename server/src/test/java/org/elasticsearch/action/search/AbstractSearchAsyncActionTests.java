@@ -23,9 +23,11 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
@@ -42,7 +44,9 @@ import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.TransportService;
 import org.mockito.Mockito;
 
 import java.util.ArrayList;
@@ -106,11 +110,18 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
             return null;
         };
         OriginalIndices originalIndices = new OriginalIndices(request.indices(), request.indicesOptions());
+
+        ThreadPool threadPool = Mockito.mock(ThreadPool.class);
+        Mockito.when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
+        TransportService mockTransportService = Mockito.mock(TransportService.class);
+        Mockito.when(mockTransportService.getThreadPool()).thenReturn(threadPool);
+        SearchTransportService searchTransportService = new SearchTransportService(mockTransportService, null, null);
+
         return new AbstractSearchAsyncAction<SearchPhaseResult>(
             "test",
             logger,
             null,
-            null,
+            searchTransportService,
             new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofBytes(Long.MAX_VALUE)),
             nodeIdToConnection,
             Collections.singletonMap("foo", AliasFilter.of(new MatchAllQueryBuilder())),
@@ -320,7 +331,11 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
         Arrays.stream(nodeIds).forEach(id -> nodesBuilder.add(DiscoveryNodeUtils.create(id)));
         DiscoveryNodes nodes = nodesBuilder.build();
         final Set<ShardSearchContextId> freedContexts = new CopyOnWriteArraySet<>();
-        SearchTransportService searchTransportService = new SearchTransportService(null, null, null) {
+        ThreadPool tp = Mockito.mock(ThreadPool.class);
+        Mockito.when(tp.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
+        TransportService ts = Mockito.mock(TransportService.class);
+        Mockito.when(ts.getThreadPool()).thenReturn(tp);
+        SearchTransportService searchTransportService = new SearchTransportService(ts, null, null) {
 
             @Override
             public void sendFreeContext(

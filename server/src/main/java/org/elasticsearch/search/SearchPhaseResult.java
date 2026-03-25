@@ -9,8 +9,10 @@
 
 package org.elasticsearch.search;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.store.DirectoryMetrics;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
@@ -30,13 +32,27 @@ import java.io.IOException;
  */
 public abstract class SearchPhaseResult extends TransportResponse {
 
+    public static final TransportVersion SEARCH_PHASE_BYTES_READ = TransportVersion.fromName("search_phase_bytes_read");
+
     private SearchShardTarget searchShardTarget;
     private int shardIndex = -1;
     protected ShardSearchContextId contextId;
     private ShardSearchRequest shardSearchRequest;
     private RescoreDocIds rescoreDocIds = RescoreDocIds.EMPTY;
+    private DirectoryMetrics directoryMetrics = DirectoryMetrics.EMPTY;
 
     protected SearchPhaseResult() {}
+
+    /**
+     * Returns the directory-level metrics captured during this search phase execution on a data node.
+     */
+    public DirectoryMetrics getDirectoryMetrics() {
+        return directoryMetrics;
+    }
+
+    public void setDirectoryMetrics(DirectoryMetrics directoryMetrics) {
+        this.directoryMetrics = directoryMetrics;
+    }
 
     /**
      * Specifies whether the specific search phase results are associated with an opened SearchContext on the shards that

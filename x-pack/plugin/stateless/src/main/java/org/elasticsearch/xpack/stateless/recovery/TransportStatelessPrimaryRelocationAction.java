@@ -75,6 +75,7 @@ import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.HollowShardsService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
+import org.elasticsearch.xpack.stateless.commits.StatelessCommitService.RecoveryInfoFromSource;
 import org.elasticsearch.xpack.stateless.engine.HollowIndexEngine;
 import org.elasticsearch.xpack.stateless.engine.HollowShardsMetrics;
 import org.elasticsearch.xpack.stateless.engine.IndexEngine;
@@ -371,7 +372,9 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
                 final long beforeFinalFlush = threadPool.relativeTimeInMillis();
 
                 final var shardId = indexShard.shardId();
+                boolean hasRecentIdLookup = false;
                 if (engine instanceof IndexEngine indexEngine) {
+                    hasRecentIdLookup = indexEngine.hasRecentIdLookup(idLookupRecencyThreshold);
                     if (hollowShardsService.isHollowableIndexShard(indexShard, false)) {
                         // Resetting the IndexEngine hollows the shard and switches to a HollowIndexEngine and blocks ingestion
                         // The block will be removed when the source shard is successfully relocated and closed,
@@ -513,6 +516,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
                     }
                 };
 
+                final boolean finalHasRecentIdLookup = hasRecentIdLookup;
                 markedShardAsRelocating.addListener(compoundHandoffListener.delegateFailureAndWrap((finalHandoffListener, v) -> {
                     logger.debug("[{}] flush complete, handing off primary context", request.shardId());
                     beforeSendingContext.set(threadPool.relativeTimeInMillis());
@@ -547,7 +551,8 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
                             retentionLeases,
                             statelessCommitService.getSearchNodesPerCommit(indexShard.shardId()),
                             new BlobFileWithLength(latestBccBlob, blobLength),
-                            otherBlobFiles
+                            otherBlobFiles,
+                            finalHasRecentIdLookup
                         ),
                         task,
                         TransportRequestOptions.EMPTY,
@@ -604,20 +609,15 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
         final Releasable cleanUpStatelessCommitService = () -> {
             try {
                 statelessCommitService.setTrackedSearchNodesPerCommitOnRelocationTarget(request.shardId(), null);
-                statelessCommitService.clearSourceBlobsEntry(request.shardId());
+                statelessCommitService.clearRecoveryInfoFromSourceEntry(request.shardId());
             } catch (AlreadyClosedException ignored) {
                 // engine is closed
             }
         };
 
-        final var latestBccBlob = request.latestBccBlob();
-        if (latestBccBlob != null) {
-            statelessCommitService.putSourceBlobsEntry(
-                request.shardId(),
-                latestBccBlob.blobFile(),
-                latestBccBlob.length(),
-                request.otherBlobFiles()
-            );
+        final var recoveryHintsFromSource = request.recoveryInfoFromSource();
+        if (recoveryHintsFromSource != null) {
+            statelessCommitService.putRecoveryInfoFromSourceEntry(request.shardId(), recoveryHintsFromSource);
         }
 
         ActionListener.run(
@@ -694,6 +694,10 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
 
     public static class PrimaryContextHandoffRequest extends AbstractTransportRequest {
 
+        private static final TransportVersion CONTEXT_HANDOFF_PREWARM_RELOCATION_ID_LOOKUP_FLAG = TransportVersion.fromName(
+            "context_handoff_prewarm_relocation_id_lookup_flag"
+        );
+
         private final long recoveryId;
         private final ShardId shardId;
         private final ReplicationTracker.PrimaryContext primaryContext;
@@ -702,6 +706,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
         @Nullable
         private final BlobFileWithLength latestBccBlob;
         private final Set<BlobFile> otherBlobFiles;
+        private final boolean hasRecentIdLookup;
 
         PrimaryContextHandoffRequest(
             long recoveryId,
@@ -710,7 +715,8 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
             RetentionLeases retentionLeases,
             Map<PrimaryTermAndGeneration, Set<String>> searchNodesPerCommit,
             BlobFileWithLength latestBccBlob,
-            Set<BlobFile> otherBlobFiles
+            Set<BlobFile> otherBlobFiles,
+            boolean hasRecentIdLookup
         ) {
             this.recoveryId = recoveryId;
             this.shardId = shardId;
@@ -719,6 +725,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
             this.searchNodesPerCommit = searchNodesPerCommit;
             this.latestBccBlob = latestBccBlob;
             this.otherBlobFiles = otherBlobFiles;
+            this.hasRecentIdLookup = hasRecentIdLookup;
         }
 
         PrimaryContextHandoffRequest(StreamInput in) throws IOException {
@@ -730,6 +737,11 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
             searchNodesPerCommit = in.readMap(PrimaryTermAndGeneration::new, in0 -> in0.readCollectionAsSet(StreamInput::readString));
             latestBccBlob = in.readOptionalWriteable(BlobFileWithLength::new);
             otherBlobFiles = in.readCollectionAsSet(BlobFile::new);
+            if (in.getTransportVersion().supports(CONTEXT_HANDOFF_PREWARM_RELOCATION_ID_LOOKUP_FLAG)) {
+                hasRecentIdLookup = in.readBoolean();
+            } else {
+                hasRecentIdLookup = false;
+            }
         }
 
         @Override
@@ -746,6 +758,9 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
             );
             out.writeOptionalWriteable(latestBccBlob);
             out.writeCollection(otherBlobFiles);
+            if (out.getTransportVersion().supports(CONTEXT_HANDOFF_PREWARM_RELOCATION_ID_LOOKUP_FLAG)) {
+                out.writeBoolean(hasRecentIdLookup);
+            }
         }
 
         public long recoveryId() {
@@ -775,6 +790,21 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
         @Nullable
         public BlobFileWithLength latestBccBlob() {
             return latestBccBlob;
+        }
+
+        public RecoveryInfoFromSource recoveryInfoFromSource() {
+            if (latestBccBlob == null && hasRecentIdLookup == false) {
+                return null;
+            }
+            StatelessCommitService.SourceBlobsInfo sourceBlobsInfo = null;
+            if (latestBccBlob != null) {
+                sourceBlobsInfo = new StatelessCommitService.SourceBlobsInfo(
+                    latestBccBlob.blobFile(),
+                    latestBccBlob.length(),
+                    otherBlobFiles
+                );
+            }
+            return new RecoveryInfoFromSource(sourceBlobsInfo, hasRecentIdLookup);
         }
     }
 

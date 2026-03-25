@@ -124,6 +124,7 @@ import static org.elasticsearch.xpack.stateless.commits.HollowShardsService.STAT
 import static org.elasticsearch.xpack.stateless.objectstore.ObjectStoreTestUtils.getObjectStoreMockRepository;
 import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction.ID_LOOKUP_RECENCY_THRESHOLD_SETTING;
 import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction.PREWARM_RELOCATION_ACTION_NAME;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.Mockito.mock;
@@ -714,7 +715,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), REGION_SIZE.getStringRep())
             .put(SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), REGION_SIZE.getStringRep())
             .put(disableIndexingDiskAndMemoryControllersNodeSettings())
-            .put(STATELESS_HOLLOW_INDEX_SHARDS_ENABLED.getKey(), randomBoolean())
+            .put(STATELESS_HOLLOW_INDEX_SHARDS_ENABLED.getKey(), false)
             // Metric is always emitted regardless of the feature being enabled or not
             .put(SharedBlobCacheWarmingService.PREWARM_INDEX_SHARD_FOR_ID_LOOKUPS_SETTING.getKey(), randomBoolean())
             .build();
@@ -741,11 +742,12 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
         final TestTelemetryPlugin plugin = getTelemetryPlugin(node2);
         plugin.collect();
         assertBusy(() -> {
-            var preWarmReqs = getTotalLongCounterValue(
-                SharedBlobCacheWarmingService.BLOB_CACHE_WARMING_ID_LOOKUP_PREWARM_REQS_TOTAL_METRIC,
-                plugin
+            var preWarmReqs = plugin.getLongCounterMeasurement(
+                SharedBlobCacheWarmingService.BLOB_CACHE_WARMING_ID_LOOKUP_PREWARM_REQS_TOTAL_METRIC
             );
-            assertThat(preWarmReqs, equalTo(1L));
+            assertThat(preWarmReqs.size(), equalTo(2));
+            var types = preWarmReqs.stream().map(m -> m.attributes().get("es_blob_cache_prewarming_type")).toList();
+            assertThat(types, containsInAnyOrder(Type.INDEXING_EARLY.name(), Type.INDEXING.name()));
         });
     }
 

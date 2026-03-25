@@ -95,6 +95,7 @@ import java.util.function.LongFunction;
 import static org.elasticsearch.blobcache.common.BlobCacheBufferedIndexInput.BUFFER_SIZE;
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.Type.INDEXING;
+import static org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.Type.INDEXING_EARLY;
 import static org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.Type.SEARCH;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -1169,10 +1170,10 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                 null
             );
 
-            // Warm the cache with INDEXING_EARLY type and preWarmForIdLookup=true
+            // Warm the cache with INDEXING_EARLY or INDEXING type and preWarmForIdLookup=true
             final PlainActionFuture<Void> future = new PlainActionFuture<>();
             node.warmingService.warmCacheRecovery(
-                Type.INDEXING_EARLY,
+                randomFrom(INDEXING_EARLY, INDEXING),
                 indexShard,
                 commit,
                 node.indexingDirectory.getBlobStoreCacheDirectory(),

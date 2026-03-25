@@ -2335,11 +2335,15 @@ public class EsqlCapabilities {
         FIX_PASSTHROUGH_FIELD_CAPS_OBJECT_PARENT,
 
         /**
-         * LIMIT n BY expr1, expr2 support for retaining at most n docs per group.
-         * Enables the feature without a preceding SORT.
-         *
+         * Enables the feature LIMIT n BY expr1, expr2 for retaining at most n docs per group.
+         * The feature will not work if we had SORT | LIMIT n BY
          */
         ESQL_LIMIT_BY(Build.current().isSnapshot()),
+
+        /**
+         * Enables the SORT | LIMIT n BY expr1, expr2 support, see ESQL_LIMIT_BY for more context
+         */
+        ESQL_TOPN_BY(Build.current().isSnapshot()),
 
         /**
          * Fix window validation in time-series aggregations when TBUCKET uses a numeric target bucket count.

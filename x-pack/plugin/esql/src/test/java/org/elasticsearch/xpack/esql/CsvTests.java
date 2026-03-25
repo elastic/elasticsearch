@@ -677,7 +677,6 @@ public class CsvTests extends ESTestCase {
             query,
             new QueryParams(),
             new SettingsValidationContext(false, false),
-            new PlanTelemetry(TEST_FUNCTION_REGISTRY),
             new InferenceSettings(Settings.EMPTY),
             viewName
         ).plan();

@@ -57,7 +57,7 @@ public class PrometheusQueryRangeRestAction extends BaseRestHandler {
         String index = request.param(INDEX_PARAM, "*");
 
         EsqlStatement statement = PromqlQueryPlanBuilder.buildStatement(query, index, start, end, step);
-        EsqlQueryRequest esqlRequest = PreparedEsqlQueryRequest.sync(statement);
+        var esqlRequest = PreparedEsqlQueryRequest.sync(statement, query);
 
         return channel -> client.execute(EsqlQueryAction.INSTANCE, esqlRequest, new PrometheusQueryRangeResponseListener(channel));
     }

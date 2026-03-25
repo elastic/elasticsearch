@@ -141,6 +141,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.Sample;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
+import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UriParts;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
@@ -217,7 +218,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
-import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasSize;
@@ -10464,6 +10464,186 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             e.getMessage(),
             containsString("second argument of [TOP_SNIPPETS(first_name, last_name)] must be a constant, received [last_name]")
         );
+    }
+
+    /**
+     * If we have SORT a | SORT b | LIMIT N BY attrs it should drop the 'a' in TopNBy and become TopNBy[N, b, attrs]
+     *
+     * {@code
+     * Limit[1000[INTEGER],false,false]
+     * \_TopNBy[[Order[salary{f}#11,DESC,FIRST]],5[INTEGER],[languages{f}#9]]
+     *   \_EsRelation[employees][_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, ge..]
+     * }
+     */
+    public void testOnlyLastSortPreservedTopNBy() {
+        assumeTrue("SORT | LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_TOPN_BY.isEnabled());
+        var query = """
+            FROM employees
+            | SORT emp_no DESC
+            | SORT salary DESC
+            | LIMIT 5 BY languages
+            """;
+
+        var plan = optimizedPlan(query);
+
+        var defaultLimit = as(plan, Limit.class);
+        assertThat(((Literal) defaultLimit.limit()).value(), equalTo(1000));
+        var topNBy = as(defaultLimit.child(), TopNBy.class);
+        var limit = as(topNBy.limitPerGroup(), Literal.class);
+        assertThat(limit.value(), equalTo(5));
+        assertThat(topNBy.order().size(), equalTo(1));
+
+        assertThat(topNBy.groupings(), everyItem(instanceOf(FieldAttribute.class)));
+        assertThat(topNBy.groupings().size(), equalTo(1));
+        var groupKey = as(topNBy.groupings().getFirst(), FieldAttribute.class);
+        assertThat(groupKey.name(), equalTo("languages"));
+
+        var order = as(topNBy.order().getFirst(), Order.class);
+        var orderAttr = as(order.child(), FieldAttribute.class);
+        assertThat(orderAttr.name(), equalTo("salary"));
+        assertThat(order.direction(), equalTo(Order.OrderDirection.DESC));
+
+        var esRelation = as(topNBy.child(), EsRelation.class);
+        assertThat(esRelation.indexPattern(), equalTo("employees"));
+    }
+
+    /**
+     * If we have SORT a | {something else} | SORT b | LIMIT N BY attrs it should drop the 'a' in TopNBy and become TopNBy[N, b, attrs]
+     *
+     * {@code
+     * Project[[emp_no{f}#9, salary{f}#14, languages{f}#12]]
+     * \_Limit[1000[INTEGER],false,false]
+     *   \_TopNBy[[Order[salary{f}#14,DESC,FIRST]],5[INTEGER],[languages{f}#12]]
+     *     \_EsRelation[employees][_meta_field{f}#15, emp_no{f}#9, first_name{f}#10, g..]
+     * }
+     */
+    public void testOnlyLastNonContiguousSortPreservedTopNBy() {
+        assumeTrue("SORT | LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_TOPN_BY.isEnabled());
+        var query = """
+            FROM employees
+            | SORT emp_no DESC
+            | KEEP emp_no, salary, languages
+            | SORT salary DESC
+            | LIMIT 5 BY languages
+            """;
+
+        var plan = optimizedPlan(query);
+
+        var project = as(plan, Project.class);
+        var projections = project.projections();
+        assertThat(projections.size(), equalTo(3));
+        assertThat(projections.get(0).name(), equalTo("emp_no"));
+        assertThat(projections.get(1).name(), equalTo("salary"));
+        assertThat(projections.get(2).name(), equalTo("languages"));
+
+        var defaultLimit = as(project.child(), Limit.class);
+        assertThat(((Literal) defaultLimit.limit()).value(), equalTo(1000));
+        var topNBy = as(defaultLimit.child(), TopNBy.class);
+        var limit = as(topNBy.limitPerGroup(), Literal.class);
+        assertThat(limit.value(), equalTo(5));
+        assertThat(topNBy.order().size(), equalTo(1));
+
+        assertThat(topNBy.groupings(), everyItem(instanceOf(FieldAttribute.class)));
+        assertThat(topNBy.groupings().size(), equalTo(1));
+        var groupKey = as(topNBy.groupings().getFirst(), FieldAttribute.class);
+        assertThat(groupKey.name(), equalTo("languages"));
+
+        var order = as(topNBy.order().getFirst(), Order.class);
+        var orderAttr = as(order.child(), FieldAttribute.class);
+        assertThat(orderAttr.name(), equalTo("salary"));
+        assertThat(order.direction(), equalTo(Order.OrderDirection.DESC));
+
+        var esRelation = as(topNBy.child(), EsRelation.class);
+        assertThat(esRelation.indexPattern(), equalTo("employees"));
+    }
+
+    /**
+     * {@code
+     * Project[[emp_no{f}#11, salary{f}#16, languages{f}#14, job{f}#19]]
+     * \_Limit[1000[INTEGER],false,false]
+     *   \_TopNBy[[Order[salary{f}#16,DESC,FIRST]],5[INTEGER],[$$limit_by$0$0{r$}#22, job{f}#19]]
+     *     \_Eval[[languages{f}#14 * 2[INTEGER] AS $$limit_by$0$0#22]]
+     *       \_EsRelation[employees][_meta_field{f}#17, emp_no{f}#11, first_name{f}#12, ..]
+     * }
+     */
+    public void testOnlyLastNonContiguousSortPreservedTopNByWithExprs() {
+        assumeTrue("SORT | LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_TOPN_BY.isEnabled());
+        var query = """
+            FROM employees
+            | SORT emp_no DESC
+            | KEEP emp_no, salary, languages, job
+            | SORT salary DESC
+            | LIMIT 5 BY languages * 2, job
+            """;
+
+        var plan = optimizedPlan(query);
+
+        var project = as(plan, Project.class);
+        var projections = project.projections();
+        assertThat(projections.size(), equalTo(4));
+        assertThat(projections.get(0).name(), equalTo("emp_no"));
+        assertThat(projections.get(1).name(), equalTo("salary"));
+        assertThat(projections.get(2).name(), equalTo("languages"));
+        assertThat(projections.get(3).name(), equalTo("job"));
+
+        var defaultLimit = as(project.child(), Limit.class);
+        assertThat(((Literal) defaultLimit.limit()).value(), equalTo(1000));
+        var topNBy = as(defaultLimit.child(), TopNBy.class);
+        var limit = as(topNBy.limitPerGroup(), Literal.class);
+        assertThat(limit.value(), equalTo(5));
+        assertThat(topNBy.order().size(), equalTo(1));
+
+        assertThat(topNBy.groupings().size(), equalTo(2));
+        var firstGroupKey = as(topNBy.groupings().get(0), ReferenceAttribute.class);
+        assertThat(firstGroupKey.synthetic(), equalTo(true));
+        var secondGroupKey = as(topNBy.groupings().get(1), FieldAttribute.class);
+        assertThat(secondGroupKey.synthetic(), equalTo(false));
+        assertThat(secondGroupKey.field().getName(), equalTo("job"));
+
+        var eval = as(topNBy.child(), Eval.class);
+        assertThat(eval.fields().size(), equalTo(1));
+        var alias = as(eval.fields().getFirst(), Alias.class);
+        assertThat(alias.toAttribute().id(), equalTo(firstGroupKey.id()));
+        as(alias.child(), Mul.class);
+
+        var order = as(topNBy.order().getFirst(), Order.class);
+        var orderAttr = as(order.child(), FieldAttribute.class);
+        assertThat(orderAttr.name(), equalTo("salary"));
+        assertThat(order.direction(), equalTo(Order.OrderDirection.DESC));
+
+        var esRelation = as(eval.child(), EsRelation.class);
+        assertThat(esRelation.indexPattern(), equalTo("employees"));
+    }
+
+    public void testTopNByWorksWithQualifiedNames() {
+        assumeTrue("SORT | LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_TOPN_BY.isEnabled());
+        var query = """
+            FROM employees
+            | SORT salary DESC
+            | LIMIT 5 BY [employees].[languages]
+            """;
+
+        var plan = optimizedPlan(query);
+
+        var defaultLimit = as(plan, Limit.class);
+        assertThat(((Literal) defaultLimit.limit()).value(), equalTo(1000));
+        var topNBy = as(defaultLimit.child(), TopNBy.class);
+        var limit = as(topNBy.limitPerGroup(), Literal.class);
+        assertThat(limit.value(), equalTo(5));
+        assertThat(topNBy.order().size(), equalTo(1));
+
+        assertThat(topNBy.groupings(), everyItem(instanceOf(FieldAttribute.class)));
+        assertThat(topNBy.groupings().size(), equalTo(1));
+        var groupKey = as(topNBy.groupings().getFirst(), FieldAttribute.class);
+        assertThat(groupKey.name(), equalTo("languages"));
+
+        var order = as(topNBy.order().getFirst(), Order.class);
+        var orderAttr = as(order.child(), FieldAttribute.class);
+        assertThat(orderAttr.name(), equalTo("salary"));
+        assertThat(order.direction(), equalTo(Order.OrderDirection.DESC));
+
+        var esRelation = as(topNBy.child(), EsRelation.class);
+        assertThat(esRelation.indexPattern(), equalTo("employees"));
     }
 
     public void testTsStatsWithNonMetricField() {

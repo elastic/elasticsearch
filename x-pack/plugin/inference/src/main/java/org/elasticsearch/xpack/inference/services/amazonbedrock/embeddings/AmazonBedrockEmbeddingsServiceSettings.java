@@ -43,34 +43,20 @@ public class AmazonBedrockEmbeddingsServiceSettings extends AmazonBedrockService
     private final SimilarityMeasure similarity;
 
     public static AmazonBedrockEmbeddingsServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
-        ValidationException validationException = new ValidationException();
+        var validationException = new ValidationException();
 
-        var settings = embeddingSettingsFromMap(map, validationException, context);
-
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
-
-        return settings;
-    }
-
-    private static AmazonBedrockEmbeddingsServiceSettings embeddingSettingsFromMap(
-        Map<String, Object> map,
-        ValidationException validationException,
-        ConfigurationParseContext context
-    ) {
         var baseSettings = AmazonBedrockServiceSettings.fromMap(map, validationException, context);
-        SimilarityMeasure similarity = extractSimilarity(map, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        var similarity = extractSimilarity(map, ModelConfigurations.SERVICE_SETTINGS, validationException);
 
-        Integer maxTokens = extractOptionalPositiveInteger(
+        var maxInputTokens = extractOptionalPositiveInteger(
             map,
             MAX_INPUT_TOKENS,
             ModelConfigurations.SERVICE_SETTINGS,
             validationException
         );
-        Integer dims = extractOptionalPositiveInteger(map, DIMENSIONS, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        var dimensions = extractOptionalPositiveInteger(map, DIMENSIONS, ModelConfigurations.SERVICE_SETTINGS, validationException);
 
-        Boolean dimensionsSetByUser = extractOptionalBoolean(map, ServiceFields.DIMENSIONS_SET_BY_USER, validationException);
+        var dimensionsSetByUser = extractOptionalBoolean(map, ServiceFields.DIMENSIONS_SET_BY_USER, validationException);
 
         switch (context) {
             case REQUEST -> {
@@ -80,7 +66,7 @@ public class AmazonBedrockEmbeddingsServiceSettings extends AmazonBedrockService
                     );
                 }
 
-                if (dims != null) {
+                if (dimensions != null) {
                     validationException.addValidationError(
                         ServiceUtils.invalidSettingError(DIMENSIONS, ModelConfigurations.SERVICE_SETTINGS)
                     );
@@ -95,13 +81,16 @@ public class AmazonBedrockEmbeddingsServiceSettings extends AmazonBedrockService
                 }
             }
         }
+
+        validationException.throwIfValidationErrorsExist();
+
         return new AmazonBedrockEmbeddingsServiceSettings(
             baseSettings.region(),
             baseSettings.model(),
             baseSettings.provider(),
-            dims,
+            dimensions,
             dimensionsSetByUser,
-            maxTokens,
+            maxInputTokens,
             similarity,
             baseSettings.rateLimitSettings()
         );
@@ -199,6 +188,31 @@ public class AmazonBedrockEmbeddingsServiceSettings extends AmazonBedrockService
     }
 
     @Override
+    public AmazonBedrockEmbeddingsServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
+        var validationException = new ValidationException();
+        var updatedCommonSettings = updateCommonSettings(serviceSettings, validationException);
+
+        var extractedMaxTokens = extractOptionalPositiveInteger(
+            serviceSettings,
+            MAX_INPUT_TOKENS,
+            ModelConfigurations.SERVICE_SETTINGS,
+            validationException
+        );
+
+        validationException.throwIfValidationErrorsExist();
+        return new AmazonBedrockEmbeddingsServiceSettings(
+            updatedCommonSettings.region(),
+            updatedCommonSettings.model(),
+            updatedCommonSettings.provider(),
+            this.dimensions,
+            this.dimensionsSetByUser,
+            extractedMaxTokens != null ? extractedMaxTokens : this.maxInputTokens,
+            this.similarity,
+            updatedCommonSettings.rateLimitSettings()
+        );
+    }
+
+    @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
@@ -218,5 +232,4 @@ public class AmazonBedrockEmbeddingsServiceSettings extends AmazonBedrockService
     public int hashCode() {
         return Objects.hash(region, model, provider, dimensions, dimensionsSetByUser, maxInputTokens, similarity, rateLimitSettings);
     }
-
 }

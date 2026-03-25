@@ -51,6 +51,7 @@ import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.codec.storedfields.TSDBStoredFieldsFormat;
 import org.elasticsearch.index.codec.tsdb.TSDBSyntheticIdStoredFieldsReader;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
@@ -104,6 +105,7 @@ import java.util.function.Function;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_SETTING;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING;
 import static org.elasticsearch.common.time.FormatNames.STRICT_DATE_OPTIONAL_TIME;
+import static org.elasticsearch.index.engine.EngineTestCase.generateNewSeqNo;
 import static org.elasticsearch.index.shard.IndexShardTestCase.getTranslog;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertCheckedResponse;
@@ -1637,6 +1639,180 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         return indexDiskUsageStats;
     }
 
+    /**
+     * Tests that no-op tombstones are correctly handled in TSDB indices with synthetic ids.
+     *
+     * This test creates a gap in sequence numbers on the primary shard, then triggers a failover to a replica.
+     * When the replica is promoted to primary, {@link Engine#fillSeqNoGaps} is called during recovery to fill
+     * the gap with noop tombstones. The test verifies that operations (including noops) can be correctly read
+     * from the Lucene index using {@link IndexShard#newChangesSnapshot}.
+     */
+    public void testNoopTombstones() throws Exception {
+        assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
+
+        final String nodeA = internalCluster().startDataOnlyNode();
+        final String nodeB = internalCluster().startDataOnlyNode();
+
+        final boolean useNestedDocs = rarely();
+        final var dataStreamName = randomIdentifier();
+        putDataStreamTemplate(
+            dataStreamName,
+            1,
+            1,  // 1 replica
+            Settings.builder()
+                .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.REQUEST)
+                .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), ByteSizeValue.of(1, ByteSizeUnit.PB))
+                .put("index.routing.allocation.include._name", nodeA + "," + nodeB)
+                .build(),
+            useNestedDocs
+        );
+
+        var timestamp = Instant.now();
+        logger.info("--> timestamp is {} (epoch: {})", timestamp, timestamp.toEpochMilli());
+
+        // Index first batch of documents
+        final int nbDocsFirstBatch = randomIntBetween(1, 25);
+        final var docsIdsBySeqNo = new HashMap<Long, String>();
+
+        var client = client();
+        var bulkRequest = client.prepareBulk();
+        for (int i = 0; i < nbDocsFirstBatch; i++) {
+            var doc = document(timestamp, randomFrom("vm-dev01", "vm-dev02"), "cpu-load", i, useNestedDocs);
+            bulkRequest.add(client.prepareIndex(dataStreamName).setOpType(DocWriteRequest.OpType.CREATE).setSource(doc));
+            timestamp = timestamp.plusMillis(1);
+        }
+        var bulkResponse = bulkRequest.get();
+        assertNoFailures(bulkResponse);
+
+        String backingIndex = null;
+        for (var result : bulkResponse.getItems()) {
+            assertThat(result.getResponse().getResult(), equalTo(DocWriteResponse.Result.CREATED));
+            docsIdsBySeqNo.put(result.getResponse().getSeqNo(), result.getId());
+            backingIndex = result.getIndex();
+        }
+
+        ensureGreen(dataStreamName);
+
+        // Find the primary shard
+        final var shardId = new ShardId(resolveIndex(backingIndex), 0);
+        final var primaryShard = findPrimaryShard(shardId);
+        assertThat(primaryShard, notNullValue());
+
+        final var primaryNodeName = clusterService().state().nodes().get(primaryShard.routingEntry().currentNodeId()).getName();
+        final var replicaNodeName = nodeA.equals(primaryNodeName) ? nodeB : nodeA;
+
+        // When {@code flushBeforeSeqNoGaps} is true, documents are flushed before creating sequence number gaps, resulting in a segment
+        // containing only no-op tombstones after failover. When false, documents and no-ops are mixed in the same segment(s).
+        final boolean flushBeforeSeqNoGaps = randomBoolean();
+        if (flushBeforeSeqNoGaps) {
+            // Flush first batch to isolate documents in their own segment
+            flush(backingIndex);
+        }
+
+        // Generate sequence number gaps (without indexing documents)
+        final int nbGaps = randomIntBetween(1, 25);
+        primaryShard.withEngine(engine -> {
+            for (int i = 0; i < nbGaps; i++) {
+                generateNewSeqNo(engine);
+            }
+            return null;
+        });
+
+        // Index second batch of documents to propagate the higher sequence numbers to the replica
+        final int nbDocsSecondBatch = randomIntBetween(1, 25);
+        bulkRequest = client.prepareBulk();
+        for (int i = 0; i < nbDocsSecondBatch; i++) {
+            var doc = document(timestamp, randomFrom("vm-dev01", "vm-dev02"), "cpu-load", nbDocsFirstBatch + i, useNestedDocs);
+            bulkRequest.add(client.prepareIndex(dataStreamName).setOpType(DocWriteRequest.OpType.CREATE).setSource(doc));
+            timestamp = timestamp.plusMillis(1);
+        }
+        bulkResponse = bulkRequest.get();
+        assertNoFailures(bulkResponse);
+
+        for (var result : bulkResponse.getItems()) {
+            assertThat(result.getResponse().getResult(), equalTo(DocWriteResponse.Result.CREATED));
+            docsIdsBySeqNo.put(result.getResponse().getSeqNo(), result.getId());
+        }
+
+        final int totalDocs = nbDocsFirstBatch + nbDocsSecondBatch;
+
+        final var repository = randomIdentifier("repo-");
+        createRepository(repository);
+
+        final var snapshot = randomIdentifier("snapshot-");
+        var createSnapshotResponse = clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repository, snapshot)
+            .setIncludeGlobalState(false)
+            .setWaitForCompletion(true)
+            .setIndices(dataStreamName)
+            .get();
+        assertThat(createSnapshotResponse.getSnapshotInfo().state(), equalTo(SnapshotState.SUCCESS));
+
+        if (flushBeforeSeqNoGaps) {
+            // Flush second batch to isolate them in their own segment before failover
+            flush(backingIndex);
+        }
+
+        // Ensure all operations are replicated
+        assertBusy(() -> {
+            var replicaShard = internalCluster().getInstance(IndicesService.class, replicaNodeName).getShardOrNull(shardId);
+            assertThat(replicaShard, notNullValue());
+            long expectedMaxSeqNo = totalDocs - 1 + nbGaps;
+            assertThat(replicaShard.withEngine(engine -> engine.getSeqNoStats(-1).getMaxSeqNo()), equalTo(expectedMaxSeqNo));
+        });
+
+        // Stop the primary node: this triggers failover to the replica which will fill gaps in sequence numbers with NoOp tombstone
+        // operations in IndexShard.updateShardState
+        internalCluster().stopNode(primaryNodeName);
+
+        // Wait for the replica to be promoted to primary and fill the gaps
+        ensureYellow(backingIndex);
+
+        // Find the new primary (former replica)
+        IndexShard newPrimary = internalCluster().getInstance(IndicesService.class, replicaNodeName).getShardOrNull(shardId);
+        assertThat(newPrimary, notNullValue());
+        assertThat(newPrimary.routingEntry().primary(), equalTo(true));
+
+        // The new primary should have filled the gaps with noops
+        assertBusy(() -> {
+            newPrimary.withEngine(engine -> {
+                assertThat(
+                    "Local checkpoint should equal max seq no after filling gaps",
+                    engine.getSeqNoStats(-1).getLocalCheckpoint(),
+                    equalTo(engine.getSeqNoStats(-1).getMaxSeqNo())
+                );
+                return null;
+            });
+        });
+
+        // Flush to ensure all operations (including noops) are in Lucene
+        flushAndRefresh(backingIndex);
+
+        // Check that the promoted replica has the correct number of NoOp operations
+        assertNoOpTombstones(newPrimary, totalDocs, nbGaps, "primary promotion", seqNo -> docsIdsBySeqNo.get(seqNo));
+
+        // Rollover the datastream
+        var rolloverResponse = indicesAdmin().prepareRolloverIndex(dataStreamName).get();
+        assertTrue(rolloverResponse.isShardsAcknowledged());
+        assertTrue(rolloverResponse.isRolledOver());
+
+        // Delete backing index before restore
+        assertAcked(indicesAdmin().prepareDelete(backingIndex));
+
+        // Restore the backing index from snapshot, gaps will be filled with NoOp operations in StoreRecovery.recoverFromRepository
+        var restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, repository, snapshot)
+            .setWaitForCompletion(true)
+            .setRestoreGlobalState(false)
+            .setIndexSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0))
+            .get();
+        assertNotNull(restoreSnapshotResponse.getRestoreInfo());
+
+        ensureGreen(backingIndex);
+
+        // Verify: fillSeqNoGaps was called during snapshot restore
+        final var restoredShard = findPrimaryShard(new ShardId(resolveIndex(backingIndex), 0));
+        assertNoOpTombstones(restoredShard, totalDocs, nbGaps, "after restore", seqNo -> docsIdsBySeqNo.get(seqNo));
+    }
+
     private static void assertShardsHaveNoIdStoredFieldValuesOnDisk(Set<String> indices) {
         int nbVisitedShards = 0;
         for (var indicesServices : internalCluster().getDataNodeInstances(IndicesService.class)) {
@@ -1711,5 +1887,67 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
             }
         }
         assertThat("Expect at least 1 shard per index to be verified", nbVisitedShards, greaterThanOrEqualTo(indices.size()));
+    }
+
+    private static IndexShard findPrimaryShard(ShardId shardId) {
+        for (String node : internalCluster().getNodeNames()) {
+            var indicesService = internalCluster().getInstance(IndicesService.class, node);
+            var indexService = indicesService.indexService(shardId.getIndex());
+            if (indexService != null) {
+                IndexShard shard = indexService.getShardOrNull(shardId.getId());
+                if (shard != null && shard.isActive() && shard.routingEntry().primary()) {
+                    return shard;
+                }
+            }
+        }
+        throw new AssertionError("IndexShard instance not found for shard " + shardId);
+    }
+
+    private static void assertNoOpTombstones(
+        IndexShard indexShard,
+        int totalDocs,
+        int nbGaps,
+        String reason,
+        Function<Long, String> seqNoToDocId
+    ) throws IOException {
+        // Read operations from Lucene using newChangesSnapshot
+        try (
+            var luceneSnapshot = indexShard.newChangesSnapshot(
+                reason,
+                0,
+                Long.MAX_VALUE,
+                false,
+                true,
+                true,
+                randomLongBetween(1, ByteSizeValue.ofMb(32).getBytes())
+            )
+        ) {
+            assertThat(luceneSnapshot.totalOperations(), equalTo(totalDocs + nbGaps));
+
+            Translog.Operation operation;
+            int indexOps = 0;
+            int noopOps = 0;
+            while ((operation = luceneSnapshot.next()) != null) {
+                switch (operation.opType()) {
+                    case INDEX:
+                        final var index = asInstanceOf(Translog.Index.class, operation);
+                        String expectedDocId = seqNoToDocId.apply(index.seqNo());
+                        assertThat(
+                            "Index operation seqNo=" + index.seqNo() + " should have expected id",
+                            Uid.decodeId(index.uid()),
+                            equalTo(expectedDocId)
+                        );
+                        indexOps++;
+                        break;
+                    case NO_OP:
+                        noopOps++;
+                        break;
+                    default:
+                        fail("Unexpected operation type: " + operation.opType());
+                }
+            }
+            assertThat("Should have read all index operations", indexOps, equalTo(totalDocs));
+            assertThat("Should have read all noop operations (filled gaps)", noopOps, equalTo(nbGaps));
+        }
     }
 }

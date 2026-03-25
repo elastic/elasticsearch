@@ -85,8 +85,10 @@ public class TSDBSyntheticIdStoredFieldsReader extends StoredFieldsReader {
     public void document(int docID, StoredFieldVisitor visitor) throws IOException {
         if (visitor.needsField(fieldInfo) == StoredFieldVisitor.Status.YES) {
             assert assertNotMergeThread("synthetic id should not be materialized during merges");
-            var uid = docValuesHolder.docSyntheticId(docID);
-            visitor.binaryField(fieldInfo, uid.bytes);
+            if (docValuesHolder.isTombstone(docID) == false) {
+                var uid = docValuesHolder.docSyntheticId(docID);
+                visitor.binaryField(fieldInfo, uid.bytes);
+            }
         }
     }
 

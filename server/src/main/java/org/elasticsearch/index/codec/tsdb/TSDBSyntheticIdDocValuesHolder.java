@@ -14,11 +14,13 @@ import org.apache.lucene.index.DocValuesSkipIndexType;
 import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
+import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
 import org.elasticsearch.index.mapper.TsidExtractingIdFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
@@ -40,6 +42,7 @@ class TSDBSyntheticIdDocValuesHolder {
     private final FieldInfo tsIdFieldInfo;
     private final FieldInfo timestampFieldInfo;
     private final FieldInfo routingHashFieldInfo;
+    private final @Nullable FieldInfo tombstoneFieldInfo;
     private final DocValuesProducer docValuesProducer;
     private final boolean hasTsIdSkipper;
     private final boolean hasTimestampSkipper;
@@ -47,6 +50,7 @@ class TSDBSyntheticIdDocValuesHolder {
     private SortedNumericDocValues timestampDocValues; // sorted desc. order
     private SortedDocValues routingHashDocValues; // sorted asc. order
     private SortedDocValues tsIdDocValues; // sorted asc. order
+    private NumericDocValues tombstoneDocValues;
     // Keep around the latest tsId ordinal and value
     private int cachedTsIdOrd = -1;
     private BytesRef cachedTsId;
@@ -55,6 +59,7 @@ class TSDBSyntheticIdDocValuesHolder {
         this.tsIdFieldInfo = safeFieldInfo(fieldInfos, TSDBSyntheticIdPostingsFormat.TS_ID);
         this.timestampFieldInfo = safeFieldInfo(fieldInfos, TSDBSyntheticIdPostingsFormat.TIMESTAMP);
         this.routingHashFieldInfo = safeFieldInfo(fieldInfos, TSDBSyntheticIdPostingsFormat.TS_ROUTING_HASH);
+        this.tombstoneFieldInfo = fieldInfos.fieldInfo(SeqNoFieldMapper.TOMBSTONE_NAME);
         this.docValuesProducer = docValuesProducer;
         this.hasTsIdSkipper = tsIdFieldInfo.docValuesSkipIndexType() != DocValuesSkipIndexType.NONE;
         this.hasTimestampSkipper = timestampFieldInfo.docValuesSkipIndexType() != DocValuesSkipIndexType.NONE;
@@ -289,6 +294,20 @@ class TSDBSyntheticIdDocValuesHolder {
             tsIdDocValues = docValuesProducer.getSorted(tsIdFieldInfo);
         }
         return tsIdDocValues.getValueCount();
+    }
+
+    boolean isTombstone(int docID) throws IOException {
+        if (tombstoneFieldInfo == null) {
+            return false;
+        }
+        if (tombstoneDocValues == null || tombstoneDocValues.docID() > docID) {
+            tombstoneDocValues = docValuesProducer.getNumeric(tombstoneFieldInfo);
+        }
+        if (tombstoneDocValues == null || tombstoneDocValues.advanceExact(docID) == false) {
+            return false;
+        }
+        assert tombstoneDocValues.docID() == docID;
+        return tombstoneDocValues.longValue() > 0L;
     }
 
     /**

@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatSpec;
@@ -43,6 +44,7 @@ import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Set;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 
 /**
@@ -410,6 +412,24 @@ public class ExternalSourceResolverTests extends ESTestCase {
         assertTrue(schema.get(3).synthetic());
     }
 
+    public void testSchemaWithFieldAttributeFailsValidation() throws Exception {
+        List<Attribute> schemaWithFieldAttr = List.of(
+            new FieldAttribute(Source.EMPTY, "a", new EsField("a", DataType.INTEGER, Map.of(), false, EsField.TimeSeriesFieldType.NONE))
+        );
+        Map<String, List<Attribute>> schemasByPath = new HashMap<>();
+        schemasByPath.put("s3://bucket/data/file.parquet", schemaWithFieldAttr);
+
+        Map<String, List<StorageEntry>> listingsByPrefix = new HashMap<>();
+        listingsByPrefix.put("s3://bucket/data/", List.of(entry("s3://bucket/data/file.parquet", 100)));
+
+        Exception e = expectThrows(
+            Exception.class,
+            () -> resolveMultiplePaths(List.of("s3://bucket/data/file.parquet"), schemasByPath, listingsByPrefix)
+        );
+        assertThat(e.getCause().getMessage(), containsString("ReferenceAttribute"));
+        assertThat(e.getCause().getMessage(), containsString("FieldAttribute"));
+    }
+
     private ExternalSourceMetadata createStubMetadata(String location, List<Attribute> schema) {
         return new ExternalSourceMetadata() {
             @Override
@@ -450,7 +470,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
     // ===== Helpers =====
 
     private static Attribute attr(String name, DataType type) {
-        return new FieldAttribute(Source.EMPTY, name, new EsField(name, type, Map.of(), false, EsField.TimeSeriesFieldType.NONE));
+        return new ReferenceAttribute(Source.EMPTY, null, name, type);
     }
 
     private static StorageEntry entry(String path, long length) {
@@ -571,7 +591,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         }
 
         @Override
-        public CloseableIterator<Page> read(StorageObject object, List<String> projectedColumns, int batchSize) {
+        public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) {
             throw new UnsupportedOperationException();
         }
 

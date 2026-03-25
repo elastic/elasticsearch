@@ -7,6 +7,11 @@
 
 package org.elasticsearch.xpack.prometheus;
 
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
+import io.netty.handler.codec.compression.Snappy;
+
+import org.apache.http.HttpHeaders;
 import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.http.util.EntityUtils;
@@ -69,8 +74,8 @@ public class PrometheusRemoteWriteRestIT extends ESRestTestCase {
 
     public void testRemoteWriteEndpointWithEmptyBody() throws Exception {
         sendEmptyBodyAndAssertSuccess("/_prometheus/api/v1/write");
-        sendEmptyBodyAndAssertSuccess("/_prometheus/myapp/api/v1/write");
-        sendEmptyBodyAndAssertSuccess("/_prometheus/myapp/production/api/v1/write");
+        sendEmptyBodyAndAssertSuccess("/_prometheus/metrics/myapp/api/v1/write");
+        sendEmptyBodyAndAssertSuccess("/_prometheus/metrics/myapp/production/api/v1/write");
     }
 
     public void testRemoteWriteIndexesGaugeMetric() throws Exception {
@@ -194,7 +199,7 @@ public class PrometheusRemoteWriteRestIT extends ESRestTestCase {
 
     public void testRemoteWriteWithCustomDataset() throws Exception {
         String metricName = "custom_dataset_metric";
-        sendAndAssertSuccess(simpleWriteRequest(metricName), "/_prometheus/myapp/api/v1/write");
+        sendAndAssertSuccess(simpleWriteRequest(metricName), "/_prometheus/metrics/myapp/api/v1/write");
 
         ObjectPath source = searchSingleDoc("metrics-myapp.prometheus-default", metricName);
         assertThat(source.evaluate("data_stream.type"), equalTo("metrics"));
@@ -204,7 +209,7 @@ public class PrometheusRemoteWriteRestIT extends ESRestTestCase {
 
     public void testRemoteWriteWithCustomDatasetAndNamespace() throws Exception {
         String metricName = "custom_ns_metric";
-        sendAndAssertSuccess(simpleWriteRequest(metricName), "/_prometheus/myapp/production/api/v1/write");
+        sendAndAssertSuccess(simpleWriteRequest(metricName), "/_prometheus/metrics/myapp/production/api/v1/write");
 
         ObjectPath source = searchSingleDoc("metrics-myapp.prometheus-production", metricName);
         assertThat(source.evaluate("data_stream.type"), equalTo("metrics"));
@@ -213,12 +218,15 @@ public class PrometheusRemoteWriteRestIT extends ESRestTestCase {
     }
 
     public void testRemoteWriteWithInvalidCustomDatasetReturns400() throws Exception {
-        String body = sendAndAssertBadRequest(simpleWriteRequest("invalid_dataset_metric"), "/_prometheus/my-app/api/v1/write");
+        String body = sendAndAssertBadRequest(simpleWriteRequest("invalid_dataset_metric"), "/_prometheus/metrics/my-app/api/v1/write");
         assertThat(body, containsString("data stream dataset 'my-app' contains disallowed characters, must conform to regex ["));
     }
 
     public void testRemoteWriteWithInvalidCustomNamespaceReturns400() throws Exception {
-        String body = sendAndAssertBadRequest(simpleWriteRequest("invalid_namespace_metric"), "/_prometheus/myapp/foo:bar/api/v1/write");
+        String body = sendAndAssertBadRequest(
+            simpleWriteRequest("invalid_namespace_metric"),
+            "/_prometheus/metrics/myapp/foo:bar/api/v1/write"
+        );
         assertThat(body, containsString("data stream namespace 'foo:bar' contains disallowed characters, must conform to regex ["));
     }
 
@@ -253,7 +261,8 @@ public class PrometheusRemoteWriteRestIT extends ESRestTestCase {
 
     private void sendAndAssertSuccess(RemoteWrite.WriteRequest writeRequest, String endpoint) throws IOException {
         Request request = new Request("POST", endpoint);
-        request.setEntity(new ByteArrayEntity(writeRequest.toByteArray(), ContentType.create("application/x-protobuf")));
+        request.setEntity(new ByteArrayEntity(snappyEncode(writeRequest.toByteArray()), ContentType.create("application/x-protobuf")));
+        request.setOptions(request.getOptions().toBuilder().addHeader(HttpHeaders.CONTENT_ENCODING, "snappy"));
         Response response = client().performRequest(request);
         assertThat(response.getStatusLine().getStatusCode(), equalTo(204));
     }
@@ -264,7 +273,8 @@ public class PrometheusRemoteWriteRestIT extends ESRestTestCase {
 
     private String sendAndAssertBadRequest(RemoteWrite.WriteRequest writeRequest, String endpoint) throws IOException {
         Request request = new Request("POST", endpoint);
-        request.setEntity(new ByteArrayEntity(writeRequest.toByteArray(), ContentType.create("application/x-protobuf")));
+        request.setEntity(new ByteArrayEntity(snappyEncode(writeRequest.toByteArray()), ContentType.create("application/x-protobuf")));
+        request.setOptions(request.getOptions().toBuilder().addHeader(HttpHeaders.CONTENT_ENCODING, "snappy"));
         ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(request));
         assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
         return EntityUtils.toString(e.getResponse().getEntity());
@@ -337,4 +347,19 @@ public class PrometheusRemoteWriteRestIT extends ESRestTestCase {
             throw e;
         }
     }
+
+    private static byte[] snappyEncode(byte[] input) {
+        ByteBuf in = Unpooled.wrappedBuffer(input);
+        ByteBuf out = Unpooled.buffer(input.length);
+        try {
+            new Snappy().encode(in, out, input.length);
+            byte[] result = new byte[out.readableBytes()];
+            out.readBytes(result);
+            return result;
+        } finally {
+            in.release();
+            out.release();
+        }
+    }
+
 }

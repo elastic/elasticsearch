@@ -89,6 +89,10 @@ public class ShardMovementWriteLoadSimulatorTests extends ESTestCase {
         assertThat(calculatedNodeUsageStats, Matchers.aMapWithSize(3));
 
         final var shardWriteLoad = allocation.clusterInfo().getShardWriteLoads().get(randomShard.shardId());
+        assertNotNull(
+            "Looked up shard [" + randomShard.shardId() + "]. Shard write loads: " + allocation.clusterInfo().getShardWriteLoads(),
+            shardWriteLoad
+        );
         final var expectedUtilisationReductionAtSource = shardWriteLoad / originalNode0ThreadPoolStats.totalThreadPoolThreads();
         final var expectedUtilisationIncreaseAtDestination = shardWriteLoad / originalNode1ThreadPoolStats.totalThreadPoolThreads();
 
@@ -177,7 +181,6 @@ public class ShardMovementWriteLoadSimulatorTests extends ESTestCase {
         final ClusterState clusterState = createClusterState();
         final var allocation = createRoutingAllocationWithShardWriteLoads(
             clusterState,
-            Set.of(INDICES),
             Map.of(),
             randomThreadPoolUsageStats(),
             randomThreadPoolUsageStats()
@@ -252,17 +255,11 @@ public class ShardMovementWriteLoadSimulatorTests extends ESTestCase {
                 Collectors.toUnmodifiableMap(shardId -> shardId, shardId -> randomBoolean() ? 0.0f : randomDoubleBetween(0.1, 5.0, true))
             );
 
-        return createRoutingAllocationWithShardWriteLoads(
-            clusterState,
-            indicesWithNoWriteLoad,
-            shardWriteLoads,
-            arrayOfNodeThreadPoolStats
-        );
+        return createRoutingAllocationWithShardWriteLoads(clusterState, shardWriteLoads, arrayOfNodeThreadPoolStats);
     }
 
     private RoutingAllocation createRoutingAllocationWithShardWriteLoads(
         ClusterState clusterState,
-        Set<String> indicesWithNoWriteLoad,
         Map<ShardId, Double> shardWriteLoads,
         NodeUsageStatsForThreadPools.ThreadPoolUsageStats... arrayOfNodeThreadPoolStats
     ) {

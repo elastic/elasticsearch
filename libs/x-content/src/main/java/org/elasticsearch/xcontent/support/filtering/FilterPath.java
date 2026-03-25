@@ -170,22 +170,42 @@ public class FilterPath {
                 if (c == '.') {
                     splitPosition = i;
                     break;
-                } else if ((c == '\\') && (i + 1 < end) && (filter.charAt(i + 1) == '.')) {
-                    ++i;
-                    findEscapes = true;
+                } else if (c == '\\' && i + 1 < end) {
+                    char next = filter.charAt(i + 1);
+                    if (next == '.' || next == '\\') {
+                        ++i;
+                        findEscapes = true;
+                    }
                 }
             }
 
             if (splitPosition > 0) {
-                String field = findEscapes ? filter.substring(0, splitPosition).replace("\\.", ".") : filter.substring(0, splitPosition);
+                String field = findEscapes ? unescape(filter.substring(0, splitPosition)) : filter.substring(0, splitPosition);
                 BuildNode child = node.children.computeIfAbsent(field, f -> new BuildNode(false));
                 if (false == child.isFinalNode) {
                     insertNode(filter.substring(splitPosition + 1), child, depth + 1);
                 }
             } else {
-                String field = findEscapes ? filter.replace("\\.", ".") : filter;
+                String field = findEscapes ? unescape(filter) : filter;
                 node.children.put(field, new BuildNode(true));
             }
+        }
+
+        private static String unescape(String s) {
+            StringBuilder sb = new StringBuilder(s.length());
+            for (int i = 0; i < s.length(); i++) {
+                char c = s.charAt(i);
+                if (c == '\\' && i + 1 < s.length()) {
+                    char next = s.charAt(i + 1);
+                    if (next == '.' || next == '\\') {
+                        sb.append(next);
+                        i++;
+                        continue;
+                    }
+                }
+                sb.append(c);
+            }
+            return sb.toString();
         }
 
         static FilterPath buildPath(String segment, BuildNode node) {

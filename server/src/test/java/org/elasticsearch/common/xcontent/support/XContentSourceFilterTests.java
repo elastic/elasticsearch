@@ -534,6 +534,50 @@ public class XContentSourceFilterTests extends AbstractFilteringTestCase {
         testFilter(expected, actual, singleton("photosCount"), emptySet());
     }
 
+    public void testBackslashFieldNameNestedFiltering() throws IOException {
+        // Backslash-named parent field with nested property.
+        // Use escaped backslash (\\) in filter path so that \\ is treated as literal backslash
+        // and the following dot is treated as an object separator.
+        String actual = """
+            {
+                "\\\\": {
+                    "nested_value": "value_C"
+                },
+                "other": "value"
+            }
+            """;
+        String expected = """
+            {
+                "\\\\": {
+                    "nested_value": "value_C"
+                }
+            }
+            """;
+        // Filter path "\\\\.nested_value" (Java) = \\. + nested_value
+        // which means: escaped backslash (\) + dot separator + nested_value
+        testFilter(expected, actual, singleton("\\\\.nested_value"), emptySet());
+    }
+
+    public void testBackslashFieldNameFiltering() throws IOException {
+        // Filtering on just the backslash-named parent field should return the whole object
+        String actual = """
+            {
+                "\\\\": {
+                    "nested_value": "value_C"
+                },
+                "other": "value"
+            }
+            """;
+        String expected = """
+            {
+                "\\\\": {
+                    "nested_value": "value_C"
+                }
+            }
+            """;
+        testFilter(expected, actual, singleton("\\\\"), emptySet());
+    }
+
     public void testEmptySource() throws IOException {
         SourceFilter empty = new SourceFilter(new String[0], new String[0]);
         SourceFilter excludeWildcard = new SourceFilter(new String[0], new String[] { "test* " });

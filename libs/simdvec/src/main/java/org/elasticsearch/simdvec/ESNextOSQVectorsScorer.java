@@ -273,9 +273,7 @@ public class ESNextOSQVectorsScorer {
         quantizeScoreBulk(q, bulkSize, scores);
         in.readFloats(lowerIntervals, 0, bulkSize);
         in.readFloats(upperIntervals, 0, bulkSize);
-        for (int i = 0; i < bulkSize; i++) {
-            targetComponentSums[i] = in.readInt();
-        }
+        in.readInts(targetComponentSums, 0, bulkSize);
         in.readFloats(additionalCorrections, 0, bulkSize);
         float maxScore = Float.NEGATIVE_INFINITY;
         for (int i = 0; i < bulkSize; i++) {
@@ -326,9 +324,7 @@ public class ESNextOSQVectorsScorer {
         quantizeScoreBulkOffsets(q, offsets, offsetsCount, scores, count);
         in.readFloats(lowerIntervals, 0, count);
         in.readFloats(upperIntervals, 0, count);
-        for (int i = 0; i < count; i++) {
-            targetComponentSums[i] = in.readInt();
-        }
+        in.readInts(targetComponentSums, 0, count);
         in.readFloats(additionalCorrections, 0, count);
         float maxScore = Float.NEGATIVE_INFINITY;
         int offsetIndex = 0;

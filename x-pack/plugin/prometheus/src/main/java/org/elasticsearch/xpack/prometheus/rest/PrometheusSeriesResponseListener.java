@@ -17,6 +17,8 @@ import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 
@@ -43,9 +45,17 @@ public class PrometheusSeriesResponseListener implements ActionListener<EsqlQuer
      * Prometheus HTTP API error type strings, as defined in the Prometheus source:
      * https://github.com/prometheus/prometheus/blob/main/web/api/v1/api.go
      */
-    private static final String ERROR_TYPE_EXECUTION = "execution";
-    private static final String ERROR_TYPE_BAD_DATA = "bad_data";
-    private static final String ERROR_TYPE_TIMEOUT = "timeout";
+    private enum ErrorType {
+        EXECUTION("execution"),
+        BAD_DATA("bad_data"),
+        TIMEOUT("timeout");
+
+        final String value;
+
+        ErrorType(String value) {
+            this.value = value;
+        }
+    }
 
     private final RestChannel channel;
 
@@ -59,22 +69,18 @@ public class PrometheusSeriesResponseListener implements ActionListener<EsqlQuer
         // decRef() after this method returns, which is the correct single release.
         try {
             List<Map<String, String>> seriesList = extractSeries(response);
-            channel.sendResponse(buildSuccessResponse(seriesList));
+            replaySuccess(seriesList);
         } catch (Exception e) {
             logger.debug("Failed to build series response", e);
-            sendError(e);
+            replayError(e);
         }
     }
 
     @Override
     public void onFailure(Exception e) {
         logger.debug("Series query failed", e);
-        sendError(e);
+        replayError(e);
     }
-
-    // -------------------------------------------------------------------------
-    // Response building
-    // -------------------------------------------------------------------------
 
     private static List<Map<String, String>> extractSeries(EsqlQueryResponse response) {
         var columns = response.columns();
@@ -144,9 +150,9 @@ public class PrometheusSeriesResponseListener implements ActionListener<EsqlQuer
         }
         // Simple JSON object parser for {"key":"value",...} – all string-typed values
         // Use xcontent for robust parsing
-        try (var parser = JsonXContent.jsonXContent.createParser(org.elasticsearch.xcontent.XContentParserConfiguration.EMPTY, json)) {
+        try (var parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, json)) {
             parser.nextToken(); // START_OBJECT
-            while (parser.nextToken() != org.elasticsearch.xcontent.XContentParser.Token.END_OBJECT) {
+            while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
                 String rawKey = parser.currentName();
                 parser.nextToken();
                 String value = parser.text();
@@ -159,7 +165,7 @@ public class PrometheusSeriesResponseListener implements ActionListener<EsqlQuer
         return labels;
     }
 
-    private static RestResponse buildSuccessResponse(List<Map<String, String>> seriesList) throws IOException {
+    private void replaySuccess(List<Map<String, String>> seriesList) throws IOException {
         XContentBuilder builder = JsonXContent.contentBuilder();
         builder.startObject();
         builder.field("status", "success");
@@ -173,26 +179,26 @@ public class PrometheusSeriesResponseListener implements ActionListener<EsqlQuer
         }
         builder.endArray();
         builder.endObject();
-        return new RestResponse(RestStatus.OK, CONTENT_TYPE, Strings.toString(builder));
+        channel.sendResponse(new RestResponse(RestStatus.OK, CONTENT_TYPE, Strings.toString(builder)));
     }
 
-    private void sendError(Exception e) {
+    private void replayError(Exception e) {
         try {
             RestStatus httpStatus = RestStatus.INTERNAL_SERVER_ERROR;
-            String errorType = ERROR_TYPE_EXECUTION;
+            ErrorType errorType = ErrorType.EXECUTION;
             if (e instanceof ElasticsearchStatusException statusEx) {
                 httpStatus = statusEx.status();
                 if (httpStatus == RestStatus.BAD_REQUEST) {
-                    errorType = ERROR_TYPE_BAD_DATA;
+                    errorType = ErrorType.BAD_DATA;
                 }
             } else if (isTimeout(e)) {
                 httpStatus = RestStatus.SERVICE_UNAVAILABLE;
-                errorType = ERROR_TYPE_TIMEOUT;
+                errorType = ErrorType.TIMEOUT;
             }
             XContentBuilder builder = JsonXContent.contentBuilder();
             builder.startObject();
             builder.field("status", "error");
-            builder.field("errorType", errorType);
+            builder.field("errorType", errorType.value);
             builder.field("error", e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName());
             builder.endObject();
             channel.sendResponse(new RestResponse(httpStatus, CONTENT_TYPE, Strings.toString(builder)));

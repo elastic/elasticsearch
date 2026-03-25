@@ -706,6 +706,7 @@ null   | null
 ;
 
 minOfEvalNullWithEval
+required_capability: fix_sum_of_null_optimization
 
 ROW x = 1
 | EVAL y = null
@@ -742,6 +743,7 @@ null   | null
 ;
 
 maxOfEvalNullWithEval
+required_capability: fix_sum_of_null_optimization
 
 ROW x = 1
 | EVAL y = null

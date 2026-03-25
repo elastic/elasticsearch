@@ -43,6 +43,7 @@ import java.net.URI;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -88,6 +89,10 @@ public class CsvTestsDataLoader {
         new TestDataset("employees", "mapping-default.json", "employees.csv").noSubfields(),
         new TestDataset("voyager", "mapping-voyager.json", "voyager.csv").noSubfields(),
         new TestDataset("employees_incompatible", "mapping-default-incompatible.json", "employees_incompatible.csv").noSubfields(),
+        new TestDataset("employees", "mapping-default.json", "employees.csv").withIndex("employees_no_names")
+            .withTypeMapping(removeFields("first_name", "last_name"))
+            .withDynamic("false")
+            .noSubfields(),
         new TestDataset("all_types", "mapping-all-types.json", "all-types.csv"),
         new TestDataset("hosts"),
         new TestDataset("apps"),
@@ -733,6 +738,18 @@ public class CsvTestsDataLoader {
         if (dataset.dataFileName != null) {
             loadCsvData(client, dataset.indexName, dataset.streamData(), dataset.allowSubFields);
         }
+    }
+
+    /**
+     * Creates a type mapping that removes the given fields from the mapping.
+     * For use with {@link TestDataset#withTypeMapping}.
+     */
+    private static Map<String, String> removeFields(String... fields) {
+        var map = new HashMap<String, String>();
+        for (String field : fields) {
+            map.put(field, null);
+        }
+        return map;
     }
 
     public static String readMappingFile(TestDataset dataset) throws IOException {

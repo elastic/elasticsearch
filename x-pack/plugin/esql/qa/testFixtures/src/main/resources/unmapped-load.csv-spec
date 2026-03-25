@@ -874,6 +874,47 @@ FROM partial_mapping_sample_data
 2024-10-23T13:51:54.732Z | Connection error? | 725449
 ;
 
+// Confirm that the employees_no_names index does not have first_name and last_name mapped.
+employeesNoNamesFieldsRemoved
+required_capability: index_metadata_field
+required_capability: optional_fields_v2
+
+FROM employees, employees_no_names METADATA _index
+| KEEP emp_no, first_name, last_name, _index
+| SORT emp_no, _index
+| LIMIT 6
+;
+
+emp_no:integer | first_name:keyword | last_name:keyword | _index:keyword
+10001          | Georgi             | Facello           | employees
+10001          | null               | null              | employees_no_names
+10002          | Bezalel            | Simmel            | employees
+10002          | null               | null              | employees_no_names
+10003          | Parto              | Bamford           | employees
+10003          | null               | null              | employees_no_names
+;
+
+employeesNoNamesLoad
+required_capability: index_metadata_field
+required_capability: optional_fields_v2
+
+SET unmapped_fields="load"\;
+FROM employees, employees_no_names METADATA _index
+| KEEP emp_no, first_name, last_name, _index
+| SORT emp_no, _index
+| LIMIT 6
+;
+
+emp_no:integer | first_name:keyword | last_name:keyword | _index:keyword
+10001          | Georgi             | Facello           | employees
+10001          | Georgi             | Facello           | employees_no_names
+10002          | Bezalel            | Simmel            | employees
+10002          | Bezalel            | Simmel            | employees_no_names
+10003          | Parto              | Bamford           | employees
+10003          | Parto              | Bamford           | employees_no_names
+;
+
+
 // https://github.com/elastic/elasticsearch/issues/141994
 // A partially-mapped keyword field (message, mapped in sample_data but not in no_mapping_sample_data) should be loaded
 // from _source even when not explicitly referenced in a downstream expression like KEEP.

@@ -1641,11 +1641,19 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
 
     /**
      * Tests that no-op tombstones are correctly handled in TSDB indices with synthetic ids.
-     *
-     * This test creates a gap in sequence numbers on the primary shard, then triggers a failover to a replica.
-     * When the replica is promoted to primary, {@link Engine#fillSeqNoGaps} is called during recovery to fill
-     * the gap with noop tombstones. The test verifies that operations (including noops) can be correctly read
-     * from the Lucene index using {@link IndexShard#newChangesSnapshot}.
+     * <p>
+     * This test creates a gap in sequence numbers on the primary shard and verifies that {@link Engine#fillSeqNoGaps}
+     * correctly fills the gaps with noop tombstones in three scenarios:
+     * <ol>
+     *   <li><b>Primary promotion</b>: After stopping the primary node, the replica is promoted to primary and fills
+     *       the gaps via {@link IndexShard#updateShardState}.</li>
+     *   <li><b>Snapshot restore</b>: The backing index is restored from a snapshot, and gaps are filled via
+     *       {@link org.elasticsearch.index.shard.StoreRecovery#recoverFromRepository}.</li>
+     *   <li><b>Peer recovery</b>: A new replica is added after restore, recovering from a primary that already has
+     *       NOOP tombstones in Lucene.</li>
+     * </ol>
+     * The test verifies that operations (including noops) can be correctly read from the Lucene index using
+     * {@link IndexShard#newChangesSnapshot}, and that GET/search by synthetic _id work correctly after each scenario.
      */
     public void testNoopTombstones() throws Exception {
         assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);

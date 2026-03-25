@@ -185,8 +185,8 @@ public class TSDBSyntheticIdFieldsProducer extends FieldsProducer {
             }
 
             int nextDocID = docID + 1;
-            // Skip documents without _tsid (NOOP tombstones, nested child docs)
-            while (nextDocID < maxDocs && docValues.isNoOpTombstoneOrNestedDoc(nextDocID)) {
+            // Skip documents without _tsid (NOOP tombstones)
+            while (nextDocID < maxDocs && docValues.hasTsIdDocValue(nextDocID) == false) {
                 nextDocID++;
             }
             if (maxDocs <= nextDocID) {
@@ -281,8 +281,8 @@ public class TSDBSyntheticIdFieldsProducer extends FieldsProducer {
 
             // Iterate over documents to find the first one matching the timestamp
             for (; nextDocID < maxDocs; nextDocID++) {
-                // Skip documents without _tsid (NOOP tombstones, nested child docs)
-                if (docValues.isNoOpTombstoneOrNestedDoc(nextDocID)) {
+                // Skip documents without _tsid (NOOP tombstones)
+                if (docValues.hasTsIdDocValue(nextDocID) == false) {
                     continue;
                 }
                 nextDocTimestamp = docValues.docTimestamp(nextDocID);
@@ -420,8 +420,8 @@ public class TSDBSyntheticIdFieldsProducer extends FieldsProducer {
                 return docID;
             }
             int nextDocID = docID + 1;
-            // Skip documents without _tsid (NOOP tombstones, nested child docs)
-            while (nextDocID < maxDocs && docValues.isNoOpTombstoneOrNestedDoc(nextDocID)) {
+            // Skip documents without _tsid (NOOP tombstones)
+            while (nextDocID < maxDocs && docValues.hasTsIdDocValue(nextDocID) == false) {
                 nextDocID++;
             }
             if (nextDocID < maxDocs) {

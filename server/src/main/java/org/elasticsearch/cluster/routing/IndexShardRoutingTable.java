@@ -34,6 +34,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Random;
 import java.util.Set;
 import java.util.stream.Stream;
 
@@ -271,35 +272,35 @@ public class IndexShardRoutingTable {
         return nodeStats;
     }
 
-    private static Map<String, Double> rankNodes(
+    static Map<String, Double> rankNodes(
         final Map<String, Optional<ResponseCollectorService.ComputedNodeStats>> nodeStats,
-        final Map<String, Long> nodeSearchCounts
+        final Map<String, Long> nodeSearchCounts,
+        final Random random
     ) {
         final Map<String, Double> nodeRanks = Maps.newMapWithExpectedSize(nodeStats.size());
         List<String> nodesWithoutStats = null;
-        double maxRank = Double.NEGATIVE_INFINITY;
+        double bestRank = Double.POSITIVE_INFINITY;
         for (Map.Entry<String, Optional<ResponseCollectorService.ComputedNodeStats>> entry : nodeStats.entrySet()) {
             Optional<ResponseCollectorService.ComputedNodeStats> maybeStats = entry.getValue();
             if (maybeStats.isPresent()) {
                 final String nodeId = entry.getKey();
                 double rank = maybeStats.get().rank(nodeSearchCounts.getOrDefault(nodeId, 0L));
                 nodeRanks.put(nodeId, rank);
-                if (rank > maxRank) {
-                    maxRank = rank;
+                if (rank < bestRank) {
+                    bestRank = rank;
                 }
             } else {
-                // Store nodes without stats to be assigned the max rank later
                 if (nodesWithoutStats == null) {
                     nodesWithoutStats = new ArrayList<>();
                 }
                 nodesWithoutStats.add(entry.getKey());
             }
         }
-        // Assign the max known rank to nodes without stats so that new nodes joining the cluster
-        // are not flooded with requests before the adaptive replica selection stats are available
+
         if (nodesWithoutStats != null && nodeRanks.isEmpty() == false) {
-            for (String nodeId : nodesWithoutStats) {
-                nodeRanks.put(nodeId, maxRank);
+            final double bestRankProbability = (double) nodesWithoutStats.size() / nodeStats.size();
+            if (random.nextDouble() < bestRankProbability) {
+                nodeRanks.put(nodesWithoutStats.get(random.nextInt(nodesWithoutStats.size())), Math.nextDown(bestRank));
             }
         }
         return nodeRanks;
@@ -311,7 +312,7 @@ public class IndexShardRoutingTable {
      * Elasticsearch, however, we do not have that sort of broadcast-to-all behavior. In order to prevent a node that gets a high score and
      * then never gets any more requests, we must ensure it eventually returns to a more normal score and can be a candidate for serving
      * requests.
-     *
+     * <p>
      * This adjustment takes the "winning" node's statistics and adds the average of those statistics with each non-winning node. Let's say
      * the winning node had a queue size of 10 and a non-winning node had a queue of 18. The average queue size is (10 + 18) / 2 = 14 so the
      * non-winning node will have statistics added for a queue size of 14. This is repeated for the response time and service times as well.
@@ -360,7 +361,7 @@ public class IndexShardRoutingTable {
 
         // sort all shards based on the shard rank
         ArrayList<ShardRouting> sortedShards = new ArrayList<>(shards);
-        sortedShards.sort(new NodeRankComparator(rankNodes(nodeStats, nodeSearchCounts)));
+        sortedShards.sort(new NodeRankComparator(rankNodes(nodeStats, nodeSearchCounts, Randomness.get())));
 
         // adjust the non-winner nodes' stats so they will get a chance to receive queries
         ShardRouting minShard = sortedShards.get(0);

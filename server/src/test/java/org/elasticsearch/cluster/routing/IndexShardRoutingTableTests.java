@@ -22,28 +22,19 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.Random;
 
 public class IndexShardRoutingTableTests extends ESTestCase {
 
     /**
-     * Verify that when a new node joins with no ARS stats, it is not ranked first (i.e. it does not
-     * receive a disproportionate flood of requests). Nodes without stats should be assigned the max
-     * known rank so they sort alongside the worst-ranked known node rather than before all others.
+     * Replicas without statistics either have no synthetic rank (null — sorts last) or, with
+     * probability {@code unknown/total}, one such replica is assigned {@code nextDown(bestRank)} for
+     * exploration.
      */
-    public void testAdaptiveReplicaSelectionDoesNotFloodNewNode() {
+    public void testRankNodesWithoutStatsExploresOrLeavesNull() {
         TestThreadPool threadPool = new TestThreadPool("test");
         try {
-            Index index = new Index("test", "test-uuid");
-            ShardId shardId = new ShardId(index, 0);
-
-            // Three active shards on three different nodes
-            ShardRouting shard1 = TestShardRouting.newShardRouting(shardId, "node1", true, ShardRoutingState.STARTED);
-            ShardRouting shard2 = TestShardRouting.newShardRouting(shardId, "node2", false, ShardRoutingState.STARTED);
-            ShardRouting shard3 = TestShardRouting.newShardRouting(shardId, "node3", false, ShardRoutingState.STARTED);
-
-            IndexShardRoutingTable table = new IndexShardRoutingTable(shardId, List.of(shard1, shard2, shard3));
-
-            // Set up a ResponseCollectorService with stats only for node1 and node2 (node3 is "new")
             ClusterService clusterService = new ClusterService(
                 Settings.EMPTY,
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
@@ -51,29 +42,32 @@ public class IndexShardRoutingTableTests extends ESTestCase {
                 null
             );
             ResponseCollectorService collector = new ResponseCollectorService(clusterService);
-            // node1: low queue, fast response/service → good rank
             collector.addNodeStatistics("node1", 1, 100_000, 50_000);
-            // node2: higher queue, slower → worse rank
             collector.addNodeStatistics("node2", 5, 500_000, 200_000);
-            // node3: no stats at all — simulates a newly joined node
+
+            Map<String, Optional<ResponseCollectorService.ComputedNodeStats>> nodeStats = new HashMap<>();
+            nodeStats.put("node1", collector.getNodeStatistics("node1"));
+            nodeStats.put("node2", collector.getNodeStatistics("node2"));
+            nodeStats.put("node3", Optional.empty());
 
             Map<String, Long> searchCounts = new HashMap<>();
             searchCounts.put("node1", 5L);
             searchCounts.put("node2", 3L);
 
-            // Perform ranked iteration and count how often each node is first
-            Map<String, Integer> firstCounts = new HashMap<>();
-            int iterations = 10;
-            for (int i = 0; i < iterations; i++) {
-                ShardIterator it = table.activeInitializingShardsRankedIt(collector, searchCounts);
-                ShardRouting first = it.nextOrNull();
-                assertNotNull(first);
-                firstCounts.merge(first.currentNodeId(), 1, Integer::sum);
-            }
+            double r1 = nodeStats.get("node1").get().rank(searchCounts.get("node1"));
+            double r2 = nodeStats.get("node2").get().rank(searchCounts.get("node2"));
+            double bestRank = Math.min(r1, r2);
+            double expectedExplore = Math.nextDown(bestRank);
 
-            // node3 (no stats) must NOT be ranked first — its default rank equals the max
-            // known rank, so nodes with better stats should always be preferred
-            assertEquals("node with no stats should not be ranked first", 0, firstCounts.getOrDefault("node3", 0).intValue());
+            for (int seed = 0; seed < 100; seed++) {
+                Map<String, Double> ranks = IndexShardRoutingTable.rankNodes(nodeStats, searchCounts, new Random(seed));
+                assertEquals(r1, ranks.get("node1"), 0.0);
+                assertEquals(r2, ranks.get("node2"), 0.0);
+                Double r3 = ranks.get("node3");
+                if (r3 != null) {
+                    assertEquals(expectedExplore, r3, 0.0);
+                }
+            }
         } finally {
             terminate(threadPool);
         }

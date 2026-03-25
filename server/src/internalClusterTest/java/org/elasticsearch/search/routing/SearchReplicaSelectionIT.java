@@ -24,7 +24,6 @@ import java.util.Set;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponses;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
@@ -49,19 +48,19 @@ public class SearchReplicaSelectionIT extends ESIntegTestCase {
         client.prepareIndex("test").setSource("field", "value").get();
         refresh();
 
-        // Before we've gathered stats for all nodes, we should try each node once.
+        // While adaptive stats are still incomplete, routing should still reach different replicas over
+        // successive searches (probabilistic exploration).
         Set<String> nodeIds = new HashSet<>();
-        assertResponses(response -> {
-            assertThat(response.getHits().getTotalHits().value(), equalTo(1L));
-            nodeIds.add(response.getHits().getAt(0).getShard().getNodeId());
-        },
-            client.prepareSearch().setQuery(matchAllQuery()),
-            client.prepareSearch().setQuery(matchAllQuery()),
-            client.prepareSearch().setQuery(matchAllQuery())
-        );
+        for (int i = 0; i < 16; i++) {
+            assertResponse(client.prepareSearch().setQuery(matchAllQuery()), response -> {
+                assertThat(response.getHits().getTotalHits().value(), equalTo(1L));
+                nodeIds.add(response.getHits().getAt(0).getShard().getNodeId());
+            });
+        }
         assertEquals(3, nodeIds.size());
 
-        // Now after more searches, we should select a node with the lowest ARS rank.
+        // After more searches, all replicas have computed stats; rankNodes no longer synthesizes ranks for
+        // unknown replicas, so the chosen replica should match the lowest ARS rank from the formula.
         for (int i = 0; i < 5; i++) {
             client.prepareSearch().setQuery(matchAllQuery()).get().decRef();
         }
@@ -77,12 +76,15 @@ public class SearchReplicaSelectionIT extends ESIntegTestCase {
         assertEquals(3, nodeStats.getAdaptiveSelectionStats().getComputedStats().size());
 
         assertBusy(() -> {
+            NodesStatsResponse freshStatsResponse = client.admin().cluster().prepareNodesStats().setAdaptiveSelection(true).get();
+            NodeStats freshNodeStats = freshStatsResponse.getNodesMap().get(coordinatingNodeId);
+            assertNotNull(freshNodeStats);
+            Map<String, Double> ranks = freshNodeStats.getAdaptiveSelectionStats().getRanks();
             assertResponse(client.prepareSearch().setQuery(matchAllQuery()), response -> {
                 String selectedNodeId = response.getHits().getAt(0).getShard().getNodeId();
-                double selectedRank = nodeStats.getAdaptiveSelectionStats().getRanks().get(selectedNodeId);
-
-                for (Map.Entry<String, Double> entry : nodeStats.getAdaptiveSelectionStats().getRanks().entrySet()) {
-                    double rank = entry.getValue();
+                Double selectedRank = ranks.get(selectedNodeId);
+                assertNotNull(selectedNodeId + " should have a formula rank in adaptive selection stats", selectedRank);
+                for (double rank : ranks.values()) {
                     assertThat(rank, greaterThanOrEqualTo(selectedRank));
                 }
             });

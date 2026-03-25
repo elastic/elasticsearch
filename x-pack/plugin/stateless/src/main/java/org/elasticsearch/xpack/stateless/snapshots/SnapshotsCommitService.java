@@ -55,7 +55,8 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.repositories.SnapshotShardContextHelper.acquireSnapshotIndexCommit;
 import static org.elasticsearch.repositories.SnapshotShardContextHelper.closeSnapshotIndexCommit;
-import static org.elasticsearch.snapshots.SnapshotShardsService.getShardStateId;
+import static org.elasticsearch.repositories.SnapshotShardContextHelper.maybeEnsureNotAborted;
+import static org.elasticsearch.repositories.SnapshotShardContextHelper.withSnapshotIndexCommitRef;
 
 /**
  * This class is responsible for tracking and releasing commits needed for ongoing shard snapshots.
@@ -140,17 +141,20 @@ public class SnapshotsCommitService implements ClusterStateListener {
     ) throws IOException {
         final IndexShard indexShard = indicesService.indexServiceSafe(shardId.getIndex()).getShard(shardId.id());
         assert indexShard.routingEntry().primary() : "get commit info should only be executed on a primary shard";
-        final var snapshotIndexCommit = acquireSnapshotIndexCommit(
+        final var snapshotIndexCommitAndShardStateId = acquireSnapshotIndexCommit(
             clusterService,
             indexShard,
             snapshot,
             supportsRelocationDuringSnapshot,
             snapshotStatus
         );
-        try {
+        final var snapshotIndexCommit = snapshotIndexCommitAndShardStateId.snapshotIndexCommit();
+        final var shardStateId = snapshotIndexCommitAndShardStateId.shardStateId();
+        // Local snapshot (snapshotStatus != null) may be concurrently aborted so that we inc-ref before using the index commit.
+        try (var ignored = withSnapshotIndexCommitRef(shardId, snapshot.getSnapshotId(), snapshotIndexCommit, snapshotStatus)) {
             final var indexCommit = snapshotIndexCommit.indexCommit();
-            final var shardStateId = getShardStateId(indexShard, indexCommit); // not aborted so indexCommit() ok
             final var metadataSnapshot = indexShard.store().getMetadata(indexCommit);
+            maybeEnsureNotAborted(snapshotStatus);
             final Map<String, BlobLocation> blobLocations = indexCommit.getFileNames()
                 .stream()
                 .collect(

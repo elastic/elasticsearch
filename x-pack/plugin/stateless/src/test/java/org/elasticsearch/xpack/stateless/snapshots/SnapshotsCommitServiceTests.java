@@ -43,6 +43,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotFailedException;
+import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.ShardGeneration;
@@ -605,6 +606,76 @@ public class SnapshotsCommitServiceTests extends ESTestCase {
             );
             assertTrue(commitRefReleased.get());
             assertFalse(testHarness.snapshotsCommitService.hasTrackingForShard(shardId));
+        }
+    }
+
+    public void testRaceBetweenAbortAndAcquire() throws Exception {
+        try (var fixture = createTestFixture()) {
+            final var testHarness = fixture.node;
+            final var shardId = testHarness.shardId;
+            final var commitService = testHarness.commitService;
+
+            final var commits = testHarness.generateIndexCommitsWithoutMergeOrDeletion(1);
+            final var commit = commits.getFirst();
+            commitService.onCommitCreation(commit);
+            commitService.ensureMaxGenerationToUploadForFlush(shardId, commit.getGeneration());
+            waitUntilBCCIsUploaded(commitService, shardId, commit.getGeneration());
+
+            final var snapshot = randomSnapshot();
+            final var stateWithSnapshot = createClusterStateWithSnapshotsInProgress(testHarness, snapshot);
+            ClusterServiceUtils.setState(testHarness.clusterService, stateWithSnapshot);
+
+            final var commitRefReleased = new AtomicBoolean(false);
+            mockIndexShardAndCommit(testHarness, commit, commitRefReleased);
+            // TODO: randomize in a future PR, see also ES-14099
+            final boolean supportsRelocation = false;
+            final var snapshotStatus = IndexShardSnapshotStatus.newInitializing(null, System.currentTimeMillis());
+
+            final var raceBarrier = new CyclicBarrier(3);
+            final var abortThread = new Thread(() -> {
+                safeAwait(raceBarrier);
+                snapshotStatus.abortIfNotCompleted("concurrent abort for test", listener -> listener.onResponse(null));
+            }, "TEST-abort-thread");
+            final var acquireResult = new AtomicReference<SnapshotsCommitService.SnapshotCommitInfo>();
+            final var acquireThread = new Thread(() -> {
+                safeAwait(raceBarrier);
+                try {
+                    acquireResult.set(
+                        testHarness.snapshotsCommitService.acquireAndMaybeRegisterCommitForSnapshot(
+                            shardId,
+                            snapshot,
+                            supportsRelocation,
+                            snapshotStatus
+                        )
+                    );
+                } catch (Exception ignored) {
+                    // Expected when the abort is detected by ensureNotAborted
+                }
+            }, "TEST-acquire-thread");
+
+            abortThread.start();
+            acquireThread.start();
+            safeAwait(raceBarrier);
+            safeJoin(abortThread);
+            safeJoin(acquireThread);
+
+            // The SnapshotIndexCommit must always be released regardless of abort timing
+            assertTrue(commitRefReleased.get());
+
+            if (acquireResult.get() != null) {
+                // If the acquire method returned a result, the concurrent abort happens after it. The service may have created
+                // a tracking which will be removed eventually when the snapshot is completed in the cluster state.
+                if (supportsRelocation) {
+                    assertTrue(testHarness.snapshotsCommitService.hasTrackingForShard(shardId));
+                    final var stateWithoutSnapshot = randomBoolean()
+                        ? removeSnapshotFromClusterState(stateWithSnapshot, snapshot)
+                        : failShardSnapshotState(stateWithSnapshot, snapshot, shardId);
+                    ClusterServiceUtils.setState(testHarness.clusterService, stateWithoutSnapshot);
+                }
+                assertFalse(testHarness.snapshotsCommitService.hasTrackingForShard(shardId));
+            } else {
+                assertFalse(testHarness.snapshotsCommitService.hasTrackingForShard(shardId));
+            }
         }
     }
 

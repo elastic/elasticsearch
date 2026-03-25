@@ -343,7 +343,7 @@ public class FakeStatelessNode implements Closeable {
                 () -> {}
             );
             localCloseables.add(commitService);
-            snapshotsCommitService = new SnapshotsCommitService(clusterService, indicesService, commitService);
+            snapshotsCommitService = createSnapshotsCommitService();
             clusterService.addListener(snapshotsCommitService);
             indexingDirectory = localCloseables.add(
                 new IndexDirectory(
@@ -588,6 +588,16 @@ public class FakeStatelessNode implements Closeable {
         ObjectStoreService objectStoreService
     ) {
         return new StatelessCommitCleaner(consistencyService, threadPool, objectStoreService);
+    }
+
+    protected SnapshotsCommitService createSnapshotsCommitService() {
+        return new SnapshotsCommitService(
+            clusterService,
+            indicesService,
+            commitService,
+            threadPool,
+            meterRegistry != null ? meterRegistry : telemetryProvider.getMeterRegistry()
+        );
     }
 
     protected StatelessCommitService createCommitService() {

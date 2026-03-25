@@ -770,7 +770,13 @@ public class StatelessPlugin extends Plugin
 
         final var snapshotsCommitService = setAndGet(
             this.snapshotsCommitServiceRef,
-            new SnapshotsCommitService(clusterService, indicesService, commitService)
+            new SnapshotsCommitService(
+                clusterService,
+                indicesService,
+                commitService,
+                threadPool,
+                services.telemetryProvider().getMeterRegistry()
+            )
         );
         clusterService.addListener(snapshotsCommitService);
         components.add(snapshotsCommitService);

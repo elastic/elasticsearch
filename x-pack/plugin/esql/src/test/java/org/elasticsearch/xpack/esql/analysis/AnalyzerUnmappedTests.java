@@ -652,6 +652,73 @@ public class AnalyzerUnmappedTests extends ESTestCase {
     }
 
     /**
+     * Verify that partially-mapped fields of ALL non-keyword types are NOT converted to
+     * {@link PotentiallyUnmappedKeywordEsField}. Only keyword fields should be loaded from _source.
+     * This iterates over all {@link DataType} values that can appear as ES mapped field types.
+     */
+    public void testPartiallyMappedNonKeywordFieldsNotLoaded() {
+        // Types that cannot appear as regular ES mapped fields in an EsIndex mapping
+        Set<DataType> excludedTypes = Set.of(
+            DataType.KEYWORD,           // this is the type we DO convert — not a negative test case
+            DataType.NULL,              // not a real mapped field type
+            DataType.UNSUPPORTED,       // not a real mapped field type
+            DataType.DOC_DATA_TYPE,     // internal _doc type
+            DataType.TSID_DATA_TYPE,    // internal _tsid type
+            DataType.SOURCE,            // internal _source type
+            DataType.DATE_PERIOD,       // ESQL-internal, not an ES mapping type
+            DataType.TIME_DURATION,     // ESQL-internal, not an ES mapping type
+            DataType.OBJECT,            // not a leaf field type
+            DataType.GEOHASH,           // ESQL-internal grid type, not a real ES mapped field type
+            DataType.GEOTILE,           // ESQL-internal grid type, not a real ES mapped field type
+            DataType.GEOHEX             // ESQL-internal grid type, not a real ES mapped field type
+        );
+
+        for (DataType dataType : DataType.values()) {
+            if (excludedTypes.contains(dataType)) {
+                continue;
+            }
+            // Build a minimal mapping: one keyword field (emp_no stand-in for SORT) and one field of the type under test
+            Map<String, EsField> mapping = Map.of(
+                "sort_field",
+                new EsField("sort_field", DataType.INTEGER, Map.of(), true, EsField.TimeSeriesFieldType.NONE),
+                "test_field",
+                new EsField("test_field", dataType, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+            );
+
+            var plan = analyzer().addIndex(
+                new EsIndex(
+                    "test*",
+                    mapping,
+                    Map.of("test1", IndexMode.STANDARD, "test2", IndexMode.STANDARD),
+                    Map.of(),
+                    Map.of(),
+                    Set.of("test_field") // partially unmapped
+                )
+            ).statement(setUnmappedLoad("""
+                FROM test*
+                | SORT sort_field
+                """));
+
+            var limit = as(plan, Limit.class);
+            var order = as(limit.child(), OrderBy.class);
+            var relation = as(order.child(), EsRelation.class);
+
+            var testFieldAttr = relation.output().stream().filter(a -> a.name().equals("test_field")).findFirst().orElseThrow();
+            var fieldAttr = as(testFieldAttr, FieldAttribute.class);
+            assertThat(
+                "Partially-mapped " + dataType + " field should not be converted to PotentiallyUnmappedKeywordEsField",
+                fieldAttr.field(),
+                not(instanceOf(PotentiallyUnmappedKeywordEsField.class))
+            );
+            assertThat(
+                "Partially-mapped " + dataType + " field should retain its original data type",
+                fieldAttr.dataType(),
+                is(dataType.widenSmallNumeric())
+            );
+        }
+    }
+
+    /**
      * When both a keyword and non-keyword field are partially mapped, only the keyword field
      * should be converted to {@link PotentiallyUnmappedKeywordEsField}.
      */

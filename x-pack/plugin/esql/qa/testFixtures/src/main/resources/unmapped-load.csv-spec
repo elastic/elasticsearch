@@ -936,6 +936,31 @@ emp_no:integer | gender:text           | _index:keyword
 10003          | null                  | employees_no_gender
 ;
 
+// Verify that partially-mapped non-keyword fields (date, ip, long) are NOT loaded from _source when not mentioned
+// exlicitly, at least until we solve https://github.com/elastic/elasticsearch/issues/141995.
+// All fields in sample_data are partially mapped (no_mapping_sample_data has no mapped fields).
+// message (keyword) should be loaded from _source; @timestamp (date), client_ip (ip), event_duration (long) should be
+// null.
+partiallyMappedNonKeywordFieldsNotLoaded
+required_capability: index_metadata_field
+required_capability: optional_fields_fix_load_partially_mapped_keyword
+
+SET unmapped_fields="load"\;
+FROM sample_data, no_mapping_sample_data METADATA _index
+| SORT _index, message DESC
+| LIMIT 6
+;
+ignoreOrder:true
+
+@timestamp:date          | client_ip:ip | event_duration:long | message:keyword        | _index:keyword
+null                     | null         | null                | Connection error?      | no_mapping_sample_data
+null                     | null         | null                | Connection error?      | no_mapping_sample_data
+null                     | null         | null                | Connection error?      | no_mapping_sample_data
+null                     | null         | null                | Connected to 10.1.0.3! | no_mapping_sample_data
+null                     | null         | null                | Connected to 10.1.0.2! | no_mapping_sample_data
+null                     | null         | null                | Connected to 10.1.0.1! | no_mapping_sample_data
+;
+
 // https://github.com/elastic/elasticsearch/issues/141994
 // A partially-mapped keyword field (message, mapped in sample_data but not in no_mapping_sample_data) should be loaded
 // from _source even when not explicitly referenced in a downstream expression like KEEP.

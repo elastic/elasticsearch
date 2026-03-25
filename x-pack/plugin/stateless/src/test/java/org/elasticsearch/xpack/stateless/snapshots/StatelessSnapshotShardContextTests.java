@@ -24,6 +24,7 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -36,12 +37,14 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.ShardGeneration;
+import org.elasticsearch.repositories.SnapshotIndexCommit;
 import org.elasticsearch.repositories.SnapshotShardContext;
 import org.elasticsearch.snapshots.AbortedSnapshotException;
 import org.elasticsearch.snapshots.SnapshotId;
@@ -58,8 +61,10 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 
 public class StatelessSnapshotShardContextTests extends ESTestCase {
@@ -80,6 +85,9 @@ public class StatelessSnapshotShardContextTests extends ESTestCase {
             blobLength,
             randomBoolean()
         );
+        final var commitRefReleased = new AtomicBoolean();
+        final var snapshotIndexCommit = new SnapshotIndexCommit(new Engine.IndexCommitRef(null, () -> commitRefReleased.set(true)));
+        assertThat(snapshotIndexCommit.refCount(), equalTo(1));
 
         final var fileOffset = between(0, 50);
         final var fileLength = blobLength - 50;
@@ -95,6 +103,7 @@ public class StatelessSnapshotShardContextTests extends ESTestCase {
             IndexShardSnapshotStatus.newInitializing(ShardGeneration.newGeneration(), randomLongBetween(1, Long.MAX_VALUE)),
             IndexVersion.current(),
             randomNonNegativeLong(),
+            snapshotIndexCommit,
             new Store.MetadataSnapshot(Map.of(), Map.of(), randomNonNegativeLong()),
             Map.of("file", new BlobLocation(new BlobFile(blobName, new PrimaryTermAndGeneration(1L, generation)), fileOffset, fileLength)),
             (s, g) -> new FilterBlobContainer(blobContainer) {
@@ -120,6 +129,7 @@ public class StatelessSnapshotShardContextTests extends ESTestCase {
         final var closeEachInputStream = rarely();
         final var numberOfParts = between(0, 10);
         try (var fileReader = snapshotShardContext.fileReader("file", mock(StoreFileMetadata.class))) {
+            assertThat(snapshotIndexCommit.refCount(), equalTo(2));
             if (numberOfParts != 0) {
                 final var fileContentRead = readBlobContent(fileReader, numberOfParts, fileLength, closeEachInputStream);
                 if (abortPosition == Integer.MAX_VALUE) { // when not aborted
@@ -128,10 +138,52 @@ public class StatelessSnapshotShardContextTests extends ESTestCase {
                 assertArrayEquals(Arrays.copyOfRange(bytes, fileOffset, fileOffset + fileContentRead.length), fileContentRead);
             }
         }
+        assertFalse(commitRefReleased.get());
+        assertThat(snapshotIndexCommit.refCount(), equalTo(1));
 
         for (CloseTrackingInputStream inputStream : allOpenedStreams) {
             assertTrue("Expected all opened input streams to be closed", inputStream.isClosed());
         }
+    }
+
+    public void testFileReaderThrowsWhenSnapshotAborted() throws IOException {
+        final var commitRefReleased = new AtomicBoolean();
+        final var snapshotIndexCommit = new SnapshotIndexCommit(new Engine.IndexCommitRef(null, () -> commitRefReleased.set(true)));
+        final var snapshotStatus = IndexShardSnapshotStatus.newInitializing(ShardGeneration.newGeneration(), randomNonNegativeLong());
+        snapshotStatus.addAbortListener(new ActionListener<>() {
+            @Override
+            public void onResponse(IndexShardSnapshotStatus.AbortStatus abortStatus) {
+                assertThat(abortStatus, is(IndexShardSnapshotStatus.AbortStatus.ABORTED));
+                snapshotIndexCommit.onAbort();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                fail(e);
+            }
+        });
+        snapshotStatus.abortIfNotCompleted("test abort", listener -> listener.onResponse(null));
+        assertTrue(commitRefReleased.get());
+
+        final var shardId = new ShardId(new Index(randomIndexName(), randomUUID()), between(0, 5));
+        final long generation = 42L;
+        final String blobName = "stateless_commit_" + generation;
+        final var context = new StatelessSnapshotShardContext(
+            shardId,
+            new SnapshotId(randomSnapshotName(), randomUUID()),
+            new IndexId(shardId.getIndexName(), randomUUID()),
+            randomIdentifier(),
+            snapshotStatus,
+            IndexVersion.current(),
+            randomNonNegativeLong(),
+            snapshotIndexCommit,
+            new Store.MetadataSnapshot(Map.of(), Map.of(), randomNonNegativeLong()),
+            Map.of("file", new BlobLocation(new BlobFile(blobName, new PrimaryTermAndGeneration(1L, generation)), 0, 100)),
+            (s, g) -> mock(BlobContainer.class),
+            new PlainActionFuture<>()
+        );
+
+        expectThrows(AbortedSnapshotException.class, () -> context.fileReader("file", mock(StoreFileMetadata.class)));
     }
 
     public void testVerify() throws IOException {
@@ -186,6 +238,7 @@ public class StatelessSnapshotShardContextTests extends ESTestCase {
             IndexShardSnapshotStatus.newInitializing(ShardGeneration.newGeneration(), randomLongBetween(1, Long.MAX_VALUE)),
             IndexVersion.current(),
             randomNonNegativeLong(),
+            null,
             new Store.MetadataSnapshot(Map.of(), Map.of(), randomNonNegativeLong()),
             Map.of(
                 "file",
@@ -359,6 +412,7 @@ public class StatelessSnapshotShardContextTests extends ESTestCase {
             IndexShardSnapshotStatus.newInitializing(ShardGeneration.newGeneration(), randomLongBetween(1, Long.MAX_VALUE)),
             IndexVersion.current(),
             randomNonNegativeLong(),
+            null,
             new Store.MetadataSnapshot(Map.of(), Map.of(), randomNonNegativeLong()),
             Map.of(
                 "file",

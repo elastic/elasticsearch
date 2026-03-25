@@ -108,6 +108,7 @@ public class StatelessSnapshotShardContextFactory implements SnapshotShardContex
                         snapshotStatus,
                         repositoryMetaVersion,
                         snapshotStartTime,
+                        snapshotCommitInfo.snapshotIndexCommit(),
                         snapshotCommitInfo.metadataSnapshot(),
                         snapshotCommitInfo.blobLocations(),
                         shardBlobContainerFunc,

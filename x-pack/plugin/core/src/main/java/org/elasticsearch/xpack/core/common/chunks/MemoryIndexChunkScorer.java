@@ -141,10 +141,12 @@ public class MemoryIndexChunkScorer {
         Session(List<String> chunks, Analyzer analyzer, FieldType fieldType) {
             this.analyzer = analyzer;
             this.chunks = chunks;
+            boolean success = false;
+            Directory dir = new ByteBuffersDirectory();
+            DirectoryReader dirReader = null;
             try {
-                this.directory = new ByteBuffersDirectory();
                 IndexWriterConfig config = new IndexWriterConfig(analyzer);
-                try (IndexWriter writer = new IndexWriter(directory, config)) {
+                try (IndexWriter writer = new IndexWriter(dir, config)) {
                     for (String chunk : chunks) {
                         Document doc = new Document();
                         doc.add(new Field(CONTENT_FIELD, chunk, fieldType));
@@ -152,10 +154,25 @@ public class MemoryIndexChunkScorer {
                     }
                     writer.commit();
                 }
-                this.reader = DirectoryReader.open(directory);
+                dirReader = DirectoryReader.open(dir);
+                this.directory = dir;
+                this.reader = dirReader;
                 this.searcher = new IndexSearcher(reader);
+                success = true;
             } catch (IOException e) {
                 throw new ElasticsearchException("Failed to build in-memory chunk index", e);
+            } finally {
+                if (success == false) {
+                    try {
+                        if (dirReader != null) {
+                            dirReader.close();
+                        }
+                    } catch (IOException ignored) {} finally {
+                        try {
+                            dir.close();
+                        } catch (IOException ignored) {}
+                    }
+                }
             }
         }
 

@@ -61,7 +61,6 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -405,12 +404,7 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
         }
 
         try (var session = scorer.openSession(allChunks, highlightFormatter != null)) {
-            List<ScoredChunk> scored = session.score(queryString, allChunks.size(), false);
-
-            List<ScoredChunk> topChunks = scored.stream()
-                .sorted(Comparator.comparing(ScoredChunk::score).reversed())
-                .limit(numSnippets)
-                .toList();
+            List<ScoredChunk> topChunks = session.score(queryString, numSnippets, false);
 
             if (topChunks.isEmpty()) {
                 builder.appendNull();
@@ -529,7 +523,8 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
             numWords = DEFAULT_WORD_SIZE;
         }
 
-        ChunkingSettings chunkingSettings = new SentenceBoundaryChunkingSettings(numWords, 0);
+        ChunkingSettings chunkingSettings = numWords > 0 ? new SentenceBoundaryChunkingSettings(numWords, 0) : null;
+
         // TODO(mromaios): add Analyzer support
         MemoryIndexChunkScorer scorer = new MemoryIndexChunkScorer();
 

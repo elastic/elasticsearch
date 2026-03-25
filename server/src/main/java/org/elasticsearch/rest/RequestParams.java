@@ -110,7 +110,7 @@ public final class RequestParams extends AbstractMap<String, String> {
      */
     public static RequestParams fromSingleValues(Map<String, String> singleValues) {
         LinkedHashMap<String, List<String>> wrapped = Maps.newLinkedHashMapWithExpectedSize(singleValues.size());
-        singleValues.forEach((k, v) -> wrapped.put(k, List.of(v)));
+        singleValues.forEach((k, v) -> wrapped.put(k, Collections.singletonList(v)));
         return new RequestParams(wrapped);
     }
 
@@ -123,6 +123,11 @@ public final class RequestParams extends AbstractMap<String, String> {
             copy.put(k, List.copyOf(v));
         });
         this.map = copy;
+    }
+
+    /** Wraps an already-validated map directly, without copying. Used by {@link #fromSingleValues}. */
+    private RequestParams(LinkedHashMap<String, List<String>> validatedMap) {
+        this.map = validatedMap;
     }
 
     // Multi-value API

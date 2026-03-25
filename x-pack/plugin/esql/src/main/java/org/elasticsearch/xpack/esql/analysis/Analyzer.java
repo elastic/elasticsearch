@@ -348,6 +348,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
             var attributes = mappingAsAttributes(plan.source(), esIndex.mapping());
             attributes.addAll(metadata.stream().map(NamedExpression::toAttribute).toList());
+            // TODO: at least factor out into a helper method.
             if (context.unmappedResolution() == UnmappedResolution.LOAD && plan.indexMode() != IndexMode.LOOKUP) {
                 for (int i = 0; i < attributes.size(); i++) {
                     if (attributes.get(i) instanceof FieldAttribute fa
@@ -671,6 +672,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 default -> plan.transformExpressionsOnly(UnresolvedAttribute.class, ua -> maybeResolveAttribute(ua, childrenOutput));
             };
 
+            // TODO: this looks at used partially mapped field attributes. It should probably get (mostly?) obsolete with the change to
+            // ResolveTables. Also has overlap with Shmuel's work.
             return context.unmappedResolution() == UnmappedResolution.LOAD ? resolvePartiallyMapped(resolved, context) : resolved;
         }
 

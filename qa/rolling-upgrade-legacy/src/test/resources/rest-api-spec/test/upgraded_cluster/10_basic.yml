@@ -91,6 +91,7 @@
       features:
         - headers
         - warnings
+        - allowed_warnings
 
   - do:
       warnings:
@@ -108,6 +109,8 @@
   - set: {hits.hits.0._id: task_id}
 
   - do:
+      allowed_warnings:
+        - "Using the task management APIs to get reindex tasks is deprecated. Use the dedicated reindex API instead, GET /_reindex/<task_id>."
       tasks.get:
         task_id: $task_id
 
@@ -128,6 +131,8 @@
   - set: { task: task_id }
 
   - do:
+      allowed_warnings:
+        - "Using the task management APIs to get reindex tasks is deprecated. Use the dedicated reindex API instead, GET /_reindex/<task_id>."
       tasks.get:
         wait_for_completion: true
         task_id: $task_id

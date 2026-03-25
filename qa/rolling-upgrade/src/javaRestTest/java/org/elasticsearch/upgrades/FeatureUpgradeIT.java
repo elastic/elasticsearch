@@ -38,7 +38,8 @@ public class FeatureUpgradeIT extends AbstractRollingUpgradeTestCase {
     }
 
     public void testGetFeatureUpgradeStatus() throws Exception {
-
+        final String reindexTaskGetApiDeprecation = "Using the task management APIs to get reindex tasks is deprecated. "
+            + "Use the dedicated reindex API instead, GET /_reindex/<task_id>.";
         final String systemIndexWarning = "this request accesses system indices: [.tasks], but in a future major version, direct "
             + "access to system indices will be prevented by default";
         if (isOldCluster()) {
@@ -74,6 +75,10 @@ public class FeatureUpgradeIT extends AbstractRollingUpgradeTestCase {
             // wait for task
             Request getTask = new Request("GET", "/_tasks/" + taskId);
             getTask.addParameter("wait_for_completion", "true");
+            getTask.setOptions(expectVersionSpecificWarnings(v -> {
+                v.current(reindexTaskGetApiDeprecation);
+                v.compatible(reindexTaskGetApiDeprecation);
+            }));
             client().performRequest(getTask);
 
             // make sure .tasks index exists

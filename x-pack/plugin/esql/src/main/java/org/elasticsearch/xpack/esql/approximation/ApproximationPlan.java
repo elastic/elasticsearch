@@ -65,7 +65,7 @@ import java.util.Set;
  * The approximation plan, that is substituted during logical plan optimization
  * in the rule {@link SubstituteApproximationPlan}.
  * <p>
- * See the JavaDocs of {@link Approximation} for more details.
+ * See the Javadocs of {@link Approximation} for more details.
  */
 public class ApproximationPlan {
 
@@ -296,7 +296,7 @@ public class ApproximationPlan {
             approximationPlan = new Eval(Source.EMPTY, approximationPlan, confidenceIntervals);
         }
 
-        // Drop all bucket fields and uncorrected fields from the output.
+        // Drop all bucket fields and not rounded fields from the output.
         Set<Attribute> dropAttributes = new HashSet<>(notRoundedExpressions.values());
         if (fieldBuckets != null) {
             dropAttributes.addAll(fieldBuckets.values().stream().flatMap(List::stream).toList());
@@ -395,10 +395,11 @@ public class ApproximationPlan {
 
             projections.add(agg.toAttribute());
             if (needsRounding) {
-                Alias notRoundedAgg = new Alias(Source.EMPTY, Attribute.rawTemporaryName(agg.name(), "notrounded"), aggFn);
+                Alias notRoundedAgg = new Alias(Source.EMPTY, Attribute.rawTemporaryName(agg.name(), "not_rounded"), aggFn);
                 notRoundedExpressions.put(agg.id(), notRoundedAgg.toAttribute());
                 postEvals.add(agg.replaceChild(new ToLong(Source.EMPTY, notRoundedAgg.toAttribute())));
                 agg = notRoundedAgg;
+                projections.add(notRoundedAgg.toAttribute());
             }
             originalAggregates.add(agg);
 
@@ -421,37 +422,37 @@ public class ApproximationPlan {
                         );
                         Alias bucket = new Alias(
                             Source.EMPTY,
-                            Attribute.rawTemporaryName(aggOrKey.name(), "bucket", Integer.toString(trialId * BUCKET_COUNT + bucketId)),
+                            Attribute.rawTemporaryName(agg.name(), "bucket", Integer.toString(trialId * BUCKET_COUNT + bucketId)),
                             aggFn.withFilter(
                                 aggFn.hasFilter() == false ? bucketIdFilter : new And(Source.EMPTY, aggFn.filter(), bucketIdFilter)
                             )
                         );
+                        bucketAggregates.add(bucket);
+                        projections.add(bucket.toAttribute());
 
                         if (needsRounding) {
-                            Alias approxBucket = new Alias(
+                            // The existing bucket is the non-rounded version, so a rounded version needs to be added,
+                            // which can be used for follow-up operations and the confidence interval computation.
+                            Alias roundedBucket = new Alias(
                                 Source.EMPTY,
-                                Attribute.rawTemporaryName(bucket.name(), "notrounded"),
-                                bucket.child()
+                                Attribute.rawTemporaryName(aggOrKey.name(), "bucket", Integer.toString(trialId * BUCKET_COUNT + bucketId)),
+                                new ToLong(Source.EMPTY, bucket.toAttribute())
                             );
-                            notRoundedExpressions.put(bucket.id(), approxBucket.toAttribute());
-                            postEvals.add(bucket.replaceChild(new ToLong(Source.EMPTY, approxBucket.toAttribute())));
-                            bucket = approxBucket;
+                            if (aggFn instanceof CountApproximate) {
+                                // COUNT returns 0 for no data, but the confidence computation needs NULL.
+                                roundedBucket = roundedBucket.replaceChild(
+                                    new Case(
+                                        Source.EMPTY,
+                                        new Equals(Source.EMPTY, roundedBucket.child(), Literal.fromLong(Source.EMPTY, 0L)),
+                                        List.of(Literal.NULL, roundedBucket.child())
+                                    )
+                                );
+                            }
+                            notRoundedExpressions.put(roundedBucket.id(), bucket.toAttribute());
+                            postEvals.add(roundedBucket);
+                            bucket = roundedBucket;
                         }
-                        bucketAggregates.add(bucket);
 
-                        if (aggFn instanceof Count) {
-                            // COUNT returns 0 for no data, but confidence computation needs NULL.
-                            bucket = new Alias(
-                                Source.EMPTY,
-                                bucket.name(),
-                                new Case(
-                                    Source.EMPTY,
-                                    new Equals(Source.EMPTY, bucket.toAttribute(), Literal.fromDouble(Source.EMPTY, 0.0)),
-                                    List.of(Literal.NULL, bucket.toAttribute())
-                                )
-                            );
-                            postEvals.add(bucket);
-                        }
                         buckets.add(bucket.toAttribute());
                         projections.add(bucket.toAttribute());
                     }
@@ -518,7 +519,7 @@ public class ApproximationPlan {
     ) {
         return switch (plan) {
             case Eval eval -> evalIncludingBuckets(eval, fieldBuckets, notRoundedExpressions);
-            case Project project -> projectIncludingBuckets(project, fieldBuckets);
+            case Project project -> projectIncludingBuckets(project, fieldBuckets, notRoundedExpressions);
             case MvExpand mvExpand -> mvExpandIncludingBuckets(mvExpand, fieldBuckets);
             default -> plan;
         };
@@ -596,7 +597,7 @@ public class ApproximationPlan {
      * For PROJECT, if it renames a field with buckets, add the renamed field
      * to the map of fields with buckets.
      */
-    private static LogicalPlan projectIncludingBuckets(Project project, Map<NameId, List<Attribute>> fieldBuckets) {
+    private static LogicalPlan projectIncludingBuckets(Project project, Map<NameId, List<Attribute>> fieldBuckets, Map<NameId, Attribute> notRoundedExpressions) {
         if (fieldBuckets == null) {
             return project;
         }
@@ -625,6 +626,13 @@ public class ApproximationPlan {
             }
         }
         if (projections != null) {
+            List<Attribute> notRoundedProjections = new ArrayList<>();
+            for (NamedExpression projection : projections) {
+                if (notRoundedExpressions.containsKey(projection.id())) {
+                    notRoundedProjections.add(notRoundedExpressions.get(projection.id()));
+                }
+            }
+            projections.addAll(notRoundedProjections);
             project = project.withProjections(projections);
         }
         return project;

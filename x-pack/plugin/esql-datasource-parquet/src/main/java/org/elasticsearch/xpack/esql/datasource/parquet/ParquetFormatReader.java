@@ -15,6 +15,7 @@ import org.apache.parquet.column.ColumnReader;
 import org.apache.parquet.column.impl.ColumnReadStoreImpl;
 import org.apache.parquet.column.page.PageReadStore;
 import org.apache.parquet.column.statistics.Statistics;
+import org.apache.parquet.filter2.compat.FilterCompat;
 import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.hadoop.metadata.BlockMetaData;
 import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
@@ -40,6 +41,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.CloseableIterator;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnBlockConversions;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
+import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader;
@@ -79,11 +81,30 @@ import java.util.OptionalLong;
 public class ParquetFormatReader implements RangeAwareFormatReader {
 
     private final BlockFactory blockFactory;
+    private final FilterCompat.Filter pushedFilter;
 
     static final long DEFAULT_ROW_GROUP_MACRO_SPLIT_TARGET_BYTES = 32L * 1024 * 1024;
 
     public ParquetFormatReader(BlockFactory blockFactory) {
+        this(blockFactory, FilterCompat.NOOP);
+    }
+
+    private ParquetFormatReader(BlockFactory blockFactory, FilterCompat.Filter pushedFilter) {
         this.blockFactory = blockFactory;
+        this.pushedFilter = pushedFilter;
+    }
+
+    @Override
+    public ParquetFormatReader withPushedFilter(Object pushedFilter) {
+        if (pushedFilter instanceof FilterCompat.Filter filter) {
+            return new ParquetFormatReader(blockFactory, filter);
+        }
+        return this;
+    }
+
+    @Override
+    public FilterPushdownSupport filterPushdownSupport() {
+        return new ParquetFilterPushdownSupport();
     }
 
     /**
@@ -215,7 +236,11 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
         int rowLimit = context.rowLimit();
 
         InputFile parquetInputFile = new ParquetStorageObjectAdapter(object);
-        ParquetReadOptions options = readOptionsBuilder().build();
+        ParquetReadOptions.Builder optionsBuilder = readOptionsBuilder();
+        if (FilterCompat.isFilteringRequired(pushedFilter)) {
+            optionsBuilder.withRecordFilter(pushedFilter);
+        }
+        ParquetReadOptions options = optionsBuilder.build();
         ParquetFileReader reader = ParquetFileReader.open(parquetInputFile, options);
 
         FileMetaData fileMetaData = reader.getFileMetaData();
@@ -335,7 +360,11 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
         ErrorPolicy errorPolicy
     ) throws IOException {
         InputFile parquetInputFile = new ParquetStorageObjectAdapter(object);
-        ParquetReadOptions options = readOptionsBuilder().withRange(rangeStart, rangeEnd).build();
+        ParquetReadOptions.Builder optionsBuilder = readOptionsBuilder().withRange(rangeStart, rangeEnd);
+        if (FilterCompat.isFilteringRequired(pushedFilter)) {
+            optionsBuilder.withRecordFilter(pushedFilter);
+        }
+        ParquetReadOptions options = optionsBuilder.build();
         ParquetFileReader reader = ParquetFileReader.open(parquetInputFile, options);
 
         FileMetaData fileMetaData = reader.getFileMetaData();

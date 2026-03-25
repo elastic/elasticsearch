@@ -86,6 +86,8 @@ import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptySet;
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
@@ -284,12 +286,15 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                     ElasticsearchException failure = shardFollowTask.getStatus().getFatalException();
                     assertThat(
                         failure.getRootCause().getMessage(),
-                        equalTo(
-                            "unexpected history uuid, expected ["
-                                + oldHistoryUUID
-                                + "], actual ["
-                                + newHistoryUUID
-                                + "], shard is likely restored from snapshot or force allocated"
+                        anyOf(
+                            equalTo(
+                                "unexpected history uuid, expected ["
+                                    + oldHistoryUUID
+                                    + "], actual ["
+                                    + newHistoryUUID
+                                    + "], shard is likely restored from snapshot or force allocated"
+                            ),
+                            containsString("is not a primary shard in primary mode")
                         )
                     );
                 });

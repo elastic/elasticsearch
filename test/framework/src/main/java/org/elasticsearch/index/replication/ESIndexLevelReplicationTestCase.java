@@ -679,6 +679,8 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
                     TimeValue.timeValueMillis(20),
                     TimeValue.timeValueSeconds(60)
                 ).execute();
+            } catch (AssertionError e) {
+                listener.onFailure(new RuntimeException(e.getMessage(), e));
             } catch (Exception e) {
                 listener.onFailure(e);
             }

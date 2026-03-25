@@ -2647,12 +2647,15 @@ The Distributed team owns Elasticsearch's write path. A typical write begins as 
 the appropriate primary shard, is applied to the shard's engine and translog, and is finally replicated across replicas
 before an ack is sent back to the client.
 
+Note that in serverless Elasticsearch, durability is instead provided by writing to the translog and uploading to blob 
+storage. There is no replication process. More details in the [Serverless](#serverless) section.
+
 The Distributed team also owns select parts of the read path (e.g. real-time `GET` requests targeting the
 [translog](#translog)), but broader search capabilities like query execution, scoring, and aggregations fall under 
 the Search team.
 
-This section follows a single document index request end to end, using the [RestIndexAction] class as the starting 
-point.
+This section follows a single document index request end to end in stateful Elasticsearch, using the [RestIndexAction] 
+class as the starting point.
 
 ## The Write Path
 
@@ -2708,7 +2711,10 @@ converges. To avoid redirect loops between nodes whose cluster state versions di
 [routedBasedOnClusterVersion](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/support/replication/TransportReplicationAction.java#L1021)
 field. Each forward updates it to the forwarding node’s cluster state version so the next receiver
 [is on at least](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/support/replication/TransportReplicationAction.java#L898)
-that version before it redirects again.
+that version before it redirects again. Retries and awaiting cluster state updates are
+[bounded by the request’s timeout](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/support/replication/TransportReplicationAction.java#L874).
+On each retry attempt the node [checks](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/support/replication/TransportReplicationAction.java#L1102)
+whether the timeout has expired, and if so fails the request with an `UnavailableShardsException`.
 
 Once the request
 [reaches](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/support/replication/TransportReplicationAction.java#L964)
@@ -2727,9 +2733,10 @@ the shard's bulk items through [IndexShard], the single entry point for shard-le
 
 The primary will first try to
 [acquire](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/support/replication/TransportReplicationAction.java#L484)
-an operation permit via [IndexShardOperationPermits]. Note that recovery and relocation are operations that can 
-intentionally grab all available permits with the goal of blocking in-flight writes. If the permit is successfully 
-acquired, the primary will then validate and
+an operation permit via [IndexShardOperationPermits]. Note that recovery and relocation are operations that can
+intentionally grab all available permits with the goal of blocking in-flight writes. In that case, the incoming
+operation is [queued](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/shard/IndexShardOperationPermits.java#L219)
+and will resume once the block lifts. If the permit is successfully acquired, the primary will then validate and
 [prepare](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/shard/IndexShard.java#L1026)
 the operation: create the mapping (if not already existing), parse the source, etc. `IndexShard` will then hand over the
 request to the engine (typically [InternalEngine], see [Engine](#engine) section for more details) that
@@ -3041,3 +3048,6 @@ PUT _watcher/watch/log_error_watch
   - Calls to remote systems ([EmailAction] and [WebhookAction]) are a frequent source of failures. Watcher sends the request but doesn't know what happens after that. If you see that the call was successful in `.watcher_history`, the best way to continue the investigation is in the logs of the remote system.
   - Even if watcher fails during a call to a remote system, the error is likely to be outside of watcher (e.g. network problems). Check the error message in `.watcher_history`.
 
+# Serverless
+
+(placeholder for now)

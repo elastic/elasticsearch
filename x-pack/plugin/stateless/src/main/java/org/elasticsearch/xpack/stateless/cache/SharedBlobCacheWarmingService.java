@@ -558,7 +558,7 @@ public class SharedBlobCacheWarmingService {
                     "generation=" + commit.generation(),
                     Maps.copyMapWithAddedEntry(RecoveryMetricsCollector.commonMetricLabels(indexShard), "prewarming_type", type.name())
                 );
-                boolean preWarmForIdLookupRequested = preWarmForIdLookup && type == Type.INDEXING_EARLY;
+                boolean preWarmForIdLookupRequested = preWarmForIdLookup && (type == Type.INDEXING_EARLY || type == Type.INDEXING);
                 if (preWarmForIdLookupRequested) {
                     idLookupPrewarmReqsTotalMetric.incrementBy(1, Map.of("es_blob_cache_prewarming_type", type.name()));
                 }

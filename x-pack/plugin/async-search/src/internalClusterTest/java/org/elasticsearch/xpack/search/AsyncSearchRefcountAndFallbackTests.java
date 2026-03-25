@@ -227,15 +227,7 @@ public class AsyncSearchRefcountAndFallbackTests extends ESSingleNodeTestCase {
             new AsyncExecutionId("debug", new TaskId("node", 1L)),
             client,
             threadPool,
-            isCancelled -> () -> new AggregationReduceContext.ForFinal(
-                null,
-                null,
-                null,
-                null,
-                null,
-                PipelineAggregator.PipelineTree.EMPTY,
-                null
-            ),
+            isCancelled -> () -> new AggregationReduceContext.ForFinal(null, null, null, null, null, PipelineAggregator.PipelineTree.EMPTY),
             store
         );
     }

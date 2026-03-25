@@ -200,6 +200,11 @@ public class EsqlCapabilities {
         CASTING_OPERATOR_FOR_DATE,
 
         /**
+         * Support for the {@code ::tdigest} and {@code ::exponential_histogram} casting operators.
+         */
+        CASTING_OPERATOR_FOR_HISTOGRAM_TYPES,
+
+        /**
          * Blocks can be labelled with {@link org.elasticsearch.compute.data.Block.MvOrdering#SORTED_ASCENDING} for optimizations.
          */
         MV_ORDERING_SORTED_ASCENDING,
@@ -1089,11 +1094,6 @@ public class EsqlCapabilities {
         FULL_TEXT_FUNCTIONS_DISJUNCTIONS_SCORE,
 
         /**
-         * Support for multi-match function.
-         */
-        MULTI_MATCH_FUNCTION(Build.current().isSnapshot()),
-
-        /**
          * Do {@code TO_LOWER} and {@code TO_UPPER} process all field values?
          */
         TO_LOWER_MV,
@@ -1968,6 +1968,11 @@ public class EsqlCapabilities {
         PROMQL_IMPLICIT_RANGE_SELECTOR,
 
         /**
+         * Support for PromQL {@code without} grouping.
+         */
+        PROMQL_WITHOUT_GROUPING(false),
+
+        /**
          * Support for {@code TIME_SERIES_WITHOUT_GROUPING} capability for the
          * grouping function that excludes specific dimensions from time-series grouping.
          */
@@ -2120,7 +2125,7 @@ public class EsqlCapabilities {
         /**
          * Support query approximation.
          */
-        APPROXIMATION_V4(Build.current().isSnapshot()),
+        APPROXIMATION_V5(Build.current().isSnapshot()),
 
         /**
          * Create a ScoreOperator only when shard contexts are available
@@ -2152,6 +2157,11 @@ public class EsqlCapabilities {
          * Support for the {@code TO_EXPONENTIAL_HISTOGRAM} conversion function.
          */
         TO_EXPONENTIAL_HISTOGRAM,
+
+        /**
+         * Support for converting {@code exponential_histogram} fields via {@code TO_TDIGEST}.
+         */
+        TO_TDIGEST_FROM_EXPONENTIAL_HISTOGRAM,
 
         /**
          * Support for {@code MEDIAN} aggregation on {@code tdigest} type fields.
@@ -2219,6 +2229,11 @@ public class EsqlCapabilities {
          * Support for the EXTERNAL command (datasource access).
          */
         EXTERNAL_COMMAND(Build.current().isSnapshot()),
+
+        /**
+         * Support for the EXTERNAL command (datasource access).
+         */
+        EXTERNAL_CSV_IP_SUPPORT(Build.current().isSnapshot()),
 
         /**
          * https://github.com/elastic/elasticsearch/issues/142219
@@ -2336,6 +2351,19 @@ public class EsqlCapabilities {
          * <a href="https://github.com/elastic/elasticsearch/pull/144388"></a>
          */
         CHANGE_POINT_SUPPORT_NULL_COLUMN,
+
+        /**
+         * Reject loading sub-fields of flattened fields when {@code unmapped_fields="load"}
+         * See https://github.com/elastic/elasticsearch/issues/143494
+         */
+        REJECT_LOADING_FLATTENED_SUBFIELDS(OPTIONAL_FIELDS_V2.isEnabled()),
+
+        FIX_DIV_ERROR_MESSAGE,
+
+        /**
+         * Added {@link org.elasticsearch.xpack.esql.planner.PlannerSettings#DOC_THRESHOLD_AUTO_PARTITIONING}
+         */
+        AUTO_PARTITION_DOCS_THRESHOLD,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

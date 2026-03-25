@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasource.ndjson;
 
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -27,28 +28,47 @@ import java.util.List;
  */
 public class NdJsonFormatReader implements SegmentableFormatReader {
 
+    public static final String SCHEMA_SAMPLE_SIZE_SETTING = "esql.datasource.ndjson.schema_sample_size";
+    public static final int DEFAULT_SCHEMA_SAMPLE_SIZE = 100;
+
     private final BlockFactory blockFactory;
+    private final Settings settings;
     private final List<Attribute> resolvedSchema;
 
-    public NdJsonFormatReader(BlockFactory blockFactory) {
-        this(blockFactory, null);
+    public NdJsonFormatReader(Settings settings, BlockFactory blockFactory, List<Attribute> resolvedSchema) {
+        this.blockFactory = blockFactory;
+        this.settings = settings == null ? Settings.EMPTY : settings;
+        this.resolvedSchema = resolvedSchema;
     }
 
-    private NdJsonFormatReader(BlockFactory blockFactory, List<Attribute> resolvedSchema) {
-        this.blockFactory = blockFactory;
-        this.resolvedSchema = resolvedSchema;
+    NdJsonFormatReader(Settings settings, BlockFactory blockFactory) {
+        this(settings, blockFactory, null);
     }
 
     @Override
     public NdJsonFormatReader withSchema(List<Attribute> schema) {
-        return new NdJsonFormatReader(blockFactory, schema);
+        return new NdJsonFormatReader(settings, blockFactory, schema);
+    }
+
+    private List<Attribute> inferSchemaIfNeeded(List<Attribute> attributes, StorageObject object) throws IOException {
+        if (attributes != null && attributes.isEmpty() == false) {
+            return attributes;
+        }
+
+        try (var stream = object.newStream()) {
+            return NdJsonSchemaInferrer.inferSchema(stream, schemaSampleSize(settings));
+        }
+    }
+
+    private static int schemaSampleSize(Settings settings) {
+        return settings.getAsInt(SCHEMA_SAMPLE_SIZE_SETTING, DEFAULT_SCHEMA_SAMPLE_SIZE);
     }
 
     @Override
     public SourceMetadata metadata(StorageObject object) throws IOException {
         List<Attribute> schema;
         try (var stream = object.newStream()) {
-            schema = NdJsonSchemaInferrer.inferSchema(stream);
+            schema = NdJsonSchemaInferrer.inferSchema(stream, schemaSampleSize(settings));
         }
         return new SimpleSourceMetadata(schema, formatName(), object.path().toString());
     }
@@ -64,7 +84,7 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
             blockFactory,
             skipFirstLine,
             trimLastPartialLine,
-            resolvedSchema
+            inferSchemaIfNeeded(resolvedSchema, object)
         );
     }
 

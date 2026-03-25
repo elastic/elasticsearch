@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.esql.LicenseAware;
 import org.elasticsearch.xpack.esql.capabilities.ConfigurationAware;
@@ -19,6 +20,7 @@ import org.elasticsearch.xpack.esql.core.capabilities.Unresolvable;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedTimestamp;
@@ -26,6 +28,8 @@ import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
+import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
@@ -49,6 +53,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
+import org.elasticsearch.xpack.esql.session.FieldNameUtils;
 import org.elasticsearch.xpack.esql.telemetry.FeatureMetric;
 import org.elasticsearch.xpack.esql.telemetry.Metrics;
 
@@ -126,6 +131,7 @@ public class Verifier {
         if (unmappedResolution == UnmappedResolution.LOAD) {
             checkLoadModeDisallowedCommands(plan, failures);
             checkLoadModeDisallowedFunctions(plan, failures);
+            checkFlattenedSubFieldLoad(plan, failures);
         }
 
         // collect plan checkers
@@ -432,6 +438,9 @@ public class Verifier {
             if (p instanceof EsRelation esRelation && esRelation.indexMode() == IndexMode.LOOKUP) {
                 failures.add(fail(p, "LOOKUP JOIN is not supported with unmapped_fields=\"load\""));
             }
+            if (p instanceof PromqlCommand) {
+                failures.add(fail(p, "PROMQL is not supported with unmapped_fields=\"load\""));
+            }
         });
     }
 
@@ -452,6 +461,58 @@ public class Verifier {
                 )
             )
         );
+    }
+
+    /**
+     * Reject loading sub-fields of flattened fields when {@code unmapped_fields="load"}, by checking if any
+     * {@link PotentiallyUnmappedKeywordEsField} is a sub-field of a parent field whose original type is flattened. The reason is that
+     * flattened subfields resolution may eventually differ from what happens when {@code unmapped_fields="load"}.
+     */
+    private static void checkFlattenedSubFieldLoad(LogicalPlan plan, Failures failures) {
+        plan.forEachDown(EsRelation.class, esRelation -> {
+            Set<String> flattenedFieldNames = flattenedFieldNames(esRelation.output());
+
+            if (flattenedFieldNames.isEmpty()) {
+                return;
+            }
+
+            for (Attribute attr : esRelation.output()) {
+                if (!(attr instanceof FieldAttribute fa && fa.field() instanceof PotentiallyUnmappedKeywordEsField)) {
+                    continue;
+                }
+
+                String name = fa.name();
+                List<String> prefixes = FieldNameUtils.parentPrefixes(name);
+                for (String parent : prefixes) {
+                    if (flattenedFieldNames.contains(parent)) {
+                        // It is sufficient to find "a" flattened field with a name matching the parent's.
+                        Failure failure = fail(
+                            fa,
+                            "Loading subfield [{}] when parent [{}] is of flattened field type is not supported with "
+                                + "unmapped_fields=\"load\"",
+                            name,
+                            parent
+                        );
+                        failures.add(failure);
+                        break;
+                    }
+                }
+            }
+        });
+    }
+
+    private static Set<String> flattenedFieldNames(List<Attribute> attributes) {
+        Set<String> names = new HashSet<>();
+
+        for (Attribute attribute : attributes) {
+            if (attribute instanceof FieldAttribute fa
+                && fa.field() instanceof UnsupportedEsField uef
+                && uef.getOriginalTypes().contains(FlattenedFieldMapper.CONTENT_TYPE)) {
+                names.add(fa.name());
+            }
+        }
+
+        return names;
     }
 
     private void licenseCheck(LogicalPlan plan, Failures failures) {

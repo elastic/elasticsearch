@@ -54,7 +54,6 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.IOUtils;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -144,7 +143,6 @@ import org.elasticsearch.transport.Transports;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -2382,26 +2380,24 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     public AggregationReduceContext.Builder aggReduceContextBuilder(Supplier<Boolean> isCanceled, AggregatorFactories.Builder aggs) {
         return new AggregationReduceContext.Builder() {
             @Override
-            public AggregationReduceContext forPartialReduction(@Nullable Collection<SearchHits> topHitsToRelease) {
+            public AggregationReduceContext forPartialReduction() {
                 return new AggregationReduceContext.ForPartial(
                     bigArrays,
                     scriptService,
                     isCanceled,
                     aggs,
-                    multiBucketConsumerService.createForPartial(),
-                    topHitsToRelease
+                    multiBucketConsumerService.createForPartial()
                 );
             }
 
             @Override
-            public AggregationReduceContext forFinalReduction(@Nullable Collection<SearchHits> topHitsToRelease) {
+            public AggregationReduceContext forFinalReduction() {
                 return new AggregationReduceContext.ForFinal(
                     bigArrays,
                     scriptService,
                     isCanceled,
                     aggs,
-                    multiBucketConsumerService.createForFinal(),
-                    topHitsToRelease
+                    multiBucketConsumerService.createForFinal()
                 );
             }
         };

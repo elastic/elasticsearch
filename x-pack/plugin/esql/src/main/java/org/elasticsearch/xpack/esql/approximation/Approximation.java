@@ -125,7 +125,7 @@ public class Approximation {
     public record QueryProperties(boolean hasGrouping, boolean canDecreaseRowCount, boolean canIncreaseRowCount) {}
 
     /**
-     * These processing commands are supported.
+     * These processing commands are fully supported.
      * <p>
      * When a command is not supported, it should be added to
      * ApproximationSupportTests.UNSUPPORTED_COMMANDS
@@ -142,7 +142,6 @@ public class Approximation {
         Filter.class,
         Grok.class,
         Insist.class,
-        Limit.class,
         MvExpand.class,
         OrderBy.class,
         Project.class,
@@ -154,6 +153,15 @@ public class Approximation {
         SampledAggregate.class,
         TopN.class,
         UriParts.class
+    );
+
+    /**
+     * These processing commands are only supported after the initial STATS.
+     */
+    static final Set<Class<? extends LogicalPlan>> SUPPORTED_COMMANDS_AFTER_STATS = Set.of(
+        // It makes no sense to approximate "FROM index | LIMIT N | STATS ...".
+        // Furthermore, the LIMIT here breaks the estimation of the sample probability.
+        Limit.class
     );
 
     /**
@@ -243,6 +251,21 @@ public class Approximation {
      */
     private static final int ROW_COUNT_FOR_COUNT_ESTIMATION = 10_000;
 
+    // TODO: finetune these query approximation parameters:
+    //
+    // The sample probability threshold should depend on the aggregation
+    // functions. For trivial functions like COUNT and SUM, the threshold should
+    // be lower than for computationally heavier ones, like MEDIAN and PERCENTILE.
+    // It may also depend on the presence of grouping, and maybe on whether the
+    // grouping is sparse or dense.
+    //
+    // The default row counts should probably scale with cluster size. Otherwise,
+    // as the cluster size increases, fewer and fewer rows per node are sampled.
+    // This leads to much overhead per sampled rows, making the system inefficient.
+    // If cluster size is hard to get, index size might be a good proxy.
+    //
+    // See also: https://github.com/elastic/elasticsearch/issues/144590
+
     /**
      * Default number of rows to sample for approximation without grouping.
      * 100_000 rows is enough to accurately estimate most single aggregates.
@@ -259,7 +282,7 @@ public class Approximation {
      * Don't sample with a probability higher than this threshold. The cost of
      * tracking confidence intervals doesn't outweigh the benefits of sampling.
      */
-    private static final double SAMPLE_PROBABILITY_THRESHOLD = 0.1;
+    private static final double SAMPLE_PROBABILITY_THRESHOLD = 0.05;
 
     private static final Logger logger = LogManager.getLogger(Approximation.class);
 
@@ -318,7 +341,7 @@ public class Approximation {
         }
         // Verify that all commands are supported.
         logicalPlan.forEachUp(plan -> {
-            if (SUPPORTED_COMMANDS.contains(plan.getClass()) == false
+            if ((SUPPORTED_COMMANDS.contains(plan.getClass()) == false && SUPPORTED_COMMANDS_AFTER_STATS.contains(plan.getClass()) == false)
                 || (plan instanceof EsRelation esRelation && SUPPORTED_INDEX_MODES.contains(esRelation.indexMode()) == false)) {
                 // TODO: ideally just return the command from the source
                 throw new VerificationException(
@@ -337,6 +360,14 @@ public class Approximation {
 
         logicalPlan.forEachUp(plan -> {
             if (encounteredStats.get() == false) {
+                if (SUPPORTED_COMMANDS_AFTER_STATS.contains(plan.getClass())) {
+                    throw new VerificationException(
+                        "line {}:{}: approximation not supported: query with [{}] before [STATS] cannot be approximated",
+                        plan.source().source().getLineNumber(),
+                        plan.source().source().getColumnNumber(),
+                        plan.sourceText()
+                    );
+                }
                 if (plan instanceof Aggregate aggregate) {
                     // Verify that the aggregate functions are supported.
                     encounteredStats.set(true);

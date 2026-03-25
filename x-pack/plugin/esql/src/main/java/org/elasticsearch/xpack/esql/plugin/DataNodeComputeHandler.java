@@ -849,6 +849,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             sinkExec,
             SearchStats.EMPTY,
             computeService.filterPushdownRegistry(),
+            computeService.formatReaderRegistry(),
             planTimeProfile
         );
 

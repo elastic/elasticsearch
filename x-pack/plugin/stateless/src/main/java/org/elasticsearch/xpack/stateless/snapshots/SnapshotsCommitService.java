@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.Iterators;
+import org.elasticsearch.common.time.TimeProvider;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -35,8 +36,13 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.repositories.SnapshotIndexCommit;
 import org.elasticsearch.snapshots.Snapshot;
+import org.elasticsearch.telemetry.metric.DoubleHistogram;
+import org.elasticsearch.telemetry.metric.LongCounter;
+import org.elasticsearch.telemetry.metric.LongHistogram;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
+import org.elasticsearch.xpack.stateless.commits.StatelessCommitService.RecoveredCommitsReleasable;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -62,9 +68,17 @@ public class SnapshotsCommitService implements ClusterStateListener {
 
     private static final Logger logger = LogManager.getLogger(SnapshotsCommitService.class);
 
+    static final String SHARD_RELOCATED_TOTAL = "es.repositories.snapshots.shards.relocated.total";
+    static final String RECOVERY_RETAINED_COMMITS_HISTOGRAM = "es.repositories.snapshots.shards.recovery_retained_commits.histogram";
+    static final String RECOVERY_RETAINED_DURATION_HISTOGRAM = "es.repositories.snapshots.shards.recovery_retained_duration.histogram";
+
     private final ClusterService clusterService;
     private final IndicesService indicesService;
     private final StatelessCommitService commitService;
+    private final TimeProvider timeProvider;
+    private final LongCounter shardRelocationDuringSnapshotCounter;
+    private final LongHistogram recoveryRetainedCommitsHistogram;
+    private final DoubleHistogram recoveryRetainedDurationHistogram;
 
     // Per-shard map of snapshot to Releasable that prevents commit deletion. Each Releasable, when closed, releases
     // either a SnapshotIndexCommit or BCC blob references.
@@ -78,10 +92,32 @@ public class SnapshotsCommitService implements ClusterStateListener {
     // or (c) on shard closed.
     private final Map<ShardId, Map<Snapshot, Releasable>> snapshotsCommitReleasables = new ConcurrentHashMap<>();
 
-    public SnapshotsCommitService(ClusterService clusterService, IndicesService indicesService, StatelessCommitService commitService) {
+    public SnapshotsCommitService(
+        ClusterService clusterService,
+        IndicesService indicesService,
+        StatelessCommitService commitService,
+        TimeProvider timeProvider,
+        MeterRegistry meterRegistry
+    ) {
         this.clusterService = clusterService;
         this.indicesService = indicesService;
         this.commitService = commitService;
+        this.timeProvider = timeProvider;
+        this.shardRelocationDuringSnapshotCounter = meterRegistry.registerLongCounter(
+            SHARD_RELOCATED_TOTAL,
+            "shard relocated while being snapshotted",
+            "unit"
+        );
+        this.recoveryRetainedCommitsHistogram = meterRegistry.registerLongHistogram(
+            RECOVERY_RETAINED_COMMITS_HISTOGRAM,
+            "commits retained during recovery for ongoing shard snapshots",
+            "unit"
+        );
+        this.recoveryRetainedDurationHistogram = meterRegistry.registerDoubleHistogram(
+            RECOVERY_RETAINED_DURATION_HISTOGRAM,
+            "duration till recovery retaining commits are released",
+            "s"
+        );
     }
 
     public record SnapshotCommitInfo(
@@ -177,6 +213,7 @@ public class SnapshotsCommitService implements ClusterStateListener {
         final var shardReleasables = snapshotsCommitReleasables.remove(shardId);
         if (shardReleasables != null) {
             logger.debug("release snapshot commits for shard {} after shard close", shardId);
+            shardRelocationDuringSnapshotCounter.increment();
             Releasables.close(shardReleasables.values());
         }
     }
@@ -186,8 +223,17 @@ public class SnapshotsCommitService implements ClusterStateListener {
      * When the releasable is closed, it dec-refs on all commits that were inc-refed for creating it.
      * It is used as a callback at recovery time to add additional refcounts to pre-recovery commits.
      */
-    public Iterator<Consumer<Releasable>> getExtraReferenceConsumers(ShardId shardId) {
-        return Iterators.map(getRunningSnapshots(shardId), snapshot -> releasable -> {
+    public Iterator<Consumer<RecoveredCommitsReleasable>> getExtraReferenceConsumers(ShardId shardId) {
+        return Iterators.map(getRunningSnapshots(shardId), snapshot -> originalReleasable -> {
+            recoveryRetainedCommitsHistogram.record(originalReleasable.size());
+            final long startTime = timeProvider.relativeTimeInMillis();
+            final var releasable = Releasables.releaseOnce(
+                Releasables.wrap(
+                    originalReleasable,
+                    () -> recoveryRetainedDurationHistogram.record((timeProvider.relativeTimeInMillis() - startTime) / 1_000d)
+                )
+            );
+
             logger.debug("{} conservatively retaining commits for running snapshot [{}]", shardId, snapshot);
             final var shardReleasables = snapshotsCommitReleasables.compute(shardId, (k, v) -> {
                 if (v == null) {

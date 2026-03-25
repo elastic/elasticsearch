@@ -355,6 +355,29 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
     }
 
     /**
+     * A releasable backed by inc-ref and dec-ref the recovered commits with
+     */
+    public static class RecoveredCommitsReleasable implements Releasable {
+        private final Releasable delegate;
+        // Number of recovered commits wrapped by the releasable
+        private final int size;
+
+        public RecoveredCommitsReleasable(Releasable delegate, int size) {
+            this.delegate = delegate;
+            this.size = size;
+        }
+
+        @Override
+        public void close() {
+            delegate.close();
+        }
+
+        public int size() {
+            return size;
+        }
+    }
+
+    /**
      * Initialises the shard's commit state from the recovered BCC chain read from the object store.
      *
      * @param shardId                the shard being recovered
@@ -367,7 +390,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         ShardId shardId,
         BatchedCompoundCommit recoveredBcc,
         Set<BlobFile> otherBlobs,
-        Iterator<Consumer<Releasable>> extraReferenceConsumers
+        Iterator<Consumer<RecoveredCommitsReleasable>> extraReferenceConsumers
     ) {
         assert recoveredBcc != null;
         ShardCommitState commitState = getSafe(shardsCommitsStates, shardId);
@@ -1285,7 +1308,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         private void markBccRecovered(
             BatchedCompoundCommit recoveredBcc,
             Set<BlobFile> otherBlobs,
-            Iterator<Consumer<Releasable>> extraReferenceConsumers
+            Iterator<Consumer<RecoveredCommitsReleasable>> extraReferenceConsumers
         ) {
             assert recoveredBcc != null;
             assert otherBlobs != null;
@@ -1416,7 +1439,8 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 final var recoveredBlobReferences = List.copyOf(primaryTermAndGenToBlobReference.values());
                 extraReferenceConsumers.forEachRemaining(consumer -> {
                     recoveredBlobReferences.forEach(AbstractRefCounted::incRef);
-                    consumer.accept(Releasables.releaseOnce(() -> recoveredBlobReferences.forEach(AbstractRefCounted::decRef)));
+                    final var releasable = Releasables.assertOnce(() -> recoveredBlobReferences.forEach(AbstractRefCounted::decRef));
+                    consumer.accept(new RecoveredCommitsReleasable(releasable, recoveredBlobReferences.size()));
                 });
             }
 

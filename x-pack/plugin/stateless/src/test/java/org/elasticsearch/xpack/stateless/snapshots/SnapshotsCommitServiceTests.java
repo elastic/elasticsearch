@@ -23,15 +23,17 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.AdvancingTimeProvider;
+import org.elasticsearch.common.time.TimeProvider;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexVersion;
@@ -48,6 +50,8 @@ import org.elasticsearch.repositories.ShardSnapshotResult;
 import org.elasticsearch.repositories.SnapshotIndexCommit;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
+import org.elasticsearch.telemetry.InstrumentType;
+import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -55,6 +59,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.cluster.coordination.StatelessClusterConsistencyService;
 import org.elasticsearch.xpack.stateless.commits.StaleCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitCleaner;
+import org.elasticsearch.xpack.stateless.commits.StatelessCommitService.RecoveredCommitsReleasable;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 import org.elasticsearch.xpack.stateless.lucene.StatelessCommitRef;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
@@ -80,9 +85,14 @@ import static org.elasticsearch.xpack.stateless.commits.StatelessCommitServiceTe
 import static org.elasticsearch.xpack.stateless.commits.StatelessCommitServiceTests.markLocalUnused;
 import static org.elasticsearch.xpack.stateless.commits.StatelessCommitServiceTests.readIndexingShardState;
 import static org.elasticsearch.xpack.stateless.commits.StatelessCommitServiceTests.waitUntilBCCIsUploaded;
+import static org.elasticsearch.xpack.stateless.snapshots.SnapshotsCommitService.RECOVERY_RETAINED_COMMITS_HISTOGRAM;
+import static org.elasticsearch.xpack.stateless.snapshots.SnapshotsCommitService.RECOVERY_RETAINED_DURATION_HISTOGRAM;
+import static org.elasticsearch.xpack.stateless.snapshots.SnapshotsCommitService.SHARD_RELOCATED_TOTAL;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItems;
+import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -465,15 +475,18 @@ public class SnapshotsCommitServiceTests extends ESTestCase {
 
             // Race between concurrent recovery and snapshot completion
             final var releasableReleased = new AtomicBoolean(false);
-            final var extraReferenceConsumers = new ArrayList<Consumer<Releasable>>();
+            final var extraReferenceConsumers = new ArrayList<Consumer<RecoveredCommitsReleasable>>();
             testHarness.snapshotsCommitService.getExtraReferenceConsumers(shardId).forEachRemaining(extraReferenceConsumers::add);
             assertThat(extraReferenceConsumers.size(), equalTo(1));
-            final Iterator<Consumer<Releasable>> consumerIterator = Iterators.map(extraReferenceConsumers.iterator(), c -> r -> {
-                c.accept(Releasables.releaseOnce(() -> {
-                    releasableReleased.set(true);
-                    Releasables.close(r);
-                }));
-            });
+            final Iterator<Consumer<RecoveredCommitsReleasable>> consumerIterator = Iterators.map(
+                extraReferenceConsumers.iterator(),
+                c -> r -> {
+                    c.accept(new RecoveredCommitsReleasable(Releasables.releaseOnce(() -> {
+                        releasableReleased.set(true);
+                        Releasables.close(r);
+                    }), r.size()));
+                }
+            );
             final var stateWithoutSnapshot = removeSnapshotFromClusterState(stateWithSnapshot, snapshot);
 
             final var barrier = new CyclicBarrier(2);
@@ -595,6 +608,82 @@ public class SnapshotsCommitServiceTests extends ESTestCase {
         }
     }
 
+    public void testSnapshotMetricsRecordedDuringRelocationAndRecovery() throws Exception {
+        final var meterRegistry = new RecordingMeterRegistry();
+        final var timeProvider = new AdvancingTimeProvider();
+        try (var fixture = createTestFixture(meterRegistry, timeProvider)) {
+            final var testHarness = fixture.node;
+            final var shardId = testHarness.shardId;
+            final var commitService = testHarness.commitService;
+            final var snapshotsCommitService = testHarness.snapshotsCommitService;
+
+            final var initialCommits = testHarness.generateIndexCommitsWithoutMergeOrDeletion(between(2, 5));
+            for (StatelessCommitRef commit : initialCommits) {
+                commitService.onCommitCreation(commit);
+                commitService.ensureMaxGenerationToUploadForFlush(shardId, commit.getGeneration());
+                waitUntilBCCIsUploaded(commitService, shardId, commit.getGeneration());
+            }
+
+            // Set up cluster state with a running snapshot, then register the latest commit for it
+            final var snapshot = randomSnapshot();
+            final var stateWithSnapshot = createClusterStateWithSnapshotsInProgress(testHarness, snapshot);
+            ClusterServiceUtils.setState(testHarness.clusterService, stateWithSnapshot);
+            snapshotsCommitService.registerReleaseForSnapshot(
+                shardId,
+                snapshot,
+                new SnapshotIndexCommit(new Engine.IndexCommitRef(initialCommits.getLast(), () -> {}))
+            );
+
+            // Simulate relocation
+            final var indexingShardState = readIndexingShardState(testHarness, primaryTerm);
+            commitService.closeShard(shardId);
+            snapshotsCommitService.releaseCommitsAndRemoveShardAfterShardClosed(shardId);
+            commitService.unregister(shardId);
+            commitService.register(
+                shardId,
+                primaryTerm,
+                () -> false,
+                () -> MappingLookup.EMPTY,
+                (checkpoint, gcpListener, timeout) -> gcpListener.accept(Long.MAX_VALUE, null),
+                () -> {}
+            );
+
+            final var relocationCounter = meterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_COUNTER, SHARD_RELOCATED_TOTAL);
+            assertThat(relocationCounter, hasSize(1));
+            assertThat(relocationCounter.getFirst().getLong(), equalTo(1L));
+
+            // Simulate recovery
+            commitService.markRecoveredBcc(
+                shardId,
+                indexingShardState.latestCommit(),
+                indexingShardState.otherBlobs(),
+                snapshotsCommitService.getExtraReferenceConsumers(shardId)
+            );
+
+            final var commitsHistogram = meterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.LONG_HISTOGRAM, RECOVERY_RETAINED_COMMITS_HISTOGRAM);
+            assertThat(commitsHistogram, hasSize(1));
+            assertThat(commitsHistogram.getFirst().getLong(), equalTo((long) initialCommits.size()));
+
+            // Simulate snapshot completion
+            timeProvider.advanceByMillis(randomLongBetween(1, 10_000));
+            ClusterServiceUtils.setState(
+                testHarness.clusterService,
+                randomBoolean()
+                    ? removeSnapshotFromClusterState(stateWithSnapshot, snapshot)
+                    : failShardSnapshotState(stateWithSnapshot, snapshot, shardId)
+            );
+
+            final var durationHistogram = meterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.DOUBLE_HISTOGRAM, RECOVERY_RETAINED_DURATION_HISTOGRAM);
+            assertThat(durationHistogram, hasSize(1));
+            assertThat(durationHistogram.getFirst().getDouble(), greaterThan(0.0));
+
+            // The snapshot completion does not trigger the relocation counter
+            assertThat(meterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_COUNTER, SHARD_RELOCATED_TOTAL), hasSize(1));
+        }
+    }
+
     private record ShardStoreAndCommit(IndexShard indexShard, Store store, IndexCommit indexCommit) {}
 
     private static ShardStoreAndCommit mockIndexShardAndCommit(
@@ -638,6 +727,10 @@ public class SnapshotsCommitServiceTests extends ESTestCase {
     }
 
     private TestFixture createTestFixture() throws IOException {
+        return createTestFixture(null, null);
+    }
+
+    private TestFixture createTestFixture(RecordingMeterRegistry meterRegistry, TimeProvider timeProvider) throws IOException {
         Set<StaleCompoundCommit> deletedCommits = ConcurrentCollections.newConcurrentSet();
         final var commitCleaner = new StatelessCommitCleaner(null, null, mock(ObjectStoreService.class)) {
             @Override
@@ -646,7 +739,14 @@ public class SnapshotsCommitServiceTests extends ESTestCase {
             }
         };
         final var stateRef = new AtomicReference<ClusterState>();
-        final var node = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm) {
+        final var node = new FakeStatelessNode(
+            this::newEnvironment,
+            this::newNodeEnvironment,
+            xContentRegistry(),
+            primaryTerm,
+            TestProjectResolvers.DEFAULT_PROJECT_ONLY,
+            meterRegistry
+        ) {
             @Override
             protected Optional<IndexShardRoutingTable> getShardRoutingTable(ShardId shardId) {
                 assert stateRef.get() != null;
@@ -660,6 +760,20 @@ public class SnapshotsCommitServiceTests extends ESTestCase {
                 ObjectStoreService objectStoreService
             ) {
                 return commitCleaner;
+            }
+
+            @Override
+            protected SnapshotsCommitService createSnapshotsCommitService() {
+                if (timeProvider == null) {
+                    return super.createSnapshotsCommitService();
+                }
+                return new SnapshotsCommitService(
+                    clusterService,
+                    indicesService,
+                    commitService,
+                    timeProvider,
+                    meterRegistry != null ? meterRegistry : telemetryProvider.getMeterRegistry()
+                );
             }
         };
         stateRef.set(clusterStateWithPrimaryAndSearchShards(node.shardId, 0));

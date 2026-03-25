@@ -600,16 +600,6 @@ public final class QuerySearchResult extends SearchPhaseResult {
         return topHitsToReleaseQueue;
     }
 
-    /**
-     * Clears the top-hits release list because ownership has been transferred (e.g. to the reduce
-     * context). Call this when the consumer has registered this result's aggregation tree's
-     * top_hits elsewhere so we do not double-release on decRef(). Does not {@link SearchHits#decRef}
-     * entries; the new owner is responsible for releasing those references.
-     */
-    public void clearTopHitsToRelease() {
-        topHitsToReleaseQueue.clear();
-    }
-
     @Override
     public boolean decRef() {
         if (refCounted != null) {

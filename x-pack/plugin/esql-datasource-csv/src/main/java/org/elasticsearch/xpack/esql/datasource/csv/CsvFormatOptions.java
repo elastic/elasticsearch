@@ -12,8 +12,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.format.DateTimeFormatter;
 
 /**
- * Configurable options for CSV/TSV parsing. Maps to common options found in
- * DuckDB, ClickHouse, Spark, and Trino.
+ * Configurable options for CSV/TSV parsing.
  *
  * @param delimiter          field separator character (default: comma)
  * @param quoteChar          character used to quote fields (default: double-quote)
@@ -23,8 +22,8 @@ import java.time.format.DateTimeFormatter;
  * @param encoding           character encoding of the input (default: UTF-8)
  * @param datetimeFormatter  custom datetime format pattern, or null for ISO-8601/epoch
  * @param maxFieldSize       maximum size in bytes for a single field value; 0 means no limit
- *                           (default: 10MB). Maps to DuckDB's max_line_size and provides
- *                           OOM protection against malformed files.
+ *                           (default: 10MB). Provides OOM protection against malformed files.
+ * @param multiValueSyntax   syntax for multi-value fields: BRACKETS (default, [a,b,c]) or NONE
  */
 public record CsvFormatOptions(
     char delimiter,
@@ -34,8 +33,15 @@ public record CsvFormatOptions(
     String nullValue,
     Charset encoding,
     DateTimeFormatter datetimeFormatter,
-    int maxFieldSize
+    int maxFieldSize,
+    MultiValueSyntax multiValueSyntax
 ) {
+
+    public enum MultiValueSyntax {
+        NONE,
+        BRACKETS
+    }
+
     /** 10 MB default field size limit — generous for real-world data, prevents OOM on corrupt files. */
     static final int DEFAULT_MAX_FIELD_SIZE = 10 * 1024 * 1024;
 
@@ -47,7 +53,8 @@ public record CsvFormatOptions(
         "",
         StandardCharsets.UTF_8,
         null,
-        DEFAULT_MAX_FIELD_SIZE
+        DEFAULT_MAX_FIELD_SIZE,
+        MultiValueSyntax.BRACKETS
     );
 
     public static final CsvFormatOptions TSV = new CsvFormatOptions(
@@ -58,7 +65,8 @@ public record CsvFormatOptions(
         "",
         StandardCharsets.UTF_8,
         null,
-        DEFAULT_MAX_FIELD_SIZE
+        DEFAULT_MAX_FIELD_SIZE,
+        MultiValueSyntax.BRACKETS
     );
 
     public CsvFormatOptions {
@@ -73,6 +81,9 @@ public record CsvFormatOptions(
         }
         if (maxFieldSize < 0) {
             throw new IllegalArgumentException("maxFieldSize must be non-negative, got: " + maxFieldSize);
+        }
+        if (multiValueSyntax == null) {
+            throw new IllegalArgumentException("multiValueSyntax must not be null");
         }
     }
 }

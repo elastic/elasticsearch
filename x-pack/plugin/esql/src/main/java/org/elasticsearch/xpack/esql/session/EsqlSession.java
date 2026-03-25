@@ -40,6 +40,7 @@ import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
+import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
@@ -52,19 +53,20 @@ import org.elasticsearch.xpack.esql.analysis.PreAnalyzer;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
 import org.elasticsearch.xpack.esql.approximation.Approximation;
+import org.elasticsearch.xpack.esql.approximation.ApproximationSettings;
+import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
-import org.elasticsearch.xpack.esql.core.expression.Literal;
-import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtractor;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
 import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.inference.InferenceResolution;
@@ -82,11 +84,11 @@ import org.elasticsearch.xpack.esql.plan.QuerySetting;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.SettingsValidationContext;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
+import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
-import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
@@ -94,6 +96,7 @@ import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
 import org.elasticsearch.xpack.esql.planner.premapper.PreMapper;
+import org.elasticsearch.xpack.esql.plugin.ComputeService;
 import org.elasticsearch.xpack.esql.plugin.TransportActionServices;
 import org.elasticsearch.xpack.esql.telemetry.Metrics;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
@@ -105,6 +108,7 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -113,10 +117,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Function;
 
 import static java.util.stream.Collectors.toSet;
-import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.esql.plan.QuerySettings.UNMAPPED_FIELDS;
 import static org.elasticsearch.xpack.esql.session.SessionUtils.checkPagesBelowSize;
 
@@ -159,6 +161,7 @@ public class EsqlSession {
     private final ViewResolver viewResolver;
     private final ExternalSourceResolver externalSourceResolver;
 
+    private final EsqlParser parser;
     private final PreAnalyzer preAnalyzer;
     private final Verifier verifier;
     private final Metrics metrics;
@@ -174,6 +177,7 @@ public class EsqlSession {
     private final PlannerSettings plannerSettings;
     private final CrossProjectModeDecider crossProjectModeDecider;
     private final String clusterName;
+    private final TransportService transportService;
 
     private boolean explainMode;
     private String parsedPlanString;
@@ -188,6 +192,7 @@ public class EsqlSession {
         EnrichPolicyResolver enrichPolicyResolver,
         ViewResolver viewResolver,
         ExternalSourceResolver externalSourceResolver,
+        EsqlParser parser,
         PreAnalyzer preAnalyzer,
         EsqlFunctionRegistry functionRegistry,
         Mapper mapper,
@@ -206,6 +211,7 @@ public class EsqlSession {
         this.enrichPolicyResolver = enrichPolicyResolver;
         this.viewResolver = viewResolver;
         this.externalSourceResolver = externalSourceResolver;
+        this.parser = parser;
         this.preAnalyzer = preAnalyzer;
         this.verifier = verifier;
         this.metrics = metrics;
@@ -220,6 +226,7 @@ public class EsqlSession {
         this.plannerSettings = plannerSettings;
         this.crossProjectModeDecider = services.crossProjectModeDecider();
         this.clusterName = services.clusterService().getClusterName().value();
+        this.transportService = services.transportService();
         this.projectMetadata = projectMetadata;
     }
 
@@ -239,7 +246,7 @@ public class EsqlSession {
         executionInfo.queryProfile().planning().start();
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH);
         assert executionInfo != null : "Null EsqlExecutionInfo";
-        LOGGER.debug("ESQL query:\n{}", request.query());
+        LOGGER.debug("ESQL query:\n{}", request.queryDescription());
         TimeSpanMarker parsingProfile = executionInfo.queryProfile().parsing();
         parsingProfile.start();
         EsqlStatement statement = parse(request);
@@ -247,11 +254,10 @@ public class EsqlSession {
         parsingProfile.stop();
         viewResolver.replaceViews(
             statement.plan(),
-            (query, viewName) -> EsqlParser.INSTANCE.parseView(
+            (query, viewName) -> parser.parseView(
                 query,
                 request.params(),
                 SettingsValidationContext.from(remoteClusterService),
-                planTelemetry,
                 inferenceService.inferenceSettings(),
                 viewName
             ).plan(),
@@ -270,6 +276,7 @@ public class EsqlSession {
         ActionListener<Versioned<Result>> listener
     ) {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH);
+        gatherPlanTelemetry(viewResolution.plan(), statement.settings());
         PlanTimeProfile planTimeProfile = request.profile() ? new PlanTimeProfile() : null;
 
         ZoneId timeZone = request.timeZone() == null
@@ -294,35 +301,29 @@ public class EsqlSession {
             analyzerSettings.timeseriesResultTruncationMaxSize(),
             analyzerSettings.timeseriesResultTruncationDefaultSize(),
             projectRouting(request, statement),
-            statement.setting(QuerySettings.APPROXIMATION),
+            approximationSettings(request, statement),
             viewResolution.viewQueries()
         );
-        final FoldContext foldContext = configuration.newFoldContext();
 
         LogicalPlan plan = viewResolution.plan();
+        Configuration configurationToUse = configuration;
         if (plan instanceof Explain explain) {
             explainMode = true;
             plan = explain.query();
             parsedPlanString = plan.toString();
-        } else if (plan instanceof PromqlCommand promqlCommand && promqlCommand.isRangeQuery() && promqlCommand.hasTimeRange() == false) {
-            // infer start/end from filter if not explicitly set
-            QueryDslTimestampBoundsExtractor.TimestampBounds bounds = QueryDslTimestampBoundsExtractor.extractTimestampBounds(
-                request.filter()
-            );
-            if (bounds != null) {
-                Literal startLiteral = Literal.dateTime(promqlCommand.source(), bounds.start());
-                Literal endLiteral = Literal.dateTime(promqlCommand.source(), bounds.end());
-                plan = promqlCommand.withStartEnd(startLiteral, endLiteral);
-            }
+            // For EXPLAIN mode, enable profile to capture plans from all nodes
+            configurationToUse = configuration.withExplainOnly();
         }
+        final Configuration finalConfiguration = configurationToUse;
+        final FoldContext foldContext = finalConfiguration.newFoldContext();
 
         analyzedPlan(
             plan,
             statement.setting(UNMAPPED_FIELDS),
-            configuration,
+            finalConfiguration,
             executionInfo,
             request.filter(),
-            new EsqlCCSUtils.CssPartialErrorsActionListener(configuration, executionInfo, listener) {
+            new EsqlCCSUtils.CssPartialErrorsActionListener(finalConfiguration, executionInfo, listener) {
                 @Override
                 public void onResponse(Versioned<LogicalPlan> analyzedPlan) {
                     assert ThreadPool.assertCurrentThreadPool(
@@ -338,7 +339,7 @@ public class EsqlSession {
                         new LogicalPreOptimizerContext(foldContext, inferenceService, minimumVersion)
                     );
                     var logicalPlanOptimizer = new LogicalPlanOptimizer(
-                        new LogicalOptimizerContext(configuration, foldContext, minimumVersion)
+                        new LogicalOptimizerContext(finalConfiguration, foldContext, minimumVersion)
                     );
 
                     SubscribableListener.<LogicalPlan>newForked(l -> preOptimizedPlan(plan, logicalPlanPreOptimizer, planTimeProfile, l))
@@ -354,11 +355,9 @@ public class EsqlSession {
                                 executionInfo,
                                 planRunner,
                                 p,
-                                configuration,
+                                finalConfiguration,
                                 foldContext,
-                                configuration.approximationSettings() != null
-                                    ? new Approximation(p, configuration.approximationSettings())
-                                    : null,
+                                Approximation.create(p, configuration.approximationSettings()),
                                 minimumVersion,
                                 planTimeProfile,
                                 l
@@ -381,6 +380,13 @@ public class EsqlSession {
             throw new VerificationException("[project_routing] is only allowed when cross-project search is enabled");
         }
         return projectRouting;
+    }
+
+    public static ApproximationSettings approximationSettings(EsqlQueryRequest request, EsqlStatement statement) {
+        // The precedence for settings is: SET in the statement > request parameter > default (=disabled).
+        return new ApproximationSettings.Builder(false).merge(request.approximation())
+            .merge(statement.setting(QuerySettings.APPROXIMATION))
+            .build();
     }
 
     /**
@@ -406,38 +412,125 @@ public class EsqlSession {
         );
         var physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(configuration, minimumVersion));
 
-        if (explainMode) {// TODO: INLINE STATS come back to the explain mode branch and reevaluate
-            PhysicalPlan physicalPlan = logicalPlanToPhysicalPlan(optimizedPlan, request, physicalPlanOptimizer, planTimeProfile);
-            String physicalPlanString = physicalPlan.toString();
-            List<Attribute> fields = List.of(
-                new ReferenceAttribute(EMPTY, null, "role", DataType.KEYWORD),
-                new ReferenceAttribute(EMPTY, null, "type", DataType.KEYWORD),
-                new ReferenceAttribute(EMPTY, null, "plan", DataType.KEYWORD)
-            );
-            List<List<Object>> values = new ArrayList<>();
-            values.add(List.of("coordinator", "parsedPlan", parsedPlanString));
-            values.add(List.of("coordinator", "optimizedLogicalPlan", optimizedLogicalPlanString));
-            values.add(List.of("coordinator", "optimizedPhysicalPlan", physicalPlanString));
-            var blocks = BlockUtils.fromList(PlannerUtils.NON_BREAKING_BLOCK_FACTORY, values);
-            physicalPlan = new LocalSourceExec(Source.EMPTY, fields, LocalSupplier.of(new Page(blocks)));
-            planRunner.run(physicalPlan, configuration, foldContext, planTimeProfile, listener);
-        } else {
-            // TODO: this could be snuck into the underlying listener
-            EsqlCCSUtils.updateExecutionInfoAtEndOfPlanning(executionInfo);
-            // execute any potential subplans
-            executeSubPlans(
-                optimizedPlan,
-                configuration,
-                foldContext,
-                approximation,
-                planRunner,
-                executionInfo,
-                request,
-                physicalPlanOptimizer,
-                planTimeProfile,
-                listener
-            );
+        EsqlCCSUtils.updateExecutionInfoAtEndOfPlanning(executionInfo);
+
+        // In explain mode, wrap the listener to transform results into EXPLAIN table format.
+        // We use the same execution path as normal queries to ensure accuracy.
+        ActionListener<Result> effectiveListener = explainMode
+            ? createExplainListener(listener, optimizedPlan, request, physicalPlanOptimizer, planTimeProfile, configuration, planRunner)
+            : listener;
+
+        // Always use the same execution path - executeSubPlans handles both simple queries and those with subplans
+        executeSubPlans(
+            optimizedPlan,
+            configuration,
+            foldContext,
+            approximation,
+            planRunner,
+            executionInfo,
+            request,
+            physicalPlanOptimizer,
+            planTimeProfile,
+            effectiveListener
+        );
+    }
+
+    /**
+     * Creates a listener that intercepts execution results and transforms them into EXPLAIN output.
+     * This ensures EXPLAIN shows exactly the same plans that would be executed.
+     */
+    private ActionListener<Result> createExplainListener(
+        ActionListener<Result> delegate,
+        LogicalPlan optimizedPlan,
+        EsqlQueryRequest request,
+        PhysicalPlanOptimizer physicalPlanOptimizer,
+        PlanTimeProfile planTimeProfile,
+        Configuration configuration,
+        PlanRunner planRunner
+    ) {
+        // Capture the coordinator physical plan string before execution
+        PhysicalPlan physicalPlan = logicalPlanToPhysicalPlan(optimizedPlan, request, physicalPlanOptimizer, planTimeProfile);
+        String physicalPlanString = physicalPlan.toString();
+
+        // Capture subplan information before execution (for INLINE STATS, LOOKUP JOIN)
+        List<List<Object>> subplanValues = new ArrayList<>();
+        var subPlansResults = new HashSet<LocalRelation>();
+        var subPlan = InlineJoin.firstSubPlan(optimizedPlan, subPlansResults);
+        if (subPlan != null) {
+            int subPlanIndex = 0;
+            InlineJoin.LogicalPlanTuple currentSubPlan = subPlan;
+            while (currentSubPlan != null) {
+                String subPlanStr = currentSubPlan.stubReplacedSubPlan().toString();
+                subplanValues.add(List.of("", clusterName, "subplan-" + subPlanIndex, "logicalPlan", subPlanStr));
+                PhysicalPlan subPhysicalPlan = logicalPlanToPhysicalPlan(
+                    currentSubPlan.stubReplacedSubPlan(),
+                    request,
+                    physicalPlanOptimizer,
+                    planTimeProfile
+                );
+                subplanValues.add(List.of("", clusterName, "subplan-" + subPlanIndex, "physicalPlan", subPhysicalPlan.toString()));
+                subPlanIndex++;
+                currentSubPlan = InlineJoin.firstSubPlan(currentSubPlan.stubReplacedSubPlan(), subPlansResults);
+            }
         }
+
+        return delegate.delegateFailureAndWrap((next, result) -> {
+            List<List<Object>> values = Collections.synchronizedList(new ArrayList<>());
+            String localCluster = "";
+            String coordinatorNode = clusterName;
+
+            // Add coordinator plans (captured before execution)
+            values.add(List.of(localCluster, coordinatorNode, "coordinator", "parsedPlan", parsedPlanString));
+            values.add(List.of(localCluster, coordinatorNode, "coordinator", "optimizedLogicalPlan", optimizedLogicalPlanString));
+            values.add(List.of(localCluster, coordinatorNode, "coordinator", "optimizedPhysicalPlan", physicalPlanString));
+
+            // Add subplan information (captured before execution)
+            values.addAll(subplanValues);
+
+            // Extract plans from profile data (captured during execution)
+            // This includes: data node plans, node_reduce plans, and final coordinator plans
+            if (result.completionInfo() != null && result.completionInfo().planProfiles() != null) {
+                for (var planProfile : result.completionInfo().planProfiles()) {
+                    String cluster = planProfile.clusterName() != null ? planProfile.clusterName() : "";
+                    String node = planProfile.nodeName() != null ? planProfile.nodeName() : "";
+                    String planTree = planProfile.planTree() != null ? planProfile.planTree() : "";
+                    String logicalPlanTree = planProfile.logicalPlanTree() != null ? planProfile.logicalPlanTree() : "";
+                    String description = planProfile.description();
+
+                    if (ComputeService.DATA_DESCRIPTION.equals(description)) {
+                        if (logicalPlanTree.isEmpty() == false) {
+                            values.add(List.of(cluster, node, "data", "optimizedLocalLogicalPlan", logicalPlanTree));
+                        }
+                        values.add(List.of(cluster, node, "data", "localPhysicalPlan", planTree));
+                    } else if (ComputeService.REDUCE_DESCRIPTION.equals(description)) {
+                        values.add(List.of(cluster, node, "node_reduce", "physicalPlan", planTree));
+                    } else if (description != null && description.endsWith("final")) {
+                        values.add(List.of(cluster, node, "final", "physicalPlan", planTree));
+                    }
+                }
+            }
+
+            // Release pages from the intermediate result
+            for (var page : result.pages()) {
+                page.releaseBlocks();
+            }
+
+            // Build and return the EXPLAIN table
+            finishExplain(values, configuration, configuration.newFoldContext(), planTimeProfile, planRunner, next);
+        });
+    }
+
+    private void finishExplain(
+        List<List<Object>> values,
+        Configuration configuration,
+        FoldContext foldContext,
+        PlanTimeProfile planTimeProfile,
+        PlanRunner planRunner,
+        ActionListener<Result> listener
+    ) {
+        var blocks = BlockUtils.fromList(PlannerUtils.NON_BREAKING_BLOCK_FACTORY, values);
+        PhysicalPlan resultPlan = new LocalSourceExec(Source.EMPTY, Explain.OUTPUT_ATTRIBUTES, LocalSupplier.of(new Page(blocks)));
+        planRunner.run(resultPlan, configuration, foldContext, planTimeProfile, listener);
     }
 
     private void executeSubPlans(
@@ -487,7 +580,11 @@ public class EsqlSession {
      * @param newMainPlan callback to build the new main plan based on the subplan results
      * @param cleanup     callback to release any resources hold by the subplan results
      */
-    private record SubPlanAndCallback(LogicalPlan subPlan, Function<Result, LogicalPlan> newMainPlan, Runnable cleanup) {};
+    private record SubPlanAndCallback(
+        LogicalPlan subPlan,
+        java.util.function.Function<Result, LogicalPlan> newMainPlan,
+        Runnable cleanup
+    ) {};
 
     private SubPlanAndCallback firstSubPlan(LogicalPlan optimizedPlan, Approximation approximation, Set<LocalRelation> subPlansResults) {
         if (approximation != null) {
@@ -614,13 +711,42 @@ public class EsqlSession {
     }
 
     private EsqlStatement parse(EsqlQueryRequest request) {
-        return EsqlParser.INSTANCE.parse(
-            request.query(),
-            request.params(),
-            SettingsValidationContext.from(remoteClusterService),
-            planTelemetry,
-            inferenceService.inferenceSettings()
-        );
+        return request.parse(parser, SettingsValidationContext.from(remoteClusterService), inferenceService.inferenceSettings());
+    }
+
+    /**
+     * Populates {@code planTelemetry} from the view-resolved plan, capturing commands, functions,
+     * and settings from the original statement plus any nodes introduced by view expansion.
+     */
+    private void gatherPlanTelemetry(LogicalPlan plan, List<QuerySetting> settings) {
+        EsqlFunctionRegistry registry = planTelemetry.functionRegistry().snapshotRegistry();
+        // Collect Aggregate nodes that are the inner aggregate of an INLINE STATS command; those
+        // should not be counted as standalone STATS commands.
+        Set<LogicalPlan> inlineStatsAggregates = new HashSet<>();
+        plan.forEachDown(InlineStats.class, inlineStats -> inlineStatsAggregates.add(inlineStats.aggregate()));
+        plan.forEachDown(node -> {
+            if (node instanceof TelemetryAware ta && ta.telemetryLabel() != null && inlineStatsAggregates.contains(node) == false) {
+                // Not all TelemetryAware nodes have a label — e.g. lookup index UnresolvedRelation
+                // nodes introduced by LOOKUP JOIN have a null command name; those are skipped.
+                // Aggregate nodes that are the inner aggregate of INLINE STATS are also skipped —
+                // the INLINE STATS node itself is counted instead.
+                planTelemetry.command(ta);
+            }
+            node.forEachExpression(Function.class, f -> {
+                if (f instanceof UnresolvedFunction uf) {
+                    planTelemetry.function(uf.name());
+                } else if (registry.functionExists(f.getClass())) {
+                    // Concrete Function instances arise from inline cast expressions (e.g. x::long)
+                    // or programmatically-built plans (e.g. Prometheus plan builders).
+                    // Not all Function subclasses are user-callable (e.g. Add, GreaterThan are
+                    // Function subclasses but are never in the registry); those are skipped.
+                    planTelemetry.function(f.getClass());
+                }
+            });
+        });
+        if (settings != null) {
+            settings.forEach(s -> planTelemetry.setting(s.name()));
+        }
     }
 
     private void gatherSettingsMetrics(EsqlStatement statement) {
@@ -707,8 +833,11 @@ public class EsqlSession {
         // Initialize the PreAnalysisResult with the local cluster's minimum transport version, so our planning will be correct also in
         // case of ROW queries. ROW queries can still require inter-node communication (for ENRICH and LOOKUP JOIN execution) with an older
         // node in the same cluster; so assuming that all nodes are on the same version as this node will be wrong and may cause bugs.
-        PreAnalysisResult result = FieldNameUtils.resolveFieldNames(parsed, preAnalysis.enriches().isEmpty() == false)
-            .withMinimumTransportVersion(localClusterMinimumVersion);
+        PreAnalysisResult result = FieldNameUtils.resolveFieldNames(
+            parsed,
+            preAnalysis.enriches().isEmpty() == false,
+            unmappedResolution == UnmappedResolution.LOAD
+        ).withMinimumTransportVersion(localClusterMinimumVersion);
         String description = requestFilter == null ? "the only attempt without filter" : "first attempt with filter";
 
         resolveIndicesAndAnalyze(
@@ -1163,6 +1292,7 @@ public class EsqlSession {
                 indicesExpressionGrouper,
                 listener.delegateFailureAndWrap((l, indexResolution) -> {
                     EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, indexResolution.inner().failures());
+                    EsqlCCSUtils.checkForViewErrors(indexResolution.inner().failures());
                     l.onResponse(
                         result.withIndices(indexPattern, indexResolution.inner())
                             .withMinimumTransportVersion(indexResolution.minimumVersion())
@@ -1197,6 +1327,7 @@ public class EsqlSession {
             listener.delegateFailureAndWrap((l, indexResolution) -> {
                 EsqlCCSUtils.initCrossClusterState(indexResolution.inner(), executionInfo);
                 EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, indexResolution.inner().failures());
+                EsqlCCSUtils.checkForViewErrors(indexResolution.inner().failures());
                 EsqlCCSUtils.validateCcsLicense(verifier.licenseState(), executionInfo);
                 planTelemetry.linkedProjectsCount(executionInfo.clusterInfo.size());
                 l.onResponse(
@@ -1241,7 +1372,7 @@ public class EsqlSession {
             }
             TimeSpanMarker analysisProfile = executionInfo.queryProfile().analysis();
             analysisProfile.start();
-            LogicalPlan plan = analyzedPlan(parsed, unmappedResolution, configuration, result, executionInfo);
+            LogicalPlan plan = analyzedPlan(parsed, unmappedResolution, configuration, result, executionInfo, requestFilter);
             analysisProfile.stop();
             LOGGER.debug("Analyzed plan ({}):\n{}", description, plan);
             // the analysis succeeded from the first attempt, irrespective if it had a filter or not, just continue with the planning
@@ -1287,10 +1418,26 @@ public class EsqlSession {
         UnmappedResolution unmappedResolution,
         Configuration configuration,
         PreAnalysisResult r,
-        EsqlExecutionInfo executionInfo
+        EsqlExecutionInfo executionInfo,
+        QueryBuilder requestFilter
     ) throws Exception {
         handleFieldCapsFailures(configuration.allowPartialResults(), executionInfo, r.indexResolution());
-        AnalyzerContext analyzerContext = new AnalyzerContext(configuration, functionRegistry, unmappedResolution, projectMetadata, r);
+        var timestampBounds = QueryDslTimestampBoundsExtractor.extractTimestampBounds(
+            requestFilter,
+            // Resolve date math against the query start time. If this uses the wall clock during planning instead,
+            // filters like [@timestamp >= now-5m AND @timestamp <= now] drift relative to Configuration.now(), so inferred
+            // timestamp bounds can shift within one request and misanchor TBUCKET/TSTEP bucketing.
+            // TODO: support nanos resolution for date_nanos fields
+            configuration::absoluteStartedTimeInMillis
+        );
+        AnalyzerContext analyzerContext = new AnalyzerContext(
+            configuration,
+            functionRegistry,
+            unmappedResolution,
+            projectMetadata,
+            r,
+            timestampBounds
+        );
         Analyzer analyzer = new Analyzer(analyzerContext, verifier);
         LogicalPlan plan = analyzer.analyze(parsed);
         plan.setAnalyzed();

@@ -10,6 +10,7 @@ package org.elasticsearch.compute.aggregation;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.DoubleArray;
+import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -19,7 +20,6 @@ import org.elasticsearch.compute.data.TDigestHolder;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.aggregations.metrics.MemoryTrackingTDigestArrays;
-import org.elasticsearch.search.aggregations.metrics.TDigestExecutionHint;
 import org.elasticsearch.tdigest.TDigest;
 
 import java.util.function.DoubleBinaryOperator;
@@ -27,7 +27,6 @@ import java.util.function.DoubleBinaryOperator;
 public final class TDigestStates {
 
     // Currently we use the same defaults as for queryDSL, we might make this configurable later
-    private static final TDigestExecutionHint EXECUTION_HINT = TDigestExecutionHint.DEFAULT;
     public static final double COMPRESSION = 100.0;
 
     private TDigestStates() {}
@@ -241,6 +240,181 @@ public final class TDigestStates {
         @Override
         public void enableGroupIdTracking(SeenGroupIds seenGroupIds) {
             // noop - we handle the null states inside `toIntermediate` and `evaluateFinal`
+        }
+    }
+
+    /**
+     * A state consisting of a single {@code long} value with a {@link TDigestHolder}.
+     * The intermediate state contains three values in order: the long, the digest, and a boolean specifying if a value was set or not.
+     */
+    public static final class WithLongSingleState implements AggregatorState {
+
+        private final CircuitBreaker breaker;
+        private long longValue;
+        private BreakingTDigestHolder value;
+
+        public WithLongSingleState(CircuitBreaker breaker) {
+            this.breaker = breaker;
+        }
+
+        public boolean isSeen() {
+            return value != null;
+        }
+
+        public long longValue() {
+            assert isSeen();
+            return longValue;
+        }
+
+        public void set(long longValue, TDigestHolder digestValue) {
+            assert digestValue != null;
+            this.longValue = longValue;
+            if (value == null) {
+                value = BreakingTDigestHolder.create(breaker);
+            }
+            value.set(digestValue);
+        }
+
+        @Override
+        public void toIntermediate(Block[] blocks, int offset, DriverContext driverContext) {
+            assert blocks.length >= offset + 3;
+            BlockFactory blockFactory = driverContext.blockFactory();
+            // in case of error, the blocks are closed by the caller
+            if (value == null) {
+                blocks[offset] = blockFactory.newConstantLongBlockWith(0L, 1);
+                blocks[offset + 1] = blockFactory.newConstantTDigestBlock(TDigestHolder.empty(), 1);
+                blocks[offset + 2] = blockFactory.newConstantBooleanBlockWith(false, 1);
+            } else {
+                blocks[offset] = blockFactory.newConstantLongBlockWith(longValue, 1);
+                blocks[offset + 1] = blockFactory.newConstantTDigestBlock(value.accessor(), 1);
+                blocks[offset + 2] = blockFactory.newConstantBooleanBlockWith(true, 1);
+            }
+        }
+
+        public Block evaluateFinalTDigest(DriverContext driverContext) {
+            BlockFactory blockFactory = driverContext.blockFactory();
+            if (value == null) {
+                return blockFactory.newConstantNullBlock(1);
+            } else {
+                return blockFactory.newConstantTDigestBlock(value.accessor(), 1);
+            }
+        }
+
+        @Override
+        public void close() {
+            Releasables.close(value);
+            value = null;
+        }
+    }
+
+    /**
+     * A grouping state consisting of a single {@code long} value with a {@link TDigestHolder} per group.
+     * The intermediate state contains three values in order: the long, the digest, and a boolean specifying if a value was set or not.
+     */
+    public static final class WithLongGroupingState implements GroupingAggregatorState {
+        private LongArray longValues;
+        private ObjectArray<BreakingTDigestHolder> values;
+        private final CircuitBreaker breaker;
+        private final BigArrays bigArrays;
+
+        WithLongGroupingState(BigArrays bigArrays, CircuitBreaker breaker) {
+            LongArray longValues = null;
+            ObjectArray<BreakingTDigestHolder> values = null;
+            boolean success = false;
+            try {
+                longValues = bigArrays.newLongArray(1);
+                values = bigArrays.newObjectArray(1);
+                success = true;
+            } finally {
+                if (success == false) {
+                    Releasables.close(values, longValues);
+                }
+            }
+            this.longValues = longValues;
+            this.values = values;
+            this.bigArrays = bigArrays;
+            this.breaker = breaker;
+        }
+
+        public void set(int groupId, long longValue, TDigestHolder digestValue) {
+            assert digestValue != null;
+            ensureCapacity(groupId);
+            BreakingTDigestHolder value = values.get(groupId);
+            if (value == null) {
+                value = BreakingTDigestHolder.create(breaker);
+                values.set(groupId, value);
+            }
+            value.set(digestValue);
+            longValues.set(groupId, longValue);
+        }
+
+        private void ensureCapacity(int groupId) {
+            values = bigArrays.grow(values, groupId + 1);
+            longValues = bigArrays.grow(longValues, groupId + 1);
+        }
+
+        @Override
+        public void toIntermediate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {
+            assert blocks.length >= offset + 3;
+            try (
+                var longBuilder = driverContext.blockFactory().newLongVectorFixedBuilder(selected.getPositionCount());
+                var valueBuilder = driverContext.blockFactory().newTDigestBlockBuilder(selected.getPositionCount());
+                var seenBuilder = driverContext.blockFactory().newBooleanVectorFixedBuilder(selected.getPositionCount());
+            ) {
+                for (int i = 0; i < selected.getPositionCount(); i++) {
+                    int groupId = selected.getInt(i);
+                    if (seen(groupId)) {
+                        seenBuilder.appendBoolean(true);
+                        longBuilder.appendLong(longValues.get(groupId));
+                        valueBuilder.appendTDigest(values.get(groupId).accessor());
+                    } else {
+                        seenBuilder.appendBoolean(false);
+                        longBuilder.appendLong(0L);
+                        valueBuilder.appendTDigest(TDigestHolder.empty());
+                    }
+                }
+                blocks[offset] = longBuilder.build().asBlock();
+                blocks[offset + 1] = valueBuilder.build();
+                blocks[offset + 2] = seenBuilder.build().asBlock();
+            }
+        }
+
+        public boolean seen(int groupId) {
+            return groupId < values.size() && values.get(groupId) != null;
+        }
+
+        public long longValue(int groupId) {
+            assert seen(groupId);
+            return longValues.get(groupId);
+        }
+
+        @Override
+        public void close() {
+            for (int i = 0; i < values.size(); i++) {
+                Releasables.close(values.get(i));
+            }
+            Releasables.close(values, longValues);
+            values = null;
+            longValues = null;
+        }
+
+        public Block evaluateFinalTDigests(IntVector selected, DriverContext driverContext) {
+            try (var builder = driverContext.blockFactory().newTDigestBlockBuilder(selected.getPositionCount())) {
+                for (int i = 0; i < selected.getPositionCount(); i++) {
+                    int groupId = selected.getInt(i);
+                    if (seen(groupId)) {
+                        builder.appendTDigest(values.get(groupId).accessor());
+                    } else {
+                        builder.appendNull();
+                    }
+                }
+                return builder.build();
+            }
+        }
+
+        @Override
+        public void enableGroupIdTracking(SeenGroupIds seenGroupIds) {
+            // noop
         }
     }
 }

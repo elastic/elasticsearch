@@ -45,7 +45,7 @@ import java.util.Objects;
  *       {@link org.elasticsearch.xpack.esql.plan.logical.ExternalRelation} inside FragmentExec</li>
  * </ul>
  */
-public class ExternalSourceExec extends LeafExec implements EstimatesRowSize {
+public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, DataSourceExec {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         PhysicalPlan.class,

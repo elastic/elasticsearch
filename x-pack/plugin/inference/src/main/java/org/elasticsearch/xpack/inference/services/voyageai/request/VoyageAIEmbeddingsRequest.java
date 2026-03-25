@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.services.voyageai.request;
 
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.ByteArrayEntity;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
@@ -34,7 +35,7 @@ public class VoyageAIEmbeddingsRequest extends VoyageAIRequest {
     }
 
     @Override
-    public HttpRequest createHttpRequest() {
+    public void createHttpRequest(ActionListener<HttpRequest> listener) {
         HttpPost httpPost = new HttpPost(embeddingsModel.uri());
 
         ByteArrayEntity byteEntity = new ByteArrayEntity(
@@ -52,7 +53,7 @@ public class VoyageAIEmbeddingsRequest extends VoyageAIRequest {
 
         decorateWithHeaders(httpPost, embeddingsModel);
 
-        return new HttpRequest(httpPost, getInferenceEntityId());
+        listener.onResponse(new HttpRequest(httpPost, getInferenceEntityId()));
     }
 
     @Override

@@ -30,13 +30,13 @@ public final class AnyIntAggregatorFunctionSupplier implements AggregatorFunctio
 
   @Override
   public AnyIntAggregatorFunction aggregator(DriverContext driverContext, List<Integer> channels) {
-    return AnyIntAggregatorFunction.create(driverContext, channels);
+    return new AnyIntAggregatorFunction(driverContext, channels);
   }
 
   @Override
   public AnyIntGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return AnyIntGroupingAggregatorFunction.create(channels, driverContext);
+    return new AnyIntGroupingAggregatorFunction(channels, driverContext);
   }
 
   @Override

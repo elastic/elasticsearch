@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.esql.inference.InferenceResolution;
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
+import org.elasticsearch.xpack.esql.parser.EsqlConfig;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
@@ -37,7 +38,6 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.telemetry.Metrics;
-import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -73,10 +73,10 @@ public class QueryPlanningBenchmark {
         Utils.configureBenchmarkLogging();
     }
 
-    private PlanTelemetry telemetry;
     private Analyzer manyFieldsAnalyzer;
     private LogicalPlanOptimizer defaultOptimizer;
     private Configuration config;
+    private EsqlParser parser;
 
     @Setup
     public void setup() {
@@ -111,11 +111,11 @@ public class QueryPlanningBenchmark {
         var esIndex = new EsIndex("test", mapping, Map.of("test", IndexMode.STANDARD), Map.of(), Map.of(), Set.of());
 
         var functionRegistry = new EsqlFunctionRegistry();
+        parser = new EsqlParser(new EsqlConfig(functionRegistry));
 
         // Assume all nodes are on the current version for the benchmark.
         TransportVersion minimumVersion = TransportVersion.current();
 
-        telemetry = new PlanTelemetry(functionRegistry);
         manyFieldsAnalyzer = new Analyzer(
             new AnalyzerContext(
                 config,
@@ -133,7 +133,7 @@ public class QueryPlanningBenchmark {
     }
 
     private LogicalPlan plan(EsqlParser parser, Analyzer analyzer, LogicalPlanOptimizer optimizer, String query) {
-        var parsed = parser.parseQuery(query, new QueryParams(), telemetry, new InferenceSettings(Settings.EMPTY));
+        var parsed = parser.parseQuery(query, new QueryParams(), new InferenceSettings(Settings.EMPTY));
         var analyzed = analyzer.analyze(parsed);
         var optimized = optimizer.optimize(analyzed);
         return optimized;
@@ -141,6 +141,6 @@ public class QueryPlanningBenchmark {
 
     @Benchmark
     public void manyFields(Blackhole blackhole) {
-        blackhole.consume(plan(EsqlParser.INSTANCE, manyFieldsAnalyzer, defaultOptimizer, "FROM test | LIMIT 10"));
+        blackhole.consume(plan(parser, manyFieldsAnalyzer, defaultOptimizer, "FROM test | LIMIT 10"));
     }
 }

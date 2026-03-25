@@ -56,6 +56,7 @@ import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.action.EsqlQueryTask;
 import org.elasticsearch.xpack.esql.action.EsqlResponseListener;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
+import org.elasticsearch.xpack.esql.approximation.ApproximationPlan;
 import org.elasticsearch.xpack.esql.core.async.AsyncTaskManagementService;
 import org.elasticsearch.xpack.esql.datasources.FilterPushdownRegistry;
 import org.elasticsearch.xpack.esql.datasources.OperatorFactoryRegistry;
@@ -85,6 +86,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
+import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME;
 
 public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRequest, EsqlQueryResponse>
     implements
@@ -132,7 +134,8 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         IndexNameExpressionResolver indexNameExpressionResolver,
         UsageService usageService,
         ActionLoggingFieldsProvider fieldProvider,
-        ActivityLogWriterProvider logWriterProvider
+        ActivityLogWriterProvider logWriterProvider,
+        CrossProjectModeDecider crossProjectModeDecider
     ) {
         // TODO replace SAME when removing workaround for https://github.com/elastic/elasticsearch/issues/97916
         super(EsqlQueryAction.NAME, transportService, actionFilters, EsqlQueryRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
@@ -203,12 +206,12 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             new InferenceService(client, clusterService),
             blockFactoryProvider,
             new PlannerSettings.Holder(clusterService),
-            new CrossProjectModeDecider(clusterService.getSettings())
+            crossProjectModeDecider
         );
 
-        OperatorFactoryRegistry operatorFactoryRegistry = planExecutor.dataSourceModule()
-            .createOperatorFactoryRegistry(threadPool.executor(ThreadPool.Names.SEARCH));
-        FilterPushdownRegistry filterPushdownRegistry = planExecutor.dataSourceModule().filterPushdownRegistry();
+        var dataSourceModule = planExecutor.dataSourceModule();
+        OperatorFactoryRegistry operatorFactoryRegistry = dataSourceModule.createOperatorFactoryRegistry(externalSourceExecutor());
+        FilterPushdownRegistry filterPushdownRegistry = dataSourceModule.filterPushdownRegistry();
         this.computeService = new ComputeService(
             services,
             enrichLookupService,
@@ -217,7 +220,8 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             bigArrays,
             blockFactoryProvider.blockFactory(),
             operatorFactoryRegistry,
-            filterPushdownRegistry
+            filterPushdownRegistry,
+            dataSourceModule.formatReaderRegistry()
         );
 
         this.activityLogger = new ActivityLogger<>(
@@ -249,6 +253,15 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             .addSettingsUpdateConsumer(AnalyzerSettings.QUERY_TIMESERIES_RESULT_TRUNCATION_DEFAULT_SIZE, v -> {
                 timeseriesResultTruncationDefaultSize = v;
             });
+    }
+
+    /**
+     * Returns the executor used for external source I/O (e.g. {@code EXTERNAL/FROM external_source} operators).
+     * Isolated from {@link ThreadPool.Names#SEARCH} to prevent heavy external queries from starving regular ES operations.
+     * Currently shares {@code esql_worker} with compute drivers; override this method when a dedicated I/O pool is introduced.
+     */
+    protected Executor externalSourceExecutor() {
+        return threadPool.executor(ESQL_WORKER_THREAD_POOL_NAME);
     }
 
     @Override
@@ -446,7 +459,12 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             } else {
                 originalTypes = null;
             }
-            return new ColumnInfoImpl(c.name(), c.dataType().outputType(), originalTypes);
+            // Quick way to get the approximation column metadata in the response
+            // without a full implementation of a colum metadata service.
+            // TODO: remove this hack when we have a proper column metadata service,
+            // see https://github.com/elastic/elasticsearch/issues/138223
+            Map<String, Object> columnMetadata = ApproximationPlan.columnMetadata(c);
+            return new ColumnInfoImpl(c.name(), c.dataType(), originalTypes, columnMetadata);
         }).toList();
         EsqlQueryResponse.Profile profile = profileEnabled
             ? new EsqlQueryResponse.Profile(
@@ -528,7 +546,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             id,
             type,
             action,
-            request.query(), // Pass the query as the description
+            request.queryDescription(), // Pass the query description as the task description
             parentTaskId,
             headers,
             originHeaders,
@@ -537,7 +555,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         ) {
             @Override
             public Status getStatus() {
-                return new EsqlQueryStatus(asyncExecutionId);
+                return new EsqlQueryStatus(asyncExecutionId, getKeepAlive());
             }
 
             @Override

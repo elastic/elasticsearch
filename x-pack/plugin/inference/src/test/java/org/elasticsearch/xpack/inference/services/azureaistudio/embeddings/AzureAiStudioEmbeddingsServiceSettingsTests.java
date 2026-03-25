@@ -11,6 +11,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.test.ESTestCase;
@@ -53,7 +54,6 @@ public class AzureAiStudioEmbeddingsServiceSettingsTests extends AbstractBWCWire
     private static final boolean INITIAL_TEST_DIMENSIONS_SET_BY_USER = true;
     private static final int TEST_RATE_LIMIT = 20;
     private static final int INITIAL_TEST_RATE_LIMIT = 30;
-    private static final int DEFAULT_RATE_LIMIT = 240;
 
     public void testUpdateServiceSettings_AllFields_OnlyMutableFieldsAreUpdated() {
         var originalServiceSettings = new AzureAiStudioEmbeddingsServiceSettings(
@@ -430,21 +430,17 @@ public class AzureAiStudioEmbeddingsServiceSettingsTests extends AbstractBWCWire
         entity.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
 
-        assertThat(
-            xContentResult,
-            is(
-                Strings.format(
-                    """
-                        {"target":"%s","provider":"%s","endpoint_type":"%s","rate_limit":\
-                        {"requests_per_minute":%d},"dimensions_set_by_user":%b}""",
-                    TEST_TARGET,
-                    TEST_PROVIDER,
-                    TEST_ENDPOINT_TYPE,
-                    TEST_RATE_LIMIT,
-                    dimensionsSetByUser
-                )
-            )
-        );
+        assertThat(xContentResult, is(XContentHelper.stripWhitespace(Strings.format("""
+            {
+            	"target": "%s",
+            	"provider": "%s",
+            	"endpoint_type": "%s",
+            	"rate_limit": {
+            		"requests_per_minute": %d
+            	},
+            	"dimensions_set_by_user": %b
+            }
+            """, TEST_TARGET, TEST_PROVIDER, TEST_ENDPOINT_TYPE, TEST_RATE_LIMIT, dimensionsSetByUser))));
     }
 
     public void testToXContent_WritesAllValues() throws IOException {
@@ -467,18 +463,31 @@ public class AzureAiStudioEmbeddingsServiceSettingsTests extends AbstractBWCWire
         assertThat(
             xContentResult,
             is(
-                Strings.format(
-                    """
-                        {"target":"%s","provider":"%s","endpoint_type":"%s","rate_limit":{"requests_per_minute":%d},\
-                        "dimensions":%d,"max_input_tokens":%d,"similarity":"%s","dimensions_set_by_user":%b}""",
-                    TEST_TARGET,
-                    TEST_PROVIDER,
-                    TEST_ENDPOINT_TYPE,
-                    TEST_RATE_LIMIT,
-                    TEST_DIMENSIONS,
-                    TEST_MAX_INPUT_TOKENS,
-                    TEST_SIMILARITY_MEASURE,
-                    dimensionsSetByUser
+                XContentHelper.stripWhitespace(
+                    Strings.format(
+                        """
+                            {
+                            	"target": "%s",
+                            	"provider": "%s",
+                            	"endpoint_type": "%s",
+                            	"rate_limit": {
+                            		"requests_per_minute": %d
+                            	},
+                            	"dimensions": %d,
+                            	"max_input_tokens": %d,
+                            	"similarity": "%s",
+                            	"dimensions_set_by_user": %b
+                            }
+                            """,
+                        TEST_TARGET,
+                        TEST_PROVIDER,
+                        TEST_ENDPOINT_TYPE,
+                        TEST_RATE_LIMIT,
+                        TEST_DIMENSIONS,
+                        TEST_MAX_INPUT_TOKENS,
+                        TEST_SIMILARITY_MEASURE,
+                        dimensionsSetByUser
+                    )
                 )
             )
         );
@@ -504,17 +513,29 @@ public class AzureAiStudioEmbeddingsServiceSettingsTests extends AbstractBWCWire
         assertThat(
             xContentResult,
             is(
-                Strings.format(
-                    """
-                        {"target":"%s","provider":"%s","endpoint_type":"%s",\
-                        "rate_limit":{"requests_per_minute":%d},"dimensions":%d,"max_input_tokens":%d,"similarity":"%s"}""",
-                    TEST_TARGET,
-                    TEST_PROVIDER,
-                    TEST_ENDPOINT_TYPE,
-                    TEST_RATE_LIMIT,
-                    TEST_DIMENSIONS,
-                    TEST_MAX_INPUT_TOKENS,
-                    TEST_SIMILARITY_MEASURE
+                XContentHelper.stripWhitespace(
+                    Strings.format(
+                        """
+                            {
+                            	"target": "%s",
+                            	"provider": "%s",
+                            	"endpoint_type": "%s",
+                            	"rate_limit": {
+                            		"requests_per_minute": %d
+                            	},
+                            	"dimensions": %d,
+                            	"max_input_tokens": %d,
+                            	"similarity": "%s"
+                            }
+                            """,
+                        TEST_TARGET,
+                        TEST_PROVIDER,
+                        TEST_ENDPOINT_TYPE,
+                        TEST_RATE_LIMIT,
+                        TEST_DIMENSIONS,
+                        TEST_MAX_INPUT_TOKENS,
+                        TEST_SIMILARITY_MEASURE
+                    )
                 )
             )
         );

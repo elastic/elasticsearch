@@ -99,6 +99,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         }
     }
 
+    @SuppressWarnings("DataFlowIssue")
     public void testPutGet() {
         addView("view1", "FROM emp");
         addView("view2", "FROM view1");
@@ -1263,14 +1264,14 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
                 if (j > 1) sb.append(", ");
                 sb.append("v_1_").append(j);
             }
-            return sb.toString() + suffix;
+            return sb + suffix;
         }
         StringBuilder sb = new StringBuilder("FROM v_").append(nesting).append("_1");
         int qDepth = nesting + 1;
         for (int j = 2; j <= branching; j++) {
             sb.append(", v_").append(qDepth).append("_").append(j);
         }
-        return sb.toString() + suffix;
+        return sb + suffix;
     }
 
     /**
@@ -1344,14 +1345,14 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
     }
 
     private static Matcher<LogicalPlan> matchesPlan(LogicalPlan plan) {
-        return new LogicalPlanEqualTo(plan);
+        return new TestLogicalPlanEqualTo(plan);
     }
 
-    private static class LogicalPlanEqualTo extends BaseMatcher<LogicalPlan> {
+    private static class TestLogicalPlanEqualTo extends BaseMatcher<LogicalPlan> {
 
         private final LogicalPlan plan;
 
-        private LogicalPlanEqualTo(LogicalPlan plan) {
+        private TestLogicalPlanEqualTo(LogicalPlan plan) {
             this.plan = (plan instanceof Subquery subquery) ? subquery.child() : plan;
         }
 
@@ -1391,7 +1392,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         }
         List<Matcher<Iterable<? extends LogicalPlan>>> combinations = new ArrayList<>();
         generateCombinations(matchers, x, 0, new ArrayList<>(), combinations);
-        @SuppressWarnings({ "unchecked", "rawtypes" })
+        @SuppressWarnings({ "unchecked" })
         Matcher<Iterable<? extends LogicalPlan>>[] combinationsArray = combinations.toArray(new Matcher[0]);
         return anyOf(combinationsArray);
     }
@@ -1411,7 +1412,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         for (int i = start; i < matchers.size(); i++) {
             current.add(matchers.get(i));
             generateCombinations(matchers, size, i + 1, current, result);
-            current.remove(current.size() - 1);
+            current.removeLast();
         }
     }
 

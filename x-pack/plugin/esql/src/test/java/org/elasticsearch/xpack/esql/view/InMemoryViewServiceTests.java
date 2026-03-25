@@ -60,13 +60,11 @@ import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.equalToIgnoringIds;
 import static org.hamcrest.Matchers.anyOf;
-import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -1169,11 +1167,19 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
                                     containsNestedViewUnionAll(result)
                                 );
                                 assertThat("Expect failure count", failures.failures().size(), equalTo(nesting - 1));
-                                var failureMessages = failures.failures().stream().map(Failure::message).collect(Collectors.toSet());
-                                assertThat("Expect failure message", failureMessages, contains("Nested subqueries are not supported"));
+                                // Each nested ViewUnionAll failure should reference the view that created it.
+                                // The ViewUnionAlls at depths 2..N have view names v_2_1..v_N_1.
+                                for (Failure failure : failures.failures()) {
+                                    assertThat(failure.failMessage(), containsString("Nested subqueries are not supported"));
+                                    assertThat(failure.failMessage(), containsString("(in view [v_"));
+                                }
                             } else {
                                 assertFalse(
                                     "No nested ViewUnionAll expected for nesting=" + nesting + ", branching=" + branching,
+                                    containsNestedViewUnionAll(result)
+                                );
+                                assertFalse(
+                                    "No failures expected for nesting=" + nesting + ", branching=" + branching,
                                     failures.hasFailures()
                                 );
                             }
@@ -1187,12 +1193,16 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
     /**
      * Builds a view tree for testing nesting and branching combinations.
      * <p>
+     * All views follow the naming convention {@code v_<depth>_<branch>}, where depth 1 is the
+     * deepest (leaf) level and depth N is the shallowest (closest to the query). Branch 1 at
+     * each depth is the "chain" view that references the level below; branches 2..B are leaf views.
+     * <p>
      * Structure for (nesting=N, branching=B):
      * <ul>
-     *   <li>Level 1: B leaf views, each referencing a unique index</li>
-     *   <li>Level 2: one wrapper view referencing all B level-1 leaves</li>
-     *   <li>Level k (k &gt; 2): one wrapper referencing the level-(k-1) wrapper + (B-1) new leaf views</li>
-     *   <li>Query level (N &ge; 2): B-1 extra leaf views so the query also has B branches</li>
+     *   <li>Depth 1: B leaf views {@code v_1_1..v_1_B}, each referencing a unique index</li>
+     *   <li>Depth k (k &ge; 2): leaf views {@code v_k_2..v_k_B} + wrapper {@code v_k_1} referencing
+     *       {@code v_(k-1)_1} plus those leaves</li>
+     *   <li>Query level (N &ge; 2): {@code v_(N+1)_2..v_(N+1)_B} extra leaf views so the query has B branches</li>
      * </ul>
      * Every level including the query has B total view references, ensuring B FORK branches at every level
      * when non-compactable.
@@ -1203,51 +1213,44 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
     private void buildNestingBranchingViewTree(int nesting, int branching, boolean compactable, InMemoryViewService service) {
         String suffix = compactable ? "" : " | LIMIT 1000";
 
-        // Level 1: leaf views referencing unique indices
+        // Depth 1: leaf views referencing unique indices
         for (int j = 1; j <= branching; j++) {
             String idx = "idx_1_" + j;
             service.addIndex(projectId, idx);
-            addView("leaf_1_" + j, "FROM " + idx + suffix, service);
+            addView("v_1_" + j, "FROM " + idx + suffix, service);
         }
 
         if (nesting < 2) {
             return;
         }
 
-        // Level 2: wrapper referencing all level-1 leaves
-        StringBuilder from = new StringBuilder("FROM ");
-        for (int j = 1; j <= branching; j++) {
-            if (j > 1) from.append(", ");
-            from.append("leaf_1_").append(j);
-        }
-        addView("w_2", from + suffix, service);
-
-        // Levels 3 through N: wrapper + (B-1) new leaf views
-        for (int k = 3; k <= nesting; k++) {
+        // Depths 2 through N: leaf views v_k_2..v_k_B + wrapper v_k_1 referencing v_(k-1)_1 and the new leaves
+        for (int k = 2; k <= nesting; k++) {
             for (int j = 2; j <= branching; j++) {
                 String idx = "idx_" + k + "_" + j;
                 service.addIndex(projectId, idx);
-                addView("leaf_" + k + "_" + j, "FROM " + idx + suffix, service);
+                addView("v_" + k + "_" + j, "FROM " + idx + suffix, service);
             }
-            StringBuilder sb = new StringBuilder("FROM w_").append(k - 1);
+            StringBuilder sb = new StringBuilder("FROM v_").append(k - 1).append("_1");
             for (int j = 2; j <= branching; j++) {
-                sb.append(", leaf_").append(k).append("_").append(j);
+                sb.append(", v_").append(k).append("_").append(j);
             }
-            addView("w_" + k, sb + suffix, service);
+            addView("v_" + k + "_1", sb + suffix, service);
         }
 
-        // Query-level leaf views so the top-level query also has B branches
+        // Query-level leaf views (depth N+1) so the top-level query also has B branches
+        int qDepth = nesting + 1;
         for (int j = 2; j <= branching; j++) {
-            String idx = "qidx_" + j;
+            String idx = "idx_" + qDepth + "_" + j;
             service.addIndex(projectId, idx);
-            addView("qleaf_" + j, "FROM " + idx + suffix, service);
+            addView("v_" + qDepth + "_" + j, "FROM " + idx + suffix, service);
         }
     }
 
     /**
      * Builds the query string for the nesting/branching matrix test.
-     * For nesting=1, queries all leaf views directly.
-     * For nesting &ge; 2, queries the top-level wrapper view plus (B-1) extra leaf views,
+     * For nesting=1, queries all depth-1 views directly.
+     * For nesting &ge; 2, queries the top wrapper {@code v_N_1} plus leaf views {@code v_(N+1)_2..v_(N+1)_B},
      * ensuring B branches at the query level too.
      * All queries append {@code | LIMIT 1000} to mirror real ES|QL behaviour
      * (which always adds an implicit limit).
@@ -1258,13 +1261,14 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
             StringBuilder sb = new StringBuilder("FROM ");
             for (int j = 1; j <= branching; j++) {
                 if (j > 1) sb.append(", ");
-                sb.append("leaf_1_").append(j);
+                sb.append("v_1_").append(j);
             }
             return sb.toString() + suffix;
         }
-        StringBuilder sb = new StringBuilder("FROM w_").append(nesting);
+        StringBuilder sb = new StringBuilder("FROM v_").append(nesting).append("_1");
+        int qDepth = nesting + 1;
         for (int j = 2; j <= branching; j++) {
-            sb.append(", qleaf_").append(j);
+            sb.append(", v_").append(qDepth).append("_").append(j);
         }
         return sb.toString() + suffix;
     }

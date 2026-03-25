@@ -14,8 +14,8 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
@@ -24,7 +24,6 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
-import java.io.IOException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
@@ -53,25 +52,27 @@ class DlmFrozenTransitionService implements ClusterStateListener, Closeable {
 
     static final Setting<Integer> MAX_CONCURRENCY_SETTING = Setting.intSetting(
         "dlm.frozen_transition.max_concurrency",
-        10,
+        100,
         1,
         Setting.Property.NodeScope
     );
 
     private final ClusterService clusterService;
     private final AtomicBoolean isMaster = new AtomicBoolean(false);
-    private volatile ScheduledExecutorService schedulerThreadExecutor;
-    private volatile DlmFrozenTransitionExecutor transitionExecutor;
+    private ScheduledExecutorService schedulerThreadExecutor;
+    private DlmFrozenTransitionExecutor transitionExecutor;
     private final AtomicBoolean closing = new AtomicBoolean(false);
     private final TimeValue pollInterval;
     private final int maxConcurrency;
+    private final long initialDelayMillis;
 
     private final BiFunction<String, ProjectId, DlmFrozenTransitionRunnable> transitionRunnableFactory;
 
     DlmFrozenTransitionService(ClusterService clusterService, Client client, XPackLicenseState licenseState) {
         this(
             clusterService,
-            (index, pid) -> new DataStreamLifecycleConvertToFrozen(index, client, clusterService.state().projectState(pid), licenseState)
+            (index, pid) -> new DataStreamLifecycleConvertToFrozen(index, client, clusterService.state().projectState(pid), licenseState),
+            POLL_INTERVAL_SETTING.get(clusterService.getSettings()).millis()
         );
     }
 
@@ -80,10 +81,19 @@ class DlmFrozenTransitionService implements ClusterStateListener, Closeable {
         ClusterService clusterService,
         BiFunction<String, ProjectId, DlmFrozenTransitionRunnable> transitionRunnableFactory
     ) {
+        this(clusterService, transitionRunnableFactory, 0);
+    }
+
+    private DlmFrozenTransitionService(
+        ClusterService clusterService,
+        BiFunction<String, ProjectId, DlmFrozenTransitionRunnable> transitionRunnableFactory,
+        long initialDelayMillis
+    ) {
         this.clusterService = clusterService;
         this.pollInterval = POLL_INTERVAL_SETTING.get(clusterService.getSettings());
         this.maxConcurrency = MAX_CONCURRENCY_SETTING.get(clusterService.getSettings());
         this.transitionRunnableFactory = transitionRunnableFactory;
+        this.initialDelayMillis = initialDelayMillis;
     }
 
     /**
@@ -111,39 +121,50 @@ class DlmFrozenTransitionService implements ClusterStateListener, Closeable {
     }
 
     private void startThreadPools() {
-        if (closing.get() == false) {
-            transitionExecutor = new DlmFrozenTransitionExecutor(maxConcurrency, clusterService.getSettings());
-            schedulerThreadExecutor = Executors.newSingleThreadScheduledExecutor(r -> {
-                var thread = new Thread(r, "dlm-frozen-transition-scheduler");
-                thread.setDaemon(true);
-                return thread;
-            });
-            schedulerThreadExecutor.scheduleAtFixedRate(this::checkForFrozenIndices, 0, pollInterval.millis(), TimeUnit.MILLISECONDS);
+        synchronized (this) {
+            if (closing.get() == false) {
+                transitionExecutor = new DlmFrozenTransitionExecutor(maxConcurrency, clusterService.getSettings());
+                schedulerThreadExecutor = Executors.newSingleThreadScheduledExecutor(r -> {
+                    var thread = new Thread(r, "dlm-frozen-transition-scheduler");
+                    thread.setDaemon(true);
+                    return thread;
+                });
+                schedulerThreadExecutor.scheduleAtFixedRate(
+                    this::checkForFrozenIndices,
+                    initialDelayMillis,
+                    pollInterval.millis(),
+                    TimeUnit.MILLISECONDS
+                );
+            }
         }
     }
 
     private void stopThreadPools() {
-        if (schedulerThreadExecutor != null) {
-            schedulerThreadExecutor.shutdownNow();
-            schedulerThreadExecutor = null;
-        }
-        if (transitionExecutor != null) {
-            transitionExecutor.shutdownNow();
-            transitionExecutor = null;
+        synchronized (this) {
+            if (schedulerThreadExecutor != null) {
+                schedulerThreadExecutor.shutdownNow();
+                schedulerThreadExecutor = null;
+            }
+            if (transitionExecutor != null) {
+                transitionExecutor.shutdownNow();
+                transitionExecutor = null;
+            }
         }
     }
 
     @Override
-    public void close() throws IOException {
-        if (closing.compareAndSet(false, true)) {
-            clusterService.removeListener(this);
-            if (schedulerThreadExecutor != null) {
-                ThreadPool.terminate(schedulerThreadExecutor, 10, TimeUnit.SECONDS);
-                schedulerThreadExecutor = null;
-            }
-            if (transitionExecutor != null) {
-                transitionExecutor.close();
-                transitionExecutor = null;
+    public void close() {
+        synchronized (this) {
+            if (closing.compareAndSet(false, true)) {
+                clusterService.removeListener(this);
+                if (schedulerThreadExecutor != null) {
+                    ThreadPool.terminate(schedulerThreadExecutor, 10, TimeUnit.SECONDS);
+                    schedulerThreadExecutor = null;
+                }
+                if (transitionExecutor != null) {
+                    transitionExecutor.close();
+                    transitionExecutor = null;
+                }
             }
         }
     }
@@ -193,7 +214,10 @@ class DlmFrozenTransitionService implements ClusterStateListener, Closeable {
                             executor.submit(transitionRunnableFactory.apply(index.getName(), projectMetadata.id()));
                         } catch (RejectedExecutionException e) {
                             logger.debug(
-                                Strings.format("Unable to submit transition task for index [%s], Possibly shutting down?", index),
+                                () -> LoggerMessageFormat.format(
+                                    "Unable to submit transition task for index [{}], Possibly shutting down?",
+                                    index
+                                ),
                                 e
                             );
                             return;

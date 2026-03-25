@@ -15,7 +15,6 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
-import java.io.IOException;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -44,12 +43,12 @@ class DlmFrozenTransitionExecutor implements Closeable {
     private final ExecutorService executor;
 
     DlmFrozenTransitionExecutor(int maxConcurrency, Settings settings) {
-        runningTransitions = ConcurrentHashMap.newKeySet(maxConcurrency);
+        this.runningTransitions = ConcurrentHashMap.newKeySet(maxConcurrency);
         this.maxConcurrency = maxConcurrency;
         this.executor = EsExecutors.newFixed(
             EXECUTOR_NAME,
             maxConcurrency,
-            0,
+            -1,
             EsExecutors.daemonThreadFactory(settings, EXECUTOR_NAME),
             new ThreadContext(settings),
             EsExecutors.TaskTrackingConfig.DEFAULT
@@ -99,7 +98,7 @@ class DlmFrozenTransitionExecutor implements Closeable {
     }
 
     @Override
-    public void close() throws IOException {
+    public void close() {
         ThreadPool.terminate(executor, 10, TimeUnit.SECONDS);
     }
 }

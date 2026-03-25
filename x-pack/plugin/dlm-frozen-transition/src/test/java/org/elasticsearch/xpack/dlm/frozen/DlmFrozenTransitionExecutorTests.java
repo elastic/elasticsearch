@@ -134,7 +134,7 @@ public class DlmFrozenTransitionExecutorTests extends ESTestCase {
      * verifying the executor accepts {@code maxConcurrency} simultaneous submissions without rejection.
      */
     public void testSimultaneousSubmissionsFromMultipleThreads() throws Exception {
-        int maxConcurrency = 4;
+        int maxConcurrency = between(2, 50);
         try (var executor = new DlmFrozenTransitionExecutor(maxConcurrency, Settings.EMPTY)) {
             CyclicBarrier barrier = new CyclicBarrier(maxConcurrency);
             List<Future<?>> futures = new CopyOnWriteArrayList<>();

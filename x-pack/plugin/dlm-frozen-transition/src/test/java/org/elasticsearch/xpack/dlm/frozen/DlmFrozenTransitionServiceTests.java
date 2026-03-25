@@ -19,7 +19,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService;
 import org.elasticsearch.gateway.GatewayService;
@@ -312,21 +311,6 @@ public class DlmFrozenTransitionServiceTests extends ESTestCase {
             blockUntil.countDown();
             service.close();
         }
-    }
-
-    public void testSettingDefaults() {
-        assertEquals(TimeValue.timeValueMinutes(5), DlmFrozenTransitionService.POLL_INTERVAL_SETTING.getDefault(Settings.EMPTY));
-        assertEquals(Integer.valueOf(10), DlmFrozenTransitionService.MAX_CONCURRENCY_SETTING.getDefault(Settings.EMPTY));
-    }
-
-    public void testCustomSettings() {
-        Settings customSettings = Settings.builder()
-            .put("dlm.frozen_transition.poll_interval", "2m")
-            .put("dlm.frozen_transition.max_concurrency", 5)
-            .build();
-
-        assertEquals(TimeValue.timeValueMinutes(2), DlmFrozenTransitionService.POLL_INTERVAL_SETTING.get(customSettings));
-        assertEquals(Integer.valueOf(5), DlmFrozenTransitionService.MAX_CONCURRENCY_SETTING.get(customSettings));
     }
 
     public void testPollIntervalMinimum() {

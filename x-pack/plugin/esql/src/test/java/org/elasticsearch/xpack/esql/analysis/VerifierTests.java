@@ -3725,11 +3725,7 @@ public class VerifierTests extends ESTestCase {
         );
         fullText().error(
             "from test | EVAL snippets = TOP_SNIPPETS(body, \"query\", {\"num_words\": -1})",
-            equalTo("1:29: 'num_words' option must be a positive integer, found [-1]")
-        );
-        fullText().error(
-            "from test | EVAL snippets = TOP_SNIPPETS(body, \"query\", {\"num_words\": 0})",
-            equalTo("1:29: 'num_words' option must be a positive integer, found [0]")
+            equalTo("1:29: 'num_words' option must be a non-negative integer, found [-1]")
         );
     }
 

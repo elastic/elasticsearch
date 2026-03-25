@@ -8,9 +8,11 @@
 package org.elasticsearch.xpack.prometheus.rest;
 
 import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedTimestamp;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
 import org.elasticsearch.xpack.esql.parser.PromqlParser;
 import org.elasticsearch.xpack.esql.parser.promql.PromqlParserUtils;
@@ -18,6 +20,7 @@ import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.SourceCommand;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
@@ -86,7 +89,12 @@ class PromqlQueryPlanBuilder {
         // producing [value, ...dimensions, step(long)] — the order the response listener expects.
         Eval eval = new Eval(Source.EMPTY, promqlCommand, List.of(stepAlias));
 
-        return new EsqlStatement(eval, List.of());
+        // Sort by step (timestamp) ascending so Prometheus clients receive values in chronological order.
+        Attribute stepAttr = stepAlias.toAttribute();
+        Order stepOrder = new Order(Source.EMPTY, stepAttr, Order.OrderDirection.ASC, Order.NullsPosition.LAST);
+        OrderBy orderBy = new OrderBy(Source.EMPTY, eval, List.of(stepOrder));
+
+        return new EsqlStatement(orderBy, List.of());
     }
 
     private static Duration parseStep(Source source, String value) {

@@ -21,36 +21,46 @@ public class TSDBDocValuesFormatFactoryTests extends ESTestCase {
     public void testVersion3() {
         assertSame(
             TSDBDocValuesFormatFactory.ES_819_3_TSDB_DOC_VALUES_FORMAT,
-            TSDBDocValuesFormatFactory.createDocValuesFormat(IndexVersions.TIME_SERIES_DOC_VALUES_FORMAT_VERSION_3, false, false)
+            TSDBDocValuesFormatFactory.createDocValuesFormat(IndexVersions.TIME_SERIES_DOC_VALUES_FORMAT_VERSION_3, false, false, false)
         );
     }
 
     public void testVersion3WithLargeNumericBlockSize() {
         assertSame(
             TSDBDocValuesFormatFactory.ES_819_3_TSDB_DOC_VALUES_FORMAT_LARGE_NUMERIC_BLOCK,
-            TSDBDocValuesFormatFactory.createDocValuesFormat(IndexVersions.TIME_SERIES_DOC_VALUES_FORMAT_VERSION_3, true, false)
+            TSDBDocValuesFormatFactory.createDocValuesFormat(IndexVersions.TIME_SERIES_DOC_VALUES_FORMAT_VERSION_3, true, false, false)
         );
     }
 
     public void testVersion3WithLargeBinaryBlockSize() {
-        var actual = (ES819Version3TSDBDocValuesFormat) TSDBDocValuesFormatFactory.createDocValuesFormat(
+        var withPartition = (ES819Version3TSDBDocValuesFormat) TSDBDocValuesFormatFactory.createDocValuesFormat(
             IndexVersions.TIME_SERIES_DOC_VALUES_FORMAT_VERSION_3,
             false,
+            true,
             true
         );
-        assertSame(TSDBDocValuesFormatFactory.ES_819_3_TSDB_DOC_VALUES_FORMAT_LARGE_BINARY_BLOCK, actual);
-        assertThat(actual.blockBytesThreshold, equalTo(1024 * 1024));
-        assertThat(actual.blockCountThreshold, equalTo(32768));
+        assertSame(TSDBDocValuesFormatFactory.ES_819_4_TSDB_DOC_VALUES_FORMAT_LARGE_BINARY_BLOCK, withPartition);
+        assertThat(withPartition.blockBytesThreshold, equalTo(1024 * 1024));
+        assertThat(withPartition.blockCountThreshold, equalTo(32768));
+        var withoutPartition = (ES819Version3TSDBDocValuesFormat) TSDBDocValuesFormatFactory.createDocValuesFormat(
+            IndexVersions.TIME_SERIES_DOC_VALUES_FORMAT_VERSION_3,
+            false,
+            true,
+            false
+        );
+        assertSame(TSDBDocValuesFormatFactory.ES_819_3_TSDB_DOC_VALUES_FORMAT_LARGE_BINARY_BLOCK, withoutPartition);
+        assertThat(withoutPartition.blockBytesThreshold, equalTo(1024 * 1024));
+        assertThat(withoutPartition.blockCountThreshold, equalTo(32768));
     }
 
     public void testVersionAfterVersion3() {
         assertSame(
             TSDBDocValuesFormatFactory.ES_819_3_TSDB_DOC_VALUES_FORMAT,
-            TSDBDocValuesFormatFactory.createDocValuesFormat(IndexVersion.current(), false, false)
+            TSDBDocValuesFormatFactory.createDocValuesFormat(IndexVersion.current(), false, false, false)
         );
         assertSame(
             TSDBDocValuesFormatFactory.ES_819_3_TSDB_DOC_VALUES_FORMAT_LARGE_NUMERIC_BLOCK,
-            TSDBDocValuesFormatFactory.createDocValuesFormat(IndexVersion.current(), true, false)
+            TSDBDocValuesFormatFactory.createDocValuesFormat(IndexVersion.current(), true, false, false)
         );
     }
 
@@ -58,7 +68,7 @@ public class TSDBDocValuesFormatFactoryTests extends ESTestCase {
         IndexVersion preV3 = IndexVersionUtils.getPreviousVersion(IndexVersions.TIME_SERIES_DOC_VALUES_FORMAT_VERSION_3);
         assertSame(
             TSDBDocValuesFormatFactory.ES_819_2_TSDB_DOC_VALUES_FORMAT,
-            TSDBDocValuesFormatFactory.createDocValuesFormat(preV3, false, false)
+            TSDBDocValuesFormatFactory.createDocValuesFormat(preV3, false, false, false)
         );
     }
 
@@ -66,7 +76,7 @@ public class TSDBDocValuesFormatFactoryTests extends ESTestCase {
         IndexVersion preV3 = IndexVersionUtils.getPreviousVersion(IndexVersions.TIME_SERIES_DOC_VALUES_FORMAT_VERSION_3);
         assertSame(
             TSDBDocValuesFormatFactory.ES_819_2_TSDB_DOC_VALUES_FORMAT_LARGE_NUMERIC_BLOCK,
-            TSDBDocValuesFormatFactory.createDocValuesFormat(preV3, true, false)
+            TSDBDocValuesFormatFactory.createDocValuesFormat(preV3, true, false, false)
         );
     }
 }

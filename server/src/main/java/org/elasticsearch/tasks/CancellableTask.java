@@ -13,6 +13,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.core.Nullable;
 
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.VarHandle;
 import java.util.Map;
 
 /**
@@ -20,8 +22,18 @@ import java.util.Map;
  */
 public class CancellableTask extends Task {
 
+    private static final VarHandle REASON_HANDLE;
+
+    static {
+        try {
+            REASON_HANDLE = MethodHandles.lookup().findVarHandle(CancellableTask.class, "reason", String.class);
+        } catch (ReflectiveOperationException e) {
+            throw new ExceptionInInitializerError(e);
+        }
+    }
+
+    @SuppressWarnings("unused") // updated via REASON_HANDLE
     private volatile String reason;
-    private volatile boolean isCancelled;
     private final SubscribableListener<Void> listeners = new SubscribableListener<>();
 
     public CancellableTask(long id, String type, String action, String description, TaskId parentTaskId, Map<String, String> headers) {
@@ -33,12 +45,8 @@ public class CancellableTask extends Task {
      */
     final void cancel(String reason) {
         assert reason != null;
-        synchronized (this) {
-            if (this.isCancelled) {
-                return;
-            }
-            this.isCancelled = true;
-            this.reason = reason;
+        if (REASON_HANDLE.compareAndSet(this, null, reason) == false) {
+            return;
         }
         listeners.onResponse(null);
         onCancelled();
@@ -59,12 +67,11 @@ public class CancellableTask extends Task {
      * includes the cancellation reason.
      */
     public final boolean isCancelled() {
-        return isCancelled;
+        return reason != null;
     }
 
     /**
-     * The reason the task was cancelled or null if it hasn't been cancelled. May also be null if the task was just cancelled since we don't
-     * set the reason and the cancellation flag atomically.
+     * The reason the task was cancelled or null if it hasn't been cancelled.
      */
     @Nullable
     public final String getReasonCancelled() {
@@ -88,9 +95,7 @@ public class CancellableTask extends Task {
      */
     public final void ensureNotCancelled() {
         if (isCancelled()) {
-            synchronized (this) {
-                throw getTaskCancelledException();
-            }
+            throw getTaskCancelledException();
         }
     }
 
@@ -99,25 +104,20 @@ public class CancellableTask extends Task {
      * @return {@code true} if the task is cancelled and the listener was notified, otherwise {@code false}.
      */
     public final <T> boolean notifyIfCancelled(ActionListener<T> listener) {
-        if (isCancelled == false) {
+        if (isCancelled() == false) {
             return false;
         }
-        final TaskCancelledException taskCancelledException;
-        synchronized (this) {
-            taskCancelledException = getTaskCancelledException();
-        } // NB releasing the mutex before notifying the listener
-        listener.onFailure(taskCancelledException);
+        listener.onFailure(getTaskCancelledException());
         return true;
     }
 
     @Override
     public String toString() {
-        return "CancellableTask{" + super.toString() + ", reason='" + reason + '\'' + ", isCancelled=" + isCancelled + '}';
+        String cancelReason = reason;
+        return "CancellableTask{" + super.toString() + ", reason='" + cancelReason + '\'' + ", isCancelled=" + (cancelReason != null) + '}';
     }
 
     private TaskCancelledException getTaskCancelledException() {
-        assert Thread.holdsLock(this);
-        assert isCancelled;
         assert reason != null;
         return new TaskCancelledException("task cancelled [" + reason + ']');
     }

@@ -7,7 +7,12 @@
 package org.elasticsearch.xpack.ml.action.datafeed;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.fieldcaps.FieldCapabilities;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesBuilder;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
@@ -25,6 +30,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -119,5 +126,26 @@ public class TransportPreviewDatafeedActionTests extends ESTestCase {
         assertThat(capturedResponse, is(nullValue()));
         assertThat(capturedFailure.getMessage(), equalTo("failed"));
         verify(dataExtractor).destroy();
+    }
+
+    public void testTimeFieldIsDateNanos_GivenFieldAbsent_ReturnsFalse() {
+        FieldCapabilitiesResponse response = FieldCapabilitiesResponse.empty();
+        assertThat(TransportPreviewDatafeedAction.timeFieldIsDateNanos(response, "time"), is(false));
+    }
+
+    public void testTimeFieldIsDateNanos_GivenDateNanos_ReturnsTrue() {
+        String timeField = "event_time";
+        var caps = new FieldCapabilitiesBuilder(timeField, DateFieldMapper.DATE_NANOS_CONTENT_TYPE).build();
+        Map<String, FieldCapabilities> byType = Map.of(DateFieldMapper.DATE_NANOS_CONTENT_TYPE, caps);
+        FieldCapabilitiesResponse response = new FieldCapabilitiesResponse(Strings.EMPTY_ARRAY, Map.of(timeField, byType));
+        assertThat(TransportPreviewDatafeedAction.timeFieldIsDateNanos(response, timeField), is(true));
+    }
+
+    public void testTimeFieldIsDateNanos_GivenDateOnly_ReturnsFalse() {
+        String timeField = "event_time";
+        var caps = new FieldCapabilitiesBuilder(timeField, DateFieldMapper.CONTENT_TYPE).build();
+        Map<String, FieldCapabilities> byType = Map.of(DateFieldMapper.CONTENT_TYPE, caps);
+        FieldCapabilitiesResponse response = new FieldCapabilitiesResponse(Strings.EMPTY_ARRAY, Map.of(timeField, byType));
+        assertThat(TransportPreviewDatafeedAction.timeFieldIsDateNanos(response, timeField), is(false));
     }
 }

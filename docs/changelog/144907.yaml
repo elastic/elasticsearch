@@ -1,0 +1,4 @@
+issues: []
+pr: 144907
+summary: raise ping check failure log level from debug to warn
+type: enhancement

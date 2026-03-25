@@ -336,9 +336,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {csv-spec:spatial_shapes.convertFromStringParseError}
   issue: https://github.com/elastic/elasticsearch/issues/144672
-- class: org.elasticsearch.index.mapper.flattened.RootFlattenedFromKeyedFieldDataTests
-  method: testRandomized
-  issue: https://github.com/elastic/elasticsearch/issues/144691
 - class: org.elasticsearch.repositories.gcs.GoogleCloudStorageBlobStoreRepositoryTests
   method: testCopy
   issue: https://github.com/elastic/elasticsearch/issues/144692

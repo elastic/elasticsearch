@@ -294,12 +294,6 @@ tests:
 - class: org.elasticsearch.reindex.management.ReindexGetRelocationIT
   method: testGetReindexFollowsRelocation
   issue: https://github.com/elastic/elasticsearch/issues/144364
-- class: org.elasticsearch.entitlement.qa.EntitlementsAllowedIT
-  method: "testAction {actionName=createLDAPCertStore}"
-  issue: https://github.com/elastic/elasticsearch/issues/144377
-- class: org.elasticsearch.entitlement.qa.EntitlementsAllowedNonModularIT
-  method: "testAction {actionName=createLDAPCertStore}"
-  issue: https://github.com/elastic/elasticsearch/issues/144376
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
   method: test {csv-spec:approximation.Approximate stats by on large single-valued data}
   issue: https://github.com/elastic/elasticsearch/issues/144382
@@ -371,36 +365,21 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:k8s-timeseries-avg-over-time.avg_over_time_of_integer}
   issue: https://github.com/elastic/elasticsearch/issues/144719
-- class: org.elasticsearch.cluster.metadata.MetadataCreateIndexServiceTests
-  method: testBatchedIndexCreationAndReroute
-  issue: https://github.com/elastic/elasticsearch/issues/144723
 - class: org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT
   method: testEndpointGetsUpdated_GivenFingerprintChanges_FromNonNull
   issue: https://github.com/elastic/elasticsearch/issues/144731
 - class: org.elasticsearch.xpack.ccr.index.engine.FollowingEngineTests
   method: testProcessOnceOnPrimary
   issue: https://github.com/elastic/elasticsearch/issues/144743
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
-  method: test {csv-spec:external-basic.operatorLikeRLike}
-  issue: https://github.com/elastic/elasticsearch/issues/144804
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
-  method: test {csv-spec:external-basic.enrichRemote}
-  issue: https://github.com/elastic/elasticsearch/issues/144805
-- class: org.elasticsearch.xpack.esql.CsvTests
-  method: test {csv-spec:external-basic.operatorLikeRLike}
-  issue: https://github.com/elastic/elasticsearch/issues/144807
-- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
-  method: test {csv-spec:external-basic.enrichRemote}
-  issue: https://github.com/elastic/elasticsearch/issues/144808
-- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
-  method: test {csv-spec:external-basic.operatorLikeRLike}
-  issue: https://github.com/elastic/elasticsearch/issues/144809
-- class: org.elasticsearch.xpack.esql.analysis.AnalyzerExternalTests
-  method: testWithMultiMatchFunctionRejected
-  issue: https://github.com/elastic/elasticsearch/issues/144811
 - class: org.elasticsearch.xpack.transform.transforms.ClientTransformIndexerTests
   method: testDisablePitWhenCrossProjectSearchIsEnabled
   issue: https://github.com/elastic/elasticsearch/issues/144822
+- class: org.elasticsearch.indices.memory.breaker.AccountableQueryCircuitBreakerIT
+  method: testRangeQueryMemoryReleased
+  issue: https://github.com/elastic/elasticsearch/issues/144906
+- class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackSubqueryIT
+  method: testGiantTextFieldInSubqueryIntermediateResults
+  issue: https://github.com/elastic/elasticsearch/issues/144367
 
 # Examples:
 #

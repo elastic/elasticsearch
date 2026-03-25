@@ -731,7 +731,7 @@ public class EsqlSession {
         if (metrics == null || viewResolution.viewQueries().isEmpty()) {
             return;
         }
-        metrics.inc(FeatureMetric.VIEWS);
+        metrics.inc(FeatureMetric.VIEW);
     }
 
     /**

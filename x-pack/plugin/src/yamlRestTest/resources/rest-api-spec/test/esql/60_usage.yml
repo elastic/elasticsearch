@@ -97,7 +97,7 @@ setup:
   - set: { esql.features.completion: completion_counter }
   - set: { esql.features.sample: sample_counter }
   - set: { esql.features.subquery: subquery_counter }
-  - set: { esql.features.views: views_counter }
+  - set: { esql.features.view: view_counter }
   - set: { esql.features.uri_parts: uri_parts_counter }
   - set: { esql.features.registered_domain: registered_domain_counter }
   - set: { esql.features.mmr: mmr_counter }
@@ -424,7 +424,7 @@ took:
       reason: "Views telemetry test requires snapshot build with views enabled"
 
   - do: { xpack.usage: { } }
-  - set: { esql.features.views: views_counter }
+  - set: { esql.features.view: view_counter }
   - set: { esql.features.subquery: subquery_counter }
 
   - do:
@@ -439,7 +439,7 @@ took:
           query: 'FROM test_view_for_telemetry | LIMIT 10'
 
   - do: { xpack.usage: { } }
-  - gt: { esql.features.views: $views_counter }
+  - gt: { esql.features.view: $view_counter }
   - match: { esql.features.subquery: $subquery_counter }
 
   - do:

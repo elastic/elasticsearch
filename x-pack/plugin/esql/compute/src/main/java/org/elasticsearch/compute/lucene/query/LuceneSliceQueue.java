@@ -14,7 +14,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Weight;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -31,7 +30,6 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -319,11 +317,8 @@ public final class LuceneSliceQueue {
         TIME_SERIES(3) {
             @Override
             List<List<PartialLeafReaderContext>> groups(IndexSearcher searcher, int taskConcurrency) {
-                final int totalDocCount = searcher.getIndexReader().maxDoc();
-                // Cap at 4 * MAX_DOCS_PER_SLICE since each slice spans multiple segments, reducing per-slice overhead.
-                final int docsPerSlice = Math.clamp(Math.ceilDiv(totalDocCount, taskConcurrency), 1, MAX_DOCS_PER_SLICE * 4);
                 try {
-                    return new TimeSeriesPartitioner().partition(searcher.getLeafContexts(), docsPerSlice);
+                    return new TimeSeriesPartitioner().partition(searcher.getLeafContexts(), taskConcurrency, MAX_DOCS_PER_SLICE);
                 } catch (IOException e) {
                     throw new UncheckedIOException(e);
                 }
@@ -487,68 +482,81 @@ public final class LuceneSliceQueue {
             }
         }
 
-        List<List<PartialLeafReaderContext>> partition(List<LeafReaderContext> leaves, int docsPerSlice) throws IOException {
-            final Map<Integer, PrefixGroup> groups = new TreeMap<>(); // ordered by prefixes
+        List<List<PartialLeafReaderContext>> partition(List<LeafReaderContext> leaves, int taskConcurrency, int maxDocsPerLeave)
+            throws IOException {
+            int prefixBitsShift = -1;
+            final Map<Integer, Map<Integer, PrefixGroup>> firstByteGroups = new TreeMap<>();
             PartitionedDocValues.PrefixPartitions prefixPartitions = null;
             for (LeafReaderContext leaf : leaves) {
                 var tsid = leaf.reader().getSortedDocValues(TimeSeriesIdFieldMapper.NAME);
                 if (tsid == null) {
                     continue; // empty
                 }
-                prefixPartitions = ((PartitionedDocValues) tsid).prefixPartitions(prefixPartitions);
-                final int maxDoc = leaf.reader().maxDoc();
+                var partitionedDV = (PartitionedDocValues) tsid;
+                if (prefixBitsShift == -1) {
+                    prefixBitsShift = partitionedDV.prefixPartitionBits() - Byte.SIZE;
+                }
+                prefixPartitions = partitionedDV.prefixPartitions(prefixPartitions);
                 assert prefixPartitions != null;
                 int pendingPrefix = -1;
                 int pendingStartDoc = -1;
                 int numPartitions = prefixPartitions.numPartitions();
+                final int shift = prefixBitsShift;
                 for (int i = 0; i < numPartitions; i++) {
                     int startDoc = prefixPartitions.startDocs()[i];
                     int prefix = prefixPartitions.prefixes()[i];
-                    if (pendingPrefix != -1 && pendingStartDoc < startDoc) {
-                        groups.computeIfAbsent(pendingPrefix, k -> new PrefixGroup(leaves.size())).add(leaf, pendingStartDoc, startDoc);
+                    if (pendingPrefix != -1) {
+                        firstByteGroups.computeIfAbsent(pendingPrefix >>> shift, k -> new TreeMap<>())
+                            .computeIfAbsent(pendingPrefix, k -> new PrefixGroup(leaves.size()))
+                            .add(leaf, pendingStartDoc, startDoc);
                     }
                     pendingStartDoc = startDoc;
                     pendingPrefix = prefix;
                 }
-                if (pendingPrefix >= 0 && pendingStartDoc < maxDoc) {
-                    groups.computeIfAbsent(pendingPrefix, k -> new PrefixGroup(leaves.size())).add(leaf, pendingStartDoc, maxDoc);
+                if (pendingPrefix >= 0) {
+                    firstByteGroups.computeIfAbsent(pendingPrefix >>> shift, k -> new TreeMap<>())
+                        .computeIfAbsent(pendingPrefix, k -> new PrefixGroup(leaves.size()))
+                        .add(leaf, pendingStartDoc, leaf.reader().maxDoc());
                 }
             }
-            return combineGroups(groups.values().stream().toList(), docsPerSlice);
-        }
-
-        private List<List<PartialLeafReaderContext>> combineGroups(List<PrefixGroup> groups, int docsPerSlice) {
-            Map<LeafReaderContext, PartialLeafReaderContext> current = new IdentityHashMap<>();
-            List<List<PartialLeafReaderContext>> results = new ArrayList<>(groups.size());
-            final int minDocsPerSlice = Math.max(docsPerSlice * 2 / 3, 1);
-            final int maxDocsPerSlice = Math.max(docsPerSlice * 3 / 2, 1);
-            int pendingDocs = 0;
-            for (PrefixGroup slice : groups) {
-                if (pendingDocs >= docsPerSlice || (pendingDocs > minDocsPerSlice && (pendingDocs + slice.numDocs) > maxDocsPerSlice)) {
-                    results.add(shuffle(current.values()));
-                    current.clear();
-                    pendingDocs = 0;
-                }
-                for (PartialLeafReaderContext leaf : slice.leaves) {
-                    final LeafReaderContext ctx = leaf.leafReaderContext();
-                    current.merge(ctx, leaf, (curr, next) -> {
-                        assert curr.maxDoc() == next.minDoc() : "current=" + curr + "; next=" + next;
-                        return new PartialLeafReaderContext(ctx, curr.minDoc(), next.maxDoc());
-                    });
-                }
-                pendingDocs += slice.numDocs;
-            }
-            if (current.isEmpty() == false) {
-                results.add(shuffle(current.values()));
+            List<List<PartialLeafReaderContext>> results = new ArrayList<>();
+            for (Map<Integer, PrefixGroup> prefixGroups : firstByteGroups.values()) {
+                results.addAll(combineSlices(prefixGroups.values().stream().toList(), taskConcurrency, maxDocsPerLeave));
             }
             return results;
         }
 
-        private List<PartialLeafReaderContext> shuffle(Collection<PartialLeafReaderContext> leaves) {
-            List<PartialLeafReaderContext> shuffled = new ArrayList<>(leaves);
-            // Shuffle so different drivers prefetch different segments concurrently, avoiding contention when a segment is being cached.
-            Randomness.shuffle(shuffled);
-            return shuffled;
+        private List<List<PartialLeafReaderContext>> combineSlices(List<PrefixGroup> slices, int taskConcurrency, int maxDocsPerLeave) {
+            final int totalDocs = slices.stream().mapToInt(s -> s.numDocs).sum();
+            final int docsPerSlice = Math.max(Math.ceilDiv(totalDocs, taskConcurrency), maxDocsPerLeave);
+            Map<LeafReaderContext, PartialLeafReaderContext> current = new IdentityHashMap<>();
+            List<List<PartialLeafReaderContext>> results = new ArrayList<>();
+            int pendingDocs = 0;
+            boolean anyLeafExceedsMaxDocs = false;
+            for (PrefixGroup slice : slices) {
+                if (pendingDocs >= docsPerSlice || anyLeafExceedsMaxDocs) {
+                    results.add(current.values().stream().toList());
+                    current.clear();
+                    pendingDocs = 0;
+                    anyLeafExceedsMaxDocs = false;
+                }
+                for (PartialLeafReaderContext leaf : slice.leaves) {
+                    final LeafReaderContext ctx = leaf.leafReaderContext();
+                    current.merge(ctx, leaf, (curr, next) -> {
+                        assert curr.maxDoc() == leaf.minDoc() : "current=" + curr + "; next=" + leaf;
+                        return new PartialLeafReaderContext(ctx, curr.minDoc(), next.maxDoc());
+                    });
+                    PartialLeafReaderContext merged = current.get(ctx);
+                    if ((merged.maxDoc() - merged.minDoc()) >= maxDocsPerLeave) {
+                        anyLeafExceedsMaxDocs = true;
+                    }
+                }
+                pendingDocs += slice.numDocs;
+            }
+            if (current.isEmpty() == false) {
+                results.add(current.values().stream().toList());
+            }
+            return results;
         }
     }
 }

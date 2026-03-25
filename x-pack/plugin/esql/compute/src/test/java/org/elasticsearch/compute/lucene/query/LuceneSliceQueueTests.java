@@ -399,12 +399,12 @@ public class LuceneSliceQueueTests extends ESTestCase {
         MultiReader reader = new MultiReader(new MockLeafReader(500, prefixes));
         var partitioner = new LuceneSliceQueue.TimeSeriesPartitioner();
         {
-            List<List<PartialLeafReaderContext>> slices = partitioner.partition(reader.leaves(), 500);
+            List<List<PartialLeafReaderContext>> slices = partitioner.partition(reader.leaves(), 1, 500);
             assertThat(slices, hasSize(1));
             assertThat(slices, contains(List.of(new PartialLeafReaderContext(reader.leaves().get(0), 0, 500))));
         }
         {
-            List<List<PartialLeafReaderContext>> slices = partitioner.partition(reader.leaves(), 200);
+            List<List<PartialLeafReaderContext>> slices = partitioner.partition(reader.leaves(), 3, 200);
             assertThat(slices, hasSize(2));
             assertThat(
                 slices,
@@ -413,10 +413,9 @@ public class LuceneSliceQueueTests extends ESTestCase {
                     List.of(new PartialLeafReaderContext(reader.leaves().get(0), 300, 500))
                 )
             );
-
         }
         {
-            List<List<PartialLeafReaderContext>> slices = partitioner.partition(reader.leaves(), 50);
+            List<List<PartialLeafReaderContext>> slices = partitioner.partition(reader.leaves(), 5, 100);
             assertThat(slices, hasSize(3));
             assertThat(
                 slices,
@@ -426,7 +425,6 @@ public class LuceneSliceQueueTests extends ESTestCase {
                     List.of(new PartialLeafReaderContext(reader.leaves().get(0), 300, 500))
                 )
             );
-
         }
     }
 
@@ -441,7 +439,7 @@ public class LuceneSliceQueueTests extends ESTestCase {
         );
         var partitioner = new LuceneSliceQueue.TimeSeriesPartitioner();
         {
-            List<List<PartialLeafReaderContext>> slices = partitioner.partition(reader.leaves(), 1000);
+            List<List<PartialLeafReaderContext>> slices = partitioner.partition(reader.leaves(), 1, 1371);
             assertThat(slices, hasSize(1));
             assertThat(
                 slices.get(0),
@@ -453,7 +451,7 @@ public class LuceneSliceQueueTests extends ESTestCase {
             );
         }
         {
-            List<List<PartialLeafReaderContext>> slices = partitioner.partition(reader.leaves(), 750);
+            List<List<PartialLeafReaderContext>> slices = partitioner.partition(reader.leaves(), 2, 750);
             assertThat(slices, hasSize(2));
             assertThat(
                 slices.get(0),
@@ -472,7 +470,7 @@ public class LuceneSliceQueueTests extends ESTestCase {
             );
         }
         {
-            List<List<PartialLeafReaderContext>> slices = partitioner.partition(reader.leaves(), 500);
+            List<List<PartialLeafReaderContext>> slices = partitioner.partition(reader.leaves(), 3, 500);
             assertThat(slices, hasSize(2));
             assertThat(
                 slices.get(0),
@@ -491,26 +489,19 @@ public class LuceneSliceQueueTests extends ESTestCase {
             );
         }
         {
-            List<List<PartialLeafReaderContext>> slices = partitioner.partition(reader.leaves(), 200);
-            assertThat(slices, hasSize(4));
+            List<List<PartialLeafReaderContext>> slices = partitioner.partition(reader.leaves(), 5, 200);
+            assertThat(slices, hasSize(3));
             assertThat(
                 slices.get(0),
                 containsInAnyOrder(
-                    new PartialLeafReaderContext(reader.leaves().get(0), 0, 100),
-                    new PartialLeafReaderContext(reader.leaves().get(2), 0, 50)
-                )
-            );
-            assertThat(
-                slices.get(1),
-                containsInAnyOrder(
-                    new PartialLeafReaderContext(reader.leaves().get(0), 100, 200),
+                    new PartialLeafReaderContext(reader.leaves().get(0), 0, 200),
                     new PartialLeafReaderContext(reader.leaves().get(1), 0, 160),
-                    new PartialLeafReaderContext(reader.leaves().get(2), 50, 120)
+                    new PartialLeafReaderContext(reader.leaves().get(2), 0, 120)
                 )
             );
-            assertThat(slices.get(2), containsInAnyOrder(new PartialLeafReaderContext(reader.leaves().get(2), 120, 470)));
+            assertThat(slices.get(1), containsInAnyOrder(new PartialLeafReaderContext(reader.leaves().get(2), 120, 470)));
             assertThat(
-                slices.get(3),
+                slices.get(2),
                 containsInAnyOrder(
                     new PartialLeafReaderContext(reader.leaves().get(1), 160, 370),
                     new PartialLeafReaderContext(reader.leaves().get(2), 470, 801)

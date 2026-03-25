@@ -25,6 +25,8 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
+import static org.elasticsearch.test.apmintegration.AbstractMetricsIT.TELEMETRY_TIMEOUT;
+
 public class TracesApmIT extends ESRestTestCase {
     final String traceIdValue = "0af7651916cd43dd8448eb211c80319c";
     final String traceParentValue = "00-" + traceIdValue + "-b7ad6b7169203331-01";
@@ -83,7 +85,7 @@ public class TracesApmIT extends ESRestTestCase {
         client().performRequest(nodeStatsRequest);
         client().performRequest(new Request("GET", "/_flush_telemetry"));
 
-        var completed = finished.await(30, TimeUnit.SECONDS);
+        var completed = finished.await(TELEMETRY_TIMEOUT, TimeUnit.SECONDS);
         assertTrue("Timeout when waiting for assertions to complete", completed);
     }
 }

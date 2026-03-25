@@ -40,6 +40,16 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 public abstract class AbstractMetricsIT extends ESRestTestCase {
     private static final Logger logger = LogManager.getLogger(AbstractMetricsIT.class);
 
+    /**
+     * The APM agent is reconfigured dynamically by the APM module after booting,
+     * and the agent only reloads its configuration every 30 seconds.
+     * The first telemetry can be blocked waiting for this, so let's give it
+     * a good long time before giving up.
+     * <p>
+     * This should be unnecessary when the APM agent is no longer used.
+     */
+    static final int TELEMETRY_TIMEOUT = 40;
+
     protected static RecordingApmServer recordingApmServer = new RecordingApmServer();
 
     /**
@@ -133,7 +143,7 @@ public abstract class AbstractMetricsIT extends ESRestTestCase {
 
         client().performRequest(new Request("GET", "/_use_apm_metrics"));
         client().performRequest(new Request("GET", "/_flush_telemetry"));
-        finished.await(5, TimeUnit.SECONDS);
+        finished.await(TELEMETRY_TIMEOUT, TimeUnit.SECONDS);
 
         var remainingAssertions = Stream.concat(valueAssertions.keySet().stream(), histogramAssertions.keySet().stream())
             .collect(Collectors.joining(","));
@@ -192,7 +202,8 @@ public abstract class AbstractMetricsIT extends ESRestTestCase {
         recordingApmServer.addMessageConsumer(messageConsumer);
 
         client().performRequest(new Request("GET", "/_flush_telemetry"));
-        var completed = finished.await(5, TimeUnit.SECONDS);
+        logger.debug("About to wait for telemetry");
+        var completed = finished.await(TELEMETRY_TIMEOUT, TimeUnit.SECONDS);
         var remaining = valueAssertions.keySet().stream().collect(Collectors.joining(", "));
         assertTrue("Timeout waiting for JVM metrics. Missing: " + remaining, completed);
     }

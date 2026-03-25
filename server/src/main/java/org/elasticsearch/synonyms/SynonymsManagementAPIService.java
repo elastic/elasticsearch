@@ -465,7 +465,7 @@ public class SynonymsManagementAPIService {
                     .execute(l1.delegateFailure((l2, getResponse) -> {
                         if (getResponse.isExists() == false) {
                             var e = new ResourceNotFoundException("synonym rule [" + synonymRuleId + "] not found");
-                            e.setResources("synonym", synonymRuleId);
+                            e.setResources("synonym_rule", synonymRuleId);
                             l2.onFailure(e);
                             return;
                         }

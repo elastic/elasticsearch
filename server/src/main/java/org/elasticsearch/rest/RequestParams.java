@@ -9,6 +9,8 @@
 
 package org.elasticsearch.rest;
 
+import org.elasticsearch.common.util.Maps;
+
 import java.net.URI;
 import java.util.AbstractMap;
 import java.util.AbstractSet;
@@ -107,13 +109,13 @@ public final class RequestParams extends AbstractMap<String, String> {
      * @param singleValues a map whose values are treated as the sole value for each key
      */
     public static RequestParams fromSingleValues(Map<String, String> singleValues) {
-        LinkedHashMap<String, List<String>> wrapped = new LinkedHashMap<>((int) (singleValues.size() / 0.75f) + 1);
+        LinkedHashMap<String, List<String>> wrapped = Maps.newLinkedHashMapWithExpectedSize(singleValues.size());
         singleValues.forEach((k, v) -> wrapped.put(k, List.of(v)));
         return new RequestParams(wrapped);
     }
 
     private RequestParams(Map<String, List<String>> multiValues) {
-        LinkedHashMap<String, List<String>> copy = new LinkedHashMap<>((int) (multiValues.size() / 0.75f) + 1);
+        LinkedHashMap<String, List<String>> copy = Maps.newLinkedHashMapWithExpectedSize(multiValues.size());
         multiValues.forEach((k, v) -> {
             if (v.isEmpty()) {
                 throw new IllegalArgumentException("value list for parameter [" + k + "] must not be empty");

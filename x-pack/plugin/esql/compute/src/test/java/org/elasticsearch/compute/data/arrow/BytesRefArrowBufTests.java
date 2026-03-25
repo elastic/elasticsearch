@@ -32,6 +32,11 @@ import org.junit.Before;
 
 import java.nio.charset.StandardCharsets;
 
+import static org.elasticsearch.compute.data.BasicBlockTests.assertDeepCopy;
+import static org.elasticsearch.compute.data.BasicBlockTests.assertFilter;
+import static org.elasticsearch.compute.data.BasicBlockTests.assertKeepMask;
+import static org.elasticsearch.compute.data.BasicBlockTests.assertSlice;
+
 /**
  * Tests for {@link BytesRefArrowBufVector} and {@link BytesRefArrowBufBlock}, backed by Arrow's
  * variable-length binary layout (VarCharVector for single-valued, ListVector with VarCharVector child
@@ -81,6 +86,10 @@ public class BytesRefArrowBufTests extends ESTestCase {
                 assertBytesRef("hello", vector, 0, scratch);
                 assertBytesRef("world", vector, 1, scratch);
                 assertBytesRef("", vector, 2, scratch);
+
+                // assertKeepMask(vector); TODO doesn't return "this"
+                assertFilter(vector);
+                assertSlice(vector);
             }
         }
     }
@@ -101,6 +110,11 @@ public class BytesRefArrowBufTests extends ESTestCase {
                 assertBytesRef("def", block, 1, scratch);
                 assertFalse(block.mayHaveNulls());
                 assertFalse(block.mayHaveMultivaluedFields());
+
+                assertKeepMask(block);
+                assertFilter(block);
+                assertSlice(block);
+                assertDeepCopy(block);
             }
         }
     }

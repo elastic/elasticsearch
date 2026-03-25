@@ -10,15 +10,33 @@ package org.elasticsearch.xpack.core.datastreams;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
+import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
+import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockRequest;
 import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockResponse;
 import org.elasticsearch.action.admin.indices.readonly.TransportAddIndexBlockAction;
+import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
+import org.elasticsearch.action.admin.indices.shrink.ResizeType;
+import org.elasticsearch.action.admin.indices.shrink.TransportResizeAction;
+import org.elasticsearch.action.support.ActiveShardCount;
+import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.master.AcknowledgedRequest;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ProjectState;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -38,6 +56,8 @@ import static org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapsho
 public class DataStreamLifecycleConvertToFrozen implements Runnable {
 
     private static final Logger logger = LogManager.getLogger(DataStreamLifecycleConvertToFrozen.class);
+    public static final String CLONE_INDEX_PREFIX = "dlm-clone-";
+    private static final IndicesOptions IGNORE_MISSING_OPTIONS = IndicesOptions.fromOptions(true, true, false, false);
 
     private final String indexName;
     private final Client client;
@@ -59,10 +79,9 @@ public class DataStreamLifecycleConvertToFrozen implements Runnable {
         if (isEligibleForConvertToFrozen() == false) {
             return;
         }
-        // Todo: WIP - only the first step of marking the index read-only is implemented for now,
-        // the rest of the steps will be implemented in follow-up PRs
+        // Todo: WIP - steps will be implemented in follow-up PRs
         maybeMarkIndexReadOnly();
-        maybeCloneIndex();
+        String indexForForceMerge = maybeCloneIndex();
         maybeForceMergeIndex();
         maybeTakeSnapshot();
         maybeMountSearchableSnapshot();
@@ -102,8 +121,48 @@ public class DataStreamLifecycleConvertToFrozen implements Runnable {
         }
     }
 
-    public void maybeCloneIndex() {
+    /**
+     * Clones the index if the original does not have 0 replicas and a clone does not already exist.
+     * Returns the name of the index to be used for force merge in the next step, which will be either the existing clone,
+     * the original index (if it has 0 replicas), or a newly created clone.
+     */
+    String maybeCloneIndex() {
+        if (isCloneNeeded() == false) {
+            return getIndexForForceMerge();
+        }
 
+        String cloneIndexName = getDLMCloneIndexName();
+
+        ResizeRequest resizeReq = getCloneRequest();
+        logger.trace("DLM issuing request to clone index [{}] to index [{}]", indexName, cloneIndexName);
+        try {
+            CreateIndexResponse resp = client.projectClient(projectState.projectId()).execute(TransportResizeAction.TYPE, resizeReq).get();
+            if (resp.isAcknowledged() == false) {
+                throw new ElasticsearchException(
+                    Strings.format("DLM failed to acknowledge clone of index [%s] to index [%s]", indexName, cloneIndexName)
+                );
+            }
+            logger.info("DLM successfully cloned index [{}] to index [{}]", indexName, cloneIndexName);
+            return cloneIndexName;
+        } catch (Exception e) {
+            if (e instanceof InterruptedException || ExceptionsHelper.unwrapCause(e) instanceof IndexNotFoundException) {
+                Thread.currentThread().interrupt();
+            }
+            try {
+                deleteIndex(cloneIndexName);
+            } catch (Exception deleteException) {
+                e.addSuppressed(deleteException);
+            }
+            throw e instanceof ElasticsearchException
+                ? (ElasticsearchException) e
+                : new ElasticsearchException(
+                    "DLM failed to clone index [{}] to index [{}]. " + "[{}] has been cleaned up by DLM.",
+                    e,
+                    indexName,
+                    cloneIndexName,
+                    cloneIndexName
+                );
+        }
     }
 
     public void maybeForceMergeIndex() {
@@ -173,6 +232,142 @@ public class DataStreamLifecycleConvertToFrozen implements Runnable {
      */
     private static String resolveRepositoryName(ProjectState projectState) {
         return RepositoriesService.DEFAULT_REPOSITORY_SETTING.get(projectState.cluster().metadata().settings());
+    }
+
+    private ResizeRequest getCloneRequest() {
+        String cloneIndexName = getDLMCloneIndexName();
+        CreateIndexRequest createReq = new CreateIndexRequest(cloneIndexName);
+        createReq.waitForActiveShards(ActiveShardCount.ALL);
+        ResizeRequest resizeReq = new ResizeRequest(
+            MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT,
+            AcknowledgedRequest.DEFAULT_ACK_TIMEOUT,
+            ResizeType.CLONE,
+            indexName,
+            cloneIndexName
+        );
+        resizeReq.setTargetIndex(createReq);
+        resizeReq.setTargetIndexSettings(
+            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).putNull(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS)
+        );
+        return resizeReq;
+    }
+
+    /**
+     * Checks whether a clone of the index is needed for the force merge step.
+     * A clone is needed if the original index has more than 0 replicas and
+     * a clone does not already exist.
+     */
+    boolean isCloneNeeded() {
+        ProjectMetadata projectMetadata = projectState.metadata();
+        IndexMetadata indexMetadata = projectMetadata.index(indexName);
+        String cloneIndexName = getDLMCloneIndexName();
+        boolean cloneExists = projectMetadata.indices().containsKey(cloneIndexName);
+        if (cloneExists) {
+            return false;
+        }
+        return indexMetadata.getNumberOfReplicas() != 0;
+    }
+
+    /**
+     * Determines the appropriate index to use for the force merge step. If a clone index already exists and
+     * is fully active, it will be returned. If no clone index exists but the original index has 0 replicas,
+     * returns the original index. Otherwise, returns the clone index name.
+     */
+    String getIndexForForceMerge() {
+        ProjectMetadata projectMetadata = projectState.metadata();
+        String cloneIndexName = getDLMCloneIndexName();
+        if (isCloneNeeded()) {
+            return cloneIndexName;
+        }
+
+        boolean cloneExists = projectMetadata.indices().containsKey(cloneIndexName);
+        if (cloneExists) {
+            logger.debug("DLM has already cloned index [{}] in index [{}]", indexName, cloneIndexName);
+            boolean cloneIsActive = Optional.ofNullable(projectState.routingTable())
+                .map(routingTable -> routingTable.index(cloneIndexName).allPrimaryShardsActive())
+                .orElse(false);
+            if (cloneIsActive == false) {
+                waitForCloneToBeActive();
+            }
+            return cloneIndexName;
+        }
+        // if we reach here, then it means the original index has 0 replicas, and we can skip the clone step and proceed
+        // with the original index for force merge
+        logger.debug(
+            "Skipping DLM clone step for index [{}] as it already has 0 replicas and can be used for force merge directly",
+            indexName
+        );
+        return indexName;
+    }
+
+    /**
+     * Waits for the clone index to be fully active by issuing a cluster health request that waits for green status
+     * on the clone index.
+     */
+    void waitForCloneToBeActive() {
+        String cloneIndex = getDLMCloneIndexName();
+        logger.debug(
+            "DLM clone index [{}] already exists but is not fully active yet, waiting until it is active before proceeding",
+            cloneIndex
+        );
+        ClusterHealthRequest healthRequest = new ClusterHealthRequest(INFINITE_MASTER_NODE_TIMEOUT, cloneIndex).waitForGreenStatus()
+            .timeout(TimeValue.timeValueHours(12));
+        try {
+            ClusterHealthResponse response = client.projectClient(projectState.projectId()).admin().cluster().health(healthRequest).get();
+            if (response.isTimedOut()) {
+                throw new ElasticsearchException("DLM timed out waiting for clone index [{}] to become active", cloneIndex);
+            }
+            logger.debug("DLM clone index [{}] is now fully active", cloneIndex);
+        } catch (IndexNotFoundException e) {
+            throw new ElasticsearchException("DLM failed waiting for clone index [{}] to become active", e, cloneIndex);
+        } catch (Exception e) {
+            try {
+                deleteIndex(cloneIndex);
+            } catch (Exception deleteException) {
+                e.addSuppressed(deleteException);
+            }
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw e instanceof ElasticsearchException
+                ? (ElasticsearchException) e
+                : new ElasticsearchException("DLM failed waiting for clone index [{}] to become active", e, cloneIndex);
+        }
+    }
+
+    /**
+     * Gets a prefixed name for the clone index based on the original index name
+     *
+     * @return a prefixed clone index name
+     */
+    String getDLMCloneIndexName() {
+        return CLONE_INDEX_PREFIX + indexName;
+    }
+
+    /**
+     * Deletes the index if it exists.
+     */
+    void deleteIndex(String indexToDelete) {
+        DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest(indexToDelete).indicesOptions(IGNORE_MISSING_OPTIONS)
+            .masterNodeTimeout(TimeValue.MAX_VALUE);
+        logger.debug("DLM issuing request to delete index [{}]", indexToDelete);
+        try {
+            AcknowledgedResponse resp = client.projectClient(projectState.projectId()).admin().indices().delete(deleteIndexRequest).get();
+            if (resp.isAcknowledged()) {
+                logger.debug("DLM successfully deleted index [{}]", indexToDelete);
+            } else {
+                logger.warn("DLM failed to acknowledge deletion of index [{}]", indexToDelete);
+                throw new ElasticsearchException(Strings.format("Failed to acknowledge delete of index [%s]", indexToDelete));
+            }
+        } catch (IndexNotFoundException e) {
+            logger.debug("Index [{}] was not found during DLM delete attempt, it may have already been deleted", indexToDelete);
+        } catch (Exception e) {
+            logger.warn(Strings.format("DLM failed to delete index [%s]", indexToDelete), e);
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new ElasticsearchException("DLM unable to delete index [{}]", e, indexToDelete);
+        }
     }
 
     /**

@@ -945,65 +945,92 @@ Connected to 10.1.0.2  | sample_data
 Connected to 10.1.0.1  | sample_data
 ;
 
-// EVAL on a different field; the partially-mapped keyword field (message) is not explicitly referenced by any command,
-// so it must be resolved as PotentiallyUnmappedKeywordEsField at the EsRelation level (the new fix).
-fieldIsPartiallyUnmappedMultiIndexWithEvalOnOtherField
+// EVAL on a fully mapped field (salary); the partially-mapped keyword fields (first_name, last_name) are not explicitly
+// referenced by any command — they remain in the output implicitly and get loaded.
+fieldIsPartiallyUnmappedWithEvalOnOtherMappedField
 required_capability: index_metadata_field
 required_capability: optional_fields_v2
 
 SET unmapped_fields="load"\;
-//TODO: Will not work because event_duration is partially mapped too; need to use a field that is fully mapped in both indices
-FROM sample_data, no_mapping_sample_data METADATA _index
-| EVAL duration_ms = event_duration / 1000
-| DROP @timestamp, client_ip, event_duration
-;
-ignoreOrder:true
-
-message:keyword       | _index:keyword         | duration_ms:long
-Connected to 10.1.0.1 | sample_data            | 1756
-Connected to 10.1.0.2 | sample_data            | 2764
-Connected to 10.1.0.3 | sample_data            | 3450
-Connection error      | sample_data            | 5033
-Connection error      | sample_data            | 8268
-Connection error      | sample_data            | 725
-Disconnected          | sample_data            | 1232
-Connected to 10.1.0.1!| no_mapping_sample_data | null
-Connected to 10.1.0.2!| no_mapping_sample_data | null
-Connected to 10.1.0.3!| no_mapping_sample_data | null
-Connection error?     | no_mapping_sample_data | null
-Connection error?     | no_mapping_sample_data | null
-Connection error?     | no_mapping_sample_data | null
-42                    | no_mapping_sample_data | null
+FROM employees, employees_no_names METADATA _index
+| EVAL salary_k = salary / 1000
+| DROP gender, birth_date, hire_date, languages*, salary, height*, still_hired, avg_worked_seconds, job_positions, is_rehired, salary_change*
+| SORT emp_no, _index
+| LIMIT 6
 ;
 
-// RENAME on an unrelated field; the partially-mapped keyword field (message) is not explicitly referenced.
-fieldIsPartiallyUnmappedMultiIndexWithRenameOnOtherField
+emp_no:integer | first_name:keyword | last_name:keyword | _index:keyword     | salary_k:integer
+10001          | Georgi             | Facello           | employees          | 57
+10001          | Georgi             | Facello           | employees_no_names | 57
+10002          | Bezalel            | Simmel            | employees          | 56
+10002          | Bezalel            | Simmel            | employees_no_names | 56
+10003          | Parto              | Bamford           | employees          | 61
+10003          | Parto              | Bamford           | employees_no_names | 61
+;
+
+fieldIsPartiallyUnmappedWithRenameOnOtherMappedField
 required_capability: index_metadata_field
 required_capability: optional_fields_v2
 
 SET unmapped_fields="load"\;
-FROM sample_data, no_mapping_sample_data METADATA _index
-// TODO: likely won't work because event_duration is partially mapped too; need to use a field that is fully mapped in both indices
-| RENAME event_duration AS duration
-| DROP @timestamp, client_ip
+FROM employees, employees_no_names METADATA _index
+| RENAME salary AS pay
+| DROP gender, birth_date, hire_date, languages*, height*, still_hired, avg_worked_seconds, job_positions, is_rehired, salary_change*
+| SORT emp_no, _index
+| LIMIT 6
 ;
-ignoreOrder:true
 
-duration:long | message:keyword        | _index:keyword
-1756467       | Connected to 10.1.0.1  | sample_data
-5033755       | Connection error       | sample_data
-8268153       | Connection error       | sample_data
-725448        | Connection error       | sample_data
-1232382       | Disconnected           | sample_data
-2764889       | Connected to 10.1.0.2  | sample_data
-3450233       | Connected to 10.1.0.3  | sample_data
-null          | Connected to 10.1.0.1! | no_mapping_sample_data
-null          | Connection error?      | no_mapping_sample_data
-null          | Connection error?      | no_mapping_sample_data
-null          | Connection error?      | no_mapping_sample_data
-null          | 42                     | no_mapping_sample_data
-null          | Connected to 10.1.0.2! | no_mapping_sample_data
-null          | Connected to 10.1.0.3! | no_mapping_sample_data
+emp_no:integer | first_name:keyword | last_name:keyword | pay:integer | _index:keyword
+10001          | Georgi             | Facello           | 57305       | employees
+10001          | Georgi             | Facello           | 57305       | employees_no_names
+10002          | Bezalel            | Simmel            | 56371       | employees
+10002          | Bezalel            | Simmel            | 56371       | employees_no_names
+10003          | Parto              | Bamford           | 61805       | employees
+10003          | Parto              | Bamford           | 61805       | employees_no_names
+;
+
+// EVAL on a partially mapped field (last_name).
+// first_name is not referenced by any command but must still be loaded.
+fieldIsPartiallyUnmappedWithEvalOnOtherPartiallyUnmappedField
+required_capability: index_metadata_field
+required_capability: optional_fields_v2
+
+SET unmapped_fields="load"\;
+FROM employees, employees_no_names METADATA _index
+| EVAL last_name = TO_UPPER(last_name)
+| DROP gender, birth_date, hire_date, languages*, salary, height*, still_hired, avg_worked_seconds, job_positions, is_rehired, salary_change*
+| SORT emp_no, _index
+| LIMIT 6
+;
+
+emp_no:integer | first_name:keyword | _index:keyword     | last_name:keyword
+10001          | Georgi             | employees          | FACELLO
+10001          | Georgi             | employees_no_names | FACELLO
+10002          | Bezalel            | employees          | SIMMEL
+10002          | Bezalel            | employees_no_names | SIMMEL
+10003          | Parto              | employees          | BAMFORD
+10003          | Parto              | employees_no_names | BAMFORD
+;
+
+fieldIsPartiallyUnmappedWithRenameOnOtherPartiallyUnmappedField
+required_capability: index_metadata_field
+required_capability: optional_fields_v2
+
+SET unmapped_fields="load"\;
+FROM employees, employees_no_names METADATA _index
+| RENAME last_name AS surname
+| DROP gender, birth_date, hire_date, languages*, height*, still_hired, avg_worked_seconds, job_positions, is_rehired, salary_change*
+| SORT emp_no, _index
+| LIMIT 6
+;
+
+emp_no:integer | first_name:keyword | surname:keyword | salary:integer | _index:keyword
+10001          | Georgi             | Facello         | 57305          | employees
+10001          | Georgi             | Facello         | 57305          | employees_no_names
+10002          | Bezalel            | Simmel          | 56371          | employees
+10002          | Bezalel            | Simmel          | 56371          | employees_no_names
+10003          | Parto              | Bamford         | 61805          | employees
+10003          | Parto              | Bamford         | 61805          | employees_no_names
 ;
 
 // Wildcard DROP leaving the partially-mapped keyword field (message) implicit — no explicit reference.

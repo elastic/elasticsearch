@@ -2637,8 +2637,10 @@ Tasks are integrated with the ElasticSearch APM infrastructure. They implement t
 [BulkRequest]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/bulk/BulkRequest.java
 [IndexShardOperationPermits]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/shard/IndexShardOperationPermits.java
 [SequenceNumbers]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/seqno/SequenceNumbers.java
+[LocalCheckpointTracker]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/seqno/LocalCheckpointTracker.java
 [ReplicationTracker]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/seqno/ReplicationTracker.java
 [SeqNoFieldMapper]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/mapper/SeqNoFieldMapper.java
+[ReplicationOperation]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/support/replication/ReplicationOperation.java
 
 The Distributed team owns Elasticsearch's write path. A typical write begins as an HTTP/REST request,
 and is then routed to the appropriate primary shard, gets applied to the shard's engine and translog, and is 
@@ -2738,8 +2740,6 @@ See [Engine & Store](#engine--store) and [Segment Merges](#segment-merges) for m
 
 ### Replication
 
-[ReplicationOperation]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/support/replication/ReplicationOperation.java
-
 After the primary applies the operation, a [ReplicationOperation]
 [wrapper object](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/support/replication/TransportReplicationAction.java#L592)
 will coordinate the rest. It
@@ -2791,7 +2791,50 @@ sequenceDiagram
     CN-->>C: HTTP response (may include shard failures in body)
 ```
 
+When replication and the ref-counted coordination above have finished, the primary completes the shard-level request and
+returns the result to the node that issued it (typically the coordinating node), which in turn completes the write action
+and sends the HTTP response to the client.
+
 ### Primary Terms & Sequence Numbers
+
+Every successful index, update, or delete operation on a shard is tagged with a sequence number (`seq_no`) and a primary term.
+Together they identify that logical change for replication, recovery, and optimistic concurrency. Sentinel values and
+helpers are defined on [SequenceNumbers] (for example `UNASSIGNED_SEQ_NO` on the way into the primary, and
+`UNASSIGNED_PRIMARY_TERM` before a shard is operational).
+
+The primary term is a monotonically increasing counter per shard, recorded in cluster state metadata (see
+[`IndexMetadata#primaryTerm`](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/metadata/IndexMetadata.java#L1199)).
+It advances when a primary is (re)selected, e.g. after a full restart or when a replica is promoted. The shard stamps
+all operations with the [current term](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/shard/IndexShard.java#L514).
+
+The sequence number is another monotonically increasing id for mutations on the shard history. It is
+[computed](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/engine/InternalEngine.java#L1163)
+by the primary's [InternalEngine] before it applies an operation locally. Replicas apply the same `seq_no` supplied
+by the primary. Their engine
+[records](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/engine/InternalEngine.java#L1256)
+that sequence number as "seen" before indexing. After the operation, the local checkpoint also gets updated (see the following [Checkpoints](#checkpoints-gaps-and-out-of-order-replication) subsection).
+
+Both values are stored in Lucene for each live document. [SeqNoFieldMapper] indexes `_seq_no` as a numeric field (for
+search and sort) and stores the primary term in doc values. If two copies
+ever share the same `_seq_no` (for example after a primary promotion), the copy with the higher primary term wins.
+Clients can also supply `if_seq_no` / `if_primary_term` on write requests (see
+[`IndexRequest#setIfSeqNo`](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/index/IndexRequest.java#L623)),
+in which case the engine will use optimistic concurrency control against the last known sequence id.
+
+```mermaid
+flowchart LR
+    subgraph prim["Primary shard"]
+        MD[IndexMetadata.primaryTerm in cluster state]
+        TR[ReplicationTracker operation term]
+        LCT[LocalCheckpointTracker next seq_no]
+        ENG[InternalEngine assigns seq_no + term]
+        MD --> TR
+        TR --> ENG
+        LCT --> ENG
+    end
+    ENG --> TX[ConcreteShardRequest / replica transport]
+    TX --> REP[Replica engine applies fixed seq_no + term]
+```
 
 ### Checkpoints, gaps, and out-of-order replication
 

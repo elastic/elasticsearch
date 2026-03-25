@@ -14,7 +14,6 @@ import org.apache.lucene.codecs.FieldInfosFormat;
 import org.apache.lucene.codecs.FilterCodec;
 import org.apache.lucene.codecs.lucene104.Lucene104Codec;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.codec.tsdb.ES93TSDBDefaultCompressionLucene103Codec;
 import org.elasticsearch.index.codec.zstd.Zstd814StoredFieldsFormat;

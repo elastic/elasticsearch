@@ -256,7 +256,7 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
 
     private static void validateOptions(Map<String, Object> options) {
         validateOptionValueIsPositiveInteger(options, NUM_SNIPPETS);
-        validateOptionValueIsPositiveInteger(options, NUM_WORDS);
+        validateOptionValueIsNonNegativeInteger(options, NUM_WORDS);
         validateEncoder(options);
         validateHighlightOnlyOptions(options);
     }
@@ -530,7 +530,7 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
         }
 
         ChunkingSettings chunkingSettings = new SentenceBoundaryChunkingSettings(numWords, 0);
-        // TODO(mromaios): add Analyzer support
+        //TODO(mromaios): add Analyzer support
         MemoryIndexChunkScorer scorer = new MemoryIndexChunkScorer();
 
         return new TopSnippetsEvaluator.Factory(

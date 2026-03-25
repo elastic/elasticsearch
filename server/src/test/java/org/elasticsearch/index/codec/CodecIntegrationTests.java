@@ -14,6 +14,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.codec.zstd.Zstd814StoredFieldsFormat;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
+import static org.elasticsearch.index.codec.CodecTests.getLucene90StoredFieldsFormatMode;
 import static org.hamcrest.Matchers.equalTo;
 
 public class CodecIntegrationTests extends ESSingleNodeTestCase {
@@ -55,9 +56,7 @@ public class CodecIntegrationTests extends ESSingleNodeTestCase {
             .config()
             .getCodec()
             .storedFieldsFormat();
-        var modeField = Lucene90StoredFieldsFormat.class.getDeclaredField("mode");
-        modeField.setAccessible(true);
-        var mode = modeField.get(storedFieldsFormat);
+        var mode = getLucene90StoredFieldsFormatMode(storedFieldsFormat);
         assertThat(mode, equalTo(Lucene90StoredFieldsFormat.Mode.BEST_SPEED));
     }
 }

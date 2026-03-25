@@ -10,12 +10,15 @@ package org.elasticsearch.xpack.shutdown;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.EmptyClusterInfoService;
+import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ShutdownShardMigrationStatus;
+import org.elasticsearch.cluster.metadata.ShutdownShardSnapshotsStatus;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
@@ -38,6 +41,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.NodeReplacementAlloc
 import org.elasticsearch.cluster.routing.allocation.decider.NodeShutdownAllocationDecider;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.index.Index;
@@ -51,6 +55,12 @@ import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.persistent.PersistentTasksExecutorRegistry;
+import org.elasticsearch.repositories.IndexId;
+import org.elasticsearch.repositories.RepositoryShardId;
+import org.elasticsearch.repositories.ShardGeneration;
+import org.elasticsearch.repositories.ShardSnapshotResult;
+import org.elasticsearch.snapshots.Snapshot;
+import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.snapshots.SnapshotsInfoService;
 import org.elasticsearch.tasks.CancellableTask;
@@ -69,6 +79,7 @@ import org.hamcrest.Matcher;
 import org.junit.Before;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -1090,6 +1101,204 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
             allocationService,
             allocationDeciders
         );
+    }
+
+    public void testShardSnapshotsStatusNodeNotInCluster() {
+        final boolean nodeSeen = randomBoolean();
+
+        // SHUTTING_DOWN_NODE_ID is absent from discovery nodes.
+        final ClusterState state = createTestClusterState(
+            RoutingTable.EMPTY_ROUTING_TABLE,
+            List.of(),
+            SingleNodeShutdownMetadata.Type.REMOVE,
+            true
+        );
+
+        final ShutdownShardSnapshotsStatus status = TransportGetShutdownStatusAction.shardSnapshotsStatus(
+            state,
+            SHUTTING_DOWN_NODE_ID,
+            nodeSeen
+        );
+
+        if (nodeSeen == false) {
+            assertThat(status, equalTo(ShutdownShardSnapshotsStatus.NOT_STARTED));
+            assertThat(status.status(), equalTo(SingleNodeShutdownMetadata.Status.NOT_STARTED));
+        } else {
+            assertThat(status.status(), equalTo(SingleNodeShutdownMetadata.Status.COMPLETE));
+            assertThat(status.completedShards(), equalTo(0L));
+            assertThat(status.pausedShards(), equalTo(0L));
+            assertThat(status.runningShards(), equalTo(0L));
+        }
+    }
+
+    public void testShardSnapshotsStatusCounts() {
+        final int completedCount = randomIntBetween(0, 5);
+        final int pausedCount = randomIntBetween(0, 5);
+        final int runningCount = randomIntBetween(0, 5);
+
+        final ClusterState baseState = createTestClusterState(
+            RoutingTable.EMPTY_ROUTING_TABLE,
+            List.of(),
+            SingleNodeShutdownMetadata.Type.REMOVE
+        );
+        final ClusterState state = ClusterState.builder(baseState)
+            .putCustom(SnapshotsInProgress.TYPE, buildSnapshotsInProgress(completedCount, pausedCount, runningCount, 0, 0, 0))
+            .build();
+
+        final ShutdownShardSnapshotsStatus status = TransportGetShutdownStatusAction.shardSnapshotsStatus(
+            state,
+            SHUTTING_DOWN_NODE_ID,
+            true
+        );
+
+        assertThat(status.completedShards(), equalTo((long) completedCount));
+        assertThat(status.pausedShards(), equalTo((long) pausedCount));
+        assertThat(status.runningShards(), equalTo((long) runningCount));
+        final SingleNodeShutdownMetadata.Status expectedStatus = runningCount == 0
+            ? SingleNodeShutdownMetadata.Status.COMPLETE
+            : SingleNodeShutdownMetadata.Status.IN_PROGRESS;
+        assertThat(status.status(), equalTo(expectedStatus));
+    }
+
+    public void testShardSnapshotsStatusOnlyCountsShuttingDownNodeAndIgnoresCloneEntries() {
+        final int completedOnShuttingDownNode = randomIntBetween(0, 3);
+        final int pausedOnShuttingDownNode = randomIntBetween(0, 3);
+        final int runningOnShuttingDownNode = randomIntBetween(0, 3);
+        final int completedOnOtherNode = randomIntBetween(1, 3);
+        final int pausedOnOtherNode = randomIntBetween(1, 3);
+        final int runningOnOtherNode = randomIntBetween(1, 3);
+
+        final ClusterState baseState = createTestClusterState(
+            RoutingTable.EMPTY_ROUTING_TABLE,
+            List.of(),
+            SingleNodeShutdownMetadata.Type.REMOVE
+        );
+
+        // Build SnapshotsInProgress with a regular entry (shards on both nodes) and a clone entry.
+        final SnapshotsInProgress withRegularEntry = buildSnapshotsInProgress(
+            completedOnShuttingDownNode,
+            pausedOnShuttingDownNode,
+            runningOnShuttingDownNode,
+            completedOnOtherNode,
+            pausedOnOtherNode,
+            runningOnOtherNode
+        );
+        final String cloneIndexName = "clone-index";
+        final IndexId cloneIndexId = new IndexId(cloneIndexName, randomUUID());
+        final SnapshotsInProgress.Entry cloneEntry = SnapshotsInProgress.startClone(
+            new Snapshot(ProjectId.DEFAULT, randomRepoName(), new SnapshotId(randomSnapshotName(), randomUUID())),
+            new SnapshotId(randomSnapshotName(), randomUUID()),
+            Map.of(cloneIndexName, cloneIndexId),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            IndexVersion.current()
+        )
+            .withClones(
+                Map.of(
+                    new RepositoryShardId(cloneIndexId, 0),
+                    new SnapshotsInProgress.ShardSnapshotStatus(SHUTTING_DOWN_NODE_ID, ShardGeneration.newGeneration())
+                )
+            );
+        final ClusterState state = ClusterState.builder(baseState)
+            .putCustom(SnapshotsInProgress.TYPE, withRegularEntry.withAddedEntry(cloneEntry))
+            .build();
+
+        final ShutdownShardSnapshotsStatus status = TransportGetShutdownStatusAction.shardSnapshotsStatus(
+            state,
+            SHUTTING_DOWN_NODE_ID,
+            true
+        );
+
+        // Only shards on the shutting-down node from non-clone entries are counted.
+        assertThat(status.completedShards(), equalTo((long) completedOnShuttingDownNode));
+        assertThat(status.pausedShards(), equalTo((long) pausedOnShuttingDownNode));
+        assertThat(status.runningShards(), equalTo((long) runningOnShuttingDownNode));
+    }
+
+    /**
+     * Builds a {@link SnapshotsInProgress} containing one entry per shard, split between {@code SHUTTING_DOWN_NODE_ID} and
+     * {@code LIVE_NODE_ID}. Completed shards use {@link SnapshotsInProgress.ShardState#SUCCESS}, paused shards use
+     * {@link SnapshotsInProgress.ShardState#PAUSED_FOR_NODE_REMOVAL}, and running shards use
+     * {@link SnapshotsInProgress.ShardState#INIT}.
+     */
+    private static SnapshotsInProgress buildSnapshotsInProgress(
+        int completedOnShuttingDown,
+        int pausedOnShuttingDown,
+        int runningOnShuttingDown,
+        int completedOnOther,
+        int pausedOnOther,
+        int runningOnOther
+    ) {
+        final String indexName = "test-index";
+        final Index index = new Index(indexName, randomUUID());
+        final Map<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shards = new HashMap<>();
+        int shardNum = 0;
+
+        for (int i = 0; i < completedOnShuttingDown; i++) {
+            shards.put(
+                new ShardId(index, shardNum++),
+                SnapshotsInProgress.ShardSnapshotStatus.success(
+                    SHUTTING_DOWN_NODE_ID,
+                    new ShardSnapshotResult(ShardGeneration.newGeneration(), ByteSizeValue.ZERO, 0)
+                )
+            );
+        }
+        for (int i = 0; i < pausedOnShuttingDown; i++) {
+            shards.put(
+                new ShardId(index, shardNum++),
+                new SnapshotsInProgress.ShardSnapshotStatus(
+                    SHUTTING_DOWN_NODE_ID,
+                    SnapshotsInProgress.ShardState.PAUSED_FOR_NODE_REMOVAL,
+                    ShardGeneration.newGeneration()
+                )
+            );
+        }
+        for (int i = 0; i < runningOnShuttingDown; i++) {
+            shards.put(
+                new ShardId(index, shardNum++),
+                new SnapshotsInProgress.ShardSnapshotStatus(SHUTTING_DOWN_NODE_ID, ShardGeneration.newGeneration())
+            );
+        }
+        for (int i = 0; i < completedOnOther; i++) {
+            shards.put(
+                new ShardId(index, shardNum++),
+                SnapshotsInProgress.ShardSnapshotStatus.success(
+                    LIVE_NODE_ID,
+                    new ShardSnapshotResult(ShardGeneration.newGeneration(), ByteSizeValue.ZERO, 0)
+                )
+            );
+        }
+        for (int i = 0; i < pausedOnOther; i++) {
+            shards.put(
+                new ShardId(index, shardNum++),
+                new SnapshotsInProgress.ShardSnapshotStatus(
+                    LIVE_NODE_ID,
+                    SnapshotsInProgress.ShardState.PAUSED_FOR_NODE_REMOVAL,
+                    ShardGeneration.newGeneration()
+                )
+            );
+        }
+        for (int i = 0; i < runningOnOther; i++) {
+            shards.put(
+                new ShardId(index, shardNum++),
+                new SnapshotsInProgress.ShardSnapshotStatus(LIVE_NODE_ID, ShardGeneration.newGeneration())
+            );
+        }
+
+        final SnapshotsInProgress.Entry entry = SnapshotsInProgress.startedEntry(
+            new Snapshot(ProjectId.DEFAULT, randomRepoName(), new SnapshotId(randomSnapshotName(), randomUUID())),
+            randomBoolean(),
+            randomBoolean(),
+            Map.of(indexName, new IndexId(indexName, randomUUID())),
+            List.of(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            shards,
+            Map.of(),
+            IndexVersion.current(),
+            List.of()
+        );
+        return SnapshotsInProgress.EMPTY.withAddedEntry(entry);
     }
 
     private static class TestPersistentTasksExecutor extends PersistentTasksExecutor<PersistentTaskParams> {

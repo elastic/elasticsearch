@@ -478,7 +478,9 @@ public class CsvTestsDataLoader {
     /**
      * Load test datasets into Elasticsearch.
      *
-     * @param indicesToLoad null to load all indices (default); empty list to load nothing; non-empty list to load only those indices
+     * @param indicesToLoad null to load all indices (default); empty list to load nothing; non-empty list to load only those indices.
+     *                      When non-null, enrich policies whose source index is in this list are also loaded (unless skipped by
+     *                      {@code tests.spec_indices} / {@code tests.spec_enrich_policies}).
      */
     public static void loadDataSetIntoEs(
         RestClient client,
@@ -494,6 +496,9 @@ public class CsvTestsDataLoader {
         }
         if (indicesToLoad != null) {
             loadDatasetsIntoEs(client, indicesToLoad);
+            if (timeSeriesOnly == false) {
+                loadEnrichPoliciesForLoadedSourceIndices(client, indicesToLoad);
+            }
         } else {
             loadDataSets(
                 client,
@@ -506,6 +511,27 @@ public class CsvTestsDataLoader {
             );
             if (timeSeriesOnly == false) {
                 loadEnrichPolicies(client);
+            }
+        }
+    }
+
+    /**
+     * Loads enrich policies whose source index is in {@code loadedIndexNames}, mirroring
+     * {@link #loadEnrichPolicies(RestClient)} rules for {@code tests.spec_indices} /
+     * {@code tests.spec_enrich_policies}.
+     */
+    private static void loadEnrichPoliciesForLoadedSourceIndices(RestClient client, List<String> loadedIndexNames) throws IOException {
+        if (specEnrichPolicies != null || specIndices == null) {
+            Set<String> loaded = new HashSet<>(loadedIndexNames);
+            logger.info("Loading enrich policies for loaded indices {}", loadedIndexNames);
+            for (var policy : ENRICH_POLICIES.values()) {
+                if (loaded.contains(policy.index()) == false) {
+                    continue;
+                }
+                if (specEnrichPolicies != null && specEnrichPolicies.contains(policy.policyName()) == false) {
+                    continue;
+                }
+                loadEnrichPolicy(client, policy);
             }
         }
     }

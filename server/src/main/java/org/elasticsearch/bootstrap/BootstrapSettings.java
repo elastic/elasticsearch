@@ -9,12 +9,18 @@
 
 package org.elasticsearch.bootstrap;
 
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 
 public final class BootstrapSettings {
 
     private BootstrapSettings() {}
+
+    public enum SecureSettingsSource {
+        KEYSTORE,
+        FILE_SETTINGS
+    }
 
     // TODO: remove this hack when insecure defaults are removed from java
     public static final Setting<Boolean> SECURITY_FILTER_BAD_DEFAULTS_SETTING = Setting.boolSetting(
@@ -26,5 +32,13 @@ public final class BootstrapSettings {
     public static final Setting<Boolean> MEMORY_LOCK_SETTING = Setting.boolSetting("bootstrap.memory_lock", false, Property.NodeScope);
 
     public static final Setting<Boolean> CTRLHANDLER_SETTING = Setting.boolSetting("bootstrap.ctrlhandler", true, Property.NodeScope);
+
+    public static final Setting<SecureSettingsSource> SECURE_SETTINGS_SOURCE_SETTING = Setting.enumSetting(
+        SecureSettingsSource.class,
+        settings -> DiscoveryNode.isStateless(settings) ? SecureSettingsSource.FILE_SETTINGS.name() : SecureSettingsSource.KEYSTORE.name(),
+        "bootstrap.secure_settings.source",
+        s -> {},
+        Property.NodeScope
+    );
 
 }

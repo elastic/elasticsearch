@@ -549,6 +549,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
         BootstrapSettings.SECURITY_FILTER_BAD_DEFAULTS_SETTING,
         BootstrapSettings.MEMORY_LOCK_SETTING,
         BootstrapSettings.CTRLHANDLER_SETTING,
+        BootstrapSettings.SECURE_SETTINGS_SOURCE_SETTING,
         KeyStoreWrapper.SEED_SETTING,
         IndexingMemoryController.INDEX_BUFFER_SIZE_SETTING,
         IndexingMemoryController.MIN_INDEX_BUFFER_SIZE_SETTING,

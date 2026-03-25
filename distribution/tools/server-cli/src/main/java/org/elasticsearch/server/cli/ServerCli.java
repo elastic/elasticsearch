@@ -15,6 +15,7 @@ import joptsimple.OptionSpecBuilder;
 import joptsimple.util.PathConverter;
 
 import org.elasticsearch.Build;
+import org.elasticsearch.bootstrap.BootstrapSettings;
 import org.elasticsearch.bootstrap.ServerArgs;
 import org.elasticsearch.cli.CliToolProvider;
 import org.elasticsearch.cli.Command;
@@ -302,7 +303,9 @@ class ServerCli extends EnvironmentAwareCommand {
 
     // protected to allow tests to override
     protected SecureSettingsLoader secureSettingsLoader(Environment env) {
-        // TODO: Use the environment configuration to decide what kind of secrets store to load
-        return new KeyStoreLoader();
+        return switch (BootstrapSettings.SECURE_SETTINGS_SOURCE_SETTING.get(env.settings())) {
+            case KEYSTORE -> new KeyStoreLoader();
+            case FILE_SETTINGS -> new FileSettingsClusterSecretsLoader();
+        };
     }
 }

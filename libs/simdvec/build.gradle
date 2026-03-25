@@ -34,6 +34,15 @@ tasks.named('compileJava').configure {
   options.compilerArgs << '--add-reads=org.elasticsearch.simdvec=jdk.incubator.vector'
 }
 
+tasks.named('javadoc').configure {
+  options.addStringOption("-add-modules", "jdk.incubator.vector")
+  options.addStringOption("-add-reads", "org.elasticsearch.simdvec=jdk.incubator.vector")
+}
+
+tasks.withType(CheckForbiddenApisTask).configureEach {
+  ignoreMissingClasses = true
+}
+
 tasks.named('test').configure {
   if (buildParams.getRuntimeJavaVersion().map{ it.majorVersion.toInteger() }.get() >= 21) {
     jvmArgs '--add-modules=jdk.incubator.vector'

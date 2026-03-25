@@ -16,22 +16,14 @@ import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.LocalClusterSpecBuilder;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.ESRestTestCase;
-import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentParserConfiguration;
-import org.elasticsearch.xcontent.spi.XContentProvider;
-import org.hamcrest.Matcher;
-import org.hamcrest.StringDescription;
 import org.junit.runners.model.Statement;
 
 import java.io.IOException;
-import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
-import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -46,7 +38,6 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
  * Ensures metrics are being exported as expected.
  */
 public abstract class AbstractMetricsIT extends ESRestTestCase {
-    private static final XContentProvider.FormatProvider XCONTENT = XContentProvider.provider().getJsonXContent();
     private static final Logger logger = LogManager.getLogger(AbstractMetricsIT.class);
 
     protected static RecordingApmServer recordingApmServer = new RecordingApmServer();
@@ -83,16 +74,15 @@ public abstract class AbstractMetricsIT extends ESRestTestCase {
         });
     }
 
-    @SuppressWarnings("unchecked")
-    public void testApmIntegration() throws Exception {
-        Map<String, Predicate<Map<String, Object>>> valueAssertions = new HashMap<>(
+    public void testExplicitMetrics() throws Exception {
+        Map<String, Predicate<Number>> valueAssertions = new HashMap<>(
             Map.ofEntries(
-                assertion("es.test.long_counter.total", m -> ((Number) m.get("value")).doubleValue(), closeTo(1.0, 0.001)),
-                assertion("es.test.double_counter.total", m -> ((Number) m.get("value")).doubleValue(), closeTo(1.0, 0.001)),
-                assertion("es.test.async_double_counter.total", m -> ((Number) m.get("value")).doubleValue(), closeTo(1.0, 0.001)),
-                assertion("es.test.async_long_counter.total", m -> ((Number) m.get("value")).intValue(), equalTo(1)),
-                assertion("es.test.double_gauge.current", m -> ((Number) m.get("value")).doubleValue(), closeTo(1.0, 0.001)),
-                assertion("es.test.long_gauge.current", m -> ((Number) m.get("value")).intValue(), equalTo(1))
+                entry("es.test.long_counter.total", n -> closeTo(1.0, 0.001).matches(n.doubleValue())),
+                entry("es.test.double_counter.total", n -> closeTo(1.0, 0.001).matches(n.doubleValue())),
+                entry("es.test.async_double_counter.total", n -> closeTo(1.0, 0.001).matches(n.doubleValue())),
+                entry("es.test.async_long_counter.total", n -> equalTo(1).matches(n.intValue())),
+                entry("es.test.double_gauge.current", n -> closeTo(1.0, 0.001).matches(n.doubleValue())),
+                entry("es.test.long_gauge.current", n -> equalTo(1).matches(n.intValue()))
             )
         );
 
@@ -102,41 +92,36 @@ public abstract class AbstractMetricsIT extends ESRestTestCase {
 
         CountDownLatch finished = new CountDownLatch(1);
 
-        Consumer<String> messageConsumer = (String message) -> {
-            var apmMessage = parseMap(message);
-            if (isElasticsearchMetric(apmMessage)) {
-                logger.info("Apm metric message received: " + message);
+        Consumer<ReceivedTelemetry> messageConsumer = (ReceivedTelemetry msg) -> {
+            if (msg instanceof ReceivedTelemetry.ReceivedMetricSet m && "elasticsearch".equals(m.instrumentationScopeName())) {
+                logger.info("Apm metric message received: {}", m);
 
-                var metricset = (Map<String, Object>) apmMessage.get("metricset");
-                var samples = (Map<String, Object>) metricset.get("samples");
+                for (Map.Entry<String, ReceivedTelemetry.ReceivedMetricValue> entry : m.samples().entrySet()) {
+                    String key = entry.getKey();
+                    ReceivedTelemetry.ReceivedMetricValue sampleValue = entry.getValue();
 
-                samples.forEach((key, value) -> {
-                    var valueAssertion = valueAssertions.get(key);
-                    if (valueAssertion != null) {
-                        logger.info("Matched {}:{}", key, value);
-                        var sampleObject = (Map<String, Object>) value;
-                        if (valueAssertion.test(sampleObject)) {
+                    var valuePredicate = valueAssertions.get(key);
+                    if (valuePredicate != null && sampleValue instanceof ReceivedTelemetry.ValueSample(Number value)) {
+                        if (valuePredicate.test(value)) {
                             logger.info("{} assertion PASSED", key);
                             valueAssertions.remove(key);
                         } else {
                             logger.error("{} assertion FAILED", key);
                         }
                     }
-                    var histogramAssertion = histogramAssertions.get(key);
-                    if (histogramAssertion != null) {
-                        logger.info("Matched {}:{}", key, value);
-                        var samplesObject = (Map<String, Object>) value;
-                        var counts = ((Collection<? extends Number>) samplesObject.get("counts")).stream().mapToInt(Number::intValue).sum();
-                        var remaining = histogramAssertion - counts;
-                        if (remaining <= 0) {
+
+                    var histogramExpected = histogramAssertions.get(key);
+                    if (histogramExpected != null && sampleValue instanceof ReceivedTelemetry.HistogramSample(var counts)) {
+                        int total = counts.stream().mapToInt(Integer::intValue).sum();
+                        int remaining = histogramExpected - total;
+                        if (remaining == 0) {
                             logger.info("{} assertion PASSED", key);
                             histogramAssertions.remove(key);
                         } else {
-                            logger.info("{} assertion PENDING: {} remaining", key, remaining);
                             histogramAssertions.put(key, remaining);
                         }
                     }
-                });
+                }
             }
 
             if (valueAssertions.isEmpty() && histogramAssertions.isEmpty()) {
@@ -158,51 +143,47 @@ public abstract class AbstractMetricsIT extends ESRestTestCase {
         );
     }
 
-    @SuppressWarnings("unchecked")
     public void testJvmMetrics() throws Exception {
-        Map<String, Predicate<Map<String, Object>>> valueAssertions = new HashMap<>(
+        Map<String, Predicate<Number>> valueAssertions = new HashMap<>(
             Map.ofEntries(
-                assertion("system.cpu.total.norm.pct", m -> (Double) m.get("value"), closeTo(0.0, 1.0)),
-                assertion("system.process.cpu.total.norm.pct", m -> (Double) m.get("value"), closeTo(0.0, 1.0)),
-                assertion("system.memory.total", m -> ((Number) m.get("value")).longValue(), greaterThan(0L)),
-                assertion("system.memory.actual.free", m -> ((Number) m.get("value")).longValue(), greaterThanOrEqualTo(0L)),
-                assertion("system.process.memory.size", m -> ((Number) m.get("value")).longValue(), greaterThan(0L)),
-                assertion("jvm.memory.heap.used", m -> ((Number) m.get("value")).longValue(), greaterThanOrEqualTo(0L)),
-                assertion("jvm.memory.heap.committed", m -> ((Number) m.get("value")).longValue(), greaterThanOrEqualTo(0L)),
-                assertion("jvm.memory.heap.max", m -> ((Number) m.get("value")).longValue(), greaterThan(0L)),
-                assertion("jvm.memory.non_heap.used", m -> ((Number) m.get("value")).longValue(), greaterThanOrEqualTo(0L)),
-                assertion("jvm.memory.non_heap.committed", m -> ((Number) m.get("value")).longValue(), greaterThanOrEqualTo(0L)),
-                assertion("jvm.gc.count", m -> ((Number) m.get("value")).longValue(), greaterThanOrEqualTo(0L)),
-                assertion("jvm.gc.time", m -> ((Number) m.get("value")).longValue(), greaterThanOrEqualTo(0L)),
-                assertion("jvm.gc.alloc", m -> ((Number) m.get("value")).longValue(), greaterThanOrEqualTo(0L)),
-                assertion("jvm.thread.count", m -> ((Number) m.get("value")).longValue(), greaterThanOrEqualTo(1L)),
-                assertion("jvm.fd.used", m -> ((Number) m.get("value")).longValue(), greaterThanOrEqualTo(0L)),
-                assertion("jvm.fd.max", m -> ((Number) m.get("value")).longValue(), greaterThanOrEqualTo(0L)),
-                assertion("jvm.memory.heap.pool.used", m -> ((Number) m.get("value")).longValue(), greaterThanOrEqualTo(0L)),
-                assertion("jvm.memory.heap.pool.committed", m -> ((Number) m.get("value")).longValue(), greaterThanOrEqualTo(0L)),
-                assertion("jvm.memory.non_heap.pool.used", m -> ((Number) m.get("value")).longValue(), greaterThanOrEqualTo(0L)),
-                assertion("jvm.memory.non_heap.pool.committed", m -> ((Number) m.get("value")).longValue(), greaterThanOrEqualTo(0L))
+                entry("system.cpu.total.norm.pct", n -> closeTo(0.0, 1.0).matches(n.doubleValue())),
+                entry("system.process.cpu.total.norm.pct", n -> closeTo(0.0, 1.0).matches(n.doubleValue())),
+                entry("system.memory.total", n -> greaterThan(0L).matches(n.longValue())),
+                entry("system.memory.actual.free", n -> greaterThanOrEqualTo(0L).matches(n.longValue())),
+                entry("system.process.memory.size", n -> greaterThan(0L).matches(n.longValue())),
+                entry("jvm.memory.heap.used", n -> greaterThanOrEqualTo(0L).matches(n.longValue())),
+                entry("jvm.memory.heap.committed", n -> greaterThanOrEqualTo(0L).matches(n.longValue())),
+                entry("jvm.memory.heap.max", n -> greaterThan(0L).matches(n.longValue())),
+                entry("jvm.memory.non_heap.used", n -> greaterThanOrEqualTo(0L).matches(n.longValue())),
+                entry("jvm.memory.non_heap.committed", n -> greaterThanOrEqualTo(0L).matches(n.longValue())),
+                entry("jvm.gc.count", n -> greaterThanOrEqualTo(0L).matches(n.longValue())),
+                entry("jvm.gc.time", n -> greaterThanOrEqualTo(0L).matches(n.longValue())),
+                entry("jvm.gc.alloc", n -> greaterThanOrEqualTo(0L).matches(n.longValue())),
+                entry("jvm.thread.count", n -> greaterThanOrEqualTo(1L).matches(n.longValue())),
+                entry("jvm.fd.used", n -> greaterThanOrEqualTo(0L).matches(n.longValue())),
+                entry("jvm.fd.max", n -> greaterThanOrEqualTo(0L).matches(n.longValue())),
+                entry("jvm.memory.heap.pool.used", n -> greaterThanOrEqualTo(0L).matches(n.longValue())),
+                entry("jvm.memory.heap.pool.committed", n -> greaterThanOrEqualTo(0L).matches(n.longValue())),
+                entry("jvm.memory.non_heap.pool.used", n -> greaterThanOrEqualTo(0L).matches(n.longValue())),
+                entry("jvm.memory.non_heap.pool.committed", n -> greaterThanOrEqualTo(0L).matches(n.longValue()))
             )
         );
 
         CountDownLatch finished = new CountDownLatch(1);
 
-        Consumer<String> messageConsumer = (String message) -> {
-            var apmMessage = parseMap(message);
-            var metricset = (Map<String, Object>) apmMessage.getOrDefault("metricset", Collections.emptyMap());
-            var samples = (Map<String, Object>) metricset.getOrDefault("samples", Collections.emptyMap());
-
-            samples.forEach((key, value) -> {
-                var valueAssertion = valueAssertions.get(key);
-                if (valueAssertion != null) {
-                    var sampleObject = (Map<String, Object>) value;
-                    if (valueAssertion.test(sampleObject)) {
-                        logger.info("{} assertion PASSED", key);
-                        valueAssertions.remove(key);
+        Consumer<ReceivedTelemetry> messageConsumer = (ReceivedTelemetry msg) -> {
+            if (msg instanceof ReceivedTelemetry.ReceivedMetricSet m) {
+                for (Map.Entry<String, ReceivedTelemetry.ReceivedMetricValue> e : m.samples().entrySet()) {
+                    String key = e.getKey();
+                    var valueAssertion = valueAssertions.get(key);
+                    if (valueAssertion != null && e.getValue() instanceof ReceivedTelemetry.ValueSample(Number value)) {
+                        if (valueAssertion.test(value)) {
+                            logger.info("{} assertion PASSED", key);
+                            valueAssertions.remove(key);
+                        }
                     }
                 }
-            });
-
+            }
             if (valueAssertions.isEmpty()) {
                 finished.countDown();
             }
@@ -214,41 +195,5 @@ public abstract class AbstractMetricsIT extends ESRestTestCase {
         var completed = finished.await(5, TimeUnit.SECONDS);
         var remaining = valueAssertions.keySet().stream().collect(Collectors.joining(", "));
         assertTrue("Timeout waiting for JVM metrics. Missing: " + remaining, completed);
-    }
-
-    protected <T> Map.Entry<String, Predicate<Map<String, Object>>> assertion(
-        String sampleKeyName,
-        Function<Map<String, Object>, T> accessor,
-        Matcher<T> expected
-    ) {
-        return entry(sampleKeyName, new Predicate<>() {
-            @Override
-            public boolean test(Map<String, Object> sampleObject) {
-                return expected.matches(accessor.apply(sampleObject));
-            }
-
-            @Override
-            public String toString() {
-                StringDescription matcherDescription = new StringDescription();
-                expected.describeTo(matcherDescription);
-                return sampleKeyName + " " + matcherDescription;
-            }
-        });
-    }
-
-    @SuppressWarnings("unchecked")
-    protected static boolean isElasticsearchMetric(Map<String, Object> apmMessage) {
-        var metricset = (Map<String, Object>) apmMessage.getOrDefault("metricset", Collections.emptyMap());
-        var tags = (Map<String, Object>) metricset.getOrDefault("tags", Collections.emptyMap());
-        return "elasticsearch".equals(tags.get("otel_instrumentation_scope_name"));
-    }
-
-    protected Map<String, Object> parseMap(String message) {
-        try (XContentParser parser = XCONTENT.XContent().createParser(XContentParserConfiguration.EMPTY, message)) {
-            return parser.map();
-        } catch (IOException e) {
-            fail(e);
-            return Collections.emptyMap();
-        }
     }
 }

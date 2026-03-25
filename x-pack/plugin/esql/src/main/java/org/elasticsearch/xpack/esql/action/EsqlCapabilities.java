@@ -2340,11 +2340,15 @@ public class EsqlCapabilities {
         TOP_SNIPPETS_HIGHLIGHT,
 
         /**
-         * LIMIT n BY expr1, expr2 support for retaining at most n docs per group.
-         * Enables the feature without a preceding SORT.
-         *
+         * Enables the feature LIMIT n BY expr1, expr2 for retaining at most n docs per group.
+         * The feature will not work if we had SORT | LIMIT n BY
          */
         ESQL_LIMIT_BY(Build.current().isSnapshot()),
+
+        /**
+         * Enables the SORT | LIMIT n BY expr1, expr2 support, see ESQL_LIMIT_BY for more context
+         */
+        ESQL_TOPN_BY(Build.current().isSnapshot()),
 
         /**
          * Fix window validation in time-series aggregations when TBUCKET uses a numeric target bucket count.
@@ -2361,7 +2365,7 @@ public class EsqlCapabilities {
          * Reject loading sub-fields of flattened fields when {@code unmapped_fields="load"}
          * See https://github.com/elastic/elasticsearch/issues/143494
          */
-        REJECT_LOADING_FLATTENED_SUBFIELDS,
+        REJECT_LOADING_FLATTENED_SUBFIELDS(OPTIONAL_FIELDS_V2.isEnabled()),
 
         FIX_DIV_ERROR_MESSAGE,
 

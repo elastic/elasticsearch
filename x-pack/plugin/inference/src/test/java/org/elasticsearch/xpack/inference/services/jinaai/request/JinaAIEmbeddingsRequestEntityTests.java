@@ -26,6 +26,7 @@ import java.util.stream.IntStream;
 
 import static org.elasticsearch.inference.DataFormat.BASE64;
 import static org.elasticsearch.inference.DataType.IMAGE;
+import static org.elasticsearch.inference.InferenceStringTests.TEST_IMAGE_DATA_URI;
 import static org.elasticsearch.inference.InputType.INGEST;
 import static org.elasticsearch.xpack.inference.TaskTypeTests.randomEmbeddingTaskType;
 import static org.elasticsearch.xpack.inference.services.jinaai.embeddings.JinaAIEmbeddingsModelTests.createModel;
@@ -248,7 +249,7 @@ public class JinaAIEmbeddingsRequestEntityTests extends ESTestCase {
         var lateChunking = randomBoolean();
         var dimensions = randomNonNegativeInt();
         String textInput = "text input";
-        String imageInput = "image input";
+        String imageInput = TEST_IMAGE_DATA_URI;
         var entity = new JinaAIEmbeddingsRequestEntity(
             List.of(new InferenceStringGroup(textInput), new InferenceStringGroup(new InferenceString(IMAGE, imageInput))),
             InputType.INTERNAL_INGEST,
@@ -309,7 +310,7 @@ public class JinaAIEmbeddingsRequestEntityTests extends ESTestCase {
         throws IOException {
 
         String textInput = "text input";
-        String imageInput = "image input";
+        String imageInput = TEST_IMAGE_DATA_URI;
         var entity = new JinaAIEmbeddingsRequestEntity(
             List.of(new InferenceStringGroup(textInput), new InferenceStringGroup(List.of(new InferenceString(IMAGE, BASE64, imageInput)))),
             InputType.INTERNAL_INGEST,
@@ -327,7 +328,7 @@ public class JinaAIEmbeddingsRequestEntityTests extends ESTestCase {
 
     public void testXContent_multimodal_WritesNoOptionalFields_WhenTheyAreNotDefined() throws IOException {
         String textInput = "text input";
-        String imageInput = "image input";
+        String imageInput = TEST_IMAGE_DATA_URI;
         String modelName = "modelName";
         var entity = new JinaAIEmbeddingsRequestEntity(
             List.of(new InferenceStringGroup(textInput), new InferenceStringGroup(new InferenceString(IMAGE, imageInput))),

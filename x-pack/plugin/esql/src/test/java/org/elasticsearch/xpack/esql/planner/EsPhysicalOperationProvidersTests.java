@@ -224,15 +224,14 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
     }
 
     public void testTemporalityHappyPath() throws IOException {
-        String temporalityField = "metric_temporality";
         SearchExecutionContext searchExecutionContext = createSearchExecutionContext(
             createMapperService(
-                tsdbSettings(temporalityField),
+                tsdbSettings("metric_temporality"),
                 mapping(
                     b -> b.startObject("@timestamp")
                         .field("type", "date")
                         .endObject()
-                        .startObject(temporalityField)
+                        .startObject("metric_temporality")
                         .field("type", "keyword")
                         .field("time_series_dimension", true)
                         .endObject()
@@ -258,10 +257,9 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
     }
 
     public void testTemporalityWithMissingField() throws IOException {
-        String temporalityField = "missing_temporality";
         SearchExecutionContext searchExecutionContext = createSearchExecutionContext(
             createMapperService(
-                tsdbSettings(temporalityField),
+                tsdbSettings("missing_temporality"),
                 mapping(
                     b -> b.startObject("@timestamp")
                         .field("type", "date")
@@ -291,15 +289,14 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
     }
 
     public void testTemporalityFieldMustBeKeyword() throws IOException {
-        String temporalityField = "metric_temporality";
         SearchExecutionContext searchExecutionContext = createSearchExecutionContext(
             createMapperService(
-                tsdbSettings(temporalityField),
+                tsdbSettings("metric_temporality"),
                 mapping(
                     b -> b.startObject("@timestamp")
                         .field("type", "date")
                         .endObject()
-                        .startObject(temporalityField)
+                        .startObject("metric_temporality")
                         .field("type", "long")
                         .field("time_series_dimension", true)
                         .endObject()
@@ -323,20 +320,19 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
         assertWarnings(
             "Line -1:-1: warnings during evaluation of []. Only first 20 failures recorded.",
             "Line -1:-1: java.lang.IllegalArgumentException: configured temporality field [metric_temporality] has type [long], expected "
-                + "[keyword]; ignoring temporality field"
+                + "[keyword]; assuming default temporality for all values"
         );
     }
 
     public void testTemporalityFieldMustBeDimension() throws IOException {
-        String temporalityField = "metric_temporality";
         SearchExecutionContext searchExecutionContext = createSearchExecutionContext(
             createMapperService(
-                tsdbSettings(temporalityField),
+                tsdbSettings("metric_temporality"),
                 mapping(
                     b -> b.startObject("@timestamp")
                         .field("type", "date")
                         .endObject()
-                        .startObject(temporalityField)
+                        .startObject("metric_temporality")
                         .field("type", "keyword")
                         .endObject()
                 )
@@ -359,7 +355,7 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
         assertWarnings(
             "Line -1:-1: warnings during evaluation of []. Only first 20 failures recorded.",
             "Line -1:-1: java.lang.IllegalArgumentException: configured temporality field [metric_temporality] must be a time-series "
-                + "dimension; ignoring temporality field"
+                + "dimension; assuming default temporality for all values"
         );
     }
 

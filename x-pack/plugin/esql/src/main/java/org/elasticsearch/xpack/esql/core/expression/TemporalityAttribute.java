@@ -22,7 +22,8 @@ import java.util.Map;
 
 /**
  * Attribute for referencing the TSDB metric temporality.
- * The name of the field is defined per index using the {@link org.elasticsearch.index.IndexSettings#TIME_SERIES_TEMPORALITY_FIELD} index setting.
+ * The name of the field is defined per index using the
+ * {@link org.elasticsearch.index.IndexSettings#TIME_SERIES_TEMPORALITY_FIELD} index setting.
  * If an index does not have this setting, the temporality will always be null.
  */
 public final class TemporalityAttribute extends FieldAttribute {
@@ -56,12 +57,6 @@ public final class TemporalityAttribute extends FieldAttribute {
         super(source, null, null, DUMMY_FIELD_NAME, ES_FIELD, Nullability.TRUE, id, false);
     }
 
-    private static TemporalityAttribute innerReadFrom(StreamInput in) throws IOException {
-        Source source = Source.readFrom((PlanStreamInput) in);
-        NameId id = NameId.readFrom((PlanStreamInput) in);
-        return new TemporalityAttribute(source, id);
-    }
-
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         if (((PlanStreamOutput) out).writeAttributeCacheHeader(this)) {
@@ -72,6 +67,12 @@ public final class TemporalityAttribute extends FieldAttribute {
 
     public static TemporalityAttribute readFrom(StreamInput in) throws IOException {
         return ((PlanStreamInput) in).readAttributeWithCache(TemporalityAttribute::innerReadFrom);
+    }
+
+    private static TemporalityAttribute innerReadFrom(StreamInput in) throws IOException {
+        Source source = Source.readFrom((PlanStreamInput) in);
+        NameId id = NameId.readFrom((PlanStreamInput) in);
+        return new TemporalityAttribute(source, id);
     }
 
     @Override

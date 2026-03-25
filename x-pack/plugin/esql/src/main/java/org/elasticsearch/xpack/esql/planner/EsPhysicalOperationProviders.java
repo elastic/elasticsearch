@@ -318,14 +318,16 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                     + temporalityFieldType.typeName()
                     + "], expected ["
                     + KeywordFieldMapper.CONTENT_TYPE
-                    + "]; ignoring temporality field"
+                    + "]; assuming default temporality for all values"
             );
             return ValuesSourceReaderOperator.LOAD_CONSTANT_NULLS;
         }
         if (temporalityFieldType.isDimension() == false) {
             warnings.registerException(
                 IllegalArgumentException.class,
-                "configured temporality field [" + temporalityFieldName + "] must be a time-series dimension; ignoring temporality field"
+                "configured temporality field ["
+                    + temporalityFieldName
+                    + "] must be a time-series dimension; assuming default temporality for all values"
             );
             return ValuesSourceReaderOperator.LOAD_CONSTANT_NULLS;
         }

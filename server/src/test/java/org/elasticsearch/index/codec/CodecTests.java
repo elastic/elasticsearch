@@ -50,19 +50,20 @@ import static org.hamcrest.Matchers.not;
 public class CodecTests extends ESTestCase {
 
     public void testResolveDefaultCodecs() throws Exception {
-        assumeTrue("Only when zstd_stored_fields feature flag is enabled", CodecService.ZSTD_STORED_FIELDS_FEATURE_FLAG);
         CodecService codecService = createCodecService();
-        assertThat(codecService.codec("default"), instanceOf(PerFieldMapperCodec.class));
-        assertThat(codecService.codec("default"), instanceOf(Elasticsearch93Lucene104Codec.class));
+        var codec = codecService.codec("default");
+        assertThat(codec, instanceOf(CodecService.DeduplicateFieldInfosCodec.class));
+        codec = ((CodecService.DeduplicateFieldInfosCodec) codec).delegate();
+        assertThat(codec, instanceOf(LegacyPerFieldMapperCodec.class));
     }
 
     public void testDefault() throws Exception {
-        assumeTrue("Only when zstd_stored_fields feature flag is enabled", CodecService.ZSTD_STORED_FIELDS_FEATURE_FLAG);
         Codec codec = createCodecService().codec("default");
-        assertEquals(
-            "Zstd814StoredFieldsFormat(compressionMode=ZSTD(level=1), chunkSize=14336, maxDocsPerChunk=128, blockShift=10)",
-            codec.storedFieldsFormat().toString()
-        );
+        Lucene90StoredFieldsFormat storedFieldsFormat = (Lucene90StoredFieldsFormat) codec.storedFieldsFormat();
+        var modeField = Lucene90StoredFieldsFormat.class.getDeclaredField("mode");
+        modeField.setAccessible(true);
+        var mode = modeField.get(storedFieldsFormat);
+        assertEquals(Lucene90StoredFieldsFormat.Mode.BEST_SPEED, mode);
     }
 
     public void testTSDBDefault() throws Exception {

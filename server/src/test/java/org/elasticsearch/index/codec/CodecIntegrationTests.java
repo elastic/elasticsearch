@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.codec;
 
+import org.apache.lucene.codecs.lucene90.Lucene90StoredFieldsFormat;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.codec.zstd.Zstd814StoredFieldsFormat;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -47,15 +48,16 @@ public class CodecIntegrationTests extends ESSingleNodeTestCase {
         assertThat(storedFieldsFormat.getMode(), equalTo(Zstd814StoredFieldsFormat.Mode.BEST_COMPRESSION));
     }
 
-    public void testDefaultCodec() {
-        assumeTrue("Only when zstd_stored_fields feature flag is enabled", CodecService.ZSTD_STORED_FIELDS_FEATURE_FLAG);
-
+    public void testDefaultCodec() throws Exception {
         var indexService = createIndex("index1");
-        var storedFieldsFormat = (Zstd814StoredFieldsFormat) indexService.getShard(0)
+        var storedFieldsFormat = (Lucene90StoredFieldsFormat) indexService.getShard(0)
             .getEngineOrNull()
             .config()
             .getCodec()
             .storedFieldsFormat();
-        assertThat(storedFieldsFormat.getMode(), equalTo(Zstd814StoredFieldsFormat.Mode.BEST_SPEED));
+        var modeField = Lucene90StoredFieldsFormat.class.getDeclaredField("mode");
+        modeField.setAccessible(true);
+        var mode = modeField.get(storedFieldsFormat);
+        assertThat(mode, equalTo(Lucene90StoredFieldsFormat.Mode.BEST_SPEED));
     }
 }

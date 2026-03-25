@@ -98,7 +98,21 @@ public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
             // TODO Discuss moving compileOptions.getCompilerArgs() to use provider api with Gradle team.
             List<String> compilerArgs = compileOptions.getCompilerArgs();
             compilerArgs.add("-Werror");
-            compilerArgs.add("-Xlint:all,-path,-serial,-options,-deprecation,-try,-removal");
+            // Prepend -Xlint:none to suppress the "using incubating module(s)" mandatory warning
+            // that javac emits when jdk.incubator.vector is used. On JDK 21 this warning has no
+            // named lint category and cannot be individually suppressed. -Xlint:none clears all
+            // warnings (including this mandatory one), then -Xlint:all,... re-enables only the
+            // named categories — the incubating warning stays suppressed.
+            // On JDK 22+ the warning has a named "incubating" category, so we also exclude it
+            // explicitly to handle JDK 25+ where -Xlint:all re-enables it.
+            // See https://bugs.openjdk.org/browse/JDK-8187591
+            compilerArgs.add("-Xlint:none");
+            int compilerMajor = Integer.parseInt(buildParams.getMinimumRuntimeVersion().getMajorVersion());
+            String xlintExclusions = "all,-path,-serial,-options,-deprecation,-try,-removal";
+            if (compilerMajor >= 22) {
+                xlintExclusions += ",-incubating";
+            }
+            compilerArgs.add("-Xlint:" + xlintExclusions);
             compilerArgs.add("-Xdoclint:all");
             compilerArgs.add("-Xdoclint:-missing");
             compileOptions.setEncoding("UTF-8");

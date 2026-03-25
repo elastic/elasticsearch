@@ -395,7 +395,7 @@ public class ApproximationPlan {
 
             projections.add(agg.toAttribute());
             if (needsRounding) {
-                Alias notRoundedAgg = new Alias(Source.EMPTY, Attribute.rawTemporaryName(agg.name() + "notrounded"), aggFn);
+                Alias notRoundedAgg = new Alias(Source.EMPTY, Attribute.rawTemporaryName(agg.name(), "notrounded"), aggFn);
                 notRoundedExpressions.put(agg.id(), notRoundedAgg.toAttribute());
                 postEvals.add(agg.replaceChild(new ToLong(Source.EMPTY, notRoundedAgg.toAttribute())));
                 agg = notRoundedAgg;
@@ -611,12 +611,17 @@ public class ApproximationPlan {
 
         // When PROJECT keeps a field with buckets, also keep the buckets.
         List<NamedExpression> projections = null;
+        Set<Attribute> seen = new HashSet<>();
         for (NamedExpression projection : project.projections()) {
             if (fieldBuckets.containsKey(projection.id())) {
                 if (projections == null) {
                     projections = new ArrayList<>(project.projections());
                 }
-                projections.addAll(fieldBuckets.get(projection.id()));
+                for (Attribute bucket : fieldBuckets.get(projection.id())) {
+                    if (seen.add(bucket)) {
+                        projections.add(bucket);
+                    }
+                }
             }
         }
         if (projections != null) {

@@ -156,11 +156,7 @@ public abstract class GenerativeApproximationRestTest extends EsqlSpecTestCase {
         assumeFalse("...", "functionUnderArithmeticOperationAggString".equals(testName));  // can't release already released object
 
         // mv_expand
-        assumeFalse("...", "expandAfterDuplicateAggs".equals(testName));  // optimized incorrectly
-        assumeFalse("...", "expandAfterDuplicateAggs2".equals(testName));  // optimized incorrectly
-        assumeFalse("...", "expandAfterDuplicateAggsMultirow".equals(testName));  // optimized incorrectly
-        assumeFalse("...", "expandAfterDuplicateAggsAndEval".equals(testName));  // optimized incorrectly
-        assumeFalse("...", "expandAfterDuplicateAggsComplex".equals(testName));  // optimized incorrectly
+        assumeFalse("...", "expandAfterDuplicateAggsComplex".equals(testName));  // can't read released page
         assumeFalse("...", "explosionStats".equals(testName));  // can't read released page
 
         // median_absolute_deviation

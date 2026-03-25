@@ -477,6 +477,17 @@ null          | null                                              | null
 ;
 
 
+Mv_expand after duplicate aggs
+required_capability: approximation_v6
+
+SET approximation={"rows":10000}\;
+FROM many_numbers| STATS a = COUNT(*), b = COUNT(*) | MV_EXPAND b;
+
+a:long         | b:long         | _approximation_confidence_interval(a):long | _approximation_certified(a):boolean | _approximation_confidence_interval(b):long | _approximation_certified(b):boolean
+110000..140000 | 110000..140000 | [110000..140000,110000..140000]            | {any}                               | [110000..140000,110000..140000]            | {any}
+;
+
+
 Warn on no stats
 required_capability: approximation_v6
 

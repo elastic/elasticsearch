@@ -157,6 +157,22 @@ public final class BlobCacheIndexInput extends BlobCacheBufferedIndexInput imple
     }
 
     @Override
+    public boolean withByteBufferSlices(long[] offsets, int length, int count, CheckedConsumer<ByteBuffer[], IOException> action)
+        throws IOException {
+        if (DirectAccessInput.checkSlicesArgs(offsets, count)) {
+            return false;
+        }
+        long[] adjusted = offsets;
+        if (this.offset != 0) {
+            adjusted = new long[count];
+            for (int i = 0; i < count; i++) {
+                adjusted[i] = offsets[i] + this.offset;
+            }
+        }
+        return cacheFileReader.withByteBufferSlices(adjusted, length, count, action);
+    }
+
+    @Override
     public void prefetch(long offset, long length) throws IOException {
         cacheFileReader.tryPrefetch(this.offset + offset, length);
     }

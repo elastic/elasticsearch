@@ -18,7 +18,9 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedTimestamp;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.core.type.KeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.index.EsIndex;
@@ -586,6 +588,106 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         var firstNameAttr = relation.output().stream().filter(a -> a.name().equals("first_name")).findFirst().orElseThrow();
         var fieldAttr = as(firstNameAttr, FieldAttribute.class);
         as(fieldAttr.field(), PotentiallyUnmappedKeywordEsField.class);
+    }
+
+    /**
+     * Verify that a non-keyword partially-mapped field (e.g. integer) is NOT converted to
+     * {@link PotentiallyUnmappedKeywordEsField}, since the fix only applies to keyword fields.
+     */
+    public void testPartiallyMappedNonKeywordFieldNotLoadedWithoutExplicitReference() {
+        var plan = analyzer().addIndex(
+            new EsIndex(
+                "test*",
+                EsqlTestUtils.loadMapping("mapping-basic.json"),
+                Map.of("test1", IndexMode.STANDARD, "test2", IndexMode.STANDARD),
+                Map.of(),
+                Map.of(),
+                Set.of("salary") // salary is integer, not keyword
+            )
+        ).statement(setUnmappedLoad("""
+            FROM test*
+            | SORT emp_no
+            """));
+
+        var limit = as(plan, Limit.class);
+        var order = as(limit.child(), OrderBy.class);
+        var relation = as(order.child(), EsRelation.class);
+
+        var salaryAttr = relation.output().stream().filter(a -> a.name().equals("salary")).findFirst().orElseThrow();
+        var fieldAttr = as(salaryAttr, FieldAttribute.class);
+        assertThat(fieldAttr.field(), not(instanceOf(PotentiallyUnmappedKeywordEsField.class)));
+        assertThat(fieldAttr.field().getClass(), is(EsField.class));
+        assertThat(fieldAttr.field().getDataType(), is(DataType.INTEGER));
+    }
+
+    /**
+     * When both a keyword and non-keyword field are partially mapped, only the keyword field
+     * should be converted to {@link PotentiallyUnmappedKeywordEsField}.
+     */
+    public void testOnlyPartiallyMappedKeywordFieldLoaded() {
+        var plan = analyzer().addIndex(
+            new EsIndex(
+                "test*",
+                EsqlTestUtils.loadMapping("mapping-basic.json"),
+                Map.of("test1", IndexMode.STANDARD, "test2", IndexMode.STANDARD),
+                Map.of(),
+                Map.of(),
+                Set.of("first_name", "salary") // keyword + integer
+            )
+        ).statement(setUnmappedLoad("""
+            FROM test*
+            | SORT emp_no
+            """));
+
+        var limit = as(plan, Limit.class);
+        var order = as(limit.child(), OrderBy.class);
+        var relation = as(order.child(), EsRelation.class);
+
+        // keyword field should be converted
+        var firstName = relation.output().stream().filter(a -> a.name().equals("first_name")).findFirst().orElseThrow();
+        as(as(firstName, FieldAttribute.class).field(), PotentiallyUnmappedKeywordEsField.class);
+
+        // integer field should NOT be loaded
+        var salary = relation.output().stream().filter(a -> a.name().equals("salary")).findFirst().orElseThrow();
+        var salaryField = as(salary, FieldAttribute.class).field();
+        assertThat(salaryField, not(instanceOf(PotentiallyUnmappedKeywordEsField.class)));
+        assertThat(salaryField.getClass(), is(EsField.class));
+        assertThat(salaryField.getDataType(), is(DataType.INTEGER));
+    }
+
+    /**
+     * Verify that a keyword field that is NOT partially unmapped is not converted to
+     * {@link PotentiallyUnmappedKeywordEsField}, even when another keyword field is.
+     */
+    public void testNonPartiallyMappedKeywordFieldNotLoadedFromSource() {
+        var plan = analyzer().addIndex(
+            new EsIndex(
+                "test*",
+                EsqlTestUtils.loadMapping("mapping-basic.json"),
+                Map.of("test1", IndexMode.STANDARD, "test2", IndexMode.STANDARD),
+                Map.of(),
+                Map.of(),
+                Set.of("first_name") // only first_name is partially unmapped
+            )
+        ).statement(setUnmappedLoad("""
+            FROM test*
+            | SORT emp_no
+            """));
+
+        var limit = as(plan, Limit.class);
+        var order = as(limit.child(), OrderBy.class);
+        var relation = as(order.child(), EsRelation.class);
+
+        // first_name (partially unmapped keyword) should be converted
+        var firstName = relation.output().stream().filter(a -> a.name().equals("first_name")).findFirst().orElseThrow();
+        as(as(firstName, FieldAttribute.class).field(), PotentiallyUnmappedKeywordEsField.class);
+
+        // last_name (keyword but NOT partially unmapped) should NOT be converted
+        var lastName = relation.output().stream().filter(a -> a.name().equals("last_name")).findFirst().orElseThrow();
+        var lastNameField = as(lastName, FieldAttribute.class).field();
+        assertThat(lastNameField, not(instanceOf(PotentiallyUnmappedKeywordEsField.class)));
+        assertThat(lastNameField, instanceOf(KeywordEsField.class));
+        assertThat(lastNameField.getDataType(), is(DataType.KEYWORD));
     }
 
     public void testTbucketWithUnmappedTimestampWithLookupJoin() {

@@ -904,6 +904,115 @@ Connected to 10.1.0.2  | sample_data
 Connected to 10.1.0.1  | sample_data
 ;
 
+// EVAL on a different field; the partially-mapped keyword field (message) is not explicitly referenced by any command,
+// so it must be resolved as PotentiallyUnmappedKeywordEsField at the EsRelation level (the new fix).
+fieldIsPartiallyUnmappedMultiIndexWithEvalOnOtherField
+required_capability: index_metadata_field
+required_capability: optional_fields_v2
+
+SET unmapped_fields="load"\;
+//TODO: Will not work because event_duration is partially mapped too; need to use a field that is fully mapped in both indices
+FROM sample_data, no_mapping_sample_data METADATA _index
+| EVAL duration_ms = event_duration / 1000
+| DROP @timestamp, client_ip, event_duration
+;
+ignoreOrder:true
+
+message:keyword       | _index:keyword         | duration_ms:long
+Connected to 10.1.0.1 | sample_data            | 1756
+Connected to 10.1.0.2 | sample_data            | 2764
+Connected to 10.1.0.3 | sample_data            | 3450
+Connection error      | sample_data            | 5033
+Connection error      | sample_data            | 8268
+Connection error      | sample_data            | 725
+Disconnected          | sample_data            | 1232
+Connected to 10.1.0.1!| no_mapping_sample_data | null
+Connected to 10.1.0.2!| no_mapping_sample_data | null
+Connected to 10.1.0.3!| no_mapping_sample_data | null
+Connection error?     | no_mapping_sample_data | null
+Connection error?     | no_mapping_sample_data | null
+Connection error?     | no_mapping_sample_data | null
+42                    | no_mapping_sample_data | null
+;
+
+// RENAME on an unrelated field; the partially-mapped keyword field (message) is not explicitly referenced.
+fieldIsPartiallyUnmappedMultiIndexWithRenameOnOtherField
+required_capability: index_metadata_field
+required_capability: optional_fields_v2
+
+SET unmapped_fields="load"\;
+FROM sample_data, no_mapping_sample_data METADATA _index
+// TODO: likely won't work because event_duration is partially mapped too; need to use a field that is fully mapped in both indices
+| RENAME event_duration AS duration
+| DROP @timestamp, client_ip
+;
+ignoreOrder:true
+
+duration:long | message:keyword        | _index:keyword
+1756467       | Connected to 10.1.0.1  | sample_data
+5033755       | Connection error       | sample_data
+8268153       | Connection error       | sample_data
+725448        | Connection error       | sample_data
+1232382       | Disconnected           | sample_data
+2764889       | Connected to 10.1.0.2  | sample_data
+3450233       | Connected to 10.1.0.3  | sample_data
+null          | Connected to 10.1.0.1! | no_mapping_sample_data
+null          | Connection error?      | no_mapping_sample_data
+null          | Connection error?      | no_mapping_sample_data
+null          | Connection error?      | no_mapping_sample_data
+null          | 42                     | no_mapping_sample_data
+null          | Connected to 10.1.0.2! | no_mapping_sample_data
+null          | Connected to 10.1.0.3! | no_mapping_sample_data
+;
+
+// Wildcard DROP leaving the partially-mapped keyword field (message) implicit — no explicit reference.
+fieldIsPartiallyUnmappedMultiIndexWithWildcardDrop
+required_capability: index_metadata_field
+required_capability: optional_fields_v2
+
+SET unmapped_fields="load"\;
+FROM sample_data, no_mapping_sample_data METADATA _index
+| DROP *_ip, *_duration, @timestamp
+;
+ignoreOrder:true
+
+message:keyword        | _index:keyword
+Connection error?      | no_mapping_sample_data
+Connection error?      | no_mapping_sample_data
+Connection error?      | no_mapping_sample_data
+Connected to 10.1.0.3! | no_mapping_sample_data
+Connected to 10.1.0.2! | no_mapping_sample_data
+Connected to 10.1.0.1! | no_mapping_sample_data
+42                     | no_mapping_sample_data
+Disconnected           | sample_data
+Connection error       | sample_data
+Connection error       | sample_data
+Connection error       | sample_data
+Connected to 10.1.0.3  | sample_data
+Connected to 10.1.0.2  | sample_data
+Connected to 10.1.0.1  | sample_data
+;
+
+// DROP the partially-mapped field itself — verify no errors from converting then pruning.
+fieldIsPartiallyUnmappedMultiIndexDropPartiallyMappedField
+required_capability: index_metadata_field
+required_capability: optional_fields_v2
+
+SET unmapped_fields="load"\;
+FROM sample_data, no_mapping_sample_data METADATA _index
+| DROP @timestamp, client_ip, event_duration, message
+| SORT _index
+| LIMIT 5
+;
+
+_index:keyword
+no_mapping_sample_data
+no_mapping_sample_data
+no_mapping_sample_data
+no_mapping_sample_data
+no_mapping_sample_data
+;
+
 maxOverTimeOfKeyword
 required_capability: optional_fields_v2
 required_capability: ts_command_v0

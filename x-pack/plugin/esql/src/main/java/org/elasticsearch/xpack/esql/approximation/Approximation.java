@@ -48,6 +48,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.Insist;
 import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
+import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
@@ -58,6 +59,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.Sample;
 import org.elasticsearch.xpack.esql.plan.logical.SampledAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
+import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
 import org.elasticsearch.xpack.esql.plan.logical.UriParts;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
@@ -151,7 +153,6 @@ public class Approximation {
         Row.class,
         Sample.class,
         SampledAggregate.class,
-        TopN.class,
         UriParts.class
     );
 
@@ -161,7 +162,11 @@ public class Approximation {
     static final Set<Class<? extends LogicalPlan>> SUPPORTED_COMMANDS_AFTER_STATS = Set.of(
         // It makes no sense to approximate "FROM index | LIMIT N | STATS ...".
         // Furthermore, the LIMIT here breaks the estimation of the sample probability.
-        Limit.class
+        Limit.class,
+        // Same for LIMIT BY, SORT, or SORT + LIMIT BY
+        LimitBy.class,
+        TopN.class,
+        TopNBy.class
     );
 
     /**
@@ -192,7 +197,7 @@ public class Approximation {
      * These commands never increase the number of all rows, making it easier to predict the number of output rows.
      */
     private static final Set<Class<? extends LogicalPlan>> ROW_NON_INCREASING_COMMANDS = Sets.union(
-        Set.of(Filter.class, Limit.class, Sample.class, TopN.class),
+        Set.of(Filter.class, Limit.class, Sample.class, TopN.class, LimitBy.class, TopNBy.class),
         ROW_PRESERVING_COMMANDS
     );
 

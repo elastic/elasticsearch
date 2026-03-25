@@ -31,7 +31,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-import static org.elasticsearch.xpack.esql.core.expression.Expressions.listSemanticEquals;
+import static org.elasticsearch.xpack.esql.core.expression.Expressions.listSemanticEqualsIgnoreOrder;
 
 /**
  * Push-down and combine rules specific to {@link LimitBy} (LIMIT N BY groupings).
@@ -44,7 +44,8 @@ public final class PushDownAndCombineLimitBy extends OptimizerRules.Parameterize
 
     @Override
     public LogicalPlan rule(LimitBy limitBy, LogicalOptimizerContext ctx) {
-        if (limitBy.child() instanceof LimitBy childLimitBy && listSemanticEquals(childLimitBy.groupings(), limitBy.groupings())) {
+        if (limitBy.child() instanceof LimitBy childLimitBy
+            && listSemanticEqualsIgnoreOrder(childLimitBy.groupings(), limitBy.groupings())) {
             return combineLimitBys(limitBy, childLimitBy, ctx.foldCtx());
         } else if (limitBy.child() instanceof UnaryPlan unary) {
             if (unary instanceof Eval

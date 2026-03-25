@@ -20,6 +20,7 @@ steps:
               - destructiveDistroTest.archives
         agents:
           provider: gcp
+          zones: us-east1-b,us-east1-c,us-east1-d,us-west1-a,us-west1-b,us-west1-c
           image: family/elasticsearch-{{matrix.image}}
           diskSizeGb: 350
           machineType: custom-16-32768

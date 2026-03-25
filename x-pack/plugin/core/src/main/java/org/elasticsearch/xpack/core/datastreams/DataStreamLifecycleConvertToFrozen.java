@@ -10,15 +10,18 @@ package org.elasticsearch.xpack.core.datastreams;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
+import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockRequest;
 import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockResponse;
 import org.elasticsearch.action.admin.indices.readonly.TransportAddIndexBlockAction;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
+import org.elasticsearch.action.admin.indices.shrink.TransportResizeAction;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
@@ -124,8 +127,42 @@ public class DataStreamLifecycleConvertToFrozen implements Runnable {
      * the original index (if it has 0 replicas), or a newly created clone.
      */
     String maybeCloneIndex() {
-        // todo ...
-        return null;
+        if (isCloneNeeded() == false) {
+            return getIndexForForceMerge();
+        }
+
+        String cloneIndexName = getDLMCloneIndexName();
+
+        ResizeRequest resizeReq = getCloneRequest();
+        logger.trace("DLM issuing request to clone index [{}] to index [{}]", indexName, cloneIndexName);
+        try {
+            CreateIndexResponse resp = client.projectClient(projectState.projectId()).execute(TransportResizeAction.TYPE, resizeReq).get();
+            if (resp.isAcknowledged() == false) {
+                throw new ElasticsearchException(
+                    Strings.format("DLM failed to acknowledge clone of index [%s] to index [%s]", indexName, cloneIndexName)
+                );
+            }
+            logger.info("DLM successfully cloned index [{}] to index [{}]", indexName, cloneIndexName);
+            return cloneIndexName;
+        } catch (Exception e) {
+            if (e instanceof InterruptedException || ExceptionsHelper.unwrapCause(e) instanceof IndexNotFoundException) {
+                Thread.currentThread().interrupt();
+            }
+            try {
+                deleteIndex(cloneIndexName);
+            } catch (Exception deleteException) {
+                e.addSuppressed(deleteException);
+            }
+            throw e instanceof ElasticsearchException
+                ? (ElasticsearchException) e
+                : new ElasticsearchException(
+                    "DLM failed to clone index [{}] to index [{}]. " + "[{}] has been cleaned up by DLM.",
+                    e,
+                    indexName,
+                    cloneIndexName,
+                    cloneIndexName
+                );
+        }
     }
 
     public void maybeForceMergeIndex() {
@@ -234,7 +271,7 @@ public class DataStreamLifecycleConvertToFrozen implements Runnable {
     /**
      * Determines the appropriate index to use for the force merge step. If a clone index already exists and
      * is fully active, it will be returned. If no clone index exists but the original index has 0 replicas,
-     * returns the original index.
+     * returns the original index. Otherwise, returns the clone index name.
      */
     String getIndexForForceMerge() {
         ProjectMetadata projectMetadata = projectState.metadata();

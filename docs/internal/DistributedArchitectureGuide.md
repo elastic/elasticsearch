@@ -2839,9 +2839,9 @@ flowchart LR
 
 ### Checkpoints & Gaps
 
-Each shard copy tracks how far it has applied the shared history of `seq_no` values using a local checkpoint: the highest
-sequence number for which that copy has processed every earlier `seq_no` (inclusive). The [InternalEngine] holds a 
-[LocalCheckpointTracker] 
+Each shard copy tracks how far it has applied the shared history of `seq_no` values using a local checkpoint,
+which is the highest sequence number for which that copy has processed every earlier `seq_no` (inclusive). 
+The [InternalEngine] holds a [LocalCheckpointTracker]
 [field](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/engine/InternalEngine.java#L172)
 that maintains that marker and a separate persisted checkpoint for what is durably on disk.
 
@@ -2850,7 +2850,7 @@ The primary also tracks a
 which is the sequence number up to which all in-sync copies have
 processed every earlier operation. The [ReplicationTracker] computes it as the minimum of those per-copy local checkpoints among in-sync shard copies.
 The primary [updates](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/seqno/ReplicationTracker.java#L1375)
-the global checkpoint whenever an in-sync copy’s local checkpoint advances, when the primary activates or takes over 
+the global checkpoint whenever an in-sync copy’s local checkpoint advances, when the primary activates or takes over
 after relocation, when a copy becomes in-sync, or when cluster state drops tracked copies.
 During operation replication,
 [replica responses carry](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/support/replication/ReplicationOperation.java#L290)

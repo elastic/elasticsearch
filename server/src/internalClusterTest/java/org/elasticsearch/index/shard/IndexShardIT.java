@@ -1029,12 +1029,26 @@ public class IndexShardIT extends ESSingleNodeTestCase {
                     .collect(
                         Collectors.toUnmodifiableMap(
                             ShardRouting::shardId,
-                            shardRouting -> new ShardAndIndexHeapUsage(randomNonNegativeLong(), randomNonNegativeLong())
+                            shardRouting -> new ShardAndIndexHeapUsage(randomShardHeapUsage(), randomIndexHeapUsage())
                         )
                     );
-                return new ShardHeapUsageEstimates(perShard, new ShardAndIndexHeapUsage(randomNonNegativeLong(), randomNonNegativeLong()));
+                return new ShardHeapUsageEstimates(perShard, new ShardAndIndexHeapUsage(randomShardHeapUsage(), randomIndexHeapUsage()));
             });
         }
+    }
+
+    /**
+     * Reasonable shard heap usage estimate (to prevent overflow)
+     */
+    private static long randomShardHeapUsage() {
+        return randomLong(1_000_000);
+    }
+
+    /**
+     * Reasonable index heap usage estimate (to prevent overflow)
+     */
+    private static long randomIndexHeapUsage() {
+        return randomLong(400_000);
     }
 
     public static class BogusEstimatedHeapUsagePlugin extends Plugin implements ClusterPlugin {

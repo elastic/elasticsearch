@@ -87,7 +87,8 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
     private static final IndicesOptions IGNORE_MISSING_OPTIONS = IndicesOptions.fromOptions(true, true, false, false);
     private static final TimeValue SNAPSHOT_TIMEOUT = TimeValue.timeValueHours(12);
     private static final TimeValue SNAPSHOT_POLL_INTERVAL = TimeValue.timeValueSeconds(30);
-    private static final String SNAPSHOT_NAME_PREFIX = "dlm-frozen-";
+    static final String SNAPSHOT_NAME_PREFIX = "dlm-frozen-";
+    static final String DLM_MANAGED_METADATA_KEY = "dlm-managed";
 
     private final String indexName;
     private final ProjectId projectId;
@@ -749,7 +750,7 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
         request.indices(indexName);
         request.waitForCompletion(true);
         request.includeGlobalState(false);
-        request.userMetadata(Map.of("dlm-managed", true));
+        request.userMetadata(Map.of(DLM_MANAGED_METADATA_KEY, true));
         return request;
     }
 

@@ -84,7 +84,17 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
             b -> b.field("test", value),
             "| EVAL test = LENGTH(test)",
             matchesList().item(value.length()),
-            matchesMap().entry("test:column_at_a_time:BlockDocValuesReader.BytesCustom", 1)
+            matchesMap().entry("test:column_at_a_time:BlockDocValuesReader.BytesCustom", 1),
+            // No ProjectOperator: when the push doesn't apply, no temporary attribute is
+            // introduced, so the plan has no ProjectExec to drop it.
+            sig -> assertMap(
+                sig,
+                matchesList().item("LuceneSourceOperator")
+                    .item("ValuesSourceReaderOperator")
+                    .item("EvalOperator")
+                    .item("AggregationOperator")
+                    .item("ExchangeSinkOperator")
+            )
         );
     }
 
@@ -103,7 +113,17 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
             matchesList().item(value.length()),
             matchesMap().entry("test:column_at_a_time:null", 1)
                 .entry("stored_fields[requires_source:true, fields:0, sequential: false]", 1)
-                .entry("test:row_stride:BlockSourceReader.Bytes", 1)
+                .entry("test:row_stride:BlockSourceReader.Bytes", 1),
+            // No ProjectOperator: when the push doesn't apply, no temporary attribute is
+            // introduced, so the plan has no ProjectExec to drop it.
+            sig -> assertMap(
+                sig,
+                matchesList().item("LuceneSourceOperator")
+                    .item("ValuesSourceReaderOperator")
+                    .item("EvalOperator")
+                    .item("AggregationOperator")
+                    .item("ExchangeSinkOperator")
+            )
         );
     }
 
@@ -490,6 +510,7 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
                 matchesList().item("LuceneSourceOperator")
                     .item("ValuesSourceReaderOperator")
                     .item("EvalOperator")
+                    .item("ProjectOperator")
                     .item("TopNOperator")
                     .item("ValuesSourceReaderOperator")
                     .item("ProjectOperator")
@@ -568,13 +589,18 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
             matchesMap().entry("test:column_at_a_time:Utf8CodePointsFromOrds.Singleton", 1),
             sig -> {
                 // There are two data node plans, one for each phase.
+                // Both phases push LENGTH into field loading, so the ProjectOperator
+                // is present to drop the temporary pushed attribute after use.
                 if (sig.contains("FilterOperator")) {
+                    // The eval and project come before the filter because the push now
+                    // happens at the physical level, preserving the original operator order.
                     assertMap(
                         sig,
                         matchesList().item("LuceneSourceOperator")
                             .item("ValuesSourceReaderOperator") // the real work is here, checkOperatorProfile checks the status
-                            .item("FilterOperator")
                             .item("EvalOperator") // this one just renames the field
+                            .item("ProjectOperator")
+                            .item("FilterOperator")
                             .item("AggregationOperator")
                             .item("ExchangeSinkOperator")
                     );
@@ -584,6 +610,7 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
                         matchesList().item("LuceneSourceOperator")
                             .item("ValuesSourceReaderOperator") // the real work is here, checkOperatorProfile checks the status
                             .item("EvalOperator") // this one just renames the field
+                            .item("ProjectOperator")
                             .item("AggregationOperator")
                             .item("ExchangeSinkOperator")
                     );
@@ -749,6 +776,7 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
                 matchesList().item("LuceneSourceOperator")
                     .item("ValuesSourceReaderOperator") // the real work is here, checkOperatorProfile checks the status
                     .item("EvalOperator") // this one just renames the field
+                    .item("ProjectOperator")
                     .item("AggregationOperator")
                     .item("ExchangeSinkOperator")
             )

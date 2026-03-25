@@ -19,6 +19,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.RemoteClusterClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
@@ -32,6 +33,10 @@ import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.inference.InferenceContext;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceFieldsInternalAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceActionProxy;
@@ -41,6 +46,8 @@ import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
 import org.elasticsearch.xpack.inference.InferenceException;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -518,13 +525,13 @@ public final class InferenceQueryUtils {
 
         @Override
         protected void execute(Client client, ActionListener<Map<FullyQualifiedInferenceId, InferenceResults>> listener) {
-            List<InferenceAction.Request> inferenceRequests = generateInferenceRequests();
+            List<InferenceActionProxy.Request> inferenceRequests = generateInferenceRequests();
             GroupedActionListener<Tuple<FullyQualifiedInferenceId, InferenceResults>> gal = createLocalInferenceGroupedActionListener(
                 listener,
                 inferenceRequests.size()
             );
 
-            for (InferenceAction.Request inferenceRequest : inferenceRequests) {
+            for (InferenceActionProxy.Request inferenceRequest : inferenceRequests) {
                 executeInferenceRequest(inferenceRequest, client, gal);
             }
         }
@@ -541,27 +548,31 @@ public final class InferenceQueryUtils {
                 && Objects.equals(clusterAlias, other.clusterAlias);
         }
 
-        private List<InferenceAction.Request> generateInferenceRequests() {
-            return inferenceIds.stream()
-                .map(
-                    i -> new InferenceAction.Request(
+        private List<InferenceActionProxy.Request> generateInferenceRequests() {
+            return inferenceIds.stream().map(i -> {
+                try (XContentBuilder xb = XContentFactory.jsonBuilder()) {
+                    xb.startObject();
+                    xb.field("input", List.of(query));
+                    xb.field("input_type", InputType.INTERNAL_SEARCH.toString());
+                    xb.endObject();
+                    BytesReference content = BytesReference.bytes(xb);
+                    return new InferenceActionProxy.Request(
                         TaskType.ANY,
                         i,
-                        null,
-                        null,
-                        null,
-                        List.of(query),
-                        Map.of(),
-                        InputType.INTERNAL_SEARCH,
-                        null,
-                        false
-                    )
-                )
-                .toList();
+                        content,
+                        XContentType.JSON,
+                        InferenceAction.Request.DEFAULT_TIMEOUT,
+                        false,
+                        InferenceContext.EMPTY_INSTANCE
+                    );
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            }).toList();
         }
 
         private void executeInferenceRequest(
-            InferenceAction.Request inferenceRequest,
+            InferenceActionProxy.Request inferenceRequest,
             Client client,
             GroupedActionListener<Tuple<FullyQualifiedInferenceId, InferenceResults>> gal
         ) {

@@ -50,6 +50,15 @@ public sealed interface IntVector extends Vector permits ConstantIntVector, IntA
     ReleasableIterator<? extends IntBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize);
 
     /**
+     * Return a subset of this vector from {@code beginInclusive} to
+     * {@code endExclusive}. This <strong>may</strong> return the same
+     * instance if the range covers all positions, but if it does it
+     * will {@link #incRef()} it.
+     */
+    @Override
+    IntVector slice(int beginInclusive, int endExclusive);
+
+    /**
      * The minimum value in the Vector. An empty Vector will return {@link Integer#MAX_VALUE}.
      */
     int min();

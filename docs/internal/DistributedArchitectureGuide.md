@@ -2648,7 +2648,8 @@ the appropriate primary shard, is applied to the shard's engine and translog, an
 before an ack is sent back to the client.
 
 Note that in serverless Elasticsearch, durability is instead provided by writing to the translog and uploading to blob 
-storage. There is no replication process. More details in the [Serverless](#serverless) section.
+storage. There is no replication process. See this 
+[blog post](https://www.elastic.co/search-labs/blog/thin-indexing-shards-elasticsearch-serverless) for more details.
 
 The Distributed team also owns select parts of the read path (e.g. real-time `GET` requests targeting the
 [translog](#translog)), but broader search capabilities like query execution, scoring, and aggregations fall under 
@@ -3047,7 +3048,3 @@ PUT _watcher/watch/log_error_watch
   - In older versions (before 8.17), the counter for the interval schedule restarts if the shard moves. For example, if the interval is once every 12 hours, and the shard moves 10 hours into that interval, it will be at least 12 more hours until it runs.
   - Calls to remote systems ([EmailAction] and [WebhookAction]) are a frequent source of failures. Watcher sends the request but doesn't know what happens after that. If you see that the call was successful in `.watcher_history`, the best way to continue the investigation is in the logs of the remote system.
   - Even if watcher fails during a call to a remote system, the error is likely to be outside of watcher (e.g. network problems). Check the error message in `.watcher_history`.
-
-# Serverless
-
-(placeholder for now)

@@ -1658,8 +1658,7 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
                     .setWarningsHandler(
                         warnings -> warningsShouldFailGetCompletedReindexTask(
                             warnings,
-                            reindexTaskGetApiDeprecation,
-                            systemIndexWarning
+                            reindexTaskGetApiDeprecation
                         )
                     )
                     .build()
@@ -1979,11 +1978,10 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
      */
     private static boolean warningsShouldFailGetCompletedReindexTask(
         List<String> warnings,
-        String reindexTaskGetApiDeprecation,
-        String systemIndexWarning
+        String reindexTaskGetApiDeprecation
     ) {
         for (String w : warnings) {
-            if (reindexTaskGetApiDeprecation.equals(w) == false && systemIndexWarning.equals(w) == false) {
+            if (reindexTaskGetApiDeprecation.equals(w) == false) {
                 return true;
             }
         }

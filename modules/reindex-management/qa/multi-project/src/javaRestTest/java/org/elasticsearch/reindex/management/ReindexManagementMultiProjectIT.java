@@ -26,7 +26,6 @@ import org.junit.ClassRule;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
@@ -213,7 +212,7 @@ public class ReindexManagementMultiProjectIT extends ESRestTestCase {
         final Request request = new Request("GET", "/_tasks/" + taskId);
         request.setOptions(
             RequestOptions.DEFAULT.toBuilder()
-                .setWarningsHandler(warnings -> warningsShouldFailUnlessAllowed(warnings, Set.of(REINDEX_TASK_GET_API_DEPRECATION)))
+                .setWarningsHandler(warnings -> warningsShouldFailUnlessAllowed(warnings, REINDEX_TASK_GET_API_DEPRECATION))
                 .build()
         );
         setRequestProjectId(request, projectId);
@@ -280,16 +279,16 @@ public class ReindexManagementMultiProjectIT extends ESRestTestCase {
         cancelRequest.addParameter("wait_for_completion", "true");
         cancelRequest.setOptions(
             RequestOptions.DEFAULT.toBuilder()
-                .setWarningsHandler(warnings -> warningsShouldFailUnlessAllowed(warnings, Set.of(REINDEX_TASK_CANCEL_API_DEPRECATION)))
+                .setWarningsHandler(warnings -> warningsShouldFailUnlessAllowed(warnings, REINDEX_TASK_CANCEL_API_DEPRECATION))
                 .build()
         );
         assertOK(adminClient().performRequest(cancelRequest));
     }
 
     /** @return {@code true} if the request should fail due to unexpected warning headers */
-    private static boolean warningsShouldFailUnlessAllowed(List<String> warnings, Set<String> allowedMessages) {
+    private static boolean warningsShouldFailUnlessAllowed(List<String> warnings, String allowedMessage) {
         for (String w : warnings) {
-            if (allowedMessages.contains(w) == false) {
+            if (allowedMessage.equals(w) == false) {
                 return true;
             }
         }

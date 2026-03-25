@@ -74,8 +74,7 @@ public class SystemIndicesUpgradeIT extends AbstractRollingUpgradeTestCase {
                     .setWarningsHandler(
                         warnings -> warningsShouldFailGetCompletedReindexTask(
                             warnings,
-                            reindexTaskGetApiDeprecation,
-                            systemIndexWarning
+                            reindexTaskGetApiDeprecation
                         )
                     )
                     .build()
@@ -141,11 +140,10 @@ public class SystemIndicesUpgradeIT extends AbstractRollingUpgradeTestCase {
      */
     private static boolean warningsShouldFailGetCompletedReindexTask(
         List<String> warnings,
-        String reindexTaskGetApiDeprecation,
-        String systemIndexWarning
+        String reindexTaskGetApiDeprecation
     ) {
         for (String w : warnings) {
-            if (reindexTaskGetApiDeprecation.equals(w) == false && systemIndexWarning.equals(w) == false) {
+            if (reindexTaskGetApiDeprecation.equals(w) == false) {
                 return true;
             }
         }

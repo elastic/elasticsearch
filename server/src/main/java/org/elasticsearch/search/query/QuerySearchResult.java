@@ -625,6 +625,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
             }
             return false;
         }
+        assert topHitsToReleaseQueue.isEmpty() : "topHitsToReleaseQueue not empty on unmanaged QuerySearchResult";
         return super.decRef();
     }
 

@@ -276,12 +276,31 @@ public class IndexShardRoutingTable {
         final Map<String, Long> nodeSearchCounts
     ) {
         final Map<String, Double> nodeRanks = Maps.newMapWithExpectedSize(nodeStats.size());
+        List<String> nodesWithoutStats = null;
+        double maxRank = Double.NEGATIVE_INFINITY;
         for (Map.Entry<String, Optional<ResponseCollectorService.ComputedNodeStats>> entry : nodeStats.entrySet()) {
             Optional<ResponseCollectorService.ComputedNodeStats> maybeStats = entry.getValue();
-            maybeStats.ifPresent(stats -> {
+            if (maybeStats.isPresent()) {
                 final String nodeId = entry.getKey();
-                nodeRanks.put(nodeId, stats.rank(nodeSearchCounts.getOrDefault(nodeId, 0L)));
-            });
+                double rank = maybeStats.get().rank(nodeSearchCounts.getOrDefault(nodeId, 0L));
+                nodeRanks.put(nodeId, rank);
+                if (rank > maxRank) {
+                    maxRank = rank;
+                }
+            } else {
+                // Store nodes without stats to be assigned the max rank later
+                if (nodesWithoutStats == null) {
+                    nodesWithoutStats = new ArrayList<>();
+                }
+                nodesWithoutStats.add(entry.getKey());
+            }
+        }
+        // Assign the max known rank to nodes without stats so that new nodes joining the cluster
+        // are not flooded with requests before the adaptive replica selection stats are available
+        if (nodesWithoutStats != null && nodeRanks.isEmpty() == false) {
+            for (String nodeId : nodesWithoutStats) {
+                nodeRanks.put(nodeId, maxRank);
+            }
         }
         return nodeRanks;
     }
@@ -364,6 +383,12 @@ public class IndexShardRoutingTable {
     }
 
     private static class NodeRankComparator implements Comparator<ShardRouting> {
+        /**
+         * Null rank (missing stats) sorts after any finite rank, so those shards receive lower priority when
+         * ordering candidates; both null are equal.
+         */
+        private static final Comparator<Double> NULLS_LAST_RANK = Comparator.nullsLast(Double::compare);
+
         private final Map<String, Double> nodeRanks;
 
         NodeRankComparator(Map<String, Double> nodeRanks) {
@@ -372,28 +397,7 @@ public class IndexShardRoutingTable {
 
         @Override
         public int compare(ShardRouting s1, ShardRouting s2) {
-            if (s1.currentNodeId().equals(s2.currentNodeId())) {
-                // these shards on the same node
-                return 0;
-            }
-            Double shard1rank = nodeRanks.get(s1.currentNodeId());
-            Double shard2rank = nodeRanks.get(s2.currentNodeId());
-            if (shard1rank != null) {
-                if (shard2rank != null) {
-                    return shard1rank.compareTo(shard2rank);
-                } else {
-                    // place non-nulls after null values
-                    return 1;
-                }
-            } else {
-                if (shard2rank != null) {
-                    // place nulls before non-null values
-                    return -1;
-                } else {
-                    // Both nodes do not have stats, they are equal
-                    return 0;
-                }
-            }
+            return NULLS_LAST_RANK.compare(nodeRanks.get(s1.currentNodeId()), nodeRanks.get(s2.currentNodeId()));
         }
     }
 

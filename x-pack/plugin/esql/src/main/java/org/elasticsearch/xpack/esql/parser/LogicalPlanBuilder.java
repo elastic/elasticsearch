@@ -23,7 +23,6 @@ import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
-import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -180,16 +179,12 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     @Override
     public LogicalPlan visitSingleStatement(EsqlBaseParser.SingleStatementContext ctx) {
-        var plan = plan(ctx.query());
-        telemetryAccounting(plan);
-        return plan;
+        return plan(ctx.query());
     }
 
     @Override
     public QuerySetting visitSetCommand(EsqlBaseParser.SetCommandContext ctx) {
-        var field = visitSetField(ctx.setField());
-        context.telemetry().setting(field.name());
-        return new QuerySetting(source(ctx), field);
+        return new QuerySetting(source(ctx), visitSetField(ctx.setField()));
     }
 
     @Override
@@ -216,19 +211,11 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         }
         try {
             LogicalPlan input = plan(ctx.query());
-            telemetryAccounting(input);
             PlanFactory makePlan = typedParsing(this, ctx.processingCommand(), PlanFactory.class);
             return makePlan.apply(input);
         } finally {
             queryDepth--;
         }
-    }
-
-    private LogicalPlan telemetryAccounting(LogicalPlan node) {
-        if (node instanceof TelemetryAware ma) {
-            this.context.telemetry().command(ma);
-        }
-        return node;
     }
 
     @Override
@@ -402,7 +389,6 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             List<LogicalPlan> mainQueryAndSubqueries = new ArrayList<>(subqueries.size() + 1);
             if (table.indexPattern().isEmpty() == false) {
                 mainQueryAndSubqueries.add(unresolvedRelation);
-                telemetryAccounting(unresolvedRelation);
             }
             mainQueryAndSubqueries.addAll(subqueries);
 
@@ -438,10 +424,8 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         LogicalPlan plan = visitFromCommand(fromCtx);
         List<PlanFactory> processingCommands = visitList(this, ctx.processingCommand(), PlanFactory.class);
         for (PlanFactory processingCommand : processingCommands) {
-            telemetryAccounting(plan);
             plan = processingCommand.apply(plan);
         }
-        telemetryAccounting(plan);
         return plan;
     }
 

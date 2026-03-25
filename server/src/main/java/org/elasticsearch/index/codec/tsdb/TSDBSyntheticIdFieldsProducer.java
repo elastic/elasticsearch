@@ -185,6 +185,10 @@ public class TSDBSyntheticIdFieldsProducer extends FieldsProducer {
             }
 
             int nextDocID = docID + 1;
+            // Skip documents without _tsid (NOOP tombstones, nested child docs)
+            while (nextDocID < maxDocs && docValues.isNoOpTombstoneOrNestedDoc(nextDocID)) {
+                nextDocID++;
+            }
             if (maxDocs <= nextDocID) {
                 resetDocID(DocIdSetIterator.NO_MORE_DOCS);
                 return null;
@@ -277,6 +281,10 @@ public class TSDBSyntheticIdFieldsProducer extends FieldsProducer {
 
             // Iterate over documents to find the first one matching the timestamp
             for (; nextDocID < maxDocs; nextDocID++) {
+                // Skip documents without _tsid (NOOP tombstones, nested child docs)
+                if (docValues.isNoOpTombstoneOrNestedDoc(nextDocID)) {
+                    continue;
+                }
                 nextDocTimestamp = docValues.docTimestamp(nextDocID);
                 if (firstDocID < nextDocID) {
                     // After the first doc, we need to check again if _tsid matches
@@ -412,6 +420,10 @@ public class TSDBSyntheticIdFieldsProducer extends FieldsProducer {
                 return docID;
             }
             int nextDocID = docID + 1;
+            // Skip documents without _tsid (NOOP tombstones, nested child docs)
+            while (nextDocID < maxDocs && docValues.isNoOpTombstoneOrNestedDoc(nextDocID)) {
+                nextDocID++;
+            }
             if (nextDocID < maxDocs) {
                 int tsIdOrd = docValues.docTsIdOrdinal(nextDocID);
                 if (tsIdOrd == termTsIdOrd) {

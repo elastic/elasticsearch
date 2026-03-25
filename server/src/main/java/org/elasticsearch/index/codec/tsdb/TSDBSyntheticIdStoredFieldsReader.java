@@ -85,7 +85,9 @@ public class TSDBSyntheticIdStoredFieldsReader extends StoredFieldsReader {
     public void document(int docID, StoredFieldVisitor visitor) throws IOException {
         if (visitor.needsField(fieldInfo) == StoredFieldVisitor.Status.YES) {
             assert assertNotMergeThread("synthetic id should not be materialized during merges");
-            if (docValuesHolder.isTombstone(docID) == false) {
+            // Only provide synthetic ID if document has _tsid doc values
+            // NOOP tombstones and nested child docs don't have _tsid
+            if (docValuesHolder.isNoOpTombstoneOrNestedDoc(docID) == false) {
                 var uid = docValuesHolder.docSyntheticId(docID);
                 visitor.binaryField(fieldInfo, uid.bytes);
             }

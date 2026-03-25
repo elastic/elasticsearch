@@ -1649,9 +1649,7 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
      */
     public void testNoopTombstones() throws Exception {
         assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
-
-        final String nodeA = internalCluster().startDataOnlyNode();
-        final String nodeB = internalCluster().startDataOnlyNode();
+        internalCluster().startDataOnlyNodes(2);
 
         final boolean useNestedDocs = rarely();
         final var dataStreamName = randomIdentifier();
@@ -1662,7 +1660,6 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
             Settings.builder()
                 .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.REQUEST)
                 .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), ByteSizeValue.of(1, ByteSizeUnit.PB))
-                .put("index.routing.allocation.include._name", nodeA + "," + nodeB)
                 .build(),
             useNestedDocs
         );
@@ -1673,6 +1670,7 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         // Index first batch of documents
         final int nbDocsFirstBatch = randomIntBetween(1, 25);
         final var docsIdsBySeqNo = new HashMap<Long, String>();
+        final var docsIndicesById = new HashMap<String, String>();
 
         var client = client();
         var bulkRequest = client.prepareBulk();
@@ -1688,6 +1686,7 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         for (var result : bulkResponse.getItems()) {
             assertThat(result.getResponse().getResult(), equalTo(DocWriteResponse.Result.CREATED));
             docsIdsBySeqNo.put(result.getResponse().getSeqNo(), result.getId());
+            docsIndicesById.put(result.getId(), result.getIndex());
             backingIndex = result.getIndex();
         }
 
@@ -1698,8 +1697,10 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         final var primaryShard = findPrimaryShard(shardId);
         assertThat(primaryShard, notNullValue());
 
-        final var primaryNodeName = clusterService().state().nodes().get(primaryShard.routingEntry().currentNodeId()).getName();
-        final var replicaNodeName = nodeA.equals(primaryNodeName) ? nodeB : nodeA;
+        var clusterState = clusterService().state();
+        final var primaryNodeName = clusterState.nodes().get(primaryShard.routingEntry().currentNodeId()).getName();
+        var replicaRouting = clusterState.routingTable().index(shardId.getIndex()).shard(shardId.id()).replicaShards().get(0);
+        final var replicaNodeName = clusterState.nodes().get(replicaRouting.currentNodeId()).getName();
 
         // When {@code flushBeforeSeqNoGaps} is true, documents are flushed before creating sequence number gaps, resulting in a segment
         // containing only no-op tombstones after failover. When false, documents and no-ops are mixed in the same segment(s).
@@ -1732,6 +1733,7 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         for (var result : bulkResponse.getItems()) {
             assertThat(result.getResponse().getResult(), equalTo(DocWriteResponse.Result.CREATED));
             docsIdsBySeqNo.put(result.getResponse().getSeqNo(), result.getId());
+            docsIndicesById.put(result.getId(), result.getIndex());
         }
 
         final int totalDocs = nbDocsFirstBatch + nbDocsSecondBatch;
@@ -1790,6 +1792,9 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         // Check that the promoted replica has the correct number of NoOp operations
         assertNoOpTombstones(newPrimary, totalDocs, nbGaps, "primary promotion", seqNo -> docsIdsBySeqNo.get(seqNo));
 
+        // Verify GET and search by synthetic _id after peer recovery
+        assertGetAndSearchById(docsIndicesById, backingIndex, useNestedDocs);
+
         // Rollover the datastream
         var rolloverResponse = indicesAdmin().prepareRolloverIndex(dataStreamName).get();
         assertTrue(rolloverResponse.isShardsAcknowledged());
@@ -1809,8 +1814,35 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         ensureGreen(backingIndex);
 
         // Verify: fillSeqNoGaps was called during snapshot restore
-        final var restoredShard = findPrimaryShard(new ShardId(resolveIndex(backingIndex), 0));
+        final var restoredShardId = new ShardId(resolveIndex(backingIndex), 0);
+        final var restoredShard = findPrimaryShard(restoredShardId);
         assertNoOpTombstones(restoredShard, totalDocs, nbGaps, "after restore", seqNo -> docsIdsBySeqNo.get(seqNo));
+
+        // Verify GET and search by synthetic _id after snapshot restore
+        assertGetAndSearchById(docsIndicesById, backingIndex, useNestedDocs);
+
+        internalCluster().startDataOnlyNode();
+
+        // Add a replica to test peer recovery from a primary with NOOP tombstones in Lucene
+        updateIndexSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1), backingIndex);
+        ensureGreen(backingIndex);
+
+        // Find the replica shard after restore
+        clusterState = clusterService().state();
+        replicaRouting = clusterState.routingTable().index(restoredShardId.getIndex()).shard(restoredShardId.id()).replicaShards().get(0);
+
+        final var replicaShardAfterRestore = internalCluster().getInstance(
+            IndicesService.class,
+            clusterState.nodes().get(replicaRouting.currentNodeId()).getName()
+        ).getShardOrNull(restoredShardId);
+        assertThat(replicaShardAfterRestore, notNullValue());
+        assertThat(replicaShardAfterRestore.routingEntry().primary(), equalTo(false));
+
+        // Verify the replica has the correct number of documents and NOOP tombstones
+        assertNoOpTombstones(replicaShardAfterRestore, totalDocs, nbGaps, "peer recovery with NOOPs", seqNo -> docsIdsBySeqNo.get(seqNo));
+
+        // Verify GET and search by synthetic _id on the replica
+        assertGetAndSearchById(docsIndicesById, backingIndex, useNestedDocs);
     }
 
     private static void assertShardsHaveNoIdStoredFieldValuesOnDisk(Set<String> indices) {
@@ -1948,6 +1980,51 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
             }
             assertThat("Should have read all index operations", indexOps, equalTo(totalDocs));
             assertThat("Should have read all noop operations (filled gaps)", noopOps, equalTo(nbGaps));
+        }
+    }
+
+    private void assertGetAndSearchById(Map<String, String> docsIndicesById, String backingIndex, boolean useNestedDocs)
+        throws IOException {
+        refresh(backingIndex);
+
+        // Verify total hit count
+        assertHitCount(client().prepareSearch(backingIndex).setTrackTotalHits(true).setSize(0), docsIndicesById.size());
+
+        // Random GET/search by synthetic _id
+        var randomDocIds = randomSubsetOf(docsIndicesById.keySet());
+        for (var docId : randomDocIds) {
+            if (randomBoolean()) {
+                // GET by synthetic _id
+                var getResponse = client().prepareGet(docsIndicesById.get(docId), docId)
+                    .setRealtime(randomBoolean())
+                    .setFetchSource(randomBoolean())
+                    .execute()
+                    .actionGet();
+                assertThat(getResponse.isExists(), equalTo(true));
+                assertThat(getResponse.getVersion(), equalTo(1L));
+            } else {
+                // Search by synthetic _id
+                assertCheckedResponse(
+                    client().prepareSearch(docsIndicesById.get(docId))
+                        .setSource(new SearchSourceBuilder().query(new TermQueryBuilder(IdFieldMapper.NAME, docId))),
+                    searchResponse -> {
+                        assertHitCount(searchResponse, 1L);
+                        assertThat(searchResponse.getHits().getHits(), arrayWithSize(1));
+                        assertThat(searchResponse.getHits().getHits()[0].getId(), equalTo(docId));
+                    }
+                );
+            }
+        }
+
+        // Nested query verification
+        if (useNestedDocs) {
+            assertHitCount(
+                client().prepareSearch(backingIndex)
+                    .setTrackTotalHits(true)
+                    .setSize(0)
+                    .setQuery(QueryBuilders.nestedQuery("tags", QueryBuilders.existsQuery("tags.key"), ScoreMode.None)),
+                docsIndicesById.size()
+            );
         }
     }
 }

@@ -7,10 +7,8 @@
 
 package org.elasticsearch.xpack.prometheus.rest;
 
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.RestChannel;
@@ -40,22 +38,6 @@ public class PrometheusSeriesResponseListener implements ActionListener<EsqlQuer
     static final String COL_DIMENSIONS = "dimensions";
     private static final String LABELS_PREFIX = "labels.";
     private static final String CONTENT_TYPE = "application/json";
-
-    /**
-     * Prometheus HTTP API error type strings, as defined in the Prometheus source:
-     * https://github.com/prometheus/prometheus/blob/main/web/api/v1/api.go
-     */
-    private enum ErrorType {
-        EXECUTION("execution"),
-        BAD_DATA("bad_data"),
-        TIMEOUT("timeout");
-
-        final String value;
-
-        ErrorType(String value) {
-            this.value = value;
-        }
-    }
 
     private final RestChannel channel;
 
@@ -183,45 +165,6 @@ public class PrometheusSeriesResponseListener implements ActionListener<EsqlQuer
     }
 
     private void replayError(Exception e) {
-        try {
-            RestStatus httpStatus = RestStatus.INTERNAL_SERVER_ERROR;
-            ErrorType errorType = ErrorType.EXECUTION;
-            if (e instanceof ElasticsearchStatusException statusEx) {
-                httpStatus = statusEx.status();
-                if (httpStatus == RestStatus.BAD_REQUEST) {
-                    errorType = ErrorType.BAD_DATA;
-                }
-            } else if (isTimeout(e)) {
-                httpStatus = RestStatus.SERVICE_UNAVAILABLE;
-                errorType = ErrorType.TIMEOUT;
-            }
-            XContentBuilder builder = JsonXContent.contentBuilder();
-            builder.startObject();
-            builder.field("status", "error");
-            builder.field("errorType", errorType.value);
-            builder.field("error", e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName());
-            builder.endObject();
-            channel.sendResponse(new RestResponse(httpStatus, CONTENT_TYPE, Strings.toString(builder)));
-        } catch (Exception sendEx) {
-            sendEx.addSuppressed(e);
-            logger.warn("Failed to send error response", sendEx);
-            try {
-                channel.sendResponse(
-                    new RestResponse(
-                        RestStatus.INTERNAL_SERVER_ERROR,
-                        RestResponse.TEXT_CONTENT_TYPE,
-                        new BytesArray("Internal server error")
-                    )
-                );
-            } catch (Exception ignored) {}
-        }
-    }
-
-    private static boolean isTimeout(Exception e) {
-        if (e == null) {
-            return false;
-        }
-        String name = e.getClass().getSimpleName();
-        return name.contains("Timeout") || name.contains("timeout");
+        PrometheusErrorResponse.send(channel, e, logger);
     }
 }

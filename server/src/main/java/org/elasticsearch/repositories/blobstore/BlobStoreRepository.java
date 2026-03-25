@@ -3544,11 +3544,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 indexCommitPointFiles = new ArrayList<>();
                 final Collection<String> fileNames;
                 final Store.MetadataSnapshot metadataFromStore;
-                try (Releasable ignored = context.withCommitRef()) {
-                    // TODO apparently we don't use the MetadataSnapshot#.recoveryDiff(...) here but we should
-                    metadataFromStore = context.metadataSnapshot();
-                    fileNames = context.fileNames();
-                }
+                // TODO apparently we don't use the MetadataSnapshot#.recoveryDiff(...) here but we should
+                metadataFromStore = context.metadataSnapshot();
+                fileNames = context.fileNames();
                 for (String fileName : fileNames) {
                     ensureNotAborted(shardId, snapshotId, snapshotStatus, fileName);
 

@@ -58,7 +58,7 @@ tasks.register('syncIcebergFixtures', Sync) {
 }
 
 // Add CSV base names here to generate Parquet fixtures; source: esql:qa:testFixtures/src/main/resources/data/{name}.csv
-def csvToParquetFixtures = ['employees', 'web_logs']
+def csvToParquetFixtures = ['employees', 'web_logs', 'books']
 
 def generateParquetTasks = []
 csvToParquetFixtures.each { baseName ->

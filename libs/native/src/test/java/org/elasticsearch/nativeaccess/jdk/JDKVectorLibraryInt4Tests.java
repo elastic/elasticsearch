@@ -127,7 +127,7 @@ public class JDKVectorLibraryInt4Tests extends VectorSimilarityFunctionsTests {
         scalarSimilarityBulk(unpackedValues[queryOrd], packedValues, expectedScores);
 
         var nativeQuerySeg = arena.allocate(dims);
-        MemorySegment.copy(MemorySegment.ofArray(unpackedValues[queryOrd]), 0L, nativeQuerySeg, 0L, dims);
+        MemorySegment.copy(unpackedValues[queryOrd], 0, nativeQuerySeg, ValueLayout.JAVA_BYTE, 0L, dims);
         var bulkScoresSeg = arena.allocate((long) numVecs * Float.BYTES);
         similarityBulk(packedSegment, nativeQuerySeg, packedLen, numVecs, bulkScoresSeg);
         assertScoresEquals(expectedScores, bulkScoresSeg);
@@ -164,7 +164,7 @@ public class JDKVectorLibraryInt4Tests extends VectorSimilarityFunctionsTests {
         scalarSimilarityBulkWithOffsets(unpackedValues[queryOrd], packedValues, offsets, expectedScores);
 
         var nativeQuerySeg = arena.allocate(dims);
-        MemorySegment.copy(MemorySegment.ofArray(unpackedValues[queryOrd]), 0L, nativeQuerySeg, 0L, dims);
+        MemorySegment.copy(unpackedValues[queryOrd], 0, nativeQuerySeg, ValueLayout.JAVA_BYTE, 0L, dims);
         var bulkScoresSeg = arena.allocate((long) numVecs * Float.BYTES);
 
         similarityBulkWithOffsets(packedSegment, nativeQuerySeg, packedLen, packedLen, offsetsSegment, numVecs, bulkScoresSeg);
@@ -198,7 +198,7 @@ public class JDKVectorLibraryInt4Tests extends VectorSimilarityFunctionsTests {
         scalarSimilarityBulkWithOffsets(unpackedValues[queryOrd], packedValues, offsets, expectedScores);
 
         var nativeQuerySeg = arena.allocate(dims);
-        MemorySegment.copy(MemorySegment.ofArray(unpackedValues[queryOrd]), 0L, nativeQuerySeg, 0L, dims);
+        MemorySegment.copy(unpackedValues[queryOrd], 0, nativeQuerySeg, ValueLayout.JAVA_BYTE, 0L, dims);
         var bulkScoresSeg = arena.allocate((long) numVecs * Float.BYTES);
 
         similarityBulkWithOffsets(packedSegment, nativeQuerySeg, packedLen, pitch, offsetsSegment, numVecs, bulkScoresSeg);

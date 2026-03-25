@@ -24,7 +24,6 @@ import java.io.InputStreamReader;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.TimeUnit;
@@ -141,10 +140,4 @@ public class RecordingApmServer extends ExternalResource {
         this.consumer = messageConsumer;
     }
 
-    /**
-     * Returns a copy of all received telemetry so far. Useful for list-based assertions.
-     */
-    public List<ReceivedTelemetry> getReceivedMessages() {
-        return new ArrayList<>(received);
-    }
 }

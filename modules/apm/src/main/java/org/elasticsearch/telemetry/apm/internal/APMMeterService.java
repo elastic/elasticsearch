@@ -11,7 +11,6 @@ package org.elasticsearch.telemetry.apm.internal;
 
 import io.opentelemetry.api.GlobalOpenTelemetry;
 import io.opentelemetry.api.OpenTelemetry;
-
 import io.opentelemetry.api.metrics.Meter;
 
 import org.apache.logging.log4j.LogManager;

@@ -20,7 +20,7 @@ public class OtelMetricsIT extends AbstractMetricsIT {
 
     public static ElasticsearchCluster cluster = AbstractMetricsIT.baseClusterBuilder()
         .systemProperty("telemetry.otel.metrics.enabled", "true")
-        .setting("telemetry.otel.metrics.endpoint", () -> "http://127.0.0.1:" + recordingApmServer.getPort() + "/v1/metrics")
+        .setting("telemetry.otel.metrics.endpoint", () -> "http://" + recordingApmServer.getHttpAddress() + "/v1/metrics")
         .setting("telemetry.otel.metrics.interval", "10m") // one giant batch instead of multiple small ones with deltas we need to sum
         .build();
 

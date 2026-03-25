@@ -166,6 +166,19 @@ public interface FormatReader extends Closeable {
         return this;
     }
 
+    /**
+     * Returns the filter pushdown support for this format, or null if not supported.
+     * <p>
+     * When non-null, the optimizer can translate ESQL filter expressions into format-specific
+     * predicates (e.g., Parquet FilterPredicate) that enable row-group skipping via statistics,
+     * dictionary, and bloom filter checks.
+     *
+     * @return FilterPushdownSupport for this format, or null if not supported
+     */
+    default FilterPushdownSupport filterPushdownSupport() {
+        return null;
+    }
+
     default boolean supportsNativeAsync() {
         return false;
     }

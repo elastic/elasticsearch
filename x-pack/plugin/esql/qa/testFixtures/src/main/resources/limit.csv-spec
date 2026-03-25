@@ -1034,3 +1034,24 @@ emp_no:integer | language_code:integer | language_name:keyword
 10005          | 1                     | English
 10005          | 1                     | English
 ;
+
+limitByEnrichBug
+required_capability: enrich_load
+required_capability: esql_limit_by
+
+FROM *
+| ENRICH languages_policy on street 
+| KEEP abbrev, integer, year
+| LIMIT 1 BY abbrev, integer, year
+| LIMIT 1000
+| SORT abbrev
+| LIMIT 5
+;
+
+abbrev:keyword | integer:integer | year:integer
+ABJ            | null            | null
+ABQ            | null            | null
+ABV            | null            | null
+ACA            | null            | null
+ACC            | null            | null
+;

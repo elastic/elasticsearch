@@ -744,6 +744,55 @@ public class MachineLearning extends Plugin
     );
 
     /**
+     * Maximum total time to retry the job opening pipeline when a system-initiated reassignment encounters transient failures
+     * (e.g. during rolling upgrades). User-initiated opens are not retried. Minimum is 1 minute.
+     */
+    public static final Setting<TimeValue> JOB_OPEN_RETRY_TIMEOUT = Setting.timeSetting(
+        "xpack.ml.job_open_retry_timeout",
+        TimeValue.timeValueMinutes(60),
+        TimeValue.timeValueMinutes(1),
+        TimeValue.timeValueDays(365),
+        Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * The time that has to pass after scaling up, before scaling down is allowed.
+     * Note that the ML autoscaling has its own cooldown time to release the hardware.
+     */
+    public static final Setting<TimeValue> SCALE_UP_COOLDOWN_TIME = Setting.timeSetting(
+        "xpack.ml.trained_models.adaptive_allocations.scale_up_cooldown_time",
+        TimeValue.timeValueMinutes(5),
+        TimeValue.timeValueMinutes(1),
+        Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * The time interval without any requests that has to pass, before scaling down
+     * to zero allocations (in case min_allocations = 0). After this time interval
+     * without requests, the number of allocations is set to zero. When this time
+     * interval hasn't passed, the minimum number of allocations will always be
+     * larger than zero.
+     */
+    public static final Setting<TimeValue> SCALE_TO_ZERO_AFTER_NO_REQUESTS_TIME = Setting.timeSetting(
+        "xpack.ml.trained_models.adaptive_allocations.scale_to_zero_time",
+        TimeValue.timeValueHours(24),
+        TimeValue.timeValueMinutes(1),
+        Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    // These 3 settings enable parts of ML to be enabled or disabled at a more granular level than the entire plugin
+    public static final Setting<Boolean> ANOMALY_DETECTION_ENABLED = Setting.boolSetting("xpack.ml.ad.enabled", true, Property.NodeScope);
+    public static final Setting<Boolean> DATA_FRAME_ANALYTICS_ENABLED = Setting.boolSetting(
+        "xpack.ml.dfa.enabled",
+        true,
+        Property.NodeScope
+    );
+    public static final Setting<Boolean> NLP_ENABLED = Setting.boolSetting("xpack.ml.nlp.enabled", true, Property.NodeScope);
+
+    /**
      * Each model deployment results in one or more entries in the cluster state
      * for the model allocations. In order to prevent the cluster state from
      * potentially growing uncontrollably we impose a limit on the number of
@@ -817,6 +866,7 @@ public class MachineLearning extends Plugin
             MachineLearningField.USE_AUTO_MACHINE_MEMORY_PERCENT,
             MAX_ML_NODE_SIZE,
             DELAYED_DATA_CHECK_FREQ,
+            JOB_OPEN_RETRY_TIMEOUT,
             DUMMY_ENTITY_MEMORY,
             DUMMY_ENTITY_PROCESSORS
         );

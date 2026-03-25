@@ -84,7 +84,9 @@ class TSDBSyntheticIdDocValuesHolder {
             cachedTsId = null;
         }
         boolean found = tsIdDocValues.advanceExact(docID);
-        assert found : "No value found for field [" + tsIdFieldInfo.getName() + "] and docID " + docID;
+        if (found == false) {
+            throw new IllegalStateException("No _tsid value for docID " + docID);
+        }
         return tsIdDocValues.ordValue();
     }
 

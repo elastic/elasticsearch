@@ -215,7 +215,7 @@ public class TSDBSyntheticIdFieldsProducer extends FieldsProducer {
                 tsIdOrd = -tsIdOrd - 1;
                 // set the terms enum on the first non-matching document
                 if (tsIdOrd < docValues.getTsIdValueCount()) {
-                    int firstDocID = (tsIdOrd == 0) ? 0 : docValues.findFirstDocWithTsIdOrdinalEqualOrGreaterThan(tsIdOrd);
+                    int firstDocID = docValues.findFirstDocWithTsIdOrdinalEqualOrGreaterThan(tsIdOrd);
                     assert firstDocID != DocIdSetIterator.NO_MORE_DOCS;
                     docID = firstDocID;
                     docTsIdOrd = tsIdOrd;

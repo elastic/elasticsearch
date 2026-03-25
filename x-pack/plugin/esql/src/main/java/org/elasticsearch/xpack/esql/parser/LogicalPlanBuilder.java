@@ -735,7 +735,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         for (EsqlBaseParser.ChangePointConfigurationContext changePointContext : changePointOptionsContexts) {
             if (changePointContext.key != null) {
                 if (key != null) {
-                    throw new ParsingException(source(changePointContext), "Only one ON can be specified");
+                    throw new ParsingException(source(changePointContext), "CHANGE_POINT supports only one ON clause");
                 }
                 key = visitQualifiedName(changePointContext.key);
             }
@@ -753,7 +753,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         for (EsqlBaseParser.ChangePointConfigurationContext changePointContext : changePointOptionsContexts) {
             if (changePointContext.targetType != null) {
                 if (optionResolved) {
-                    throw new ParsingException(source(changePointContext), "Only one AS can be specified");
+                    throw new ParsingException(source(changePointContext), "CHANGE_POINT supports only one AS clause");
                 }
                 optionResolved = true;
 

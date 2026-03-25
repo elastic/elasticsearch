@@ -4141,30 +4141,60 @@ public class StatementParserTests extends AbstractStatementParserTests {
         return new Alias(EMPTY, name, value);
     }
 
-    public void testChangePoint() {
+    public void testChangePointAsBeforeOn() {
         assumeTrue("change_point must be enabled", EsqlCapabilities.Cap.CHANGE_POINT_ARGS_ANY_ORDER.isEnabled());
-
-        // AS before ON
         LogicalPlan plan = query("ROW key=1, value=2 | CHANGE_POINT value AS my_type, my_pvalue ON key");
         ChangePoint cp = as(plan, ChangePoint.class);
         assertThat(cp.value().name(), equalTo("value"));
         assertThat(cp.key().name(), equalTo("key"));
         assertThat(cp.targetType().name(), equalTo("my_type"));
         assertThat(cp.targetPvalue().name(), equalTo("my_pvalue"));
+    }
 
-        // ON before AS
-        plan = query("ROW key=1, value=2 | CHANGE_POINT value ON key AS my_type, my_pvalue");
-        cp = as(plan, ChangePoint.class);
+    public void testChangePointOnBeforeAs() {
+        assumeTrue("change_point must be enabled", EsqlCapabilities.Cap.CHANGE_POINT.isEnabled());
+        LogicalPlan plan = query("ROW key=1, value=2 | CHANGE_POINT value ON key AS my_type, my_pvalue");
+        ChangePoint cp = as(plan, ChangePoint.class);
         assertThat(cp.value().name(), equalTo("value"));
         assertThat(cp.key().name(), equalTo("key"));
         assertThat(cp.targetType().name(), equalTo("my_type"));
         assertThat(cp.targetPvalue().name(), equalTo("my_pvalue"));
+    }
 
-        // duplicate ON
-        expectError("ROW key=1, value=2 | CHANGE_POINT value ON key ON key2", "Only one ON can be specified");
+    public void testChangePointDuplicateOn() {
+        assumeTrue("change_point must be enabled", EsqlCapabilities.Cap.CHANGE_POINT_ARGS_ANY_ORDER.isEnabled());
+        expectError("ROW key=1, value=2 | CHANGE_POINT value ON key ON key2", "line 1:48: CHANGE_POINT supports only one ON clause");
+    }
 
-        // duplicate AS
-        expectError("ROW key=1, value=2 | CHANGE_POINT value AS a, b AS c, d", "Only one AS can be specified");
+    public void testChangePointDuplicateOnWithAsInBetween() {
+        assumeTrue("change_point must be enabled", EsqlCapabilities.Cap.CHANGE_POINT_ARGS_ANY_ORDER.isEnabled());
+        expectError(
+            "ROW key=1, value=2 | CHANGE_POINT value ON key AS x, y ON key2",
+            "line 1:56: CHANGE_POINT supports only one ON clause"
+        );
+    }
+
+    public void testChangePointDuplicateAs() {
+        assumeTrue("change_point must be enabled", EsqlCapabilities.Cap.CHANGE_POINT_ARGS_ANY_ORDER.isEnabled());
+        expectError("ROW key=1, value=2 | CHANGE_POINT value AS a, b AS c, d", "line 1:49: CHANGE_POINT supports only one AS clause");
+    }
+
+    public void testChangePointDuplicateAsWithOnInBetween() {
+        assumeTrue("change_point must be enabled", EsqlCapabilities.Cap.CHANGE_POINT_ARGS_ANY_ORDER.isEnabled());
+        expectError(
+            "ROW key=1, value=2 | CHANGE_POINT count AS type, pvalue ON @timestamp AS type2, pvalue2",
+            "line 1:71: CHANGE_POINT supports only one AS clause"
+        );
+    }
+
+    public void testChangePointMissingFieldAfterOn() {
+        assumeTrue("change_point must be enabled", EsqlCapabilities.Cap.CHANGE_POINT.isEnabled());
+        expectError("ROW key=1, value=2 | CHANGE_POINT count ON", "mismatched input '<EOF>'");
+    }
+
+    public void testChangePointAsWithOnlyOneArgument() {
+        assumeTrue("change_point must be enabled", EsqlCapabilities.Cap.CHANGE_POINT.isEnabled());
+        expectError("ROW key=1, value=2 | CHANGE_POINT count AS type", "line 1:48: mismatched input '<EOF>' expecting {',', '.'}");
     }
 
     public void testValidFuse() {

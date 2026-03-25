@@ -24,7 +24,6 @@ import org.elasticsearch.mocksocket.MockServerSocket;
 import org.elasticsearch.mocksocket.MockSocket;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.core.common.socket.SocketAccess;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.ldap.support.LdapSearchScope;
 import org.elasticsearch.xpack.core.ssl.SSLService;
@@ -233,7 +232,7 @@ public class SessionFactoryLoadBalancingTests extends LdapTestCase {
         socket.setReuseAddress(true); // allow binding even if the previous socket is in timed wait state.
         socket.setSoLinger(true, 0); // close immediately as we are not writing anything here.
         socket.bind(new InetSocketAddress(localAddress, localPort));
-        SocketAccess.doPrivileged(() -> socket.connect(new InetSocketAddress(remoteAddress, remotePort)));
+        socket.connect(new InetSocketAddress(remoteAddress, remotePort));
         return socket;
     }
 

@@ -308,7 +308,12 @@ sampleCommand
     ;
 
 changePointCommand
-    : CHANGE_POINT value=qualifiedName (ON key=qualifiedName)? (AS targetType=qualifiedName COMMA targetPvalue=qualifiedName)?
+    : CHANGE_POINT value=qualifiedName (changePointConfiguration)*
+    ;
+
+changePointConfiguration
+    : ON key=qualifiedName
+    | AS targetType=qualifiedName COMMA targetPvalue=qualifiedName
     ;
 
 forkCommand

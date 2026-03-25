@@ -75,6 +75,17 @@ public class InternalCartesianCentroid extends InternalCentroid implements Carte
     }
 
     @Override
+    protected InternalCartesianCentroid copyWithShapeFields(ShapeData shapeData, long count) {
+        final CartesianPoint result = shapeData.totalWeight() > 0
+            ? new CartesianPoint(
+                shapeData.firstWeightedSum() / shapeData.totalWeight(),
+                shapeData.secondWeightedSum() / shapeData.totalWeight()
+            )
+            : null;
+        return new InternalCartesianCentroid(name, result, count, shapeData, getMetadata());
+    }
+
+    @Override
     public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
         return new InternalCartesianCentroid(name, centroid, samplingContext.scaleUp(count), getMetadata());
     }

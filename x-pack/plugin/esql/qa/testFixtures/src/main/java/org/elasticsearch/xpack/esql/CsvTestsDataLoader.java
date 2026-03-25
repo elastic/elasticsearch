@@ -737,23 +737,38 @@ public class CsvTestsDataLoader {
 
     public static String readMappingFile(TestDataset dataset) throws IOException {
         String mappingJsonText = dataset.loadMappings();
-        if (dataset.typeMapping == null || dataset.typeMapping.isEmpty()) {
+        boolean hasTypeMappingOverrides = dataset.typeMapping != null && dataset.typeMapping.isEmpty() == false;
+        if (hasTypeMappingOverrides == false && dataset.dynamic == null) {
             return mappingJsonText;
         }
         boolean modified = false;
         ObjectMapper mapper = new ObjectMapper();
         JsonNode mappingNode = mapper.readTree(mappingJsonText);
-        JsonNode propertiesNode = mappingNode.path("properties");
 
-        for (Map.Entry<String, String> entry : dataset.typeMapping.entrySet()) {
-            String key = entry.getKey();
-            String newType = entry.getValue();
+        if (hasTypeMappingOverrides) {
+            ObjectNode propertiesNode = (ObjectNode) mappingNode.path("properties");
+            for (Map.Entry<String, String> entry : dataset.typeMapping.entrySet()) {
+                String key = entry.getKey();
+                String newType = entry.getValue();
 
-            if (propertiesNode.has(key)) {
-                modified = true;
-                ((ObjectNode) propertiesNode.get(key)).put("type", newType);
+                if (newType == null) {
+                    // null value means remove the field from the mapping
+                    if (propertiesNode.has(key)) {
+                        propertiesNode.remove(key);
+                        modified = true;
+                    }
+                } else if (propertiesNode.has(key)) {
+                    ((ObjectNode) propertiesNode.get(key)).put("type", newType);
+                    modified = true;
+                }
             }
         }
+
+        if (dataset.dynamic != null) {
+            ((ObjectNode) mappingNode).put("dynamic", dataset.dynamic);
+            modified = true;
+        }
+
         if (modified) {
             return mapper.writerWithDefaultPrettyPrinter().writeValueAsString(mappingNode);
         }
@@ -1038,22 +1053,23 @@ public class CsvTestsDataLoader {
         String dataFileName,
         String settingFileName,
         boolean allowSubFields,
-        @Nullable Map<String, String> typeMapping, // Override mappings read from mappings file
-        @Nullable Map<String, String> dynamicTypeMapping, // Define mappings not in the mapping files, but available from field-caps
+        @Nullable Map<String, String> typeMapping,
+        @Nullable Map<String, String> dynamicTypeMapping,
+        @Nullable String dynamic,
         List<String> inferenceEndpoints,
         List<EsqlCapabilities.Cap> requiredCapabilities
     ) {
 
         public TestDataset(String indexName) {
-            this(indexName, "mapping-" + indexName + ".json", indexName + ".csv", null, true, null, null, List.of(), List.of());
+            this(indexName, "mapping-" + indexName + ".json", indexName + ".csv", null, true, null, null, null, List.of(), List.of());
         }
 
         public TestDataset(String indexName, String mappingFileName, String dataFileName) {
-            this(indexName, mappingFileName, dataFileName, null, true, null, null, List.of(), List.of());
+            this(indexName, mappingFileName, dataFileName, null, true, null, null, null, List.of(), List.of());
         }
 
         public TestDataset(String indexName, String mappingFileName, String dataFileName, String settingFileName) {
-            this(indexName, mappingFileName, dataFileName, settingFileName, true, null, null, List.of(), List.of());
+            this(indexName, mappingFileName, dataFileName, settingFileName, true, null, null, null, List.of(), List.of());
         }
 
         public TestDataset withIndex(String indexName) {
@@ -1065,6 +1081,7 @@ public class CsvTestsDataLoader {
                 allowSubFields,
                 typeMapping,
                 dynamicTypeMapping,
+                dynamic,
                 inferenceEndpoints,
                 requiredCapabilities
             );
@@ -1079,6 +1096,7 @@ public class CsvTestsDataLoader {
                 allowSubFields,
                 typeMapping,
                 dynamicTypeMapping,
+                dynamic,
                 inferenceEndpoints,
                 requiredCapabilities
             );
@@ -1093,6 +1111,7 @@ public class CsvTestsDataLoader {
                 allowSubFields,
                 typeMapping,
                 dynamicTypeMapping,
+                dynamic,
                 inferenceEndpoints,
                 requiredCapabilities
             );
@@ -1107,6 +1126,7 @@ public class CsvTestsDataLoader {
                 allowSubFields,
                 typeMapping,
                 dynamicTypeMapping,
+                dynamic,
                 inferenceEndpoints,
                 requiredCapabilities
             );
@@ -1121,11 +1141,20 @@ public class CsvTestsDataLoader {
                 false,
                 typeMapping,
                 dynamicTypeMapping,
+                dynamic,
                 inferenceEndpoints,
                 requiredCapabilities
             );
         }
 
+        /**
+         * Overrides the types of fields in the mapping file. Each entry maps a field name to its new type
+         * (e.g. {@code Map.of("client_ip", "keyword")} changes client_ip from ip to keyword).
+         * A {@code null} value removes the field from the mapping entirely, making it unmapped for this index.
+         * <p>
+         * This affects both the Elasticsearch index mapping (via {@link CsvTestsDataLoader#readMappingFile}) and
+         * the in-memory mapping used by CSV unit tests.
+         */
         public TestDataset withTypeMapping(Map<String, String> typeMapping) {
             return new TestDataset(
                 indexName,
@@ -1135,11 +1164,18 @@ public class CsvTestsDataLoader {
                 allowSubFields,
                 typeMapping,
                 dynamicTypeMapping,
+                dynamic,
                 inferenceEndpoints,
                 requiredCapabilities
             );
         }
 
+        /**
+         * Adds field mappings that are not present in the mapping file, simulating fields discovered via field-caps
+         * at runtime (e.g. runtime fields). These fields are only added to the in-memory mapping used by CSV unit
+         * tests and are not included in the Elasticsearch index mapping. Fields already present in the mapping file
+         * are not overridden.
+         */
         public TestDataset withDynamicTypeMapping(Map<String, String> dynamicTypeMapping) {
             return new TestDataset(
                 indexName,
@@ -1149,6 +1185,26 @@ public class CsvTestsDataLoader {
                 allowSubFields,
                 typeMapping,
                 dynamicTypeMapping,
+                dynamic,
+                inferenceEndpoints,
+                requiredCapabilities
+            );
+        }
+
+        /**
+         * Sets the "dynamic" mapping parameter (e.g. "false", "strict", "runtime").
+         * This prevents unmapped fields in the data from being automatically indexed.
+         */
+        public TestDataset withDynamic(String dynamic) {
+            return new TestDataset(
+                indexName,
+                mappingFileName,
+                dataFileName,
+                settingFileName,
+                allowSubFields,
+                typeMapping,
+                dynamicTypeMapping,
+                dynamic,
                 inferenceEndpoints,
                 requiredCapabilities
             );
@@ -1163,6 +1219,7 @@ public class CsvTestsDataLoader {
                 allowSubFields,
                 typeMapping,
                 dynamicTypeMapping,
+                dynamic,
                 List.of(inferenceEndpoints),
                 requiredCapabilities
             );
@@ -1177,6 +1234,7 @@ public class CsvTestsDataLoader {
                 allowSubFields,
                 typeMapping,
                 dynamicTypeMapping,
+                dynamic,
                 inferenceEndpoints,
                 List.of(requiredCapabilities)
             );

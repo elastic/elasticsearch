@@ -505,7 +505,10 @@ public class CsvTests extends ESTestCase {
         var mapping = new TreeMap<>(LoadMapping.loadMapping(dataset.streamMapping()));
         if (dataset.typeMapping() != null) {
             for (var entry : dataset.typeMapping().entrySet()) {
-                if (mapping.containsKey(entry.getKey())) {
+                if (entry.getValue() == null) {
+                    // null value means remove the field from the mapping
+                    mapping.remove(entry.getKey());
+                } else if (mapping.containsKey(entry.getKey())) {
                     DataType dataType = DataType.fromTypeName(entry.getValue());
                     EsField field = mapping.get(entry.getKey());
                     EsField editedField = new EsField(

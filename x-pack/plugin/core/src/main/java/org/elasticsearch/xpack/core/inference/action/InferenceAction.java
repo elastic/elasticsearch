@@ -23,6 +23,7 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.inference.InferenceContext;
 
@@ -44,7 +45,7 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
         super(NAME);
     }
 
-    public static class Request extends BaseInferenceActionRequest {
+    public static class Request extends BaseInferenceActionRequest implements ToXContent {
 
         public static final TimeValue DEFAULT_TIMEOUT = TimeValue.timeValueSeconds(30);
         public static final ParseField INPUT = new ParseField("input");
@@ -279,6 +280,25 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
                 out.writeOptionalBoolean(returnDocuments);
                 out.writeOptionalInt(topN);
             }
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.field(INPUT.getPreferredName(), input);
+            builder.field(INPUT_TYPE.getPreferredName(), inputType);
+            if (taskSettings.isEmpty() == false) {
+                builder.field(TASK_SETTINGS.getPreferredName(), taskSettings);
+            }
+            if (query != null) {
+                builder.field(QUERY.getPreferredName(), query);
+            }
+            if (returnDocuments != null) {
+                builder.field(RETURN_DOCUMENTS.getPreferredName(), returnDocuments);
+            }
+            if (topN != null) {
+                builder.field(TOP_N.getPreferredName(), topN);
+            }
+            return builder;
         }
 
         @Override

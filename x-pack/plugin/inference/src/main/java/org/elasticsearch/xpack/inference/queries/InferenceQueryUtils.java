@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexSettings;
@@ -33,8 +34,6 @@ import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.InferenceContext;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceFieldsInternalAction;
@@ -550,12 +549,20 @@ public final class InferenceQueryUtils {
 
         private List<InferenceActionProxy.Request> generateInferenceRequests() {
             return inferenceIds.stream().map(i -> {
-                try (XContentBuilder xb = XContentFactory.jsonBuilder()) {
-                    xb.startObject();
-                    xb.field("input", List.of(query));
-                    xb.field("input_type", InputType.INTERNAL_SEARCH.toString());
-                    xb.endObject();
-                    BytesReference content = BytesReference.bytes(xb);
+                try {
+                    var inferenceRequest = new InferenceAction.Request(
+                        TaskType.ANY,
+                        i,
+                        null,
+                        null,
+                        null,
+                        List.of(query),
+                        Map.of(),
+                        InputType.INTERNAL_SEARCH,
+                        null,
+                        false
+                    );
+                    BytesReference content = XContentHelper.toXContent(inferenceRequest, XContentType.JSON, false);
                     return new InferenceActionProxy.Request(
                         TaskType.ANY,
                         i,

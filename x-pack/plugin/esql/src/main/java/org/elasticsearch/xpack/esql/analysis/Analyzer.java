@@ -2481,13 +2481,19 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                             Expression newConvertFunction = convertExpression.replaceChildren(Collections.singletonList(originalField));
                             indexToConversionExpressions.put(indexName, newConvertFunction);
                         }
+                        // The only code that creates MultiTypeEsField with synthetic=false (reaching this branch) is
+                        // DateMillisToNanosInEsRelation, which runs in the "Initialize" batch before ResolveUnmapped. At that point,
+                        // unmapped fields haven't been detected yet, so potentiallyUnmappedExpression is always null.
+                        if (mtf.getPotentiallyUnmappedExpression() != null) {
+                            throw new IllegalStateException("Unexpected potentially unmapped expression for [" + fa.fieldName() + "]");
+                        }
                         MultiTypeEsField multiTypeEsField = new MultiTypeEsField(
                             fa.fieldName().string(),
                             convertExpression.dataType(),
                             false,
                             indexToConversionExpressions,
                             fa.field().getTimeSeriesFieldType(),
-                            null // FIXME(gal, NOCOMMIT) This basically a copy constructor, shouldn't be null; write a test to flush it out.
+                            null
                         );
                         return createIfDoesNotAlreadyExist(fa, multiTypeEsField, unionFieldAttributes);
                     }
@@ -2653,6 +2659,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         HashMap<ResolveUnionTypes.TypeResolutionKey, Expression> typeResolutions = new HashMap<>();
                         var convert = new ToDateNanos(f.source(), f, context.configuration());
                         imf.types().forEach(type -> typeResolutions(f, convert, type, imf, typeResolutions));
+                        // This rule runs in the "Initialize" batch, before ResolveUnmapped, so isPotentiallyUnmapped() is always false.
+                        if (imf.isPotentiallyUnmapped()) {
+                            throw new IllegalStateException("Unexpected potentially unmapped field [" + imf.getName() + "]");
+                        }
                         var resolvedField = ResolveUnionTypes.resolvedMultiTypeEsField(f, typeResolutions, null);
                         return new FieldAttribute(
                             f.source(),

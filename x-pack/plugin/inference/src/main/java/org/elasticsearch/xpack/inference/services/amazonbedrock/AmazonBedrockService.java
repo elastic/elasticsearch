@@ -13,7 +13,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.IOUtils;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
@@ -223,7 +222,7 @@ public class AmazonBedrockService extends SenderService<AmazonBedrockModel> {
 
     @Override
     public void parseRequestConfig(
-        String modelId,
+        String inferenceEntityId,
         TaskType taskType,
         Map<String, Object> config,
         ActionListener<Model> parsedModelListener
@@ -239,15 +238,23 @@ public class AmazonBedrockService extends SenderService<AmazonBedrockModel> {
                 );
             }
 
-            AmazonBedrockModel model = createModel(
-                modelId,
+            var model = retrieveModelCreatorFromMapOrThrow(
+                MODEL_CREATORS,
+                inferenceEntityId,
                 taskType,
+                NAME,
+                ConfigurationParseContext.REQUEST
+            ).createFromMaps(
+                inferenceEntityId,
+                taskType,
+                NAME,
                 serviceSettingsMap,
                 taskSettingsMap,
                 chunkingSettings,
                 serviceSettingsMap,
                 ConfigurationParseContext.REQUEST
             );
+            checkProviderForTask(taskType, model.provider());
 
             throwIfNotEmptyMap(config, NAME);
             throwIfNotEmptyMap(serviceSettingsMap, NAME);
@@ -266,7 +273,7 @@ public class AmazonBedrockService extends SenderService<AmazonBedrockModel> {
             config.getInferenceEntityId(),
             config.getTaskType(),
             config.getService(),
-            ConfigurationParseContext.PERSISTENT
+            ConfigurationParseContext.REQUEST
         ).createFromModelConfigurationsAndSecrets(config, secrets);
         checkProviderForTask(config.getTaskType(), model.provider());
         return model;
@@ -280,29 +287,6 @@ public class AmazonBedrockService extends SenderService<AmazonBedrockModel> {
     @Override
     public EnumSet<TaskType> supportedTaskTypes() {
         return SUPPORTED_TASK_TYPES_FOR_SERVICES_API;
-    }
-
-    private static AmazonBedrockModel createModel(
-        String inferenceEntityId,
-        TaskType taskType,
-        Map<String, Object> serviceSettings,
-        Map<String, Object> taskSettings,
-        ChunkingSettings chunkingSettings,
-        @Nullable Map<String, Object> secretSettings,
-        ConfigurationParseContext context
-    ) {
-        var model = retrieveModelCreatorFromMapOrThrow(MODEL_CREATORS, inferenceEntityId, taskType, NAME, context).createFromMaps(
-            inferenceEntityId,
-            taskType,
-            NAME,
-            serviceSettings,
-            taskSettings,
-            chunkingSettings,
-            secretSettings,
-            context
-        );
-        checkProviderForTask(taskType, model.provider());
-        return model;
     }
 
     @Override

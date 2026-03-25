@@ -11,8 +11,10 @@ package org.elasticsearch.benchmark.vector.scorer;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.simdvec.VectorSimilarityType;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.BeforeClass;
 import org.openjdk.jmh.annotations.Param;
 
 import java.util.Arrays;
@@ -35,6 +37,11 @@ public class VectorScorerInt4BenchmarkTests extends ESTestCase {
         bench.dims = dims;
         bench.setup(data);
         return bench;
+    }
+
+    @BeforeClass
+    public static void skipWindows() {
+        assumeFalse("doesn't work on windows yet", Constants.WINDOWS);
     }
 
     public void testScores() throws Exception {

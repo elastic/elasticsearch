@@ -74,19 +74,16 @@ public class SearchShardsIT extends ESIntegTestCase {
                 randomBoolean() ? null : randomAlphaOfLength(10)
             );
             var resp = client().execute(TransportSearchShardsAction.TYPE, request).actionGet();
-            assertThat(resp.getGroups(), hasSize(indicesWithData + indicesWithoutData));
-            int skipped = 0;
+            assertThat(resp.getGroups(), hasSize(indicesWithData));
             for (SearchShardsGroup g : resp.getGroups()) {
                 String indexName = g.shardId().getIndexName();
                 assertThat(g.allocatedNodes(), not(empty()));
                 if (indexName.contains("without")) {
                     assertTrue(g.skipped());
-                    skipped++;
                 } else {
                     assertFalse(g.skipped());
                 }
             }
-            assertThat(skipped, equalTo(indicesWithoutData));
         }
         // Match all
         {

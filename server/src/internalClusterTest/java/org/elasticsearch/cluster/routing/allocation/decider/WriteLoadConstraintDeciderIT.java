@@ -70,7 +70,7 @@ import java.util.function.Consumer;
 import java.util.stream.StreamSupport;
 
 import static java.util.stream.IntStream.range;
-import static org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_HOTSPOT_MAX_SHARD_WRITE_LOAD_RATIO_THRESHOLD_SETTING;
+import static org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_HOTSPOT_MAX_SHARD_WRITE_LOAD_PROPORTION_THRESHOLD_SETTING;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -646,7 +646,7 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
     public void testMaxSingleShardWriteLoadSetting() {
         internalCluster().startMasterOnlyNode(Settings.EMPTY);
 
-        String thresholdSettingKey = WRITE_LOAD_DECIDER_HOTSPOT_MAX_SHARD_WRITE_LOAD_RATIO_THRESHOLD_SETTING.getKey();
+        String thresholdSettingKey = WRITE_LOAD_DECIDER_HOTSPOT_MAX_SHARD_WRITE_LOAD_PROPORTION_THRESHOLD_SETTING.getKey();
 
         updateClusterSettings(Settings.builder().put(thresholdSettingKey, "0%"));
 

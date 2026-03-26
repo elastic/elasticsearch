@@ -138,12 +138,12 @@ public class WriteLoadConstraintSettings {
 
     /**
      * The threshold over which we consider a single shard as carrying enough of the load, that trying to correct a
-     * hotspot by relocating shards is not taken. This is phrased as a ratio. The production values should always
+     * hotspot by relocating shards is not taken. This is phrased as a proportional ratio. The production values should always
      * be in (0.50, 1.0]. 0.0 turns this off
      */
-    public static final Setting<RatioValue> WRITE_LOAD_DECIDER_HOTSPOT_MAX_SHARD_WRITE_LOAD_RATIO_THRESHOLD_SETTING = new Setting<>(
-        SETTING_PREFIX + "hotspot_max_shard_write_load_ratio_threshold",
-        "0%",
+    public static final Setting<RatioValue> WRITE_LOAD_DECIDER_HOTSPOT_MAX_SHARD_WRITE_LOAD_PROPORTION_THRESHOLD_SETTING = new Setting<>(
+        SETTING_PREFIX + "hotspot_max_shard_write_load_proportion_threshold",
+        "95%",
         WriteLoadConstraintSettings::parseMaxSingleShardRatio,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
@@ -175,7 +175,7 @@ public class WriteLoadConstraintSettings {
     private volatile TimeValue queueLatencyThreshold;
     private volatile double hotspotUtilizationThreshold;
     private volatile String hotspotUtilizationThresholdString;
-    private volatile double hotspotMaxShardWriteLoadRatioThreshold;
+    private volatile double hotspotMaxShardWriteLoadProportionThreshold;
 
     public WriteLoadConstraintSettings(ClusterSettings clusterSettings) {
         clusterSettings.initializeAndWatch(WRITE_LOAD_DECIDER_ENABLED_SETTING, status -> this.writeLoadDeciderStatus = status);
@@ -193,8 +193,8 @@ public class WriteLoadConstraintSettings {
             hotspotUtilizationThreshold = value.getAsRatio();
             hotspotUtilizationThresholdString = value.formatNoTrailingZerosPercent();
         });
-        clusterSettings.initializeAndWatch(WRITE_LOAD_DECIDER_HOTSPOT_MAX_SHARD_WRITE_LOAD_RATIO_THRESHOLD_SETTING, value -> {
-            hotspotMaxShardWriteLoadRatioThreshold = value.getAsRatio();
+        clusterSettings.initializeAndWatch(WRITE_LOAD_DECIDER_HOTSPOT_MAX_SHARD_WRITE_LOAD_PROPORTION_THRESHOLD_SETTING, value -> {
+            hotspotMaxShardWriteLoadProportionThreshold = value.getAsRatio();
         });
     }
 
@@ -227,11 +227,11 @@ public class WriteLoadConstraintSettings {
     }
 
     /**
-     * @return The utilization threshold as a ratio in [0, 1] for use in checking whether a hotspot
+     * @return The utilization threshold as a proportion in [0, 1] for use in checking whether a hotspot
      * is too focused on a single shard for correction with shard movement
      */
-    public double getHotspotMaxShardWriteLoadRatioThreshold() {
-        return this.hotspotMaxShardWriteLoadRatioThreshold;
+    public double getHotspotMaxShardWriteLoadProportionThreshold() {
+        return this.hotspotMaxShardWriteLoadProportionThreshold;
     }
 
     /**

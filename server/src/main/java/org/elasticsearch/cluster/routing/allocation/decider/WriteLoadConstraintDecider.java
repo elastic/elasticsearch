@@ -30,6 +30,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 /**
@@ -70,7 +71,7 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
             && nodeWriteThreadPoolStats.averageThreadPoolUtilization() >= hotspotUtilizationThreshold;
     }
 
-    public static double maxShardWriteLoadAsRatio(List<ShardId> assignedShardIds, Map<ShardId, Double> shardWriteLoads) {
+    public static double maxShardWriteLoadProportion(List<ShardId> assignedShardIds, Map<ShardId, Double> shardWriteLoads) {
         double totalWriteLoad = 0.0;
         double maxShardWriteLoad = 0.0;
         for (ShardId shardId : assignedShardIds) {
@@ -89,11 +90,11 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
         }
     }
 
-    public static boolean maxShardWriteLoadAsRatioIsHigh(double maxShardWriteLoadAsRatio, double maxShardWriteLoadThreshold) {
+    public static boolean maxShardWriteLoadProportionIsHigh(double maxShardWriteLoadProportion, double maxShardWriteLoadThreshold) {
         if (maxShardWriteLoadThreshold == 0.0) {
             return false;
         }
-        return maxShardWriteLoadAsRatio >= maxShardWriteLoadThreshold;
+        return maxShardWriteLoadProportion >= maxShardWriteLoadThreshold;
     }
 
     @Override
@@ -209,11 +210,11 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
              * it with a shard move is useless: the node that receives the shard will hotspot instead, and an important
              * shard will be unavailable briefly when it moves.
              *
-             * The maxShardWriteLoadAsRatio is computed only for hotspotting nodes, and cached within cluster info so it
+             * The maxShardWriteLoadProportion is computed only for hotspotting nodes, and cached within cluster info so it
              * is only computed once per balancing round */
-            final double maxShardWriteLoadThreshold = writeLoadConstraintSettings.getHotspotMaxShardWriteLoadRatioThreshold();
-            final double maxShardWriteLoadAsRatio = allocation.clusterInfo()
-                .nodeMaxShardWriteLoadAsRatio(
+            final double maxShardWriteLoadThreshold = writeLoadConstraintSettings.getHotspotMaxShardWriteLoadProportionThreshold();
+            final Supplier<Double> maxShardWriteLoadProportion = () -> allocation.clusterInfo()
+                .nodeMaxShardWriteLoadProportion(
                     node.nodeId(),
                     // compute cache entry if absent
                     () -> {
@@ -221,11 +222,13 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
                             .map(startedShardRouting -> startedShardRouting.shardId())
                             .collect(Collectors.toList());
 
-                        return maxShardWriteLoadAsRatio(shardIds, allocation.clusterInfo().getShardWriteLoads());
+                        return maxShardWriteLoadProportion(shardIds, allocation.clusterInfo().getShardWriteLoads());
                     }
                 );
 
-            if (maxShardWriteLoadAsRatioIsHigh(maxShardWriteLoadAsRatio, maxShardWriteLoadThreshold) == false) {
+            // check that the threshold comparison is enabled (not 0.0) before computing the maxShardWriteLoadProportion
+            if (maxShardWriteLoadThreshold == 0.0
+                || maxShardWriteLoadProportionIsHigh(maxShardWriteLoadProportion.get(), maxShardWriteLoadThreshold) == false) {
                 if (logger.isDebugEnabled() || allocation.debugDecision()) {
                     final Double shardWriteLoad = getShardWriteLoad(allocation, shardRouting);
                     final String explain = Strings.format(
@@ -249,9 +252,9 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
                 }
             } else {
                 return allocation.decision(Decision.YES, NAME, """
-                    Node [%s] is hot-spotting due to a single shard executing [%.2f] percent of the writes. But since this is above the\
+                    Node [%s] is hot-spotting due to a single shard executing [%.2f] percent of the writes. But since this is above the \
                     single shard write load threshold ([%.2f]%), moving shards away from this node is not expected to resolve the hot-spot.\
-                    """, node.getShortNodeDescription(), maxShardWriteLoadAsRatio * 100, maxShardWriteLoadThreshold * 100);
+                    """, node.getShortNodeDescription(), maxShardWriteLoadProportion.get() * 100, maxShardWriteLoadThreshold * 100);
             }
         }
 

@@ -80,14 +80,13 @@ public class ClusterInfo implements ChunkedToXContent, Writeable, ExpectedShardS
     final Map<String, ByteSizeValue> maxHeapSizePerNode;
     final Set<String> nodeIdsWriteLoadHotspotting;
     /**
-     * For each node, the largest shard's write load, as a ratio to all the other shards
-     * (the biggest write load for any shard, compared to the sum of the write loads for
-     * all shards), computed as an online cache.
+     * For each node, the largest shard's write load, as a proportion to the sum of the
+     * write loads for all shards, computed as an online cache.
      * This is not serialized or compared within ClusterInfo, as its values are computed
      * from the shardWriteLoads table using the shard -> node assignments present in the
      * decider
      */
-    final Map<String, Double> nodeMaxShardWriteLoadAsRatio;
+    final Map<String, Double> nodeMaxShardWriteLoadProportion;
     private final Map<ShardId, Set<String>> shardToNodeIds;
 
     protected ClusterInfo() {
@@ -168,7 +167,7 @@ public class ClusterInfo implements ChunkedToXContent, Writeable, ExpectedShardS
         this.shardWriteLoads = Map.copyOf(shardWriteLoads);
         this.maxHeapSizePerNode = Map.copyOf(maxHeapSizePerNode);
         this.nodeIdsWriteLoadHotspotting = Set.copyOf(nodeIdsWriteLoadHotspotting);
-        this.nodeMaxShardWriteLoadAsRatio = new HashMap<>(nodeIdsWriteLoadHotspotting.size());
+        this.nodeMaxShardWriteLoadProportion = new HashMap<>(nodeIdsWriteLoadHotspotting.size());
         this.shardToNodeIds = shardToNodeIds;
     }
 
@@ -209,7 +208,7 @@ public class ClusterInfo implements ChunkedToXContent, Writeable, ExpectedShardS
         } else {
             this.estimatedShardHeapUsages = Map.of();
         }
-        this.nodeMaxShardWriteLoadAsRatio = new HashMap<>(this.nodeIdsWriteLoadHotspotting.size());
+        this.nodeMaxShardWriteLoadProportion = new HashMap<>(this.nodeIdsWriteLoadHotspotting.size());
         this.shardToNodeIds = computeShardToNodeIds(dataPath);
     }
 
@@ -455,8 +454,8 @@ public class ClusterInfo implements ChunkedToXContent, Writeable, ExpectedShardS
         return nodeIdsWriteLoadHotspotting.contains(nodeId);
     }
 
-    public double nodeMaxShardWriteLoadAsRatio(String nodeId, Supplier<Double> computeIfMissing) {
-        return nodeMaxShardWriteLoadAsRatio.computeIfAbsent(nodeId, key -> computeIfMissing.get());
+    public double nodeMaxShardWriteLoadProportion(String nodeId, Supplier<Double> computeIfMissing) {
+        return nodeMaxShardWriteLoadProportion.computeIfAbsent(nodeId, key -> computeIfMissing.get());
     }
 
     /**

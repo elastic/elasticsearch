@@ -37,11 +37,12 @@ setup:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'SET unmapped_fields="load"; FROM partial_load_yaml_* | WHERE partial_x > 0 | KEEP tag'
+          query: 'SET unmapped_fields="load"; FROM partial_load_yaml_* | KEEP partial_x'
 
   - match: { status: 400 }
   - match: { error.type: verification_exception }
-  - match: { error.reason: "/partial_x/" }
+  - match:
+      error.reason: "Found 1 problem\nline 1:56: Loading partially mapped non-KEYWORD fields is not yet supported. unmapped_fields=\"load\" is not supported when the query involves partially mapped fields that are not KEYWORD: partial_x. Use unmapped_fields=\"nullify\" or unmapped_fields=\"fail\", or ensure the field is mapped as KEYWORD in all indices."
 
 ---
 "load allows query when partially mapped non-KEYWORD field is unused":

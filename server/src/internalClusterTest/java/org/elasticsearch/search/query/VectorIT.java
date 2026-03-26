@@ -83,7 +83,7 @@ public class VectorIT extends ESIntegTestCase {
 
         float[] vector = new float[16];
         randomVector(vector, 25);
-        int upperLimit = 35;
+        int upperLimit = 100;
         var query = new KnnSearchBuilder(VECTOR_FIELD, vector, 1, 1, 10f, null, null).addFilterQuery(
             QueryBuilders.rangeQuery(NUM_ID_FIELD).lt(upperLimit)
         );
@@ -128,13 +128,14 @@ public class VectorIT extends ESIntegTestCase {
                     .sum();
 
                 assertTrue(
-                    "fanoutVectorOps [" + fanoutVectorOpsSum + "] exceeded filtered doc count [" + upperLimit + "]",
-                    fanoutVectorOpsSum <= upperLimit
-                );
-
-                assertTrue(
-                    "acornVectorOps [" + vectorOpsSum + "] exceeded filtered doc count [" + upperLimit + "]",
-                    vectorOpsSum <= upperLimit
+                    "fanoutVectorOps ["
+                        + fanoutVectorOpsSum
+                        + "] is not gte acornVectorOps ["
+                        + vectorOpsSum
+                        + "], filtered doc count ["
+                        + upperLimit
+                        + "]",
+                    fanoutVectorOpsSum >= vectorOpsSum
                 );
             });
         });

@@ -547,7 +547,8 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                     createShardsAllocator(settings),
                     EmptyClusterInfoService.INSTANCE,
                     snapshotsInfoService,
-                    new StatelessShardRoutingRoleStrategy()
+                    new StatelessShardRoutingRoleStrategy(),
+                    MeterRegistry.NOOP
                 );
                 allocationService.setExistingShardsAllocators(Map.of(StatelessPlugin.NAME, new StatelessExistingShardsAllocator()));
                 return allocationService;

@@ -19,6 +19,7 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.query.QuerySearchResult;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -35,14 +36,14 @@ public abstract class SearchProgressListener {
      * Executed when shards are ready to be queried.
      *
      * @param shards The list of shards to query.
-     * @param skippedShards The list of skipped shards.
+     * @param skippedByClusterAlias The number of skipped shards per cluster.
      * @param clusters The statistics for remote clusters included in the search.
      * @param fetchPhase <code>true</code> if the search needs a fetch phase, <code>false</code> otherwise.
      * @param timeProvider absolute and relative time provider for this search
      **/
     protected void onListShards(
         List<SearchShard> shards,
-        List<SearchShard> skippedShards,
+        Map<String, Integer> skippedByClusterAlias,
         Clusters clusters,
         boolean fetchPhase,
         TransportSearchAction.SearchTimeProvider timeProvider
@@ -129,14 +130,14 @@ public abstract class SearchProgressListener {
 
     final void notifyListShards(
         List<SearchShard> shards,
-        List<SearchShard> skippedShards,
+        Map<String, Integer> skippedByClusterAlias,
         Clusters clusters,
         boolean fetchPhase,
         TransportSearchAction.SearchTimeProvider timeProvider
     ) {
         this.shards = shards;
         try {
-            onListShards(shards, skippedShards, clusters, fetchPhase, timeProvider);
+            onListShards(shards, skippedByClusterAlias, clusters, fetchPhase, timeProvider);
         } catch (Exception e) {
             logger.warn("Failed to execute progress listener on list shards", e);
         }

@@ -15,13 +15,6 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#ifdef __clang__
-#pragma clang attribute push(__attribute__((target("arch=icelake-client"))), apply_to=function)
-#elif __GNUC__
-#pragma GCC push_options
-#pragma GCC target ("arch=icelake-client")
-#endif
-
 #include "vec.h"
 #include "vec_common.h"
 #include "amd64/amd64_vec_common.h"
@@ -222,9 +215,3 @@ EXPORT void vec_doti4_bulk_offsets_2(
 ) {
     doti4_bulk_impl_avx512<offsets_mapper>(docs, query, packed_len, pitch, offsets, count, results);
 }
-
-#ifdef __clang__
-#pragma clang attribute pop
-#elif __GNUC__
-#pragma GCC pop_options
-#endif

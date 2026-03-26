@@ -60,7 +60,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.CancellationException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -96,6 +95,15 @@ public class SplitSourceService {
     public static final Setting<TimeValue> RESHARD_SPLIT_DELETE_UNOWNED_GRACE_PERIOD = Setting.positiveTimeSetting(
         "reshard.split.delete_unowned_grace_period",
         TimeValue.timeValueMinutes(5),
+        Setting.Property.NodeScope
+    );
+
+    /// We want to prevent the state machine from spinning in a hot loop.
+    /// This setting defines how long to wait between the retries.
+    /// This is not an actual registered setting and is only used in tests.
+    public static final Setting<TimeValue> STATE_MACHINE_RETRY_DELAY = Setting.positiveTimeSetting(
+        "reshard.split.source_shard_state_machine_retry_delay",
+        TimeValue.timeValueSeconds(10),
         Setting.Property.NodeScope
     );
 
@@ -822,7 +830,7 @@ public class SplitSourceService {
                         .schedule(
                             () -> advance(new State.MonitoringTargetShards()),
                             // Prevent from spinning as fast as possible.
-                            TimeValue.timeValueSeconds(10),
+                            TimeValue.timeValueMillis(100),
                             EsExecutors.DIRECT_EXECUTOR_SERVICE
                         );
                 }
@@ -877,12 +885,10 @@ public class SplitSourceService {
                     }
 
                     IndexReshardingState.Split split = getSplit(state, indexShard.shardId().getIndex());
-                    if (split == null) {
-                        // This is possible if the source shard failed right after setting up this listener,
-                        // another instance recovered and successfully completed the split.
-                        // TODO we can even we see a completely different split here in theory
-                        return true;
-                    }
+                    // This shouldn't be possible.
+                    // If there is a new instance of the shard that already completed the split,
+                    // current instance of the shard should be removed and we would hit the cancelled branch above.
+                    assert split != null;
 
                     if (indexShard.state() != IndexShardState.STARTED) {
                         // State can be POST_RECOVERY here because split progress tracking is set up during recovery.
@@ -906,14 +912,6 @@ public class SplitSourceService {
                     @Override
                     public void onNewClusterState(ClusterState state) {
                         if (cancelled.get()) {
-                            return;
-                        }
-
-                        // See the explanation in the predicate.
-                        // If there is no split metadata in the cluster state, there is no reason to do anything else here.
-                        // TODO should we just let the idempotent flow complete here?
-                        IndexReshardingState.Split split = getSplit(state, indexShard.shardId().getIndex());
-                        if (split == null) {
                             return;
                         }
 
@@ -947,6 +945,7 @@ public class SplitSourceService {
                     TransportUpdateSplitSourceShardStateAction.TYPE,
                     new TransportUpdateSplitSourceShardStateAction.Request(
                         indexShard.shardId(),
+                        indexShard.routingEntry().allocationId(),
                         IndexReshardingState.Split.SourceShardState.READY_FOR_CLEANUP
                     ),
                     // the response is empty
@@ -964,22 +963,10 @@ public class SplitSourceService {
                             @Override
                             public void onNewClusterState(ClusterState state) {
                                 if (cancelled.get()) {
-                                    stepListener.onFailure(new CancellationException());
                                     return;
                                 }
 
-                                IndexReshardingState.Split split = getSplit(state, indexShard.shardId().getIndex());
-                                if (split == null) {
-                                    // If there is no metadata anymore, there is nothing for us to do.
-                                    // An example situation is a relocation that happens during final steps of the workflow
-                                    // (e.g. moving to DONE).
-                                    // The relocated shard is able to move to DONE since the primary term doesn't change during relocation.
-                                    // Then during recovery of the relocation target shard we'll see that there is no metadata.
-                                    // TODO this will be fixed with the grace period before moving source shards to DONE.
-                                    stepListener.onFailure(new CancellationException());
-                                } else {
-                                    stepListener.onResponse(state);
-                                }
+                                stepListener.onResponse(state);
                             }
 
                             @Override
@@ -1023,7 +1010,7 @@ public class SplitSourceService {
                             .flatMap(pm -> Optional.ofNullable(clusterState.routingTable(pm.id()).index(index)));
                         if (indexRoutingTable.isEmpty()) {
                             // The index was deleted, nothing to do.
-                            stepListener.onFailure(new CancellationException());
+                            // Eventually this shard will be closed and all split-related state will be cleaned up.
                             return;
                         }
 
@@ -1076,6 +1063,7 @@ public class SplitSourceService {
                 TransportUpdateSplitSourceShardStateAction.TYPE,
                 new TransportUpdateSplitSourceShardStateAction.Request(
                     indexShard.shardId(),
+                    indexShard.routingEntry().allocationId(),
                     IndexReshardingState.Split.SourceShardState.DONE
                 ),
                 new StateAdvancingListener<>(new State.Done())

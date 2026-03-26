@@ -24,17 +24,21 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.support.replication.StaleRequestException;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.stateless.reshard.ReshardIndexRequest;
 import org.elasticsearch.xpack.stateless.reshard.TransportReshardAction;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -47,6 +51,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xpack.stateless.reshard.SplitSourceService.RESHARD_SPLIT_DELETE_UNOWNED_GRACE_PERIOD;
+import static org.elasticsearch.xpack.stateless.reshard.SplitSourceService.STATE_MACHINE_RETRY_DELAY;
 
 public class StatelessReshardMixedOperationsIT extends StatelessReshardDisruptionBaseIT {
     public void testMixedOperationsDuringSplit() throws Exception {
@@ -93,7 +98,21 @@ public class StatelessReshardMixedOperationsIT extends StatelessReshardDisruptio
         return super.nodeSettings().put(TransportReplicationAction.REPLICATION_RETRY_TIMEOUT.getKey(), "60s")
             // Reduce the grace period to speed up the test.
             // We should not see requests that were queued for a long time in a local cluster setup anyway.
-            .put(RESHARD_SPLIT_DELETE_UNOWNED_GRACE_PERIOD.getKey(), TimeValue.timeValueMillis(100));
+            .put(RESHARD_SPLIT_DELETE_UNOWNED_GRACE_PERIOD.getKey(), TimeValue.timeValueMillis(100))
+            // Reduce the delay between retries to speed up the test.
+            .put(STATE_MACHINE_RETRY_DELAY.getKey(), TimeValue.timeValueMillis(10));
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return CollectionUtils.appendToCopy(super.nodePlugins(), AddSettingPlugin.class);
+    }
+
+    public static class AddSettingPlugin extends Plugin {
+        @Override
+        public List<Setting<?>> getSettings() {
+            return List.of(STATE_MACHINE_RETRY_DELAY);
+        }
     }
 
     private class NoDisruptionExecutor implements PerThreadOperationExecutor {

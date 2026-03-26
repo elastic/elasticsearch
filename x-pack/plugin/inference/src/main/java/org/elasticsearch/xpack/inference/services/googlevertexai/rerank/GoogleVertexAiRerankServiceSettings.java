@@ -53,9 +53,7 @@ public class GoogleVertexAiRerankServiceSettings extends FilteredXContentObject
             context
         );
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new GoogleVertexAiRerankServiceSettings(projectId, model, rateLimitSettings);
     }

@@ -17,6 +17,7 @@
 
 package org.elasticsearch.xpack.stateless.reshard;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
@@ -29,6 +30,7 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexReshardingState;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -44,6 +46,10 @@ public class TransportUpdateSplitSourceShardStateAction extends TransportMasterN
     TransportUpdateSplitSourceShardStateAction.Request,
     ActionResponse> {
     public static final ActionType<ActionResponse> TYPE = new ActionType<>("indices:admin/reshard/split/update_source_shard_state");
+
+    public static final TransportVersion RESHARD_SPLIT_ALLOCATION_ID_IN_SOURCE_STATE_REQUEST = TransportVersion.fromName(
+        "reshard_split_allocation_id_in_source_state_request"
+    );
 
     private final ReshardIndexService reshardIndexService;
 
@@ -72,6 +78,7 @@ public class TransportUpdateSplitSourceShardStateAction extends TransportMasterN
         throws Exception {
         reshardIndexService.transitionSourceState(
             request.getShardId(),
+            request.getAllocationId(),
             request.getState(),
             listener.map(ignored -> ActionResponse.Empty.INSTANCE)
         );
@@ -86,17 +93,24 @@ public class TransportUpdateSplitSourceShardStateAction extends TransportMasterN
 
     public static class Request extends MasterNodeRequest<Request> {
         private final ShardId shardId;
+        private final AllocationId allocationId;
         private final IndexReshardingState.Split.SourceShardState state;
 
-        public Request(ShardId shardId, IndexReshardingState.Split.SourceShardState state) {
+        public Request(ShardId shardId, AllocationId allocationId, IndexReshardingState.Split.SourceShardState state) {
             super(INFINITE_MASTER_NODE_TIMEOUT);
             this.shardId = shardId;
+            this.allocationId = allocationId;
             this.state = state;
         }
 
         public Request(StreamInput in) throws IOException {
             super(in);
             this.shardId = new ShardId(in);
+            if (in.getTransportVersion().supports(RESHARD_SPLIT_ALLOCATION_ID_IN_SOURCE_STATE_REQUEST)) {
+                this.allocationId = new AllocationId(in);
+            } else {
+                this.allocationId = null;
+            }
             this.state = IndexReshardingState.Split.SourceShardState.readFrom(in);
         }
 
@@ -109,11 +123,18 @@ public class TransportUpdateSplitSourceShardStateAction extends TransportMasterN
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             shardId.writeTo(out);
+            if (out.getTransportVersion().supports(RESHARD_SPLIT_ALLOCATION_ID_IN_SOURCE_STATE_REQUEST)) {
+                allocationId.writeTo(out);
+            }
             state.writeTo(out);
         }
 
         public ShardId getShardId() {
             return shardId;
+        }
+
+        public AllocationId getAllocationId() {
+            return allocationId;
         }
 
         public IndexReshardingState.Split.SourceShardState getState() {

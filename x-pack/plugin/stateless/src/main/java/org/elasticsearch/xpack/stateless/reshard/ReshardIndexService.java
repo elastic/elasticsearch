@@ -34,6 +34,7 @@ import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
 import org.elasticsearch.cluster.metadata.IndexReshardingState;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
@@ -62,6 +63,8 @@ import org.elasticsearch.xpack.stateless.engine.HollowIndexEngine;
 import org.elasticsearch.xpack.stateless.engine.IndexEngine;
 
 import java.util.ArrayList;
+import java.util.Locale;
+import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 
@@ -251,10 +254,15 @@ public class ReshardIndexService {
         splitCompletionTracker.stopTrackingShard(shardId);
     }
 
-    public void transitionSourceState(ShardId shardId, IndexReshardingState.Split.SourceShardState state, ActionListener<Void> listener) {
+    public void transitionSourceState(
+        ShardId shardId,
+        AllocationId allocationId,
+        IndexReshardingState.Split.SourceShardState state,
+        ActionListener<Void> listener
+    ) {
         transitionSourceStateQueue.submitTask(
             "transition-split-source-shard-state [" + shardId + "]",
-            new TransitionSourceStateTask(shardId, state, listener),
+            new TransitionSourceStateTask(shardId, allocationId, state, listener),
             null
         );
     }
@@ -731,9 +739,12 @@ public class ReshardIndexService {
         return new Tuple<>(ClusterState.builder(clusterState).putProjectMetadata(projectMetadata.build()).build(), null);
     }
 
-    record TransitionSourceStateTask(ShardId shardId, IndexReshardingState.Split.SourceShardState state, ActionListener<Void> listener)
-        implements
-            ClusterStateTaskListener {
+    record TransitionSourceStateTask(
+        ShardId shardId,
+        AllocationId allocationId,
+        IndexReshardingState.Split.SourceShardState state,
+        ActionListener<Void> listener
+    ) implements ClusterStateTaskListener {
         @Override
         public void onFailure(Exception e) {
             listener.onFailure(e);
@@ -748,39 +759,38 @@ public class ReshardIndexService {
             IndexReshardingState.Split.SourceShardState targetState = task.state;
 
             final ProjectMetadata project = clusterState.metadata().projectFor(index);
+
+            var routingTable = clusterState.routingTable(project.id()).shardRoutingTable(shardId);
+            /// Input allocation id may not be present due to BWC,
+            /// see [TransportUpdateSplitSourceShardStateAction.RESHARD_SPLIT_ALLOCATION_ID_IN_SOURCE_STATE_REQUEST].
+            if (task.allocationId() != null && Objects.equals(routingTable.primaryShard().allocationId(), task.allocationId()) == false) {
+                // We made changes to the allocation of this shard since this request was created (this shard was relocated or failed).
+                // We don't want to apply it so that the state doesn't change underneath the new instance of the shard
+                // that is potentially already started.
+                // That new instance will retry applying this request.
+                throw new StaleStateChangeRequestException("Can't change split source shard state - allocation id is not current.");
+            }
+
             final ProjectState projectState = clusterState.projectState(project.id());
             final IndexMetadata indexMetadata = projectState.metadata().getIndexSafe(index);
             IndexReshardingMetadata reshardingMetadata = indexMetadata.getReshardingMetadata();
 
-            if (reshardingMetadata == null) {
-                // This is possible if a source shard failed right after sending a request to move to DONE
-                // and this is the last shard to move to DONE.
-                // It can then recover before source shard state is DONE in cluster state
-                // and will initiate an update to DONE again.
-                // In the meantime the initial update to DONE it processed and resharding metadata is removed
-                // by the cluster state observer waiting for all shards to be DONE.
-                assert targetState == IndexReshardingState.Split.SourceShardState.DONE;
+            // With the allocation id check above this shouldn't happen.
+            if (reshardingMetadata == null || reshardingMetadata.isSplit() == false) {
+                assert false : "Unexpected resharding metadata state";
+                throw new IllegalStateException("Unexpected resharding metadata state");
+            }
+
+            var currentState = reshardingMetadata.getSplit().getSourceShardState(shardId.id());
+            if (currentState == targetState) {
+                // Allowed in order to allow retries.
                 return new Tuple<>(clusterState, null);
             }
 
-            assert reshardingMetadata.isSplit();
-            var currentState = reshardingMetadata.getSplit().getSourceShardState(shardId.id());
-
-            assert currentState.ordinal() <= targetState.ordinal() : "Skipped state transition of source shard";
-
-            if (currentState == targetState) {
-                // This is possible if a source shard failed after submitting a state update request.
-                // Then during recovery the state transition was not done and a second request to do it was submitted,
-                // and we are handling that second request now.
-                logger.info(
-                    format(
-                        "Attempting to advance source shard %s to [%s] but it is already in [%s]. Proceeding.",
-                        shardId,
-                        targetState,
-                        currentState
-                    )
-                );
-                return new Tuple<>(clusterState, null);
+            if (currentState.ordinal() > targetState.ordinal()) {
+                var message = String.format(Locale.ROOT, "Can't transition split source backwards %s -> %s", currentState, targetState);
+                assert false : message;
+                throw new IllegalStateException(message);
             }
 
             if (targetState == IndexReshardingState.Split.SourceShardState.DONE) {

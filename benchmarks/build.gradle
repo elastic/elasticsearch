@@ -51,6 +51,7 @@ dependencies {
   api(project(':x-pack:plugin:analytics'))
   api(project(':x-pack:plugin:logsdb'))
   implementation project(path: ':libs:native')
+  implementation(testFixtures(project(':libs:native')))
   implementation project(path: ':libs:simdvec')
   implementation (testFixtures(project(path: ':libs:simdvec')))
   implementation project(path: ':libs:swisshash')
@@ -62,7 +63,7 @@ dependencies {
   }
   expression(project(path: ':modules:lang-expression', configuration: 'zip'))
   painless(project(path: ':modules:lang-painless', configuration: 'zip'))
-  nativeLib(project(':libs:native'))
+  nativeLib(project(path: ':libs:native:native-libraries', configuration: 'default'))
   api "org.openjdk.jmh:jmh-core:$versions.jmh"
   annotationProcessor "org.openjdk.jmh:jmh-generator-annprocess:$versions.jmh"
   // Dependencies of JMH
@@ -98,12 +99,12 @@ tasks.named("run").configure {
   dependsOn "copyExpression", "copyPainless", configurations.nativeLib
   systemProperty 'plugins.dir', "${buildDir}/plugins"
   systemProperty 'tests.index', "${buildDir}/index"
-  systemProperty 'es.nativelibs.path', TestUtil.getTestLibraryPath(file("../libs/native/libraries/build/platform/").toString())
+  systemProperty 'es.nativelibs.path', providers.provider { TestUtil.getTestLibraryPath(configurations.nativeLib.asPath) }
 }
 
 tasks.named('test').configure {
   if (buildParams.getRuntimeJavaVersion().map{ it.majorVersion.toInteger() }.get() >= 21) {
-    jvmArgs '--add-modules=jdk.incubator.vector'
+    jvmArgs '--add-modules=jdk.incubator.vector', '--add-opens=java.base/java.nio=ALL-UNNAMED'
   }
 }
 

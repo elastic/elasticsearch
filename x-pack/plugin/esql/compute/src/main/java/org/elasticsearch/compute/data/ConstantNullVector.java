@@ -121,6 +121,12 @@ public final class ConstantNullVector extends AbstractVector
     }
 
     @Override
+    public ConstantNullVector slice(int beginInclusive, int endExclusive) {
+        assert false : "null vector";
+        throw new UnsupportedOperationException("null vector");
+    }
+
+    @Override
     public boolean allTrue() {
         assert false : "null vector";
         throw new UnsupportedOperationException("null vector");

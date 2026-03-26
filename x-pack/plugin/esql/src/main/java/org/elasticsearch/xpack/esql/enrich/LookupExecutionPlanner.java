@@ -18,6 +18,7 @@ import org.elasticsearch.compute.lucene.IndexedByShardIdFromSingleton;
 import org.elasticsearch.compute.lucene.ShardContext;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.operator.EvalOperator.EvalOperatorFactory;
 import org.elasticsearch.compute.operator.FilterOperator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.Operator.OperatorFactory;
@@ -37,6 +38,7 @@ import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
@@ -45,6 +47,7 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
+import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
@@ -271,6 +274,8 @@ public class LookupExecutionPlanner {
             );
         } else if (node instanceof FieldExtractExec fieldExtractExec) {
             return planFieldExtractExec(plannerSettings, fieldExtractExec, source);
+        } else if (node instanceof EvalExec evalExec) {
+            return planEvalExec(evalExec, source, foldCtx);
         } else if (node instanceof FilterExec filterExec) {
             return planFilterExec(filterExec, source, foldCtx);
         } else if (node instanceof ProjectExec projectExec) {
@@ -304,7 +309,8 @@ public class LookupExecutionPlanner {
             parameterizedQueryExec.joinOnConditions(),
             parameterizedQueryExec.query(),
             lookupSource,
-            queryListFromPlanFactory
+            queryListFromPlanFactory,
+            parameterizedQueryExec.emptyResult()
         );
 
         return PhysicalOperation.fromSource(sourceFactory, layout).with(enrichQueryFactory, layout);
@@ -408,6 +414,16 @@ public class LookupExecutionPlanner {
         }, layout);
     }
 
+    private PhysicalOperation planEvalExec(EvalExec evalExec, PhysicalOperation source, FoldContext foldCtx) {
+        for (Alias field : evalExec.fields()) {
+            var evaluatorSupplier = EvalMapper.toEvaluator(foldCtx, field.child(), source.layout());
+            Layout.Builder layout = source.layout().builder();
+            layout.append(field.toAttribute());
+            source = source.with(new EvalOperatorFactory(evaluatorSupplier), layout.build());
+        }
+        return source;
+    }
+
     private PhysicalOperation planFilterExec(FilterExec filterExec, PhysicalOperation source, FoldContext foldCtx) {
         return source.with(
             new FilterOperator.FilterOperatorFactory(EvalMapper.toEvaluator(foldCtx, filterExec.condition(), source.layout())),
@@ -441,7 +457,8 @@ public class LookupExecutionPlanner {
         @Nullable Expression joinOnConditions,
         @Nullable QueryBuilder query,
         Source planSource,
-        QueryListFromPlanFactory queryListFromPlanFactory
+        QueryListFromPlanFactory queryListFromPlanFactory,
+        boolean emptyResult
     ) implements OperatorFactory {
         @Override
         public Operator get(DriverContext driverContext) {
@@ -468,13 +485,14 @@ public class LookupExecutionPlanner {
                 shardContexts,
                 shardId,
                 searchExecutionContext,
-                warnings
+                warnings,
+                emptyResult
             );
         }
 
         @Override
         public String describe() {
-            return "LookupQueryOperator[maxPageSize=" + maxPageSize + "]";
+            return "LookupQueryOperator[maxPageSize=" + maxPageSize + ", emptyResult=" + emptyResult + "]";
         }
     }
 

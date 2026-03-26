@@ -84,6 +84,8 @@ public class AggregateMetricDoubleFieldMapperTests extends MapperTestCase {
             b.field("type", CONTENT_TYPE).field(METRICS_FIELD, new String[] { "min", "max" });
         }));
 
+        checker.registerConflictCheck("time_series_metric", b -> b.field("time_series_metric", "gauge"));
+
         checker.registerConflictCheck(METRICS_FIELD, fieldMapping(this::minimalMapping), fieldMapping(b -> {
             b.field("type", CONTENT_TYPE).field(METRICS_FIELD, new String[] { "min", "max", "value_count", "sum" });
         }));

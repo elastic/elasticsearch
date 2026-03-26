@@ -5,6 +5,7 @@
 #include <stdint.h>
 #include <assert.h>
 #include <type_traits>
+#include <utility>
 
 template <uintptr_t align>
 static inline uintptr_t align_downwards(const void* ptr) {
@@ -29,33 +30,40 @@ static inline auto sqr_scalar(const T a, const T b) {
     return d * d;
 }
 
-static inline int64_t identity_mapper(const int32_t i, const int32_t* offsets) {
-   return i;
+// --- Mapper functions ---
+// Each mapper resolves the i-th document vector to a direct pointer.
+// All share the same signature so they can be passed as a template
+// parameter to the bulk scoring templates (call_i8_bulk, call_f32_bulk, etc.).
+
+// Contiguous layout: vectors are packed sequentially, each `pitch` elements apart.
+template <typename T>
+static inline const T* sequential_mapper(const T* data, const int32_t i, const int32_t* offsets, const int32_t pitch) {
+    return data + (int64_t)i * pitch;
 }
 
-static inline int64_t array_mapper(const int32_t i, const int32_t* offsets) {
-   return offsets[i];
+// Offset layout: vectors share a common base but are at non-sequential positions
+// given by offsets[i], each `pitch` elements from the base.
+template <typename T>
+static inline const T* offsets_mapper(const T* data, const int32_t i, const int32_t* offsets, const int32_t pitch) {
+    return data + (int64_t)offsets[i] * pitch;
 }
 
-template <typename T, int offset, int64_t(*mapper)(const int32_t, const int32_t*)>
-static inline const T* safe_mapper_offset(
-    const T* a,
-    const int32_t pitch,
-    const int32_t* offsets,
-    const int32_t count
-) {
-    return count > offset ? a + mapper(offset, offsets) * pitch : nullptr;
+// Sparse layout: vectors reside in disjoint memory regions. `data` is an array
+// of pre-resolved pointers — one per vector — so pitch and offsets are unused.
+template <typename T>
+static inline const T* sparse_mapper(const T* const* data, const int32_t i, const int32_t* offsets, const int32_t pitch) {
+    return data[i];
 }
 
-// Populates out[0..N-1] with safe_mapper_offset<T, 0..N-1, mapper>(...),
-// using recursive template instantiation to supply each array index as a
-// compile-time constant (required by safe_mapper_offset's template parameter).
-template <int N, typename T, int64_t(*mapper)(const int32_t, const int32_t*), int I = 0>
-static inline void init_offsets(const T** out, const T* a, int32_t pitch,
-                                const int32_t* offsets, int32_t count) {
+// Populates out[0..N-1] by invoking mapper for indices [base..base+N-1],
+// with a bounds check that sets out-of-range entries to nullptr.
+// Uses recursive template instantiation so each index is a compile-time constant.
+template <int N, typename TData, typename T, const T*(*mapper)(const TData*, const int32_t, const int32_t*, const int32_t), int I = 0>
+static inline void init_pointers(const T** out, const TData* a, int32_t pitch,
+                                 const int32_t* offsets, int32_t base, int32_t count) {
     if constexpr (I < N) {
-        out[I] = safe_mapper_offset<T, I, mapper>(a, pitch, offsets, count);
-        init_offsets<N, T, mapper, I + 1>(out, a, pitch, offsets, count);
+        out[I] = (base + I < count) ? mapper(a, base + I, offsets, pitch) : nullptr;
+        init_pointers<N, TData, T, mapper, I + 1>(out, a, pitch, offsets, base, count);
     }
 }
 

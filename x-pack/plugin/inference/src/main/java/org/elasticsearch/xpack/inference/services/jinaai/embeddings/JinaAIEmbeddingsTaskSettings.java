@@ -60,9 +60,7 @@ public class JinaAIEmbeddingsTaskSettings implements TaskSettings {
 
         Boolean lateChunking = extractOptionalBoolean(map, LATE_CHUNKING, validationException);
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
         if (inputType == null && lateChunking == null) {
             return EMPTY_SETTINGS;
         } else {

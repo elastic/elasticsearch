@@ -53,9 +53,12 @@ import org.elasticsearch.xpack.esql.analysis.PreAnalyzer;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
 import org.elasticsearch.xpack.esql.approximation.Approximation;
+import org.elasticsearch.xpack.esql.approximation.ApproximationSettings;
+import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtractor;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
@@ -63,6 +66,7 @@ import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
 import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.inference.InferenceResolution;
@@ -80,6 +84,7 @@ import org.elasticsearch.xpack.esql.plan.QuerySetting;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.SettingsValidationContext;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
+import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
@@ -93,6 +98,7 @@ import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
 import org.elasticsearch.xpack.esql.planner.premapper.PreMapper;
 import org.elasticsearch.xpack.esql.plugin.ComputeService;
 import org.elasticsearch.xpack.esql.plugin.TransportActionServices;
+import org.elasticsearch.xpack.esql.telemetry.FeatureMetric;
 import org.elasticsearch.xpack.esql.telemetry.Metrics;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
 import org.elasticsearch.xpack.esql.view.ViewResolver;
@@ -112,7 +118,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Function;
 
 import static java.util.stream.Collectors.toSet;
 import static org.elasticsearch.xpack.esql.plan.QuerySettings.UNMAPPED_FIELDS;
@@ -242,7 +247,7 @@ public class EsqlSession {
         executionInfo.queryProfile().planning().start();
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH);
         assert executionInfo != null : "Null EsqlExecutionInfo";
-        LOGGER.debug("ESQL query:\n{}", request.query());
+        LOGGER.debug("ESQL query:\n{}", request.queryDescription());
         TimeSpanMarker parsingProfile = executionInfo.queryProfile().parsing();
         parsingProfile.start();
         EsqlStatement statement = parse(request);
@@ -254,7 +259,6 @@ public class EsqlSession {
                 query,
                 request.params(),
                 SettingsValidationContext.from(remoteClusterService),
-                planTelemetry,
                 inferenceService.inferenceSettings(),
                 viewName
             ).plan(),
@@ -273,6 +277,13 @@ public class EsqlSession {
         ActionListener<Versioned<Result>> listener
     ) {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH);
+
+        // this is stack telemetry
+        gatherViewMetrics(viewResolution);
+
+        // this is APM
+        gatherPlanTelemetry(viewResolution.plan(), statement.settings());
+
         PlanTimeProfile planTimeProfile = request.profile() ? new PlanTimeProfile() : null;
 
         ZoneId timeZone = request.timeZone() == null
@@ -297,7 +308,7 @@ public class EsqlSession {
             analyzerSettings.timeseriesResultTruncationMaxSize(),
             analyzerSettings.timeseriesResultTruncationDefaultSize(),
             projectRouting(request, statement),
-            statement.setting(QuerySettings.APPROXIMATION),
+            approximationSettings(request, statement),
             viewResolution.viewQueries()
         );
 
@@ -353,9 +364,7 @@ public class EsqlSession {
                                 p,
                                 finalConfiguration,
                                 foldContext,
-                                configuration.approximationSettings() != null
-                                    ? new Approximation(p, configuration.approximationSettings())
-                                    : null,
+                                Approximation.create(p, configuration.approximationSettings()),
                                 minimumVersion,
                                 planTimeProfile,
                                 l
@@ -378,6 +387,13 @@ public class EsqlSession {
             throw new VerificationException("[project_routing] is only allowed when cross-project search is enabled");
         }
         return projectRouting;
+    }
+
+    public static ApproximationSettings approximationSettings(EsqlQueryRequest request, EsqlStatement statement) {
+        // The precedence for settings is: SET in the statement > request parameter > default (=disabled).
+        return new ApproximationSettings.Builder(false).merge(request.approximation())
+            .merge(statement.setting(QuerySettings.APPROXIMATION))
+            .build();
     }
 
     /**
@@ -571,7 +587,11 @@ public class EsqlSession {
      * @param newMainPlan callback to build the new main plan based on the subplan results
      * @param cleanup     callback to release any resources hold by the subplan results
      */
-    private record SubPlanAndCallback(LogicalPlan subPlan, Function<Result, LogicalPlan> newMainPlan, Runnable cleanup) {};
+    private record SubPlanAndCallback(
+        LogicalPlan subPlan,
+        java.util.function.Function<Result, LogicalPlan> newMainPlan,
+        Runnable cleanup
+    ) {};
 
     private SubPlanAndCallback firstSubPlan(LogicalPlan optimizedPlan, Approximation approximation, Set<LocalRelation> subPlansResults) {
         if (approximation != null) {
@@ -698,13 +718,42 @@ public class EsqlSession {
     }
 
     private EsqlStatement parse(EsqlQueryRequest request) {
-        return parser.parse(
-            request.query(),
-            request.params(),
-            SettingsValidationContext.from(remoteClusterService),
-            planTelemetry,
-            inferenceService.inferenceSettings()
-        );
+        return request.parse(parser, SettingsValidationContext.from(remoteClusterService), inferenceService.inferenceSettings());
+    }
+
+    /**
+     * Populates {@code planTelemetry} from the view-resolved plan, capturing commands, functions,
+     * and settings from the original statement plus any nodes introduced by view expansion.
+     */
+    private void gatherPlanTelemetry(LogicalPlan plan, List<QuerySetting> settings) {
+        EsqlFunctionRegistry registry = planTelemetry.functionRegistry().snapshotRegistry();
+        // Collect Aggregate nodes that are the inner aggregate of an INLINE STATS command; those
+        // should not be counted as standalone STATS commands.
+        Set<LogicalPlan> inlineStatsAggregates = new HashSet<>();
+        plan.forEachDown(InlineStats.class, inlineStats -> inlineStatsAggregates.add(inlineStats.aggregate()));
+        plan.forEachDown(node -> {
+            if (node instanceof TelemetryAware ta && ta.telemetryLabel() != null && inlineStatsAggregates.contains(node) == false) {
+                // Not all TelemetryAware nodes have a label — e.g. lookup index UnresolvedRelation
+                // nodes introduced by LOOKUP JOIN have a null command name; those are skipped.
+                // Aggregate nodes that are the inner aggregate of INLINE STATS are also skipped —
+                // the INLINE STATS node itself is counted instead.
+                planTelemetry.command(ta);
+            }
+            node.forEachExpression(Function.class, f -> {
+                if (f instanceof UnresolvedFunction uf) {
+                    planTelemetry.function(uf.name());
+                } else if (registry.functionExists(f.getClass())) {
+                    // Concrete Function instances arise from inline cast expressions (e.g. x::long)
+                    // or programmatically-built plans (e.g. Prometheus plan builders).
+                    // Not all Function subclasses are user-callable (e.g. Add, GreaterThan are
+                    // Function subclasses but are never in the registry); those are skipped.
+                    planTelemetry.function(f.getClass());
+                }
+            });
+        });
+        if (settings != null) {
+            settings.forEach(s -> planTelemetry.setting(s.name()));
+        }
     }
 
     private void gatherSettingsMetrics(EsqlStatement statement) {
@@ -717,6 +766,13 @@ public class EsqlSession {
         // (e.g., snapshot-only settings are not registered in non-snapshot builds).
         // incSetting() silently ignores settings that don't have a registered counter.
         statement.settings().stream().map(QuerySetting::name).distinct().forEach(metrics::incSetting);
+    }
+
+    private void gatherViewMetrics(ViewResolver.ViewResolutionResult viewResolution) {
+        if (metrics == null || viewResolution.viewQueries().isEmpty()) {
+            return;
+        }
+        metrics.inc(FeatureMetric.VIEW);
     }
 
     /**
@@ -791,8 +847,11 @@ public class EsqlSession {
         // Initialize the PreAnalysisResult with the local cluster's minimum transport version, so our planning will be correct also in
         // case of ROW queries. ROW queries can still require inter-node communication (for ENRICH and LOOKUP JOIN execution) with an older
         // node in the same cluster; so assuming that all nodes are on the same version as this node will be wrong and may cause bugs.
-        PreAnalysisResult result = FieldNameUtils.resolveFieldNames(parsed, preAnalysis.enriches().isEmpty() == false)
-            .withMinimumTransportVersion(localClusterMinimumVersion);
+        PreAnalysisResult result = FieldNameUtils.resolveFieldNames(
+            parsed,
+            preAnalysis.enriches().isEmpty() == false,
+            unmappedResolution == UnmappedResolution.LOAD
+        ).withMinimumTransportVersion(localClusterMinimumVersion);
         String description = requestFilter == null ? "the only attempt without filter" : "first attempt with filter";
 
         resolveIndicesAndAnalyze(
@@ -1377,7 +1436,14 @@ public class EsqlSession {
         QueryBuilder requestFilter
     ) throws Exception {
         handleFieldCapsFailures(configuration.allowPartialResults(), executionInfo, r.indexResolution());
-        var timestampBounds = QueryDslTimestampBoundsExtractor.extractTimestampBounds(requestFilter);
+        var timestampBounds = QueryDslTimestampBoundsExtractor.extractTimestampBounds(
+            requestFilter,
+            // Resolve date math against the query start time. If this uses the wall clock during planning instead,
+            // filters like [@timestamp >= now-5m AND @timestamp <= now] drift relative to Configuration.now(), so inferred
+            // timestamp bounds can shift within one request and misanchor TBUCKET/TSTEP bucketing.
+            // TODO: support nanos resolution for date_nanos fields
+            configuration::absoluteStartedTimeInMillis
+        );
         AnalyzerContext analyzerContext = new AnalyzerContext(
             configuration,
             functionRegistry,

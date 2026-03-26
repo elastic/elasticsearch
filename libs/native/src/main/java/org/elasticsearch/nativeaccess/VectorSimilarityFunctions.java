@@ -39,24 +39,28 @@ public interface VectorSimilarityFunctions {
         /**
          * Unsigned int7. Single vector score returns results as an int.
          */
-        INT7U(Byte.BYTES),
+        INT7U(Byte.SIZE),
+        /**
+         * 4-bit packed nibble. Two values per byte; single vector score returns results as an int.
+         */
+        INT4(4),
         /**
          * 1-byte int. Single vector score returns results as an int.
          */
-        INT8(Byte.BYTES),
+        INT8(Byte.SIZE),
         /**
          * 4-byte float. Single vector score returns results as a float.
          */
-        FLOAT32(Float.BYTES);
+        FLOAT32(Float.SIZE);
 
-        private final int bytes;
+        private final int bits;
 
-        DataType(int bytes) {
-            this.bytes = bytes;
+        DataType(int bits) {
+            this.bits = bits;
         }
 
-        public int bytes() {
-            return bytes;
+        public int bits() {
+            return bits;
         }
     }
 
@@ -132,7 +136,21 @@ public interface VectorSimilarityFunctions {
          *     <li>Score results, as 4-byte floats, in order of iteration through the offset array</li>
          * </ol>
          */
-        BULK_OFFSETS
+        BULK_OFFSETS,
+        /**
+         * Scores multiple vectors against a single vector, using an array of direct memory addresses
+         * to locate each vector.
+         * <p>
+         * Method handle takes arguments {@code (MemorySegment, MemorySegment, int, int, MemorySegment)}:
+         * <ol>
+         *     <li>Array of 8-byte longs containing the native memory address of each vector</li>
+         *     <li>Single vector to score against</li>
+         *     <li>Number of dimensions, or for bbq, the number of index bytes</li>
+         *     <li>Number of vectors to score</li>
+         *     <li>Score results, as 4-byte floats</li>
+         * </ol>
+         */
+        BULK_SPARSE
     }
 
     MethodHandle getHandle(Function function, DataType dataType, Operation operation);

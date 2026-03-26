@@ -96,7 +96,7 @@ import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
-import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.APPROXIMATION_V3;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.APPROXIMATION_V5;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.EXPLAIN;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.allOf;
@@ -2214,6 +2214,8 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
             // Normalize source position references like @1:19 or @_:19
             .replaceAll("@\\d+:\\d+", "@_:_")
             .replaceAll("@_:\\d+", "@_:_")
+            // Normalize source text (may be absent when query is null, e.g. PreparedEsqlQueryRequest)
+            .replaceAll("(\"source\":\"?)[^@\"]*(@_:_)", "$1$2")
             // Remove memory addresses
             .replaceAll("@[0-9a-f]+", "@_")
             // Remove UUIDs
@@ -2522,7 +2524,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
      */
     public void testExplainWithApproximation() {
         assumeTrue("EXPLAIN requires the capability to be enabled", EXPLAIN.isEnabled());
-        assumeTrue("Approximation requires the capability to be enabled", APPROXIMATION_V3.isEnabled());
+        assumeTrue("Approximation requires the capability to be enabled", APPROXIMATION_V5.isEnabled());
 
         String indexName = "explain_approximation_test";
 

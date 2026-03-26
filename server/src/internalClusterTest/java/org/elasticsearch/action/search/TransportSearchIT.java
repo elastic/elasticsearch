@@ -11,6 +11,7 @@ package org.elasticsearch.action.search;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.ScoreMode;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
@@ -23,6 +24,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
@@ -38,6 +40,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.MockSearchService;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
@@ -503,7 +506,10 @@ public class TransportSearchIT extends ESIntegTestCase {
                     Exception.class,
                     client.prepareSearch("test").addAggregation(new TestAggregationBuilder("test"))
                 );
-                assertThat(exc.getCause().getMessage(), containsString("<reduce_aggs>"));
+                assertNotNull(
+                    "root cause must be a CircuitBreakingException",
+                    ExceptionsHelper.unwrap(exc, CircuitBreakingException.class)
+                );
             });
 
             final AtomicArray<Exception> exceptions = new AtomicArray<>(10);
@@ -530,13 +536,31 @@ public class TransportSearchIT extends ESIntegTestCase {
             latch.await();
             assertThat(exceptions.asList().size(), equalTo(10));
             for (Exception exc : exceptions.asList()) {
-                assertThat(exc.getCause().getMessage(), containsString("<reduce_aggs>"));
+                assertNotNull(
+                    "root cause must be a CircuitBreakingException",
+                    ExceptionsHelper.unwrap(exc, CircuitBreakingException.class)
+                );
             }
             assertBusy(() -> assertThat(requestBreakerUsed(), equalTo(0L)));
+            assertBusy(MockSearchService::assertNoInFlightContext);
         } finally {
             updateClusterSettings(
                 Settings.builder().putNull("indices.breaker.request.limit").putNull(SearchService.BATCHED_QUERY_PHASE.getKey())
             );
+        }
+    }
+
+    public void testReaderContextFreedOnSerializationFailure() throws Exception {
+        String coordinatingNode = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
+        indexSomeDocs("test", 1, 3);
+        ensureGreen("test");
+
+        updateClusterSettings(Settings.builder().put("indices.breaker.request.limit", "1b"));
+        try {
+            expectThrows(Exception.class, client(coordinatingNode).prepareSearch("test")::get);
+            assertBusy(MockSearchService::assertNoInFlightContext);
+        } finally {
+            updateClusterSettings(Settings.builder().putNull("indices.breaker.request.limit"));
         }
     }
 

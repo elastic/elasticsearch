@@ -79,9 +79,7 @@ public class IbmWatsonxEmbeddingsServiceSettings extends FilteredXContentObject
             context
         );
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new IbmWatsonxEmbeddingsServiceSettings(
             model,

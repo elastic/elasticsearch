@@ -105,6 +105,8 @@ public final class JdkVectorLibrary implements VectorLibrary {
                     ADDRESS
                 );
 
+                FunctionDescriptor bulkSparse = FunctionDescriptor.ofVoid(ADDRESS, ADDRESS, JAVA_INT, JAVA_INT, ADDRESS);
+
                 for (Function f : Function.values()) {
                     String funcName = switch (f) {
                         case COSINE -> "cos";
@@ -117,25 +119,32 @@ public final class JdkVectorLibrary implements VectorLibrary {
                             case SINGLE -> "";
                             case BULK -> "_bulk";
                             case BULK_OFFSETS -> "_bulk_offsets";
+                            case BULK_SPARSE -> "_bulk_sparse";
                         };
 
                         for (DataType type : DataType.values()) {
                             // Only byte vectors have cosine
                             // as floats are normalized to unit length to use dot_product instead
                             if (f == Function.COSINE && type != DataType.INT8) continue;
+                            // Only DOT_PRODUCT is needed for int4 — other functions are computed by
+                            // applying correction terms on top of the raw dot product result.
+                            if (f != Function.DOT_PRODUCT && type == DataType.INT4) continue;
+                            // BULK_SPARSE only for INT7U and INT8 — no native sparse functions exist for FLOAT32 or INT4
+                            if (op == Operation.BULK_SPARSE && (type == DataType.FLOAT32 || type == DataType.INT4)) continue;
 
                             String typeName = switch (type) {
                                 case INT7U -> "i7u";
+                                case INT4 -> "i4";
                                 case INT8 -> "i8";
                                 case FLOAT32 -> "f32";
                             };
 
                             FunctionDescriptor descriptor = switch (op) {
                                 case SINGLE -> switch (type) {
-                                    case INT7U -> intSingle;
+                                    case INT7U, INT4 -> intSingle;
                                     case INT8, FLOAT32 -> floatSingle;
                                 };
-                                case BULK -> bulk;
+                                case BULK, BULK_SPARSE -> bulk;
                                 case BULK_OFFSETS -> bulkOffsets;
                             };
 
@@ -146,6 +155,8 @@ public final class JdkVectorLibrary implements VectorLibrary {
                         for (BBQType type : BBQType.values()) {
                             // not implemented yet...
                             if (f == Function.COSINE || f == Function.SQUARE_DISTANCE) continue;
+                            // BULK_SPARSE not yet implemented for BBQ
+                            if (op == Operation.BULK_SPARSE) continue;
 
                             String typeName = switch (type) {
                                 case D1Q4 -> "d1q4";
@@ -155,7 +166,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
 
                             FunctionDescriptor descriptor = switch (op) {
                                 case SINGLE -> longSingle;
-                                case BULK -> bulk;
+                                case BULK, BULK_SPARSE -> bulk;
                                 case BULK_OFFSETS -> bulkOffsets;
                             };
 
@@ -262,8 +273,8 @@ public final class JdkVectorLibrary implements VectorLibrary {
             return new AssertionError(msg, t);
         }
 
-        static boolean checkBulk(int elementSize, MemorySegment a, MemorySegment b, int length, int count, MemorySegment result) {
-            Objects.checkFromIndexSize(0L, (long) length * count * elementSize, a.byteSize());
+        static boolean checkBulk(int elementBits, MemorySegment a, MemorySegment b, int length, int count, MemorySegment result) {
+            Objects.checkFromIndexSize(0L, (long) length * count * elementBits / 8, a.byteSize());
             Objects.checkFromIndexSize(0L, length, b.byteSize());
             Objects.checkFromIndexSize(0L, (long) count * Float.BYTES, result.byteSize());
             return true;
@@ -285,8 +296,24 @@ public final class JdkVectorLibrary implements VectorLibrary {
             return true;
         }
 
+        static boolean checkBulkSparse(
+            int elementBits,
+            MemorySegment addresses,
+            MemorySegment b,
+            int length,
+            int count,
+            MemorySegment result
+        ) {
+            assert elementBits % 8 == 0 : "requires byte-aligned element types";
+            Objects.checkFromIndexSize(0L, (long) count * Long.BYTES, addresses.byteSize());
+            Objects.checkFromIndexSize(0L, (long) length * elementBits / 8, b.byteSize());
+            Objects.checkFromIndexSize(0L, (long) count * Float.BYTES, result.byteSize());
+            assert validateBulkSparse(addresses, count, length, elementBits, result);
+            return true;
+        }
+
         static boolean checkBulkOffsets(
-            int elementSize,
+            int elementBits,
             MemorySegment a,
             MemorySegment b,
             int length,
@@ -295,11 +322,13 @@ public final class JdkVectorLibrary implements VectorLibrary {
             int count,
             MemorySegment result
         ) {
-            if (pitch < length * elementSize) throw new IllegalArgumentException("Pitch needs to be at least " + length);
+            long rowBytes = (long) length * elementBits / 8;
+            if (pitch < rowBytes) throw new IllegalArgumentException("Pitch needs to be at least " + length);
             Objects.checkFromIndexSize(0L, (long) pitch * count, a.byteSize());
-            Objects.checkFromIndexSize(0L, (long) length * elementSize, b.byteSize());
+            Objects.checkFromIndexSize(0L, rowBytes, b.byteSize());
             Objects.checkFromIndexSize(0L, (long) count * Integer.BYTES, offsets.byteSize());
             Objects.checkFromIndexSize(0L, (long) count * Float.BYTES, result.byteSize());
+            assert validateBulkOffsets(a, offsets, count, length, pitch, result, rowBytes);
             return true;
         }
 
@@ -322,7 +351,76 @@ public final class JdkVectorLibrary implements VectorLibrary {
             Objects.checkFromIndexSize(0L, (long) datasetVectorLengthInBytes * (queryBits / dataBits), b.byteSize());
             Objects.checkFromIndexSize(0L, (long) count * Integer.BYTES, offsets.byteSize());
             Objects.checkFromIndexSize(0L, (long) count * Float.BYTES, result.byteSize());
+            assert validateBBQBulkOffsets(a, offsets, count, datasetVectorLengthInBytes, pitch, result);
             return true;
+        }
+
+        static boolean validateBulkOffsets(
+            MemorySegment a,
+            MemorySegment offsets,
+            int count,
+            int length,
+            int pitch,
+            MemorySegment result,
+            long rowBytes
+        ) {
+            if (count < 0) throw new IllegalArgumentException("count must be non-negative: " + count);
+            if (length <= 0) throw new IllegalArgumentException("length must be positive: " + length);
+            if (pitch <= 0) throw new IllegalArgumentException("pitch must be positive: " + pitch);
+            checkSegmentAlignment(offsets, Integer.BYTES, "offsets", "int");
+            checkSegmentAlignment(result, Float.BYTES, "result", "float");
+            long aSize = a.byteSize();
+            for (int i = 0; i < count; i++) {
+                int offset = offsets.getAtIndex(JAVA_INT, i);
+                Objects.checkFromIndexSize((long) offset * pitch, rowBytes, aSize);
+            }
+            return true;
+        }
+
+        static boolean validateBBQBulkOffsets(
+            MemorySegment a,
+            MemorySegment offsets,
+            int count,
+            int datasetVectorLengthInBytes,
+            int pitch,
+            MemorySegment result
+        ) {
+            if (count < 0) throw new IllegalArgumentException("count must be non-negative: " + count);
+            if (datasetVectorLengthInBytes <= 0) {
+                throw new IllegalArgumentException("datasetVectorLengthInBytes must be positive: " + datasetVectorLengthInBytes);
+            }
+            if (pitch <= 0) throw new IllegalArgumentException("pitch must be positive: " + pitch);
+            checkSegmentAlignment(offsets, Integer.BYTES, "offsets", "int");
+            checkSegmentAlignment(result, Float.BYTES, "result", "float");
+            long aSize = a.byteSize();
+            for (int i = 0; i < count; i++) {
+                int offset = offsets.getAtIndex(JAVA_INT, i);
+                Objects.checkFromIndexSize((long) offset * pitch, datasetVectorLengthInBytes, aSize);
+            }
+            return true;
+        }
+
+        static boolean validateBulkSparse(MemorySegment addresses, int count, int length, int elementBits, MemorySegment result) {
+            if (count < 0) throw new IllegalArgumentException("count must be non-negative: " + count);
+            if (length <= 0) throw new IllegalArgumentException("length must be positive: " + length);
+            checkSegmentAlignment(addresses, Long.BYTES, "addresses", "long");
+            checkSegmentAlignment(result, Float.BYTES, "result", "float");
+            long vectorBytes = (long) length * elementBits / 8;
+            for (int i = 0; i < count; i++) {
+                long addr = addresses.getAtIndex(JAVA_LONG, i);
+                if (addr == 0) {
+                    throw new IllegalArgumentException("address at index " + i + " is null");
+                }
+                MemorySegment vec = MemorySegment.ofAddress(addr).reinterpret(vectorBytes);
+                Objects.checkFromIndexSize(0L, vectorBytes, vec.byteSize());
+            }
+            return true;
+        }
+
+        private static void checkSegmentAlignment(MemorySegment segment, int alignment, String name, String type) {
+            if (segment.address() % alignment != 0) {
+                throw new IllegalArgumentException(name + " segment not aligned to " + type + " boundary");
+            }
         }
 
         private static final MethodHandle dotI7uHandle = HANDLES.get(
@@ -343,6 +441,16 @@ public final class JdkVectorLibrary implements VectorLibrary {
             checkByteSize(a, b);
             Objects.checkFromIndexSize(0L, length, a.byteSize());
             return callSingleDistanceInt(squareI7uHandle, a, b, length);
+        }
+
+        private static final MethodHandle dotI4Handle = HANDLES.get(
+            new OperationSignature<>(Function.DOT_PRODUCT, DataType.INT4, Operation.SINGLE)
+        );
+
+        static int dotProductI4(MemorySegment a, MemorySegment b, int elementCount) {
+            Objects.checkFromIndexSize(0L, 2L * elementCount, a.byteSize());
+            Objects.checkFromIndexSize(0L, elementCount, b.byteSize());
+            return callSingleDistanceInt(dotI4Handle, a, b, elementCount);
         }
 
         private static final MethodHandle cosI8Handle = HANDLES.get(
@@ -561,6 +669,10 @@ public final class JdkVectorLibrary implements VectorLibrary {
                                             type = MethodType.methodType(int.class, MemorySegment.class, MemorySegment.class, int.class);
                                             checkMethod += "I7u";
                                             break;
+                                        case INT4:
+                                            type = MethodType.methodType(int.class, MemorySegment.class, MemorySegment.class, int.class);
+                                            checkMethod += "I4";
+                                            break;
                                         case INT8:
                                             type = MethodType.methodType(float.class, MemorySegment.class, MemorySegment.class, int.class);
                                             checkMethod += "I8";
@@ -623,7 +735,34 @@ public final class JdkVectorLibrary implements VectorLibrary {
                                         )
                                     );
                                     yield MethodHandles.guardWithTest(
-                                        MethodHandles.insertArguments(checkMethod, 0, dt.bytes()),
+                                        MethodHandles.insertArguments(checkMethod, 0, dt.bits()),
+                                        op.getValue(),
+                                        MethodHandles.empty(op.getValue().type())
+                                    );
+                                }
+                                default -> throw new IllegalArgumentException("Unknown handle type " + op.getKey().dataType());
+                            };
+
+                            handlesWithChecks.put(op.getKey(), handleWithChecks);
+                        }
+                        case BULK_SPARSE -> {
+                            MethodHandle handleWithChecks = switch (op.getKey().dataType()) {
+                                case DataType dt -> {
+                                    MethodHandle checkMethod = lookup.findStatic(
+                                        JdkVectorSimilarityFunctions.class,
+                                        "checkBulkSparse",
+                                        MethodType.methodType(
+                                            boolean.class,
+                                            int.class,
+                                            MemorySegment.class,
+                                            MemorySegment.class,
+                                            int.class,
+                                            int.class,
+                                            MemorySegment.class
+                                        )
+                                    );
+                                    yield MethodHandles.guardWithTest(
+                                        MethodHandles.insertArguments(checkMethod, 0, dt.bits()),
                                         op.getValue(),
                                         MethodHandles.empty(op.getValue().type())
                                     );
@@ -674,7 +813,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
                                         )
                                     );
                                     yield MethodHandles.guardWithTest(
-                                        MethodHandles.insertArguments(checkMethod, 0, dt.bytes()),
+                                        MethodHandles.insertArguments(checkMethod, 0, dt.bits()),
                                         op.getValue(),
                                         MethodHandles.empty(op.getValue().type())
                                     );

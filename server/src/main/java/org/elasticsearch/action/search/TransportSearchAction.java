@@ -1609,15 +1609,18 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         String clusterAlias,
         SearchTimeProvider timeProvider
     ) {
-        clusters.swapCluster(clusterAlias, (k, v) -> new SearchResponse.Cluster.Builder(v).setStatus(SearchResponse.Cluster.Status.SUCCESSFUL)
-            .setTotalShards(0)
-            .setSuccessfulShards(0)
-            .setSkippedShards(searchShardsResponse.getNumSkippedShards())
-            .setFailedShards(0)
-            .setFailures(List.of())
-            .setTook(new TimeValue(timeProvider.buildTookInMillis()))
-            .setTimedOut(false)
-            .build());
+        clusters.swapCluster(
+            clusterAlias,
+            (k, v) -> new SearchResponse.Cluster.Builder(v).setStatus(SearchResponse.Cluster.Status.SUCCESSFUL)
+                .setTotalShards(0)
+                .setSuccessfulShards(0)
+                .setSkippedShards(searchShardsResponse.getNumSkippedShards())
+                .setFailedShards(0)
+                .setFailures(List.of())
+                .setTook(new TimeValue(timeProvider.buildTookInMillis()))
+                .setTimedOut(false)
+                .build()
+        );
     }
 
     void executeLocalSearch(

@@ -1,0 +1,5 @@
+area: CCR
+issues: []
+pr: 144973
+summary: "CCR follower index does not inherit transport version from leader on follow"
+type: bug

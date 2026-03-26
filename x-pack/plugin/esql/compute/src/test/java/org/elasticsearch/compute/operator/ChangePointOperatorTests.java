@@ -75,7 +75,7 @@ public class ChangePointOperatorTests extends OperatorTestCase {
 
     @Override
     protected Operator.OperatorFactory simple(SimpleOptions options) {
-        return new ChangePointOperator.Factory(0, -1, new TestWarningsSource(null));
+        return new ChangePointOperator.Factory(0, null, new TestWarningsSource(null));
     }
 
     @Override

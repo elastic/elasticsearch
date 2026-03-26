@@ -41,43 +41,30 @@ public class ChangePointOperator extends CompleteInputCollectorOperator {
     private static final Logger logger = LogManager.getLogger(ChangePointOperator.class);
     public static final int INPUT_VALUE_COUNT_LIMIT = 1000;
 
-    public record Factory(int channel, int groupingChannel, WarningSourceLocation source) implements OperatorFactory {
+    public record Factory(int channel, Integer groupingChannel, WarningSourceLocation source) implements OperatorFactory {
 
         @Override
         public Operator get(DriverContext driverContext) {
-            if (groupingChannel == -1) { // TODO maybe null instead
-                return new ChangePointOperator(driverContext, channel, source);
-            }
             return new ChangePointOperator(driverContext, channel, groupingChannel, source);
         }
 
         @Override
         public String describe() {
-            return groupingChannel != -1
-                ? Strings.format("ChangePointOperator[channel=%d, groupingChannel=%d]", channel, groupingChannel)
-                : Strings.format("ChangePointOperator[channel=%d]", channel);
+            return groupingChannel == null
+                ? Strings.format("ChangePointOperator[channel=%d]", channel)
+                : Strings.format("ChangePointOperator[channel=%d, groupingChannel=%d]", channel, groupingChannel);
         }
     }
 
     private final DriverContext driverContext;
     private final int channel;
-    private final int groupChannel;
+    private final Integer groupChannel;
     private final WarningSourceLocation source;
 
     private final Deque<Page> outputPages;
     private Warnings warnings;
 
-    public ChangePointOperator(DriverContext driverContext, int channel, WarningSourceLocation source) {
-        this.driverContext = driverContext;
-        this.channel = channel;
-        this.groupChannel = -1;
-        this.source = source;
-
-        outputPages = new ArrayDeque<>();
-        warnings = null;
-    }
-
-    public ChangePointOperator(DriverContext driverContext, int channel, int groupingChannel, WarningSourceLocation source) {
+    public ChangePointOperator(DriverContext driverContext, int channel, Integer groupingChannel, WarningSourceLocation source) {
         this.driverContext = driverContext;
         this.channel = channel;
         this.groupChannel = groupingChannel;
@@ -260,7 +247,7 @@ public class ChangePointOperator extends CompleteInputCollectorOperator {
     }
 
     private void createOutputPages() {
-        if (groupChannel != -1) {
+        if (groupChannel != null) {
             createOutputPagesGrouped();
         } else {
             createOutputPagesFlat();

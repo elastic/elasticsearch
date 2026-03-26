@@ -278,6 +278,7 @@ public final class FetchPhase {
         };
 
         try {
+            prefetchStoredFields(context, docIdsToLoad);
             SearchHit[] hits = docsIterator.iterate(
                 context.shardTarget(),
                 context.searcher().getIndexReader(),
@@ -304,6 +305,22 @@ public final class FetchPhase {
                 context.circuitBreaker().addWithoutBreaking(-bytes);
             }
             throw e;
+        }
+    }
+
+    private void prefetchStoredFields(SearchContext context, int[] docIdsToLoad) {
+        try {
+            var storedFields = context.searcher().getIndexReader().storedFields();
+            for (int doc : docIdsToLoad) {
+                try {
+                    storedFields.prefetch(doc);
+                } catch (IllegalArgumentException | IOException exc) {
+                    // Ignore errors: this is only a hint; invalid document IDs will be caught later.
+                    LOGGER.warn("Failed to prefetch stored fields for doc [" + doc + "]", exc);
+                }
+            }
+        } catch (IOException exc) {
+            LOGGER.warn("Failed to prefetch stored fields", exc);
         }
     }
 

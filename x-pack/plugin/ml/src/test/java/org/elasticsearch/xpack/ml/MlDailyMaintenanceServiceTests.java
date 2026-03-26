@@ -30,6 +30,7 @@ import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.ESTestCase;
@@ -518,8 +519,12 @@ public class MlDailyMaintenanceServiceTests extends ESTestCase {
                 SearchHit hit = SearchHit.unpooled(0);
                 hit.sourceRef(BytesReference.bytes(sourceBuilder));
                 SearchHits hits = SearchHits.unpooled(new SearchHit[] { hit }, null, 1.0f);
-                SearchResponse response = new SearchResponse(hits, null, null, false, null, null, 1, null, 1, 1, 0, 100, null, null);
-                listener.onResponse(response);
+                SearchResponse response = SearchResponseUtils.successfulResponse(hits);
+                try {
+                    listener.onResponse(response);
+                } finally {
+                    response.decRef();
+                }
             } catch (Exception e) {
                 listener.onFailure(e);
             }

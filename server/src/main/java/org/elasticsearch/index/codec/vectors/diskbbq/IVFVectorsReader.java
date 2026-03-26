@@ -46,12 +46,12 @@ import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsReader.SIMILA
 /**
  * Reader for IVF vectors. This reader is used to read the IVF vectors from the index.
  */
-public abstract class IVFVectorsReader extends KnnVectorsReader {
+public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> extends KnnVectorsReader {
 
     protected final IndexInput ivfCentroids, ivfClusters;
     private final SegmentReadState state;
     private final FieldInfos fieldInfos;
-    protected final IntObjectHashMap<FieldEntry> fields;
+    protected final IntObjectHashMap<E> fields;
     private final GenericFlatVectorReaders genericReaders;
     private final String centroidExtension;
     private final String clusterExtension;
@@ -165,14 +165,14 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
                 throw new CorruptIndexException("Invalid field number: " + fieldNumber, meta);
             }
 
-            FieldEntry fieldEntry = readField(meta, info, versionMeta);
+            E fieldEntry = readField(meta, info, versionMeta);
             genericFields.loadField(fieldNumber, fieldEntry, loadReader);
 
             fields.put(info.number, fieldEntry);
         }
     }
 
-    private FieldEntry readField(IndexInput input, FieldInfo info, int versionMeta) throws IOException {
+    private E readField(IndexInput input, FieldInfo info, int versionMeta) throws IOException {
         final String rawVectorFormat = input.readString();
         final boolean useDirectIOReads = versionMeta >= versionDirectIo && input.readByte() == 1;
         final VectorEncoding vectorEncoding = readVectorEncoding(input);
@@ -216,7 +216,7 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         );
     }
 
-    protected abstract FieldEntry doReadField(
+    protected abstract E doReadField(
         IndexInput input,
         String rawVectorFormat,
         boolean useDirectIOReads,

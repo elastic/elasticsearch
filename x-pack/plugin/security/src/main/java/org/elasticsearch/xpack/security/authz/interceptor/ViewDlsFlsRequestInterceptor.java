@@ -46,6 +46,7 @@ public class ViewDlsFlsRequestInterceptor implements RequestInterceptor {
         AuthorizationEngine.AuthorizationInfo authorizationInfo
     ) {
         if (requestInfo.getRequest() instanceof IndicesRequest.Replaceable indicesRequest
+            && indicesRequest.indicesOptions().indexAbstractionOptions().resolveViews()
             && TransportActionProxy.isProxyAction(requestInfo.getAction()) == false
             && indicesRequest.indices() != null
             && indicesRequest.indices().length > 0) {

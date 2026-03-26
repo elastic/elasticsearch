@@ -457,3 +457,106 @@ total:long | country:keyword
 1          | Brazil
 1          | Canada
 ;
+
+unmappedFields_Load_with_Count
+required_capability: optional_fields_v2
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+
+SET unmapped_fields="load"\;
+FROM employees_rehired
+| STATS rehired_count = COUNT()
+;
+warningRegex: \(in view \[employees_rehired\]\): evaluation of \[is_rehired == true\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex: \(in view \[employees_rehired\]\): java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+rehired_count:long
+11
+;
+
+unmappedFields_Load_with_WithNonExistentField
+required_capability: optional_fields_v2
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+
+SET unmapped_fields="load"\;
+FROM employees_rehired
+| STATS rehired_count = COUNT(), null_count = COUNT(nonexistent_field)
+;
+warningRegex: \(in view \[employees_rehired\]\): evaluation of \[is_rehired == true\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex: \(in view \[employees_rehired\]\): java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+rehired_count:long | null_count:long
+11                 | 0
+;
+
+unmappedFields_Load_with_EvalOnNonExistentField
+required_capability: optional_fields_v2
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+
+SET unmapped_fields="load"\;
+FROM employees_rehired
+| EVAL extra = nonexistent_field
+| WHERE extra IS NULL
+| STATS c = COUNT(*)
+;
+warningRegex: \(in view \[employees_rehired\]\): evaluation of \[is_rehired == true\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex: \(in view \[employees_rehired\]\): java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+c:long
+11
+;
+
+unmappedFields_Load_with_WhereOnNonExistentField
+required_capability: optional_fields_v2
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+
+SET unmapped_fields="load"\;
+FROM employees_rehired
+| WHERE nonexistent_field IS NOT NULL
+| STATS c = COUNT(*)
+;
+warningRegex: \(in view \[employees_rehired\]\): evaluation of \[is_rehired == true\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex: \(in view \[employees_rehired\]\): java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+c:long
+0
+;
+
+unmappedFields_Load_with_StatsByNonExistentField
+required_capability: optional_fields_v2
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+
+SET unmapped_fields="load"\;
+FROM employees_rehired
+| STATS c = COUNT(*) BY nonexistent_field
+;
+warningRegex: \(in view \[employees_rehired\]\): evaluation of \[is_rehired == true\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex: \(in view \[employees_rehired\]\): java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+c:long | nonexistent_field:keyword
+11     | null
+;
+
+unmappedFields_Load_with_SortByNonExistentField
+required_capability: optional_fields_v2
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+
+SET unmapped_fields="load"\;
+FROM employees_rehired
+| SORT nonexistent_field ASC, emp_no ASC
+| KEEP emp_no, nonexistent_field
+| LIMIT 3
+;
+warningRegex: \(in view \[employees_rehired\]\): evaluation of \[is_rehired == true\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex: \(in view \[employees_rehired\]\): java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+emp_no:integer | nonexistent_field:keyword
+10004          | null
+10021          | null
+10029          | null
+;

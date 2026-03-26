@@ -38,7 +38,6 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.telemetry.Metrics;
-import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -74,7 +73,6 @@ public class QueryPlanningBenchmark {
         Utils.configureBenchmarkLogging();
     }
 
-    private PlanTelemetry telemetry;
     private Analyzer manyFieldsAnalyzer;
     private LogicalPlanOptimizer defaultOptimizer;
     private Configuration config;
@@ -118,7 +116,6 @@ public class QueryPlanningBenchmark {
         // Assume all nodes are on the current version for the benchmark.
         TransportVersion minimumVersion = TransportVersion.current();
 
-        telemetry = new PlanTelemetry(functionRegistry);
         manyFieldsAnalyzer = new Analyzer(
             new AnalyzerContext(
                 config,
@@ -136,7 +133,7 @@ public class QueryPlanningBenchmark {
     }
 
     private LogicalPlan plan(EsqlParser parser, Analyzer analyzer, LogicalPlanOptimizer optimizer, String query) {
-        var parsed = parser.parseQuery(query, new QueryParams(), telemetry, new InferenceSettings(Settings.EMPTY));
+        var parsed = parser.parseQuery(query, new QueryParams(), new InferenceSettings(Settings.EMPTY));
         var analyzed = analyzer.analyze(parsed);
         var optimized = optimizer.optimize(analyzed);
         return optimized;

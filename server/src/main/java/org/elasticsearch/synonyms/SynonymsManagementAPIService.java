@@ -314,9 +314,10 @@ public class SynonymsManagementAPIService {
             if (hits.length == 0) {
                 if (accumulated.isEmpty()) {
                     closePitSilently(pitId);
-                    checkSynonymSetExists(synonymSetId, listener.delegateFailure((l, ignored) -> {
-                        l.onResponse(new PagedResult<>(0, new SynonymRule[0]));
-                    }));
+                    checkSynonymSetExists(
+                        synonymSetId,
+                        listener.delegateFailure((l, ignored) -> { l.onResponse(new PagedResult<>(0, new SynonymRule[0])); })
+                    );
                 } else {
                     PagedResult<SynonymRule> result = new PagedResult<>(newTotalHits, accumulated.toArray(new SynonymRule[0]));
                     closePitSilently(pitId);

@@ -496,16 +496,43 @@ median:double | p50:double | key:keyword | _approximation_confidence_interval(me
 ;
 
 
-Sum of nulls-Ignore
-// caused by: https://github.com/elastic/elasticsearch/issues/144914
+Sum of nulls
 required_capability: approximation_v6
 
-SET approximation={"rows":10000}\;
+SET approximation=true\;
 FROM employees | STATS s_null = sum(null)
 ;
 
-s_null:double | _approximation_confidence_interval(s_null):double | _approximation_certified(s_null):boolean
-null          | null                                              | null
+// This error message isn't great, because the original query does have a STATS.
+// TODO: fix this
+warning:line 2:18: approximation not supported: query without [STATS] cannot be approximated
+
+s_null:null
+null
+;
+
+
+Approximated column is null
+required_capability: approximation_v6
+
+SET approximation=true\;
+FROM many_numbers | STATS sum = sum(sv) | EVAL sum = sum + null
+;
+
+sum:long | _approximation_confidence_interval(sum):long | _approximation_certified(sum):boolean
+null     | null                                         | null
+;
+
+
+Approximated column and null
+required_capability: approximation_v6
+
+SET approximation=true\;
+FROM many_numbers | STATS sum = sum(sv) | EVAL sum_null = sum + null
+;
+
+sum:long           | sum_null:long | _approximation_confidence_interval(sum):long | _approximation_certified(sum):boolean | _approximation_confidence_interval(sum_null):long  | _approximation_certified(sum_null):boolean
+35000000..50000000 | null          | [35000000..50000000,35000000..50000000]      | {any}                                 | null                                               | null
 ;
 
 

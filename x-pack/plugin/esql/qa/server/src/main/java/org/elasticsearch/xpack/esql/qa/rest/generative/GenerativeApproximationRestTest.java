@@ -70,11 +70,7 @@ public abstract class GenerativeApproximationRestTest extends EsqlSpecTestCase {
     @Override
     protected void shouldSkipTest(String testName) throws IOException {
         super.shouldSkipTest(testName);
-        assumeFalse(
-            "Approximation tests must not be approximated",
-            testCase.requiredCapabilities.contains(APPROXIMATION_V6.capabilityName())
-        );
+        assumeFalse("No approximation tests", testCase.requiredCapabilities.contains(APPROXIMATION_V6.capabilityName()));
         assumeTrue("Test must contain STATS to be included in approximation tests", testCase.query.toLowerCase().contains("stats"));
-        assumeFalse("bug: https://github.com/elastic/elasticsearch/issues/144914", "sumOfConst".equals(testName));  // file: stats.csv-spec
     }
 }

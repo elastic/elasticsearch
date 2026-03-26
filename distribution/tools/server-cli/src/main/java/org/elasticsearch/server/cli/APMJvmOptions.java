@@ -26,6 +26,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
@@ -160,6 +161,7 @@ class APMJvmOptions {
         if (agentMetricsEnabled == false) {
             propertiesMap.put("metrics_interval", "0s");
             propertiesMap.put("disable_metrics", "*");
+            disableMetricInstrumentation(propertiesMap);
         }
 
         // Configures a log file to write to. Don't disable writing to a log file,
@@ -261,6 +263,25 @@ class APMJvmOptions {
 
         propertiesMap.putAll(STATIC_CONFIG);
         return propertiesMap;
+    }
+
+    /**
+     * Disables the APM agent hook that adds an exporter to application {@code SdkMeterProvider} instances.
+     * When Elasticsearch uses the in-process OTel SDK for metrics, that hook is redundant and can break export;
+     * traces still use the {@code opentelemetry} instrumentation (e.g. {@code GlobalOpenTelemetry} bridge).
+     */
+    static void disableMetricInstrumentation(Map<String, String> propertiesMap) {
+        LinkedHashSet<String> parts = new LinkedHashSet<>();
+        String existing = propertiesMap.get("disable_instrumentations");
+        if (existing != null && existing.isBlank() == false) {
+            for (String p : existing.split(",\\s*")) {
+                if (p.isBlank() == false) {
+                    parts.add(p.trim());
+                }
+            }
+        }
+        parts.add("opentelemetry-metrics");
+        propertiesMap.put("disable_instrumentations", String.join(",", parts));
     }
 
     private static StringJoiner extractGlobalLabels(String prefix, Map<String, String> propertiesMap, Settings settings) {

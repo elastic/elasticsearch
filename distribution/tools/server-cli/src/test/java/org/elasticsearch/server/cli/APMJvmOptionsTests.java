@@ -200,7 +200,7 @@ public class APMJvmOptionsTests extends ESTestCase {
                 int configIndex = inputArgument.lastIndexOf("=c=");
                 if (configIndex > 0) {
                     final Path apmConfig = PathUtils.get(inputArgument.substring(configIndex + 3));
-                    if (Files.isRegularFile(apmConfig) && apmConfig.getFileName().toString().matches("^\\.elstcapm\\..*\\.tmp$")) {
+                    if (Files.isRegularFile(apmConfig) && apmConfig.getFileName().toString().matches(Node.APM_PROPFILE_REGEX)) {
                         return apmConfig;
                     }
                 }

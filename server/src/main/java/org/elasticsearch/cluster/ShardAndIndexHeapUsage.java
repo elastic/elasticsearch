@@ -23,6 +23,11 @@ public record ShardAndIndexHeapUsage(long shardHeapUsageBytes, long indexHeapUsa
     /** Used when no collector-specific default is available. */
     public static final ShardAndIndexHeapUsage ZERO = new ShardAndIndexHeapUsage(0, 0);
 
+    public ShardAndIndexHeapUsage {
+        assert shardHeapUsageBytes >= 0;
+        assert indexHeapUsageBytes >= 0;
+    }
+
     public ShardAndIndexHeapUsage(StreamInput in) throws IOException {
         this(in.readLong(), in.readLong());
     }

@@ -23,6 +23,8 @@ public record ShardHeapUsageEstimates(
 ) {
 
     public ShardHeapUsageEstimates {
+        assert perShard != null;
+        assert defaultForShardsWithoutMetrics != null;
         perShard = Map.copyOf(perShard);
     }
 

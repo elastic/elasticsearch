@@ -2369,7 +2369,7 @@ public class EsqlCapabilities {
          * <a href="https://github.com/elastic/elasticsearch/pull/144388"></a>
          */
         CHANGE_POINT_SUPPORT_NULL_COLUMN,
-        
+
         /**
          * Support CHANGE_POINT arguments in any order
          */

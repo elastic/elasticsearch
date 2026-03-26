@@ -76,9 +76,9 @@ public class MultiTypeEsField extends EsField {
         out.writeBoolean(isAggregatable());
         out.writeMap(getIndexToConversionExpressions(), (o, v) -> out.writeNamedWriteable(v));
         writeTimeSeriesFieldType(out);
-        out.writeOptionalNamedWriteable(
-            out.getTransportVersion().supports(POTENTIALLY_UNMAPPED_EXPRESSION) ? potentiallyUnmappedExpression : null
-        );
+        if (out.getTransportVersion().supports(POTENTIALLY_UNMAPPED_EXPRESSION)) {
+            out.writeOptionalNamedWriteable(potentiallyUnmappedExpression);
+        }
     }
 
     public String getWriteableName(TransportVersion transportVersion) {

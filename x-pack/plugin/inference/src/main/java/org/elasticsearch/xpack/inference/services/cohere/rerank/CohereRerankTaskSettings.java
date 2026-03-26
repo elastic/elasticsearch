@@ -62,9 +62,7 @@ public class CohereRerankTaskSettings implements TaskSettings, TopNProvider {
             validationException
         );
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return of(topNDocumentsOnly, returnDocuments, maxChunksPerDoc);
     }

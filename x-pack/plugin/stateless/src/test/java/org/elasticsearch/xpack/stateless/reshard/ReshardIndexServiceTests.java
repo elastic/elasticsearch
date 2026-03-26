@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
 import org.elasticsearch.cluster.metadata.IndexReshardingState;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
@@ -95,6 +96,7 @@ public class ReshardIndexServiceTests extends ESTestCase {
                     boolean expectSuccess = newTargetState == IndexReshardingState.Split.TargetShardState.DONE && allTargetsDone;
                     var transitionSourceToReadyForCleanup = new ReshardIndexService.TransitionSourceStateTask(
                         shardId,
+                        null,
                         IndexReshardingState.Split.SourceShardState.READY_FOR_CLEANUP,
                         ActionListener.wrap(unused -> {}, ESTestCase::fail)
                     );
@@ -102,6 +104,7 @@ public class ReshardIndexServiceTests extends ESTestCase {
                         clusterState = transitionSourceStateExecutor.executeTask(transitionSourceToReadyForCleanup, clusterState).v1();
                         var transitionSourceToDone = new ReshardIndexService.TransitionSourceStateTask(
                             shardId,
+                            null,
                             IndexReshardingState.Split.SourceShardState.DONE,
                             ActionListener.wrap(unused -> {}, ESTestCase::fail)
                         );
@@ -117,6 +120,40 @@ public class ReshardIndexServiceTests extends ESTestCase {
                 }
             }
         }
+    }
+
+    public void testInvalidSourceStateTransition() throws Exception {
+        var numShards = randomIntBetween(1, 10);
+        var multiple = 2;
+        var numShardsAfter = numShards * multiple;
+        var index = new Index("test-index", INDEX_UUID_NA_VALUE);
+        var projectId = randomProjectIdOrDefault();
+
+        var shardId = new ShardId(index, 0);
+        var allocationId = AllocationId.newInitializing();
+        var indexMetadata = IndexMetadata.builder(index.getName())
+            .settings(indexSettings(IndexVersion.current(), numShardsAfter, 1))
+            .numberOfShards(numShardsAfter)
+            .reshardingMetadata(IndexReshardingMetadata.newSplitByMultiple(numShards, multiple))
+            .build();
+        var project = ProjectMetadata.builder(projectId).put(indexMetadata, true).build();
+        var clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .putProjectMetadata(project)
+            .putRoutingTable(
+                projectId,
+                RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY).addAsNew(indexMetadata).build()
+            )
+            .build();
+
+        var transitionSourceStateExecutor = new ReshardIndexService.TransitionSourceStateExecutor();
+
+        var task = new ReshardIndexService.TransitionSourceStateTask(
+            shardId,
+            AllocationId.newRelocation(allocationId),
+            IndexReshardingState.Split.SourceShardState.READY_FOR_CLEANUP,
+            ActionListener.wrap(unused -> {}, ESTestCase::fail)
+        );
+        expectThrows(StaleStateChangeRequestException.class, () -> transitionSourceStateExecutor.executeTask(task, clusterState));
     }
 
     public void testMaybeAwaitSplitDoesNotThrow() {

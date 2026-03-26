@@ -10,7 +10,6 @@
 package org.elasticsearch.common.blobstore.support;
 
 import org.elasticsearch.common.blobstore.BlobContainer;
-import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.core.CheckedSupplier;
 import org.elasticsearch.core.TimeValue;
@@ -38,23 +37,21 @@ public abstract class TenaciousRetryBlobContainer extends FilterBlobContainer {
     protected abstract boolean isExceptionRetryable(Exception e);
 
     @Override
-    public BlobPath path() {
-        return execute(super::path);
-    }
-
-    @Override
-    public boolean blobExists(OperationPurpose purpose, String blobName) throws IOException {
-        return execute(() -> super.blobExists(purpose, blobName));
-    }
-
-    @Override
     public Map<String, BlobMetadata> listBlobs(OperationPurpose purpose) throws IOException {
-        return execute(() -> super.listBlobs(purpose));
+        if (purpose == OperationPurpose.INDICES) {
+            return execute(() -> super.listBlobs(purpose));
+        }
+
+        return super.listBlobs(purpose);
     }
 
     @Override
     public Map<String, BlobMetadata> listBlobsByPrefix(OperationPurpose purpose, String blobNamePrefix) throws IOException {
-        return execute(() -> super.listBlobsByPrefix(purpose, blobNamePrefix));
+        if (purpose == OperationPurpose.INDICES) {
+            return execute(() -> super.listBlobsByPrefix(purpose, blobNamePrefix));
+        }
+
+        return super.listBlobsByPrefix(purpose, blobNamePrefix);
     }
 
     private <T, E extends Exception> T execute(CheckedSupplier<T, E> operation) throws E {

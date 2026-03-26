@@ -34,7 +34,6 @@ import org.junit.rules.TestRule;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.net.SocketTimeoutException;
 import java.util.function.UnaryOperator;
 
 import static fixture.aws.AwsCredentialsUtils.ANY_REGION;

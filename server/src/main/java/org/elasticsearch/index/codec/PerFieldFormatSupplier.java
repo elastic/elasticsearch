@@ -73,7 +73,7 @@ public class PerFieldFormatSupplier {
     private static final ES812PostingsFormat es812PostingsFormat = new ES812PostingsFormat();
     private static final PostingsFormat completionPostingsFormat = PostingsFormat.forName("Completion104");
 
-    private final ES87BloomFilterPostingsFormat bloomFilterPostingsFormat;
+    private final PostingsFormat bloomFilterPostingsFormat;
     private final MapperService mapperService;
     private final ThreadPool threadPool;
 

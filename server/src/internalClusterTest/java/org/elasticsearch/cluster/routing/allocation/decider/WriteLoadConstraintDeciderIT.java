@@ -48,6 +48,7 @@ import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -56,6 +57,7 @@ import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.hamcrest.Matchers;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -66,13 +68,17 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.function.Function;
 import java.util.stream.StreamSupport;
 
 import static java.util.stream.IntStream.range;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
@@ -641,17 +647,69 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
         assertThat(mostRecentQueueLatencyMetrics.get(dataNodeToDelay), greaterThanOrEqualTo(delayMillis));
     }
 
+    public void testAverageWriteLoadMetricIsPublished() {
+        final Settings settings = Settings.builder()
+            .put(
+                WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ENABLED_SETTING.getKey(),
+                WriteLoadConstraintSettings.WriteLoadDeciderStatus.ENABLED
+            )
+            .build();
+        final var dataNodes = internalCluster().startNodes(3, settings);
+
+        // Refresh cluster info (should trigger polling)
+        refreshClusterInfo();
+
+        Map<String, Double> mostRecentAverageWriteLoadMetrics = getMostRecentAverageWriteLoadMetrics(dataNodes);
+        assertThat(mostRecentAverageWriteLoadMetrics.keySet(), hasSize(dataNodes.size()));
+        assertThat(mostRecentAverageWriteLoadMetrics.values(), everyItem(equalTo(0d)));
+
+        // Generate some write-load on all nodes
+        final var indexName = randomIndexName();
+        createIndex(indexName, dataNodes.size(), 0);
+        indexRandom(true, indexName, randomIntBetween(1000, 5000));
+
+        refreshClusterInfo();
+        mostRecentAverageWriteLoadMetrics = getMostRecentAverageWriteLoadMetrics(dataNodes);
+
+        final ThreadPool dataNodeThreadPool = internalCluster().getInstance(ThreadPool.class, randomFrom(dataNodes));
+        final int writePoolMaximumSize = asInstanceOf(ThreadPoolExecutor.class, dataNodeThreadPool.executor(ThreadPool.Names.WRITE))
+            .getMaximumPoolSize();
+        assertThat(mostRecentAverageWriteLoadMetrics.keySet(), hasSize(dataNodes.size()));
+        assertThat(
+            mostRecentAverageWriteLoadMetrics.values(),
+            everyItem(Matchers.allOf(greaterThan(0d), lessThanOrEqualTo((double) writePoolMaximumSize)))
+        );
+    }
+
     private static Map<String, Long> getMostRecentQueueLatencyMetrics(List<String> dataNodes) {
-        final Map<String, Long> measurements = new HashMap<>();
+        return getMostRecentMetricForDataNodes(
+            dataNodes,
+            tp -> tp.getLongGaugeMeasurement(DesiredBalanceMetrics.WRITE_LOAD_DECIDER_MAX_LATENCY_VALUE),
+            Measurement::getLong
+        );
+    }
+
+    private static Map<String, Double> getMostRecentAverageWriteLoadMetrics(List<String> dataNodes) {
+        return getMostRecentMetricForDataNodes(
+            dataNodes,
+            tp -> tp.getDoubleGaugeMeasurement(DesiredBalanceMetrics.WRITE_LOAD_DECIDER_AVERAGE_WRITE_LOAD_VALUE),
+            Measurement::getDouble
+        );
+    }
+
+    private static <T> Map<String, T> getMostRecentMetricForDataNodes(
+        List<String> dataNodes,
+        Function<TestTelemetryPlugin, List<Measurement>> measurementGetter,
+        Function<Measurement, T> valueGetter
+    ) {
+        final Map<String, T> measurements = new HashMap<>();
         for (String nodeName : dataNodes) {
             PluginsService pluginsService = internalCluster().getInstance(PluginsService.class, nodeName);
             final TestTelemetryPlugin telemetryPlugin = pluginsService.filterPlugins(TestTelemetryPlugin.class).findFirst().orElseThrow();
             telemetryPlugin.collect();
-            final var maxLatencyValues = telemetryPlugin.getLongGaugeMeasurement(
-                DesiredBalanceMetrics.WRITE_LOAD_DECIDER_MAX_LATENCY_VALUE
-            );
-            if (maxLatencyValues.isEmpty() == false) {
-                measurements.put(nodeName, maxLatencyValues.getLast().getLong());
+            final var measurementValues = measurementGetter.apply(telemetryPlugin);
+            if (measurementValues.isEmpty() == false) {
+                measurements.put(nodeName, valueGetter.apply(measurementValues.getLast()));
             }
         }
         return measurements;

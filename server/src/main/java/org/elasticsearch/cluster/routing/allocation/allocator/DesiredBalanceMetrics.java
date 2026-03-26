@@ -128,6 +128,7 @@ public class DesiredBalanceMetrics {
 
     // Decider metrics
     public static final String WRITE_LOAD_DECIDER_MAX_LATENCY_VALUE = "es.allocator.deciders.write_load.max_latency_value.current";
+    public static final String WRITE_LOAD_DECIDER_AVERAGE_WRITE_LOAD_VALUE = "es.allocator.deciders.write_load.average_write_load.current";
 
     public static final AllocationStats EMPTY_ALLOCATION_STATS = new AllocationStats(0, Map.of());
     public static final DesiredBalanceMetrics NOOP = new DesiredBalanceMetrics(MeterRegistry.NOOP);
@@ -274,6 +275,15 @@ public class DesiredBalanceMetrics {
             "max latency for write load decider",
             "ms",
             maxLatencySupplier
+        );
+    }
+
+    public void registerWriteLoadDeciderAverageWriteLoadGauge(Supplier<Collection<DoubleWithAttributes>> averageWriteLoadSupplier) {
+        meterRegistry.registerDoublesGauge(
+            WRITE_LOAD_DECIDER_AVERAGE_WRITE_LOAD_VALUE,
+            "average node write load (utilisation multiplied by thread pool size)",
+            "threads",
+            averageWriteLoadSupplier
         );
     }
 

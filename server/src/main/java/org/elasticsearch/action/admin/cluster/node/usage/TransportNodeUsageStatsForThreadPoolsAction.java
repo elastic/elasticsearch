@@ -22,6 +22,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.concurrent.TaskExecutionTimeTrackingEsThreadPoolExecutor;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.telemetry.metric.DoubleWithAttributes;
 import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -51,6 +52,7 @@ public class TransportNodeUsageStatsForThreadPoolsAction extends TransportNodesA
     private final ThreadPool threadPool;
     private final ClusterService clusterService;
     private final AtomicLong lastMaxQueueLatencyMillis = new AtomicLong(NO_VALUE);
+    private final AtomicLong lastAverageWriteLoadValue = new AtomicLong(NO_VALUE);
 
     @Inject
     public TransportNodeUsageStatsForThreadPoolsAction(
@@ -71,6 +73,7 @@ public class TransportNodeUsageStatsForThreadPoolsAction extends TransportNodesA
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         desiredBalanceMetrics.registerWriteLoadDeciderMaxLatencyGauge(this::getMaxQueueLatencyMetric);
+        desiredBalanceMetrics.registerWriteLoadDeciderAverageWriteLoadGauge(this::getAverageWriteLoadSupplier);
     }
 
     @Override
@@ -108,11 +111,16 @@ public class TransportNodeUsageStatsForThreadPoolsAction extends TransportNodesA
             trackingForWriteExecutor.peekMaxQueueLatencyInQueueMillis()
         );
         lastMaxQueueLatencyMillis.set(maxQueueLatencyMillis);
+        final double averageThreadPoolUtilization = trackingForWriteExecutor.pollUtilization(
+            TaskExecutionTimeTrackingEsThreadPoolExecutor.UtilizationTrackingPurpose.ALLOCATION
+        );
+        // We publish this metric as write load (taking into account the size of the thread pool)
+        lastAverageWriteLoadValue.set(
+            Double.doubleToLongBits(averageThreadPoolUtilization * trackingForWriteExecutor.getMaximumPoolSize())
+        );
         ThreadPoolUsageStats threadPoolUsageStats = new ThreadPoolUsageStats(
             trackingForWriteExecutor.getMaximumPoolSize(),
-            (float) trackingForWriteExecutor.pollUtilization(
-                TaskExecutionTimeTrackingEsThreadPoolExecutor.UtilizationTrackingPurpose.ALLOCATION
-            ),
+            (float) averageThreadPoolUtilization,
             maxQueueLatencyMillis
         );
 
@@ -126,6 +134,15 @@ public class TransportNodeUsageStatsForThreadPoolsAction extends TransportNodesA
         long maxQueueLatencyValue = lastMaxQueueLatencyMillis.getAndSet(NO_VALUE);
         if (maxQueueLatencyValue != NO_VALUE) {
             return Set.of(new LongWithAttributes(maxQueueLatencyValue));
+        } else {
+            return Set.of();
+        }
+    }
+
+    private Collection<DoubleWithAttributes> getAverageWriteLoadSupplier() {
+        long averageWriteLoadValue = lastAverageWriteLoadValue.getAndSet(NO_VALUE);
+        if (averageWriteLoadValue != NO_VALUE) {
+            return Set.of(new DoubleWithAttributes(Double.longBitsToDouble(averageWriteLoadValue)));
         } else {
             return Set.of();
         }

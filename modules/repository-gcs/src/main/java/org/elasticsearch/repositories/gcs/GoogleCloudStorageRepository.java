@@ -81,6 +81,28 @@ class GoogleCloudStorageRepository extends MeteredBlobStoreRepository {
         TimeValue.ZERO
     );
 
+    /**
+     * Shard allocation processes are susceptible to transient errors from cloud provider repositories,
+     * including network connectivity and identity authorization issues.
+     */
+    static final Setting<TimeValue> RETRY_TRANSIENT_ERROR_DELAY_INCREMENT = Setting.timeSetting(
+        "gcs.transient_error_retry.delay_increment",
+        TimeValue.timeValueMillis(50),
+        TimeValue.ZERO
+    );
+
+    static final Setting<TimeValue> RETRY_TRANSIENT_ERROR_MAXIMUM_DELAY = Setting.timeSetting(
+        "gcs.transient_error_retry.maximum_delay",
+        TimeValue.timeValueMinutes(1),
+        TimeValue.ZERO
+    );
+
+    static final Setting<Integer> RETRY_TRANSIENT_ERROR_MAX_NUMBER_OF_RETRIES = Setting.intSetting(
+        "gcs.transient_error_retry.maximum_number_of_retries",
+        Integer.MAX_VALUE,
+        0
+    );
+
     private final GoogleCloudStorageService storageService;
     private final ByteSizeValue chunkSize;
     private final String bucket;
@@ -88,6 +110,9 @@ class GoogleCloudStorageRepository extends MeteredBlobStoreRepository {
     private final TimeValue retryThrottledCasDelayIncrement;
     private final int retryThrottledCasMaxNumberOfRetries;
     private final TimeValue retryThrottledCasMaxDelay;
+    private final TimeValue retryTransientErrorDelayIncrement;
+    private final int retryTransientErrorMaxNumberOfRetries;
+    private final TimeValue retryTransientErrorMaxDelay;
     private final GcsRepositoryStatsCollector statsCollector;
 
     GoogleCloudStorageRepository(
@@ -119,6 +144,10 @@ class GoogleCloudStorageRepository extends MeteredBlobStoreRepository {
         this.retryThrottledCasDelayIncrement = RETRY_THROTTLED_CAS_DELAY_INCREMENT.get(metadata.settings());
         this.retryThrottledCasMaxNumberOfRetries = RETRY_THROTTLED_CAS_MAX_NUMBER_OF_RETRIES.get(metadata.settings());
         this.retryThrottledCasMaxDelay = RETRY_THROTTLED_CAS_MAXIMUM_DELAY.get(metadata.settings());
+        this.retryTransientErrorDelayIncrement = RETRY_TRANSIENT_ERROR_DELAY_INCREMENT.get(metadata.settings());
+        this.retryTransientErrorMaxDelay = RETRY_TRANSIENT_ERROR_MAXIMUM_DELAY.get(metadata.settings());
+        this.retryTransientErrorMaxNumberOfRetries = RETRY_TRANSIENT_ERROR_MAX_NUMBER_OF_RETRIES.get(metadata.settings());
+
         this.statsCollector = statsCollector;
         logger.debug("using bucket [{}], base_path [{}], chunk_size [{}], compress [{}]", bucket, basePath(), chunkSize, isCompress());
     }
@@ -151,7 +180,12 @@ class GoogleCloudStorageRepository extends MeteredBlobStoreRepository {
             bigArrays,
             bufferSize,
             BackoffPolicy.linearBackoff(retryThrottledCasDelayIncrement, retryThrottledCasMaxNumberOfRetries, retryThrottledCasMaxDelay),
-            statsCollector
+            statsCollector,
+            BackoffPolicy.linearBackoff(
+                retryTransientErrorDelayIncrement,
+                retryTransientErrorMaxNumberOfRetries,
+                retryTransientErrorMaxDelay
+            )
         );
     }
 

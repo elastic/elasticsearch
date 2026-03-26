@@ -35,7 +35,8 @@ public record RepositoriesMetrics(
     LongCounter inputStreamRetryCompletedCounter,
     LongHistogram inputStreamRetryHistogram,
     LongCounter allocationTransientErrorRetryCounter,
-    LongCounter allocationTransientErrorRetrySuccessCounter
+    LongCounter allocationTransientErrorRetrySuccessCounter,
+    LongCounter allocationTransientErrorRetryFailureCounter
 ) {
 
     public static final RepositoriesMetrics NOOP = new RepositoriesMetrics(MeterRegistry.NOOP);
@@ -127,6 +128,8 @@ public record RepositoriesMetrics(
         "es.repositories.allocation_transient_error.retry.attempts.histogram";
     public static final String METRIC_ALLOCATION_TRANSIENT_ERROR_RETRY_SUCCESS_HISTOGRAM =
         "es.repositories.allocation_transient_error.retry.success.histogram";
+    public static final String METRIC_ALLOCATION_TRANSIENT_ERROR_RETRY_FAILURE_HISTOGRAM =
+        "es.repositories.allocation_transient_error.retry.failure.histogram";
 
     public RepositoriesMetrics(MeterRegistry meterRegistry) {
         this(
@@ -163,6 +166,11 @@ public record RepositoriesMetrics(
             meterRegistry.registerLongCounter(
                 METRIC_ALLOCATION_TRANSIENT_ERROR_RETRY_SUCCESS_HISTOGRAM,
                 "retrying allocation transient error success event count",
+                "unit"
+            ),
+            meterRegistry.registerLongCounter(
+                METRIC_ALLOCATION_TRANSIENT_ERROR_RETRY_FAILURE_HISTOGRAM,
+                "retrying allocation transient error failure event count",
                 "unit"
             )
         );

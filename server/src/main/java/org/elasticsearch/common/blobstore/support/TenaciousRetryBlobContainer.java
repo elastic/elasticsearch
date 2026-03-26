@@ -9,6 +9,8 @@
 
 package org.elasticsearch.common.blobstore.support;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.OperationPurpose;
@@ -28,9 +30,12 @@ import java.util.Map;
  */
 public abstract class TenaciousRetryBlobContainer extends FilterBlobContainer {
 
+    private static final Logger logger = LogManager.getLogger(TenaciousRetryBlobContainer.class);
     private final int maxRetries;
     private final BackoffPolicy backoffPolicy;
     private final RepositoriesMetrics repositoriesMetrics;
+    private static final int INITIAL_ATTEMPT = 1;
+    private static final String REPOSITORY_TYPE = "cloud_provider";
 
     public TenaciousRetryBlobContainer(
         BlobContainer delegate,
@@ -50,7 +55,7 @@ public abstract class TenaciousRetryBlobContainer extends FilterBlobContainer {
 
     @Override
     public Map<String, BlobMetadata> listBlobs(OperationPurpose purpose) throws IOException {
-        if (purpose == OperationPurpose.INDICES) {
+        if (shouldRetry(purpose)) {
             return execute(() -> super.listBlobs(purpose));
         }
 
@@ -59,7 +64,7 @@ public abstract class TenaciousRetryBlobContainer extends FilterBlobContainer {
 
     @Override
     public Map<String, BlobMetadata> listBlobsByPrefix(OperationPurpose purpose, String blobNamePrefix) throws IOException {
-        if (purpose == OperationPurpose.INDICES) {
+        if (shouldRetry(purpose)) {
             return execute(() -> super.listBlobsByPrefix(purpose, blobNamePrefix));
         }
 
@@ -67,30 +72,47 @@ public abstract class TenaciousRetryBlobContainer extends FilterBlobContainer {
     }
 
     private <T, E extends Exception> T execute(CheckedSupplier<T, E> operation) throws E {
-        int attempts = 0;
+        int attempts = INITIAL_ATTEMPT;
         final Iterator<TimeValue> iterator = backoffPolicy.iterator();
         while (true) {
             try {
                 T t = operation.get();
-                if (attempts > 1) {
-                    repositoriesMetrics.allocationTransientErrorRetrySuccessCounter()
-                        .incrementBy(1, Map.of("cloud_provider", getRepositoryType()));
-                }
+                maybeLogSuccessfulRetry(attempts);
                 return t;
             } catch (Exception e) {
                 if (isExceptionRetryable(e) && attempts < maxRetries) {
                     attempts++;
-                    repositoriesMetrics.allocationTransientErrorRetryCounter()
-                        .incrementBy(1, Map.of("cloud_provider", getRepositoryType()));
+                    logRetryAttempt();
                     try {
                         Thread.sleep(iterator.next().millis());
                     } catch (InterruptedException exception) {
                         Thread.currentThread().interrupt();
                     }
                 } else {
+                    logRetryFailure(e);
                     throw e;
                 }
             }
         }
     }
+
+    private boolean shouldRetry(OperationPurpose purpose) {
+        return purpose == OperationPurpose.INDICES;
+    }
+
+    private void maybeLogSuccessfulRetry(int attempts) {
+        if (attempts > INITIAL_ATTEMPT) {
+            repositoriesMetrics.allocationTransientErrorRetrySuccessCounter().incrementBy(1, Map.of(REPOSITORY_TYPE, getRepositoryType()));
+        }
+    }
+
+    private void logRetryAttempt() {
+        repositoriesMetrics.allocationTransientErrorRetryCounter().incrementBy(1, Map.of(REPOSITORY_TYPE, getRepositoryType()));
+    }
+
+    private void logRetryFailure(Exception ex) {
+        logger.warn("Retries failed for blob store", ex);
+        repositoriesMetrics.allocationTransientErrorRetryFailureCounter().incrementBy(1, Map.of(REPOSITORY_TYPE, getRepositoryType()));
+    }
+
 }

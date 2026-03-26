@@ -23,6 +23,7 @@ import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -91,7 +92,8 @@ public class GoogleCloudStorageBlobStoreContainerTests extends ESTestCase {
                 BigArrays.NON_RECYCLING_INSTANCE,
                 randomIntBetween(1, 8) * 1024,
                 BackoffPolicy.noBackoff(),
-                new GcsRepositoryStatsCollector()
+                new GcsRepositoryStatsCollector(),
+                BackoffPolicy.linearBackoff(TimeValue.timeValueMillis(100), Integer.MAX_VALUE, TimeValue.ONE_MINUTE)
             )
         ) {
             final BlobContainer container = store.blobContainer(BlobPath.EMPTY);

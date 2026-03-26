@@ -328,6 +328,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
             Objects.checkFromIndexSize(0L, rowBytes, b.byteSize());
             Objects.checkFromIndexSize(0L, (long) count * Integer.BYTES, offsets.byteSize());
             Objects.checkFromIndexSize(0L, (long) count * Float.BYTES, result.byteSize());
+            assert validateBulkOffsets(a, offsets, count, length, pitch, result, rowBytes);
             return true;
         }
 
@@ -350,6 +351,52 @@ public final class JdkVectorLibrary implements VectorLibrary {
             Objects.checkFromIndexSize(0L, (long) datasetVectorLengthInBytes * (queryBits / dataBits), b.byteSize());
             Objects.checkFromIndexSize(0L, (long) count * Integer.BYTES, offsets.byteSize());
             Objects.checkFromIndexSize(0L, (long) count * Float.BYTES, result.byteSize());
+            assert validateBBQBulkOffsets(a, offsets, count, datasetVectorLengthInBytes, pitch, result);
+            return true;
+        }
+
+        static boolean validateBulkOffsets(
+            MemorySegment a,
+            MemorySegment offsets,
+            int count,
+            int length,
+            int pitch,
+            MemorySegment result,
+            long rowBytes
+        ) {
+            if (count < 0) throw new IllegalArgumentException("count must be non-negative: " + count);
+            if (length <= 0) throw new IllegalArgumentException("length must be positive: " + length);
+            if (pitch <= 0) throw new IllegalArgumentException("pitch must be positive: " + pitch);
+            checkSegmentAlignment(offsets, Integer.BYTES, "offsets", "int");
+            checkSegmentAlignment(result, Float.BYTES, "result", "float");
+            long aSize = a.byteSize();
+            for (int i = 0; i < count; i++) {
+                int offset = offsets.getAtIndex(JAVA_INT, i);
+                Objects.checkFromIndexSize((long) offset * pitch, rowBytes, aSize);
+            }
+            return true;
+        }
+
+        static boolean validateBBQBulkOffsets(
+            MemorySegment a,
+            MemorySegment offsets,
+            int count,
+            int datasetVectorLengthInBytes,
+            int pitch,
+            MemorySegment result
+        ) {
+            if (count < 0) throw new IllegalArgumentException("count must be non-negative: " + count);
+            if (datasetVectorLengthInBytes <= 0) {
+                throw new IllegalArgumentException("datasetVectorLengthInBytes must be positive: " + datasetVectorLengthInBytes);
+            }
+            if (pitch <= 0) throw new IllegalArgumentException("pitch must be positive: " + pitch);
+            checkSegmentAlignment(offsets, Integer.BYTES, "offsets", "int");
+            checkSegmentAlignment(result, Float.BYTES, "result", "float");
+            long aSize = a.byteSize();
+            for (int i = 0; i < count; i++) {
+                int offset = offsets.getAtIndex(JAVA_INT, i);
+                Objects.checkFromIndexSize((long) offset * pitch, datasetVectorLengthInBytes, aSize);
+            }
             return true;
         }
 

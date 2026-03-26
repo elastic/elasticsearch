@@ -93,9 +93,6 @@ tests:
 - class: org.elasticsearch.xpack.security.SecurityRolesMultiProjectIT
   method: testUpdatingFileBasedRoleAffectsAllProjects
   issue: https://github.com/elastic/elasticsearch/issues/129775
-- class: org.elasticsearch.action.support.ThreadedActionListenerTests
-  method: testRejectionHandling
-  issue: https://github.com/elastic/elasticsearch/issues/130129
 - class: org.elasticsearch.xpack.searchablesnapshots.cache.shared.NodesCachesStatsIntegTests
   method: testNodesCachesStats
   issue: https://github.com/elastic/elasticsearch/issues/129863
@@ -306,9 +303,6 @@ tests:
 - class: org.elasticsearch.indices.IndicesRequestCacheIT
   method: testCanCache
   issue: https://github.com/elastic/elasticsearch/issues/144526
-- class: org.elasticsearch.http.netty4.Netty4IncrementalRequestHandlingIT
-  method: testBulkIndexingRequestSplitting
-  issue: https://github.com/elastic/elasticsearch/issues/144579
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:spatial.convertCartesianFromStringParseError}
   issue: https://github.com/elastic/elasticsearch/issues/144580
@@ -318,9 +312,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/144587
-- class: org.elasticsearch.action.search.TransportSearchIT
-  method: testCircuitBreakerReduceFail
-  issue: https://github.com/elastic/elasticsearch/issues/144598
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/144587
@@ -330,9 +321,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.RestEsqlIT
   method: testForceSleepsProfile {SYNC}
   issue: https://github.com/elastic/elasticsearch/issues/144619
-- class: org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT
-  method: testCreatesEisChatCompletionEndpoint
-  issue: https://github.com/elastic/elasticsearch/issues/144671
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {csv-spec:spatial_shapes.convertFromStringParseError}
   issue: https://github.com/elastic/elasticsearch/issues/144672
@@ -351,20 +339,12 @@ tests:
 - class: org.elasticsearch.xpack.esql.analysis.AnalyzerTests
   method: testLookupMissingField
   issue: https://github.com/elastic/elasticsearch/issues/144697
-- class: org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT
-  method: testCreatesChatCompletion_AndThenCreatesTextEmbedding
-  issue: https://github.com/elastic/elasticsearch/issues/144699
 - class: org.elasticsearch.index.store.StoreDirectoryMetricsIT
   method: testDirectoryMetrics
   issue: https://github.com/elastic/elasticsearch/issues/144702
-- class: org.elasticsearch.index.mapper.TsidExtractingIdFieldMapperTests
-  issue: https://github.com/elastic/elasticsearch/issues/144678
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:k8s-timeseries-avg-over-time.avg_over_time_of_integer}
   issue: https://github.com/elastic/elasticsearch/issues/144719
-- class: org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT
-  method: testEndpointGetsUpdated_GivenFingerprintChanges_FromNonNull
-  issue: https://github.com/elastic/elasticsearch/issues/144731
 - class: org.elasticsearch.xpack.ccr.index.engine.FollowingEngineTests
   method: testProcessOnceOnPrimary
   issue: https://github.com/elastic/elasticsearch/issues/144743

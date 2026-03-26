@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.DateEsField;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.core.type.FlattenedEsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.core.type.KeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.SupportedVersion;
@@ -53,6 +54,7 @@ import java.util.TreeSet;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
+import static org.elasticsearch.xpack.esql.core.type.DataType.FLATTENED;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.OBJECT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
@@ -495,6 +497,9 @@ public class IndexResolver {
         }
         if (type == DATETIME) {
             return DateEsField.dateEsField(name, new HashMap<>(), aggregatable, timeSeriesFieldType);
+        }
+        if (FLATTENED.equals(first.type())) {
+            return new FlattenedEsField(name, aggregatable);
         }
         if (type == UNSUPPORTED) {
             return unsupported(name, first);

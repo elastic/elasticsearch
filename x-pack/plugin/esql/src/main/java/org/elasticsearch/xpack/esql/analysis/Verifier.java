@@ -462,7 +462,7 @@ public class Verifier {
     /**
      * Reject loading sub-fields of flattened fields when {@code unmapped_fields="load"}, by checking if any
      * {@link PotentiallyUnmappedKeywordEsField} is a sub-field of a parent field whose original type is flattened. The reason is that
-     * flattened subfields resolution may eventually differ from what happens when {@code unmapped_fields="load"}.
+     * flattened subfields accessed via {@code JSON_EXTRACT} on the root may eventually differ from what happens when {@code unmapped_fields="load"}.
      */
     private static void checkFlattenedSubFieldLoad(LogicalPlan plan, Failures failures) {
         plan.forEachDown(EsRelation.class, esRelation -> {

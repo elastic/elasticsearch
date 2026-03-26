@@ -1,27 +1,68 @@
 flattened root fields
 required_capability: load_flattened_field
-required_capability: optional_fields_v4
+required_capability: load_flattened_field_root_values
 
-SET unmapped_fields="load"\;
 FROM flattened_otel_logs
 | SORT @timestamp ASC
 | LIMIT 2
 ;
 
-@timestamp:date          | attributes:unsupported | resource.attributes:unsupported            
-2020-01-01T00:02:48.461Z | null                   | null
-2020-01-01T00:07:43.000Z | null                   | null
+@timestamp:date          | attributes:json                                                                                                        | resource.attributes:json
+2020-01-01T00:02:48.461Z | "{""rally"":{""message_size"":""192""},""type"":""beats""}"                                                            | "{""agent"":{""id"":""c92cc400-fe39-4252-bc0f-4b024e742f25"",""type"":""filebeat""},""host"":{""name"":""infra-filebeat-6vjxr""}}"
+2020-01-01T00:07:43.000Z | "{""event"":{""module"":""nginx""},""input"":{""type"":""log""},""nginx"":{""error"":{""connection_id"":""184896""}}}" | "{""agent"":{""id"":""3ac5081d-9275-4cde-a2a8-a00b794a20f4"",""type"":""filebeat""},""host"":{""ip"":[""10.224.0.170"",""fe80::4001:aff:fee0:aa""],""name"":""devops-ci-master-blue.c.elastic-ci-prod.internal""}}"
 ;
 
 // ----------------------------------------------------
-# Temporarily ignored since loading subfields of flattened type is not allowed
-flattened KEEP subfield-Ignore
+flattened KEEP root field
 required_capability: load_flattened_field
-required_capability: optional_fields_v4
+required_capability: load_flattened_field_root_values
 
-SET unmapped_fields="load"\;
 FROM flattened_otel_logs
-| KEEP @timestamp, resource.attributes.host.name
+| KEEP @timestamp, resource.attributes
+| SORT @timestamp ASC
+| LIMIT 3
+;
+
+@timestamp:date          | resource.attributes:json
+2020-01-01T00:02:48.461Z | "{""agent"":{""id"":""c92cc400-fe39-4252-bc0f-4b024e742f25"",""type"":""filebeat""},""host"":{""name"":""infra-filebeat-6vjxr""}}"
+2020-01-01T00:07:43.000Z | "{""agent"":{""id"":""3ac5081d-9275-4cde-a2a8-a00b794a20f4"",""type"":""filebeat""},""host"":{""ip"":[""10.224.0.170"",""fe80::4001:aff:fee0:aa""],""name"":""devops-ci-master-blue.c.elastic-ci-prod.internal""}}"
+2020-01-01T00:31:18.303Z | "{""agent"":{""id"":""8a161b55-80d0-4ba3-afc8-31d5e15fc51c"",""type"":""filebeat""},""host"":{""ip"":[""10.224.0.109"",""172.17.0.1"",""fe80::4001:aff:fee0:6d""],""name"":""elasticsearch-ci-immutable-sles-15-1599243844262984968""}}"
+;
+
+// ----------------------------------------------------
+flattened JSON_EXTRACT subfield
+required_capability: fn_json_extract
+required_capability: load_flattened_field
+required_capability: load_flattened_field_root_values
+
+FROM flattened_otel_logs
+| EVAL host_name = JSON_EXTRACT(resource.attributes, "host.name")
+| KEEP @timestamp, host_name
+| SORT @timestamp ASC
+;
+
+@timestamp:date          | host_name:keyword
+2020-01-01T00:02:48.461Z | infra-filebeat-6vjxr
+2020-01-01T00:07:43.000Z | devops-ci-master-blue.c.elastic-ci-prod.internal
+2020-01-01T00:31:18.303Z | elasticsearch-ci-immutable-sles-15-1599243844262984968
+2020-01-01T00:58:35.557Z | infra-filebeat-mdvqm
+2020-01-01T10:12:02.675Z | filebeat-8pmfj
+2020-01-01T11:38:54.751Z | infra-filebeat-6vjxr
+2020-01-01T11:43:13.255Z | filebeat-6t7v6
+2020-01-01T14:37:29.195Z | elasticsearch-ci-immutable-debian-9-pkg-1599049660880335683
+2020-01-01T21:03:55.497Z | infra-filebeat-z5mjq
+2020-01-01T21:38:06.655Z | infra-filebeat-cpcmv
+;
+
+// ----------------------------------------------------
+flattened KEEP subfield
+required_capability: fn_json_extract
+required_capability: load_flattened_field
+required_capability: load_flattened_field_root_values
+
+FROM flattened_otel_logs
+| EVAL `resource.attributes.host.name` = JSON_EXTRACT(resource.attributes, "host.name")
+| KEEP @timestamp, `resource.attributes.host.name`
 | SORT @timestamp ASC
 ;
 
@@ -39,15 +80,15 @@ FROM flattened_otel_logs
 ;
 
 // ----------------------------------------------------
-# Temporarily ignored since loading subfields of flattened type is not allowed
-flattened DROP subfield-Ignore
+flattened DROP subfield
+required_capability: fn_json_extract
 required_capability: load_flattened_field
-required_capability: optional_fields_v4
+required_capability: load_flattened_field_root_values
 
-SET unmapped_fields="load"\;
 FROM flattened_otel_logs
-| DROP resource.attributes.agent.type
-| KEEP @timestamp, resource.attributes.host.name
+| EVAL `resource.attributes.host.name` = JSON_EXTRACT(resource.attributes, "host.name"), `resource.attributes.agent.type` = JSON_EXTRACT(resource.attributes, "agent.type")
+| DROP `resource.attributes.agent.type`
+| KEEP @timestamp, `resource.attributes.host.name`
 | SORT @timestamp ASC
 ;
 
@@ -65,15 +106,15 @@ FROM flattened_otel_logs
 ;
 
 // ----------------------------------------------------
-# Temporarily ignored since loading subfields of flattened type is not allowed
-flattened DROP subfield after KEEP-Ignore
+flattened DROP subfield after KEEP
+required_capability: fn_json_extract
 required_capability: load_flattened_field
-required_capability: optional_fields_v4
+required_capability: load_flattened_field_root_values
 
-SET unmapped_fields="load"\;
 FROM flattened_otel_logs
-| KEEP @timestamp, resource.attributes.host.name, resource.attributes.agent.type
-| DROP resource.attributes.agent.type
+| EVAL `resource.attributes.host.name` = JSON_EXTRACT(resource.attributes, "host.name"), `resource.attributes.agent.type` = JSON_EXTRACT(resource.attributes, "agent.type")
+| KEEP @timestamp, `resource.attributes.host.name`, `resource.attributes.agent.type`
+| DROP `resource.attributes.agent.type`
 | SORT @timestamp ASC
 ;
 
@@ -91,50 +132,50 @@ FROM flattened_otel_logs
 ;
 
 // ----------------------------------------------------
-# Temporarily ignored since loading subfields of flattened type is not allowed
-flattened subfield with WHERE-Ignore
+flattened subfield with WHERE
+required_capability: fn_json_extract
 required_capability: load_flattened_field
-required_capability: optional_fields_v4
+required_capability: load_flattened_field_root_values
 
-SET unmapped_fields="load"\;
 FROM flattened_otel_logs
-| WHERE resource.attributes.host.name == "infra-filebeat-6vjxr"
+| EVAL `resource.attributes.host.name` = JSON_EXTRACT(resource.attributes, "host.name")
+| WHERE `resource.attributes.host.name` == "infra-filebeat-6vjxr"
 | SORT @timestamp ASC
 ;
 
-@timestamp:date          | attributes:unsupported | resource.attributes:unsupported | resource.attributes.host.name:keyword
-2020-01-01T00:02:48.461Z |                   null |                            null | infra-filebeat-6vjxr
-2020-01-01T11:38:54.751Z |                   null |                            null | infra-filebeat-6vjxr
+@timestamp:date          | attributes:json                                             | resource.attributes:json                                                                                                           | resource.attributes.host.name:keyword
+2020-01-01T00:02:48.461Z | "{""rally"":{""message_size"":""192""},""type"":""beats""}" | "{""agent"":{""id"":""c92cc400-fe39-4252-bc0f-4b024e742f25"",""type"":""filebeat""},""host"":{""name"":""infra-filebeat-6vjxr""}}" | infra-filebeat-6vjxr
+2020-01-01T11:38:54.751Z | "{""ecs"":{""version"":""1.4.0""}}"                         | "{""agent"":{""id"":""c92cc400-fe39-4252-bc0f-4b024e742f25"",""type"":""filebeat""},""host"":{""name"":""infra-filebeat-6vjxr""}}" | infra-filebeat-6vjxr
 ;
 
 // ----------------------------------------------------
-# Temporarily ignored since loading subfields of flattened type is not allowed
-flattened subfield with WHERE and KEEP *-Ignore
+flattened subfield with WHERE and KEEP *
+required_capability: fn_json_extract
 required_capability: load_flattened_field
-required_capability: optional_fields_v4
+required_capability: load_flattened_field_root_values
 
-SET unmapped_fields="load"\;
 FROM flattened_otel_logs
-| WHERE resource.attributes.host.name == "infra-filebeat-6vjxr"
+| EVAL `resource.attributes.host.name` = JSON_EXTRACT(resource.attributes, "host.name")
+| WHERE `resource.attributes.host.name` == "infra-filebeat-6vjxr"
 | KEEP *
 | SORT @timestamp ASC
 ;
 
-@timestamp:date          | attributes:unsupported | resource.attributes:unsupported | resource.attributes.host.name:keyword
-2020-01-01T00:02:48.461Z |                   null |                            null | infra-filebeat-6vjxr
-2020-01-01T11:38:54.751Z |                   null |                            null | infra-filebeat-6vjxr
+@timestamp:date          | attributes:json                                             | resource.attributes:json                                                                                                           | resource.attributes.host.name:keyword
+2020-01-01T00:02:48.461Z | "{""rally"":{""message_size"":""192""},""type"":""beats""}" | "{""agent"":{""id"":""c92cc400-fe39-4252-bc0f-4b024e742f25"",""type"":""filebeat""},""host"":{""name"":""infra-filebeat-6vjxr""}}" | infra-filebeat-6vjxr
+2020-01-01T11:38:54.751Z | "{""ecs"":{""version"":""1.4.0""}}"                         | "{""agent"":{""id"":""c92cc400-fe39-4252-bc0f-4b024e742f25"",""type"":""filebeat""},""host"":{""name"":""infra-filebeat-6vjxr""}}" | infra-filebeat-6vjxr
 ;
 
 // ----------------------------------------------------
-# Temporarily ignored since loading subfields of flattened type is not allowed
-flattened subfield with WHERE and KEEP specific subfields-Ignore
+flattened subfield with WHERE and KEEP specific subfields
+required_capability: fn_json_extract
 required_capability: load_flattened_field
-required_capability: optional_fields_v4
+required_capability: load_flattened_field_root_values
 
-SET unmapped_fields="load"\;
 FROM flattened_otel_logs
-| WHERE resource.attributes.host.name == "infra-filebeat-6vjxr"
-| KEEP @timestamp, resource.attributes.host.name
+| EVAL `resource.attributes.host.name` = JSON_EXTRACT(resource.attributes, "host.name")
+| WHERE `resource.attributes.host.name` == "infra-filebeat-6vjxr"
+| KEEP @timestamp, `resource.attributes.host.name`
 | SORT @timestamp ASC
 ;
 
@@ -144,14 +185,13 @@ FROM flattened_otel_logs
 ;
 
 // ----------------------------------------------------
-# Temporarily ignored since loading subfields of flattened type is not allowed
-flattened subfield with EVAL TO_UPPER-Ignore
+flattened subfield with EVAL TO_UPPER
+required_capability: fn_json_extract
 required_capability: load_flattened_field
-required_capability: optional_fields_v4
+required_capability: load_flattened_field_root_values
 
-SET unmapped_fields="load"\;
 FROM flattened_otel_logs
-| EVAL upper_host = TO_UPPER(resource.attributes.host.name)
+| EVAL upper_host = TO_UPPER(JSON_EXTRACT(resource.attributes, "host.name"))
 | KEEP @timestamp, upper_host
 | SORT @timestamp ASC
 ;
@@ -170,14 +210,13 @@ FROM flattened_otel_logs
 ;
 
 // ----------------------------------------------------
-# Temporarily ignored since loading subfields of flattened type is not allowed
-flattened subfield with EVAL LENGTH-Ignore
+flattened subfield with EVAL LENGTH
+required_capability: fn_json_extract
 required_capability: load_flattened_field
-required_capability: optional_fields_v4
+required_capability: load_flattened_field_root_values
 
-SET unmapped_fields="load"\;
 FROM flattened_otel_logs
-| EVAL host_length = LENGTH(resource.attributes.host.name)
+| EVAL host_length = LENGTH(JSON_EXTRACT(resource.attributes, "host.name"))
 | KEEP @timestamp, host_length
 | SORT @timestamp ASC
 ;
@@ -196,15 +235,15 @@ FROM flattened_otel_logs
 ;
 
 // ----------------------------------------------------
-# Temporarily ignored since loading subfields of flattened type is not allowed
-SORT on flattened subfield-Ignore
+SORT on flattened subfield
+required_capability: fn_json_extract
 required_capability: load_flattened_field
-required_capability: optional_fields_v4
+required_capability: load_flattened_field_root_values
 
-SET unmapped_fields="load"\;
 FROM flattened_otel_logs
-| SORT resource.attributes.host.name ASC, @timestamp ASC
-| KEEP @timestamp, resource.attributes.host.name
+| EVAL `resource.attributes.host.name` = JSON_EXTRACT(resource.attributes, "host.name")
+| SORT `resource.attributes.host.name` ASC, @timestamp ASC
+| KEEP @timestamp, `resource.attributes.host.name`
 ;
 
 @timestamp:date          | resource.attributes.host.name:keyword
@@ -221,14 +260,14 @@ FROM flattened_otel_logs
 ;
 
 // ----------------------------------------------------
-# Temporarily ignored since loading subfields of flattened type is not allowed
-RENAME flattened subfield-Ignore
+RENAME flattened subfield
+required_capability: fn_json_extract
 required_capability: load_flattened_field
-required_capability: optional_fields_v4
+required_capability: load_flattened_field_root_values
 
-SET unmapped_fields="load"\;
 FROM flattened_otel_logs
-| RENAME resource.attributes.host.name AS host_name
+| EVAL `resource.attributes.host.name` = JSON_EXTRACT(resource.attributes, "host.name")
+| RENAME `resource.attributes.host.name` AS host_name
 | KEEP @timestamp, host_name
 | SORT host_name ASC, @timestamp ASC
 ;
@@ -247,14 +286,14 @@ FROM flattened_otel_logs
 ;
 
 // ----------------------------------------------------
-# Temporarily ignored since loading subfields of flattened type is not allowed
-flattened subfield with STATS count-Ignore
+flattened subfield with STATS count
+required_capability: fn_json_extract
 required_capability: load_flattened_field
-required_capability: optional_fields_v4
+required_capability: load_flattened_field_root_values
 
-SET unmapped_fields="load"\;
 FROM flattened_otel_logs
-| STATS count(*) BY resource.attributes.agent.type
+| EVAL `resource.attributes.agent.type` = JSON_EXTRACT(resource.attributes, "agent.type")
+| STATS count(*) BY `resource.attributes.agent.type`
 ;
 
 count(*):long | resource.attributes.agent.type:keyword
@@ -262,29 +301,28 @@ count(*):long | resource.attributes.agent.type:keyword
 ;
 
 // ----------------------------------------------------
-# Temporarily ignored since loading subfields of flattened type is not allowed
-flattened subfield with STATS count_distinct-Ignore
+flattened subfield with STATS count_distinct
+required_capability: fn_json_extract
 required_capability: load_flattened_field
-required_capability: optional_fields_v4
+required_capability: load_flattened_field_root_values
 
-SET unmapped_fields="load"\;
 FROM flattened_otel_logs
-| STATS count_distinct(resource.attributes.host.name)
+| STATS count_distinct(JSON_EXTRACT(resource.attributes, "host.name"))
 ;
 
-count_distinct(resource.attributes.host.name):long
+count_distinct(JSON_EXTRACT(resource.attributes, "host.name")):long
 9
 ;
 
 // ----------------------------------------------------
-# Temporarily ignored since loading subfields of flattened type is not allowed
-flattened subfield with INLINE STATS-Ignore
+flattened subfield with INLINE STATS
+required_capability: fn_json_extract
 required_capability: load_flattened_field
-required_capability: optional_fields_v4
+required_capability: load_flattened_field_root_values
 
-SET unmapped_fields="load"\;
 FROM flattened_otel_logs
-| INLINE STATS count = COUNT(*) BY resource.attributes.host.name
+| EVAL `resource.attributes.host.name` = JSON_EXTRACT(resource.attributes, "host.name")
+| INLINE STATS count = COUNT(*) BY `resource.attributes.host.name`
 | DROP attributes, resource.attributes
 | SORT count DESC, @timestamp ASC
 | LIMIT 5
@@ -299,31 +337,19 @@ FROM flattened_otel_logs
 ;
 
 // ----------------------------------------------------
-# Temporarily ignored since loading subfields of flattened type is not allowed
-flattened subfield with MV_EXPAND-Ignore
+flattened JSON_EXTRACT array subfield returns JSON text
+required_capability: fn_json_extract
 required_capability: load_flattened_field
-required_capability: optional_fields_v4
+required_capability: load_flattened_field_root_values
 
-SET unmapped_fields="load"\;
 FROM flattened_otel_logs
-| MV_EXPAND resource.attributes.host.ip
-| WHERE resource.attributes.host.ip IS NOT NULL
-| KEEP @timestamp, resource.attributes.host.name, resource.attributes.host.ip
-| SORT @timestamp ASC, resource.attributes.host.ip ASC
-| LIMIT 20
+| EVAL ip_json = JSON_EXTRACT(resource.attributes, "host.ip")
+| WHERE ip_json IS NOT NULL
+| KEEP @timestamp, ip_json
+| SORT @timestamp ASC
+| LIMIT 1
 ;
 
-@timestamp:datetime      | resource.attributes.host.name:keyword                       | resource.attributes.host.ip:keyword
-2020-01-01T00:07:43.000Z | devops-ci-master-blue.c.elastic-ci-prod.internal            | 10.224.0.170
-2020-01-01T00:07:43.000Z | devops-ci-master-blue.c.elastic-ci-prod.internal            | fe80::4001:aff:fee0:aa
-2020-01-01T00:31:18.303Z | elasticsearch-ci-immutable-sles-15-1599243844262984968      | 10.224.0.109
-2020-01-01T00:31:18.303Z | elasticsearch-ci-immutable-sles-15-1599243844262984968      | 172.17.0.1
-2020-01-01T00:31:18.303Z | elasticsearch-ci-immutable-sles-15-1599243844262984968      | fe80::4001:aff:fee0:6d
-2020-01-01T10:12:02.675Z | filebeat-8pmfj                                              | 10.72.3.6
-2020-01-01T11:43:13.255Z | filebeat-6t7v6                                              | 10.72.1.5
-2020-01-01T14:37:29.195Z | elasticsearch-ci-immutable-debian-9-pkg-1599049660880335683 | 10.224.2.157
-2020-01-01T14:37:29.195Z | elasticsearch-ci-immutable-debian-9-pkg-1599049660880335683 | 172.17.0.1
-2020-01-01T14:37:29.195Z | elasticsearch-ci-immutable-debian-9-pkg-1599049660880335683 | fe80::4001:aff:fee0:29d
-2020-01-01T14:37:29.195Z | elasticsearch-ci-immutable-debian-9-pkg-1599049660880335683 | fe80::42:48ff:fe1a:ed7d
-2020-01-01T14:37:29.195Z | elasticsearch-ci-immutable-debian-9-pkg-1599049660880335683 | fe80::9c8e:44ff:fe9e:da94
+@timestamp:date          | ip_json:keyword
+2020-01-01T00:07:43.000Z | "[""10.224.0.170"",""fe80::4001:aff:fee0:aa""]"
 ;

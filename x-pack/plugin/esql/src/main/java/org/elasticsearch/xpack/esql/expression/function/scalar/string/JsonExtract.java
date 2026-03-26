@@ -86,6 +86,8 @@ public class JsonExtract extends EsqlScalarFunction {
             allowed inside brackets (`[ 0 ]` is equivalent to `[0]`).
             Path matching is case-sensitive per the JSON specification.
 
+            When a `flattened` field root is loaded as JSON, pass that root as the first argument to read nested keys without using dotted field names (for example `JSON_EXTRACT(resource.attributes, "host.name")`).
+
             The extracted value is returned as a `keyword` string: string
             values without surrounding quotes, numbers and booleans as their
             string representation, and objects or arrays as JSON strings.
@@ -141,7 +143,7 @@ public class JsonExtract extends EsqlScalarFunction {
         @Param(
             name = "string",
             type = { "keyword", "text", "_source" },
-            description = "A string containing valid JSON, or the `_source` field. If `null`, the function returns `null`."
+            description = "A string containing valid JSON, the `_source` field, or a `flattened` field root loaded as JSON. If `null`, the function returns `null`."
         ) Expression str,
         @Param(
             name = "path",

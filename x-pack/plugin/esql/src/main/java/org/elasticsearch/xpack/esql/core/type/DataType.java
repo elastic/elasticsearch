@@ -504,6 +504,9 @@ public enum DataType implements Writeable {
 
     private static final Map<String, DataType> ES_TO_TYPE;
 
+    // TODO: Should we make it actual data type?
+    public static final String FLATTENED = "flattened";
+
     static {
         Map<String, DataType> map = TYPES.stream().filter(e -> e.esType() != null).collect(toMap(DataType::esType, t -> t));
         // TODO: Why don't we use the names ES uses as the esType field for these?
@@ -513,6 +516,8 @@ public enum DataType implements Writeable {
         // semantic_text is returned as text by field_caps, but unit tests will retrieve it from the mapping
         // so we need to map it here as well
         map.put("semantic_text", DataType.TEXT);
+        // Root flattened fields are loaded as a JSON blob via RootFlattenedFieldType#blockLoader
+        map.put(FLATTENED, DataType.SOURCE);
         ES_TO_TYPE = Collections.unmodifiableMap(map);
         // DATETIME has different esType and typeName, add an entry in NAME_TO_TYPE with date as key
         map = TYPES.stream().collect(toMap(DataType::typeName, t -> t));

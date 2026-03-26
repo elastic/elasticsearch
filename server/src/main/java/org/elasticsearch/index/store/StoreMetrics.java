@@ -14,11 +14,13 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.Objects;
 import java.util.function.Supplier;
 
 public class StoreMetrics implements DirectoryMetrics.PluggableMetrics<StoreMetrics> {
     public static final String NAME = "store";
+    public static final String BYTES_READ_RESPONSE_HEADER = "X-Elasticsearch-Bytes-Read";
     public static final PluggableDirectoryMetricsHolder<StoreMetrics> NOOP_HOLDER = PluggableDirectoryMetricsHolder.noop(
         new StoreMetrics() {
             @Override
@@ -60,6 +62,11 @@ public class StoreMetrics implements DirectoryMetrics.PluggableMetrics<StoreMetr
     @Override
     public StoreMetrics merge(StoreMetrics other) {
         return new StoreMetrics(bytesRead + other.bytesRead);
+    }
+
+    @Override
+    public Map<String, String> entries() {
+        return Map.of(BYTES_READ_RESPONSE_HEADER, Long.toString(bytesRead));
     }
 
     @Override

@@ -19,9 +19,7 @@ import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.store.DirectoryMetrics;
-import org.elasticsearch.index.store.StoreMetrics;
 import org.elasticsearch.search.SearchPhaseResult;
-import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.InternalScrollSearchRequest;
 import org.elasticsearch.search.internal.SearchContext;
@@ -259,15 +257,8 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> {
         final AtomicArray<? extends SearchPhaseResult> fetchResults
     ) {
         try {
-            long bytesRead = 0;
-            DirectoryMetrics.PluggableMetrics<?> storeMetrics = mergedDirectoryMetrics.metrics("store");
-            if (storeMetrics != null) {
-                bytesRead = storeMetrics.cast(StoreMetrics.class).getBytesRead();
-            }
-            searchTransportService.transportService()
-                .getThreadPool()
-                .getThreadContext()
-                .addResponseHeader(SearchService.BYTES_READ_RESPONSE_HEADER, Long.toString(bytesRead));
+            var threadContext = searchTransportService.transportService().getThreadPool().getThreadContext();
+            mergedDirectoryMetrics.entries().forEach(threadContext::addResponseHeader);
             // the scroll ID never changes we always return the same ID. This ID contains all the shards and their context ids
             // such that we can talk to them again in the next roundtrip.
             String scrollId = null;

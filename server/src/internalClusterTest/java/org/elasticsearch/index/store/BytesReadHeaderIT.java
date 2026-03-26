@@ -22,7 +22,6 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortOrder;
@@ -153,8 +152,8 @@ public class BytesReadHeaderIT extends ESIntegTestCase {
             public void onResponse(SearchResponse searchResponse) {
                 try {
                     Map<String, List<String>> responseHeaders = client.threadPool().getThreadContext().getResponseHeaders();
-                    assertThat(responseHeaders, hasKey(SearchService.BYTES_READ_RESPONSE_HEADER));
-                    List<String> values = responseHeaders.get(SearchService.BYTES_READ_RESPONSE_HEADER);
+                    assertThat(responseHeaders, hasKey(StoreMetrics.BYTES_READ_RESPONSE_HEADER));
+                    List<String> values = responseHeaders.get(StoreMetrics.BYTES_READ_RESPONSE_HEADER);
                     assertThat("expected a single accumulated header value", values.size(), equalTo(1));
                     long total = Long.parseLong(values.get(0));
                     assertThat(total, greaterThan(0L));

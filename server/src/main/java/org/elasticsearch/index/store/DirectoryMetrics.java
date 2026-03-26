@@ -53,6 +53,15 @@ public class DirectoryMetrics implements ToXContentFragment, Writeable {
         T merge(T other);
 
         /**
+         * Returns key/value pairs that this metric wants to surface externally, e.g. as
+         * HTTP response headers or telemetry attributes. Metrics that do not contribute
+         * entries can rely on the default empty-map implementation.
+         */
+        default Map<String, String> entries() {
+            return Map.of();
+        }
+
+        /**
          * Convenience method to cast to the class specified.
          * @param clazz class to cast to.
          * @return object as clazz
@@ -88,6 +97,18 @@ public class DirectoryMetrics implements ToXContentFragment, Writeable {
 
     public PluggableMetrics<?> metrics(String type) {
         return data.get(type);
+    }
+
+    /**
+     * Collects entries from all registered pluggable metrics into a single map,
+     * suitable for use as HTTP response headers, telemetry attributes, or similar key/value sinks.
+     */
+    public Map<String, String> entries() {
+        Map<String, String> entries = Maps.newHashMapWithExpectedSize(data.size());
+        for (PluggableMetrics<?> metric : data.values()) {
+            entries.putAll(metric.entries());
+        }
+        return entries;
     }
 
     /**

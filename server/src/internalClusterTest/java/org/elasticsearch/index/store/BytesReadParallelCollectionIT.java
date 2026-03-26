@@ -105,8 +105,8 @@ public class BytesReadParallelCollectionIT extends ESIntegTestCase {
 
         client.search(searchRequest, new LatchedActionListener<>(ActionListener.assertOnce(ActionListener.wrap(searchResponse -> {
             Map<String, List<String>> responseHeaders = client.threadPool().getThreadContext().getResponseHeaders();
-            assertThat(responseHeaders, hasKey(SearchService.BYTES_READ_RESPONSE_HEADER));
-            List<String> values = responseHeaders.get(SearchService.BYTES_READ_RESPONSE_HEADER);
+            assertThat(responseHeaders, hasKey(StoreMetrics.BYTES_READ_RESPONSE_HEADER));
+            List<String> values = responseHeaders.get(StoreMetrics.BYTES_READ_RESPONSE_HEADER);
             assertThat(values, hasSize(1));
             assertThat("expected a single accumulated header value", values.size(), equalTo(1));
             bytesRead.set(Long.parseLong(values.get(0)));

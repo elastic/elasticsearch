@@ -32,11 +32,9 @@ import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.DirectoryMetrics;
-import org.elasticsearch.index.store.StoreMetrics;
 import org.elasticsearch.rest.action.search.SearchResponseMetrics;
 import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.search.SearchPhaseResult;
-import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -617,15 +615,8 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
       * @param queryResults           the results of the query phase
       */
     public void sendSearchResponse(SearchResponseSections internalSearchResponse, AtomicArray<SearchPhaseResult> queryResults) {
-        long bytesRead = 0;
-        DirectoryMetrics.PluggableMetrics<?> storeMetrics = mergedDirectoryMetrics.metrics("store");
-        if (storeMetrics != null) {
-            bytesRead = storeMetrics.cast(StoreMetrics.class).getBytesRead();
-        }
-        searchTransportService.transportService()
-            .getThreadPool()
-            .getThreadContext()
-            .addResponseHeader(SearchService.BYTES_READ_RESPONSE_HEADER, Long.toString(bytesRead));
+        var threadContext = searchTransportService.transportService().getThreadPool().getThreadContext();
+        mergedDirectoryMetrics.entries().forEach(threadContext::addResponseHeader);
         ShardSearchFailure[] failures = buildShardFailures();
         Boolean allowPartialResults = request.allowPartialSearchResults();
         assert allowPartialResults != null : "SearchRequest missing setting for allowPartialSearchResults";

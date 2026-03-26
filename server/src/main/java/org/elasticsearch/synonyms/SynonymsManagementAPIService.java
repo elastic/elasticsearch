@@ -31,6 +31,7 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.bulk.IndexDocFailureStoreStatus;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.ClosePointInTimeRequest;
+import org.elasticsearch.action.search.ClosePointInTimeResponse;
 import org.elasticsearch.action.search.OpenPointInTimeRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -107,8 +108,8 @@ public class SynonymsManagementAPIService {
     private static final String SYNONYM_RULE_ID_SEPARATOR = "|";
     private static final int MAX_SYNONYMS_SETS = 10_000;
     private static final int MAX_SYNONYM_RULES = 10_000;
-    private static final int SCROLL_KEEP_ALIVE_SECONDS = 60;
-    static final int SCROLL_BATCH_SIZE = 10_000;
+    private static final int PIT_KEEP_ALIVE_SECONDS = 60;
+    static final int PIT_BATCH_SIZE = 10_000;
     private static final String SYNONYM_RULE_ID_FIELD = SynonymRule.ID_FIELD.getPreferredName();
     private static final String SYNONYM_SETS_AGG_NAME = "synonym_sets_aggr";
     private static final String RULE_COUNT_AGG_NAME = "rule_count";
@@ -117,7 +118,7 @@ public class SynonymsManagementAPIService {
     public static final int INDEX_SEARCHABLE_TIMEOUT_SECONDS = 30;
     private final int maxSynonymsSets;
     private final int maxSynonymRules;
-    private final int scrollBatchSize;
+    private final int pitBatchSize;
 
     // Package private for testing
     static Logger logger = LogManager.getLogger(SynonymsManagementAPIService.class);
@@ -137,20 +138,20 @@ public class SynonymsManagementAPIService {
         .build();
 
     public SynonymsManagementAPIService(Client client) {
-        this(client, MAX_SYNONYM_RULES, SCROLL_BATCH_SIZE);
+        this(client, MAX_SYNONYM_RULES, PIT_BATCH_SIZE);
     }
 
     // Used for testing, so we don't need to test for MAX_SYNONYM_RULES and put unnecessary memory pressure on the test cluster
     SynonymsManagementAPIService(Client client, int maxSynonymRules) {
-        this(client, maxSynonymRules, SCROLL_BATCH_SIZE);
+        this(client, maxSynonymRules, PIT_BATCH_SIZE);
     }
 
-    // Used for testing scroll behavior with a small batch size to force multiple scroll iterations
-    SynonymsManagementAPIService(Client client, int maxSynonymRules, int scrollBatchSize) {
+    // Used for testing PIT pagination behavior with a small batch size to force multiple iterations
+    SynonymsManagementAPIService(Client client, int maxSynonymRules, int pitBatchSize) {
         this.client = new OriginSettingClient(client, SYNONYMS_ORIGIN);
         this.maxSynonymsSets = MAX_SYNONYMS_SETS;
         this.maxSynonymRules = maxSynonymRules;
-        this.scrollBatchSize = scrollBatchSize;
+        this.pitBatchSize = pitBatchSize;
     }
 
     /* The synonym index stores two object types:
@@ -265,14 +266,14 @@ public class SynonymsManagementAPIService {
     }
 
     /**
-     * Retrieves all synonym rules for a synonym set using PIT + search_after, removing the 10k search result limit.
-     * Results are fetched iteratively in batches of {@value SCROLL_BATCH_SIZE} until exhausted.
+     * Retrieves all synonym rules for a synonym set using PIT + search_after.
+     * Results are fetched iteratively in batches of {@value PIT_BATCH_SIZE} until exhausted.
      *
      * @param synonymSetId the synonym set to load
      * @param listener     receives the complete set of rules
      */
     public void getSynonymSetRules(String synonymSetId, ActionListener<PagedResult<SynonymRule>> listener) {
-        TimeValue keepAlive = TimeValue.timeValueSeconds(SCROLL_KEEP_ALIVE_SECONDS);
+        TimeValue keepAlive = TimeValue.timeValueSeconds(PIT_KEEP_ALIVE_SECONDS);
         OpenPointInTimeRequest pitRequest = new OpenPointInTimeRequest(SYNONYMS_ALIAS_NAME).keepAlive(keepAlive);
         client.execute(
             TransportOpenPointInTimeAction.TYPE,
@@ -298,7 +299,7 @@ public class SynonymsManagementAPIService {
                 .must(QueryBuilders.termQuery(SYNONYMS_SET_FIELD, synonymSetId))
                 .filter(QueryBuilders.termQuery(OBJECT_TYPE_FIELD, SYNONYM_RULE_OBJECT_TYPE))
         )
-            .size(scrollBatchSize)
+            .size(pitBatchSize)
             .sort(SortBuilders.fieldSort(SYNONYM_RULE_ID_FIELD).order(SortOrder.ASC))
             .sort(SortBuilders.fieldSort("_shard_doc").order(SortOrder.ASC))
             .trackTotalHits(true)
@@ -313,13 +314,13 @@ public class SynonymsManagementAPIService {
             long newTotalHits = totalHits < 0 ? response.getHits().getTotalHits().value() : totalHits;
 
             if (hits.length == 0) {
-                closePitSilently(pitId);
                 if (accumulated.isEmpty()) {
-                    checkSynonymSetExists(synonymSetId, listener.delegateFailure((l, ignored) -> {
+                    closePitAndThen(pitId, () -> checkSynonymSetExists(synonymSetId, listener.delegateFailure((l, ignored) -> {
                         l.onResponse(new PagedResult<>(0, new SynonymRule[0]));
-                    }));
+                    })));
                 } else {
-                    listener.onResponse(new PagedResult<>(newTotalHits, accumulated.toArray(new SynonymRule[0])));
+                    PagedResult<SynonymRule> result = new PagedResult<>(newTotalHits, accumulated.toArray(new SynonymRule[0]));
+                    closePitAndThen(pitId, () -> listener.onResponse(result));
                 }
                 return;
             }
@@ -336,32 +337,38 @@ public class SynonymsManagementAPIService {
                 for (SearchHit hit : hits) {
                     accumulated.add(sourceMapToSynonymRule(hit.getSourceAsMap()));
                     if (accumulated.size() >= maxSynonymRules) {
-                        closePitSilently(pitId);
-                        listener.onResponse(new PagedResult<>(newTotalHits, accumulated.toArray(new SynonymRule[0])));
+                        PagedResult<SynonymRule> result = new PagedResult<>(newTotalHits, accumulated.toArray(new SynonymRule[0]));
+                        closePitAndThen(pitId, () -> listener.onResponse(result));
                         return;
                     }
                 }
             } catch (Exception e) {
-                closePitSilently(pitId);
-                listener.onFailure(e);
+                closePitAndThen(pitId, () -> listener.onFailure(e));
                 return;
             }
 
             Object[] lastSortValues = hits[hits.length - 1].getSortValues();
             fetchPageWithPit(synonymSetId, pitId, keepAlive, lastSortValues, accumulated, newTotalHits, listener);
-        }, e -> {
-            closePitSilently(pitId);
-            listener.onFailure(e);
-        }));
+        }, e -> closePitAndThen(pitId, () -> listener.onFailure(e))));
     }
 
-    private void closePitSilently(BytesReference pitId) {
+    private void closePitAndThen(BytesReference pitId, Runnable andThen) {
         if (pitId == null) {
+            andThen.run();
             return;
         }
-        client.execute(TransportClosePointInTimeAction.TYPE, new ClosePointInTimeRequest(pitId), ActionListener.wrap(r -> {}, e -> {
-            logger.warn("Failed to close PIT context", e);
-        }));
+        client.execute(TransportClosePointInTimeAction.TYPE, new ClosePointInTimeRequest(pitId), new ActionListener<>() {
+            @Override
+            public void onResponse(ClosePointInTimeResponse r) {
+                andThen.run();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                logger.warn("Failed to close PIT context", e);
+                andThen.run();
+            }
+        });
     }
 
     /**

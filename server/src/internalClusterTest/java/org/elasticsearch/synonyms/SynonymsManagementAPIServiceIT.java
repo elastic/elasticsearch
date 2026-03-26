@@ -97,14 +97,14 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
         getLatch.await(10, TimeUnit.SECONDS);
     }
 
-    public void testGetAllSynonymSetRulesViaScroll() throws Exception {
-        int scrollBatchSize = randomIntBetween(2, 5);
-        int rulesNumber = scrollBatchSize * randomIntBetween(3, 6);
-        SynonymsManagementAPIService scrollService = new SynonymsManagementAPIService(client(), rulesNumber + 1, scrollBatchSize);
+    public void testGetAllSynonymSetRulesViaPit() throws Exception {
+        int pitBatchSize = randomIntBetween(2, 5);
+        int rulesNumber = pitBatchSize * randomIntBetween(3, 6);
+        SynonymsManagementAPIService synsApiService = new SynonymsManagementAPIService(client(), rulesNumber + 1, pitBatchSize);
 
         String synonymSetId = randomIdentifier();
         CountDownLatch putLatch = new CountDownLatch(1);
-        scrollService.putSynonymsSet(synonymSetId, randomSynonymsSet(rulesNumber, rulesNumber), false, new ActionListener<>() {
+        synsApiService.putSynonymsSet(synonymSetId, randomSynonymsSet(rulesNumber, rulesNumber), false, new ActionListener<>() {
             @Override
             public void onResponse(SynonymsManagementAPIService.SynonymsReloadResult synonymsReloadResult) {
                 putLatch.countDown();
@@ -118,7 +118,7 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
         putLatch.await(5, TimeUnit.SECONDS);
 
         CountDownLatch getLatch = new CountDownLatch(1);
-        scrollService.getSynonymSetRules(synonymSetId, new ActionListener<>() {
+        synsApiService.getSynonymSetRules(synonymSetId, new ActionListener<>() {
             @Override
             public void onResponse(PagedResult<SynonymRule> synonymRulePagedResult) {
                 assertEquals(rulesNumber, synonymRulePagedResult.totalResults());
@@ -135,18 +135,18 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
         getLatch.await(10, TimeUnit.SECONDS);
     }
 
-    public void testScrollCapEnforcedWhenRulesExceedLimit() throws Exception {
+    public void testPitCapEnforcedWhenRulesExceedLimit() throws Exception {
         // This tests the case where there is no write limit or someone
         // has bypassed the write limit.
-        int scrollBatchSize = randomIntBetween(2, 5);
-        int maxRules = scrollBatchSize * randomIntBetween(2, 4);
-        int rulesNumber = maxRules + randomIntBetween(1, scrollBatchSize);
-        SynonymsManagementAPIService scrollService = new SynonymsManagementAPIService(client(), maxRules, scrollBatchSize);
+        int pitBatchSize = randomIntBetween(2, 5);
+        int maxRules = pitBatchSize * randomIntBetween(2, 4);
+        int rulesNumber = maxRules + randomIntBetween(1, pitBatchSize);
+        SynonymsManagementAPIService synsApiService = new SynonymsManagementAPIService(client(), maxRules, pitBatchSize);
 
         String synonymSetId = randomIdentifier();
         // Use bulkUpdateSynonymsSet to bypass the write-time limit check so we can store more than maxRules
         CountDownLatch putLatch = new CountDownLatch(1);
-        scrollService.bulkUpdateSynonymsSet(synonymSetId, randomSynonymsSet(rulesNumber, rulesNumber), new ActionListener<>() {
+        synsApiService.bulkUpdateSynonymsSet(synonymSetId, randomSynonymsSet(rulesNumber, rulesNumber), new ActionListener<>() {
             @Override
             public void onResponse(BulkResponse bulkResponse) {
                 assertFalse(bulkResponse.hasFailures());
@@ -161,7 +161,7 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
         putLatch.await(5, TimeUnit.SECONDS);
 
         CountDownLatch getLatch = new CountDownLatch(1);
-        scrollService.getSynonymSetRules(synonymSetId, new ActionListener<>() {
+        synsApiService.getSynonymSetRules(synonymSetId, new ActionListener<>() {
             @Override
             public void onResponse(PagedResult<SynonymRule> result) {
                 assertEquals(rulesNumber, result.totalResults());  // true total from index

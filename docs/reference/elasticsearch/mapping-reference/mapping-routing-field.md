@@ -1,7 +1,7 @@
 ---
 applies_to:
   stack:
-  serverless:
+  serverless: unavailable
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/mapping-routing-field.html
 ---

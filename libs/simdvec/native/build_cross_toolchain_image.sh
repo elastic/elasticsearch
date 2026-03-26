@@ -21,9 +21,11 @@
 set -euo pipefail
 
 LOCAL=false
-if [ "${1:-}" = "--local" ]; then
-  LOCAL=true
-fi
+case "${1:-}" in
+  "")      ;;
+  --local) LOCAL=true ;;
+  *)       echo "Usage: $0 [--local]" >&2; exit 1 ;;
+esac
 
 VERSION=1
 HOST=docker.elastic.co

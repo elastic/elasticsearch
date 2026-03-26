@@ -69,7 +69,7 @@ cp build/libs/vec/shared/amd64/libvec.so      "$TEMP/linux-x64/"
 
 if [ "$UPLOAD" = true ]; then
   echo 'Uploading to Artifactory...'
-  (cd "$TEMP" && zip -rq - .) | curl -sS -X PUT -H "X-JFrog-Art-Api: ${ARTIFACTORY_API_KEY}" --data-binary @- --location "${ARTIFACTORY_REPOSITORY}/org/elasticsearch/vec/${VERSION}/vec-${VERSION}.zip"
+  (cd "$TEMP" && zip -rq - .) | curl -sSf -X PUT -H "X-JFrog-Art-Api: ${ARTIFACTORY_API_KEY}" --data-binary @- --location "${ARTIFACTORY_REPOSITORY}/org/elasticsearch/vec/${VERSION}/vec-${VERSION}.zip"
   rm -rf "$TEMP"
 else
   ZIP="$(pwd)/vec-${VERSION}-local.zip"

@@ -9,15 +9,11 @@
 
 package org.elasticsearch.repositories.gcs;
 
-import com.google.cloud.storage.StorageException;
-
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.support.TenaciousRetryBlobContainer;
 import org.elasticsearch.core.TimeValue;
 
 import java.net.UnknownHostException;
-
-import static org.elasticsearch.rest.RestStatus.FORBIDDEN;
 
 public class GcsTenaciousRetryBlobContainer extends TenaciousRetryBlobContainer {
 

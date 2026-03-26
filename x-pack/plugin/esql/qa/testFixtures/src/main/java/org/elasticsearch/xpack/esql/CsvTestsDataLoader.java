@@ -1229,10 +1229,8 @@ public class CsvTestsDataLoader {
         }
 
         /**
-         * Adds field mappings that are not present in the mapping file, simulating fields discovered via field-caps
-         * at runtime (e.g. runtime fields). These fields are only added to the in-memory mapping used by CSV unit
-         * tests and are not included in the Elasticsearch index mapping. Fields already present in the mapping file
-         * are not overridden.
+         * Adds field mappings that are not present in the mapping file, but will be in the field caps response, e.g. because during
+         * ingestion more fields are added dynamically. Required for csv tests which do not ingest the csvs into real indices.
          */
         public TestDataset withDynamicTypeMapping(Map<String, String> dynamicTypeMapping) {
             return new TestDataset(

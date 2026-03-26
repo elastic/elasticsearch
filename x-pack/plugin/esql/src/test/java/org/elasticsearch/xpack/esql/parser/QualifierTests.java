@@ -279,6 +279,14 @@ public class QualifierTests extends AbstractStatementParserTests {
         );
 
         assertQualifiedAttributeInExpressions(
+            sourceQuery + "CHANGE_POINT [qualified].[field] AS type_name, pvalue_name ON [qualified].[field]",
+            "qualified",
+            "field",
+            2,
+            sourceQuery + "CHANGE_POINT qualified.field AS type_name, pvalue_name ON qualified.field"
+        );
+
+        assertQualifiedAttributeInExpressions(
             sourceQuery + "DISSECT [qualified].[field] \"%{foo}\"",
             "qualified",
             "field",
@@ -579,6 +587,15 @@ public class QualifierTests extends AbstractStatementParserTests {
         );
         expectError(
             sourceQuery + "CHANGE_POINT value_field ON key_field AS type_name, [qualified].[pvalue_name]",
+            "Qualified names are not supported in field definitions, found [[qualified].[pvalue_name]]"
+        );
+
+        expectError(
+            sourceQuery + "CHANGE_POINT value_field AS [qualified].[type_name], pvalue_name ON key_field",
+            "Qualified names are not supported in field definitions, found [[qualified].[type_name]]"
+        );
+        expectError(
+            sourceQuery + "CHANGE_POINT value_field AS type_name, [qualified].[pvalue_name] ON key_field",
             "Qualified names are not supported in field definitions, found [[qualified].[pvalue_name]]"
         );
 

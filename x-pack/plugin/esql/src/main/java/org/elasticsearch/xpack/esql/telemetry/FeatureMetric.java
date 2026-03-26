@@ -104,6 +104,7 @@ public enum FeatureMetric {
     COMPLETION(Completion.class::isInstance),
     SAMPLE(Sample.class::isInstance),
     SUBQUERY(Subquery.class::isInstance),
+    VIEW(plan -> false), // Views are counted in EsqlSession.gatherViewMetrics, not via plan traversal
     MMR(MMR.class::isInstance),
     PROMQL(PromqlCommand.class::isInstance),
     URI_PARTS(UriParts.class::isInstance),

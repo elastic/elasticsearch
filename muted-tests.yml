@@ -366,9 +366,6 @@ tests:
 - class: org.elasticsearch.indices.IndicesRequestCacheIT
   method: testCanCache
   issue: https://github.com/elastic/elasticsearch/issues/144526
-- class: org.elasticsearch.repositories.gcs.GoogleCloudStorageBlobStoreRepositoryTests
-  method: testWriteFileMultipleOfChunkSize
-  issue: https://github.com/elastic/elasticsearch/issues/144613
 
 # Examples:
 #

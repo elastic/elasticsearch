@@ -1302,6 +1302,91 @@ ROW key=[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25]
 
 // tag::changePointForDocs-result[]
 key:integer | value:integer | type:keyword | pvalue:double
-13          | 42            | step_change  | 0.0          
+13          | 42            | step_change  | 0.0
 // end::changePointForDocs-result[]
+;
+
+
+detect step change by group not nulled
+required_capability: change_point_by
+
+ROW k=[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25], g=[0,1]
+| MV_EXPAND k
+| MV_EXPAND g
+| EVAL grp=CASE(g==0, "a", "b"), value=CASE(k<13, 0, 42)
+| DROP g
+| CHANGE_POINT value ON k BY grp
+| KEEP grp, k, value, type, pvalue
+| SORT grp, k
+;
+
+grp:keyword | k:integer | value:integer | type:keyword | pvalue:double
+a           | 1         | 0             | null         | null
+a           | 2         | 0             | null         | null
+a           | 3         | 0             | null         | null
+a           | 4         | 0             | null         | null
+a           | 5         | 0             | null         | null
+a           | 6         | 0             | null         | null
+a           | 7         | 0             | null         | null
+a           | 8         | 0             | null         | null
+a           | 9         | 0             | null         | null
+a           | 10        | 0             | null         | null
+a           | 11        | 0             | null         | null
+a           | 12        | 0             | null         | null
+a           | 13        | 42            | step_change  | 0.0
+a           | 14        | 42            | null         | null
+a           | 15        | 42            | null         | null
+a           | 16        | 42            | null         | null
+a           | 17        | 42            | null         | null
+a           | 18        | 42            | null         | null
+a           | 19        | 42            | null         | null
+a           | 20        | 42            | null         | null
+a           | 21        | 42            | null         | null
+a           | 22        | 42            | null         | null
+a           | 23        | 42            | null         | null
+a           | 24        | 42            | null         | null
+a           | 25        | 42            | null         | null
+b           | 1         | 0             | null         | null
+b           | 2         | 0             | null         | null
+b           | 3         | 0             | null         | null
+b           | 4         | 0             | null         | null
+b           | 5         | 0             | null         | null
+b           | 6         | 0             | null         | null
+b           | 7         | 0             | null         | null
+b           | 8         | 0             | null         | null
+b           | 9         | 0             | null         | null
+b           | 10        | 0             | null         | null
+b           | 11        | 0             | null         | null
+b           | 12        | 0             | null         | null
+b           | 13        | 42            | step_change  | 0.0
+b           | 14        | 42            | null         | null
+b           | 15        | 42            | null         | null
+b           | 16        | 42            | null         | null
+b           | 17        | 42            | null         | null
+b           | 18        | 42            | null         | null
+b           | 19        | 42            | null         | null
+b           | 20        | 42            | null         | null
+b           | 21        | 42            | null         | null
+b           | 22        | 42            | null         | null
+b           | 23        | 42            | null         | null
+b           | 24        | 42            | null         | null
+b           | 25        | 42            | null         | null
+;
+
+
+detect step change by group
+required_capability: change_point_by
+
+ROW k=[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25], g=[0,1,2]
+| MV_EXPAND k
+| MV_EXPAND g
+| EVAL value=CASE(k<13, 0, 42)
+| CHANGE_POINT value ON k BY g
+| WHERE type IS NOT NULL
+;
+
+k:integer | g:integer | value:integer | type:keyword | pvalue:double
+13        | 0         | 42            | step_change  | 0.0
+13        | 1         | 42            | step_change  | 0.0
+13        | 2         | 42            | step_change  | 0.0
 ;

@@ -71,9 +71,7 @@ public class NvidiaEmbeddingsTaskSettings implements TaskSettings {
             validationException
         );
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new NvidiaEmbeddingsTaskSettings(inputType, truncation);
     }

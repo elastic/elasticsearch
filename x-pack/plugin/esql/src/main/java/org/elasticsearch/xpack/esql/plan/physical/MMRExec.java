@@ -122,7 +122,7 @@ public class MMRExec extends UnaryExec {
         if (lambdaValueExpression == null) {
             return MMR.DEFAULT_LAMBDA;
         }
-        return ((Double) lambdaValueExpression.value()).floatValue();
+        return ((Number) lambdaValueExpression.value()).floatValue();
     }
 
     public int limitValue() {

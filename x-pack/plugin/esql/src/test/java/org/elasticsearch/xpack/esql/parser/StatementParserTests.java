@@ -4636,6 +4636,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
             "row a = 1 | mmr on some_field limit 5 {\"unknown\": true}",
             "line 1:39: mismatched input '{' expecting {<EOF>, '|', 'with'}"
         );
+        expectError("row a = 1 | mmr on some_field limit 2.5", "line 1:37: mismatched input '2.5' expecting {INTEGER_LITERAL, '+', '-'}");
     }
 
     public void testInvalidSample() {

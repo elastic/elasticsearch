@@ -3882,6 +3882,11 @@ public class VerifierTests extends ESTestCase {
             "row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr on dense_embedding limit -5",
             equalTo("1:58: MMR limit must be a positive integer, got [-5]")
         );
+
+        defaultAnalyzer().error(
+            "row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr on dense_embedding limit 0",
+            equalTo("1:58: MMR limit must be a positive integer, got [0]")
+        );
     }
 
     public void testMMRResolvedQueryVectorIsValid() {

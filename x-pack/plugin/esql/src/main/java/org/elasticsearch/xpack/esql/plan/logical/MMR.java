@@ -12,7 +12,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.PostOptimizationPlanVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
-import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -40,7 +39,7 @@ public class MMR extends UnaryPlan
         PostOptimizationPlanVerificationAware {
 
     public static final String LAMBDA_OPTION_NAME = "lambda";
-    public static Float DEFAULT_LAMBDA = 0.5f;
+    public static final float DEFAULT_LAMBDA = 0.5f;
 
     private final Attribute diversifyField;
     private final Expression limit;
@@ -154,10 +153,10 @@ public class MMR extends UnaryPlan
         options.keyFoldedMap().forEach((key, value) -> {
             if (key.equals(LAMBDA_OPTION_NAME)) {
                 if ((value instanceof Literal) == false) {
-                    failures.add(new Failure(this, "expected " + key + " to be a literal, got [" + value.sourceText() + "]"));
+                    failures.add(fail(this, "expected " + key + " to be a literal, got [" + value.sourceText() + "]"));
                 }
                 if (value.dataType().isNumeric() == false) {
-                    failures.add(new Failure(this, "expected " + key + " to be numeric, got [" + value.sourceText() + "]"));
+                    failures.add(fail(this, "expected " + key + " to be numeric, got [" + value.sourceText() + "]"));
                     return;
                 }
                 Number numericValue = (Number) value.fold(FoldContext.small());
@@ -165,26 +164,26 @@ public class MMR extends UnaryPlan
                     failures.add(fail(this, "MMR lambda value must be a number between 0.0 and 1.0, got [" + value.sourceText() + "]"));
                 }
             } else {
-                failures.add(new Failure(this, "Invalid option [" + key + "] in [" + this.sourceText() + "]"));
+                failures.add(fail(this, "Invalid option [" + key + "] in [" + this.sourceText() + "]"));
             }
         });
     }
 
     private void postAnalysisLimitVerification(Failures failures) {
         if (limit instanceof Literal == false) {
-            failures.add(new Failure(this, "MMR limit is not a constant literal, got [" + limit.sourceText() + "]"));
+            failures.add(fail(this, "MMR limit is not a constant literal, got [" + limit.sourceText() + "]"));
             return;
         }
 
         Literal limitLiteral = (Literal) limit;
         if (limitLiteral.dataType() != INTEGER) {
-            failures.add(new Failure(this, "MMR limit is not an integer, got [" + limitLiteral.sourceText() + "]"));
+            failures.add(fail(this, "MMR limit is not an integer, got [" + limitLiteral.sourceText() + "]"));
             return;
         }
 
         int limitValue = ((Integer) limitLiteral.value()).intValue();
 
-        if (limitValue < 0) {
+        if (limitValue <= 0) {
             failures.add(fail(this, "MMR limit must be a positive integer, got [" + limitValue + "]"));
         }
     }

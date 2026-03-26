@@ -783,7 +783,7 @@ public class MachineLearning extends Plugin
      */
     public static final Setting<TimeValue> CPS_STABILIZATION_FLOOR = Setting.timeSetting(
         "xpack.ml.cps_stabilization_floor",
-        CrossClusterSearchStats.DEFAULT_MIN_STABILIZATION_DURATION_TIMEVALUE,
+        CrossClusterSearchStats.DEFAULT_MIN_STABILIZATION_DURATION,
         TimeValue.ZERO,
         Property.Dynamic,
         Setting.Property.NodeScope

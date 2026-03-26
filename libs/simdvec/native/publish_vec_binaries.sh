@@ -20,7 +20,7 @@ if [ -z "$ARTIFACTORY_API_KEY" ]; then
   exit 1;
 fi
 
-VERSION="1.0.63"
+VERSION="1.0.64"
 ARTIFACTORY_REPOSITORY="${ARTIFACTORY_REPOSITORY:-https://artifactory.elastic.dev/artifactory/elasticsearch-native/}"
 TEMP=$(mktemp -d)
 
@@ -30,7 +30,7 @@ if curl -sS -I --fail --location "${ARTIFACTORY_REPOSITORY}/org/elasticsearch/ve
 fi
 
 echo 'Building Darwin binary...'
-./gradlew --quiet --console=plain --no-build-cache clean vecAarch64SharedLibrary
+./gradlew --quiet --console=plain clean vecAarch64SharedLibrary
 
 echo 'Building Linux binary...'
 mkdir -p build/libs/vec/shared/aarch64/

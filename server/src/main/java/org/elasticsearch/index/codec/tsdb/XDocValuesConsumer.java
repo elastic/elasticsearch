@@ -6,7 +6,7 @@
  * your election, the "Elastic License 2.0", the "GNU Affero General Public
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
-package org.elasticsearch.index.codec.tsdb.es819;
+package org.elasticsearch.index.codec.tsdb;
 
 import org.apache.lucene.codecs.DocValuesConsumer;
 import org.apache.lucene.index.BinaryDocValues;
@@ -17,7 +17,7 @@ import org.apache.lucene.index.OrdinalMap;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
-import org.elasticsearch.index.codec.tsdb.es819.DocValuesConsumerUtil.MergeStats;
+import org.elasticsearch.index.codec.tsdb.DocValuesConsumerUtil.MergeStats;
 
 import java.io.IOException;
 import java.util.List;

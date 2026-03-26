@@ -63,7 +63,7 @@ dependencies {
   }
   expression(project(path: ':modules:lang-expression', configuration: 'zip'))
   painless(project(path: ':modules:lang-painless', configuration: 'zip'))
-  nativeLib(project(path: ':libs:native:native-libraries', configuration: 'default'))
+  nativeLib(project(':libs:native'))
   api "org.openjdk.jmh:jmh-core:$versions.jmh"
   annotationProcessor "org.openjdk.jmh:jmh-generator-annprocess:$versions.jmh"
   // Dependencies of JMH
@@ -99,7 +99,7 @@ tasks.named("run").configure {
   dependsOn "copyExpression", "copyPainless", configurations.nativeLib
   systemProperty 'plugins.dir', "${buildDir}/plugins"
   systemProperty 'tests.index', "${buildDir}/index"
-  systemProperty 'es.nativelibs.path', providers.provider { TestUtil.getTestLibraryPath(configurations.nativeLib.asPath) }
+  systemProperty 'es.nativelibs.path', TestUtil.getTestLibraryPath(file("../libs/native/libraries/build/platform/").toString())
 }
 
 tasks.named('test').configure {

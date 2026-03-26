@@ -40,11 +40,11 @@ public class HeapAttackSubqueryIT extends HeapAttackTestCase {
     // the upper limit is defined in {@code Fork.MAX_BRANCHES}
     private static final int MAX_SUBQUERIES = 8;
 
-    private static final int MAX_SUBQUERIES_SERVERLESS = 4;
+    private static final int MAX_SUBQUERIES_SERVERLESS = 5;
 
     private static final int MAX_STRING_FIELDS = 1000;
 
-    private static final int MAX_STRING_FIELD_SERVERLESS = 600;
+    private static final int MAX_STRING_FIELD_SERVERLESS = 700;
 
     private static final int MAX_DOC = 200;
 

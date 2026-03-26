@@ -57,9 +57,7 @@ public class VoyageAIRerankTaskSettings implements TaskSettings, TopNProvider {
 
         Boolean truncation = extractOptionalBoolean(map, TRUNCATION, validationException);
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return of(topKDocumentsOnly, returnDocuments, truncation);
     }

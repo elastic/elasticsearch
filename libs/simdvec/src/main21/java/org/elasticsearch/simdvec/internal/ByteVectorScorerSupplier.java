@@ -26,6 +26,10 @@ import static org.apache.lucene.index.VectorSimilarityFunction.DOT_PRODUCT;
 import static org.apache.lucene.index.VectorSimilarityFunction.EUCLIDEAN;
 import static org.apache.lucene.index.VectorSimilarityFunction.MAXIMUM_INNER_PRODUCT;
 
+// Scores pairs of indexed vectors (ordinal vs ordinal) for graph construction and segment merging.
+// These operations only run on writable, local segments backed by MMapDirectory, so the input is
+// always a MemorySegmentAccessInput. Read-only frozen/searchable-snapshot shards (DirectAccessInput)
+// never merge or build graphs; search on those shards uses ByteVectorScorer instead.
 public abstract sealed class ByteVectorScorerSupplier implements RandomVectorScorerSupplier {
 
     final int dims;

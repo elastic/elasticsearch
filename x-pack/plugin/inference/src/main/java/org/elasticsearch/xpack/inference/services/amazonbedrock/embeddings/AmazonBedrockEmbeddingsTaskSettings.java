@@ -45,9 +45,7 @@ public record AmazonBedrockEmbeddingsTaskSettings(@Nullable Truncation truncatio
             validationException
         );
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new AmazonBedrockEmbeddingsTaskSettings(extractedTruncation);
     }

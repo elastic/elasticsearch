@@ -128,9 +128,7 @@ public class ChangePoint extends UnaryPlan
 
     @Override
     protected AttributeSet computeReferences() {
-        return grouping == null
-            ? Expressions.references(List.of(key, value))
-            : Expressions.references(List.of(key, value, grouping));
+        return grouping == null ? Expressions.references(List.of(key, value)) : Expressions.references(List.of(key, value, grouping));
     }
 
     @Override
@@ -189,7 +187,14 @@ public class ChangePoint extends UnaryPlan
         if (grouping != null) {
             type = grouping.dataType();
             if (DataType.isSortable(type) == false) {
-                failures.add(fail(grouping, "CHANGE_POINT grouping only support sortable values, found expression [{}] type [{}]", grouping.sourceText(), type));
+                failures.add(
+                    fail(
+                        grouping,
+                        "CHANGE_POINT grouping only support sortable values, found expression [{}] type [{}]",
+                        grouping.sourceText(),
+                        type
+                    )
+                );
             }
         }
         // Value must be a number

@@ -79,8 +79,19 @@ public class VerifierTests extends ESTestCase {
 
     private final List<String> TIME_DURATIONS = List.of("millisecond", "second", "minute", "hour");
     private final List<String> DATE_PERIODS = List.of("day", "week", "month", "year");
-    private final List<DataType> SORTABLE_TYPES = List.of(BOOLEAN, DOUBLE, DATE_NANOS, DATETIME, INTEGER, IP, KEYWORD, LONG, UNSIGNED_LONG, VERSION);
-    private final  List<DataType> UNSORTABLE_TYPES = EsqlCapabilities.Cap.SPATIAL_GRID_TYPES.isEnabled()
+    private final List<DataType> SORTABLE_TYPES = List.of(
+        BOOLEAN,
+        DOUBLE,
+        DATE_NANOS,
+        DATETIME,
+        INTEGER,
+        IP,
+        KEYWORD,
+        LONG,
+        UNSIGNED_LONG,
+        VERSION
+    );
+    private final List<DataType> UNSORTABLE_TYPES = EsqlCapabilities.Cap.SPATIAL_GRID_TYPES.isEnabled()
         ? List.of(CARTESIAN_POINT, CARTESIAN_SHAPE, GEO_POINT, GEO_SHAPE, GEOHASH, GEOTILE, GEOHEX)
         : List.of(CARTESIAN_POINT, CARTESIAN_SHAPE, GEO_POINT, GEO_SHAPE);
 
@@ -2576,10 +2587,7 @@ public class VerifierTests extends ESTestCase {
     public void testChangePointBy_unknownColumn() {
         assumeTrue("change_point_by must be enabled", EsqlCapabilities.Cap.CHANGE_POINT_BY.isEnabled());
         var airports = analyzer().addAirports().stripErrorPrefix(true);
-        airports.error(
-            "FROM airports | CHANGE_POINT scalerank ON scalerank BY blahblah",
-            equalTo("1:56: Unknown column [blahblah]")
-        );
+        airports.error("FROM airports | CHANGE_POINT scalerank ON scalerank BY blahblah", equalTo("1:56: Unknown column [blahblah]"));
     }
 
     public void testChangePoint_keySortable() {
@@ -2603,9 +2611,7 @@ public class VerifierTests extends ESTestCase {
         for (DataType type : UNSORTABLE_TYPES) {
             defaultAnalyzer().error(
                 Strings.format("ROW key=0, value=0, grp=NULL::%s\n | CHANGE_POINT value ON key BY grp", type),
-                equalTo(
-                    "2:33: CHANGE_POINT grouping only support sortable values, found expression [grp] type [" + type + "]"
-                )
+                equalTo("2:33: CHANGE_POINT grouping only support sortable values, found expression [grp] type [" + type + "]")
             );
         }
     }

@@ -267,7 +267,6 @@ public class ChangePointOperator extends CompleteInputCollectorOperator {
         }
     }
 
-
     private void createOutputPagesFlat() {
         int valuesCount = 0;
         for (Page page : inputPages) {

@@ -32,9 +32,7 @@ public class AzureAiStudioChatCompletionServiceSettings extends AzureAiStudioSer
 
         var settings = completionSettingsFromMap(map, validationException, context);
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new AzureAiStudioChatCompletionServiceSettings(settings);
     }

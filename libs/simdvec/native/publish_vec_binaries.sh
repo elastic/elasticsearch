@@ -30,7 +30,7 @@ if curl -sS -I --fail --location "${ARTIFACTORY_REPOSITORY}/org/elasticsearch/ve
 fi
 
 echo 'Building Darwin binary...'
-./gradlew --quiet --console=plain clean vecAarch64SharedLibrary
+./gradlew --quiet --console=plain --no-build-cache clean vecAarch64SharedLibrary
 
 echo 'Building Linux binary...'
 mkdir -p build/libs/vec/shared/aarch64/

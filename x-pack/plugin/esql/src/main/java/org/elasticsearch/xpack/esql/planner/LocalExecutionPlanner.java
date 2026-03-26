@@ -984,9 +984,8 @@ public class LocalExecutionPlanner {
             return planMetricsInfoFinal(metricsInfoExec, context);
         }
         // INITIAL mode: extraction on data nodes.
-        if (FieldExtractExec.extractSourceAttributesFrom(metricsInfoExec.child()) == null) {
-            return emptySourceForAttributes(metricsInfoExec.output());
-        }
+        var sourceAttrs = FieldExtractExec.extractSourceAttributesFrom(metricsInfoExec.child());
+
         // Step 1: Extract _tsid only
         FieldAttribute tsidAttr = new FieldAttribute(
             metricsInfoExec.source(),
@@ -1004,12 +1003,24 @@ public class LocalExecutionPlanner {
             MappedFieldType.FieldExtractPreference.DOC_VALUES
         );
 
-        PhysicalOperation tsidSource = planFieldExtractNode(tsidExtractExec, context);
+        PhysicalOperation baseSource = plan(metricsInfoExec.child(), context);
 
-        // Step 2: Dedup by _tsid
-        int tsidChannel = tsidSource.layout.get(tsidAttr.id()).channel();
-        PhysicalOperation dedupedSource = tsidSource.with(new DistinctByOperator.Factory(tsidChannel), tsidSource.layout);
+        PhysicalOperation tsidSource = null;
+        PhysicalOperation dedupedSource = null;
 
+        if (sourceAttrs != null) {
+            tsidSource = physicalOperationProviders.fieldExtractPhysicalOperation(
+                tsidExtractExec,
+                baseSource,
+                context
+            );
+
+            int tsidChannel = tsidSource.layout.get(tsidAttr.id()).channel();
+            dedupedSource = tsidSource.with(
+                new DistinctByOperator.Factory(tsidChannel),
+                tsidSource.layout
+            );
+        }
         // Step 3: Extract _timeseries metadata (dimensions + metrics) from synthetic source
         FieldAttribute metadataSourceAttr = new FieldAttribute(
             metricsInfoExec.source(),
@@ -1033,21 +1044,44 @@ public class LocalExecutionPlanner {
             true
         );
 
+        if (sourceAttrs == null) {
+            logger.debug("CPS TSDB detected: source attributes missing, falling back to child plan for metadata extraction");
+        }
+
         FieldExtractExec metadataExtractExec = new FieldExtractExec(
             metricsInfoExec.source(),
-            tsidExtractExec,
+            sourceAttrs == null ? metricsInfoExec.child() : tsidExtractExec,
             List.of(metadataSourceAttr, indexAttr),
             MappedFieldType.FieldExtractPreference.NONE
         );
 
+        assert sourceAttrs == null || dedupedSource != null
+            : "dedupedSource must not be null for non-CPS execution";
+
+        PhysicalOperation metadataInput = sourceAttrs == null
+            ? baseSource
+            : dedupedSource;
+
+        assert metadataInput != null : "metadataInput must not be null";
+
+        // Apply extraction
         PhysicalOperation sourceWithMetadata = physicalOperationProviders.fieldExtractPhysicalOperation(
             metadataExtractExec,
-            dedupedSource,
+            metadataInput,
             context
         );
 
-        int metadataSourceChannel = sourceWithMetadata.layout.get(metadataSourceAttr.id()).channel();
-        int indexChannel = sourceWithMetadata.layout.get(indexAttr.id()).channel();
+        // Validate layout
+        var metadataEntry = sourceWithMetadata.layout.get(metadataSourceAttr.id());
+        var indexEntry = sourceWithMetadata.layout.get(indexAttr.id());
+
+        if (metadataEntry == null || indexEntry == null) {
+            logger.warn("METRICS_INFO: metadata extraction failed (CPS or mapping issue)");
+            return emptySourceForAttributes(metricsInfoExec.output());
+        }
+
+        int metadataSourceChannel = metadataEntry.channel();
+        int indexChannel = indexEntry.channel();
 
         Layout.Builder layoutBuilder = new Layout.Builder();
         layoutBuilder.append(metricsInfoExec.output());

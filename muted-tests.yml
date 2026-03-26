@@ -363,6 +363,9 @@ tests:
 - class: org.elasticsearch.compute.OperatorTests
   method: testQueryOperator
   issue: https://github.com/elastic/elasticsearch/issues/145001
+- class: org.elasticsearch.xpack.sql.qa.jdbc.single_node.SingleNodeJdbcResultSetIT
+  method: testGettingValidBigDecimalFromFloatWithoutCasting
+  issue: https://github.com/elastic/elasticsearch/issues/145036
 
 # Examples:
 #

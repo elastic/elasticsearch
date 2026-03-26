@@ -52,12 +52,16 @@ public class WeightFunction {
     public WeightFunction(float shardBalance, float indexBalance, float writeLoadBalance, float diskUsageBalance) {
         float sum = shardBalance + indexBalance + writeLoadBalance + diskUsageBalance;
         if (sum <= 0.0f) {
-            throw new IllegalArgumentException("Balance factors must sum to a value > 0 but was: " + sum);
+            theta0 = 0f;
+            theta1 = 0f;
+            theta2 = 0f;
+            theta3 = 0f;
+        } else {
+            theta0 = shardBalance / sum;
+            theta1 = indexBalance / sum;
+            theta2 = writeLoadBalance / sum;
+            theta3 = diskUsageBalance / sum;
         }
-        theta0 = shardBalance / sum;
-        theta1 = indexBalance / sum;
-        theta2 = writeLoadBalance / sum;
-        theta3 = diskUsageBalance / sum;
     }
 
     // Visible for testing

@@ -47,9 +47,7 @@ public class CustomTaskSettings implements TaskSettings {
             false
         );
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new CustomTaskSettings(Objects.requireNonNullElse(parameters, new HashMap<>()));
     }

@@ -111,25 +111,11 @@ public class VectorScorerBFloat16OperationBenchmark {
         switch (queryType) {
             case BFLOAT16 -> {
                 nativeSegB = arena.allocate((long) bFloatsB.length * BFloat16.BYTES);
-                MemorySegment.copy(
-                    bFloatsB,
-                    0,
-                    nativeSegB,
-                    LAYOUT_LE_BFLOAT16,
-                    0L,
-                    bFloatsB.length
-                );
+                MemorySegment.copy(bFloatsB, 0, nativeSegB, LAYOUT_LE_BFLOAT16, 0L, bFloatsB.length);
             }
             case FLOAT32 -> {
                 nativeSegB = arena.allocate((long) floatsB.length * Float.BYTES);
-                MemorySegment.copy(
-                    floatsB,
-                    0,
-                    nativeSegB,
-                    LAYOUT_LE_FLOAT32,
-                    0L,
-                    floatsB.length
-                );
+                MemorySegment.copy(floatsB, 0, nativeSegB, LAYOUT_LE_FLOAT32, 0L, floatsB.length);
             }
         }
 

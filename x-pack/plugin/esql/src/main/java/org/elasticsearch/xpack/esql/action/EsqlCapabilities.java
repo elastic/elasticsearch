@@ -2390,6 +2390,11 @@ public class EsqlCapabilities {
          */
         FIX_SUM_OF_NULL_OPTIMIZATION,
 
+        /**
+         * Supports the {@code USER_AGENT} command.
+         */
+        USER_AGENT_COMMAND,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.operator;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
@@ -52,7 +53,9 @@ public class ChangePointOperator extends CompleteInputCollectorOperator {
 
         @Override
         public String describe() {
-            return "ChangePointOperator[channel=" + channel + "]";
+            return groupingChannel != -1
+                ? Strings.format("ChangePointOperator[channel=%d, groupingChannel=%d]", channel, groupingChannel)
+                : Strings.format("ChangePointOperator[channel=%d]", channel);
         }
     }
 
@@ -106,7 +109,7 @@ public class ChangePointOperator extends CompleteInputCollectorOperator {
         }
         boolean tooManyValues = valuesCount > INPUT_VALUE_COUNT_LIMIT;
         if (tooManyValues) {
-            valuesCount = INPUT_VALUE_COUNT_LIMIT;
+            valuesCount = INPUT_VALUE_COUNT_LIMIT; // TODO Should this remain the total limit or limit per group?
         }
 
         List<Double> values = new ArrayList<>();

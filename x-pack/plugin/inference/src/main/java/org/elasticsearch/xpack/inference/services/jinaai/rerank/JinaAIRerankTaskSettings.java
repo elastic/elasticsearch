@@ -52,9 +52,7 @@ public class JinaAIRerankTaskSettings implements TaskSettings, TopNProvider {
             validationException
         );
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         if (returnDocuments == null && topNDocumentsOnly == null) {
             return EMPTY_SETTINGS;

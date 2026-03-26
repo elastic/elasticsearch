@@ -65,7 +65,7 @@ public class PrometheusSeriesResponseListenerTests extends ESTestCase {
 
     public void testOnFailureBadRequest() throws Exception {
         FakeRestRequest fakeRequest = new FakeRestRequest();
-        FakeRestChannel channel = new FakeRestChannel(fakeRequest, true, 1);
+        FakeRestChannel channel = new FakeRestChannel(fakeRequest, true);
         PrometheusSeriesResponseListener listener = new PrometheusSeriesResponseListener(channel);
 
         ElasticsearchStatusException ex = new ElasticsearchStatusException("bad selector syntax", RestStatus.BAD_REQUEST);
@@ -77,7 +77,7 @@ public class PrometheusSeriesResponseListenerTests extends ESTestCase {
 
     public void testOnFailureInternalError() throws Exception {
         FakeRestRequest fakeRequest = new FakeRestRequest();
-        FakeRestChannel channel = new FakeRestChannel(fakeRequest, true, 1);
+        FakeRestChannel channel = new FakeRestChannel(fakeRequest, true);
         PrometheusSeriesResponseListener listener = new PrometheusSeriesResponseListener(channel);
 
         listener.onFailure(new RuntimeException("something went wrong"));
@@ -88,7 +88,7 @@ public class PrometheusSeriesResponseListenerTests extends ESTestCase {
 
     public void testOnFailureResponseBodyContainsErrorType() throws Exception {
         FakeRestRequest fakeRequest = new FakeRestRequest();
-        FakeRestChannel channel = new FakeRestChannel(fakeRequest, true, 1);
+        FakeRestChannel channel = new FakeRestChannel(fakeRequest, true);
         PrometheusSeriesResponseListener listener = new PrometheusSeriesResponseListener(channel);
 
         ElasticsearchStatusException ex = new ElasticsearchStatusException("invalid parameter", RestStatus.BAD_REQUEST);

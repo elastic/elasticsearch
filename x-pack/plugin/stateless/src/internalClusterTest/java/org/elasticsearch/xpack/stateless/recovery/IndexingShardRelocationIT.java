@@ -1117,7 +1117,6 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
         var cacheSize = ByteSizeValue.ofMb(1L);
         var regionSize = ByteSizeValue.ofBytes(regionSizeInBytes);
         final var hollowNodeSettings = randomHollowIndexNodeSettings();
-        final var hollowEnabled = STATELESS_HOLLOW_INDEX_SHARDS_ENABLED.get(hollowNodeSettings);
         var indexNodesSettingsBuilder = Settings.builder()
             .put(hollowNodeSettings)
             .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), cacheSize)
@@ -1204,10 +1203,11 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
         ensureGreen(indexName);
 
         var cacheService = internalCluster().getInstance(StatelessPlugin.SharedBlobCacheServiceSupplier.class, indexNode2).get();
-        // Hollow shard force flushes a second BCC and results in two writes on the cache instead of 1.
-        long expectedWritesAndMissesCount = hollowEnabled ? 2L : 1L;
-        assertThat(cacheService.getStats().writeCount(), equalTo(expectedWritesAndMissesCount));
-        assertThat(cacheService.getStats().missCount(), equalTo(expectedWritesAndMissesCount));
+        // In case of hollow being disabled, we expect to have created one BCC which fits in one region, and thus we expect one cache write.
+        // In case of hollow being enabled, we expect to have 2 BCCs, due to one more being created due to the hollow flush, and only the
+        // 2nd hollow BCC to be read.
+        assertThat(cacheService.getStats().writeCount(), equalTo(1L));
+        assertThat(cacheService.getStats().missCount(), equalTo(1L));
         assertThat(cacheService.getStats().numberOfRegions(), greaterThan(1));
     }
 

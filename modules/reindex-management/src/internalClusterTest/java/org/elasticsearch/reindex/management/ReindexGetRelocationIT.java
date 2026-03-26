@@ -69,9 +69,10 @@ public class ReindexGetRelocationIT extends ESIntegTestCase {
     private static final String DEST_INDEX = "reindex_dst";
 
     private final int bulkSize = randomIntBetween(1, 4);
-    private final int requestsPerSecond = randomIntBetween(1, 5);
     private final int numOfSlices = randomIntBetween(1, 4);
-    private final int numberOfDocumentsThatTakes60SecondsToIngest = 60 * requestsPerSecond * bulkSize;
+    // keep RPS reasonable so each slice doesn't sleep and delay relocation for too long (max 1s)
+    private final int requestsPerSecond = randomIntBetween(bulkSize * numOfSlices, 20);
+    private final int numberOfDocumentsThatTakes60SecondsToIngest = 60 * requestsPerSecond;
 
     @BeforeClass
     public static void skipIfReindexResilienceDisabled() {
@@ -81,14 +82,6 @@ public class ReindexGetRelocationIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Arrays.asList(ReindexPlugin.class, ReindexManagementPlugin.class);
-    }
-
-    @Override
-    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
-        return Settings.builder()
-            .put(super.nodeSettings(nodeOrdinal, otherSettings))
-            .put(ShutdownPrepareService.MAXIMUM_REINDEXING_TIMEOUT_SETTING.getKey(), TimeValue.timeValueSeconds(60))
-            .build();
     }
 
     @Override
@@ -255,8 +248,7 @@ public class ReindexGetRelocationIT extends ESIntegTestCase {
         // trigger reindex relocation
         internalCluster().getInstance(ShutdownPrepareService.class, nodeName).prepareForShutdown();
 
-        // .tasks is created when the original task result is stored during relocation; the grace period is
-        // extended via nodeSettings so prepareForShutdown blocks until relocation completes.
+        // .tasks is created when the original task result is stored during relocation
         assertTrue(indexExists(TaskResultsService.TASK_INDEX));
         ensureGreen(TaskResultsService.TASK_INDEX);
 

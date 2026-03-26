@@ -54,7 +54,7 @@ public final class PushDownAndCombineLimitBy extends OptimizerRules.Parameterize
                 || unary instanceof RegexExtract
                 || unary instanceof CompoundOutputEval<?>
                 || unary instanceof InferencePlan<?>) {
-                if (groupingsAttrsDefinedByChild(limitBy, unary)) {
+                if (groupingAttrsDefinedByChild(limitBy, unary)) {
                     return limitBy;
                 } else {
                     return unary.replaceChild(limitBy.replaceChild(unary.child()));
@@ -62,7 +62,7 @@ public final class PushDownAndCombineLimitBy extends OptimizerRules.Parameterize
             } else if (unary instanceof MvExpand) {
                 return duplicateLimitByAsFirstGrandchild(limitBy);
             } else if (unary instanceof Enrich enrich) {
-                if (groupingsAttrsDefinedByChild(limitBy, enrich)) {
+                if (groupingAttrsDefinedByChild(limitBy, enrich)) {
                     return limitBy;
                 }
                 if (enrich.mode() == Enrich.Mode.REMOTE) {
@@ -95,27 +95,16 @@ public final class PushDownAndCombineLimitBy extends OptimizerRules.Parameterize
      * (i.e. present in the child's output but absent from the grandchild's output). Pushing a grouped limit
      * past such a child would leave the grouping attribute unresolved.
      */
-    private static boolean groupingsAttrsDefinedByChild(LimitBy limitBy, UnaryPlan child) {
-        if (child instanceof GeneratingPlan<?> plan) {
-            return groupingAttrsDefinedBy(limitBy, plan);
-        }
-        return groupingAttrsNotInOutput(limitBy, child.child());
-    }
-
-    /**
-     * Returns {@code true} if any attribute referenced by the LimitBy's groupings is produced by the given
-     * {@link GeneratingPlan}. This directly checks the plan's generated attributes rather than comparing
-     * child vs grandchild output, which correctly handles the case where a generated attribute shadows
-     * (reuses the same {@link NameId} as) an attribute from the grandchild.
-     */
-    private static boolean groupingAttrsDefinedBy(LimitBy limitBy, GeneratingPlan<?> generatingPlan) {
-        Set<NameId> generatedIds = new HashSet<>();
-        for (Attribute a : generatingPlan.generatedAttributes()) {
-            generatedIds.add(a.id());
-        }
-        for (Expression g : limitBy.groupings()) {
-            if (g instanceof Attribute a && generatedIds.contains(a.id())) {
-                return true;
+    private static boolean groupingAttrsDefinedByChild(LimitBy limitBy, UnaryPlan child) {
+        if (child instanceof GeneratingPlan<?> generatingPlan) {
+            Set<NameId> generatedIds = new HashSet<>();
+            for (Attribute a : generatingPlan.generatedAttributes()) {
+                generatedIds.add(a.id());
+            }
+            for (Expression g : limitBy.groupings()) {
+                if (g instanceof Attribute a && generatedIds.contains(a.id())) {
+                    return true;
+                }
             }
         }
         return false;

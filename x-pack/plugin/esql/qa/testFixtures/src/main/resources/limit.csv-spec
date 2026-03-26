@@ -1040,11 +1040,10 @@ required_capability: enrich_load
 required_capability: esql_limit_by
 
 FROM *
-| ENRICH languages_policy on street 
+| ENRICH languages_policy on street
 | KEEP abbrev, integer, year
+| LIMIT 1 BY abbrev
 | SORT abbrev
-| LIMIT 1000
-| LIMIT 1 BY abbrev, integer, year
 | LIMIT 5
 ;
 

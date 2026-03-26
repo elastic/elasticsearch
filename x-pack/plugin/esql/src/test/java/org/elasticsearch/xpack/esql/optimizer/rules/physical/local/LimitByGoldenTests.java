@@ -57,6 +57,22 @@ public class LimitByGoldenTests extends GoldenTestCase {
         );
     }
 
+    public void testLimitByEnrichBug() {
+        assumeTrue("SORT | LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_TOPN_BY.isEnabled());
+        runGoldenTest(
+            """
+                FROM *
+                | ENRICH languages on street
+                | KEEP abbrev, integer, year
+                | LIMIT 1 BY abbrev
+                | SORT abbrev
+                | LIMIT 5
+                """,
+            EnumSet.of(Stage.LOCAL_PHYSICAL_OPTIMIZATION),
+            new EsqlTestUtils.TestConfigurableSearchStats().exclude(EsqlTestUtils.TestConfigurableSearchStats.Config.EXISTS, "abbrev")
+        );
+    }
+
     private static final EsqlTestUtils.TestSearchStatsWithMinMax STATS = new EsqlTestUtils.TestSearchStatsWithMinMax(
         Map.of("date", dateTimeToLong("2023-10-20T12:15:03.360Z")),
         Map.of("date", dateTimeToLong("2023-10-23T13:55:01.543Z"))

@@ -229,7 +229,7 @@ public class SystemIndexMappingUpdateService implements ClusterStateListener {
      * @return a summary of the index state, or <code>null</code> if the index doesn't exist
      */
     static State calculateIndexState(ClusterState state, SystemIndexDescriptor descriptor) {
-        IndexMetadata indexMetadata = getSystemIndexMetadata(state, descriptor);
+        IndexMetadata indexMetadata = getSystemIndexMetadata(state.metadata(), descriptor);
 
         if (indexMetadata == null) {
             return null;
@@ -258,16 +258,15 @@ public class SystemIndexMappingUpdateService implements ClusterStateListener {
         return new State(indexState, indexHealth, isIndexUpToDate, isMappingIsUpToDate);
     }
 
-    private static IndexMetadata getSystemIndexMetadata(ProjectState state, SystemIndexDescriptor descriptor) {
+    private static IndexMetadata getSystemIndexMetadata(Metadata metadata, SystemIndexDescriptor descriptor) {
         String primaryIndexName = descriptor.getPrimaryIndex();
-        ProjectMetadata projectMetadata = state.metadata();
-        IndexMetadata indexMetadata = projectMetadata.index(primaryIndexName);
+        IndexMetadata indexMetadata = metadata.index(primaryIndexName);
         if (indexMetadata == null) {
             // The primary index name might be an alias pointing to the concrete index
             // (e.g. ".fleet-agents-7" → ".fleet-agents-7-reindexed-for-9").
-            IndexAbstraction indexAbstraction = projectMetadata.getIndicesLookup().get(primaryIndexName);
+            IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(primaryIndexName);
             if (indexAbstraction != null && indexAbstraction.getWriteIndex() != null) {
-                indexMetadata = projectMetadata.getIndexSafe(indexAbstraction.getWriteIndex());
+                indexMetadata = metadata.getIndexSafe(indexAbstraction.getWriteIndex());
             }
         }
         return indexMetadata;

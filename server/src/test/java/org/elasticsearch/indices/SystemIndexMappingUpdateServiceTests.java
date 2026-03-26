@@ -16,6 +16,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -279,7 +280,6 @@ public class SystemIndexMappingUpdateServiceTests extends ESTestCase {
      */
     public void testManagerDetectsOutdatedMappingsInReindexedIndex() {
         final String reindexedIndexName = SYSTEM_INDEX_NAME + SystemIndices.UPGRADED_INDEX_SUFFIX;
-        final var projectId = randomProjectIdOrDefault();
 
         // Simulate the post-migration state: the concrete index has the reindexed suffix and an
         // outdated managed_index_mappings_version, while the original primary index name and the
@@ -290,21 +290,19 @@ public class SystemIndexMappingUpdateServiceTests extends ESTestCase {
             .putAlias(AliasMetadata.builder(SYSTEM_INDEX_NAME).build())
             .putAlias(AliasMetadata.builder(DESCRIPTOR.getAliasName()).build());
 
-        final Metadata metadata = Metadata.builder()
-            .generateClusterUuidIfNeeded()
-            .put(ProjectMetadata.builder(projectId).put(reindexedIndexMeta))
-            .build();
+        final Metadata metadata = Metadata.builder().generateClusterUuidIfNeeded().put(reindexedIndexMeta).build();
         final DiscoveryNode node = DiscoveryNodeUtils.builder("1").roles(new HashSet<>(DiscoveryNodeRole.roles())).build();
         final DiscoveryNodes nodes = DiscoveryNodes.builder().add(node).masterNodeId(node.getId()).localNodeId(node.getId()).build();
         final ClusterState clusterState = ClusterState.builder(CLUSTER_NAME)
             .nodes(nodes)
             .metadata(metadata)
-            .routingTable(GlobalRoutingTableTestHelper.buildRoutingTable(metadata, RoutingTable.Builder::addAsNew))
+            .routingTable(
+                RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY).addAsNew(metadata.index(reindexedIndexName))
+            )
             .build();
-        ProjectState projectState = clusterState.projectState(projectId);
 
         assertThat(
-            SystemIndexMappingUpdateService.getUpgradeStatus(projectState, DESCRIPTOR),
+            SystemIndexMappingUpdateService.getUpgradeStatus(clusterState, DESCRIPTOR),
             equalTo(UpgradeStatus.NEEDS_MAPPINGS_UPDATE)
         );
     }

@@ -117,7 +117,7 @@ public class SystemIndexMappingUpdateServiceIT extends ESIntegTestCase {
         ensureGreen(reindexedIndexName);
         assertAcked(
             indicesAdmin().aliases(
-                new IndicesAliasesRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).addAliasAction(
+                new IndicesAliasesRequest().addAliasAction(
                     IndicesAliasesRequest.AliasActions.add().index(reindexedIndexName).alias(PRIMARY_INDEX_NAME)
                 ).addAliasAction(IndicesAliasesRequest.AliasActions.add().index(reindexedIndexName).alias(INDEX_NAME))
             ).actionGet()

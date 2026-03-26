@@ -46,10 +46,12 @@ public class SystemMetrics extends AbstractLifecycleComponent {
     private static final AllocatedBytesMetrics ALLOCATED_BYTES_METRICS = new AllocatedBytesMetrics();
 
     private final MeterRegistry registry;
+    private final boolean emitOTelMetrics;
     private final List<AutoCloseable> metrics = new ArrayList<>();
 
-    public SystemMetrics(MeterRegistry registry) {
+    public SystemMetrics(MeterRegistry registry, boolean emitOTelMetrics) {
         this.registry = registry;
+        this.emitOTelMetrics = emitOTelMetrics;
     }
 
     @Override
@@ -80,7 +82,7 @@ public class SystemMetrics extends AbstractLifecycleComponent {
         }
     }
 
-    // TODO: remove when dashboards are migrated to OTel SDK auto-emitted jvm.memory.used, jvm.memory.committed,
+    // TODO: remove when dashboards are migrated to OTel SDK auto-emitted jvm.memory.used, jvm.memory.committed,(ES-14386)
     // and jvm.memory.limit (per-pool, with jvm.memory.pool.name and jvm.memory.type attributes)
     private void registerJvmMemoryMetrics() {
         metrics.add(
@@ -176,7 +178,7 @@ public class SystemMetrics extends AbstractLifecycleComponent {
         );
     }
 
-    // TODO: jvm.gc.count and jvm.gc.time can be removed when dashboards are migrated to OTel SDK auto-emitted
+    // TODO: jvm.gc.count and jvm.gc.time can be removed when dashboards are migrated to OTel SDK auto-emitted (ES-14386)
     // jvm.gc.duration histogram (per-collector, with jvm.gc.name and jvm.gc.action attributes).
     // jvm.gc.alloc has no OTel SDK equivalent and must be kept.
     private void registerJvmGcMetrics() {
@@ -252,18 +254,20 @@ public class SystemMetrics extends AbstractLifecycleComponent {
             "{file_descriptor}",
             ProcessProbe::getMaxFileDescriptorCount
         );
-        registerLongGaugeUnlessNegative(
-            "jvm.file_descriptor.count",
-            "The number of opened file descriptors. As per the OTel Semantic Convention.",
-            "{file_descriptor}",
-            ProcessProbe::getOpenFileDescriptorCount
-        );
-        registerLongGaugeUnlessNegative(
-            "jvm.file_descriptor.limit",
-            "The maximum number of opened file descriptors. As per the OTel Semantic Convention.",
-            "{file_descriptor}",
-            ProcessProbe::getMaxFileDescriptorCount
-        );
+        if (emitOTelMetrics) {
+            registerLongGaugeUnlessNegative(
+                "jvm.file_descriptor.count",
+                "Number of open file descriptors as reported by the JVM.",
+                "{file_descriptor}",
+                ProcessProbe::getOpenFileDescriptorCount
+            );
+            registerLongGaugeUnlessNegative(
+                "jvm.file_descriptor.limit",
+                "Measure of max open file descriptors as reported by the JVM.",
+                "{file_descriptor}",
+                ProcessProbe::getMaxFileDescriptorCount
+            );
+        }
     }
 
     private void registerSystemMemoryMetrics() {

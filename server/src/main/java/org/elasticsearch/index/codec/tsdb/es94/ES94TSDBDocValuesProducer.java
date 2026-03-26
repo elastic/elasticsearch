@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.index.codec.tsdb.es819;
+package org.elasticsearch.index.codec.tsdb.es94;
 
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.store.DataInput;
@@ -20,25 +20,30 @@ import org.elasticsearch.index.codec.tsdb.EntryFactory;
 import org.elasticsearch.index.codec.tsdb.NumericFieldReader;
 import org.elasticsearch.index.codec.tsdb.TSDBDocValuesEncoder;
 import org.elasticsearch.index.codec.tsdb.TSDBDocValuesFormatConfig;
+import org.elasticsearch.index.codec.tsdb.pipeline.FieldDescriptor;
+import org.elasticsearch.index.codec.tsdb.pipeline.numeric.NumericBlockDecoder;
+import org.elasticsearch.index.codec.tsdb.pipeline.numeric.NumericCodecFactory;
+import org.elasticsearch.index.codec.tsdb.pipeline.numeric.NumericDecoder;
 
 import java.io.IOException;
 
 /**
- * ES819 doc values producer. Delegates all shared wire-format reading logic to
- * {@link AbstractTSDBDocValuesProducer} and provides the ES819-specific numeric
- * decoding strategy via {@link TSDBDocValuesEncoder}.
+ * ES94 doc values producer. Reads a {@link FieldDescriptor} from metadata to
+ * reconstruct a {@link NumericDecoder} for each field, making the format
+ * self-describing. Ordinal decoding delegates to {@link TSDBDocValuesEncoder}
+ * for feature parity with ES819.
  */
-final class ES819TSDBDocValuesProducer extends AbstractTSDBDocValuesProducer {
+final class ES94TSDBDocValuesProducer extends AbstractTSDBDocValuesProducer {
 
     private static final EntryFactory ENTRY_FACTORY = new EntryFactory() {
         @Override
         public NumericEntry createNumericEntry() {
-            return new ES819NumericEntry();
+            return new ES94NumericEntry();
         }
 
         @Override
         public SortedNumericEntry createSortedNumericEntry() {
-            return new ES819SortedNumericEntry();
+            return new ES94SortedNumericEntry();
         }
 
         @Override
@@ -47,24 +52,30 @@ final class ES819TSDBDocValuesProducer extends AbstractTSDBDocValuesProducer {
         }
     };
 
-    ES819TSDBDocValuesProducer(
+    private final NumericCodecFactory numericCodecFactory;
+
+    ES94TSDBDocValuesProducer(
         final SegmentReadState state,
         final String dataCodec,
         final String dataExtension,
         final String metaCodec,
         final String metaExtension,
         final TSDBDocValuesFormatConfig formatConfig,
-        final DocOffsetsCodec.Decoder docOffsetsDecoder
+        final DocOffsetsCodec.Decoder docOffsetsDecoder,
+        final NumericCodecFactory numericCodecFactory
     ) throws IOException {
         super(state, dataCodec, dataExtension, metaCodec, metaExtension, formatConfig, docOffsetsDecoder, ENTRY_FACTORY);
+        this.numericCodecFactory = numericCodecFactory;
     }
 
-    private ES819TSDBDocValuesProducer(final ES819TSDBDocValuesProducer original) {
+    private ES94TSDBDocValuesProducer(final ES94TSDBDocValuesProducer original) {
         super(original);
+        this.numericCodecFactory = original.numericCodecFactory;
     }
 
     @Override
     protected NumericFieldReader createNumericFieldReader(final NumericEntry entry, int numericBlockSize) {
+        final PipelineDescriptorEntry pipelineEntry = (PipelineDescriptorEntry) entry;
         return new NumericFieldReader() {
             @Override
             public void readField(final IndexInput meta, final NumericEntry e, int numericBlockShift) throws IOException {
@@ -79,6 +90,7 @@ final class ES819TSDBDocValuesProducer extends AbstractTSDBDocValuesProducer {
                         final int blockShift = meta.readByte();
                         e.sortedOrdinals = DirectMonotonicReader.loadMeta(meta, numOrds + 1, blockShift);
                     } else {
+                        pipelineEntry.pipelineDescriptor(FieldDescriptor.read(meta));
                         e.indexMeta = DirectMonotonicReader.loadMeta(meta, 1 + ((e.numValues - 1) >>> numericBlockShift), indexBlockShift);
                     }
                     e.indexOffset = meta.readLong();
@@ -94,16 +106,22 @@ final class ES819TSDBDocValuesProducer extends AbstractTSDBDocValuesProducer {
 
             @Override
             public Decoder decoder() {
-                final TSDBDocValuesEncoder decoder = new TSDBDocValuesEncoder(numericBlockSize);
+                final TSDBDocValuesEncoder ordinalDecoder = new TSDBDocValuesEncoder(numericBlockSize);
                 return new Decoder() {
+                    private NumericBlockDecoder blockDecoder;
+
                     @Override
                     public void decodeBlock(final DataInput input, final long[] values, int count) throws IOException {
-                        decoder.decode(input, values);
+                        if (blockDecoder == null) {
+                            final NumericDecoder decoder = numericCodecFactory.createDecoder(pipelineEntry.pipelineDescriptor());
+                            blockDecoder = decoder.newBlockDecoder();
+                        }
+                        blockDecoder.decode(values, count, input);
                     }
 
                     @Override
                     public void decodeOrdinals(final DataInput input, final long[] values, int bitsPerOrd) throws IOException {
-                        decoder.decodeOrdinals(input, values, bitsPerOrd);
+                        ordinalDecoder.decodeOrdinals(input, values, bitsPerOrd);
                     }
                 };
             }
@@ -112,6 +130,6 @@ final class ES819TSDBDocValuesProducer extends AbstractTSDBDocValuesProducer {
 
     @Override
     protected AbstractTSDBDocValuesProducer createMergeInstance() {
-        return new ES819TSDBDocValuesProducer(this);
+        return new ES94TSDBDocValuesProducer(this);
     }
 }

@@ -15,6 +15,8 @@ import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.support.TenaciousRetryBlobContainer;
 import org.elasticsearch.core.TimeValue;
 
+import java.net.UnknownHostException;
+
 import static org.elasticsearch.rest.RestStatus.FORBIDDEN;
 
 public class GcsTenaciousRetryBlobContainer extends TenaciousRetryBlobContainer {
@@ -30,7 +32,7 @@ public class GcsTenaciousRetryBlobContainer extends TenaciousRetryBlobContainer 
 
     @Override
     protected boolean isExceptionRetryable(Exception e) {
-        return e instanceof StorageException se && se.getCode() == FORBIDDEN.getStatus();
+        return e instanceof UnknownHostException;
     }
 
     @Override

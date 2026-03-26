@@ -9,10 +9,8 @@ package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.index.IndexMode;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
-import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -22,10 +20,8 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
-import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.EsField;
-import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
@@ -38,29 +34,11 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.Map;
-import java.util.Set;
 
 import static java.util.Collections.emptyMap;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
-import static java.util.Collections.emptyMap;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
-import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyzeStatement;
-import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyzer;
-import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultEnrichResolution;
-import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultLookupResolution;
-import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.indexResolutions;
-import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyzeStatement;
-import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultEnrichResolution;
-import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultLookupResolution;
-import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.indexResolutions;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTests.withInlinestatsWarning;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
@@ -898,6 +876,152 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         );
     }
 
+    /**
+     * When unmapped_fields=load and an index has a partially mapped field that is not KEYWORD (e.g. LONG),
+     * analysis must fail once that field is used outside {@link EsRelation}.
+     * Covers one offending field; see {@link #testDisallowLoadWithPartiallyMappedNonKeywordReportsAllFields} for multiple.
+     */
+    public void testDisallowLoadWithPartiallyMappedNonKeyword() {
+        assumeTrue("Requires OPTIONAL_FIELDS_V2", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V2.isEnabled());
+
+        var esIndex = partialIndex("partial_idx", Map.of("partial_long", longField("partial_long")), Set.of("partial_long"));
+        assertUnmappedLoadError(
+            analyzer().addIndex(esIndex),
+            "FROM partial_idx | KEEP partial_long",
+            containsString(loadPartialNonKeywordMessage("partial_long"))
+        );
+    }
+
+    public void testDisallowLoadWithPartiallyMappedNonKeywordReportsAllFields() {
+        assumeTrue("Requires OPTIONAL_FIELDS_V2", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V2.isEnabled());
+
+        var esIndex = partialIndex(
+            "partial_idx",
+            Map.of("partial_long", longField("partial_long"), "partial_double", doubleField("partial_double")),
+            Set.of("partial_long", "partial_double")
+        );
+        assertUnmappedLoadError(
+            analyzer().addIndex(esIndex),
+            "FROM partial_idx | KEEP partial_long, partial_double",
+            containsString(loadPartialNonKeywordMessage("partial_double, partial_long"))
+        );
+    }
+
+    public void testAllowLoadWithPartialNonKeywordWhenFieldNotReferenced() {
+        assumeTrue("Requires OPTIONAL_FIELDS_V2", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V2.isEnabled());
+
+        var esIndex = partialIndex(
+            "partial_idx",
+            Map.of("partial_long", longField("partial_long"), "common", keywordField("common")),
+            Set.of("partial_long")
+        );
+        var plan = analyzer().addIndex(esIndex).statement(setUnmappedLoad("FROM partial_idx | KEEP common"));
+        assertThat(plan, not(nullValue()));
+    }
+
+    /**
+     * Comma-separated {@code FROM} resolves to one merged {@link EsIndex} named {@code idx_a,idx_b}; partial-field checks must use that
+     * resolution (see {@link IndexResolution#matches}).
+     */
+    public void testAllowLoadCommaSeparatedIndicesWhenPartialNonKeywordUnused() {
+        assumeTrue("Requires OPTIONAL_FIELDS_V2", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V2.isEnabled());
+
+        var pattern = "idx_a,idx_b";
+        var merged = new EsIndex(
+            pattern,
+            Map.of("partial_long", longField("partial_long"), "common", keywordField("common")),
+            Map.of("idx_a", IndexMode.STANDARD, "idx_b", IndexMode.STANDARD),
+            Map.of(),
+            Map.of(),
+            Set.of("partial_long")
+        );
+        var plan = analyzer().addIndex(pattern, IndexResolution.valid(merged))
+            .statement(setUnmappedLoad("FROM idx_a, idx_b | KEEP common"));
+        assertThat(plan, not(nullValue()));
+    }
+
+    public void testDisallowLoadCommaSeparatedIndicesWhenPartialNonKeywordUsed() {
+        assumeTrue("Requires OPTIONAL_FIELDS_V2", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V2.isEnabled());
+
+        var pattern = "idx_a,idx_b";
+        var merged = new EsIndex(
+            pattern,
+            Map.of("partial_long", longField("partial_long"), "common", keywordField("common")),
+            Map.of("idx_a", IndexMode.STANDARD, "idx_b", IndexMode.STANDARD),
+            Map.of(),
+            Map.of(),
+            Set.of("partial_long")
+        );
+        assertUnmappedLoadError(
+            analyzer().addIndex(pattern, IndexResolution.valid(merged)),
+            "FROM idx_a, idx_b | KEEP partial_long",
+            containsString(loadPartialNonKeywordMessage("partial_long"))
+        );
+    }
+
+    public void testAllowLoadFromOnlyWhenPartialNonKeywordUnused() {
+        assumeTrue("Requires OPTIONAL_FIELDS_V2", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V2.isEnabled());
+
+        var esIndex = partialIndex("partial_idx", Map.of("partial_long", longField("partial_long")), Set.of("partial_long"));
+        var plan = analyzer().addIndex(esIndex).statement(setUnmappedLoad("FROM partial_idx"));
+        assertThat(plan, not(nullValue()));
+    }
+
+    public void testDisallowLoadWithPartiallyMappedNonKeywordInWhere() {
+        assumeTrue("Requires OPTIONAL_FIELDS_V2", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V2.isEnabled());
+
+        var esIndex = partialIndex("partial_idx", Map.of("partial_long", longField("partial_long")), Set.of("partial_long"));
+        assertUnmappedLoadError(
+            analyzer().addIndex(esIndex),
+            "FROM partial_idx | WHERE partial_long > 0",
+            containsString(loadPartialNonKeywordMessage("partial_long"))
+        );
+    }
+
+    public void testDisallowLoadWithPartiallyMappedNonKeywordInSort() {
+        assumeTrue("Requires OPTIONAL_FIELDS_V2", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V2.isEnabled());
+
+        var esIndex = partialIndex("partial_idx", Map.of("partial_long", longField("partial_long")), Set.of("partial_long"));
+        assertUnmappedLoadError(
+            analyzer().addIndex(esIndex),
+            "FROM partial_idx | SORT partial_long",
+            containsString(loadPartialNonKeywordMessage("partial_long"))
+        );
+    }
+
+    public void testDisallowLoadWithPartiallyMappedNonKeywordDottedPath() {
+        assumeTrue("Requires OPTIONAL_FIELDS_V2", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V2.isEnabled());
+
+        var sub = longField("sub");
+        var obj = new EsField("obj", DataType.OBJECT, Map.of("sub", sub), true, EsField.TimeSeriesFieldType.NONE);
+        var esIndex = partialIndex("partial_idx", Map.of("obj", obj), Set.of("obj.sub"));
+        assertUnmappedLoadError(
+            analyzer().addIndex(esIndex),
+            "FROM partial_idx | KEEP `obj.sub`",
+            containsString(loadPartialNonKeywordMessage("obj.sub"))
+        );
+    }
+
+    public void testAllowLoadWithPartiallyMappedKeyword() {
+        assumeTrue("Requires OPTIONAL_FIELDS_V2", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V2.isEnabled());
+
+        var esIndex = partialIndex(
+            "partial_idx",
+            Map.of("partial_type_keyword", keywordField("partial_type_keyword")),
+            Set.of("partial_type_keyword")
+        );
+        var plan = analyzer().addIndex(esIndex).statement(setUnmappedLoad("FROM partial_idx | KEEP partial_type_keyword"));
+        assertThat(plan, not(nullValue()));
+    }
+
+    public void testNullifyWithPartiallyMappedNonKeywordDoesNotFail() {
+        assumeTrue("Requires OPTIONAL_FIELDS_NULLIFY_TECH_PREVIEW", EsqlCapabilities.Cap.OPTIONAL_FIELDS_NULLIFY_TECH_PREVIEW.isEnabled());
+
+        var esIndex = partialIndex("partial_idx", Map.of("partial_long", longField("partial_long")), Set.of("partial_long"));
+        var plan = analyzer().addIndex(esIndex).statement(setUnmappedNullify("FROM partial_idx | KEEP partial_long"));
+        assertThat(plan, not(nullValue()));
+    }
+
     private Matcher<String> unmappedLoadAndFlattenedSubfieldHelper(String... pairs) {
         assert pairs.length % 2 == 0;
         String errorMessage =
@@ -928,6 +1052,29 @@ public class AnalyzerUnmappedTests extends ESTestCase {
 
     private static void assertUnmappedLoadError(TestAnalyzer analyzer, String query, Matcher<String> matcher) {
         analyzer.statementError(setUnmappedLoad(query), matcher);
+    }
+
+    private static EsIndex partialIndex(String name, Map<String, EsField> mapping, Set<String> partiallyUnmappedFields) {
+        return new EsIndex(name, mapping, Map.of(name, IndexMode.STANDARD), Map.of(), Map.of(), partiallyUnmappedFields);
+    }
+
+    private static EsField longField(String name) {
+        return new EsField(name, DataType.LONG, emptyMap(), true, EsField.TimeSeriesFieldType.NONE);
+    }
+
+    private static EsField doubleField(String name) {
+        return new EsField(name, DataType.DOUBLE, emptyMap(), true, EsField.TimeSeriesFieldType.NONE);
+    }
+
+    private static EsField keywordField(String name) {
+        return new EsField(name, DataType.KEYWORD, emptyMap(), true, EsField.TimeSeriesFieldType.NONE);
+    }
+
+    private static String loadPartialNonKeywordMessage(String fields) {
+        return "Loading partially mapped non-KEYWORD fields is not yet supported. "
+            + "unmapped_fields=\"load\" is not supported when the query involves partially mapped fields that are not KEYWORD: "
+            + fields
+            + ". Use unmapped_fields=\"nullify\" or unmapped_fields=\"fail\", or ensure the field is mapped as KEYWORD in all indices.";
     }
 
     private static String setUnmappedNullify(String query) {
@@ -980,141 +1127,6 @@ public class AnalyzerUnmappedTests extends ESTestCase {
                 setUnmappedLoad("FROM test | WHERE knn(vector, [1, 2, 3]) | KEEP vector"),
                 containsString("does not support full-text search function [KNN]")
             );
-    }
-
-    /**
-     * When unmapped_fields=load and an index has a partially mapped field that is not KEYWORD (e.g. LONG),
-     * the query must fail with VerificationException.
-     * Covers one offending field; see {@link #testDisallowLoadWithPartiallyMappedNonKeywordReportsAllFields} for multiple.
-     */
-    public void testDisallowLoadWithPartiallyMappedNonKeyword() {
-        assumeTrue("Requires OPTIONAL_FIELDS_V2", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V2.isEnabled());
-
-        var esIndex = new EsIndex(
-            "partial_idx",
-            Map.of("partial_long", new EsField("partial_long", DataType.LONG, emptyMap(), true, EsField.TimeSeriesFieldType.NONE)),
-            Map.of("partial_idx", IndexMode.STANDARD),
-            Map.of(),
-            Map.of(),
-            Set.of("partial_long")
-        );
-        var analyzer = AnalyzerTestUtils.analyzer(
-            indexResolutions(esIndex),
-            defaultLookupResolution(),
-            defaultEnrichResolution(),
-            TEST_VERIFIER,
-            TEST_CFG,
-            UnmappedResolution.LOAD
-        );
-        var statement = TEST_PARSER.createStatement("FROM partial_idx | KEEP partial_long");
-
-        var e = expectThrows(VerificationException.class, () -> analyzer.analyze(statement.plan()));
-        assertThat(e.getMessage(), containsString("unmapped_fields=\"load\""));
-        assertThat(e.getMessage(), containsString("partial_long"));
-    }
-
-    /**
-     * When multiple partially mapped non-KEYWORD fields exist, all must be reported in the error message.
-     * Guards against regressions where only the first offending field is reported.
-     */
-    public void testDisallowLoadWithPartiallyMappedNonKeywordReportsAllFields() {
-        assumeTrue("Requires OPTIONAL_FIELDS_V2", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V2.isEnabled());
-
-        var esIndex = new EsIndex(
-            "partial_idx",
-            Map.of(
-                "partial_long",
-                new EsField("partial_long", DataType.LONG, emptyMap(), true, EsField.TimeSeriesFieldType.NONE),
-                "partial_double",
-                new EsField("partial_double", DataType.DOUBLE, emptyMap(), true, EsField.TimeSeriesFieldType.NONE)
-            ),
-            Map.of("partial_idx", IndexMode.STANDARD),
-            Map.of(),
-            Map.of(),
-            Set.of("partial_long", "partial_double")
-        );
-        var analyzer = AnalyzerTestUtils.analyzer(
-            indexResolutions(esIndex),
-            defaultLookupResolution(),
-            defaultEnrichResolution(),
-            TEST_VERIFIER,
-            TEST_CFG,
-            UnmappedResolution.LOAD
-        );
-        var statement = TEST_PARSER.createStatement("FROM partial_idx | KEEP partial_long, partial_double");
-
-        var e = expectThrows(VerificationException.class, () -> analyzer.analyze(statement.plan()));
-        assertThat(e.getMessage(), containsString("unmapped_fields=\"load\""));
-        assertThat(e.getMessage(), containsString("partial_long"));
-        assertThat(e.getMessage(), containsString("partial_double"));
-    }
-
-    /**
-     * When unmapped_fields=load and the only partially mapped field is KEYWORD, the query is allowed.
-     * Contrast with {@link #testDisallowLoadWithPartiallyMappedNonKeyword} for non-KEYWORD types.
-     */
-    public void testAllowLoadWithPartiallyMappedKeyword() {
-        assumeTrue("Requires OPTIONAL_FIELDS_V2", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V2.isEnabled());
-
-        var esIndex = new EsIndex(
-            "partial_idx",
-            Map.of(
-                "partial_type_keyword",
-                new EsField("partial_type_keyword", DataType.KEYWORD, emptyMap(), true, EsField.TimeSeriesFieldType.NONE)
-            ),
-            Map.of("partial_idx", IndexMode.STANDARD),
-            Map.of(),
-            Map.of(),
-            Set.of("partial_type_keyword")
-        );
-        var analyzer = AnalyzerTestUtils.analyzer(
-            indexResolutions(esIndex),
-            defaultLookupResolution(),
-            defaultEnrichResolution(),
-            TEST_VERIFIER,
-            TEST_CFG,
-            UnmappedResolution.LOAD
-        );
-        var statement = TEST_PARSER.createStatement("FROM partial_idx | KEEP partial_type_keyword");
-
-        // Should not throw
-        var plan = analyzer.analyze(statement.plan());
-        assertThat(plan, not(nullValue()));
-    }
-
-    /**
-     * When unmapped_fields=nullify, partially mapped non-KEYWORD fields do not cause failure.
-     * The restriction applies only to unmapped_fields=load; nullify and fail remain allowed.
-     */
-    public void testNullifyWithPartiallyMappedNonKeywordDoesNotFail() {
-        assumeTrue("Requires OPTIONAL_FIELDS_NULLIFY_TECH_PREVIEW", EsqlCapabilities.Cap.OPTIONAL_FIELDS_NULLIFY_TECH_PREVIEW.isEnabled());
-
-        var esIndex = new EsIndex(
-            "partial_idx",
-            Map.of("partial_long", new EsField("partial_long", DataType.LONG, emptyMap(), true, EsField.TimeSeriesFieldType.NONE)),
-            Map.of("partial_idx", IndexMode.STANDARD),
-            Map.of(),
-            Map.of(),
-            Set.of("partial_long")
-        );
-        var analyzer = AnalyzerTestUtils.analyzer(
-            indexResolutions(esIndex),
-            defaultLookupResolution(),
-            defaultEnrichResolution(),
-            TEST_VERIFIER,
-            TEST_CFG,
-            UnmappedResolution.NULLIFY
-        );
-        var statement = TEST_PARSER.createStatement("FROM partial_idx | KEEP partial_long");
-
-        // Should not throw
-        var plan = analyzer.analyze(statement.plan());
-        assertThat(plan, not(nullValue()));
-    }
-
-    private void verificationFailure(String statement, String expectedFailure) {
-        var e = expectThrows(VerificationException.class, () -> analyzeStatement(statement));
-        assertThat(e.getMessage(), containsString(expectedFailure));
     }
 
     @Override

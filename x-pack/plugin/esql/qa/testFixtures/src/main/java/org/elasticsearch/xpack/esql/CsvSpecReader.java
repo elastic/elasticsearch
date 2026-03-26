@@ -159,7 +159,7 @@ public final class CsvSpecReader {
         }
 
         /**
-         * Allows all warning in the result.
+         * Allows all warnings in the result.
          */
         public void allowAllWarnings() {
             expectedWarnings.clear();

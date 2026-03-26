@@ -428,9 +428,11 @@ public class ApproximationPlan {
                             )
                         );
                         bucketAggregates.add(bucket);
-                        projections.add(bucket.toAttribute());
 
                         if (needsRounding) {
+                            // Keep the non-rounded bucket for follow-up operations such as avg=sum/count.
+                            projections.add(bucket.toAttribute());
+
                             // The existing bucket is the non-rounded version, so a rounded version needs to be added,
                             // which can be used for follow-up operations and the confidence interval computation.
                             Alias roundedBucket = new Alias(

@@ -1,0 +1,5 @@
+area: Vector Search
+issues: []
+pr: 144557
+summary: Add bulk-gather native vector scoring for searchable snapshots via `DirectAccessInput`
+type: enhancement

@@ -336,9 +336,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {csv-spec:spatial_shapes.convertFromStringParseError}
   issue: https://github.com/elastic/elasticsearch/issues/144672
-- class: org.elasticsearch.index.mapper.flattened.RootFlattenedFromKeyedFieldDataTests
-  method: testRandomized
-  issue: https://github.com/elastic/elasticsearch/issues/144691
 - class: org.elasticsearch.repositories.gcs.GoogleCloudStorageBlobStoreRepositoryTests
   method: testCopy
   issue: https://github.com/elastic/elasticsearch/issues/144692
@@ -380,6 +377,12 @@ tests:
 - class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackSubqueryIT
   method: testGiantTextFieldInSubqueryIntermediateResults
   issue: https://github.com/elastic/elasticsearch/issues/144367
+- class: org.elasticsearch.xpack.ml.integration.AdJobRetryResilienceIT
+  method: testJobReopensAfterIndexUnavailabilityDuringReassignment
+  issue: https://github.com/elastic/elasticsearch/issues/144968
+- class: org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ReorderLimitProjectAndOrderByGoldenTests
+  method: testLimitByAndProjectNotSwapped
+  issue: https://github.com/elastic/elasticsearch/issues/144978
 
 # Examples:
 #

@@ -410,6 +410,38 @@ count:long     | _approximation_confidence_interval(count):long | _approximation
 ;
 
 
+Overwrite approximated column
+required_capability: approximation_v6
+
+SET approximation=true\;
+FROM many_numbers
+| STATS sum=SUM(sv)
+| EVAL sum = 7
+;
+
+sum:integer
+7
+;
+
+
+User-generated approximation column name
+required_capability: approximation_v6
+
+SET approximation=true\;
+FROM many_numbers
+| WHERE sv <= 10
+| STATS sum=SUM(sv), `_approximation_confidence_interval(sum)`=COUNT(sv)
+;
+
+// The STATS column `_approximation_confidence_interval(sum)`=COUNT(x) from the query
+// is overwritten by the synthetic approximation confidence interval column for `sum`
+// due to a name collision. Therefore this STATS column is not present in the result,
+// even though its approximation columns (confidence interval and certified) are.
+sum:long | _approximation_confidence_interval(sum):long | _approximation_certified(sum):boolean | _approximation_confidence_interval(_approximation_confidence_interval(sum)):long | _approximation_certified(_approximation_confidence_interval(sum)):boolean
+385      | [385, 385]                                   | true                                  | [55, 55]                                                                         | true
+;
+
+
 Rename stats group key
 required_capability: approximation_v6
 

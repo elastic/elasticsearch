@@ -194,7 +194,7 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
                 continue;
             }
             // build a float vector values with random access
-            final FloatVectorValues floatVectorValues = getFloatVectorValues(fieldWriter.fieldInfo, fieldWriter.delegate, maxDoc);
+            final FloatVectorValues floatVectorValues = getFloatVectorValues(fieldWriter.fieldInfo, fieldWriter.delegate, maxDoc, sortMap);
             // build centroids
             final CentroidAssignments centroidAssignments = calculateCentroids(fieldWriter.fieldInfo, floatVectorValues);
             // wrap centroids with a supplier
@@ -242,16 +242,17 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
     private static FloatVectorValues getFloatVectorValues(
         FieldInfo fieldInfo,
         FlatFieldVectorsWriter<float[]> fieldVectorsWriter,
-        int maxDoc
+        int maxDoc,
+        Sorter.DocMap sortMap
     ) throws IOException {
         List<float[]> vectors = fieldVectorsWriter.getVectors();
-        if (vectors.size() == maxDoc) {
+        if (vectors.size() == maxDoc && sortMap == null) {
             return KmeansFloatVectorValues.build(vectors, null, fieldInfo.getVectorDimension());
         }
         final DocIdSetIterator iterator = fieldVectorsWriter.getDocsWithFieldSet().iterator();
         final int[] docIds = new int[vectors.size()];
         for (int i = 0; i < docIds.length; i++) {
-            docIds[i] = iterator.nextDoc();
+            docIds[i] = sortMap == null ? iterator.nextDoc() : sortMap.oldToNew(iterator.nextDoc());
         }
         assert iterator.nextDoc() == NO_MORE_DOCS;
         return KmeansFloatVectorValues.build(vectors, docIds, fieldInfo.getVectorDimension());

@@ -38,7 +38,6 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 
-import static org.elasticsearch.index.query.SearchExecutionContextHelper.SHARD_SEARCH_STATS;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
@@ -103,8 +102,7 @@ public class InnerHitContextBuilderCircuitBreakerTests extends ESTestCase {
                 null,
                 Collections.emptyMap(),
                 null,
-                MapperMetrics.NOOP,
-                SHARD_SEARCH_STATS
+                MapperMetrics.NOOP
             );
 
             CircuitBreaker cb = newLimitedBreaker(ByteSizeValue.ofMb(100));

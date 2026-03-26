@@ -1,0 +1,5 @@
+area: Search
+issues: []
+pr: 145013
+summary: "Bugfix: update cluster info even for all skipped groups"
+type: bug

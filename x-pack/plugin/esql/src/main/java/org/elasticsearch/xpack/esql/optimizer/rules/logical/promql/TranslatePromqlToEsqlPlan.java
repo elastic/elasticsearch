@@ -899,7 +899,7 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
 
         Attribute stepAttr = findAttributeById(plan.output(), promqlCommand.stepId());
         if (stepAttr == null) {
-            stepAttr = findAttributeByFieldName(plan.output(), STEP_COLUMN_NAME);
+            stepAttr = findAttributeByFieldName(plan.output(), promqlCommand.stepColumnName());
         }
         if (stepAttr == null) {
             throw new IllegalStateException("PromQL root projection requires a step column");

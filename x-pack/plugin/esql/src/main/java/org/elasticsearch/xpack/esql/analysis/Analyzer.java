@@ -371,13 +371,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          * Non-keyword fields are left unchanged (they will return null on unmapped shards, consistent with their default behavior).
          */
         private static void loadPartiallyMappedKeywordFields(List<Attribute> attributes, EsIndex esIndex, IndexMode indexMode) {
-            if (indexMode != IndexMode.LOOKUP) {
-                for (int i = 0; i < attributes.size(); i++) {
-                    if (attributes.get(i) instanceof FieldAttribute fa
-                        && fa.dataType() == KEYWORD
-                        && esIndex.isPartiallyUnmappedField(fa.name())) {
-                        attributes.set(i, ResolveRefs.insistKeyword(fa));
-                    }
+            for (int i = 0; i < attributes.size(); i++) {
+                if (attributes.get(i) instanceof FieldAttribute fa
+                    && fa.dataType() == KEYWORD
+                    && esIndex.isPartiallyUnmappedField(fa.name())) {
+                    attributes.set(i, ResolveRefs.insistKeyword(fa));
                 }
             }
         }

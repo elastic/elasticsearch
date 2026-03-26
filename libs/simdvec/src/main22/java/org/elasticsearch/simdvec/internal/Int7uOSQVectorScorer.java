@@ -140,6 +140,9 @@ public abstract sealed class Int7uOSQVectorScorer extends RandomVectorScorer.Abs
 
     @Override
     public float bulkScore(int[] nodes, float[] scores, int numNodes) throws IOException {
+        if (numNodes == 0) {
+            return Float.NEGATIVE_INFINITY;
+        }
         MemorySegment vectorsSeg = input.segmentSliceOrNull(0, input.length());
         if (vectorsSeg == null) {
             return super.bulkScore(nodes, scores, numNodes);

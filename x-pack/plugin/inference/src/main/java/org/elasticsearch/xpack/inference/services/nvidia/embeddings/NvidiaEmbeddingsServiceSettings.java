@@ -73,9 +73,7 @@ public class NvidiaEmbeddingsServiceSettings extends NvidiaServiceSettings {
             validationException
         );
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new NvidiaEmbeddingsServiceSettings(
             commonServiceSettings.model(),

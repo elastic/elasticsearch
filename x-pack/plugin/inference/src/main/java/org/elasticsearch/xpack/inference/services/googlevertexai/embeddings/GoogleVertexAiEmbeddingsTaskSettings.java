@@ -54,9 +54,7 @@ public class GoogleVertexAiEmbeddingsTaskSettings implements TaskSettings {
         );
 
         Boolean autoTruncate = extractOptionalBoolean(map, AUTO_TRUNCATE, validationException);
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new GoogleVertexAiEmbeddingsTaskSettings(autoTruncate, inputType);
     }

@@ -554,6 +554,144 @@ partial_mapping_sample_data           | 2024-10-23T13:53:55.832Z | Connection er
 partial_mapping_sample_data           | 2024-10-23T13:55:01.543Z | Connected to 10.1.0.1!
 ;
 
+threeIndicesKeepMessageUnmappedThird
+required_capability: optional_fields_v2
+required_capability: source_field_mapping
+
+SET unmapped_fields="load"\;
+FROM partial_mapping_sample_data, sample_data, partial_mapping_no_source_sample_data METADATA _index
+| KEEP _index, @timestamp, message
+| SORT _index, @timestamp DESC
+;
+
+_index:keyword                        | @timestamp:date          | message:keyword
+partial_mapping_no_source_sample_data | 2024-10-23T13:55:01.543Z | null
+partial_mapping_no_source_sample_data | 2024-10-23T13:53:55.832Z | null
+partial_mapping_no_source_sample_data | 2024-10-23T13:52:55.015Z | null
+partial_mapping_no_source_sample_data | 2024-10-23T13:51:54.732Z | null
+partial_mapping_no_source_sample_data | 2024-10-23T13:33:34.937Z | null
+partial_mapping_no_source_sample_data | 2024-10-23T12:27:28.948Z | null
+partial_mapping_no_source_sample_data | 2024-10-23T12:15:03.360Z | null
+partial_mapping_sample_data           | 2024-10-23T13:55:01.543Z | Connected to 10.1.0.1!
+partial_mapping_sample_data           | 2024-10-23T13:53:55.832Z | Connection error?
+partial_mapping_sample_data           | 2024-10-23T13:52:55.015Z | Connection error?
+partial_mapping_sample_data           | 2024-10-23T13:51:54.732Z | Connection error?
+partial_mapping_sample_data           | 2024-10-23T13:33:34.937Z | 42
+partial_mapping_sample_data           | 2024-10-23T12:27:28.948Z | Connected to 10.1.0.2!
+partial_mapping_sample_data           | 2024-10-23T12:15:03.360Z | Connected to 10.1.0.3!
+sample_data                           | 2023-10-23T13:55:01.543Z | Connected to 10.1.0.1
+sample_data                           | 2023-10-23T13:53:55.832Z | Connection error
+sample_data                           | 2023-10-23T13:52:55.015Z | Connection error
+sample_data                           | 2023-10-23T13:51:54.732Z | Connection error
+sample_data                           | 2023-10-23T13:33:34.937Z | Disconnected
+sample_data                           | 2023-10-23T12:27:28.948Z | Connected to 10.1.0.2
+sample_data                           | 2023-10-23T12:15:03.360Z | Connected to 10.1.0.3
+;
+
+threeIndicesDropClientIpUnmappedThird
+required_capability: optional_fields_v2
+required_capability: source_field_mapping
+
+SET unmapped_fields="load"\;
+FROM partial_mapping_sample_data, sample_data, partial_mapping_no_source_sample_data METADATA _index
+| KEEP _index, @timestamp, message, client_ip
+| DROP client_ip
+| SORT _index, @timestamp DESC
+;
+
+_index:keyword                        | @timestamp:date          | message:keyword
+partial_mapping_no_source_sample_data | 2024-10-23T13:55:01.543Z | null
+partial_mapping_no_source_sample_data | 2024-10-23T13:53:55.832Z | null
+partial_mapping_no_source_sample_data | 2024-10-23T13:52:55.015Z | null
+partial_mapping_no_source_sample_data | 2024-10-23T13:51:54.732Z | null
+partial_mapping_no_source_sample_data | 2024-10-23T13:33:34.937Z | null
+partial_mapping_no_source_sample_data | 2024-10-23T12:27:28.948Z | null
+partial_mapping_no_source_sample_data | 2024-10-23T12:15:03.360Z | null
+partial_mapping_sample_data           | 2024-10-23T13:55:01.543Z | Connected to 10.1.0.1!
+partial_mapping_sample_data           | 2024-10-23T13:53:55.832Z | Connection error?
+partial_mapping_sample_data           | 2024-10-23T13:52:55.015Z | Connection error?
+partial_mapping_sample_data           | 2024-10-23T13:51:54.732Z | Connection error?
+partial_mapping_sample_data           | 2024-10-23T13:33:34.937Z | 42
+partial_mapping_sample_data           | 2024-10-23T12:27:28.948Z | Connected to 10.1.0.2!
+partial_mapping_sample_data           | 2024-10-23T12:15:03.360Z | Connected to 10.1.0.3!
+sample_data                           | 2023-10-23T13:55:01.543Z | Connected to 10.1.0.1
+sample_data                           | 2023-10-23T13:53:55.832Z | Connection error
+sample_data                           | 2023-10-23T13:52:55.015Z | Connection error
+sample_data                           | 2023-10-23T13:51:54.732Z | Connection error
+sample_data                           | 2023-10-23T13:33:34.937Z | Disconnected
+sample_data                           | 2023-10-23T12:27:28.948Z | Connected to 10.1.0.2
+sample_data                           | 2023-10-23T12:15:03.360Z | Connected to 10.1.0.3
+;
+
+threeIndicesKeepMessageExcludedThird
+required_capability: optional_fields_v2
+required_capability: source_field_mapping
+
+SET unmapped_fields="load"\;
+FROM partial_mapping_sample_data, sample_data, partial_mapping_excluded_source_sample_data METADATA _index
+| KEEP _index, @timestamp, message
+| SORT _index, @timestamp DESC
+;
+
+_index:keyword                              | @timestamp:date          | message:keyword
+partial_mapping_excluded_source_sample_data | 2024-10-23T13:55:01.543Z | null
+partial_mapping_excluded_source_sample_data | 2024-10-23T13:53:55.832Z | null
+partial_mapping_excluded_source_sample_data | 2024-10-23T13:52:55.015Z | null
+partial_mapping_excluded_source_sample_data | 2024-10-23T13:51:54.732Z | null
+partial_mapping_excluded_source_sample_data | 2024-10-23T13:33:34.937Z | null
+partial_mapping_excluded_source_sample_data | 2024-10-23T12:27:28.948Z | null
+partial_mapping_excluded_source_sample_data | 2024-10-23T12:15:03.360Z | null
+partial_mapping_sample_data                 | 2024-10-23T13:55:01.543Z | Connected to 10.1.0.1!
+partial_mapping_sample_data                 | 2024-10-23T13:53:55.832Z | Connection error?
+partial_mapping_sample_data                 | 2024-10-23T13:52:55.015Z | Connection error?
+partial_mapping_sample_data                 | 2024-10-23T13:51:54.732Z | Connection error?
+partial_mapping_sample_data                 | 2024-10-23T13:33:34.937Z | 42
+partial_mapping_sample_data                 | 2024-10-23T12:27:28.948Z | Connected to 10.1.0.2!
+partial_mapping_sample_data                 | 2024-10-23T12:15:03.360Z | Connected to 10.1.0.3!
+sample_data                                 | 2023-10-23T13:55:01.543Z | Connected to 10.1.0.1
+sample_data                                 | 2023-10-23T13:53:55.832Z | Connection error
+sample_data                                 | 2023-10-23T13:52:55.015Z | Connection error
+sample_data                                 | 2023-10-23T13:51:54.732Z | Connection error
+sample_data                                 | 2023-10-23T13:33:34.937Z | Disconnected
+sample_data                                 | 2023-10-23T12:27:28.948Z | Connected to 10.1.0.2
+sample_data                                 | 2023-10-23T12:15:03.360Z | Connected to 10.1.0.3
+;
+
+threeIndicesDropClientIpExcludedThird
+required_capability: optional_fields_v2
+required_capability: source_field_mapping
+
+SET unmapped_fields="load"\;
+FROM partial_mapping_sample_data, sample_data, partial_mapping_excluded_source_sample_data METADATA _index
+| KEEP _index, @timestamp, message, client_ip
+| DROP client_ip
+| SORT _index, @timestamp DESC
+;
+
+_index:keyword                              | @timestamp:date          | message:keyword
+partial_mapping_excluded_source_sample_data | 2024-10-23T13:55:01.543Z | null
+partial_mapping_excluded_source_sample_data | 2024-10-23T13:53:55.832Z | null
+partial_mapping_excluded_source_sample_data | 2024-10-23T13:52:55.015Z | null
+partial_mapping_excluded_source_sample_data | 2024-10-23T13:51:54.732Z | null
+partial_mapping_excluded_source_sample_data | 2024-10-23T13:33:34.937Z | null
+partial_mapping_excluded_source_sample_data | 2024-10-23T12:27:28.948Z | null
+partial_mapping_excluded_source_sample_data | 2024-10-23T12:15:03.360Z | null
+partial_mapping_sample_data                 | 2024-10-23T13:55:01.543Z | Connected to 10.1.0.1!
+partial_mapping_sample_data                 | 2024-10-23T13:53:55.832Z | Connection error?
+partial_mapping_sample_data                 | 2024-10-23T13:52:55.015Z | Connection error?
+partial_mapping_sample_data                 | 2024-10-23T13:51:54.732Z | Connection error?
+partial_mapping_sample_data                 | 2024-10-23T13:33:34.937Z | 42
+partial_mapping_sample_data                 | 2024-10-23T12:27:28.948Z | Connected to 10.1.0.2!
+partial_mapping_sample_data                 | 2024-10-23T12:15:03.360Z | Connected to 10.1.0.3!
+sample_data                                 | 2023-10-23T13:55:01.543Z | Connected to 10.1.0.1
+sample_data                                 | 2023-10-23T13:53:55.832Z | Connection error
+sample_data                                 | 2023-10-23T13:52:55.015Z | Connection error
+sample_data                                 | 2023-10-23T13:51:54.732Z | Connection error
+sample_data                                 | 2023-10-23T13:33:34.937Z | Disconnected
+sample_data                                 | 2023-10-23T12:27:28.948Z | Connected to 10.1.0.2
+sample_data                                 | 2023-10-23T12:15:03.360Z | Connected to 10.1.0.3
+;
+
 partialMappingStats
 required_capability: optional_fields_v3
 required_capability: source_field_mapping

@@ -12,6 +12,7 @@ package org.elasticsearch.synonyms;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.Strings;
@@ -103,36 +104,15 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
         SynonymsManagementAPIService synsApiService = new SynonymsManagementAPIService(client(), rulesNumber + 1, pitBatchSize);
 
         String synonymSetId = randomIdentifier();
-        CountDownLatch putLatch = new CountDownLatch(1);
-        synsApiService.putSynonymsSet(synonymSetId, randomSynonymsSet(rulesNumber, rulesNumber), false, new ActionListener<>() {
-            @Override
-            public void onResponse(SynonymsManagementAPIService.SynonymsReloadResult synonymsReloadResult) {
-                putLatch.countDown();
-            }
+        PlainActionFuture<SynonymsManagementAPIService.SynonymsReloadResult> putFuture = new PlainActionFuture<>();
+        synsApiService.putSynonymsSet(synonymSetId, randomSynonymsSet(rulesNumber, rulesNumber), false, putFuture);
+        putFuture.actionGet();
 
-            @Override
-            public void onFailure(Exception e) {
-                fail(e);
-            }
-        });
-        putLatch.await(5, TimeUnit.SECONDS);
-
-        CountDownLatch getLatch = new CountDownLatch(1);
-        synsApiService.getSynonymSetRules(synonymSetId, new ActionListener<>() {
-            @Override
-            public void onResponse(PagedResult<SynonymRule> synonymRulePagedResult) {
-                assertEquals(rulesNumber, synonymRulePagedResult.totalResults());
-                assertEquals(rulesNumber, synonymRulePagedResult.pageResults().length);
-                getLatch.countDown();
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                fail(e);
-            }
-        });
-
-        getLatch.await(10, TimeUnit.SECONDS);
+        PlainActionFuture<PagedResult<SynonymRule>> getFuture = new PlainActionFuture<>();
+        synsApiService.getSynonymSetRules(synonymSetId, getFuture);
+        PagedResult<SynonymRule> result = getFuture.actionGet();
+        assertEquals(rulesNumber, result.totalResults());
+        assertEquals(rulesNumber, result.pageResults().length);
     }
 
     public void testPitCapEnforcedWhenRulesExceedLimit() throws Exception {
@@ -145,37 +125,15 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
 
         String synonymSetId = randomIdentifier();
         // Use bulkUpdateSynonymsSet to bypass the write-time limit check so we can store more than maxRules
-        CountDownLatch putLatch = new CountDownLatch(1);
-        synsApiService.bulkUpdateSynonymsSet(synonymSetId, randomSynonymsSet(rulesNumber, rulesNumber), new ActionListener<>() {
-            @Override
-            public void onResponse(BulkResponse bulkResponse) {
-                assertFalse(bulkResponse.hasFailures());
-                putLatch.countDown();
-            }
+        PlainActionFuture<BulkResponse> putFuture = new PlainActionFuture<>();
+        synsApiService.bulkUpdateSynonymsSet(synonymSetId, randomSynonymsSet(rulesNumber, rulesNumber), putFuture);
+        assertFalse(putFuture.actionGet().hasFailures());
 
-            @Override
-            public void onFailure(Exception e) {
-                fail(e);
-            }
-        });
-        putLatch.await(5, TimeUnit.SECONDS);
-
-        CountDownLatch getLatch = new CountDownLatch(1);
-        synsApiService.getSynonymSetRules(synonymSetId, new ActionListener<>() {
-            @Override
-            public void onResponse(PagedResult<SynonymRule> result) {
-                assertEquals(rulesNumber, result.totalResults());  // true total from index
-                assertEquals(maxRules, result.pageResults().length);  // capped at limit
-                getLatch.countDown();
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                fail(e);
-            }
-        });
-
-        getLatch.await(10, TimeUnit.SECONDS);
+        PlainActionFuture<PagedResult<SynonymRule>> getFuture = new PlainActionFuture<>();
+        synsApiService.getSynonymSetRules(synonymSetId, getFuture);
+        PagedResult<SynonymRule> result = getFuture.actionGet();
+        assertEquals(rulesNumber, result.totalResults());   // true total from index
+        assertEquals(maxRules, result.pageResults().length); // capped at limit
     }
 
     public void testCreateTooManySynonymsAtOnce() throws InterruptedException {

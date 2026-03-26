@@ -20,6 +20,6 @@ public class ES94TSDBBestCompressionLucene104Codec extends AbstractTSDBSynthetic
     }
 
     public ES94TSDBBestCompressionLucene104Codec(Elasticsearch93Lucene104Codec delegate) {
-        super(NAME, delegate);
+        super(NAME, delegate, delegate::getDocValuesFormatForField);
     }
 }

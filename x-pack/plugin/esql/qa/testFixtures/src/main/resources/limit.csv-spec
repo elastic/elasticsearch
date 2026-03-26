@@ -1037,7 +1037,7 @@ emp_no:integer | language_code:integer | language_name:keyword
 
 limitByWithEnrich
 required_capability: enrich_load
-required_capability: esql_limit_by
+required_capability: limit_by_enrich_fix
 
 FROM *
 | ENRICH languages_policy on street
@@ -1059,24 +1059,24 @@ limitByWithGrok
 required_capability: esql_limit_by
 
 FROM employees
+| SORT emp_no
 | GROK first_name "(?<first_letter>.)(?<rest>.*)"
 | LIMIT 2 BY first_letter
 | KEEP first_name, first_letter, emp_no
-| SORT first_letter, emp_no
 | LIMIT 10
 ;
 
 first_name:keyword | first_letter:keyword | emp_no:integer
-Anneke             | A                    | 10006
-Alejandro          | A                    | 10059
+Georgi             | G                    | 10001
 Bezalel            | B                    | 10002
-Berni              | B                    | 10014
+Parto              | P                    | 10003
 Chirstian          | C                    | 10004
-Cristinel          | C                    | 10017
+Kyoichi            | K                    | 10005
+Anneke             | A                    | 10006
+Tzvetan            | T                    | 10007
+Saniya             | S                    | 10008
+Sumant             | S                    | 10009
 Duangkaew          | D                    | 10010
-Divier             | D                    | 10027
-Eberhardt          | E                    | 10013
-Ebbe               | E                    | 10057
 ;
 
 limitByWithUriParts

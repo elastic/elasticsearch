@@ -51,6 +51,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegisteredDomain;
 import org.elasticsearch.xpack.esql.plan.logical.UriParts;
@@ -79,6 +80,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.SIX;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.THREE;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TWO;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.asLimit;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getFieldAttribute;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.greaterThanOf;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.greaterThanOrEqualOf;
@@ -2450,5 +2452,30 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
         assertThat(as(condition2.left(), FieldAttribute.class).name(), is("salary"));
 
         as(bottomFilter.child(), EsRelation.class);
+    }
+
+    /**
+     * Expects
+     *
+     * <pre>{@code
+     * Limit[1000[INTEGER],false,false]
+     * \_Filter[languages{r}#18 == 1[INTEGER]]
+     *   \_MvExpand[languages{f}#10,languages{r}#18]
+     *     \_Filter[emp_no{f}#7 > 10[INTEGER]]
+     *       \_EsRelation[test][_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, ge..]
+     * }</pre>
+     */
+    public void testPushDownFilterPastMvExpand() {
+        LogicalPlan plan = optimizedPlan("""
+            from test
+            | mv_expand languages
+            | where emp_no > 10 and languages == 1
+            """);
+
+        var limit = asLimit(plan, 1000, false);
+        var postExpandFilter = as(limit.child(), Filter.class);
+        var mvExpand = as(postExpandFilter.child(), MvExpand.class);
+        var preExpandFilter = as(mvExpand.child(), Filter.class);
+        as(preExpandFilter.child(), EsRelation.class);
     }
 }

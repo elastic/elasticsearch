@@ -51,7 +51,7 @@ EXPORT f32_t diskbbq_apply_corrections_euclidean_bulk(
             *(scores + i)
         );
         *(scores + i) = score;
-        maxScore = __builtin_fmax(maxScore, score);
+        maxScore = __builtin_fmaxf(maxScore, score);
     }
 
     return maxScore;
@@ -92,7 +92,7 @@ EXPORT f32_t diskbbq_apply_corrections_maximum_inner_product_bulk(
             *(scores + i)
         );
         *(scores + i) = score;
-        maxScore = __builtin_fmax(maxScore, score);
+        maxScore = __builtin_fmaxf(maxScore, score);
     }
 
     return maxScore;
@@ -133,7 +133,7 @@ EXPORT f32_t diskbbq_apply_corrections_dot_product_bulk(
             *(scores + i)
         );
         *(scores + i) = score;
-        maxScore = __builtin_fmax(maxScore, score);
+        maxScore = __builtin_fmaxf(maxScore, score);
     }
 
     return maxScore;

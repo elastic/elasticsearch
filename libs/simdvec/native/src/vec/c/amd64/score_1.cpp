@@ -95,7 +95,7 @@ EXPORT f32_t diskbbq_apply_corrections_euclidean_bulk(
         );
         res = _mm256_max_ps(_mm256_rcp_ps(res), _mm256_setzero_ps());
 
-        maxScore = __builtin_fmax(maxScore, mm256_reduce_ps<_mm_max_ps>(res));
+        maxScore = __builtin_fmaxf(maxScore, mm256_reduce_ps<_mm_max_ps>(res));
         _mm256_storeu_ps(scores + i, res);
     }
     for (; i < bulkSize; ++i) {
@@ -115,7 +115,7 @@ EXPORT f32_t diskbbq_apply_corrections_euclidean_bulk(
             *(scores + i)
         );
         *(scores + i) = score;
-        maxScore = __builtin_fmax(maxScore, score);
+        maxScore = __builtin_fmaxf(maxScore, score);
     }
 
     return maxScore;
@@ -176,7 +176,7 @@ EXPORT f32_t diskbbq_apply_corrections_maximum_inner_product_bulk(
         __m256 is_neg = _mm256_cmp_ps(res, _mm256_setzero_ps(), _CMP_LT_OQ);
         res = _mm256_add_ps(_mm256_and_ps(is_neg, negative_scaled), _mm256_andnot_ps(is_neg, positive_scaled));
 
-        maxScore = __builtin_fmax(maxScore, mm256_reduce_ps<_mm_max_ps>(res));
+        maxScore = __builtin_fmaxf(maxScore, mm256_reduce_ps<_mm_max_ps>(res));
         _mm256_storeu_ps(scores + i, res);
     }
 
@@ -197,7 +197,7 @@ EXPORT f32_t diskbbq_apply_corrections_maximum_inner_product_bulk(
             *(scores + i)
         );
         *(scores + i) = score;
-        maxScore = __builtin_fmax(maxScore, score);
+        maxScore = __builtin_fmaxf(maxScore, score);
     }
 
     return maxScore;
@@ -252,7 +252,7 @@ EXPORT f32_t diskbbq_apply_corrections_dot_product_bulk(
         // res = max(res / 2.0f, 0.0f);
         res = _mm256_max_ps(_mm256_mul_ps(res, _mm256_set1_ps(0.5f)), _mm256_setzero_ps());
 
-        maxScore = __builtin_fmax(maxScore, mm256_reduce_ps<_mm_max_ps>(res));
+        maxScore = __builtin_fmaxf(maxScore, mm256_reduce_ps<_mm_max_ps>(res));
         _mm256_storeu_ps(scores + i, res);
     }
 
@@ -273,7 +273,7 @@ EXPORT f32_t diskbbq_apply_corrections_dot_product_bulk(
             *(scores + i)
         );
         *(scores + i) = score;
-        maxScore = __builtin_fmax(maxScore, score);
+        maxScore = __builtin_fmaxf(maxScore, score);
     }
 
     return maxScore;

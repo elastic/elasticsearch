@@ -131,7 +131,7 @@ EXPORT f32_t diskbbq_apply_corrections_maximum_inner_product_bulk_2(
             *(scores + i)
         );
         *(scores + i) = score;
-        maxScore = __builtin_fmax(maxScore, score);
+        maxScore = __builtin_fmaxf(maxScore, score);
     }
 
     return maxScore;

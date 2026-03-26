@@ -55,31 +55,29 @@ public class APMMeterService extends AbstractLifecycleComponent {
         if (otelMetricsEnabled) {
             return new OTelSdkMeterSupplier(settings);
         } else {
-            // CONFUSION ALERT: When we do `GlobalOpenTelemetry.get()`, we're actually getting an OpenTelemetry
-            // object that routes telemetry to the APM agent; that is, we're still using OTel to report telemetry
-            // from the code, but we're using the APM agent (instead of the OTel SDK) to export it.
-            // That's why this "else" branch, where otelMetricsEnabled is false, is still using OpenTelemetry.
-
-            /*
-             * The agent offers no flush API, so this is only a best-effort pause that exceeds
-             * the agent reporting interval, making it extremely likely that all telemetry
-             * has been exported.
-             *
-             * Note that the first intake request to the APM server can still be delayed beyond this window:
-             * the APM agent checks for configuration changes only periodically,
-             * so the setting changes we made during initialization don't take effect immediately.
-             */
             long agentFlushWaitMs = 2 * agentMetricsInterval(settings).millis();
-
             return new MeterSupplier() {
                 @Override
                 public Meter get() {
+                    // CONFUSION ALERT: When we do `GlobalOpenTelemetry.get()`, we're actually getting an OpenTelemetry
+                    // object that routes telemetry to the APM agent; that is, we're still using OTel to report telemetry
+                    // from the code, but we're using the APM agent (instead of the OTel SDK) to export it.
+                    // That's why this "else" branch, where otelMetricsEnabled is false, is still using OpenTelemetry.
+
                     return GlobalOpenTelemetry.get().getMeter("elasticsearch");
                 }
 
                 @Override
                 public void attemptFlushMetrics() {
                     try {
+                        // The agent offers no flush API, so we do a best-effort pause that exceeds
+                        // the agent reporting interval, making it extremely likely that all telemetry
+                        // has been exported.
+                        //
+                        // Note that the first intake request to the APM server can still be delayed beyond this window:
+                        // the APM agent checks for configuration changes only periodically,
+                        // so the setting changes we made during initialization don't take effect immediately.
+
                         LOGGER.info("Waiting {} ms for APM agent to flush metrics", agentFlushWaitMs);
                         Thread.sleep(agentFlushWaitMs);
                     } catch (InterruptedException e) {

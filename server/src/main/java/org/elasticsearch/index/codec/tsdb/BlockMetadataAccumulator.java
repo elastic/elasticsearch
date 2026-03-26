@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.index.codec.tsdb.es819;
+package org.elasticsearch.index.codec.tsdb;
 
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.store.ChecksumIndexInput;
@@ -25,11 +25,48 @@ final class BlockMetadataAccumulator implements Closeable {
     private final DelayedOffsetAccumulator blockAddressAcc;
     private final DelayedOffsetAccumulator blockDocRangeAcc;
 
-    BlockMetadataAccumulator(Directory dir, IOContext context, IndexOutput data, long addressesStart) throws IOException {
+    /**
+     * Creates a new accumulator for block metadata (addresses and doc ranges).
+     *
+     * @param dir the directory for temporary files
+     * @param context the IO context
+     * @param data the data output
+     * @param addressesStart the starting offset for block addresses
+     * @param metaCodec the codec name used in temp file headers
+     * @param versionCurrent the codec version used in temp file headers
+     * @param directMonotonicBlockShift the block shift for address/offset encoding via {@link DirectMonotonicWriter}
+     */
+    BlockMetadataAccumulator(
+        Directory dir,
+        IOContext context,
+        IndexOutput data,
+        long addressesStart,
+        String metaCodec,
+        int versionCurrent,
+        int directMonotonicBlockShift
+    ) throws IOException {
         boolean success = false;
         try {
-            blockDocRangeAcc = new DelayedOffsetAccumulator(dir, context, data, "block-doc-ranges", 0);
-            blockAddressAcc = new DelayedOffsetAccumulator(dir, context, data, "block-addresses", addressesStart);
+            blockDocRangeAcc = new DelayedOffsetAccumulator(
+                dir,
+                context,
+                data,
+                "block-doc-ranges",
+                0,
+                metaCodec,
+                versionCurrent,
+                directMonotonicBlockShift
+            );
+            blockAddressAcc = new DelayedOffsetAccumulator(
+                dir,
+                context,
+                data,
+                "block-addresses",
+                addressesStart,
+                metaCodec,
+                versionCurrent,
+                directMonotonicBlockShift
+            );
             success = true;
         } finally {
             if (success == false) {
@@ -69,20 +106,35 @@ final class BlockMetadataAccumulator implements Closeable {
 
         private final Directory dir;
         private final long startOffset;
+        private final String metaCodec;
+        private final int versionCurrent;
+        private final int directMonotonicBlockShift;
 
         private int numValues = 0;
         private final IndexOutput tempOutput;
         private final String suffix;
 
-        DelayedOffsetAccumulator(Directory dir, IOContext context, IndexOutput data, String suffix, long startOffset) throws IOException {
+        DelayedOffsetAccumulator(
+            Directory dir,
+            IOContext context,
+            IndexOutput data,
+            String suffix,
+            long startOffset,
+            String metaCodec,
+            int versionCurrent,
+            int directMonotonicBlockShift
+        ) throws IOException {
             this.dir = dir;
             this.startOffset = startOffset;
             this.suffix = suffix;
+            this.metaCodec = metaCodec;
+            this.versionCurrent = versionCurrent;
+            this.directMonotonicBlockShift = directMonotonicBlockShift;
 
             boolean success = false;
             try {
                 tempOutput = dir.createTempOutput(data.getName(), suffix, context);
-                CodecUtil.writeHeader(tempOutput, ES819TSDBDocValuesFormat.META_CODEC + suffix, ES819TSDBDocValuesFormat.VERSION_CURRENT);
+                CodecUtil.writeHeader(tempOutput, metaCodec + suffix, versionCurrent);
                 success = true;
             } finally {
                 if (success == false) {
@@ -102,19 +154,14 @@ final class BlockMetadataAccumulator implements Closeable {
 
             // write the offsets info to the meta file by reading from temp file
             try (ChecksumIndexInput tempInput = dir.openChecksumInput(tempOutput.getName());) {
-                CodecUtil.checkHeader(
-                    tempInput,
-                    ES819TSDBDocValuesFormat.META_CODEC + suffix,
-                    ES819TSDBDocValuesFormat.VERSION_CURRENT,
-                    ES819TSDBDocValuesFormat.VERSION_CURRENT
-                );
+                CodecUtil.checkHeader(tempInput, metaCodec + suffix, versionCurrent, versionCurrent);
                 Throwable priorE = null;
                 try {
                     final DirectMonotonicWriter writer = DirectMonotonicWriter.getInstance(
                         meta,
                         data,
                         numValues + 1,
-                        ES819TSDBDocValuesFormat.DIRECT_MONOTONIC_BLOCK_SHIFT
+                        directMonotonicBlockShift
                     );
 
                     long offset = startOffset;

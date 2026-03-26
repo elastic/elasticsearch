@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.index.codec.tsdb.es819;
+package org.elasticsearch.index.codec.tsdb;
 
 import org.apache.lucene.store.ByteBuffersDataOutput;
 import org.apache.lucene.store.ByteBuffersIndexOutput;
@@ -25,9 +25,10 @@ import java.io.IOException;
  * Builds the doc values address offset table iteratively, one document at a time. Useful to avoid a separate docvalues iteration
  * to build the address offset table.
  */
-final class OffsetsAccumulator implements Closeable {
+public final class OffsetsAccumulator implements Closeable {
     private final Directory dir;
     private final IOContext context;
+    private final int directMonotonicBlockShift;
 
     private final ByteBuffersDataOutput addressMetaBuffer;
     private final ByteBuffersIndexOutput addressMetaOutput;
@@ -38,9 +39,20 @@ final class OffsetsAccumulator implements Closeable {
 
     private long addr = 0;
 
-    OffsetsAccumulator(Directory dir, IOContext context, IndexOutput data, long numDocsWithField) throws IOException {
+    /**
+     * Creates a new accumulator for doc values address offsets.
+     *
+     * @param dir the directory for temporary files
+     * @param context the IO context
+     * @param data the data output
+     * @param numDocsWithField the number of documents with a value for this field
+     * @param directMonotonicBlockShift the block shift for address/offset encoding via {@link DirectMonotonicWriter}
+     */
+    public OffsetsAccumulator(Directory dir, IOContext context, IndexOutput data, long numDocsWithField, int directMonotonicBlockShift)
+        throws IOException {
         this.dir = dir;
         this.context = context;
+        this.directMonotonicBlockShift = directMonotonicBlockShift;
 
         addressMetaBuffer = new ByteBuffersDataOutput();
         addressMetaOutput = new ByteBuffersIndexOutput(addressMetaBuffer, "meta-temp", "meta-temp");
@@ -50,7 +62,7 @@ final class OffsetsAccumulator implements Closeable {
             addressMetaOutput,
             addressDataOutput,
             numDocsWithField + 1L,
-            ES819TSDBDocValuesFormat.DIRECT_MONOTONIC_BLOCK_SHIFT
+            directMonotonicBlockShift
         );
     }
 
@@ -64,7 +76,7 @@ final class OffsetsAccumulator implements Closeable {
         addressesWriter.finish();
         long start = data.getFilePointer();
         meta.writeLong(start);
-        meta.writeVInt(ES819TSDBDocValuesFormat.DIRECT_MONOTONIC_BLOCK_SHIFT);
+        meta.writeVInt(directMonotonicBlockShift);
         addressMetaBuffer.copyTo(meta);
         addressDataOutput.close();
         try (var addressDataInput = dir.openInput(addressOffsetsTempFileName, context)) {

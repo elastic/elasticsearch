@@ -57,6 +57,15 @@ public class LimitByGoldenTests extends GoldenTestCase {
         );
     }
 
+    /**
+     * We are marking abbrev as missing in the shard here, so a synthetic \_EvalExec[[null[KEYWORD] AS abbrev]
+     * will be introduced by the ENRICH, reusing the NameId. We cannot let the LimitByExec past EvalExec
+     *
+     * {@code
+     *  \_LimitByExec[1[INTEGER],[abbrev{f}#0],70]
+     *    \_EvalExec[[null[KEYWORD] AS abbrev#0]]
+     * }
+     */
     public void testLimitByEnrichBug() {
         assumeTrue("SORT | LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_TOPN_BY.isEnabled());
         runGoldenTest(

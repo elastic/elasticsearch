@@ -73,7 +73,7 @@ public class ApproximationPlan {
      * The column name for the bucket ID in the sampled aggregate. This is used
      * to assign each sampled row to a bucket, to compute confidence intervals.
      */
-    public static final String BUCKET_ID_COLUMN_NAME = "$bucket_id";
+    public static final String BUCKET_ID_COLUMN_NAME = Attribute.rawTemporaryName("approximation", "bucket_id");
 
     /**
      * Prefix for confidence interval column names in the approximation output.
@@ -345,7 +345,6 @@ public class ApproximationPlan {
         for (int trialId = 1; trialId < TRIAL_COUNT; trialId++) {
             bucketIds = new MvAppend(Source.EMPTY, bucketIds, randomBucketId);
         }
-        // TODO: use theoretically non-conflicting names.
         Alias bucketIdField = new Alias(Source.EMPTY, BUCKET_ID_COLUMN_NAME, bucketIds);
 
         // The aggregate functions in the approximation plan.
@@ -376,26 +375,30 @@ public class ApproximationPlan {
             // Double-precision version of the aggregate function if needed, so that
             // sample correction (dividing by the sample probability) on data nodes
             // stays in floating point and avoids round-off errors from integer
-            // truncation.
-            boolean needsTruncation;
+            // rounding.
+            boolean needsRounding;
             if (aggFn instanceof Count count) {
                 aggFn = new CountApproximate(count.source(), count.field(), count.filter(), count.window());
-                needsTruncation = true;
+                needsRounding = true;
             } else if (aggFn instanceof Sum sum && sum.dataType().isWholeNumber()) {
-                Alias doubleField = new Alias(Source.EMPTY, agg.name() + "$double", new ToDouble(Source.EMPTY, sum.field()));
+                Alias doubleField = new Alias(
+                    Source.EMPTY,
+                    Attribute.rawTemporaryName(agg.name(), "todouble"),
+                    new ToDouble(Source.EMPTY, sum.field())
+                );
                 preEvals.add(doubleField);
                 aggFn = new Sum(sum.source(), doubleField.toAttribute(), sum.filter(), sum.window(), sum.summationMode());
-                needsTruncation = true;
+                needsRounding = true;
             } else {
-                needsTruncation = false;
+                needsRounding = false;
             }
 
             projections.add(agg.toAttribute());
-            if (needsTruncation) {
-                Alias approxAgg = new Alias(Source.EMPTY, agg.name() + "$approx", aggFn);
-                notRoundedExpressions.put(agg.id(), approxAgg.toAttribute());
-                postEvals.add(agg.replaceChild(new ToLong(Source.EMPTY, approxAgg.toAttribute())));
-                agg = approxAgg;
+            if (needsRounding) {
+                Alias notRoundedAgg = new Alias(Source.EMPTY, Attribute.rawTemporaryName(agg.name() + "notrounded"), aggFn);
+                notRoundedExpressions.put(agg.id(), notRoundedAgg.toAttribute());
+                postEvals.add(agg.replaceChild(new ToLong(Source.EMPTY, notRoundedAgg.toAttribute())));
+                agg = notRoundedAgg;
             }
             originalAggregates.add(agg);
 
@@ -418,14 +421,18 @@ public class ApproximationPlan {
                         );
                         Alias bucket = new Alias(
                             Source.EMPTY,
-                            aggOrKey.name() + "$bucket$" + (trialId * BUCKET_COUNT + bucketId),
+                            Attribute.rawTemporaryName(aggOrKey.name(), "bucket", Integer.toString(trialId * BUCKET_COUNT + bucketId)),
                             aggFn.withFilter(
                                 aggFn.hasFilter() == false ? bucketIdFilter : new And(Source.EMPTY, aggFn.filter(), bucketIdFilter)
                             )
                         );
 
-                        if (needsTruncation) {
-                            Alias approxBucket = new Alias(Source.EMPTY, bucket.name() + "$approx", bucket.child());
+                        if (needsRounding) {
+                            Alias approxBucket = new Alias(
+                                Source.EMPTY,
+                                Attribute.rawTemporaryName(bucket.name(), "notrounded"),
+                                bucket.child()
+                            );
                             notRoundedExpressions.put(bucket.id(), approxBucket.toAttribute());
                             postEvals.add(bucket.replaceChild(new ToLong(Source.EMPTY, approxBucket.toAttribute())));
                             bucket = approxBucket;
@@ -461,7 +468,7 @@ public class ApproximationPlan {
             // Add the sample size per grouping to filter out groups with too few sampled rows.
             sampleSize = new Alias(
                 Source.EMPTY,
-                "$sample_size",
+                Attribute.rawTemporaryName("approximation", "sample_size"),
                 new CountApproximate(Source.EMPTY, Literal.keyword(Source.EMPTY, StringUtils.WILDCARD))
             );
             aggregates.add(sampleSize);
@@ -543,7 +550,7 @@ public class ApproximationPlan {
                         final int finalBucketId = bucketId;
                         Alias bucket = new Alias(
                             Source.EMPTY,
-                            field.name() + "$bucket$" + bucketId,
+                            Attribute.rawTemporaryName(field.name(), "bucket", Integer.toString(bucketId)),
                             field.child()
                                 .transformDown(
                                     e -> e instanceof NamedExpression ne && fieldBuckets.containsKey(ne.id())

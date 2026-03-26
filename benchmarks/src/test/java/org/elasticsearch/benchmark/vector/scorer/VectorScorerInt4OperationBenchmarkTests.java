@@ -11,7 +11,9 @@ package org.elasticsearch.benchmark.vector.scorer;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.BeforeClass;
 import org.openjdk.jmh.annotations.Param;
 
 import java.util.Arrays;
@@ -22,6 +24,11 @@ public class VectorScorerInt4OperationBenchmarkTests extends ESTestCase {
 
     public VectorScorerInt4OperationBenchmarkTests(int size) {
         this.size = size;
+    }
+
+    @BeforeClass
+    public static void skipWindows() {
+        assumeFalse("doesn't work on windows yet", Constants.WINDOWS);
     }
 
     public void test() {

@@ -87,7 +87,7 @@ public class SearchShardsResponseTests extends AbstractWireSerializingTestCase<S
             }
             aliasFilters.put(g.shardId().getIndex().getUUID(), aliasFilter);
         }
-        return new SearchShardsResponse(groups, nodes, aliasFilters);
+        return new SearchShardsResponse(groups, 0, nodes, aliasFilters);
     }
 
     @Override
@@ -99,17 +99,17 @@ public class SearchShardsResponseTests extends AbstractWireSerializingTestCase<S
                 groups.add(
                     new SearchShardsGroup(shardId, List.of(), randomBoolean(), SplitShardCountSummary.fromInt(randomIntBetween(0, 1024)))
                 );
-                return new SearchShardsResponse(groups, r.getNodes(), r.getAliasFilters());
+                return new SearchShardsResponse(groups, 0, r.getNodes(), r.getAliasFilters());
             }
             case 1 -> {
                 List<DiscoveryNode> nodes = new ArrayList<>(r.getNodes());
                 nodes.add(DiscoveryNodeUtils.create(UUIDs.randomBase64UUID()));
-                return new SearchShardsResponse(r.getGroups(), nodes, r.getAliasFilters());
+                return new SearchShardsResponse(r.getGroups(), 0, nodes, r.getAliasFilters());
             }
             case 2 -> {
                 Map<String, AliasFilter> aliasFilters = new HashMap<>(r.getAliasFilters());
                 aliasFilters.put(UUIDs.randomBase64UUID(), AliasFilter.of(RandomQueryBuilder.createQuery(random()), "alias-index"));
-                return new SearchShardsResponse(new ArrayList<>(r.getGroups()), r.getNodes(), aliasFilters);
+                return new SearchShardsResponse(new ArrayList<>(r.getGroups()), 0, r.getNodes(), aliasFilters);
             }
             default -> {
                 throw new AssertionError("invalid option");

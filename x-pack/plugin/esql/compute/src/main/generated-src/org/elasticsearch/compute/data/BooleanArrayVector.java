@@ -133,6 +133,20 @@ final class BooleanArrayVector extends AbstractVector implements BooleanVector {
         return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(values);
     }
 
+    @Override
+    public BooleanVector slice(int beginInclusive, int endExclusive) {
+        if (beginInclusive == 0 && endExclusive == getPositionCount()) {
+            incRef();
+            return this;
+        }
+        try (BooleanVector.FixedBuilder builder = blockFactory().newBooleanVectorFixedBuilder(endExclusive - beginInclusive)) {
+            for (int i = beginInclusive; i < endExclusive; i++) {
+                builder.appendBoolean(getBoolean(i));
+            }
+            return builder.build();
+        }
+    }
+
     /**
      * Are all values {@code true}? This will scan all values to check and always answer accurately.
      */

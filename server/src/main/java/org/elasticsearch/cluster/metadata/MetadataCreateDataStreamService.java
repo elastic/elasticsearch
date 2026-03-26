@@ -464,8 +464,8 @@ public class MetadataCreateDataStreamService {
                 currentState,
                 createIndexRequest,
                 false,
-                RerouteBehavior.SKIP_REROUTE,
                 metadataTransformer,
+                RerouteBehavior.SKIP_REROUTE,
                 AllocationActionListener.rerouteCompletionIsNotRequired()
             );
         } catch (ResourceAlreadyExistsException e) {

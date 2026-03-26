@@ -93,6 +93,11 @@ public class ReshardSearchFilters {
             return false;
         }
 
+        if (summary.equals(SplitShardCountSummary.IRRELEVANT)) {
+            // We were explicitly told that this operation won't be impacted by split, so we trust that decision and don't apply filters.
+            return false;
+        }
+
         var decision = summary.check(indexMetadata);
         return switch (decision) {
             /// If the provided summary is older, then the request was only sent to the source shard

@@ -306,9 +306,7 @@ public class TestSparseInferenceServiceExtension implements InferenceServiceExte
                 shouldReturnHiddenField = false;
             }
 
-            if (validationException.validationErrors().isEmpty() == false) {
-                throw validationException;
-            }
+            validationException.throwIfValidationErrorsExist();
 
             return new TestServiceSettings(model, hiddenField, shouldReturnHiddenField);
         }

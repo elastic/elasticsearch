@@ -346,6 +346,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
             if (pitch < datasetVectorLengthInBytes) throw new IllegalArgumentException(
                 "Pitch needs to be at least " + datasetVectorLengthInBytes
             );
+            Objects.checkFromIndexSize(0L, (long) datasetVectorLengthInBytes * count, a.byteSize());
             // 1 bit data -> x4 bits query, 2 bit data -> x2 bits query
             Objects.checkFromIndexSize(0L, (long) datasetVectorLengthInBytes * (queryBits / dataBits), b.byteSize());
             Objects.checkFromIndexSize(0L, (long) count * Integer.BYTES, offsets.byteSize());

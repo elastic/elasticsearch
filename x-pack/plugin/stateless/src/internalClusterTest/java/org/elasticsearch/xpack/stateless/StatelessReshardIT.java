@@ -153,12 +153,14 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
+import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.common.blobstore.OperationPurpose.INDICES;
 import static org.elasticsearch.index.IndexSettings.INDEX_REFRESH_INTERVAL_SETTING;
+import static org.elasticsearch.index.IndexSettings.MODE;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -425,14 +427,28 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
     }
 
     public void testSearchDuringReshard() throws Exception {
-        runSearchTest(false);
+        runSearchTest(SearchTestType.SEARCH_API);
     }
 
     public void testEsqlSearchDuringReshard() throws Exception {
-        runSearchTest(true);
+        runSearchTest(SearchTestType.ESQL);
     }
 
-    private void runSearchTest(boolean useEsql) throws Exception {
+    public void testEsqlWithLookupJoinSearchDuringReshard() throws Exception {
+        runSearchTest(SearchTestType.ESQL_WITH_LOOKUP_JOIN);
+    }
+
+    private enum SearchTestType {
+        SEARCH_API,
+        ESQL,
+        ESQL_WITH_LOOKUP_JOIN
+    }
+
+    private static final String ESQL_JOIN_INDEX = "join_index";
+    private static final String ESQL_JOIN_FIELD = "join_field";
+    private static final Integer ESQL_JOIN_FIELD_VALUE = 42;
+
+    private void runSearchTest(SearchTestType searchTestType) throws Exception {
         var masterNode = startMasterOnlyNode();
         String indexNode = startIndexNode();
         startSearchNode();
@@ -447,6 +463,13 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
 
         checkNumberOfShardsSetting(indexNode, indexName, 1);
 
+        if (searchTestType == SearchTestType.ESQL_WITH_LOOKUP_JOIN) {
+            createIndex(ESQL_JOIN_INDEX, indexSettings(1, 1).put(MODE.getKey(), IndexMode.LOOKUP.getName()).build());
+
+            prepareIndex(ESQL_JOIN_INDEX).setSource(Map.of(ESQL_JOIN_FIELD, ESQL_JOIN_FIELD_VALUE)).get();
+            assertNoFailures(refresh(ESQL_JOIN_INDEX));
+        }
+
         var index = resolveIndex(indexName);
         var indexMetadata = indexMetadata(internalCluster().clusterService(masterNode).state(), index);
 
@@ -460,7 +483,7 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         var documentCounter = new AtomicInteger(0);
         Supplier<String> idSupplier = () -> "id" + documentCounter.getAndIncrement();
 
-        var initialIndexedDocuments = indexDocuments(indexName, documentsPerRound, idSupplier, wouldBeAfterSplitRouting);
+        var initialIndexedDocuments = indexDocuments(searchTestType, indexName, documentsPerRound, idSupplier, wouldBeAfterSplitRouting);
         allIndexedDocuments.putAll(initialIndexedDocuments);
 
         var flushResponse = indicesAdmin().prepareFlush(indexName).setForce(true).setWaitIfOngoing(true).get();
@@ -468,7 +491,7 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
 
         // Search works before resharding.
         refresh(indexName);
-        assertSearchResults(searchCoordinator, indexName, useEsql, equalTo(1), equalTo(allIndexedDocuments.keySet()));
+        assertSearchResults(searchCoordinator, indexName, searchTestType, equalTo(1), equalTo(allIndexedDocuments.keySet()));
 
         ReshardIndexRequest reshardRequest = new ReshardIndexRequest(indexName);
         client(masterNode).execute(TransportReshardAction.TYPE, reshardRequest).actionGet();
@@ -510,13 +533,13 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         }
 
         // We can still perform search on the source shard and see all previous writes due to the pre-reshard refresh.
-        assertSearchResults(searchCoordinator, indexName, useEsql, equalTo(1), equalTo(allIndexedDocuments.keySet()));
+        assertSearchResults(searchCoordinator, indexName, searchTestType, equalTo(1), equalTo(allIndexedDocuments.keySet()));
 
         // At this point handoff is in progress and the source shard is holding all primary operation permits.
         // So writes will only succeed after HANDOFF transition is unblocked below, but they should succeed.
         var duringHandoffIndexedDocuments = new AtomicReference<Map<String, Integer>>();
         var duringHandoffIndexingThread = new Thread(() -> {
-            var docs = indexDocuments(indexName, documentsPerRound, idSupplier, wouldBeAfterSplitRouting);
+            var docs = indexDocuments(searchTestType, indexName, documentsPerRound, idSupplier, wouldBeAfterSplitRouting);
             allIndexedDocuments.putAll(docs);
             duringHandoffIndexedDocuments.set(docs);
         });
@@ -571,13 +594,19 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         assertSearchResults(
             searchCoordinator,
             indexName,
-            useEsql,
+            searchTestType,
             equalTo(1),
             both(hasItems(initialIndexedDocuments.keySet().toArray(String[]::new))).and(indexedDuringHandoffMatcher)
         );
 
         // We can still index between handoff and split.
-        var afterHandOffIndexedDocuments = indexDocuments(indexName, documentsPerRound, idSupplier, wouldBeAfterSplitRouting);
+        var afterHandOffIndexedDocuments = indexDocuments(
+            searchTestType,
+            indexName,
+            documentsPerRound,
+            idSupplier,
+            wouldBeAfterSplitRouting
+        );
         allIndexedDocuments.putAll(afterHandOffIndexedDocuments);
 
         // The refresh is still blocked on the target shard.
@@ -611,7 +640,7 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
             .toArray(String[]::new);
         // Make sure we see every document that is on the target shard.
         var splitSearchMatcher = both(hasItems(splitAllDocsOnTheTargetShard)).and(everyItem(is(in(allIndexedDocuments.keySet()))));
-        assertSearchResults(searchCoordinator, indexName, useEsql, equalTo(multiple), splitSearchMatcher);
+        assertSearchResults(searchCoordinator, indexName, searchTestType, equalTo(multiple), splitSearchMatcher);
 
         // If we issue a new refresh it shouldn't be blocked and search should return all documents.
         // Note that at this point `deleteUnownedDocuments()` is already done on target shards
@@ -622,15 +651,15 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         assertEquals(Arrays.toString(splitRefresh.getShardFailures()), multiple, splitRefresh.getTotalShards());
         assertEquals(Arrays.toString(splitRefresh.getShardFailures()), multiple, splitRefresh.getSuccessfulShards());
 
-        assertSearchResults(searchCoordinator, indexName, useEsql, equalTo(multiple), equalTo(allIndexedDocuments.keySet()));
+        assertSearchResults(searchCoordinator, indexName, searchTestType, equalTo(multiple), equalTo(allIndexedDocuments.keySet()));
 
         // Indexing also works as expected.
-        var splitIndexedDocuments = indexDocuments(indexName, documentsPerRound, idSupplier, wouldBeAfterSplitRouting);
+        var splitIndexedDocuments = indexDocuments(searchTestType, indexName, documentsPerRound, idSupplier, wouldBeAfterSplitRouting);
         allIndexedDocuments.putAll(splitIndexedDocuments);
 
         // Sanity check that the indexing above worked.
         client(searchCoordinator).admin().indices().prepareRefresh(indexName).get();
-        assertSearchResults(searchCoordinator, indexName, useEsql, equalTo(multiple), equalTo(allIndexedDocuments.keySet()));
+        assertSearchResults(searchCoordinator, indexName, searchTestType, equalTo(multiple), equalTo(allIndexedDocuments.keySet()));
 
         // unblock DONE transition
         stateTransitionBlock.await();
@@ -659,23 +688,33 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         assertEquals(multiple, doneRefresh.getSuccessfulShards());
 
         // All unowned documents should be deleted now and we still see all expected documents.
-        assertSearchResults(searchCoordinator, indexName, useEsql, equalTo(multiple), equalTo(allIndexedDocuments.keySet()));
+        assertSearchResults(searchCoordinator, indexName, searchTestType, equalTo(multiple), equalTo(allIndexedDocuments.keySet()));
 
         // Indexing still works as expected.
-        var doneIndexedDocuments = indexDocuments(indexName, documentsPerRound, idSupplier, wouldBeAfterSplitRouting);
+        var doneIndexedDocuments = indexDocuments(searchTestType, indexName, documentsPerRound, idSupplier, wouldBeAfterSplitRouting);
         allIndexedDocuments.putAll(doneIndexedDocuments);
 
         // Sanity check that the indexing above worked.
         client(searchCoordinator).admin().indices().prepareRefresh(indexName).get();
-        assertSearchResults(searchCoordinator, indexName, useEsql, equalTo(multiple), equalTo(allIndexedDocuments.keySet()));
+        assertSearchResults(searchCoordinator, indexName, searchTestType, equalTo(multiple), equalTo(allIndexedDocuments.keySet()));
 
         waitForReshardCompletion(indexName);
     }
 
-    private Map<String, Integer> indexDocuments(String indexName, int count, Supplier<String> idSupplier, IndexRouting finalRouting) {
+    private Map<String, Integer> indexDocuments(
+        SearchTestType searchTestType,
+        String indexName,
+        int count,
+        Supplier<String> idSupplier,
+        IndexRouting finalRouting
+    ) {
         var docsPerShard = new HashMap<String, Integer>();
 
-        var response = indexDocs(indexName, count, idSupplier);
+        Supplier<Map<String, ?>> sourceSupplier = null;
+        if (searchTestType == SearchTestType.ESQL_WITH_LOOKUP_JOIN) {
+            sourceSupplier = () -> Map.of("field", randomUnicodeOfCodepointLengthBetween(1, 25), ESQL_JOIN_FIELD, ESQL_JOIN_FIELD_VALUE);
+        }
+        var response = indexDocs(indexName, count, UnaryOperator.identity(), idSupplier, sourceSupplier);
         assertFalse(response.buildFailureMessage(), response.hasFailures());
 
         for (var item : response.getItems()) {
@@ -689,36 +728,58 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
     private void assertSearchResults(
         String searchNode,
         String indexName,
-        boolean useEsql,
+        SearchTestType searchTestType,
         Matcher<Integer> shardCountMatcher,
         Matcher<? super Iterable<String>> documentIdsMatcher
     ) {
-        if (useEsql) {
-            final var query = "FROM $index METADATA _id | KEEP _id".replace("$index", indexName);
-            final var request = new EsqlQueryRequest().allowPartialResults(false).query(query);
+        switch (searchTestType) {
+            case ESQL -> {
+                final var query = "FROM $index METADATA _id | KEEP _id".replace("$index", indexName);
+                final var request = new EsqlQueryRequest().allowPartialResults(false).query(query);
 
-            try (var response = client(searchNode).execute(EsqlQueryAction.INSTANCE, request).actionGet()) {
-                final var shardCount = response.getExecutionInfo().getCluster("").getTotalShards();
-                assertThat("unexpected shard count in ESQL response", shardCount, shardCountMatcher);
+                try (var response = client(searchNode).execute(EsqlQueryAction.INSTANCE, request).actionGet()) {
+                    final var shardCount = response.getExecutionInfo().getCluster("").getTotalShards();
+                    assertThat("unexpected shard count in ESQL response", shardCount, shardCountMatcher);
 
-                var idColumn = response.column(0);
-                var ids = new HashSet<String>();
-                while (idColumn.hasNext()) {
-                    ids.add((String) idColumn.next());
+                    var idColumn = response.column(0);
+                    var ids = new HashSet<String>();
+                    while (idColumn.hasNext()) {
+                        ids.add((String) idColumn.next());
+                    }
+                    assertThat("unexpected documents in ESQL response", ids, documentIdsMatcher);
                 }
-                assertThat("unexpected documents in ESQL response", ids, documentIdsMatcher);
             }
-        } else {
-            assertResponse(prepareSearchAll(searchNode, indexName), response -> {
-                final var shardCount = response.getTotalShards();
-                assertThat("unexpected shard count in search response", shardCount, shardCountMatcher);
+            case SEARCH_API -> {
+                assertResponse(prepareSearchAll(searchNode, indexName), response -> {
+                    final var shardCount = response.getTotalShards();
+                    assertThat("unexpected shard count in search response", shardCount, shardCountMatcher);
 
-                var ids = new HashSet<String>();
-                for (var hit : response.getHits().getHits()) {
-                    ids.add(hit.getId());
+                    var ids = new HashSet<String>();
+                    for (var hit : response.getHits().getHits()) {
+                        ids.add(hit.getId());
+                    }
+                    assertThat("unexpected documents in search response", ids, documentIdsMatcher);
+                });
+            }
+            case ESQL_WITH_LOOKUP_JOIN -> {
+                final var query = "FROM $index METADATA _id | LOOKUP JOIN $join_index ON $join_field | KEEP _id".replace(
+                    "$index",
+                    indexName
+                ).replace("$join_index", ESQL_JOIN_INDEX).replace("$join_field", ESQL_JOIN_FIELD);
+                final var request = new EsqlQueryRequest().allowPartialResults(false).query(query);
+
+                try (var response = client(searchNode).execute(EsqlQueryAction.INSTANCE, request).actionGet()) {
+                    final var shardCount = response.getExecutionInfo().getCluster("").getTotalShards();
+                    assertThat("unexpected shard count in ESQL response", shardCount, shardCountMatcher);
+
+                    var idColumn = response.column(0);
+                    var ids = new HashSet<String>();
+                    while (idColumn.hasNext()) {
+                        ids.add((String) idColumn.next());
+                    }
+                    assertThat("unexpected documents in ESQL response", ids, documentIdsMatcher);
                 }
-                assertThat("unexpected documents in search response", ids, documentIdsMatcher);
-            });
+            }
         }
     }
 

@@ -14,6 +14,7 @@ import software.amazon.awssdk.services.s3.model.S3Exception;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.support.TenaciousRetryBlobContainer;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.repositories.RepositoriesMetrics;
 
 import static software.amazon.awssdk.http.HttpStatusCode.FORBIDDEN;
 
@@ -21,11 +22,18 @@ public class S3TenaciousRetryBlobContainer extends TenaciousRetryBlobContainer {
 
     private final int maxRetries;
     private final TimeValue delayIncrement;
+    private final RepositoriesMetrics repositoriesMetrics;
 
-    public S3TenaciousRetryBlobContainer(BlobContainer delegate, int maxRetries, TimeValue delayIncrement) {
-        super(delegate, maxRetries, delayIncrement);
+    public S3TenaciousRetryBlobContainer(
+        BlobContainer delegate,
+        int maxRetries,
+        TimeValue delayIncrement,
+        RepositoriesMetrics repositoriesMetrics
+    ) {
+        super(delegate, maxRetries, delayIncrement, repositoriesMetrics);
         this.maxRetries = maxRetries;
         this.delayIncrement = delayIncrement;
+        this.repositoriesMetrics = repositoriesMetrics;
     }
 
     @Override
@@ -34,7 +42,12 @@ public class S3TenaciousRetryBlobContainer extends TenaciousRetryBlobContainer {
     }
 
     @Override
+    protected String cloudServiceProvider() {
+        return "aws";
+    }
+
+    @Override
     protected BlobContainer wrapChild(BlobContainer child) {
-        return new S3TenaciousRetryBlobContainer(child, maxRetries, delayIncrement);
+        return new S3TenaciousRetryBlobContainer(child, maxRetries, delayIncrement, repositoriesMetrics);
     }
 }

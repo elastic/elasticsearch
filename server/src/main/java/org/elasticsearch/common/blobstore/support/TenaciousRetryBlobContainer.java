@@ -13,6 +13,7 @@ import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.core.CheckedSupplier;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.repositories.RepositoriesMetrics;
 
 import java.io.IOException;
 import java.util.Map;
@@ -27,14 +28,23 @@ public abstract class TenaciousRetryBlobContainer extends FilterBlobContainer {
 
     private final int maxRetries;
     private final TimeValue delayIncrement;
+    private final RepositoriesMetrics repositoriesMetrics;
 
-    public TenaciousRetryBlobContainer(BlobContainer delegate, int maxRetries, TimeValue delayIncrement) {
+    public TenaciousRetryBlobContainer(
+        BlobContainer delegate,
+        int maxRetries,
+        TimeValue delayIncrement,
+        RepositoriesMetrics repositoriesMetrics
+    ) {
         super(delegate);
         this.maxRetries = maxRetries;
         this.delayIncrement = delayIncrement;
+        this.repositoriesMetrics = repositoriesMetrics;
     }
 
     protected abstract boolean isExceptionRetryable(Exception e);
+
+    protected abstract String cloudServiceProvider();
 
     @Override
     public Map<String, BlobMetadata> listBlobs(OperationPurpose purpose) throws IOException {
@@ -58,10 +68,17 @@ public abstract class TenaciousRetryBlobContainer extends FilterBlobContainer {
         int attempts = 0;
         while (true) {
             try {
-                return operation.get();
+                T t = operation.get();
+                if (attempts > 1) {
+                    repositoriesMetrics.allocationTransientErrorRetrySuccessCounter()
+                        .incrementBy(1, Map.of("cloud_provider", cloudServiceProvider()));
+                }
+                return t;
             } catch (Exception e) {
                 if (isExceptionRetryable(e) && attempts < maxRetries) {
                     attempts++;
+                    repositoriesMetrics.allocationTransientErrorRetryCounter()
+                        .incrementBy(1, Map.of("cloud_provider", cloudServiceProvider()));
                     try {
                         Thread.sleep(delayIncrement.millis() * attempts);
                     } catch (InterruptedException exception) {

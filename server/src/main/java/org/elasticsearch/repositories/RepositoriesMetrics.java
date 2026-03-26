@@ -33,7 +33,9 @@ public record RepositoriesMetrics(
     LongHistogram httpRequestTimeInMillisHistogram,
     LongCounter inputStreamRetryStartedCounter,
     LongCounter inputStreamRetryCompletedCounter,
-    LongHistogram inputStreamRetryHistogram
+    LongHistogram inputStreamRetryHistogram,
+    LongCounter allocationTransientErrorRetryCounter,
+    LongCounter allocationTransientErrorRetrySuccessCounter
 ) {
 
     public static final RepositoriesMetrics NOOP = new RepositoriesMetrics(MeterRegistry.NOOP);
@@ -116,6 +118,15 @@ public record RepositoriesMetrics(
      * Exposed via {@link #httpRequestTimeInMillisHistogram()}
      */
     public static final String HTTP_REQUEST_TIME_IN_MILLIS_HISTOGRAM = "es.repositories.requests.http_request_time.histogram";
+    /**
+     * Shard allocation processes are susceptible to transient errors from cloud provider repositories,
+     * including network connectivity and identity authorization issues.
+     * This metric records the number of retry attempts in response to such events.
+     */
+    public static final String METRIC_ALLOCATION_TRANSIENT_ERROR_RETRY_ATTEMPTS_HISTOGRAM =
+        "es.repositories.allocation_transient_error.retry.attempts.histogram";
+    public static final String METRIC_ALLOCATION_TRANSIENT_ERROR_RETRY_SUCCESS_HISTOGRAM =
+        "es.repositories.allocation_transient_error.retry.success.histogram";
 
     public RepositoriesMetrics(MeterRegistry meterRegistry) {
         this(
@@ -142,6 +153,16 @@ public record RepositoriesMetrics(
             meterRegistry.registerLongHistogram(
                 METRIC_INPUT_STREAM_RETRY_ATTEMPTS_HISTOGRAM,
                 "retrying input stream retry attempts histogram",
+                "unit"
+            ),
+            meterRegistry.registerLongCounter(
+                METRIC_ALLOCATION_TRANSIENT_ERROR_RETRY_ATTEMPTS_HISTOGRAM,
+                "retrying allocation transient error event count",
+                "unit"
+            ),
+            meterRegistry.registerLongCounter(
+                METRIC_ALLOCATION_TRANSIENT_ERROR_RETRY_SUCCESS_HISTOGRAM,
+                "retrying allocation transient error success event count",
                 "unit"
             )
         );

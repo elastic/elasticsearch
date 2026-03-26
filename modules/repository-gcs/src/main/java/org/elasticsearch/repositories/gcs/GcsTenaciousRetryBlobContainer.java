@@ -9,25 +9,29 @@
 
 package org.elasticsearch.repositories.gcs;
 
-import com.google.cloud.storage.StorageException;
-
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.support.TenaciousRetryBlobContainer;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.repositories.RepositoriesMetrics;
 
 import java.net.UnknownHostException;
-
-import static org.elasticsearch.rest.RestStatus.FORBIDDEN;
 
 public class GcsTenaciousRetryBlobContainer extends TenaciousRetryBlobContainer {
 
     private final int maxRetries;
     private final TimeValue delayIncrement;
+    private final RepositoriesMetrics repositoriesMetrics;
 
-    public GcsTenaciousRetryBlobContainer(BlobContainer delegate, int maxRetries, TimeValue delayIncrement) {
-        super(delegate, maxRetries, delayIncrement);
+    public GcsTenaciousRetryBlobContainer(
+        BlobContainer delegate,
+        int maxRetries,
+        TimeValue delayIncrement,
+        RepositoriesMetrics repositoriesMetrics
+    ) {
+        super(delegate, maxRetries, delayIncrement, repositoriesMetrics);
         this.maxRetries = maxRetries;
         this.delayIncrement = delayIncrement;
+        this.repositoriesMetrics = repositoriesMetrics;
     }
 
     @Override
@@ -36,7 +40,12 @@ public class GcsTenaciousRetryBlobContainer extends TenaciousRetryBlobContainer 
     }
 
     @Override
+    protected String cloudServiceProvider() {
+        return "gcs";
+    }
+
+    @Override
     protected BlobContainer wrapChild(BlobContainer child) {
-        return new GcsTenaciousRetryBlobContainer(child, maxRetries, delayIncrement);
+        return new GcsTenaciousRetryBlobContainer(child, maxRetries, delayIncrement, repositoriesMetrics);
     }
 }

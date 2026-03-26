@@ -312,7 +312,12 @@ class S3BlobStore implements BlobStore {
     public BlobContainer blobContainer(BlobPath path) {
 
         if (service.isStateless) {
-            return new S3TenaciousRetryBlobContainer(new S3BlobContainer(path, this), Integer.MAX_VALUE, TimeValue.timeValueMillis(50));
+            return new S3TenaciousRetryBlobContainer(
+                new S3BlobContainer(path, this),
+                Integer.MAX_VALUE,
+                TimeValue.timeValueMillis(50),
+                s3RepositoriesMetrics.common()
+            );
         }
 
         return new S3BlobContainer(path, this);

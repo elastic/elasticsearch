@@ -174,7 +174,8 @@ class GoogleCloudStorageBlobStore implements BlobStore {
             return new GcsTenaciousRetryBlobContainer(
                 new GoogleCloudStorageBlobContainer(path, this),
                 Integer.MAX_VALUE,
-                TimeValue.timeValueMillis(50)
+                TimeValue.timeValueMillis(50),
+                getRepositoriesMetrics()
             );
         }
 

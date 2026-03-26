@@ -123,6 +123,7 @@ public class AzureBlobStore implements BlobStore {
     private final AzureStorageService service;
     private final BigArrays bigArrays;
     private final RepositoryMetadata repositoryMetadata;
+    private final RepositoriesMetrics repositoriesMetrics;
 
     private final String clientName;
     private final String container;
@@ -147,6 +148,7 @@ public class AzureBlobStore implements BlobStore {
         this.clientName = Repository.CLIENT_NAME.get(metadata.settings());
         this.service = service;
         this.bigArrays = bigArrays;
+        this.repositoriesMetrics = repositoriesMetrics;
         this.requestMetricsRecorder = new RequestMetricsRecorder(repositoriesMetrics);
         this.repositoryMetadata = metadata;
         // locationMode is set per repository, not per client
@@ -241,7 +243,8 @@ public class AzureBlobStore implements BlobStore {
             return new AzureTenaciousRetryBlobContainer(
                 new AzureBlobContainer(path, this),
                 Integer.MAX_VALUE,
-                TimeValue.timeValueMillis(50)
+                TimeValue.timeValueMillis(50),
+                repositoriesMetrics
             );
         }
 

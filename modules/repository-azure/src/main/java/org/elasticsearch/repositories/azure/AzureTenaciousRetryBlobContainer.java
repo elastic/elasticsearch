@@ -14,17 +14,25 @@ import com.azure.storage.blob.models.BlobStorageException;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.support.TenaciousRetryBlobContainer;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.repositories.RepositoriesMetrics;
 
 import static com.azure.storage.blob.models.BlobErrorCode.INSUFFICIENT_ACCOUNT_PERMISSIONS;
 
 public class AzureTenaciousRetryBlobContainer extends TenaciousRetryBlobContainer {
     private final int maxRetries;
     private final TimeValue delayIncrement;
+    private final RepositoriesMetrics repositoriesMetrics;
 
-    public AzureTenaciousRetryBlobContainer(BlobContainer delegate, int maxRetries, TimeValue delayIncrement) {
-        super(delegate, maxRetries, delayIncrement);
+    public AzureTenaciousRetryBlobContainer(
+        BlobContainer delegate,
+        int maxRetries,
+        TimeValue delayIncrement,
+        RepositoriesMetrics repositoriesMetrics
+    ) {
+        super(delegate, maxRetries, delayIncrement, repositoriesMetrics);
         this.delayIncrement = delayIncrement;
         this.maxRetries = maxRetries;
+        this.repositoriesMetrics = repositoriesMetrics;
     }
 
     @Override
@@ -33,7 +41,12 @@ public class AzureTenaciousRetryBlobContainer extends TenaciousRetryBlobContaine
     }
 
     @Override
+    protected String cloudServiceProvider() {
+        return "Azure";
+    }
+
+    @Override
     protected BlobContainer wrapChild(BlobContainer child) {
-        return new AzureTenaciousRetryBlobContainer(child, maxRetries, delayIncrement);
+        return new AzureTenaciousRetryBlobContainer(child, maxRetries, delayIncrement, repositoriesMetrics);
     }
 }

@@ -210,7 +210,13 @@ public class CsvTestsDataLoader {
         new TestDataset("many_numbers").withSetting("many_numbers-settings.json"),
         new TestDataset("mmr_text_vector_keyword"),
         new TestDataset("json_logs"),
-        new TestDataset("flattened_otel_logs")
+        new TestDataset("flattened_otel_logs"),
+        new TestDataset(
+            "metric_temporality",
+            "metric_temporality-mappings.json",
+            "metric_temporality.csv",
+            "metric_temporality-settings.json"
+        )
     ).collect(toMap(TestDataset::indexName, Function.identity()));
 
     // Developer flags for faster iteration when debugging specific csv-spec tests:
@@ -438,8 +444,17 @@ public class CsvTestsDataLoader {
         boolean supportsSourceFieldMapping,
         boolean inferenceEnabled
     ) throws IOException {
-        loadDataSetIntoEs(client, supportsIndexModeLookup, supportsSourceFieldMapping, inferenceEnabled, false, cap -> false);
+        loadDataSetIntoEs(client, supportsIndexModeLookup, supportsSourceFieldMapping, inferenceEnabled, false, cap -> false, null);
     }
+
+    private static final IndexCreator INDEX_CREATOR = (restClient, indexName, indexMapping, indexSettings) -> ESRestTestCase.createIndex(
+        restClient,
+        indexName,
+        indexSettings,
+        indexMapping,
+        null,
+        DEPRECATED_DEFAULT_METRIC_WARNING_HANDLER
+    );
 
     public static void loadDataSetIntoEs(
         RestClient client,
@@ -449,26 +464,94 @@ public class CsvTestsDataLoader {
         boolean timeSeriesOnly,
         Predicate<EsqlCapabilities.Cap> capabilityCheck
     ) throws IOException {
-        loadDataSets(
+        loadDataSetIntoEs(
             client,
             supportsIndexModeLookup,
             supportsSourceFieldMapping,
             inferenceEnabled,
             timeSeriesOnly,
             capabilityCheck,
-            (restClient, indexName, indexMapping, indexSettings) -> {
-                ESRestTestCase.createIndex(
-                    restClient,
-                    indexName,
-                    indexSettings,
-                    indexMapping,
-                    null,
-                    DEPRECATED_DEFAULT_METRIC_WARNING_HANDLER
-                );
-            }
+            null
         );
-        if (timeSeriesOnly == false) {
-            loadEnrichPolicies(client);
+    }
+
+    /**
+     * Load test datasets into Elasticsearch.
+     *
+     * @param indicesToLoad null to load all indices (default); empty list to load nothing; non-empty list to load only those indices.
+     *                      When non-null, enrich policies whose source index is in this list are also loaded (unless skipped by
+     *                      {@code tests.spec_indices} / {@code tests.spec_enrich_policies}).
+     */
+    public static void loadDataSetIntoEs(
+        RestClient client,
+        boolean supportsIndexModeLookup,
+        boolean supportsSourceFieldMapping,
+        boolean inferenceEnabled,
+        boolean timeSeriesOnly,
+        Predicate<EsqlCapabilities.Cap> capabilityCheck,
+        @Nullable List<String> indicesToLoad
+    ) throws IOException {
+        if (indicesToLoad != null && indicesToLoad.isEmpty()) {
+            return;
+        }
+        if (indicesToLoad != null) {
+            loadDatasetsIntoEs(client, indicesToLoad);
+            if (timeSeriesOnly == false) {
+                loadEnrichPoliciesForLoadedSourceIndices(client, indicesToLoad);
+            }
+        } else {
+            loadDataSets(
+                client,
+                supportsIndexModeLookup,
+                supportsSourceFieldMapping,
+                inferenceEnabled,
+                timeSeriesOnly,
+                capabilityCheck,
+                INDEX_CREATOR
+            );
+            if (timeSeriesOnly == false) {
+                loadEnrichPolicies(client);
+            }
+        }
+    }
+
+    /**
+     * Loads enrich policies whose source index is in {@code loadedIndexNames}, mirroring
+     * {@link #loadEnrichPolicies(RestClient)} rules for {@code tests.spec_indices} /
+     * {@code tests.spec_enrich_policies}.
+     */
+    private static void loadEnrichPoliciesForLoadedSourceIndices(RestClient client, List<String> loadedIndexNames) throws IOException {
+        if (specEnrichPolicies != null || specIndices == null) {
+            Set<String> loaded = new HashSet<>(loadedIndexNames);
+            logger.info("Loading enrich policies for loaded indices {}", loadedIndexNames);
+            for (var policy : ENRICH_POLICIES.values()) {
+                if (loaded.contains(policy.index()) == false) {
+                    continue;
+                }
+                if (specEnrichPolicies != null && specEnrichPolicies.contains(policy.policyName()) == false) {
+                    continue;
+                }
+                loadEnrichPolicy(client, policy);
+            }
+        }
+    }
+
+    /**
+     * Load only the specified indices from CSV_DATASET into the cluster.
+     * Used by external source tests that need lookup indices (e.g. languages_lookup) for LOOKUP JOIN.
+     */
+    public static void loadDatasetsIntoEs(RestClient client, List<String> indexNames) throws IOException {
+        Set<String> loadedDatasets = new HashSet<>();
+        for (String indexName : indexNames) {
+            TestDataset dataset = CSV_DATASET.get(indexName);
+            if (dataset == null) {
+                throw new IllegalArgumentException("Dataset [" + indexName + "] not found in CSV_DATASET");
+            }
+            load(client, dataset, INDEX_CREATOR);
+            loadedDatasets.add(dataset.indexName());
+        }
+        if (loadedDatasets.isEmpty() == false) {
+            forceMerge(client, loadedDatasets);
         }
     }
 
@@ -614,7 +697,7 @@ public class CsvTestsDataLoader {
     private static void loadView(RestClient client, ViewConfig view) throws IOException {
         logger.debug("Loading view [{}] from file [/views/{}.esql]", view.name, view.name);
         Request request = new Request("PUT", "/_query/view/" + view.name);
-        request.setJsonEntity("{\"query\":\"" + view.loadQuery().replace("\"", "\\\"").replace("\n", "") + "\"}");
+        request.setJsonEntity("{\"query\":\"" + view.loadQuery().replace("\"", "\\\"").replace("\r", "").replace("\n", "") + "\"}");
         client.performRequest(request);
     }
 

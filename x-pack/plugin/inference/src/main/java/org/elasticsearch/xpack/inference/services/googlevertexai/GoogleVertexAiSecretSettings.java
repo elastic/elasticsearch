@@ -51,9 +51,7 @@ public class GoogleVertexAiSecretSettings implements SecretSettings {
             validationException
         );
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new GoogleVertexAiSecretSettings(secureServiceAccountJson);
     }
@@ -110,7 +108,7 @@ public class GoogleVertexAiSecretSettings implements SecretSettings {
 
     @Override
     public SecretSettings newSecretSettings(Map<String, Object> newSecrets) {
-        return GoogleVertexAiSecretSettings.fromMap(new HashMap<>(newSecrets));
+        return GoogleVertexAiSecretSettings.fromMap(newSecrets);
     }
 
     public static class Configuration {

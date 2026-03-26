@@ -4,7 +4,7 @@ RUN apt-get update
 RUN apt-get install -y gcc g++ openjdk-21-jdk
 COPY . /workspace
 WORKDIR /workspace
-RUN ./gradlew --quiet --console=plain clean buildSharedLibrary
+RUN ./gradlew --quiet --no-build-cache --console=plain clean buildSharedLibrary
 RUN strip --strip-unneeded build/output/libvec.so
 
 CMD ["cat", "build/output/libvec.so"]

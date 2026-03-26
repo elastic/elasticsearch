@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.index.codec.tsdb.es819;
+package org.elasticsearch.index.codec.tsdb;
 
 import org.apache.lucene.codecs.DocValuesProducer;
 import org.apache.lucene.index.FieldInfo;
@@ -19,13 +19,33 @@ import org.elasticsearch.index.engine.PruningMergePolicy;
 /**
  * Contains logic to determine whether optimized merge can occur.
  */
-class DocValuesConsumerUtil {
+public class DocValuesConsumerUtil {
 
-    static final MergeStats UNSUPPORTED = new MergeStats(false, -1, -1, -1, -1);
+    /** Sentinel indicating that optimized merge is not supported for the given field. */
+    public static final MergeStats UNSUPPORTED = new MergeStats(false, -1, -1, -1, -1);
 
-    record MergeStats(boolean supported, long sumNumValues, int sumNumDocsWithField, int minLength, int maxLength) {}
+    /**
+     * Pre-computed statistics for a field across all segments being merged.
+     *
+     * @param supported          whether optimized merge is supported
+     * @param sumNumValues       total number of values across all segments
+     * @param sumNumDocsWithField total number of documents with at least one value
+     * @param minLength          minimum binary value length (binary fields only)
+     * @param maxLength          maximum binary value length (binary fields only)
+     */
+    public record MergeStats(boolean supported, long sumNumValues, int sumNumDocsWithField, int minLength, int maxLength) {}
 
-    static MergeStats compatibleWithOptimizedMerge(boolean optimizedMergeEnabled, MergeState mergeState, FieldInfo mergedFieldInfo) {
+    /**
+     * Determines whether an optimized merge can be performed for the given field by inspecting
+     * segment metadata. An optimized merge is possible when all segments use TSDB doc values,
+     * the index is pre-sorted, and there are no deleted documents.
+     *
+     * @param optimizedMergeEnabled whether optimized merge is enabled
+     * @param mergeState            the merge state containing segment metadata
+     * @param mergedFieldInfo       the field to check
+     * @return pre-computed stats if optimized merge is possible, or {@link #UNSUPPORTED} otherwise
+     */
+    public static MergeStats compatibleWithOptimizedMerge(boolean optimizedMergeEnabled, MergeState mergeState, FieldInfo mergedFieldInfo) {
         if (optimizedMergeEnabled == false || mergeState.needsIndexSort == false) {
             return UNSUPPORTED;
         }
@@ -65,7 +85,7 @@ class DocValuesConsumerUtil {
                     continue;
                 }
 
-                if (wrapped instanceof ES819TSDBDocValuesProducer tsdbDocValuesProducer) {
+                if (wrapped instanceof AbstractTSDBDocValuesProducer tsdbDocValuesProducer) {
                     switch (fieldInfo.getDocValuesType()) {
                         case NUMERIC -> {
                             var entry = tsdbDocValuesProducer.numerics.get(fieldInfo.number);

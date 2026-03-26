@@ -226,7 +226,7 @@ public class EsqlCapabilities {
 
         /**
          * Support for optional fields (might or might not be present in the mappings) using FAIL/NULLIFY only.
-         * Compared to {@link #OPTIONAL_FIELDS_V2}, this does not enable support for LOAD.
+         * Compared to {@link #OPTIONAL_FIELDS_V4}, this does not enable support for LOAD.
          */
         OPTIONAL_FIELDS_NULLIFY_TECH_PREVIEW,
 
@@ -249,16 +249,19 @@ public class EsqlCapabilities {
 
         /**
          * Support for optional fields (might or might not be present in the mappings) using FAIL/NULLIFY/LOAD.
-         * V2:  prevent pushing down filters and sorts to Lucene of potentially unmapped fields.
-         */
-        OPTIONAL_FIELDS_V2(Build.current().isSnapshot()),
-
-        /**
-         * Fix for partially mapped keyword fields not being loaded from _source even when not explicitly referenced
+         * <ul>
+         * <li>V2: prevent pushing down filters and sorts to Lucene of potentially unmapped fields;
+         * <li>V3: <ul>
+         *     <li>Reject loading sub-fields of flattened fields when {@code unmapped_fields="load"}
+         *         See https://github.com/elastic/elasticsearch/issues/143494
+         *     <li>Support for union type like resolution for load
+         * </ul>
+         * <li>V4: fix for partially mapped keyword fields not being loaded from _source even when not explicitly referenced
          * by a downstream command (e.g. KEEP, WHERE, SORT).
          * See https://github.com/elastic/elasticsearch/issues/141994
+         * </ul>
          */
-        OPTIONAL_FIELDS_FIX_LOAD_PARTIALLY_MAPPED_KEYWORD(OPTIONAL_FIELDS_V2.isEnabled()),
+        OPTIONAL_FIELDS_V4(Build.current().isSnapshot()),
 
         /**
          * Support specifically for *just* the _index METADATA field. Used by CsvTests, since that is the only metadata field currently
@@ -2366,17 +2369,11 @@ public class EsqlCapabilities {
          * <a href="https://github.com/elastic/elasticsearch/pull/144388"></a>
          */
         CHANGE_POINT_SUPPORT_NULL_COLUMN,
-
+        
         /**
          * Support CHANGE_POINT arguments in any order
          */
         CHANGE_POINT_ARGS_ANY_ORDER,
-
-        /**
-         * Reject loading sub-fields of flattened fields when {@code unmapped_fields="load"}
-         * See https://github.com/elastic/elasticsearch/issues/143494
-         */
-        REJECT_LOADING_FLATTENED_SUBFIELDS(OPTIONAL_FIELDS_V2.isEnabled()),
 
         FIX_DIV_ERROR_MESSAGE,
 

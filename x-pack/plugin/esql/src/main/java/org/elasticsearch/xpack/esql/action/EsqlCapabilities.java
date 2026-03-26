@@ -226,7 +226,7 @@ public class EsqlCapabilities {
 
         /**
          * Support for optional fields (might or might not be present in the mappings) using DEFAULT/NULLIFY only.
-         * Compared to {@link #OPTIONAL_FIELDS_V2}, this does not enable support for LOAD.
+         * Compared to {@link #OPTIONAL_FIELDS_V3}, this does not enable support for LOAD.
          */
         OPTIONAL_FIELDS_NULLIFY_TECH_PREVIEW,
 

@@ -43,12 +43,12 @@ static inline __m256 load_f32(const f32_t* ptr, const int elements) {
  * This should compile to a single inline method, with no function callouts.
  */
 template<
-    typename Q,
-    __m256(*load_q)(const Q*, const int),
+    typename TQuery,
+    __m256(*load_q)(const TQuery*, const int),
     __m256(*vector_op)(const __m256, const __m256, const __m256),
-    f32_t(*scalar_op)(const bf16_t, const Q)
+    f32_t(*scalar_op)(const bf16_t, const TQuery)
 >
-static inline f32_t bf16_inner(const bf16_t* d, const Q* q, const int32_t elementCount) {
+static inline f32_t bf16_inner(const bf16_t* d, const TQuery* q, const int32_t elementCount) {
     constexpr int batches = 4;
 
     __m256 sums[batches];
@@ -81,7 +81,7 @@ static inline f32_t bf16_inner(const bf16_t* d, const Q* q, const int32_t elemen
  * BFloat16 bulk operation. Iterates over 4 sequential vectors at a time.
  *
  * Template parameters:
- * Q: the type of query vector
+ * TQuery: the type of query vector
  * mapper: gets the nth vector from the input array.
  * load_q: loads the query vector as a __m256 of 32-bit floats
  * vector_op: SIMD per-dimension vector operation, takes a, b, sum, returns new sum
@@ -91,17 +91,17 @@ static inline f32_t bf16_inner(const bf16_t* d, const Q* q, const int32_t elemen
  * This should compile to a single inline method, with no function callouts.
  */
 template <
-    typename Q,
+    typename TQuery,
     const bf16_t*(*mapper)(const bf16_t*, const int32_t, const int32_t*, const int32_t),
-    __m256(*load_q)(const Q*, const int),
+    __m256(*load_q)(const TQuery*, const int),
     __m256(*vector_op)(const __m256, const __m256, const __m256),
-    f32_t(*scalar_op)(const bf16_t, const Q),
-    f32_t(*bulk_tail)(const bf16_t*, const Q*, const int32_t),
+    f32_t(*scalar_op)(const bf16_t, const TQuery),
+    f32_t(*bulk_tail)(const bf16_t*, const TQuery*, const int32_t),
     int batches = 4
 >
 static inline void bf16_bulk_inner(
     const bf16_t* a,
-    const Q* b,
+    const TQuery* b,
     const int32_t dims,
     const int32_t pitch,
     const int32_t* offsets,

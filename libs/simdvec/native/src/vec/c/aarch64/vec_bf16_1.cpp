@@ -30,12 +30,12 @@ static inline float32x4_t load_f32(const f32_t* ptr, int elements) {
 }
 
 template<
-    typename Q,
-    float32x4_t(*load_q)(const Q*, int element),
+    typename TQuery,
+    float32x4_t(*load_q)(const TQuery*, int element),
     float32x4_t(*vector_op)(float32x4_t, float32x4_t, float32x4_t),
-    f32_t(*scalar_op)(bf16_t, Q)
+    f32_t(*scalar_op)(bf16_t, TQuery)
 >
-static inline f32_t bf16_inner(const bf16_t* d, const Q* q, const int32_t elementCount) {
+static inline f32_t bf16_inner(const bf16_t* d, const TQuery* q, const int32_t elementCount) {
     constexpr int batches = 8;
 
     float32x4_t sums[batches];
@@ -68,7 +68,7 @@ static inline f32_t bf16_inner(const bf16_t* d, const Q* q, const int32_t elemen
  * BFloat16 bulk operation. Iterates over 8 sequential vectors at a time.
  *
  * Template parameters:
- * Q: the type of query vector
+ * TQuery: the type of query vector
  * mapper: gets the nth vector from the input array.
  * load_q: loads the query vector as a float32x4_t
  * inner_op: SIMD per-dimension vector operation, takes sum, a, b, returns new sum
@@ -78,17 +78,17 @@ static inline f32_t bf16_inner(const bf16_t* d, const Q* q, const int32_t elemen
  * This should compile to a single inline method, with no function callouts.
  */
 template <
-    typename Q,
+    typename TQuery,
     const bf16_t*(*mapper)(const bf16_t*, const int32_t, const int32_t*, const int32_t),
-    float32x4_t(*load_q)(const Q*, const int),
+    float32x4_t(*load_q)(const TQuery*, const int),
     float32x4_t(*inner_op)(const float32x4_t, const float32x4_t, const float32x4_t),
-    f32_t(*scalar_op)(const bf16_t, const Q),
-    f32_t(*bulk_tail)(const bf16_t*, const Q*, const int32_t),
+    f32_t(*scalar_op)(const bf16_t, const TQuery),
+    f32_t(*bulk_tail)(const bf16_t*, const TQuery*, const int32_t),
     int batches = 8
 >
 static inline void bf16_bulk_inner(
     const bf16_t* a,
-    const Q* b,
+    const TQuery* b,
     const int32_t dims,
     const int32_t pitch,
     const int32_t* offsets,

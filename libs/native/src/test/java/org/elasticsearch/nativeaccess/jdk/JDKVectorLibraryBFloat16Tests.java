@@ -75,7 +75,7 @@ public class JDKVectorLibraryBFloat16Tests extends VectorSimilarityFunctionsTest
         testBFloat16Vectors(JDKVectorLibraryBFloat16Tests::randomBFloat16Array);
     }
 
-    public void testBFloat16Vectors(IntFunction<float[]> vectorGeneratorFunc) {
+    private void testBFloat16Vectors(IntFunction<float[]> vectorGeneratorFunc) {
         assumeTrue(notSupportedMsg(), supported());
         final int dims = size;
         final int numVecs = randomIntBetween(2, 101);
@@ -85,15 +85,7 @@ public class JDKVectorLibraryBFloat16Tests extends VectorSimilarityFunctionsTest
         var bf16Segment = arena.allocate((long) dims * numVecs * BFloat16.BYTES);
         for (int i = 0; i < numVecs; i++) {
             values[i] = vectorGeneratorFunc.apply(dims);
-            MemorySegment.copy(
-                MemorySegment.ofArray(values[i]),
-                JAVA_FLOAT_UNALIGNED,
-                0L,
-                f32Segment,
-                LAYOUT_LE_FLOAT,
-                (long) i * dims * Float.BYTES,
-                dims
-            );
+            MemorySegment.copy(values[i], 0, f32Segment, LAYOUT_LE_FLOAT, (long) i * dims * Float.BYTES, dims);
             copyToBFloat16Segment(values[i], bf16Segment, (long) i * dims * BFloat16.BYTES);
         }
 
@@ -123,15 +115,7 @@ public class JDKVectorLibraryBFloat16Tests extends VectorSimilarityFunctionsTest
         for (int i = 0; i < numVecs; i++) {
             f32Values[i] = randomFloatArray(dims);
             bf16Values[i] = truncateFloatArray(f32Values[i]);
-            MemorySegment.copy(
-                MemorySegment.ofArray(f32Values[i]),
-                JAVA_FLOAT_UNALIGNED,
-                0L,
-                f32Segment,
-                LAYOUT_LE_FLOAT,
-                (long) i * dims * Float.BYTES,
-                dims
-            );
+            MemorySegment.copy(f32Values[i], 0, f32Segment, LAYOUT_LE_FLOAT, (long) i * dims * Float.BYTES, dims);
             copyToBFloat16Segment(bf16Values[i], bf16Segment, (long) i * dims * BFloat16.BYTES);
         }
 
@@ -171,15 +155,7 @@ public class JDKVectorLibraryBFloat16Tests extends VectorSimilarityFunctionsTest
             offsetsSegment.setAtIndex(ValueLayout.JAVA_INT, i, offsets[i]);
             f32Values[i] = randomFloatArray(dims);
             bf16Values[i] = truncateFloatArray(f32Values[i]);
-            MemorySegment.copy(
-                MemorySegment.ofArray(f32Values[i]),
-                JAVA_FLOAT_UNALIGNED,
-                0L,
-                f32Segment,
-                LAYOUT_LE_FLOAT,
-                (long) i * dims * Float.BYTES,
-                dims
-            );
+            MemorySegment.copy(f32Values[i], 0, f32Segment, LAYOUT_LE_FLOAT, (long) i * dims * Float.BYTES, dims);
             copyToBFloat16Segment(bf16Values[i], bf16Segment, (long) i * dims * BFloat16.BYTES);
         }
 
@@ -223,15 +199,7 @@ public class JDKVectorLibraryBFloat16Tests extends VectorSimilarityFunctionsTest
             offsetsSegment.setAtIndex(ValueLayout.JAVA_INT, i, offsets[i]);
             f32Values[i] = randomFloatArray(dims);
             bf16Values[i] = truncateFloatArray(f32Values[i]);
-            MemorySegment.copy(
-                MemorySegment.ofArray(f32Values[i]),
-                JAVA_FLOAT_UNALIGNED,
-                0L,
-                f32Segment,
-                LAYOUT_LE_FLOAT,
-                (long) i * dims * Float.BYTES,
-                dims
-            );
+            MemorySegment.copy(f32Values[i], 0, f32Segment, LAYOUT_LE_FLOAT, (long) i * dims * Float.BYTES, dims);
             copyToBFloat16Segment(bf16Values[i], bf16Segment, (long) i * bf16Pitch);
         }
 

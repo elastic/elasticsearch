@@ -89,9 +89,7 @@ public class MultilingualE5SmallInternalServiceSettings extends ElasticsearchInt
             }
         }
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return baseSettings;
     }

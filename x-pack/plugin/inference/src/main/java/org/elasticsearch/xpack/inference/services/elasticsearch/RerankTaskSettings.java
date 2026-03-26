@@ -39,9 +39,7 @@ public class RerankTaskSettings implements TaskSettings {
         }
 
         Boolean returnDocuments = extractOptionalBoolean(map, RETURN_DOCUMENTS, validationException);
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         if (returnDocuments == null) {
             returnDocuments = true;

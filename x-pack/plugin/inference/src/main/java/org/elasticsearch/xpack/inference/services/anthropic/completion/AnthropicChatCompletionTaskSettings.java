@@ -45,9 +45,7 @@ public class AnthropicChatCompletionTaskSettings implements TaskSettings {
 
         var commonFields = fromMap(map, validationException);
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new AnthropicChatCompletionTaskSettings(commonFields);
     }

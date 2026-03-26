@@ -57,9 +57,7 @@ public class AwsSecretSettings implements SecretSettings {
             validationException
         );
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new AwsSecretSettings(secureAccessKey, secureSecretKey);
     }

@@ -46,9 +46,7 @@ public class AlibabaCloudSearchCompletionTaskSettings implements TaskSettings {
 
         Map<String, Object> parameters = ServiceUtils.removeAsType(map, PARAMETERS, Map.class, validationException);
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return of(parameters);
     }

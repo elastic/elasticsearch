@@ -59,9 +59,7 @@ public class AlibabaCloudSearchSparseTaskSettings implements TaskSettings {
 
         Boolean returnToken = extractOptionalBoolean(map, RETURN_TOKEN, validationException);
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new AlibabaCloudSearchSparseTaskSettings(inputType, returnToken);
     }

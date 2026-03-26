@@ -249,9 +249,7 @@ public abstract class AbstractTestInferenceService implements InferenceService {
                 validationException.addValidationError("missing api_key");
             }
 
-            if (validationException.validationErrors().isEmpty() == false) {
-                throw validationException;
-            }
+            validationException.throwIfValidationErrorsExist();
 
             return new TestSecretSettings(apiKey);
         }

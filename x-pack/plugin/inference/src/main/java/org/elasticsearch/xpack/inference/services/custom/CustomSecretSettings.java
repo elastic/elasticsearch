@@ -39,9 +39,7 @@ public class CustomSecretSettings implements SecretSettings {
         Map<String, Object> requestSecretParamsMap = extractOptionalMapRemoveNulls(map, SECRET_PARAMETERS, validationException);
         var secureStringMap = convertMapStringsToSecureString(requestSecretParamsMap, SECRET_PARAMETERS, validationException);
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new CustomSecretSettings(secureStringMap);
     }

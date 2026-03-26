@@ -107,9 +107,7 @@ public class GoogleVertexAiEmbeddingsServiceSettings extends FilteredXContentObj
             }
         }
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new GoogleVertexAiEmbeddingsServiceSettings(
             location,
@@ -136,9 +134,7 @@ public class GoogleVertexAiEmbeddingsServiceSettings extends FilteredXContentObj
             validationException
         );
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new GoogleVertexAiEmbeddingsServiceSettings(this, maxBatchSize);
     }

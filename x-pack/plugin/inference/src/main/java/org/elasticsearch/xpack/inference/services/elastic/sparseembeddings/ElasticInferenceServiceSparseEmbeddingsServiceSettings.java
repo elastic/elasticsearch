@@ -68,9 +68,7 @@ public class ElasticInferenceServiceSparseEmbeddingsServiceSettings extends Filt
             validationException
         );
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new ElasticInferenceServiceSparseEmbeddingsServiceSettings(modelId, maxInputTokens, maxBatchSize);
     }
@@ -196,9 +194,7 @@ public class ElasticInferenceServiceSparseEmbeddingsServiceSettings extends Filt
 
         Integer maxBatchSize = ElasticInferenceServiceSettingsUtils.parseMaxBatchSize(serviceSettings, validationException);
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return createBuilderWithCopy().maxBatchSize(maxBatchSize).build();
     }

@@ -143,9 +143,7 @@ public abstract class OpenShiftAiServiceSettings extends FilteredXContentObject 
         var validationException = new ValidationException();
         var commonServiceSettings = extractOpenShiftAiCommonServiceSettings(map, context, validationException);
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return factory.apply(commonServiceSettings);
     }

@@ -124,9 +124,7 @@ public class ElasticRerankerServiceSettings extends ElasticsearchInternalService
             );
         }
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new ElasticRerankerServiceSettings(baseSettings.build(), longDocumentStrategy, maxChunksPerDoc);
     }

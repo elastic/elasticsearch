@@ -64,9 +64,7 @@ public class CohereEmbeddingsTaskSettings implements TaskSettings {
             validationException
         );
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new CohereEmbeddingsTaskSettings(inputType, truncation);
     }

@@ -60,6 +60,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         "| SORT message",
         "| EVAL x = message",
         "| WHERE message IS NOT NULL" };
+
     public void testFailKeepAndNonMatchingStar() {
         var query = """
             FROM test

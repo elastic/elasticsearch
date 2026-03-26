@@ -31,7 +31,6 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.bulk.IndexDocFailureStoreStatus;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.ClosePointInTimeRequest;
-import org.elasticsearch.action.search.ClosePointInTimeResponse;
 import org.elasticsearch.action.search.OpenPointInTimeRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -315,12 +314,14 @@ public class SynonymsManagementAPIService {
 
             if (hits.length == 0) {
                 if (accumulated.isEmpty()) {
-                    closePitAndThen(pitId, () -> checkSynonymSetExists(synonymSetId, listener.delegateFailure((l, ignored) -> {
+                    closePitSilently(pitId);
+                    checkSynonymSetExists(synonymSetId, listener.delegateFailure((l, ignored) -> {
                         l.onResponse(new PagedResult<>(0, new SynonymRule[0]));
-                    })));
+                    }));
                 } else {
                     PagedResult<SynonymRule> result = new PagedResult<>(newTotalHits, accumulated.toArray(new SynonymRule[0]));
-                    closePitAndThen(pitId, () -> listener.onResponse(result));
+                    closePitSilently(pitId);
+                    listener.onResponse(result);
                 }
                 return;
             }
@@ -338,37 +339,32 @@ public class SynonymsManagementAPIService {
                     accumulated.add(sourceMapToSynonymRule(hit.getSourceAsMap()));
                     if (accumulated.size() >= maxSynonymRules) {
                         PagedResult<SynonymRule> result = new PagedResult<>(newTotalHits, accumulated.toArray(new SynonymRule[0]));
-                        closePitAndThen(pitId, () -> listener.onResponse(result));
+                        closePitSilently(pitId);
+                        listener.onResponse(result);
                         return;
                     }
                 }
             } catch (Exception e) {
-                closePitAndThen(pitId, () -> listener.onFailure(e));
+                closePitSilently(pitId);
+                listener.onFailure(e);
                 return;
             }
 
             Object[] lastSortValues = hits[hits.length - 1].getSortValues();
             fetchPageWithPit(synonymSetId, pitId, keepAlive, lastSortValues, accumulated, newTotalHits, listener);
-        }, e -> closePitAndThen(pitId, () -> listener.onFailure(e))));
+        }, e -> {
+            closePitSilently(pitId);
+            listener.onFailure(e);
+        }));
     }
 
-    private void closePitAndThen(BytesReference pitId, Runnable andThen) {
+    private void closePitSilently(BytesReference pitId) {
         if (pitId == null) {
-            andThen.run();
             return;
         }
-        client.execute(TransportClosePointInTimeAction.TYPE, new ClosePointInTimeRequest(pitId), new ActionListener<>() {
-            @Override
-            public void onResponse(ClosePointInTimeResponse r) {
-                andThen.run();
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                logger.warn("Failed to close PIT context", e);
-                andThen.run();
-            }
-        });
+        client.execute(TransportClosePointInTimeAction.TYPE, new ClosePointInTimeRequest(pitId), ActionListener.wrap(r -> {}, e -> {
+            logger.warn("Failed to close PIT context", e);
+        }));
     }
 
     /**

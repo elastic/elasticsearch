@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioCon
 import org.elasticsearch.xpack.inference.services.azureopenai.embeddings.AzureOpenAiEmbeddingsTaskSettings;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
@@ -62,9 +61,7 @@ public class AzureAiStudioChatCompletionTaskSettings implements TaskSettings {
             validationException
         );
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new AzureAiStudioChatCompletionTaskSettings(temperature, topP, doSample, maxNewTokens);
     }
@@ -212,7 +209,7 @@ public class AzureAiStudioChatCompletionTaskSettings implements TaskSettings {
     @Override
     public TaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
         AzureAiStudioChatCompletionRequestTaskSettings requestSettings = AzureAiStudioChatCompletionRequestTaskSettings.fromMap(
-            new HashMap<>(newSettings)
+            newSettings
         );
         return of(this, requestSettings);
     }

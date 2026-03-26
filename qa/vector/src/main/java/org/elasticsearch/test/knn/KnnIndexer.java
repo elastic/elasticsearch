@@ -27,7 +27,6 @@ import org.apache.lucene.document.KnnByteVectorField;
 import org.apache.lucene.document.KnnFloatVectorField;
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.StoredField;
-import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.ConcurrentMergeScheduler;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
@@ -44,16 +43,11 @@ import org.apache.lucene.store.NativeFSLockFactory;
 import org.apache.lucene.store.ReadAdvice;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.PrintStreamInfoStream;
-import org.elasticsearch.common.io.Channels;
 import org.elasticsearch.index.StandardIOBehaviorHint;
 import org.elasticsearch.index.store.FsDirectoryFactory;
 
-import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
-import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -70,10 +64,10 @@ import java.util.function.BiFunction;
 
 import static org.elasticsearch.test.knn.KnnIndexTester.logger;
 
-class KnnIndexer {
-    static final String ID_FIELD = "id";
-    static final String VECTOR_FIELD = "vector";
-    static final String PARTITION_ID_FIELD = "partition_id";
+public class KnnIndexer {
+    public static final String ID_FIELD = "id";
+    public static final String VECTOR_FIELD = "vector";
+    public static final String PARTITION_ID_FIELD = "partition_id";
 
     private final List<Path> docsPath;
     private final Path indexPath;
@@ -120,7 +114,14 @@ class KnnIndexer {
     }
 
     void createIndex(KnnIndexTester.Results result, Directory dir) throws IOException, InterruptedException, ExecutionException {
-        try (MultiFileVectorReader reader = MultiFileVectorReader.create(docsPath, dim, vectorEncoding, numDocs)) {
+        try (
+            IndexVectorReader.MultiFileVectorReader reader = IndexVectorReader.MultiFileVectorReader.create(
+                docsPath,
+                dim,
+                vectorEncoding,
+                numDocs
+            )
+        ) {
             this.dim = reader.dim();
             createIndex(result, dir, reader, new DefaultDocumentFactory(), reader.totalDocs(), null);
         }
@@ -277,75 +278,16 @@ class KnnIndexer {
     }
 
     /**
-     * Provide vectors for indexing. Implementations must be thread-safe.
-     */
-    interface IndexVectorReader {
-        /** Returns the next float vector. Thread-safe. */
-        float[] nextFloatVector(int docOrd) throws IOException;
-
-        /** Returns the next byte vector. Thread-safe. */
-        byte[] nextByteVector(int docOrd) throws IOException;
-    }
-
-    /**
      * Creates a document from a vector field and document ordinal.
      */
-    interface DocumentFactory {
+    public interface DocumentFactory {
         Document createDocument(IndexableField vectorField, int docOrd);
-    }
-
-    /**
-     * An {@link IndexVectorReader} that reads vectors from a file channel.
-     */
-    static class FileVectorReader implements IndexVectorReader {
-        private final VectorReader reader;
-        private final int dim;
-
-        FileVectorReader(VectorReader reader, int dim) {
-            this.reader = reader;
-            this.dim = dim;
-        }
-
-        @Override
-        public float[] nextFloatVector(int docOrd) throws IOException {
-            float[] dest = new float[dim];
-            reader.next(dest);
-            return dest;
-        }
-
-        @Override
-        public byte[] nextByteVector(int docOrd) throws IOException {
-            byte[] dest = new byte[dim];
-            reader.next(dest);
-            return dest;
-        }
-    }
-
-    /**
-     * An {@link IndexVectorReader} that generates vectors from a {@link PartitionDataGenerator}.
-     */
-    static class PartitionGeneratingVectorReader implements IndexVectorReader {
-        private final PartitionDataGenerator generator;
-
-        PartitionGeneratingVectorReader(PartitionDataGenerator generator) {
-            this.generator = generator;
-        }
-
-        @Override
-        public float[] nextFloatVector(int docOrd) {
-            return generator.nextVector();
-        }
-
-        @Override
-        public byte[] nextByteVector(int docOrd) {
-            return generator.nextByteVector();
-        }
     }
 
     /**
      * A {@link DocumentFactory} that creates documents with just a vector and a stored ID.
      */
-    static class DefaultDocumentFactory implements DocumentFactory {
+    public static class DefaultDocumentFactory implements DocumentFactory {
         @Override
         public Document createDocument(IndexableField vectorField, int docOrd) {
             Document doc = new Document();
@@ -358,11 +300,11 @@ class KnnIndexer {
     /**
      * A {@link DocumentFactory} that creates documents with a vector, stored ID, and partition fields.
      */
-    static class PartitionDocumentFactory implements DocumentFactory {
+    public static class PartitionDocumentFactory implements DocumentFactory {
         private final String[] docPartitionIds;
         private final int[] docOrdinals;
 
-        PartitionDocumentFactory(String[] docPartitionIds, int[] docOrdinals) {
+        public PartitionDocumentFactory(String[] docPartitionIds, int[] docOrdinals) {
             this.docPartitionIds = docPartitionIds;
             this.docOrdinals = docOrdinals;
         }
@@ -372,8 +314,7 @@ class KnnIndexer {
             Document doc = new Document();
             doc.add(vectorField);
             doc.add(new StoredField(ID_FIELD, docOrdinals[docOrd]));
-            doc.add(new SortedDocValuesField(PARTITION_ID_FIELD, new BytesRef(docPartitionIds[docOrd])));
-            doc.add(new StringField(PARTITION_ID_FIELD, docPartitionIds[docOrd], org.apache.lucene.document.Field.Store.YES));
+            doc.add(SortedDocValuesField.indexedField(PARTITION_ID_FIELD, new BytesRef(docPartitionIds[docOrd])));
             return doc;
         }
     }
@@ -439,189 +380,6 @@ class KnnIndexer {
             } catch (IOException ioe) {
                 throw new UncheckedIOException(ioe);
             }
-        }
-    }
-
-    /**
-     * An {@link IndexVectorReader} that reads vectors sequentially across multiple files.
-     * Handles dim detection from file headers, wraps around within each file, and caps at a maximum doc count.
-     */
-    static class MultiFileVectorReader implements IndexVectorReader, Closeable {
-        private final List<VectorReader> readers;
-        private final List<FileChannel> channels;
-        private final int[] docsPerReader;
-        private final int totalDocs;
-        private final int dim;
-        private int currentReaderIdx;
-        private int docsReadFromCurrent;
-
-        private MultiFileVectorReader(List<VectorReader> readers, List<FileChannel> channels, int[] docsPerReader, int totalDocs, int dim) {
-            this.readers = readers;
-            this.channels = channels;
-            this.docsPerReader = docsPerReader;
-            this.totalDocs = totalDocs;
-            this.dim = dim;
-            this.currentReaderIdx = 0;
-            this.docsReadFromCurrent = 0;
-        }
-
-        static MultiFileVectorReader create(List<Path> docPaths, int requestedDim, VectorEncoding vectorEncoding, int maxDocs)
-            throws IOException {
-            List<VectorReader> readers = new ArrayList<>();
-            List<FileChannel> channels = new ArrayList<>();
-            int[] docsPerReader = new int[docPaths.size()];
-            int resolvedDim = requestedDim;
-            int docsRemaining = maxDocs;
-
-            for (int f = 0; f < docPaths.size() && docsRemaining > 0; f++) {
-                Path docsPath = docPaths.get(f);
-                FileChannel in = FileChannel.open(docsPath);
-                channels.add(in);
-                long docsPathSizeInBytes = in.size();
-                int offsetByteSize = 0;
-                int dim = resolvedDim;
-                if (dim == -1) {
-                    offsetByteSize = 4;
-                    ByteBuffer preamble = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN);
-                    int bytesRead = Channels.readFromFileChannel(in, 0, preamble);
-                    if (bytesRead < 4) {
-                        throw new IllegalArgumentException(
-                            "docsPath \"" + docsPath + "\" does not contain a valid dims?  size=" + docsPathSizeInBytes
-                        );
-                    }
-                    dim = preamble.getInt(0);
-                    if (dim <= 0) {
-                        throw new IllegalArgumentException("docsPath \"" + docsPath + "\" has invalid dimension: " + dim);
-                    }
-                    resolvedDim = dim;
-                }
-                if (docsPathSizeInBytes % (((long) dim * vectorEncoding.byteSize + offsetByteSize)) != 0) {
-                    throw new IllegalArgumentException(
-                        "docsPath \"" + docsPath + "\" does not contain a whole number of vectors?  size=" + docsPathSizeInBytes
-                    );
-                }
-                int fileDocs = (int) (docsPathSizeInBytes / ((long) dim * vectorEncoding.byteSize + offsetByteSize));
-                fileDocs = Math.min(docsRemaining, fileDocs);
-                logger.info(
-                    "path={}, docsPathSizeInBytes={}, numDocs={}, dim={}, vectorEncoding={}, byteSize={}",
-                    docsPath,
-                    docsPathSizeInBytes,
-                    fileDocs,
-                    dim,
-                    vectorEncoding,
-                    vectorEncoding.byteSize
-                );
-                docsPerReader[f] = fileDocs;
-                docsRemaining -= fileDocs;
-                readers.add(VectorReader.create(in, dim, vectorEncoding, offsetByteSize));
-            }
-            int totalDocs = 0;
-            for (int d : docsPerReader) {
-                totalDocs += d;
-            }
-            return new MultiFileVectorReader(readers, channels, docsPerReader, totalDocs, resolvedDim);
-        }
-
-        int totalDocs() {
-            return totalDocs;
-        }
-
-        int dim() {
-            return dim;
-        }
-
-        private VectorReader currentReader() {
-            while (currentReaderIdx < readers.size() && docsReadFromCurrent >= docsPerReader[currentReaderIdx]) {
-                currentReaderIdx++;
-                docsReadFromCurrent = 0;
-            }
-            return readers.get(currentReaderIdx);
-        }
-
-        @Override
-        public synchronized float[] nextFloatVector(int docOrd) throws IOException {
-            VectorReader reader = currentReader();
-            docsReadFromCurrent++;
-            float[] dest = new float[dim];
-            reader.next(dest);
-            return dest;
-        }
-
-        @Override
-        public synchronized byte[] nextByteVector(int docOrd) throws IOException {
-            VectorReader reader = currentReader();
-            docsReadFromCurrent++;
-            byte[] dest = new byte[dim];
-            reader.next(dest);
-            return dest;
-        }
-
-        @Override
-        public void close() throws IOException {
-            for (FileChannel ch : channels) {
-                ch.close();
-            }
-        }
-    }
-
-    static class VectorReader {
-        final float[] target;
-        final int offsetByteSize;
-        final ByteBuffer bytes;
-        final FileChannel input;
-        long position;
-
-        static VectorReader create(FileChannel input, int dim, VectorEncoding vectorEncoding, int offsetByteSize) throws IOException {
-            // check if dim is set as preamble in the file:
-            int bufferSize = dim * vectorEncoding.byteSize;
-            if (input.size() % ((long) dim * vectorEncoding.byteSize + offsetByteSize) != 0) {
-                throw new IllegalArgumentException(
-                    "vectors file \"" + input + "\" does not contain a whole number of vectors?  size=" + input.size()
-                );
-            }
-            return new VectorReader(input, dim, bufferSize, offsetByteSize);
-        }
-
-        VectorReader(FileChannel input, int dim, int bufferSize, int offsetByteSize) throws IOException {
-            this.offsetByteSize = offsetByteSize;
-            this.bytes = ByteBuffer.wrap(new byte[bufferSize]).order(ByteOrder.LITTLE_ENDIAN);
-            this.input = input;
-            this.target = new float[dim];
-            reset();
-        }
-
-        void reset() throws IOException {
-            position = offsetByteSize;
-            input.position(position);
-        }
-
-        private void readNext() throws IOException {
-            int bytesRead = Channels.readFromFileChannel(this.input, position, bytes);
-            if (bytesRead < bytes.capacity()) {
-                position = offsetByteSize;
-                bytes.position(0);
-                // wrap around back to the start of the file if we hit the end:
-                logger.warn("VectorReader hit EOF when reading " + this.input + "; now wrapping around to start of file again");
-                input.position(position);
-                bytesRead = Channels.readFromFileChannel(this.input, position, bytes);
-                if (bytesRead < bytes.capacity()) {
-                    throw new IllegalStateException(
-                        "vector file " + input + " doesn't even have enough bytes for a single vector?  got bytesRead=" + bytesRead
-                    );
-                }
-            }
-            position += bytesRead + offsetByteSize;
-            bytes.position(0);
-        }
-
-        synchronized void next(float[] dest) throws IOException {
-            readNext();
-            bytes.asFloatBuffer().get(dest);
-        }
-
-        synchronized void next(byte[] dest) throws IOException {
-            readNext();
-            bytes.get(dest).position(0);
         }
     }
 }

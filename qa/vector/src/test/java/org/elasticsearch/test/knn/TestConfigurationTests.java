@@ -12,6 +12,7 @@ package org.elasticsearch.test.knn;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.knn.data.DatasetConfig;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 

@@ -48,6 +48,7 @@ import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.test.knn.data.DataGenerator;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
@@ -77,7 +78,7 @@ import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MAX_
  * It supports various index types (HNSW, FLAT, IVF) and configurations.
  */
 public class KnnIndexTester {
-    static final Logger logger;
+    public static final Logger logger;
 
     static {
         LogConfigurator.loadLog4jPlugins();
@@ -101,7 +102,7 @@ public class KnnIndexTester {
         GPU_HNSW
     }
 
-    enum VectorEncoding {
+    public enum VectorEncoding {
         BYTE(org.apache.lucene.index.VectorEncoding.BYTE, DenseVectorFieldMapper.ElementType.BYTE),
         FLOAT32(org.apache.lucene.index.VectorEncoding.FLOAT32, DenseVectorFieldMapper.ElementType.FLOAT),
         BFLOAT16(org.apache.lucene.index.VectorEncoding.FLOAT32, DenseVectorFieldMapper.ElementType.BFLOAT16);
@@ -453,7 +454,7 @@ public class KnnIndexTester {
      * Bundles the vector reader, document factory, total doc count, and optional index sort
      * needed to create an index. Created via {@link DataGenerator#createIndexingSetup()}.
      */
-    record IndexingSetup(KnnIndexer.IndexVectorReader reader, KnnIndexer.DocumentFactory factory, int totalDocs, Sort sort)
+    public record IndexingSetup(IndexVectorReader reader, KnnIndexer.DocumentFactory factory, int totalDocs, Sort sort)
         implements
             Closeable {
 

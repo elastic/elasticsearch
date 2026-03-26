@@ -20,6 +20,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
 import org.elasticsearch.monitor.jvm.JvmInfo;
+import org.elasticsearch.test.knn.data.DatasetConfig;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -42,13 +43,13 @@ import java.util.TreeMap;
 import java.util.stream.Collectors;
 import java.util.zip.CRC32C;
 
-import static org.elasticsearch.test.knn.DatasetConfig.PartitionGenerated;
+import static org.elasticsearch.test.knn.data.DatasetConfig.PartitionGenerated;
 
 /**
  * Command line arguments for the KNN index tester.
  * This class encapsulates all the parameters required to run the KNN index tests.
  */
-record TestConfiguration(
+public record TestConfiguration(
     List<Path> docVectors,
     Path queryVectors,
     int numDocs,
@@ -868,25 +869,8 @@ record TestConfiguration(
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            if (datasetConfig instanceof DatasetConfig.GcpDataset gcpDataset) {
-                builder.field(DATASET_FIELD.getPreferredName(), gcpDataset.name());
-            } else if (datasetConfig instanceof DatasetConfig.FileDataset fileDataset) {
-                builder.startObject(DATASET_FIELD.getPreferredName());
-                builder.startObject("file");
-                builder.field("doc_vectors", fileDataset.docVectors());
-                if (fileDataset.queryVectors() != null) {
-                    builder.field("query_vectors", fileDataset.queryVectors());
-                }
-                builder.endObject();
-                builder.endObject();
-            } else if (datasetConfig instanceof PartitionGenerated pg) {
-                builder.startObject(DATASET_FIELD.getPreferredName());
-                builder.startObject("partition_generated");
-                builder.field("num_partitions", pg.numPartitions());
-                builder.field("partition_distribution", pg.partitionDistribution());
-                builder.field("generator_seed", pg.generatorSeed());
-                builder.endObject();
-                builder.endObject();
+            if (datasetConfig != null) {
+                datasetConfig.toXContent(builder, params);
             }
             if (!dataDir.equals(".data")) {
                 builder.field(DATA_DIR_FIELD.getPreferredName(), dataDir);

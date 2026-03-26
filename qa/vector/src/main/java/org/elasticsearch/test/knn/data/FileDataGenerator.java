@@ -7,11 +7,17 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.test.knn;
+package org.elasticsearch.test.knn.data;
 
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.io.Channels;
+import org.elasticsearch.test.knn.IndexVectorReader;
+import org.elasticsearch.test.knn.KnnIndexTester;
+import org.elasticsearch.test.knn.KnnIndexer;
+import org.elasticsearch.test.knn.KnnSearcher;
+import org.elasticsearch.test.knn.SearchParameters;
+import org.elasticsearch.test.knn.TestConfiguration;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -25,7 +31,7 @@ import static org.elasticsearch.test.knn.KnnIndexTester.logger;
  * A {@link DataGenerator} that reads vectors from files on disk.
  * Used for both GCP bucket datasets and custom datasets.
  */
-class FileDataGenerator implements DataGenerator {
+public class FileDataGenerator implements DataGenerator {
 
     private final TestConfiguration config;
 
@@ -35,7 +41,7 @@ class FileDataGenerator implements DataGenerator {
 
     @Override
     public KnnIndexTester.IndexingSetup createIndexingSetup() throws IOException {
-        KnnIndexer.MultiFileVectorReader reader = KnnIndexer.MultiFileVectorReader.create(
+        IndexVectorReader.MultiFileVectorReader reader = IndexVectorReader.MultiFileVectorReader.create(
             config.docVectors(),
             config.dimensions(),
             config.vectorEncoding().luceneEncoding(),
@@ -66,16 +72,15 @@ class FileDataGenerator implements DataGenerator {
             }
             if (queryPathSizeInBytes % (((long) searcher.dim * searcher.vectorEncoding.byteSize + offsetByteSize)) != 0) {
                 throw new IllegalArgumentException(
-                    "docsPath \"" + searcher.queryPath + "\" does not contain a whole number of vectors?  size=" + queryPathSizeInBytes
+                    "queryPath \"" + searcher.queryPath + "\" does not contain a whole number of vectors?  size=" + queryPathSizeInBytes
                 );
             }
             logger.info(
-                "queryPath size: "
-                    + queryPathSizeInBytes
-                    + " bytes, assuming vector count is "
-                    + (queryPathSizeInBytes / ((long) searcher.dim * searcher.vectorEncoding.byteSize + offsetByteSize))
+                "queryPath size: {} bytes, assuming vector count is {}",
+                queryPathSizeInBytes,
+                queryPathSizeInBytes / ((long) searcher.dim * searcher.vectorEncoding.byteSize + offsetByteSize)
             );
-            KnnIndexer.VectorReader targetReader = KnnIndexer.VectorReader.create(
+            IndexVectorReader.VectorReader targetReader = IndexVectorReader.VectorReader.create(
                 input,
                 searcher.dim,
                 searcher.vectorEncoding,

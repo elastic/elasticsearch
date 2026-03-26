@@ -7,10 +7,13 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.test.knn;
+package org.elasticsearch.test.knn.data;
 
+import org.elasticsearch.test.knn.TestConfiguration;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -31,7 +34,8 @@ import java.util.Locale;
  * Each variant provides a {@link DataGenerator} via {@link #createDataGenerator} that
  * encapsulates all data provisioning for indexing and searching.
  */
-sealed interface DatasetConfig permits DatasetConfig.GcpDataset, DatasetConfig.FileDataset, DatasetConfig.PartitionGenerated {
+public sealed interface DatasetConfig extends ToXContentFragment permits DatasetConfig.GcpDataset, DatasetConfig.FileDataset,
+    DatasetConfig.PartitionGenerated {
 
     /**
      * Creates a {@link DataGenerator} that supplies vectors for indexing and queries for searching.
@@ -45,6 +49,11 @@ sealed interface DatasetConfig permits DatasetConfig.GcpDataset, DatasetConfig.F
         public DataGenerator createDataGenerator(TestConfiguration config) throws IOException {
             return new FileDataGenerator(config);
         }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            return builder.field("dataset", name);
+        }
     }
 
     /** A dataset specified via local file paths for doc vectors and (optionally) query vectors. */
@@ -54,6 +63,18 @@ sealed interface DatasetConfig permits DatasetConfig.GcpDataset, DatasetConfig.F
         public DataGenerator createDataGenerator(TestConfiguration config) throws IOException {
             return new FileDataGenerator(config);
         }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject("dataset");
+            builder.startObject("file");
+            builder.field("doc_vectors", docVectors);
+            if (queryVectors != null) {
+                builder.field("query_vectors", queryVectors);
+            }
+            builder.endObject();
+            return builder.endObject();
+        }
     }
 
     /** A synthetically generated partitioned dataset. */
@@ -62,6 +83,17 @@ sealed interface DatasetConfig permits DatasetConfig.GcpDataset, DatasetConfig.F
         static final ParseField NUM_PARTITIONS_FIELD = new ParseField("num_partitions");
         static final ParseField PARTITION_DISTRIBUTION_FIELD = new ParseField("partition_distribution");
         static final ParseField GENERATOR_SEED_FIELD = new ParseField("generator_seed");
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject("dataset");
+            builder.startObject("partition_generated");
+            builder.field("num_partitions", numPartitions);
+            builder.field("partition_distribution", partitionDistribution);
+            builder.field("generator_seed", generatorSeed);
+            builder.endObject();
+            return builder.endObject();
+        }
 
         private static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>("partition_generated", false, Builder::new);
 

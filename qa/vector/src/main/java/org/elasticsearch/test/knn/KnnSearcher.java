@@ -68,6 +68,7 @@ import org.elasticsearch.search.vectors.ESKnnFloatVectorQuery;
 import org.elasticsearch.search.vectors.IVFKnnFloatVectorQuery;
 import org.elasticsearch.search.vectors.QueryProfilerProvider;
 import org.elasticsearch.search.vectors.RescoreKnnVectorQuery;
+import org.elasticsearch.test.knn.data.DataGenerator;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -102,17 +103,17 @@ import static org.elasticsearch.test.knn.KnnIndexer.ID_FIELD;
 import static org.elasticsearch.test.knn.KnnIndexer.PARTITION_ID_FIELD;
 import static org.elasticsearch.test.knn.KnnIndexer.VECTOR_FIELD;
 
-class KnnSearcher {
+public class KnnSearcher {
 
     private final List<Path> docPath;
-    final Path indexPath;
-    final Path queryPath;
-    final int numDocs;
-    final int numQueryVectors;
+    public final Path indexPath;
+    public final Path queryPath;
+    public final int numDocs;
+    public final int numQueryVectors;
     private final KnnIndexTester.IndexType indexType;
-    int dim;
-    final VectorSimilarityFunction similarityFunction;
-    final VectorEncoding vectorEncoding;
+    public int dim;
+    public final VectorSimilarityFunction similarityFunction;
+    public final VectorEncoding vectorEncoding;
     private final boolean doPrecondition;
 
     KnnSearcher(Path indexPath, TestConfiguration testConfiguration) {
@@ -132,11 +133,11 @@ class KnnSearcher {
     }
 
     /** Provides the filter query and query-vector-to-search mapping for each search operation. */
-    interface FilterQueryProvider {
+    public interface FilterQueryProvider {
         /** Total number of search operations to execute */
         int searchCount();
 
-        /** The filter query for the i-th saerch operation, may be null */
+        /** The filter query for the i-th search operation, may be null */
         Query filter(int searchIndex);
 
         /** Maps a search operation index to a query vector array index */
@@ -144,17 +145,17 @@ class KnnSearcher {
     }
 
     /** Consumes search result IDs and computes recall metrics. */
-    interface ResultsConsumer {
+    public interface ResultsConsumer {
         void accept(int[][] resultIds, KnnIndexTester.Results results, SearchParameters searchParameters) throws IOException;
     }
 
     /** Iterates queries across sampled partitions, combining each partition filter with an optional selectivity filter. */
-    static class PartitionFilterQueryProvider implements FilterQueryProvider {
+    public static class PartitionFilterQueryProvider implements FilterQueryProvider {
         private final List<String> sampledPartitions;
         private final int numQueryVectors;
         private final Query selectivityFilter;
 
-        PartitionFilterQueryProvider(List<String> sampledPartitions, int numQueryVectors, @Nullable Query selectivityFilter) {
+        public PartitionFilterQueryProvider(List<String> sampledPartitions, int numQueryVectors, @Nullable Query selectivityFilter) {
             this.sampledPartitions = sampledPartitions;
             this.numQueryVectors = numQueryVectors;
             this.selectivityFilter = selectivityFilter;
@@ -183,11 +184,11 @@ class KnnSearcher {
     }
 
     /** One search per query vector with an optional selectivity filter applied uniformly. */
-    static class SimpleFilterQueryProvider implements FilterQueryProvider {
+    public static class SimpleFilterQueryProvider implements FilterQueryProvider {
         private final int numQueryVectors;
         private final Query selectivityFilter;
 
-        SimpleFilterQueryProvider(int numQueryVectors, @Nullable Query selectivityFilter) {
+        public SimpleFilterQueryProvider(int numQueryVectors, @Nullable Query selectivityFilter) {
             this.numQueryVectors = numQueryVectors;
             this.selectivityFilter = selectivityFilter;
         }
@@ -209,7 +210,7 @@ class KnnSearcher {
     }
 
     /** Computes per-partition recall by brute-force exact NN over sampled partitions. */
-    static class PartitionResultsConsumer implements ResultsConsumer {
+    public static class PartitionResultsConsumer implements ResultsConsumer {
         private final Path indexPath;
         private final VectorEncoding vectorEncoding;
         private final VectorSimilarityFunction similarityFunction;
@@ -219,7 +220,7 @@ class KnnSearcher {
         private final float[][] floatQueries;
         private final byte[][] byteQueries;
 
-        PartitionResultsConsumer(
+        public PartitionResultsConsumer(
             Path indexPath,
             VectorEncoding vectorEncoding,
             VectorSimilarityFunction similarityFunction,
@@ -327,12 +328,12 @@ class KnnSearcher {
     }
 
     /** Computes recall for file-based searches using cached or brute-force exact NN. */
-    static class FileBasedResultsConsumer implements ResultsConsumer {
+    public static class FileBasedResultsConsumer implements ResultsConsumer {
         private final KnnSearcher searcher;
         private final int offsetByteSize;
         private final Query selectivityFilter;
 
-        FileBasedResultsConsumer(KnnSearcher searcher, int offsetByteSize, @Nullable Query selectivityFilter) {
+        public FileBasedResultsConsumer(KnnSearcher searcher, int offsetByteSize, @Nullable Query selectivityFilter) {
             this.searcher = searcher;
             this.offsetByteSize = offsetByteSize;
             this.selectivityFilter = selectivityFilter;
@@ -350,7 +351,7 @@ class KnnSearcher {
      * Bundles query vectors, filter provider, and results consumer for a search run.
      * Created via {@link DataGenerator#createSearchSetup}.
      */
-    record SearchSetup(float[][] floatQueries, byte[][] byteQueries, FilterQueryProvider provider, ResultsConsumer consumer) {}
+    public record SearchSetup(float[][] floatQueries, byte[][] byteQueries, FilterQueryProvider provider, ResultsConsumer consumer) {}
 
     /** Executes searches using the pre-built setup and populates result metrics. */
     void search(KnnIndexTester.Results finalResults, SearchParameters searchParameters, Directory dir, SearchSetup setup)
@@ -534,7 +535,8 @@ class KnnSearcher {
         return new BooleanQuery.Builder().add(primary, BooleanClause.Occur.FILTER).add(secondary, BooleanClause.Occur.FILTER).build();
     }
 
-    static Query generateRandomQuery(Random random, Path indexPath, int size, float selectivity, boolean filterCached) throws IOException {
+    public static Query generateRandomQuery(Random random, Path indexPath, int size, float selectivity, boolean filterCached)
+        throws IOException {
         FixedBitSet bitSet = new FixedBitSet(size);
         for (int i = 0; i < size; i++) {
             if (random.nextFloat() < selectivity) {
@@ -745,7 +747,7 @@ class KnnSearcher {
         try (Directory dir = FSDirectory.open(indexPath); DirectoryReader reader = DirectoryReader.open(dir)) {
             List<Callable<Void>> tasks = new ArrayList<>();
             try (FileChannel qIn = FileChannel.open(queryPath)) {
-                KnnIndexer.VectorReader queryReader = KnnIndexer.VectorReader.create(
+                IndexVectorReader.VectorReader queryReader = IndexVectorReader.VectorReader.create(
                     qIn,
                     dim,
                     VectorEncoding.FLOAT32,
@@ -767,7 +769,12 @@ class KnnSearcher {
         try (Directory dir = FSDirectory.open(indexPath); DirectoryReader reader = DirectoryReader.open(dir)) {
             List<Callable<Void>> tasks = new ArrayList<>();
             try (FileChannel qIn = FileChannel.open(queryPath)) {
-                KnnIndexer.VectorReader queryReader = KnnIndexer.VectorReader.create(qIn, dim, VectorEncoding.BYTE, vectorFileOffsetBytes);
+                IndexVectorReader.VectorReader queryReader = IndexVectorReader.VectorReader.create(
+                    qIn,
+                    dim,
+                    VectorEncoding.BYTE,
+                    vectorFileOffsetBytes
+                );
                 for (int i = 0; i < numQueryVectors; i++) {
                     byte[] queryVector = new byte[dim];
                     queryReader.next(queryVector);

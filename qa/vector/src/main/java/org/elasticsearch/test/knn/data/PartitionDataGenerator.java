@@ -7,12 +7,17 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.test.knn;
+package org.elasticsearch.test.knn.data;
 
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
+import org.elasticsearch.test.knn.IndexVectorReader;
+import org.elasticsearch.test.knn.KnnIndexTester;
+import org.elasticsearch.test.knn.KnnIndexer;
+import org.elasticsearch.test.knn.KnnSearcher;
+import org.elasticsearch.test.knn.SearchParameters;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -30,7 +35,7 @@ import static org.elasticsearch.test.knn.KnnIndexTester.logger;
  * and each document is assigned a partition_id and a random vector.
  * Implements {@link DataGenerator} to provide unified indexing and search setup.
  */
-class PartitionDataGenerator implements DataGenerator {
+public class PartitionDataGenerator implements DataGenerator {
 
     private final int numDocs;
     private final int dimensions;
@@ -79,7 +84,7 @@ class PartitionDataGenerator implements DataGenerator {
     /**
      * Generates a random float vector of the configured dimensions.
      */
-    float[] nextVector() {
+    public float[] nextVector() {
         float[] vector = new float[dimensions];
         for (int i = 0; i < dimensions; i++) {
             vector[i] = random.nextFloat() * 2 - 1; // uniform in [-1, 1]
@@ -90,7 +95,7 @@ class PartitionDataGenerator implements DataGenerator {
     /**
      * Generates a random byte vector of the configured dimensions.
      */
-    byte[] nextByteVector() {
+    public byte[] nextByteVector() {
         byte[] vector = new byte[dimensions];
         random.nextBytes(vector);
         return vector;
@@ -136,7 +141,7 @@ class PartitionDataGenerator implements DataGenerator {
             }
         }
         logger.info("IndexingSetup: generated data with {} partitions, dim={}", this.numPartitions, this.dimensions);
-        KnnIndexer.IndexVectorReader vectorReader = new KnnIndexer.PartitionGeneratingVectorReader(this);
+        IndexVectorReader vectorReader = new IndexVectorReader.PartitionGeneratingVectorReader(this);
         KnnIndexer.DocumentFactory documentFactory = new KnnIndexer.PartitionDocumentFactory(docPartitionIds, docOrdinals);
         Sort indexSort = new Sort(new SortField(KnnIndexer.PARTITION_ID_FIELD, SortField.Type.STRING, false));
         return new KnnIndexTester.IndexingSetup(vectorReader, documentFactory, totalDocs, indexSort);

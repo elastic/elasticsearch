@@ -183,17 +183,19 @@ public class IndexCommitTimestampFieldRangeTests extends MapperServiceTestCase {
                 IndexWriterConfig indexWriterConfig = getIndexWriterConfig(useCFS, false);
                 var indexCommits = fakeNode.generateIndexCommits(numberOfNewCommits, false, false, generation -> {}, (commitId) -> {
                     try {
-                        return mapper.parse(
-                            source(
-                                indexMode == IndexMode.TIME_SERIES
-                                    ? TimeSeriesRoutingHashFieldMapper.encode(docId.incrementAndGet())
-                                    : String.valueOf(docId.incrementAndGet()),
-                                b -> {
-                                    b.field("@timestamp", timestampInCommits.get(commitId));
-                                },
-                                null
-                            )
-                        ).rootDoc();
+                        return List.of(
+                            mapper.parse(
+                                source(
+                                    indexMode == IndexMode.TIME_SERIES
+                                        ? TimeSeriesRoutingHashFieldMapper.encode(docId.incrementAndGet())
+                                        : String.valueOf(docId.incrementAndGet()),
+                                    b -> {
+                                        b.field("@timestamp", timestampInCommits.get(commitId));
+                                    },
+                                    null
+                                )
+                            ).rootDoc()
+                        );
                     } catch (IOException e) {
                         fail(e);
                         return null;
@@ -391,7 +393,7 @@ public class IndexCommitTimestampFieldRangeTests extends MapperServiceTestCase {
         }
     }
 
-    private IndexWriterConfig getIndexWriterConfig(boolean useCFS, boolean deletePreviousCommits) {
+    public static IndexWriterConfig getIndexWriterConfig(boolean useCFS, boolean deletePreviousCommits) {
         IndexWriterConfig indexWriterConfig = new IndexWriterConfig();
         indexWriterConfig.setUseCompoundFile(useCFS);
         if (deletePreviousCommits == false) {

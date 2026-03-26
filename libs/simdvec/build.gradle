@@ -29,9 +29,18 @@ dependencies {
   }
 }
 
-// compileMain21Java does not exist within idea (see MrJarPlugin) so we cannot reference directly by name
-tasks.matching { it.name == "compileMain21Java" }.configureEach {
+tasks.named('compileJava').configure {
   options.compilerArgs << '--add-modules=jdk.incubator.vector'
+  options.compilerArgs << '--add-reads=org.elasticsearch.simdvec=jdk.incubator.vector'
+}
+
+tasks.named('javadoc').configure {
+  options.addStringOption("-add-modules", "jdk.incubator.vector")
+  options.addStringOption("-add-reads", "org.elasticsearch.simdvec=jdk.incubator.vector")
+}
+
+tasks.withType(CheckForbiddenApisTask).configureEach {
+  ignoreMissingClasses = true
 }
 
 tasks.named('test').configure {

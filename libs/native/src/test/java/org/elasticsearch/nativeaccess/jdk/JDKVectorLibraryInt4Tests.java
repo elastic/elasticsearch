@@ -275,6 +275,36 @@ public class JDKVectorLibraryInt4Tests extends VectorSimilarityFunctionsTests {
         assertThat(ex.getMessage(), containsString("out of bounds for length"));
     }
 
+    // Verifies that individual offset values are bounds-checked against the data segment.
+    public void testBulkOffsetsOutOfRange() {
+        assumeTrue(notSupportedMsg(), supported());
+        final int packedLen = size / 2;
+        // INT4 length is packedLen (bytes) not element count; checkBulkOffsets computes
+        // rowBytes = packedLen * 4 / 8 which truncates to 0 when packedLen < 2.
+        assumeTrue("INT4 bounds check requires packedLen >= 2", packedLen >= 2);
+        final int numVecs = 3;
+        var packedSegment = arena.allocate((long) packedLen * numVecs);
+        var query = arena.allocate(size);
+        var scores = arena.allocate((long) numVecs * Float.BYTES);
+        var offsetsSegment = arena.allocate((long) numVecs * Integer.BYTES);
+
+        offsetsSegment.setAtIndex(ValueLayout.JAVA_INT, 0, 0);
+        offsetsSegment.setAtIndex(ValueLayout.JAVA_INT, 1, numVecs);
+        offsetsSegment.setAtIndex(ValueLayout.JAVA_INT, 2, 0);
+        Exception ex = expectThrows(
+            IOOBE,
+            () -> similarityBulkWithOffsets(packedSegment, query, packedLen, packedLen, offsetsSegment, numVecs, scores)
+        );
+        assertThat(ex.getMessage(), containsString("out of bounds for length"));
+
+        offsetsSegment.setAtIndex(ValueLayout.JAVA_INT, 1, -1);
+        ex = expectThrows(
+            IOOBE,
+            () -> similarityBulkWithOffsets(packedSegment, query, packedLen, packedLen, offsetsSegment, numVecs, scores)
+        );
+        assertThat(ex.getMessage(), containsString("out of bounds for length"));
+    }
+
     int similarity(MemorySegment unpacked, MemorySegment packed, int packedLen) {
         try {
             return (int) getVectorDistance().getHandle(

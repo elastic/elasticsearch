@@ -1382,7 +1382,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     // If search_shards yields no target groups for this cluster, there won't be a follow-up
                     // SearchResponse to populate per-cluster metadata later.
                     if (searchShardsResponse.getGroups().isEmpty()) {
-                        ccsClusterInfoUpdate(searchShardsResponse, clusters, clusterAlias, timeProvider);
+                        ccsClusterInfoUpdateAfterEmptySearchShardsGroups(clusters, clusterAlias, timeProvider);
                     }
                 }
 
@@ -1601,25 +1601,18 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
     /**
      * Updates per-cluster metadata when the ccs_minimize_roundtrips=false preflight completes but no
-     * shard groups are returned for a cluster, meaning no subsequent search phase will run for it.
+     * shard groups are returned for a cluster. Only records coordinator elapsed time for {@code took};
+     * shard counts and status must stay unset until {@link CCSSingleCoordinatorSearchProgressListener#onListShards},
+     * which asserts {@code Objects.equals(totalShards, skippedShards)} for any pre-set shard fields.
      */
-    static void ccsClusterInfoUpdate(
-        SearchShardsResponse searchShardsResponse,
+    static void ccsClusterInfoUpdateAfterEmptySearchShardsGroups(
         SearchResponse.Clusters clusters,
         String clusterAlias,
         SearchTimeProvider timeProvider
     ) {
         clusters.swapCluster(
             clusterAlias,
-            (k, v) -> new SearchResponse.Cluster.Builder(v).setStatus(SearchResponse.Cluster.Status.SUCCESSFUL)
-                .setTotalShards(0)
-                .setSuccessfulShards(0)
-                .setSkippedShards(searchShardsResponse.getNumSkippedShards())
-                .setFailedShards(0)
-                .setFailures(List.of())
-                .setTook(new TimeValue(timeProvider.buildTookInMillis()))
-                .setTimedOut(false)
-                .build()
+            (k, v) -> new SearchResponse.Cluster.Builder(v).setTook(new TimeValue(timeProvider.buildTookInMillis())).build()
         );
     }
 

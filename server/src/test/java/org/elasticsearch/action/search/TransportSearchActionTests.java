@@ -1357,8 +1357,8 @@ public class TransportSearchActionTests extends ESTestCase {
             awaitLatch(latch, 5, TimeUnit.SECONDS);
             assertNotNull(response.get());
             SearchResponse.Cluster cluster = clusters.getCluster("remote0");
-            assertThat(cluster.getStatus(), equalTo(SearchResponse.Cluster.Status.SUCCESSFUL));
-            assertThat(cluster.getTotalShards(), equalTo(0));
+            assertThat(cluster.getStatus(), equalTo(SearchResponse.Cluster.Status.RUNNING));
+            assertNull(cluster.getTotalShards());
             assertThat(cluster.getTook(), equalTo(new TimeValue(123L)));
         } finally {
             for (MockTransportService mockTransportService : mockTransportServices) {

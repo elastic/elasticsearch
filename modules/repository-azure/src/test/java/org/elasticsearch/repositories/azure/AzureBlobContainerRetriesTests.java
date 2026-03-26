@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
@@ -797,7 +798,14 @@ public class AzureBlobContainerRetriesTests extends AbstractBlobContainerRetries
 
         return new AzureBlobContainer(
             Objects.requireNonNullElse(blobContainerPath, randomBoolean() ? BlobPath.EMPTY : BlobPath.EMPTY.add(randomIdentifier())),
-            new AzureBlobStore(ProjectId.DEFAULT, repositoryMetadata, service, BigArrays.NON_RECYCLING_INSTANCE, RepositoriesMetrics.NOOP)
+            new AzureBlobStore(
+                ProjectId.DEFAULT,
+                repositoryMetadata,
+                service,
+                BigArrays.NON_RECYCLING_INSTANCE,
+                RepositoriesMetrics.NOOP,
+                BackoffPolicy.linearBackoff(TimeValue.timeValueMillis(100), Integer.MAX_VALUE, TimeValue.ONE_MINUTE)
+            )
         );
     }
 

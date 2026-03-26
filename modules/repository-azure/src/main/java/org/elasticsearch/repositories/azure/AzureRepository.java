@@ -14,6 +14,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
@@ -23,6 +24,7 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.SnapshotMetrics;
@@ -105,6 +107,28 @@ public class AzureRepository extends MeteredBlobStoreRepository {
          * The maximum number of concurrent batch deletes
          */
         static final Setting<Integer> MAX_CONCURRENT_BATCH_DELETES_SETTING = Setting.intSetting("max_concurrent_batch_deletes", 10, 1, 100);
+
+        /**
+         * Shard allocation processes are susceptible to transient errors from cloud provider repositories,
+         * including network connectivity and identity authorization issues.
+         */
+        static final Setting<TimeValue> RETRY_TRANSIENT_ERROR_DELAY_INCREMENT = Setting.timeSetting(
+            "azure.transient_error_retry.delay_increment",
+            TimeValue.timeValueMillis(50),
+            TimeValue.ZERO
+        );
+
+        static final Setting<TimeValue> RETRY_TRANSIENT_ERROR_MAXIMUM_DELAY = Setting.timeSetting(
+            "azure.transient_error_retry.maximum_delay",
+            TimeValue.timeValueMinutes(1),
+            TimeValue.ZERO
+        );
+
+        static final Setting<Integer> RETRY_TRANSIENT_ERROR_MAX_NUMBER_OF_RETRIES = Setting.intSetting(
+            "azure.transient_error_retry.maximum_number_of_retries",
+            Integer.MAX_VALUE,
+            0
+        );
     }
 
     private final ByteSizeValue chunkSize;
@@ -178,7 +202,18 @@ public class AzureRepository extends MeteredBlobStoreRepository {
 
     @Override
     protected AzureBlobStore createBlobStore() {
-        final AzureBlobStore blobStore = new AzureBlobStore(getProjectId(), metadata, storageService, bigArrays, repositoriesMetrics);
+        final AzureBlobStore blobStore = new AzureBlobStore(
+            getProjectId(),
+            metadata,
+            storageService,
+            bigArrays,
+            repositoriesMetrics,
+            BackoffPolicy.linearBackoff(
+                Repository.RETRY_TRANSIENT_ERROR_DELAY_INCREMENT.get(metadata.settings()),
+                Repository.RETRY_TRANSIENT_ERROR_MAX_NUMBER_OF_RETRIES.get(metadata.settings()),
+                Repository.RETRY_TRANSIENT_ERROR_MAXIMUM_DELAY.get(metadata.settings())
+            )
+        );
 
         logger.debug(
             () -> format(

@@ -70,7 +70,6 @@ import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.azure.AzureRepository.Repository;
@@ -133,6 +132,7 @@ public class AzureBlobStore implements BlobStore {
     private final int deletionBatchSize;
     private final int maxConcurrentBatchDeletes;
     private final int multipartUploadMaxConcurrency;
+    private final BackoffPolicy transientErrorBackoffPolicy;
 
     private final RequestMetricsRecorder requestMetricsRecorder;
     private final AzureClientProvider.RequestMetricsHandler requestMetricsHandler;
@@ -142,7 +142,8 @@ public class AzureBlobStore implements BlobStore {
         RepositoryMetadata metadata,
         AzureStorageService service,
         BigArrays bigArrays,
-        RepositoriesMetrics repositoriesMetrics
+        RepositoriesMetrics repositoriesMetrics,
+        BackoffPolicy transientErrorBackoffPolicy
     ) {
         this.projectId = projectId;
         this.container = Repository.CONTAINER_SETTING.get(metadata.settings());
@@ -158,6 +159,7 @@ public class AzureBlobStore implements BlobStore {
         this.deletionBatchSize = Repository.DELETION_BATCH_SIZE_SETTING.get(metadata.settings());
         this.maxConcurrentBatchDeletes = Repository.MAX_CONCURRENT_BATCH_DELETES_SETTING.get(metadata.settings());
         this.multipartUploadMaxConcurrency = service.getMultipartUploadMaxConcurrency();
+        this.transientErrorBackoffPolicy = transientErrorBackoffPolicy;
 
         List<RequestMatcher> requestMatchers = List.of(
             new RequestMatcher((httpMethod, url) -> httpMethod == HttpMethod.HEAD, Operation.GET_BLOB_PROPERTIES),
@@ -244,7 +246,7 @@ public class AzureBlobStore implements BlobStore {
             return new AzureTenaciousRetryBlobContainer(
                 new AzureBlobContainer(path, this),
                 Integer.MAX_VALUE,
-                BackoffPolicy.linearBackoff(TimeValue.timeValueMillis(50), Integer.MAX_VALUE, TimeValue.ONE_MINUTE),
+                transientErrorBackoffPolicy,
                 repositoriesMetrics
             );
         }

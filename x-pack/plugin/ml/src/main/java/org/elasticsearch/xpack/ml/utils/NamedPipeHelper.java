@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.ml.utils;
 
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
@@ -120,9 +119,8 @@ public class NamedPipeHelper {
             try {
                 return new FileInputStream(file.toString());
             } catch (IOException e) {
-                RuntimeException wrapped = new RuntimeException(e);
                 if (timeoutMillisRemaining <= 0) {
-                    propagateWrappedException(wrapped);
+                    throw e;
                 }
                 long thisSleep = Math.min(timeoutMillisRemaining, PAUSE_TIME_MS);
                 timeoutMillisRemaining -= thisSleep;
@@ -130,7 +128,7 @@ public class NamedPipeHelper {
                     Thread.sleep(thisSleep);
                 } catch (InterruptedException ie) {
                     Thread.currentThread().interrupt();
-                    propagateWrappedException(wrapped);
+                    throw e;
                 }
             }
         }
@@ -189,9 +187,8 @@ public class NamedPipeHelper {
             try {
                 return new FileOutputStream(file.toString());
             } catch (IOException e) {
-                RuntimeException wrapped = new RuntimeException(e);
                 if (timeoutMillisRemaining <= 0) {
-                    propagateWrappedException(wrapped);
+                    throw e;
                 }
                 long thisSleep = Math.min(timeoutMillisRemaining, PAUSE_TIME_MS);
                 timeoutMillisRemaining -= thisSleep;
@@ -199,7 +196,7 @@ public class NamedPipeHelper {
                     Thread.sleep(thisSleep);
                 } catch (InterruptedException ie) {
                     Thread.currentThread().interrupt();
-                    propagateWrappedException(wrapped);
+                    throw e;
                 }
             }
         }
@@ -244,18 +241,4 @@ public class NamedPipeHelper {
         return Files.newOutputStream(file);
     }
 
-    /**
-     * The pipe open methods wrap IOExceptions in RuntimeExceptions so they can be caught
-     * generically in the retry loop. If such an exception needs to be propagated back to a user of
-     * this class then it's nice if they get the original IOException rather than having it wrapped
-     * in a RuntimeException. However, the openers could also possibly throw other RuntimeExceptions,
-     * so this method accounts for this case too.
-     */
-    private static void propagateWrappedException(RuntimeException e) throws IOException {
-        Throwable ioe = ExceptionsHelper.unwrap(e, IOException.class);
-        if (ioe != null) {
-            throw (IOException) ioe;
-        }
-        throw e;
-    }
 }

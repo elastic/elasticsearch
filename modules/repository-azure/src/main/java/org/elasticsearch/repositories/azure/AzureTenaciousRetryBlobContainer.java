@@ -41,8 +41,8 @@ public class AzureTenaciousRetryBlobContainer extends TenaciousRetryBlobContaine
     }
 
     @Override
-    protected String cloudServiceProvider() {
-        return "Azure";
+    protected String getRepositoryType() {
+        return AzureRepository.TYPE;
     }
 
     @Override

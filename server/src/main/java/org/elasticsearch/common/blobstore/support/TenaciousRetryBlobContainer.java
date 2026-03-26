@@ -44,7 +44,7 @@ public abstract class TenaciousRetryBlobContainer extends FilterBlobContainer {
 
     protected abstract boolean isExceptionRetryable(Exception e);
 
-    protected abstract String cloudServiceProvider();
+    protected abstract String getRepositoryType();
 
     @Override
     public Map<String, BlobMetadata> listBlobs(OperationPurpose purpose) throws IOException {
@@ -71,14 +71,14 @@ public abstract class TenaciousRetryBlobContainer extends FilterBlobContainer {
                 T t = operation.get();
                 if (attempts > 1) {
                     repositoriesMetrics.allocationTransientErrorRetrySuccessCounter()
-                        .incrementBy(1, Map.of("cloud_provider", cloudServiceProvider()));
+                        .incrementBy(1, Map.of("cloud_provider", getRepositoryType()));
                 }
                 return t;
             } catch (Exception e) {
                 if (isExceptionRetryable(e) && attempts < maxRetries) {
                     attempts++;
                     repositoriesMetrics.allocationTransientErrorRetryCounter()
-                        .incrementBy(1, Map.of("cloud_provider", cloudServiceProvider()));
+                        .incrementBy(1, Map.of("cloud_provider", getRepositoryType()));
                     try {
                         Thread.sleep(delayIncrement.millis() * attempts);
                     } catch (InterruptedException exception) {

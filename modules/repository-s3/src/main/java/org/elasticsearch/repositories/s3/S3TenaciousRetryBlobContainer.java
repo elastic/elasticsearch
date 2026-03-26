@@ -42,8 +42,8 @@ public class S3TenaciousRetryBlobContainer extends TenaciousRetryBlobContainer {
     }
 
     @Override
-    protected String cloudServiceProvider() {
-        return "aws";
+    protected String getRepositoryType() {
+        return S3Repository.TYPE;
     }
 
     @Override

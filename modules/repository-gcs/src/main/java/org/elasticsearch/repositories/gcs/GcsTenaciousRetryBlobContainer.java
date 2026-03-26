@@ -40,8 +40,8 @@ public class GcsTenaciousRetryBlobContainer extends TenaciousRetryBlobContainer 
     }
 
     @Override
-    protected String cloudServiceProvider() {
-        return "gcs";
+    protected String getRepositoryType() {
+        return GoogleCloudStorageRepository.TYPE;
     }
 
     @Override

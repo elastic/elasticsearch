@@ -38,9 +38,6 @@ public final class QueryFetchSearchResult extends SearchPhaseResult {
     public QueryFetchSearchResult(StreamInput in) throws IOException {
         // These get a ref count of 1 when we create them, so we don't need to incRef here
         this(new QuerySearchResult(in), new FetchSearchResult(in));
-        if (in.getTransportVersion().supports(SearchPhaseResult.SEARCH_PHASE_BYTES_READ)) {
-            setDirectoryMetrics(new DirectoryMetrics(in));
-        }
     }
 
     public QueryFetchSearchResult(QuerySearchResult queryResult, FetchSearchResult fetchResult) {
@@ -98,9 +95,6 @@ public final class QueryFetchSearchResult extends SearchPhaseResult {
     public void writeTo(StreamOutput out) throws IOException {
         queryResult.writeTo(out);
         fetchResult.writeTo(out);
-        if (out.getTransportVersion().supports(SearchPhaseResult.SEARCH_PHASE_BYTES_READ)) {
-            getDirectoryMetrics().writeTo(out);
-        }
     }
 
     @Override

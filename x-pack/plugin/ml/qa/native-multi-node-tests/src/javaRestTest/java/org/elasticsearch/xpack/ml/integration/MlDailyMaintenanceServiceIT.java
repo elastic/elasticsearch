@@ -18,6 +18,7 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
+import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.Blocked;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
@@ -94,16 +95,22 @@ public class MlDailyMaintenanceServiceIT extends MlNativeAutodetectIntegTestCase
     }
 
     /**
-     * Verifies that the idle job auto-close maintenance task closes an open job whose datafeed
-     * is stopped and whose last data is older than the configured timeout, while leaving an
-     * open job (with no datafeed but also no stale data) alone.
+     * Verifies that the idle job auto-close maintenance task closes an open job whose configured
+     * datafeed is stopped and whose last data is older than the configured timeout, while leaving
+     * an open job without a configured datafeed alone.
      */
     public void testTriggerCloseIdleJobsWithStoppedDatafeeds() throws Exception {
         String idleJobId = "idle-job-test";
         String activeJobId = "active-job-test";
+        String dataIndex = "idle-job-data";
+
+        client().admin().indices().prepareCreate(dataIndex).setMapping("time", "type=date,format=epoch_second", "value", "type=long").get();
 
         putJob(idleJobId);
         putJob(activeJobId);
+
+        DatafeedConfig idleDatafeed = new DatafeedConfig.Builder("datafeed-" + idleJobId, idleJobId).setIndices(List.of(dataIndex)).build();
+        putDatafeed(idleDatafeed);
 
         long nowSeconds = System.currentTimeMillis() / 1000;
         long threeDaysAgoSeconds = nowSeconds - TimeValue.timeValueHours(72).seconds();

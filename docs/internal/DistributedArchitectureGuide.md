@@ -2805,8 +2805,12 @@ sequenceDiagram
 ```
 
 When replication and the ref-counted coordination above have finished, the primary completes the shard-level request and
-returns the result to the node that issued it (typically the coordinating node), which in turn completes the write action
-and sends the HTTP response to the client.
+returns the result to the node that issued that shard-level transport request. For a normal REST bulk request, that
+issuer is the HTTP request coordinating node, which then completes the write action and sends
+the HTTP response to the client. The same shard-level transport requests can also be generated internally, for example 
+via [TriggeredWatchStore#putAll](https://github.com/elastic/elasticsearch/blob/v9.3.0/x-pack/plugin/watcher/src/main/java/org/elasticsearch/xpack/watcher/execution/TriggeredWatchStore.java#L84)
+in Watcher. The issuer is then whichever node runs that internal client, and the primary returns the result to that 
+transport caller.
 
 ### Primary Terms & Sequence Numbers
 

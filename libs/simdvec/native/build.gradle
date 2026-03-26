@@ -48,11 +48,11 @@ model {
     gcc(Gcc) {
       target("aarch64") {
         cppCompiler.executable = "/usr/bin/g++"
-        cppCompiler.withArguments { args -> args.addAll(["-std=c++17", "-O3", "-march=armv8.2-a+dotprod"]) }
+        cppCompiler.withArguments { args -> args.addAll(["-std=c++17", "-O3", "-march=armv8.2-a+dotprod", "-Winline"]) }
       }
       target("amd64") {
         cppCompiler.executable = "/usr/bin/g++"
-        cppCompiler.withArguments { args -> args.addAll(["-std=c++17", "-O3", "-march=core-avx2"]) }
+        cppCompiler.withArguments { args -> args.addAll(["-std=c++17", "-O3", "-march=core-avx2", "-Winline"]) }
       }
     }
     cl(VisualCpp) {
@@ -65,11 +65,11 @@ model {
     }
     clang(Clang) {
       target("aarch64") {
-        cppCompiler.withArguments { args -> args.addAll(["-std=c++17", "-O3", "-march=armv8.2-a+dotprod"]) }
+        cppCompiler.withArguments { args -> args.addAll(["-std=c++17", "-O3", "-march=armv8.2-a+dotprod", "-Winline"]) }
       }
 
       target("amd64") {
-        cppCompiler.withArguments { args -> args.addAll(["-std=c++17", "-O3", "-march=core-avx2"]) }
+        cppCompiler.withArguments { args -> args.addAll(["-std=c++17", "-O3", "-march=core-avx2", "-Winline"]) }
       }
     }
   }

@@ -8,11 +8,9 @@
 #
 
 # Cross-compilation toolchain image for libvec.
-# Layers clang-18+lld-18 (Darwin target) and gcc-14 (Linux targets) on top of
-# the base image that provides the macOS SDK.
-#
-# Rebuild this image when toolchain versions need updating — no Mac or SDK
-# tarball required.
+# Contains clang-18+lld-18 (Darwin target) and gcc-14 (Linux targets).
+# No macOS SDK required — Darwin builds use -ffreestanding with clang's own
+# libc++ headers (libc++-18-dev).
 #
 # To build and push (see also build_cross_toolchain_image.sh):
 #   docker build \
@@ -20,8 +18,7 @@
 #     -t docker.elastic.co/es-dev/es-native-cross-toolchain:1 .
 #   docker push docker.elastic.co/es-dev/es-native-cross-toolchain:1
 
-ARG BASE_IMAGE=docker.elastic.co/es-dev/es-native-cross-base:1
-FROM ${BASE_IMAGE}
+FROM debian:trixie-slim
 
 # clang-18 and lld-18 from the official LLVM apt repository.
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -40,6 +37,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         clang-18 \
         lld-18 \
         llvm-18 \
+        libc++-18-dev \
         gcc-14 \
         g++-14 \
         gcc-14-aarch64-linux-gnu \

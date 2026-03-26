@@ -28,18 +28,15 @@ fi
 VERSION=1
 HOST=docker.elastic.co
 REPOSITORY=es-dev/es-native-cross-toolchain
-BASE_IMAGE=$HOST/es-dev/es-native-cross-base:$VERSION
 IMAGE=$HOST/$REPOSITORY:$VERSION
 if [ "$LOCAL" = true ]; then
-  BASE_IMAGE=es-native-cross-base:local
   IMAGE=es-native-cross-toolchain:local
 fi
 
 cd "$(dirname "$0")"
 
-echo "Building $IMAGE (base: $BASE_IMAGE) ..."
+echo "Building $IMAGE ..."
 docker build --platform linux/amd64 \
-  --build-arg BASE_IMAGE="$BASE_IMAGE" \
   -f Dockerfile.cross-toolchain \
   -t "$IMAGE" \
   .

@@ -17,9 +17,8 @@
 # Intended to be run inside the cross-compilation toolchain container.
 # See publish_vec_binaries.sh.
 
-MACOS_SDK ?= /opt/MacOSX.sdk
 HEADERS    = -I src/vec/headers/
-CXXFLAGS   = -std=c++17 -O3 -fpic
+CXXFLAGS   = -std=c++17 -O3 -fpic -DNDEBUG
 
 # Per-architecture march flags
 MARCH_AARCH64_TIER1 = armv8.2-a+dotprod
@@ -28,8 +27,13 @@ MARCH_AMD64_TIER1   = core-avx2
 MARCH_AMD64_TIER2   = icelake-client
 
 # Compilers
-CLANG       = clang++-18 --target=arm64-apple-macos14 -isysroot $(MACOS_SDK) -stdlib=libc++
-CLANG_LINK  = $(CLANG) -fuse-ld=lld
+# Darwin cross-compilation: -nostdinc blocks host (glibc) headers, then we
+# explicitly add back clang builtins, clang's libc++.
+CLANG_RESOURCE = $(shell clang++-18 -print-resource-dir)
+CLANG       = clang++-18 --target=arm64-apple-macos14 -nostdinc \
+                -isystem /usr/lib/llvm-18/include/c++/v1 \
+                -isystem $(CLANG_RESOURCE)/include
+CLANG_LINK  = clang++-18 --target=arm64-apple-macos14 -fuse-ld=lld -nostdlib -Wl,-undefined,dynamic_lookup
 GCC_ARM     = aarch64-linux-gnu-g++-14
 GCC_X64     = g++-14
 

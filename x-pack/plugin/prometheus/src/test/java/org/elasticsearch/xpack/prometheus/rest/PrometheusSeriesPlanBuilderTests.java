@@ -93,7 +93,7 @@ public class PrometheusSeriesPlanBuilderTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> PrometheusSeriesPlanBuilder.buildPlan("*", List.of("sum(up)"), START, END, 0)
         );
-        assertThat(ex.getMessage(), containsString("sum(up)"));
+        assertThat(ex.getMessage(), containsString("match[] selector must be an instant vector selector, got: [sum(up)]"));
     }
 
     public void testBuildPlanRejectsInvalidSelectorSyntax() {

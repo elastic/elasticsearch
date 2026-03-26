@@ -60,7 +60,6 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SummationMode;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
-import org.elasticsearch.xpack.esql.expression.function.fulltext.MultiMatch;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Score;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.SingleFieldFullTextFunction;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
@@ -110,6 +109,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Les
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
+import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.LiteralsOnTheRight;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneRedundantOrderBy;
@@ -141,6 +141,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.Sample;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
+import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UriParts;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
@@ -161,6 +162,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -175,6 +177,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.ONE;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.THREE;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TWO;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.asLimit;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.containsIgnoringIds;
@@ -190,8 +193,6 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.singleValue;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION;
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.NO_FIELDS;
-import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyze;
-import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultAnalyzer;
 import static org.elasticsearch.xpack.esql.core.expression.Literal.NULL;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
@@ -217,7 +218,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
-import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasSize;
@@ -4590,7 +4590,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * \_Project[[s{r}#3, s_expr{r}#5, s_null{r}#7, w{r}#10]]
      *   \_Project[[s{r}#3, s_expr{r}#5, s_null{r}#7, w{r}#10]]
      *     \_Eval[[MVSUM([1, 2][INTEGER]) * $$COUNT$s$0{r}#25 AS s, MVSUM(314.0[DOUBLE] / 100[INTEGER]) * $$COUNT$s$0{r}#25 AS s
-     * _expr, MVSUM(null[NULL]) * $$COUNT$s$0{r}#25 AS s_null]]
+     * _expr, null[NULL] AS s_null]]
      *       \_Aggregate[[w{r}#10],[COUNT(*[KEYWORD]) AS $$COUNT$s$0, w{r}#10]]
      *         \_Eval[[emp_no{f}#15 % 2[INTEGER] AS w]]
      *           \_EsRelation[test][_meta_field{f}#21, emp_no{f}#15, first_name{f}#16, ..]
@@ -4631,14 +4631,12 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var count_expr = as(mul_expr.right(), ReferenceAttribute.class);
         assertThat(count_expr.name(), equalTo("$$COUNT$s$0"));
 
-        // s_null == mv_sum(null) * count(*)
+        // s_null == null (literal) — SUM(null) short-circuits to a null literal of NULL type
         var s_null = as(exprs.get(2), Alias.class);
         assertThat(s_null.name(), equalTo("s_null"));
-        var mul_null = as(s_null.child(), Mul.class);
-        var mvSum_null = as(mul_null.left(), MvSum.class);
-        assertThat(mvSum_null.field(), equalTo(NULL));
-        var count_null = as(mul_null.right(), ReferenceAttribute.class);
-        assertThat(count_null.name(), equalTo("$$COUNT$s$0"));
+        var nullLiteral = as(s_null.child(), Literal.class);
+        assertNull(nullLiteral.value());
+        assertThat(nullLiteral.dataType(), equalTo(DataType.NULL));
 
         var countAgg = as(Alias.unwrap(agg.aggregates().get(0)), Count.class);
         assertThat(countAgg.children().get(0), instanceOf(Literal.class));
@@ -5466,8 +5464,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     public static boolean releaseBuildForInlineStats(@Nullable String query) {
         if (EsqlCapabilities.Cap.INLINE_STATS.isEnabled() == false) {
             if (query != null) {
-                var e = expectThrows(ParsingException.class, () -> analyze(query));
-                assertThat(e.getMessage(), containsString("mismatched input 'INLINE' expecting"));
+                analyzer().addEmployees("test").error(query, ParsingException.class, containsString("mismatched input 'INLINE' expecting"));
             }
             return true;
         }
@@ -6287,8 +6284,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | RENAME languages AS int
             | LOOKUP_?? int_number_names ON int""";
         if (Build.current().isSnapshot() == false) {
-            var e = expectThrows(ParsingException.class, () -> analyze(query));
-            assertThat(e.getMessage(), containsString("line 3:3: mismatched input 'LOOKUP' expecting {"));
+            defaultAnalyzer().error(query, ParsingException.class, containsString("line 3:3: mismatched input 'LOOKUP' expecting {"));
             return;
         }
         var plan = optimizedPlan(query);
@@ -6368,8 +6364,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | LOOKUP_?? int_number_names ON int
             | STATS MIN(emp_no) BY name""";
         if (Build.current().isSnapshot() == false) {
-            var e = expectThrows(ParsingException.class, () -> analyze(query));
-            assertThat(e.getMessage(), containsString("line 3:3: mismatched input 'LOOKUP' expecting {"));
+            defaultAnalyzer().error(query, ParsingException.class, containsString("line 3:3: mismatched input 'LOOKUP' expecting {"));
             return;
         }
         var plan = optimizedPlan(query);
@@ -8006,24 +8001,6 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         Limit limit = as(plan, Limit.class);
         Filter filter = as(limit.child(), Filter.class);
         Match match = as(filter.condition(), Match.class);
-        MapExpression me = as(match.options(), MapExpression.class);
-        assertEquals(1, me.entryExpressions().size());
-        EntryExpression ee = as(me.entryExpressions().get(0), EntryExpression.class);
-        BytesRef key = as(ee.key().fold(FoldContext.small()), BytesRef.class);
-        assertEquals("minimum_should_match", key.utf8ToString());
-        assertEquals(new Literal(EMPTY, 2.0, DataType.DOUBLE), ee.value());
-        assertEquals(DataType.DOUBLE, ee.dataType());
-    }
-
-    public void testFunctionNamedParamsAsFunctionArgument1() {
-        var query = """
-            from test
-            | WHERE MULTI_MATCH("Anna Smith", first_name, last_name, {"minimum_should_match": 2.0})
-            """;
-        var plan = optimizedPlan(query);
-        Limit limit = as(plan, Limit.class);
-        Filter filter = as(limit.child(), Filter.class);
-        MultiMatch match = as(filter.condition(), MultiMatch.class);
         MapExpression me = as(match.options(), MapExpression.class);
         assertEquals(1, me.entryExpressions().size());
         EntryExpression ee = as(me.entryExpressions().get(0), EntryExpression.class);
@@ -10456,6 +10433,25 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         as(registeredDomain.child(), EsRelation.class);
     }
 
+    /**
+     * <pre>{@code
+     * Limit[1000[INTEGER],false,false]
+     * \_LocalRelation[[_meta_field{f}#10, emp_no{f}#4, first_name{f}#5, gender{f}#6, hire_date{f}#11, job{f}#12, job.raw{f}#13, lang
+     * uages{f}#7, last_name{f}#8, long_noidx{f}#14, salary{f}#9],EMPTY]
+     * }</pre>
+     */
+    public void testLimitByZero() {
+        assumeTrue("LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_LIMIT_BY.isEnabled());
+        var plan = plan("""
+            FROM test
+            | LIMIT 0 BY emp_no
+            """);
+
+        var defaultLimit = as(plan, Limit.class);
+        assertThat(((Literal) defaultLimit.limit()).value(), equalTo(1000));
+        as(defaultLimit.child(), LocalRelation.class);
+    }
+
     public void testTopSnippetsQueryMustBeFoldable() {
         VerificationException e = expectThrows(VerificationException.class, () -> plan("""
             FROM test
@@ -10466,5 +10462,253 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             e.getMessage(),
             containsString("second argument of [TOP_SNIPPETS(first_name, last_name)] must be a constant, received [last_name]")
         );
+    }
+
+    /**
+     * If we have SORT a | SORT b | LIMIT N BY attrs it should drop the 'a' in TopNBy and become TopNBy[N, b, attrs]
+     *
+     * {@code
+     * Limit[1000[INTEGER],false,false]
+     * \_TopNBy[[Order[salary{f}#11,DESC,FIRST]],5[INTEGER],[languages{f}#9]]
+     *   \_EsRelation[employees][_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, ge..]
+     * }
+     */
+    public void testOnlyLastSortPreservedTopNBy() {
+        assumeTrue("SORT | LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_TOPN_BY.isEnabled());
+        var query = """
+            FROM employees
+            | SORT emp_no DESC
+            | SORT salary DESC
+            | LIMIT 5 BY languages
+            """;
+
+        var plan = optimizedPlan(query);
+
+        var defaultLimit = as(plan, Limit.class);
+        assertThat(((Literal) defaultLimit.limit()).value(), equalTo(1000));
+        var topNBy = as(defaultLimit.child(), TopNBy.class);
+        var limit = as(topNBy.limitPerGroup(), Literal.class);
+        assertThat(limit.value(), equalTo(5));
+        assertThat(topNBy.order().size(), equalTo(1));
+
+        assertThat(topNBy.groupings(), everyItem(instanceOf(FieldAttribute.class)));
+        assertThat(topNBy.groupings().size(), equalTo(1));
+        var groupKey = as(topNBy.groupings().getFirst(), FieldAttribute.class);
+        assertThat(groupKey.name(), equalTo("languages"));
+
+        var order = as(topNBy.order().getFirst(), Order.class);
+        var orderAttr = as(order.child(), FieldAttribute.class);
+        assertThat(orderAttr.name(), equalTo("salary"));
+        assertThat(order.direction(), equalTo(Order.OrderDirection.DESC));
+
+        var esRelation = as(topNBy.child(), EsRelation.class);
+        assertThat(esRelation.indexPattern(), equalTo("employees"));
+    }
+
+    /**
+     * If we have SORT a | {something else} | SORT b | LIMIT N BY attrs it should drop the 'a' in TopNBy and become TopNBy[N, b, attrs]
+     *
+     * {@code
+     * Project[[emp_no{f}#9, salary{f}#14, languages{f}#12]]
+     * \_Limit[1000[INTEGER],false,false]
+     *   \_TopNBy[[Order[salary{f}#14,DESC,FIRST]],5[INTEGER],[languages{f}#12]]
+     *     \_EsRelation[employees][_meta_field{f}#15, emp_no{f}#9, first_name{f}#10, g..]
+     * }
+     */
+    public void testOnlyLastNonContiguousSortPreservedTopNBy() {
+        assumeTrue("SORT | LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_TOPN_BY.isEnabled());
+        var query = """
+            FROM employees
+            | SORT emp_no DESC
+            | KEEP emp_no, salary, languages
+            | SORT salary DESC
+            | LIMIT 5 BY languages
+            """;
+
+        var plan = optimizedPlan(query);
+
+        var project = as(plan, Project.class);
+        var projections = project.projections();
+        assertThat(projections.size(), equalTo(3));
+        assertThat(projections.get(0).name(), equalTo("emp_no"));
+        assertThat(projections.get(1).name(), equalTo("salary"));
+        assertThat(projections.get(2).name(), equalTo("languages"));
+
+        var defaultLimit = as(project.child(), Limit.class);
+        assertThat(((Literal) defaultLimit.limit()).value(), equalTo(1000));
+        var topNBy = as(defaultLimit.child(), TopNBy.class);
+        var limit = as(topNBy.limitPerGroup(), Literal.class);
+        assertThat(limit.value(), equalTo(5));
+        assertThat(topNBy.order().size(), equalTo(1));
+
+        assertThat(topNBy.groupings(), everyItem(instanceOf(FieldAttribute.class)));
+        assertThat(topNBy.groupings().size(), equalTo(1));
+        var groupKey = as(topNBy.groupings().getFirst(), FieldAttribute.class);
+        assertThat(groupKey.name(), equalTo("languages"));
+
+        var order = as(topNBy.order().getFirst(), Order.class);
+        var orderAttr = as(order.child(), FieldAttribute.class);
+        assertThat(orderAttr.name(), equalTo("salary"));
+        assertThat(order.direction(), equalTo(Order.OrderDirection.DESC));
+
+        var esRelation = as(topNBy.child(), EsRelation.class);
+        assertThat(esRelation.indexPattern(), equalTo("employees"));
+    }
+
+    /**
+     * {@code
+     * Project[[emp_no{f}#11, salary{f}#16, languages{f}#14, job{f}#19]]
+     * \_Limit[1000[INTEGER],false,false]
+     *   \_TopNBy[[Order[salary{f}#16,DESC,FIRST]],5[INTEGER],[$$limit_by$0$0{r$}#22, job{f}#19]]
+     *     \_Eval[[languages{f}#14 * 2[INTEGER] AS $$limit_by$0$0#22]]
+     *       \_EsRelation[employees][_meta_field{f}#17, emp_no{f}#11, first_name{f}#12, ..]
+     * }
+     */
+    public void testOnlyLastNonContiguousSortPreservedTopNByWithExprs() {
+        assumeTrue("SORT | LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_TOPN_BY.isEnabled());
+        var query = """
+            FROM employees
+            | SORT emp_no DESC
+            | KEEP emp_no, salary, languages, job
+            | SORT salary DESC
+            | LIMIT 5 BY languages * 2, job
+            """;
+
+        var plan = optimizedPlan(query);
+
+        var project = as(plan, Project.class);
+        var projections = project.projections();
+        assertThat(projections.size(), equalTo(4));
+        assertThat(projections.get(0).name(), equalTo("emp_no"));
+        assertThat(projections.get(1).name(), equalTo("salary"));
+        assertThat(projections.get(2).name(), equalTo("languages"));
+        assertThat(projections.get(3).name(), equalTo("job"));
+
+        var defaultLimit = as(project.child(), Limit.class);
+        assertThat(((Literal) defaultLimit.limit()).value(), equalTo(1000));
+        var topNBy = as(defaultLimit.child(), TopNBy.class);
+        var limit = as(topNBy.limitPerGroup(), Literal.class);
+        assertThat(limit.value(), equalTo(5));
+        assertThat(topNBy.order().size(), equalTo(1));
+
+        assertThat(topNBy.groupings().size(), equalTo(2));
+        var firstGroupKey = as(topNBy.groupings().get(0), ReferenceAttribute.class);
+        assertThat(firstGroupKey.synthetic(), equalTo(true));
+        var secondGroupKey = as(topNBy.groupings().get(1), FieldAttribute.class);
+        assertThat(secondGroupKey.synthetic(), equalTo(false));
+        assertThat(secondGroupKey.field().getName(), equalTo("job"));
+
+        var eval = as(topNBy.child(), Eval.class);
+        assertThat(eval.fields().size(), equalTo(1));
+        var alias = as(eval.fields().getFirst(), Alias.class);
+        assertThat(alias.toAttribute().id(), equalTo(firstGroupKey.id()));
+        as(alias.child(), Mul.class);
+
+        var order = as(topNBy.order().getFirst(), Order.class);
+        var orderAttr = as(order.child(), FieldAttribute.class);
+        assertThat(orderAttr.name(), equalTo("salary"));
+        assertThat(order.direction(), equalTo(Order.OrderDirection.DESC));
+
+        var esRelation = as(eval.child(), EsRelation.class);
+        assertThat(esRelation.indexPattern(), equalTo("employees"));
+    }
+
+    public void testTopNByWorksWithQualifiedNames() {
+        assumeTrue("SORT | LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_TOPN_BY.isEnabled());
+        var query = """
+            FROM employees
+            | SORT salary DESC
+            | LIMIT 5 BY [employees].[languages]
+            """;
+
+        var plan = optimizedPlan(query);
+
+        var defaultLimit = as(plan, Limit.class);
+        assertThat(((Literal) defaultLimit.limit()).value(), equalTo(1000));
+        var topNBy = as(defaultLimit.child(), TopNBy.class);
+        var limit = as(topNBy.limitPerGroup(), Literal.class);
+        assertThat(limit.value(), equalTo(5));
+        assertThat(topNBy.order().size(), equalTo(1));
+
+        assertThat(topNBy.groupings(), everyItem(instanceOf(FieldAttribute.class)));
+        assertThat(topNBy.groupings().size(), equalTo(1));
+        var groupKey = as(topNBy.groupings().getFirst(), FieldAttribute.class);
+        assertThat(groupKey.name(), equalTo("languages"));
+
+        var order = as(topNBy.order().getFirst(), Order.class);
+        var orderAttr = as(order.child(), FieldAttribute.class);
+        assertThat(orderAttr.name(), equalTo("salary"));
+        assertThat(order.direction(), equalTo(Order.OrderDirection.DESC));
+
+        var esRelation = as(topNBy.child(), EsRelation.class);
+        assertThat(esRelation.indexPattern(), equalTo("employees"));
+    }
+
+    public void testTsStatsWithNonMetricField() {
+        var plan = planMetrics("TS k8s | STATS count(events_received)");
+        Limit limit = as(plan, Limit.class);
+        Aggregate finalAggs = as(limit.child(), Aggregate.class);
+        assertThat(finalAggs, not(instanceOf(TimeSeriesAggregate.class)));
+        TimeSeriesAggregate aggsByTsid = as(finalAggs.child(), TimeSeriesAggregate.class);
+        assertNull(aggsByTsid.timeBucket());
+        as(aggsByTsid.child(), EsRelation.class);
+    }
+
+    public void testTsStatsWithNonMetricFieldAndGrouping() {
+        var plan = planMetrics("TS k8s | STATS count(events_received) BY cluster");
+        assertNotNull(plan);
+    }
+
+    public void testTsWildcardStatsWithOptionalIndex() {
+        var testAnalyzer = EsqlTestUtils.analyzer().addIndex("*", "k8s-mappings.json", IndexMode.TIME_SERIES);
+        var plan = logicalOptimizerWithLatestVersion.optimize(testAnalyzer.query("TS * | STATS count(events_received)"));
+        Limit limit = as(plan, Limit.class);
+        Aggregate finalAggs = as(limit.child(), Aggregate.class);
+        assertThat(finalAggs, not(instanceOf(TimeSeriesAggregate.class)));
+        TimeSeriesAggregate aggsByTsid = as(finalAggs.child(), TimeSeriesAggregate.class);
+        as(aggsByTsid.child(), EsRelation.class);
+    }
+
+    public void testTsWildcardStatsWithMixedIndexModes() {
+        var mapping = EsqlTestUtils.loadMapping("k8s-mappings.json");
+        var mixedIndex = new EsIndex(
+            "*",
+            mapping,
+            Map.of("ts_index", IndexMode.TIME_SERIES, "standard_index", IndexMode.STANDARD),
+            Map.of(),
+            Map.of(),
+            Set.of()
+        );
+        var testAnalyzer = EsqlTestUtils.analyzer().addIndex(IndexResolution.valid(mixedIndex));
+        var plan = logicalOptimizerWithLatestVersion.optimize(testAnalyzer.query("TS * | STATS count(events_received)"));
+        assertNotNull(plan);
+    }
+
+    public void testTsWildcardWithRateAggregate() {
+        var testAnalyzer = EsqlTestUtils.analyzer().addIndex("*", "k8s-mappings.json", IndexMode.TIME_SERIES);
+        var plan = logicalOptimizerWithLatestVersion.optimize(testAnalyzer.query("TS * | STATS max(rate(network.total_bytes_in))"));
+        assertNotNull(plan);
+    }
+
+    public void testTsWildcardWithRateAndGrouping() {
+        var testAnalyzer = EsqlTestUtils.analyzer().addIndex("*", "k8s-mappings.json", IndexMode.TIME_SERIES);
+        var plan = logicalOptimizerWithLatestVersion.optimize(
+            testAnalyzer.query("TS * | STATS max(rate(network.total_bytes_in)) BY cluster")
+        );
+        assertNotNull(plan);
+    }
+
+    public void testPromqlWithoutExplicitIndex() {
+        var testAnalyzer = EsqlTestUtils.analyzer().addIndex("*", "k8s-mappings.json", IndexMode.TIME_SERIES);
+        var plan = logicalOptimizerWithLatestVersion.optimize(testAnalyzer.query("PROMQL step=5m avg(rate(network.total_bytes_in[5m]))"));
+        assertNotNull(plan);
+    }
+
+    public void testPromqlWithoutExplicitIndexAndGrouping() {
+        var testAnalyzer = EsqlTestUtils.analyzer().addIndex("*", "k8s-mappings.json", IndexMode.TIME_SERIES);
+        var plan = logicalOptimizerWithLatestVersion.optimize(
+            testAnalyzer.query("PROMQL step=5m avg(rate(network.total_bytes_in[5m])) by (cluster)")
+        );
+        assertNotNull(plan);
     }
 }

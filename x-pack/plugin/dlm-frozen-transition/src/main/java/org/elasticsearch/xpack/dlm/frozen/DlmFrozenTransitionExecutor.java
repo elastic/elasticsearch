@@ -16,10 +16,10 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
+import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.logging.LogManager.getLogger;
@@ -35,32 +35,34 @@ import static org.elasticsearch.logging.LogManager.getLogger;
 class DlmFrozenTransitionExecutor implements Closeable {
 
     private static final Logger logger = getLogger(DlmFrozenTransitionExecutor.class);
-
     private static final String EXECUTOR_NAME = "dlm-frozen-transition";
 
-    private final Set<String> runningTransitions;
-    private final int maxConcurrency;
+    private final ConcurrentHashMap<String, Boolean> submittedTransitions;
     private final ExecutorService executor;
+    private final int maxConcurrency;
+    private final int maxQueueSize;
 
-    DlmFrozenTransitionExecutor(int maxConcurrency, Settings settings) {
-        this.runningTransitions = ConcurrentHashMap.newKeySet(maxConcurrency);
+    DlmFrozenTransitionExecutor(int maxConcurrency, int maxQueueSize, Settings settings) {
         this.maxConcurrency = maxConcurrency;
-        this.executor = EsExecutors.newFixed(
-            EXECUTOR_NAME,
-            maxConcurrency,
-            -1,
-            EsExecutors.daemonThreadFactory(settings, EXECUTOR_NAME),
-            new ThreadContext(settings),
-            EsExecutors.TaskTrackingConfig.DEFAULT
-        );
+        this.maxQueueSize = maxQueueSize;
+        this.submittedTransitions = new ConcurrentHashMap<>(maxQueueSize);
+        ThreadFactory esThreadFactory = EsExecutors.daemonThreadFactory(settings, EXECUTOR_NAME);
+        this.executor = EsExecutors.newFixed(EXECUTOR_NAME, maxConcurrency, maxQueueSize, r -> {
+            Thread thread = esThreadFactory.newThread(r);
+            if (r instanceof DlmFrozenTransitionRunnable dftr) {
+                String name = thread.getName();
+                thread.setName(name + "[" + dftr.getIndexName() + "]");
+            }
+            return thread;
+        }, new ThreadContext(settings), EsExecutors.TaskTrackingConfig.DEFAULT);
     }
 
-    public boolean isTransitionRunning(String indexName) {
-        return runningTransitions.contains(indexName);
+    public boolean transitionSubmitted(String indexName) {
+        return submittedTransitions.containsKey(indexName);
     }
 
     public boolean hasCapacity() {
-        return runningTransitions.size() < maxConcurrency;
+        return submittedTransitions.size() < (maxConcurrency + maxQueueSize);
     }
 
     public List<Runnable> shutdownNow() {
@@ -69,30 +71,31 @@ class DlmFrozenTransitionExecutor implements Closeable {
 
     public Future<?> submit(DlmFrozenTransitionRunnable task) {
         final String indexName = task.getIndexName();
-        runningTransitions.add(indexName);
+        submittedTransitions.put(indexName, false);
         try {
             return executor.submit(wrapRunnable(task));
         } catch (Exception e) {
-            runningTransitions.remove(indexName);
+            submittedTransitions.remove(indexName);
             throw e;
         }
     }
 
     /**
      * Wraps the task with index tracking and error handling. Ensures the index name is always removed from
-     * {@link #runningTransitions} when the thread completes, whether successfully or with an error.
+     * {@link #submittedTransitions} when the thread completes, whether successfully or with an error.
      */
     private Runnable wrapRunnable(DlmFrozenTransitionRunnable task) {
         return () -> {
             final String indexName = task.getIndexName();
             try {
                 logger.debug("Starting transition for index [{}]", indexName);
+                submittedTransitions.put(indexName, true);
                 task.run();
                 logger.debug("Transition completed for index [{}]", indexName);
             } catch (Exception ex) {
                 logger.error(() -> Strings.format("Error executing transition for index [%s]", indexName), ex);
             } finally {
-                runningTransitions.remove(indexName);
+                submittedTransitions.remove(indexName);
             }
         };
     }

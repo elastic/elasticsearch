@@ -78,7 +78,11 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.locks.Condition;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.LongConsumer;
@@ -102,7 +106,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                 int docCount = leaderGroup.appendDocs(randomInt(64));
                 leaderGroup.assertAllEqual(docCount);
                 followerGroup.startAll();
-                ShardFollowNodeTask shardFollowTask = createShardFollowTask(leaderGroup, followerGroup);
+                ShardFollowNodeTask shardFollowTask = createShardFollowTask(leaderGroup, followerGroup, new NoOpLock());
                 final SeqNoStats leaderSeqNoStats = leaderGroup.getPrimary().seqNoStats();
                 final SeqNoStats followerSeqNoStats = followerGroup.getPrimary().seqNoStats();
                 shardFollowTask.start(
@@ -152,7 +156,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
             leaderGroup.startAll();
             try (ReplicationGroup followerGroup = createFollowGroup(leaderGroup, randomInt(2))) {
                 followerGroup.startAll();
-                ShardFollowNodeTask shardFollowTask = createShardFollowTask(leaderGroup, followerGroup);
+                ShardFollowNodeTask shardFollowTask = createShardFollowTask(leaderGroup, followerGroup, new NoOpLock());
                 final SeqNoStats leaderSeqNoStats = leaderGroup.getPrimary().seqNoStats();
                 final SeqNoStats followerSeqNoStats = followerGroup.getPrimary().seqNoStats();
                 shardFollowTask.start(
@@ -200,7 +204,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                 int docCount = leaderGroup.appendDocs(randomInt(64));
                 leaderGroup.assertAllEqual(docCount);
                 followerGroup.startAll();
-                ShardFollowNodeTask shardFollowTask = createShardFollowTask(leaderGroup, followerGroup);
+                ShardFollowNodeTask shardFollowTask = createShardFollowTask(leaderGroup, followerGroup, new NoOpLock());
                 final SeqNoStats leaderSeqNoStats = leaderGroup.getPrimary().seqNoStats();
                 final SeqNoStats followerSeqNoStats = followerGroup.getPrimary().seqNoStats();
                 shardFollowTask.start(
@@ -249,7 +253,9 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                 int docCount = leaderGroup.appendDocs(randomInt(64));
                 leaderGroup.assertAllEqual(docCount);
                 followerGroup.startAll();
-                ShardFollowNodeTask shardFollowTask = createShardFollowTask(leaderGroup, followerGroup);
+                ReentrantReadWriteLock replacePrimaryLock = new ReentrantReadWriteLock();
+                ReentrantReadWriteLock.WriteLock replacePrimaryWriteLock = replacePrimaryLock.writeLock();
+                ShardFollowNodeTask shardFollowTask = createShardFollowTask(leaderGroup, followerGroup, replacePrimaryLock.readLock());
                 final SeqNoStats leaderSeqNoStats = leaderGroup.getPrimary().seqNoStats();
                 final SeqNoStats followerSeqNoStats = followerGroup.getPrimary().seqNoStats();
                 shardFollowTask.start(
@@ -270,11 +276,23 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                     followerGroup.assertAllEqual(indexedDocIds.size());
                 });
 
-                String oldHistoryUUID = followerGroup.getPrimary().getHistoryUUID();
-                followerGroup.reinitPrimaryShard();
-                followerGroup.getPrimary().store().bootstrapNewHistory();
-                recoverShardFromStore(followerGroup.getPrimary());
-                String newHistoryUUID = followerGroup.getPrimary().getHistoryUUID();
+                String oldHistoryUUID;
+                String newHistoryUUID;
+                boolean locked = false;
+                try {
+                    // Make sure we replace the primary shard without any racing bulk operation tasks from shardFollowTask
+                    locked = replacePrimaryWriteLock.tryLock(SAFE_AWAIT_TIMEOUT.millis(), TimeUnit.MILLISECONDS);
+                    assertTrue("Couldn't grab the write lock", locked);
+                    oldHistoryUUID = followerGroup.getPrimary().getHistoryUUID();
+                    followerGroup.reinitPrimaryShard();
+                    followerGroup.getPrimary().store().bootstrapNewHistory();
+                    recoverShardFromStore(followerGroup.getPrimary());
+                    newHistoryUUID = followerGroup.getPrimary().getHistoryUUID();
+                } finally {
+                    if (locked) {
+                        replacePrimaryWriteLock.unlock();
+                    }
+                }
 
                 // force the global checkpoint on the leader to advance
                 leaderGroup.appendDocs(64);
@@ -369,7 +387,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                 }
                 // A follow-task retries these requests while the primary-replica resync is happening on the follower.
                 followerGroup.promoteReplicaToPrimary(randomFrom(followerGroup.getReplicas()));
-                ShardFollowNodeTask shardFollowTask = createShardFollowTask(leaderGroup, followerGroup);
+                ShardFollowNodeTask shardFollowTask = createShardFollowTask(leaderGroup, followerGroup, new NoOpLock());
                 SeqNoStats followerSeqNoStats = followerGroup.getPrimary().seqNoStats();
                 shardFollowTask.start(
                     followerGroup.getPrimary().getHistoryUUID(),
@@ -453,7 +471,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
             leader.syncGlobalCheckpoint();
             try (ReplicationGroup follower = createFollowGroup(leader, 0)) {
                 follower.startAll();
-                ShardFollowNodeTask followTask = createShardFollowTask(leader, follower);
+                ShardFollowNodeTask followTask = createShardFollowTask(leader, follower, new NoOpLock());
                 followTask.start(
                     follower.getPrimary().getHistoryUUID(),
                     leader.getPrimary().getLastKnownGlobalCheckpoint(),
@@ -477,7 +495,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
             leader.startAll();
             try (ReplicationGroup follower = createFollowGroup(leader, 0)) {
                 follower.startAll();
-                final ShardFollowNodeTask task = createShardFollowTask(leader, follower);
+                final ShardFollowNodeTask task = createShardFollowTask(leader, follower, new NoOpLock());
                 task.start(
                     follower.getPrimary().getHistoryUUID(),
                     leader.getPrimary().getLastKnownGlobalCheckpoint(),
@@ -562,7 +580,11 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
         };
     }
 
-    private ShardFollowNodeTask createShardFollowTask(ReplicationGroup leaderGroup, ReplicationGroup followerGroup) {
+    private ShardFollowNodeTask createShardFollowTask(
+        ReplicationGroup leaderGroup,
+        ReplicationGroup followerGroup,
+        Lock bulkOperationLock
+    ) {
         ShardFollowTask params = new ShardFollowTask(
             null,
             new ShardId("follow_index", "", 0),
@@ -631,17 +653,28 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                 final Consumer<BulkShardOperationsResponse> handler,
                 final Consumer<Exception> errorHandler
             ) {
-                Runnable task = () -> {
-                    BulkShardOperationsRequest request = new BulkShardOperationsRequest(
-                        params.getFollowShardId(),
-                        followerHistoryUUID,
-                        operations,
-                        maxSeqNoOfUpdates
-                    );
-                    ActionListener<BulkShardOperationsResponse> listener = ActionListener.wrap(handler::accept, errorHandler);
-                    new CcrAction(request, listener, followerGroup).execute();
-                };
-                threadPool.executor(ThreadPool.Names.GENERIC).execute(task);
+                boolean acquired = false;
+                try {
+                    acquired = bulkOperationLock.tryLock(SAFE_AWAIT_TIMEOUT.millis(), TimeUnit.MILLISECONDS);
+                    assertTrue(acquired);
+                    Runnable task = () -> {
+                        BulkShardOperationsRequest request = new BulkShardOperationsRequest(
+                            params.getFollowShardId(),
+                            followerHistoryUUID,
+                            operations,
+                            maxSeqNoOfUpdates
+                        );
+                        ActionListener<BulkShardOperationsResponse> listener = ActionListener.wrap(handler::accept, errorHandler);
+                        new CcrAction(request, listener, followerGroup).execute();
+                    };
+                    threadPool.executor(ThreadPool.Names.GENERIC).execute(task);
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                } finally {
+                    if (acquired) {
+                        bulkOperationLock.unlock();
+                    }
+                }
             }
 
             @Override
@@ -857,4 +890,29 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
         }
     }
 
+    private static class NoOpLock implements Lock {
+        @Override
+        public void lock() {}
+
+        @Override
+        public void lockInterruptibly() {}
+
+        @Override
+        public boolean tryLock() {
+            return true;
+        }
+
+        @Override
+        public boolean tryLock(long time, TimeUnit unit) {
+            return true;
+        }
+
+        @Override
+        public void unlock() {}
+
+        @Override
+        public Condition newCondition() {
+            return null;
+        }
+    }
 }

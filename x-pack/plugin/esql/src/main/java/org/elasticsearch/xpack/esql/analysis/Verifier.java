@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.license.XPackLicenseState;
@@ -29,6 +28,7 @@ import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
@@ -39,6 +39,9 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Neg
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
+import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.index.IndexResolution;
+import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
@@ -61,6 +64,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -97,40 +101,18 @@ public class Verifier {
     }
 
     /**
-     * Verify that a {@link LogicalPlan} can be executed (no unmapped-field resolution context).
-     */
-    Collection<Failure> verify(LogicalPlan plan, BitSet partialMetrics) {
-        return verify(plan, partialMetrics, null, null);
-    }
-
-    /**
      * Verify that a {@link LogicalPlan} can be executed.
      *
      * @param plan The logical plan to be verified
-     * @param partialMetrics a bitset indicating a certain command (or "telemetry feature") is present in the query
-     * @param unmappedResolution the active unmapped-field resolution strategy; used to gate commands unsupported in certain modes
-     * @return a collection of verification failures; empty if and only if the plan is valid
+     * @param partialMetrics A bitset indicating a certain command (or "telemetry feature") is present in the query
+     * @param context The analyzer context.
+     * @return A collection of verification failures; empty if and only if the plan is valid
      */
-    Collection<Failure> verify(LogicalPlan plan, BitSet partialMetrics, UnmappedResolution unmappedResolution) {
-        return verify(plan, partialMetrics, unmappedResolution, null);
-    }
-
-    /**
-     * Verify that a {@link LogicalPlan} can be executed.
-     *
-     * @param plan The logical plan to be verified
-     * @param partialMetrics a bitset indicating a certain command (or "telemetry feature") is present in the query
-     * @param unmappedResolution the active unmapped-field resolution strategy; used to gate commands unsupported in certain modes
-     * @param analyzerContext if non-null, used for load-mode checks that need index resolution (e.g. partially mapped non-KEYWORD fields)
-     * @return a collection of verification failures; empty if and only if the plan is valid
-     */
-    Collection<Failure> verify(
-        LogicalPlan plan,
-        BitSet partialMetrics,
-        UnmappedResolution unmappedResolution,
-        @Nullable AnalyzerContext analyzerContext
-    ) {
+    Collection<Failure> verify(LogicalPlan plan, BitSet partialMetrics, AnalyzerContext context) {
         assert partialMetrics != null;
+
+        UnmappedResolution unmappedResolution = context.unmappedResolution();
+
         Failures failures = new Failures();
         boolean unmappedTimestampHandled = unmappedResolution != UnmappedResolution.DEFAULT
             && isTimestampUnmappedInAllIndices(plan, failures);
@@ -149,9 +131,7 @@ public class Verifier {
             checkLoadModeDisallowedCommands(plan, failures);
             checkLoadModeDisallowedFunctions(plan, failures);
             checkFlattenedSubFieldLoad(plan, failures);
-            if (failures.hasFailures() == false) {
-                LoadPartialMappingChecks.checkPartialNonKeywordWithLoad(plan, analyzerContext, failures);
-            }
+            checkPartiallyUnmappedNonKeywordReferences(plan, failures, context);
         }
 
         // collect plan checkers
@@ -515,6 +495,65 @@ public class Verifier {
         }
 
         return names;
+    }
+
+    /**
+     * Reject references to fields that are partially unmapped non-keywords (PUNKs), anywhere in query, when {@code unmapped_fields="load"}.
+     * This check is achieved via a bottom-up walk of the logical plan nodes. If we land on a {@link EsRelation} node, we only collect the
+     * offending fields. Otherwise, for every other type of node, we check if it references an offending field and add a verification if it
+     * does.
+     * <p>
+     * Example:
+     * <ul>
+     *     <li>Index1 has foo(long) and bar(keyword)</li>
+     *     <li>Index2 has bar(keyword)</li>
+     * </ul>
+     *
+     * Given the above indices, a query like {@code FROM test1, test2 | KEEP foo} is rejected.
+     */
+    private static void checkPartiallyUnmappedNonKeywordReferences(LogicalPlan plan, Failures failures, AnalyzerContext context) {
+        Map<IndexPattern, IndexResolution> indexResolutions = context.indexResolution();
+        Map<String, IndexResolution> lookupResolutions = context.lookupResolution();
+
+        Set<String> partiallyMappedNonKeyword = new HashSet<>();
+
+        // Tracks which field names have already been reported to avoid duplicate failures.
+        Set<String> reported = new HashSet<>();
+
+        // Walk the logical plan nodes bottom-up so EsRelation is visited first. This gives a chance to find all PUNKs before checking
+        // for their references in the upper nodes.
+        plan.forEachUp(p -> {
+            if (p instanceof EsRelation relation) {
+                IndexResolution indexResolution = (relation.indexMode() == IndexMode.LOOKUP)
+                    ? lookupResolutions.get(relation.indexPattern())
+                    : indexResolutions.get(new IndexPattern(relation.source(), relation.indexPattern()));
+                if (indexResolution != null && indexResolution.isValid()) {
+                    collectPartiallyMappedNonKeyword(indexResolution.get(), partiallyMappedNonKeyword);
+                }
+                return;
+            }
+
+            p.forEachExpression(FieldAttribute.class, fa -> {
+                if (partiallyMappedNonKeyword.contains(fa.name()) && reported.add(fa.name())) {
+                    failures.add(
+                        fail(
+                            fa,
+                            "unmapped_fields=\"load\" is not supported for partially unmapped field [{}] with non-KEYWORD type",
+                            fa.name()
+                        )
+                    );
+                }
+            });
+        });
+    }
+
+    private static void collectPartiallyMappedNonKeyword(EsIndex index, Set<String> result) {
+        for (String fieldName : index.partiallyUnmappedFields()) {
+            EsField field = index.mapping().get(fieldName);
+            if (field.getDataType() != DataType.KEYWORD) {
+                result.add(fieldName);
+            }
+        }
     }
 
     private void licenseCheck(LogicalPlan plan, Failures failures) {

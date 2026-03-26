@@ -130,7 +130,7 @@ public class CustomTaskSettings implements TaskSettings {
 
     @Override
     public TaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
-        CustomTaskSettings updatedSettings = CustomTaskSettings.fromMap(new HashMap<>(newSettings));
+        CustomTaskSettings updatedSettings = CustomTaskSettings.fromMap(newSettings);
         return of(this, updatedSettings);
     }
 }

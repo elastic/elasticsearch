@@ -765,6 +765,9 @@ EXPORT void vec_sqrf32_bulk_offsets(
     call_f32_bulk<f32_t, offsets_mapper, sqrf32_vector, sqr_scalar<f32_t>, vec_sqrf32>(a, b, dims, pitch / sizeof(f32_t), offsets, count, results);
 }
 
+
+// --- BBQ
+
 // Fast AVX2 popcount, based on "Faster Population Counts Using AVX2 Instructions"
 // See https://arxiv.org/abs/1611.07612 and https://github.com/WojciechMula/sse-popcount
 static inline __m256i dot_bit_256(const __m256i a, const int8_t* b) {

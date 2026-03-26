@@ -72,9 +72,7 @@ public class CohereRerankServiceSettings extends FilteredXContentObject implemen
             }
         }
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new CohereRerankServiceSettings(uri, modelId, rateLimitSettings, apiVersion);
     }

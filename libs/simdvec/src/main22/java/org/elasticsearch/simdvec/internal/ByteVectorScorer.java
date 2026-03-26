@@ -17,6 +17,7 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.MemorySegmentAccessInput;
 import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
+import org.elasticsearch.core.DirectAccessInput;
 import org.elasticsearch.simdvec.MemorySegmentAccessInputAccess;
 
 import java.io.IOException;
@@ -24,17 +25,14 @@ import java.lang.foreign.MemorySegment;
 import java.util.Optional;
 
 import static org.elasticsearch.simdvec.internal.Similarities.cosineI8;
-import static org.elasticsearch.simdvec.internal.Similarities.cosineI8BulkWithOffsets;
 import static org.elasticsearch.simdvec.internal.Similarities.dotProductI8;
-import static org.elasticsearch.simdvec.internal.Similarities.dotProductI8BulkWithOffsets;
 import static org.elasticsearch.simdvec.internal.Similarities.squareDistanceI8;
-import static org.elasticsearch.simdvec.internal.Similarities.squareDistanceI8BulkWithOffsets;
 
 public abstract sealed class ByteVectorScorer extends RandomVectorScorer.AbstractRandomVectorScorer {
 
     final int dimensions;
     final int vectorByteSize;
-    final MemorySegmentAccessInput input;
+    final IndexInput input;
     final MemorySegment query;
     byte[] scratch;
 
@@ -46,20 +44,21 @@ public abstract sealed class ByteVectorScorer extends RandomVectorScorer.Abstrac
         }
         input = FilterIndexInput.unwrapOnlyTest(input);
         input = MemorySegmentAccessInputAccess.unwrap(input);
-        if (input instanceof MemorySegmentAccessInput msInput) {
+        if (input instanceof MemorySegmentAccessInput || input instanceof DirectAccessInput) {
+            IndexInputUtils.checkInputType(input);
             checkInvariants(values.size(), values.getVectorByteLength(), input);
 
             return switch (sim) {
-                case COSINE -> Optional.of(new CosineScorer(msInput, values, queryVector));
-                case DOT_PRODUCT -> Optional.of(new DotProductScorer(msInput, values, queryVector));
-                case EUCLIDEAN -> Optional.of(new EuclideanScorer(msInput, values, queryVector));
-                case MAXIMUM_INNER_PRODUCT -> Optional.of(new MaxInnerProductScorer(msInput, values, queryVector));
+                case COSINE -> Optional.of(new CosineScorer(input, values, queryVector));
+                case DOT_PRODUCT -> Optional.of(new DotProductScorer(input, values, queryVector));
+                case EUCLIDEAN -> Optional.of(new EuclideanScorer(input, values, queryVector));
+                case MAXIMUM_INNER_PRODUCT -> Optional.of(new MaxInnerProductScorer(input, values, queryVector));
             };
         }
         return Optional.empty();
     }
 
-    ByteVectorScorer(MemorySegmentAccessInput input, ByteVectorValues values, byte[] queryVector) {
+    ByteVectorScorer(IndexInput input, ByteVectorValues values, byte[] queryVector) {
         super(values);
         this.input = input;
         assert queryVector.length == values.dimension();
@@ -68,18 +67,11 @@ public abstract sealed class ByteVectorScorer extends RandomVectorScorer.Abstrac
         this.query = MemorySegment.ofArray(queryVector);
     }
 
-    final MemorySegment getSegment(int ord) throws IOException {
-        checkOrdinal(ord);
-        long byteOffset = (long) ord * vectorByteSize;
-        MemorySegment seg = input.segmentSliceOrNull(byteOffset, vectorByteSize);
-        if (seg == null) {
-            if (scratch == null) {
-                scratch = new byte[vectorByteSize];
-            }
-            input.readBytes(byteOffset, scratch, 0, vectorByteSize);
-            seg = MemorySegment.ofArray(scratch);
+    byte[] getScratch(int length) {
+        if (scratch == null || scratch.length < length) {
+            scratch = new byte[length];
         }
-        return seg;
+        return scratch;
     }
 
     static void checkInvariants(int maxOrd, int vectorByteLength, IndexInput input) {
@@ -94,10 +86,28 @@ public abstract sealed class ByteVectorScorer extends RandomVectorScorer.Abstrac
         }
     }
 
+    /**
+     * Resolves native memory addresses for the given node ordinals and calls
+     * the sparse scoring function. Returns true if addresses were resolved
+     * (via mmap or DirectAccessInput), false if fallback scoring is needed.
+     */
+    final boolean bulkScoreWithSparse(int[] nodes, float[] scores, int numNodes, SparseScorer sparseScorer) throws IOException {
+        if (numNodes == 0) {
+            return false;
+        }
+        long[] offsets = new long[numNodes];
+        for (int i = 0; i < numNodes; i++) {
+            offsets[i] = (long) nodes[i] * vectorByteSize;
+        }
+        return IndexInputUtils.withSliceAddresses(input, offsets, vectorByteSize, numNodes, a -> {
+            sparseScorer.score(a, query, dimensions, numNodes, MemorySegment.ofArray(scores));
+        });
+    }
+
     public static final class DotProductScorer extends ByteVectorScorer {
         private final float denom = (float) (dimensions * (1 << 15));
 
-        public DotProductScorer(MemorySegmentAccessInput in, ByteVectorValues values, byte[] query) {
+        public DotProductScorer(IndexInput in, ByteVectorValues values, byte[] query) {
             super(in, values, query);
         }
 
@@ -108,33 +118,31 @@ public abstract sealed class ByteVectorScorer extends RandomVectorScorer.Abstrac
         @Override
         public float score(int node) throws IOException {
             checkOrdinal(node);
-            float dotProduct = dotProductI8(query, getSegment(node), dimensions);
-            return normalize(dotProduct);
+            long byteOffset = (long) node * vectorByteSize;
+            input.seek(byteOffset);
+            return IndexInputUtils.withSlice(input, vectorByteSize, this::getScratch, seg -> {
+                float dp = dotProductI8(query, seg, dimensions);
+                return normalize(dp);
+            });
         }
 
         @Override
         public float bulkScore(int[] nodes, float[] scores, int numNodes) throws IOException {
-            MemorySegment vectorsSeg = input.segmentSliceOrNull(0, input.length());
-            if (vectorsSeg == null) {
-                return super.bulkScore(nodes, scores, numNodes);
-            } else {
-                var ordinalsSeg = MemorySegment.ofArray(nodes);
-                var scoresSeg = MemorySegment.ofArray(scores);
-
-                dotProductI8BulkWithOffsets(vectorsSeg, query, dimensions, vectorByteSize, ordinalsSeg, numNodes, scoresSeg);
-
+            if (bulkScoreWithSparse(nodes, scores, numNodes, Similarities::dotProductI8BulkSparse)) {
                 float max = Float.NEGATIVE_INFINITY;
                 for (int i = 0; i < numNodes; ++i) {
                     scores[i] = normalize(scores[i]);
                     max = Math.max(max, scores[i]);
                 }
                 return max;
+            } else {
+                return super.bulkScore(nodes, scores, numNodes);
             }
         }
     }
 
     public static final class CosineScorer extends ByteVectorScorer {
-        public CosineScorer(MemorySegmentAccessInput in, ByteVectorValues values, byte[] query) {
+        public CosineScorer(IndexInput in, ByteVectorValues values, byte[] query) {
             super(in, values, query);
         }
 
@@ -145,93 +153,87 @@ public abstract sealed class ByteVectorScorer extends RandomVectorScorer.Abstrac
         @Override
         public float score(int node) throws IOException {
             checkOrdinal(node);
-            float sqDist = cosineI8(query, getSegment(node), dimensions);
-            return normalize(sqDist);
+            long byteOffset = (long) node * vectorByteSize;
+            input.seek(byteOffset);
+            return IndexInputUtils.withSlice(input, vectorByteSize, this::getScratch, seg -> {
+                float cos = cosineI8(query, seg, dimensions);
+                return normalize(cos);
+            });
         }
 
         @Override
         public float bulkScore(int[] nodes, float[] scores, int numNodes) throws IOException {
-            MemorySegment vectorsSeg = input.segmentSliceOrNull(0, input.length());
-            if (vectorsSeg == null) {
-                return super.bulkScore(nodes, scores, numNodes);
-            } else {
-                var ordinalsSeg = MemorySegment.ofArray(nodes);
-                var scoresSeg = MemorySegment.ofArray(scores);
-
-                cosineI8BulkWithOffsets(vectorsSeg, query, dimensions, vectorByteSize, ordinalsSeg, numNodes, scoresSeg);
-
+            if (bulkScoreWithSparse(nodes, scores, numNodes, Similarities::cosineI8BulkSparse)) {
                 float max = Float.NEGATIVE_INFINITY;
                 for (int i = 0; i < numNodes; ++i) {
                     scores[i] = normalize(scores[i]);
                     max = Math.max(max, scores[i]);
                 }
                 return max;
+            } else {
+                return super.bulkScore(nodes, scores, numNodes);
             }
         }
     }
 
     public static final class EuclideanScorer extends ByteVectorScorer {
-        public EuclideanScorer(MemorySegmentAccessInput in, ByteVectorValues values, byte[] query) {
+        public EuclideanScorer(IndexInput in, ByteVectorValues values, byte[] query) {
             super(in, values, query);
         }
 
         @Override
         public float score(int node) throws IOException {
             checkOrdinal(node);
-            float sqDist = squareDistanceI8(query, getSegment(node), dimensions);
-            return VectorUtil.normalizeDistanceToUnitInterval(sqDist);
+            long byteOffset = (long) node * vectorByteSize;
+            input.seek(byteOffset);
+            return IndexInputUtils.withSlice(input, vectorByteSize, this::getScratch, seg -> {
+                float sqDist = squareDistanceI8(query, seg, dimensions);
+                return VectorUtil.normalizeDistanceToUnitInterval(sqDist);
+            });
         }
 
         @Override
         public float bulkScore(int[] nodes, float[] scores, int numNodes) throws IOException {
-            MemorySegment vectorsSeg = input.segmentSliceOrNull(0, input.length());
-            if (vectorsSeg == null) {
-                return super.bulkScore(nodes, scores, numNodes);
-            } else {
-                var ordinalsSeg = MemorySegment.ofArray(nodes);
-                var scoresSeg = MemorySegment.ofArray(scores);
-
-                squareDistanceI8BulkWithOffsets(vectorsSeg, query, dimensions, vectorByteSize, ordinalsSeg, numNodes, scoresSeg);
-
+            if (bulkScoreWithSparse(nodes, scores, numNodes, Similarities::squareDistanceI8BulkSparse)) {
                 float max = Float.NEGATIVE_INFINITY;
                 for (int i = 0; i < numNodes; ++i) {
                     scores[i] = VectorUtil.normalizeDistanceToUnitInterval(scores[i]);
                     max = Math.max(max, scores[i]);
                 }
                 return max;
+            } else {
+                return super.bulkScore(nodes, scores, numNodes);
             }
         }
     }
 
     public static final class MaxInnerProductScorer extends ByteVectorScorer {
-        public MaxInnerProductScorer(MemorySegmentAccessInput in, ByteVectorValues values, byte[] query) {
+        public MaxInnerProductScorer(IndexInput in, ByteVectorValues values, byte[] query) {
             super(in, values, query);
         }
 
         @Override
         public float score(int node) throws IOException {
             checkOrdinal(node);
-            float dotProduct = dotProductI8(query, getSegment(node), dimensions);
-            return VectorUtil.scaleMaxInnerProductScore(dotProduct);
+            long byteOffset = (long) node * vectorByteSize;
+            input.seek(byteOffset);
+            return IndexInputUtils.withSlice(input, vectorByteSize, this::getScratch, seg -> {
+                float dp = dotProductI8(query, seg, dimensions);
+                return VectorUtil.scaleMaxInnerProductScore(dp);
+            });
         }
 
         @Override
         public float bulkScore(int[] nodes, float[] scores, int numNodes) throws IOException {
-            MemorySegment vectorsSeg = input.segmentSliceOrNull(0, input.length());
-            if (vectorsSeg == null) {
-                return super.bulkScore(nodes, scores, numNodes);
-            } else {
-                var ordinalsSeg = MemorySegment.ofArray(nodes);
-                var scoresSeg = MemorySegment.ofArray(scores);
-
-                dotProductI8BulkWithOffsets(vectorsSeg, query, dimensions, vectorByteSize, ordinalsSeg, numNodes, scoresSeg);
-
+            if (bulkScoreWithSparse(nodes, scores, numNodes, Similarities::dotProductI8BulkSparse)) {
                 float max = Float.NEGATIVE_INFINITY;
                 for (int i = 0; i < numNodes; ++i) {
                     scores[i] = VectorUtil.scaleMaxInnerProductScore(scores[i]);
                     max = Math.max(max, scores[i]);
                 }
                 return max;
+            } else {
+                return super.bulkScore(nodes, scores, numNodes);
             }
         }
     }

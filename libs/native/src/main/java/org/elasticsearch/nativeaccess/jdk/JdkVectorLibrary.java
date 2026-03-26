@@ -333,7 +333,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
             int count,
             MemorySegment result
         ) {
-            if (pitch < length * Short.BYTES) throw new IllegalArgumentException("Pitch needs to be at least " + length);
+            if (pitch < length * Short.BYTES) throw new IllegalArgumentException("Pitch needs to be at least " + length * Short.BYTES);
             Objects.checkFromIndexSize(0L, (long) pitch * count, a.byteSize());
             Objects.checkFromIndexSize(0L, (long) length * queryElementSize, b.byteSize());
             Objects.checkFromIndexSize(0L, (long) count * Integer.BYTES, offsets.byteSize());

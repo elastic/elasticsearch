@@ -312,9 +312,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/144587
-- class: org.elasticsearch.action.search.TransportSearchIT
-  method: testCircuitBreakerReduceFail
-  issue: https://github.com/elastic/elasticsearch/issues/144598
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/144587
@@ -351,8 +348,6 @@ tests:
 - class: org.elasticsearch.index.store.StoreDirectoryMetricsIT
   method: testDirectoryMetrics
   issue: https://github.com/elastic/elasticsearch/issues/144702
-- class: org.elasticsearch.index.mapper.TsidExtractingIdFieldMapperTests
-  issue: https://github.com/elastic/elasticsearch/issues/144678
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:k8s-timeseries-avg-over-time.avg_over_time_of_integer}
   issue: https://github.com/elastic/elasticsearch/issues/144719

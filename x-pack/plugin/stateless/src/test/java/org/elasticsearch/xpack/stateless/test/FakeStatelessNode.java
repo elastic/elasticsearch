@@ -277,10 +277,8 @@ public class FakeStatelessNode implements Closeable {
         );
 
         try (var localCloseables = new TransferableCloseables()) {
-
-            threadPool = new TestThreadPool("test", StatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, true));
+            threadPool = createThreadPool();
             localCloseables.add(() -> TestThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS));
-
             transport = localCloseables.add(new MockTransport());
             clusterService = localCloseables.add(createClusterService());
             ClusterServiceUtils.setState(
@@ -323,7 +321,7 @@ public class FakeStatelessNode implements Closeable {
             var consistencyService = new StatelessClusterConsistencyService(clusterService, electionStrategy, threadPool, nodeSettings);
             commitCleaner = createCommitCleaner(consistencyService, threadPool, objectStoreService);
             localCloseables.add(commitCleaner);
-            warmingService = new SharedBlobCacheWarmingService(sharedCacheService, threadPool, telemetryProvider, clusterSettings);
+            warmingService = createSharedBlobCacheWarmingService(sharedCacheService, threadPool, telemetryProvider, clusterSettings);
             onlinePrewarmingService = new StatelessOnlinePrewarmingService(
                 nodeSettings,
                 threadPool,
@@ -363,6 +361,19 @@ public class FakeStatelessNode implements Closeable {
 
             closeables = localCloseables.transfer();
         }
+    }
+
+    protected ThreadPool createThreadPool() {
+        return new TestThreadPool("test", StatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, true));
+    }
+
+    protected SharedBlobCacheWarmingService createSharedBlobCacheWarmingService(
+        StatelessSharedBlobCacheService cacheService,
+        ThreadPool threadPool,
+        TelemetryProvider telemetryProvider,
+        ClusterSettings clusterSettings
+    ) {
+        return new SharedBlobCacheWarmingService(cacheService, threadPool, telemetryProvider, clusterSettings);
     }
 
     protected RepositoriesService createRepositoryService(NamedXContentRegistry xContentRegistry) {
@@ -417,14 +428,6 @@ public class FakeStatelessNode implements Closeable {
         MutableObjectStoreUploadTracker objectStoreUploadTracker
     ) {
         return new SearchDirectory(sharedCacheService, cacheBlobReaderService, objectStoreUploadTracker, shardId);
-    }
-
-    protected StatelessSharedBlobCacheService createCacheService(
-        NodeEnvironment nodeEnvironment,
-        Settings settings,
-        ThreadPool threadPool
-    ) {
-        return createCacheService(nodeEnvironment, settings, threadPool, null);
     }
 
     protected StatelessSharedBlobCacheService createCacheService(
@@ -515,7 +518,7 @@ public class FakeStatelessNode implements Closeable {
         return generateIndexCommits(commitsNumber, merge, includeDeletions, onCommitClosed, (commitNumber) -> {
             LuceneDocument document = new LuceneDocument();
             document.add(new KeywordField("field0", "term", Field.Store.YES));
-            return document;
+            return List.of(document);
         }, indexWriterConfig);
     }
 
@@ -524,7 +527,7 @@ public class FakeStatelessNode implements Closeable {
         boolean merge,
         boolean includeDeletions,
         LongConsumer onCommitClosed,
-        Function<Integer, LuceneDocument> newDocForCommitFunction,
+        Function<Integer, Iterable<LuceneDocument>> newDocForCommitFunction,
         IndexWriterConfig indexWriterConfig
     ) throws IOException {
         List<StatelessCommitRef> commits = new ArrayList<>(commitsNumber);
@@ -534,8 +537,9 @@ public class FakeStatelessNode implements Closeable {
                 previousCommit = indexReader.getIndexCommit();
             }
             for (int i = 0; i < commitsNumber; i++) {
-                LuceneDocument document = newDocForCommitFunction.apply(i);
-                indexWriter.addDocument(document.getFields());
+                for (LuceneDocument document : newDocForCommitFunction.apply(i)) {
+                    indexWriter.addDocument(document.getFields());
+                }
                 if (includeDeletions && ESTestCase.randomBoolean()) {
                     String deleteId = ESTestCase.randomAlphaOfLength(10);
                     final ParsedDocument tombstone = ParsedDocument.deleteTombstone(indexSettings.seqNoIndexOptions(), deleteId);

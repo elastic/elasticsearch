@@ -146,6 +146,15 @@ EXPORT void vec_doti7u_bulk_offsets(
     call_i8_bulk<int8_t, offsets_mapper, doti7u_inner, dot_scalar<int8_t>, vec_doti7u>(a, b, dims, pitch, offsets, count, results);
 }
 
+EXPORT void vec_doti7u_bulk_sparse(
+    const void* const* addresses,
+    const int8_t* b,
+    const int32_t dims,
+    const int32_t count,
+    f32_t* results) {
+    call_i8_bulk<const int8_t*, sparse_mapper, doti7u_inner, dot_scalar<int8_t>, vec_doti7u>((const int8_t* const*)addresses, b, dims, 0, NULL, count, results);
+}
+
 static inline int32_t sqri7u_inner(const int8_t* a, const int8_t* b, const int32_t dims) {
     // Init accumulator(s) with 0
     __m256i acc1 = _mm256_setzero_si256();
@@ -195,6 +204,15 @@ EXPORT void vec_sqri7u_bulk_offsets(
     const int32_t count,
     f32_t* results) {
     call_i8_bulk<int8_t, offsets_mapper, sqri7u_inner, sqr_scalar<int8_t>, vec_sqri7u>(a, b, dims, pitch, offsets, count, results);
+}
+
+EXPORT void vec_sqri7u_bulk_sparse(
+    const void* const* addresses,
+    const int8_t* b,
+    const int32_t dims,
+    const int32_t count,
+    f32_t* results) {
+    call_i8_bulk<const int8_t*, sparse_mapper, sqri7u_inner, sqr_scalar<int8_t>, vec_sqri7u>((const int8_t* const*)addresses, b, dims, 0, NULL, count, results);
 }
 
 // --- byte vectors
@@ -390,6 +408,15 @@ EXPORT void vec_cosi8_bulk_offsets(
     cosi8_inner_bulk<int8_t, offsets_mapper>(a, b, dims, pitch, offsets, count, results);
 }
 
+EXPORT void vec_cosi8_bulk_sparse(
+    const void* const* addresses,
+    const int8_t* b,
+    const int32_t dims,
+    const int32_t count,
+    f32_t* results) {
+    cosi8_inner_bulk<const int8_t*, sparse_mapper>((const int8_t* const*)addresses, b, dims, 0, NULL, count, results);
+}
+
 static inline int32_t doti8_inner(const int8_t* a, const int8_t* b, const int32_t dims) {
     // Init accumulator(s) with 0
     __m256i acc1 = _mm256_setzero_si256();
@@ -459,6 +486,23 @@ EXPORT void vec_doti8_bulk_offsets(
     );
 }
 
+EXPORT void vec_doti8_bulk_sparse(
+    const void* const* addresses,
+    const int8_t* b,
+    const int32_t dims,
+    const int32_t count,
+    f32_t* results) {
+    call_i8_bulk<const int8_t*, sparse_mapper, doti8_inner, dot_scalar<int8_t>, vec_doti8, 2, sizeof(__m128i)>(
+        (const int8_t* const*)addresses,
+        b,
+        dims,
+        0,
+        NULL,
+        count,
+        results
+    );
+}
+
 static inline int32_t sqri8_inner(const int8_t* a, const int8_t* b, const int32_t dims) {
     // Init accumulator(s) with 0
     __m256i acc1 = _mm256_setzero_si256();
@@ -523,6 +567,23 @@ EXPORT void vec_sqri8_bulk_offsets(
         dims,
         pitch,
         offsets,
+        count,
+        results
+    );
+}
+
+EXPORT void vec_sqri8_bulk_sparse(
+    const void* const* addresses,
+    const int8_t* b,
+    const int32_t dims,
+    const int32_t count,
+    f32_t* results) {
+    call_i8_bulk<const int8_t*, sparse_mapper, sqri8_inner, sqr_scalar<int8_t>, vec_sqri8, 2, sizeof(__m128i)>(
+        (const int8_t* const*)addresses,
+        b,
+        dims,
+        0,
+        NULL,
         count,
         results
     );

@@ -32,9 +32,7 @@ public class AzureAiStudioEmbeddingsTaskSettings implements TaskSettings {
         ValidationException validationException = new ValidationException();
 
         String user = extractOptionalString(map, USER_FIELD, ModelConfigurations.TASK_SETTINGS, validationException);
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new AzureAiStudioEmbeddingsTaskSettings(user);
     }

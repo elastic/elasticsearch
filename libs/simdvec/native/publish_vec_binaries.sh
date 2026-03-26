@@ -26,7 +26,7 @@ if [ "$LOCAL" = false ] && [ -z "${ARTIFACTORY_API_KEY:-}" ]; then
   exit 1;
 fi
 
-VERSION="1.0.58"
+VERSION="1.0.65"
 TOOLCHAIN_IMAGE="docker.elastic.co/es-dev/es-native-cross-toolchain:1"
 if [ "$LOCAL" = true ]; then
   TOOLCHAIN_IMAGE="es-native-cross-toolchain:local"

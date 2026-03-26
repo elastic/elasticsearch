@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
@@ -79,6 +80,7 @@ import java.util.stream.IntStream;
 
 import static org.elasticsearch.action.search.SearchAsyncActionTests.getShardsIter;
 import static org.elasticsearch.core.Types.forciblyCast;
+import static org.elasticsearch.transport.RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -102,6 +104,15 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
     public void tearDown() throws Exception {
         terminate(threadPool);
         super.tearDown();
+    }
+
+    private static void assertSkippedByClusterAliasLocalOnly(Map<String, Integer> map, int expectedTotal) {
+        assertEquals(expectedTotal, CollectionUtils.sumIntValues(map));
+        if (expectedTotal == 0) {
+            assertEquals(Collections.emptyMap(), map);
+        } else {
+            assertEquals(Map.of(LOCAL_CLUSTER_GROUP_KEY, expectedTotal), map);
+        }
     }
 
     public void testFilterShards() throws InterruptedException {
@@ -139,7 +150,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             }
         };
 
-        AtomicReference<List<SearchShardIterator>> result = new AtomicReference<>();
+        AtomicReference<CanMatchPreFilterSearchPhase.CanMatchResult> result = new AtomicReference<>();
         CountDownLatch latch = new CountDownLatch(1);
         List<SearchShardIterator> shardsIter = getShardsIter(
             "idx",
@@ -163,7 +174,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             shardsIter,
             timeProvider,
             null,
-            true,
+            false,
             EMPTY_CONTEXT_PROVIDER,
             new SearchResponseMetrics(TelemetryProvider.NOOP.getMeterRegistry()),
             Map.of()
@@ -176,15 +187,16 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         assertThat(numRequests.get(), replicaNode == null ? equalTo(1) : lessThanOrEqualTo(2));
 
         if (shard1 && shard2) {
-            for (SearchShardIterator i : result.get()) {
+            for (SearchShardIterator i : result.get().iterators()) {
                 assertFalse(i.skip());
             }
+            assertEquals(Collections.emptyMap(), result.get().skippedByClusterAlias());
         } else if (shard1 == false && shard2 == false) {
-            assertFalse(result.get().get(0).skip());
-            assertTrue(result.get().get(1).skip());
-            assertEquals(2, result.get().size());
+            assertEquals(Map.of(LOCAL_CLUSTER_GROUP_KEY, 2), result.get().skippedByClusterAlias());
+            assertEquals(0, result.get().iterators().size());
         } else {
-            assertEquals(shard1 ? 0 : 1, result.get().get(0).shardId().id());
+            assertEquals(shard1 ? 0 : 1, result.get().iterators().get(0).shardId().id());
+            assertEquals(Map.of(LOCAL_CLUSTER_GROUP_KEY, 1), result.get().skippedByClusterAlias());
         }
     }
 
@@ -233,7 +245,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             }
         };
 
-        AtomicReference<List<SearchShardIterator>> result = new AtomicReference<>();
+        AtomicReference<CanMatchPreFilterSearchPhase.CanMatchResult> result = new AtomicReference<>();
         CountDownLatch latch = new CountDownLatch(1);
         List<SearchShardIterator> shardsIter = getShardsIter(
             "idx",
@@ -270,13 +282,19 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         latch.await();
 
         if (fullFailure) {
-            assertFalse(result.get().get(1).skip()); // never skip the failure
-            assertEquals(0, result.get().get(0).shardId().id());
-            assertEquals(1, result.get().get(1).shardId().id());
+            assertFalse(result.get().iterators().get(1).skip()); // never skip the failure
+            assertEquals(0, result.get().iterators().get(0).shardId().id());
+            assertEquals(1, result.get().iterators().get(1).shardId().id());
+            assertEquals(Collections.emptyMap(), result.get().skippedByClusterAlias());
         } else {
-            assertEquals(2, result.get().size());
+            assertEquals(shard1 ? 2 : 1, result.get().iterators().size());
+            int expectedSkipped = shard1 ? 0 : 1;
+            assertEquals(
+                expectedSkipped == 0 ? Collections.emptyMap() : Map.of(LOCAL_CLUSTER_GROUP_KEY, expectedSkipped),
+                result.get().skippedByClusterAlias()
+            );
         }
-        assertFalse(result.get().get(0).skip()); // never skip the failure
+        assertFalse(result.get().iterators().get(0).skip()); // never skip the failure
     }
 
     public void testSortShards() throws InterruptedException {
@@ -331,7 +349,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 }
             };
 
-            AtomicReference<List<SearchShardIterator>> result = new AtomicReference<>();
+            AtomicReference<CanMatchPreFilterSearchPhase.CanMatchResult> result = new AtomicReference<>();
             CountDownLatch latch = new CountDownLatch(1);
             List<SearchShardIterator> shardsIter = getShardsIter(
                 "logs",
@@ -375,10 +393,14 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 shardToSkip.remove(new ShardId("logs", "_na_", 0));
             }
             int pos = 0;
-            for (SearchShardIterator i : result.get()) {
+            for (SearchShardIterator i : result.get().iterators()) {
                 assertEquals(shardToSkip.contains(i.shardId()), i.skip());
+                while (shardToSkip.contains(expected[pos])) {
+                    pos++;
+                }
                 assertEquals(expected[pos++], i.shardId());
             }
+            assertSkippedByClusterAliasLocalOnly(result.get().skippedByClusterAlias(), shardIds.size() - result.get().iterators().size());
         }
     }
 
@@ -432,7 +454,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 }
             };
 
-            AtomicReference<List<SearchShardIterator>> result = new AtomicReference<>();
+            AtomicReference<CanMatchPreFilterSearchPhase.CanMatchResult> result = new AtomicReference<>();
             CountDownLatch latch = new CountDownLatch(1);
             List<SearchShardIterator> shardsIter = getShardsIter(
                 "logs",
@@ -468,7 +490,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
 
             latch.await();
             int shardId = 0;
-            for (SearchShardIterator i : result.get()) {
+            for (SearchShardIterator i : result.get().iterators()) {
                 while (shardToSkip.stream().map(ShardId::id).toList().contains(shardId)) {
                     shardId++;
                 }
@@ -476,7 +498,12 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                     assertThat(i.shardId().id(), equalTo(shardId++));
                 }
             }
-            assertThat(result.get().size(), equalTo(numShards));
+            int numSkipped = CollectionUtils.sumIntValues(result.get().skippedByClusterAlias());
+            assertThat(result.get().iterators().size() + numSkipped, equalTo(numShards));
+            assertEquals(
+                numSkipped > 0 ? Map.of(LOCAL_CLUSTER_GROUP_KEY, numSkipped) : Collections.emptyMap(),
+                result.get().skippedByClusterAlias()
+            );
         }
     }
 
@@ -563,15 +590,12 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             boolQueryBuilder,
             List.of(),
             null,
-            (updatedSearchShardIterators, requests) -> {
-                var skippedShards = updatedSearchShardIterators.stream().filter(SearchShardIterator::skip).toList();
-                var nonSkippedShards = updatedSearchShardIterators.stream()
+            (canMatchResult, requests) -> {
+                var nonSkippedShards = canMatchResult.iterators()
+                    .stream()
                     .filter(searchShardIterator -> searchShardIterator.skip() == false)
                     .toList();
 
-                boolean allSkippedShardAreFromWarmIndices = skippedShards.stream()
-                    .allMatch(shardIterator -> warmIndices.contains(shardIterator.shardId().getIndex()));
-                assertThat(allSkippedShardAreFromWarmIndices, equalTo(true));
                 boolean allNonSkippedShardAreHotIndices = nonSkippedShards.stream()
                     .allMatch(shardIterator -> hotIndices.contains(shardIterator.shardId().getIndex()));
                 assertThat(allNonSkippedShardAreHotIndices, equalTo(true));
@@ -579,12 +603,16 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                     .allMatch(request -> hotIndices.contains(request.shardId().getIndex()));
                 assertThat(allRequestMadeToHotIndices, equalTo(true));
                 int prevShardId = -1;
-                for (SearchShardIterator shardIt : updatedSearchShardIterators) {
+                for (SearchShardIterator shardIt : canMatchResult.iterators()) {
                     if (shardIt.skip() == false) {
                         assertThat(shardIt.shardId().id(), greaterThanOrEqualTo(prevShardId));
                         prevShardId = shardIt.shardId().id();
                     }
                 }
+                assertSkippedByClusterAliasLocalOnly(
+                    canMatchResult.skippedByClusterAlias(),
+                    CollectionUtils.sumIntValues(canMatchResult.skippedByClusterAlias())
+                );
             }
         );
     }
@@ -622,14 +650,14 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             queryBuilder,
             List.of(),
             null,
-            (updatedSearchShardIterators, requests) -> {
-                List<SearchShardIterator> skippedShards = updatedSearchShardIterators.stream().filter(SearchShardIterator::skip).toList();
-
-                List<SearchShardIterator> nonSkippedShards = updatedSearchShardIterators.stream()
+            (canMatchResult, requests) -> {
+                List<SearchShardIterator> nonSkippedShards = canMatchResult.iterators()
+                    .stream()
                     .filter(searchShardIterator -> searchShardIterator.skip() == false)
                     .toList();
 
-                int regularIndexShardCount = (int) updatedSearchShardIterators.stream()
+                int regularIndexShardCount = (int) canMatchResult.iterators()
+                    .stream()
                     .filter(s -> regularIndices.contains(s.shardId().getIndex()))
                     .count();
 
@@ -644,13 +672,15 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                     assertThat(allNonSkippedShardsAreFromRegularIndices, equalTo(true)); // FIXME - OR fails here with "false"
                 }
 
-                boolean allSkippedShardAreFromDataStream = skippedShards.stream()
-                    .allMatch(shardIterator -> dataStream.getIndices().contains(shardIterator.shardId().getIndex()));
-                assertThat(allSkippedShardAreFromDataStream, equalTo(true));
-
                 boolean allRequestsWereTriggeredAgainstRegularIndices = requests.stream()
                     .allMatch(request -> regularIndices.contains(request.shardId().getIndex()));
                 assertThat(allRequestsWereTriggeredAgainstRegularIndices, equalTo(true));
+                int skipped = CollectionUtils.sumIntValues(canMatchResult.skippedByClusterAlias());
+                if (skipped > 0) {
+                    assertEquals(Map.of(LOCAL_CLUSTER_GROUP_KEY, skipped), canMatchResult.skippedByClusterAlias());
+                } else {
+                    assertEquals(Collections.emptyMap(), canMatchResult.skippedByClusterAlias());
+                }
             }
         );
     }
@@ -707,17 +737,16 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             queryBuilder,
             List.of(),
             null,
-            (updatedSearchShardIterators, requests) -> {
-                List<SearchShardIterator> skippedShards = updatedSearchShardIterators.stream().filter(SearchShardIterator::skip).toList();
-                List<SearchShardIterator> nonSkippedShards = updatedSearchShardIterators.stream()
+            (canMatchResult, requests) -> {
+                var numSkippedShards = CollectionUtils.sumIntValues(canMatchResult.skippedByClusterAlias());
+                List<SearchShardIterator> nonSkippedShards = canMatchResult.iterators()
+                    .stream()
                     .filter(searchShardIterator -> searchShardIterator.skip() == false)
                     .toList();
 
                 if (timestampQueryOutOfRange || eventIngestedQueryOutOfRange) {
-                    assertThat(skippedShards.size(), greaterThan(0));
-                    boolean allSkippedShardAreFromDataStream = skippedShards.stream()
-                        .allMatch(shardIterator -> dataStream.getIndices().contains(shardIterator.shardId().getIndex()));
-                    assertThat(allSkippedShardAreFromDataStream, equalTo(true));
+                    assertThat(numSkippedShards, greaterThan(0));
+                    assertEquals(Map.of(LOCAL_CLUSTER_GROUP_KEY, numSkippedShards), canMatchResult.skippedByClusterAlias());
                     boolean allNonSkippedShardsAreFromRegularIndices = nonSkippedShards.stream()
                         .allMatch(shardIterator -> regularIndices.contains(shardIterator.shardId().getIndex()));
                     assertThat(allNonSkippedShardsAreFromRegularIndices, equalTo(true));
@@ -727,7 +756,8 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                     assertThat(allRequestsWereTriggeredAgainstRegularIndices, equalTo(true));
 
                 } else {
-                    assertThat(skippedShards.size(), equalTo(0));
+                    assertThat(numSkippedShards, equalTo(0));
+                    assertEquals(Collections.emptyMap(), canMatchResult.skippedByClusterAlias());
                     long countSkippedShardsFromDatastream = nonSkippedShards.stream()
                         .filter(iter -> dataStream.getIndices().contains(iter.shardId().getIndex()))
                         .count();
@@ -950,16 +980,20 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             query,
             List.of(aggregation),
             null,
-            (updatedSearchShardIterators, requests) -> {
+            (canMatchResult, requests) -> {
                 // The search query matches index4, the background query matches index1 and index2,
                 // so index3 is the only one that must be skipped.
-                for (SearchShardIterator shard : updatedSearchShardIterators) {
+                for (SearchShardIterator shard : canMatchResult.iterators()) {
                     if (shard.shardId().getIndex().getName().equals("index3")) {
                         assertTrue(shard.skip());
                     } else {
                         assertFalse(shard.skip());
                     }
                 }
+                assertSkippedByClusterAliasLocalOnly(
+                    canMatchResult.skippedByClusterAlias(),
+                    CollectionUtils.sumIntValues(canMatchResult.skippedByClusterAlias())
+                );
             }
         );
     }
@@ -1074,15 +1108,12 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             queryBuilder,
             List.of(),
             null,
-            (updatedSearchShardIterators, requests) -> {
-                var skippedShards = updatedSearchShardIterators.stream().filter(SearchShardIterator::skip).toList();
-                var nonSkippedShards = updatedSearchShardIterators.stream()
+            (canMatchResult, requests) -> {
+                var nonSkippedShards = canMatchResult.iterators()
+                    .stream()
                     .filter(searchShardIterator -> searchShardIterator.skip() == false)
                     .toList();
 
-                boolean allSkippedShardAreFromDataStream1 = skippedShards.stream()
-                    .allMatch(shardIterator -> dataStream1.getIndices().contains(shardIterator.shardId().getIndex()));
-                assertThat(allSkippedShardAreFromDataStream1, equalTo(true));
                 boolean allNonSkippedShardAreFromDataStream1 = nonSkippedShards.stream()
                     .noneMatch(shardIterator -> dataStream1.getIndices().contains(shardIterator.shardId().getIndex()));
                 assertThat(allNonSkippedShardAreFromDataStream1, equalTo(true));
@@ -1090,15 +1121,16 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                     .allMatch(request -> dataStream1.getIndices().contains(request.shardId().getIndex()));
                 assertThat(allRequestMadeToDataStream1, equalTo(false));
 
-                boolean allSkippedShardAreFromDataStream2 = skippedShards.stream()
-                    .allMatch(shardIterator -> dataStream2.getIndices().contains(shardIterator.shardId().getIndex()));
-                assertThat(allSkippedShardAreFromDataStream2, equalTo(false));
                 boolean allNonSkippedShardAreFromDataStream2 = nonSkippedShards.stream()
                     .noneMatch(shardIterator -> dataStream2.getIndices().contains(shardIterator.shardId().getIndex()));
                 assertThat(allNonSkippedShardAreFromDataStream2, equalTo(false));
                 boolean allRequestMadeToDataStream2 = requests.stream()
                     .allMatch(request -> dataStream2.getIndices().contains(request.shardId().getIndex()));
                 assertThat(allRequestMadeToDataStream2, equalTo(true));
+                assertSkippedByClusterAliasLocalOnly(
+                    canMatchResult.skippedByClusterAlias(),
+                    CollectionUtils.sumIntValues(canMatchResult.skippedByClusterAlias())
+                );
             }
         );
     }
@@ -1182,21 +1214,22 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 null,
                 warmIndices,
                 false,
-                (updatedSearchShardIterators, requests) -> {
-                    var skippedShards = updatedSearchShardIterators.stream().filter(SearchShardIterator::skip).toList();
-                    var nonSkippedShards = updatedSearchShardIterators.stream()
+                (canMatchResult, requests) -> {
+                    var nonSkippedShards = canMatchResult.iterators()
+                        .stream()
                         .filter(searchShardIterator -> searchShardIterator.skip() == false)
                         .toList();
 
-                    boolean allSkippedShardAreFromWarmIndices = skippedShards.stream()
-                        .allMatch(shardIterator -> warmIndices.contains(shardIterator.shardId().getIndex()));
-                    assertThat(allSkippedShardAreFromWarmIndices, equalTo(true));
                     boolean allNonSkippedShardAreHotIndices = nonSkippedShards.stream()
                         .allMatch(shardIterator -> hotIndices.contains(shardIterator.shardId().getIndex()));
                     assertThat(allNonSkippedShardAreHotIndices, equalTo(true));
                     boolean allRequestMadeToHotIndices = requests.stream()
                         .allMatch(request -> hotIndices.contains(request.shardId().getIndex()));
                     assertThat(allRequestMadeToHotIndices, equalTo(true));
+                    assertSkippedByClusterAliasLocalOnly(
+                        canMatchResult.skippedByClusterAlias(),
+                        CollectionUtils.sumIntValues(canMatchResult.skippedByClusterAlias())
+                    );
                 }
             );
         }
@@ -1205,7 +1238,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             // test that a search does fail if the query does NOT filter ALL the
             // unassigned shards
             CountDownLatch latch = new CountDownLatch(1);
-            Tuple<SubscribableListener<List<SearchShardIterator>>, List<ShardSearchRequest>> canMatchPhaseAndRequests =
+            Tuple<SubscribableListener<CanMatchPreFilterSearchPhase.CanMatchResult>, List<ShardSearchRequest>> canMatchPhaseAndRequests =
                 getCanMatchPhaseAndRequests(
                     List.of(dataStream),
                     List.of(hotRegularIndex, warmRegularIndex),
@@ -1219,8 +1252,8 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
 
             canMatchPhaseAndRequests.v1().addListener(new ActionListener<>() {
                 @Override
-                public void onResponse(List<SearchShardIterator> searchShardIterators) {
-                    fail(null, "unexpected success with result [%s] while expecting to handle failure with [%s]", searchShardIterators);
+                public void onResponse(CanMatchPreFilterSearchPhase.CanMatchResult result) {
+                    fail(null, "unexpected success with result [%s] while expecting to handle failure with [%s]", result);
                     latch.countDown();
                 }
 
@@ -1234,18 +1267,17 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         }
     }
 
-    private void assertAllShardsAreQueried(List<SearchShardIterator> updatedSearchShardIterators, List<ShardSearchRequest> requests) {
-        int skippedShards = (int) updatedSearchShardIterators.stream().filter(SearchShardIterator::skip).count();
+    private void assertAllShardsAreQueried(CanMatchPreFilterSearchPhase.CanMatchResult canMatchResult, List<ShardSearchRequest> requests) {
+        assertEquals(Collections.emptyMap(), canMatchResult.skippedByClusterAlias());
 
-        assertThat(skippedShards, equalTo(0));
-
-        int nonSkippedShards = (int) updatedSearchShardIterators.stream()
+        int nonSkippedShards = (int) canMatchResult.iterators()
+            .stream()
             .filter(searchShardIterator -> searchShardIterator.skip() == false)
             .count();
 
-        assertThat(nonSkippedShards, equalTo(updatedSearchShardIterators.size()));
+        assertThat(nonSkippedShards, equalTo(canMatchResult.iterators().size()));
 
-        int shardsWithPrimariesAssigned = (int) updatedSearchShardIterators.stream().filter(s -> s.size() > 0).count();
+        int shardsWithPrimariesAssigned = (int) canMatchResult.iterators().stream().filter(s -> s.size() > 0).count();
         assertThat(requests.size(), equalTo(shardsWithPrimariesAssigned));
     }
 
@@ -1256,7 +1288,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         QueryBuilder query,
         List<AggregationBuilder> aggregations,
         SuggestBuilder suggest,
-        BiConsumer<List<SearchShardIterator>, List<ShardSearchRequest>> canMatchResultsConsumer
+        BiConsumer<CanMatchPreFilterSearchPhase.CanMatchResult, List<ShardSearchRequest>> canMatchResultsConsumer
     ) throws Exception {
         assignShardsAndExecuteCanMatchPhase(
             dataStreams,
@@ -1280,11 +1312,11 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         SuggestBuilder suggest,
         List<Index> unassignedIndices,
         boolean allowPartialResults,
-        BiConsumer<List<SearchShardIterator>, List<ShardSearchRequest>> canMatchResultsConsumer
+        BiConsumer<CanMatchPreFilterSearchPhase.CanMatchResult, List<ShardSearchRequest>> canMatchResultsConsumer
     ) throws Exception {
-        AtomicReference<List<SearchShardIterator>> result = new AtomicReference<>();
+        AtomicReference<CanMatchPreFilterSearchPhase.CanMatchResult> result = new AtomicReference<>();
         CountDownLatch latch = new CountDownLatch(1);
-        Tuple<SubscribableListener<List<SearchShardIterator>>, List<ShardSearchRequest>> canMatchAndShardRequests =
+        Tuple<SubscribableListener<CanMatchPreFilterSearchPhase.CanMatchResult>, List<ShardSearchRequest>> canMatchAndShardRequests =
             getCanMatchPhaseAndRequests(
                 dataStreams,
                 regularIndices,
@@ -1302,15 +1334,10 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         }));
         latch.await();
 
-        List<SearchShardIterator> updatedSearchShardIterators = new ArrayList<>();
-        for (SearchShardIterator updatedSearchShardIterator : result.get()) {
-            updatedSearchShardIterators.add(updatedSearchShardIterator);
-        }
-
-        canMatchResultsConsumer.accept(updatedSearchShardIterators, canMatchAndShardRequests.v2());
+        canMatchResultsConsumer.accept(result.get(), canMatchAndShardRequests.v2());
     }
 
-    private Tuple<SubscribableListener<List<SearchShardIterator>>, List<ShardSearchRequest>> getCanMatchPhaseAndRequests(
+    private Tuple<SubscribableListener<CanMatchPreFilterSearchPhase.CanMatchResult>, List<ShardSearchRequest>> getCanMatchPhaseAndRequests(
         List<DataStream> dataStreams,
         List<Index> regularIndices,
         CoordinatorRewriteContextProvider contextProvider,

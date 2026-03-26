@@ -24,9 +24,11 @@ import org.elasticsearch.xpack.prometheus.proto.RemoteWrite;
 import org.junit.ClassRule;
 
 import java.io.IOException;
+import java.util.List;
 
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 
 /**
@@ -98,7 +100,16 @@ public class PrometheusQueryRangeRestIT extends ESRestTestCase {
         assertThat(responsePath.evaluate("data.result"), hasSize(1));
         assertThat(responsePath.evaluate("data.result.0.metric.job"), equalTo("test_job"));
         assertThat(responsePath.evaluate("data.result.0.metric.instance"), equalTo("localhost:9090"));
-        assertThat(responsePath.evaluate("data.result.0.values"), hasSize(5));
+        List<List<Object>> values = responsePath.evaluate("data.result.0.values");
+        assertThat(values, hasSize(5));
+
+        // Assert timestamps are in strictly ascending order
+        double prevTimestamp = -1;
+        for (List<Object> point : values) {
+            double timestamp = ((Number) point.getFirst()).doubleValue();
+            assertThat(timestamp, greaterThan(prevTimestamp));
+            prevTimestamp = timestamp;
+        }
     }
 
     private ObjectPath executeQueryRange() throws Exception {

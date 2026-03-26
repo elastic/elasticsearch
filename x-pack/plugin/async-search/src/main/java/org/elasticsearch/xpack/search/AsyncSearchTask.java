@@ -27,6 +27,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
@@ -607,7 +608,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask, Releasable 
         @Override
         protected void onListShards(
             List<SearchShard> shards,
-            List<SearchShard> skipped,
+            Map<String, Integer> skippedByClusterAlias,
             Clusters clusters,
             boolean fetchPhase,
             TransportSearchAction.SearchTimeProvider timeProvider
@@ -618,9 +619,10 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask, Releasable 
             ccsMinimizeRoundtrips = clusters.isCcsMinimizeRoundtrips();
             if (ccsMinimizeRoundtrips == false && clusters.hasClusterObjects()) {
                 delegate = new CCSSingleCoordinatorSearchProgressListener();
-                delegate.onListShards(shards, skipped, clusters, fetchPhase, timeProvider);
+                delegate.onListShards(shards, skippedByClusterAlias, clusters, fetchPhase, timeProvider);
             }
-            searchResponse.updateShardsAndClusters(shards.size() + skipped.size(), skipped.size(), clusters);
+            int numSkipped = CollectionUtils.sumIntValues(skippedByClusterAlias);
+            searchResponse.updateShardsAndClusters(shards.size() + numSkipped, numSkipped, clusters);
             executeInitListeners();
         }
 

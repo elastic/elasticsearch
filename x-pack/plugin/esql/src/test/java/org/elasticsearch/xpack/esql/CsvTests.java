@@ -535,6 +535,26 @@ public class CsvTests extends ESTestCase {
         return mapping;
     }
 
+    /**
+     * Recursively collects all field names from a mapping, including subfields with dot-separated names.
+     */
+    private static Set<String> collectAllFieldNames(Map<String, EsField> mapping) {
+        Set<String> names = new HashSet<>();
+        for (var entry : mapping.entrySet()) {
+            names.add(entry.getKey());
+            collectSubFieldNames(entry.getKey(), entry.getValue(), names);
+        }
+        return names;
+    }
+
+    private static void collectSubFieldNames(String prefix, EsField field, Set<String> names) {
+        for (var entry : field.getProperties().entrySet()) {
+            String fullName = prefix + "." + entry.getKey();
+            names.add(fullName);
+            collectSubFieldNames(fullName, entry.getValue(), names);
+        }
+    }
+
     record MappingPerIndex(String index, Map<String, EsField> mapping) {}
 
     record MergedResult(Map<String, EsField> mapping, Set<String> partiallyUnmappedFields) {}
@@ -735,7 +755,7 @@ public class CsvTests extends ESTestCase {
         for (CsvTestsDataLoader.MultiIndexTestDataset datasets : allDatasets.values()) {
             for (CsvTestsDataLoader.TestDataset dataset : datasets.datasets()) {
                 var testData = loadPageFromCsv(dataset.streamData(), dataset.typeMapping());
-                Set<String> mappedFields = LoadMapping.loadMapping(dataset.streamMapping()).keySet();
+                Set<String> mappedFields = collectAllFieldNames(createMappingForIndex(dataset));
                 indexPages.add(
                     new TestPhysicalOperationProviders.IndexPage(dataset.indexName(), testData.v1(), testData.v2(), mappedFields)
                 );

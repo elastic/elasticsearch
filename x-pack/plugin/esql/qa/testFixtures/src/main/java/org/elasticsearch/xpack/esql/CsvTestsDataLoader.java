@@ -120,6 +120,7 @@ public class CsvTestsDataLoader {
         new TestDataset("ul_logs"),
         new TestDataset("sample_data"),
         new TestDataset("partial_mapping_sample_data"),
+        // TODO: withTypeMapping should be redundant here, mapping-no_mapping_sample_data.json doesn't provide any mapping where types could be overridden
         new TestDataset("no_mapping_sample_data", "mapping-no_mapping_sample_data.json", "partial_mapping_sample_data.csv").withTypeMapping(
             Stream.of("timestamp", "client_ip", "event_duration").collect(toMap(k -> k, k -> "keyword"))
         ),

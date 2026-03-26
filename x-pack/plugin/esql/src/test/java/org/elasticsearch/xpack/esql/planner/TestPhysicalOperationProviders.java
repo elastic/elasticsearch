@@ -287,7 +287,6 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
         if (attribute instanceof FieldAttribute fa) {
             if (fa.field() instanceof MultiTypeEsField m) {
                 return (doc, copier) -> getBlockForMultiType(context, doc, m, copier);
-
             }
             if (fa.field() instanceof PotentiallyUnmappedKeywordEsField k) {
                 return (doc, copier) -> switch (extractBlockForSingleDoc(doc, k.getName(), copier)) {
@@ -300,13 +299,23 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
                 return (doc, copier) -> getNullsBlock(doc);
             }
         }
-        return (indexDoc, blockCopier) -> switch (extractBlockForSingleDoc(indexDoc, attribute.name(), blockCopier)) {
-            case BlockResultMissing missing -> throw new EsqlIllegalArgumentException(
-                "Cannot find column named [{}] in {}",
-                missing.columnName,
-                missing.columnNames
-            );
-            case BlockResultSuccess success -> success.block;
+        return (indexDoc, blockCopier) -> {
+            // For regular FieldAttributes, check if the field is mapped in this index.
+            // If not, return nulls (simulates missing doc values for unmapped fields).
+            if (attribute instanceof FieldAttribute fa) {
+                var indexPage = getIndexPage(indexDoc);
+                if (indexPage.mappedFields().contains(fa.fieldName().string()) == false) {
+                    return getNullsBlock(indexDoc);
+                }
+            }
+            return switch (extractBlockForSingleDoc(indexDoc, attribute.name(), blockCopier)) {
+                case BlockResultMissing missing -> throw new EsqlIllegalArgumentException(
+                    "Cannot find column named [{}] in {}",
+                    missing.columnName,
+                    missing.columnNames
+                );
+                case BlockResultSuccess success -> success.block;
+            };
         };
     }
 

@@ -1170,7 +1170,7 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
                     capturedHeaders.add(
                         new CapturedActionWithHeaders(task.getAction(), Map.copyOf(threadPool.getThreadContext().getHeaders()))
                     );
-                    channel.sendResponse(new SearchShardsResponse(List.of(), List.of(), Collections.emptyMap()));
+                    channel.sendResponse(new SearchShardsResponse(List.of(), 0, List.of(), Collections.emptyMap()));
                 }
             );
             service.registerRequestHandler(

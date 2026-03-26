@@ -22,7 +22,7 @@ import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
-import org.elasticsearch.compute.lucene.query.DataPartitioning.AutoStrategy;
+import org.elasticsearch.compute.lucene.query.DataPartitioning;
 import org.elasticsearch.compute.lucene.query.LuceneCountOperator;
 import org.elasticsearch.compute.lucene.query.LuceneOperator;
 import org.elasticsearch.compute.lucene.query.LuceneSliceQueue;
@@ -397,6 +397,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             luceneFactory = new TimeSeriesSourceOperator.Factory(
                 shardContexts,
                 querySupplier(esQueryExec.queryBuilderAndTags()),
+                context.queryPragmas().dataPartitioning(plannerSettings.defaultDataPartitioning()),
                 context.queryPragmas().docsThresholdForAutoPartitioning(plannerSettings.docsThresholdForAutoPartitioning()),
                 context.queryPragmas().taskConcurrency(),
                 context.pageSize(esQueryExec, rowEstimatedSize),
@@ -422,7 +423,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         return PhysicalOperation.fromSource(luceneFactory, layout.build());
     }
 
-    private static AutoStrategy topNAutoStrategy() {
+    private static DataPartitioning.AutoStrategy topNAutoStrategy() {
         return unusedLimit -> query -> LuceneSliceQueue.PartitioningStrategy.SEGMENT;
     }
 

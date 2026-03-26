@@ -16,6 +16,8 @@ import org.elasticsearch.action.search.ClosePointInTimeRequest;
 import org.elasticsearch.action.search.OpenPointInTimeRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.SearchScrollRequest;
+import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.search.TransportClosePointInTimeAction;
 import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
 import org.elasticsearch.client.internal.Client;
@@ -132,6 +134,85 @@ public class BytesReadHeaderIT extends ESIntegTestCase {
         long smallBytesRead = assertBytesReadHeader(smallRequest);
 
         assertThat(largeBytesRead, greaterThan(smallBytesRead));
+    }
+
+    public void testScrollSearchSetsBytesReadHeader() throws InterruptedException {
+        final String indexName = setupIndex();
+        SearchRequest request = new SearchRequest(indexName).source(new SearchSourceBuilder().query(QueryBuilders.matchAllQuery()).size(1))
+            .scroll(TimeValue.timeValueMinutes(1));
+
+        SetOnce<String> scrollId = new SetOnce<>();
+        SetOnce<Long> initialBytesRead = new SetOnce<>();
+        CountDownLatch initialLatch = new CountDownLatch(1);
+
+        final Client client = client();
+        client.search(request, ActionListener.assertOnce(new ActionListener<>() {
+            @Override
+            public void onResponse(SearchResponse searchResponse) {
+                try {
+                    Map<String, List<String>> responseHeaders = client.threadPool().getThreadContext().getResponseHeaders();
+                    assertThat(responseHeaders, hasKey(StoreMetrics.BYTES_READ_RESPONSE_HEADER));
+                    List<String> values = responseHeaders.get(StoreMetrics.BYTES_READ_RESPONSE_HEADER);
+                    assertThat(values.size(), equalTo(1));
+                    initialBytesRead.set(Long.parseLong(values.get(0)));
+                    scrollId.set(searchResponse.getScrollId());
+                } finally {
+                    initialLatch.countDown();
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                initialLatch.countDown();
+                fail("no error expected");
+            }
+        }));
+        assertTrue("initial search did not complete in time", initialLatch.await(30, TimeUnit.SECONDS));
+        assertThat(initialBytesRead.get(), greaterThan(0L));
+        assertThat(scrollId.get(), notNullValue());
+
+        try {
+            SetOnce<Long> scrollBytesRead = new SetOnce<>();
+            CountDownLatch scrollLatch = new CountDownLatch(1);
+
+            SearchScrollRequest scrollRequest = new SearchScrollRequest(scrollId.get()).scroll(TimeValue.timeValueMinutes(1));
+            client.searchScroll(scrollRequest, ActionListener.assertOnce(new ActionListener<>() {
+                @Override
+                public void onResponse(SearchResponse searchResponse) {
+                    try {
+                        Map<String, List<String>> responseHeaders = client.threadPool().getThreadContext().getResponseHeaders();
+                        assertThat(responseHeaders, hasKey(StoreMetrics.BYTES_READ_RESPONSE_HEADER));
+                        List<String> values = responseHeaders.get(StoreMetrics.BYTES_READ_RESPONSE_HEADER);
+                        assertThat(values.size(), equalTo(1));
+                        scrollBytesRead.set(Long.parseLong(values.get(0)));
+                    } finally {
+                        scrollLatch.countDown();
+                    }
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    scrollLatch.countDown();
+                    fail("no error expected");
+                }
+            }));
+            assertTrue("scroll search did not complete in time", scrollLatch.await(30, TimeUnit.SECONDS));
+            assertThat(scrollBytesRead.get(), greaterThan(0L));
+        } finally {
+            client.prepareClearScroll().addScrollId(scrollId.get()).get();
+        }
+    }
+
+    public void testDfsQueryThenFetchSetsBytesReadHeader() throws InterruptedException {
+        final String indexName = randomIndexName();
+        createIndex(indexName, between(2, 5), 0);
+        IntStream.range(0, between(10, 50)).forEach(i -> indexDoc(indexName, "id" + i, "field", "value" + i));
+        flushAndRefresh(indexName);
+
+        SearchRequest request = new SearchRequest(indexName).searchType(SearchType.DFS_QUERY_THEN_FETCH)
+            .source(new SearchSourceBuilder().query(QueryBuilders.matchAllQuery()));
+        long bytesRead = assertBytesReadHeader(request);
+        assertThat(bytesRead, greaterThan(0L));
     }
 
     private String setupIndex() {

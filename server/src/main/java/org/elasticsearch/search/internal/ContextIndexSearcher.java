@@ -82,7 +82,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     private volatile boolean timeExceeded = false;
 
-    private LongSupplier threadBytesRead;
+    private volatile LongSupplier threadBytesRead;
     private final AtomicLong workerDirectoryBytesRead = new AtomicLong();
 
     /** constructor for non-concurrent search */

@@ -14,10 +14,6 @@ import org.elasticsearch.gradle.VersionProperties
 apply plugin: 'elasticsearch.java'
 apply plugin: 'elasticsearch.build'
 
-configurations {
-  nativeLib
-}
-
 
 tasks.named("dependencyLicenses").configure {
   mapping from: /lucene-.*/, to: 'lucene'
@@ -89,8 +85,6 @@ dependencies {
       requireCapability("org.elasticsearch.plugin:searchable-snapshots-test-artifacts")
     }
   }
-
-  nativeLib(project(path: ':libs:native:native-libraries', configuration: 'default'))
 
   testImplementation project(":libs:x-content")
   testImplementation project(":test:framework")
@@ -211,8 +205,7 @@ tasks.register("checkVec", JavaExec) {
   // Configure logging to console
   systemProperty "es.logger.out", "console"
   systemProperty "es.logger.level", "INFO"  // Change to DEBUG if needed
-  dependsOn configurations.nativeLib
-  systemProperty 'es.nativelibs.path', providers.provider { TestUtil.getTestLibraryPath(configurations.nativeLib.asPath) }
+  systemProperty 'es.nativelibs.path', TestUtil.getTestLibraryPath(file("../../libs/native/libraries/build/platform/").toString())
   jvmArgs '-Xms16g', '-Xmx16g', '-Djava.util.concurrent.ForkJoinPool.common.parallelism=8', '-XX:+UnlockDiagnosticVMOptions', '-XX:+DebugNonSafepoints', '-XX:+HeapDumpOnOutOfMemoryError'
   if (buildParams.getRuntimeJavaVersion().map { it.majorVersion.toInteger() }.get() >= 21) {
     jvmArgs '--add-modules=jdk.incubator.vector', '--enable-native-access=ALL-UNNAMED'

@@ -76,9 +76,7 @@ public class SentenceBoundaryChunkingSettings implements ChunkingSettings {
             );
         }
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
     }
 
     @Override
@@ -125,9 +123,7 @@ public class SentenceBoundaryChunkingSettings implements ChunkingSettings {
             );
         }
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new SentenceBoundaryChunkingSettings(maxChunkSize, sentenceOverlap);
     }

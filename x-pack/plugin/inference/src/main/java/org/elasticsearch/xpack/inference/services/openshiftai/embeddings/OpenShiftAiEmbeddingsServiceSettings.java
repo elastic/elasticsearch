@@ -84,9 +84,7 @@ public class OpenShiftAiEmbeddingsServiceSettings extends OpenShiftAiServiceSett
                 }
             }
         }
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new OpenShiftAiEmbeddingsServiceSettings(
             commonServiceSettings.model(),

@@ -50,6 +50,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.util.Throwables;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
+import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -243,7 +244,7 @@ public class AzureBlobStore implements BlobStore {
             return new AzureTenaciousRetryBlobContainer(
                 new AzureBlobContainer(path, this),
                 Integer.MAX_VALUE,
-                TimeValue.timeValueMillis(50),
+                BackoffPolicy.linearBackoff(TimeValue.timeValueMillis(50), Integer.MAX_VALUE, TimeValue.ONE_MINUTE),
                 repositoriesMetrics
             );
         }

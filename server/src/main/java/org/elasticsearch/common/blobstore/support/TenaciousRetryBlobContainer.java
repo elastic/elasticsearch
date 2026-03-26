@@ -9,6 +9,7 @@
 
 package org.elasticsearch.common.blobstore.support;
 
+import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.core.CheckedSupplier;
@@ -16,6 +17,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.repositories.RepositoriesMetrics;
 
 import java.io.IOException;
+import java.util.Iterator;
 import java.util.Map;
 
 /**
@@ -27,18 +29,18 @@ import java.util.Map;
 public abstract class TenaciousRetryBlobContainer extends FilterBlobContainer {
 
     private final int maxRetries;
-    private final TimeValue delayIncrement;
+    private final BackoffPolicy backoffPolicy;
     private final RepositoriesMetrics repositoriesMetrics;
 
     public TenaciousRetryBlobContainer(
         BlobContainer delegate,
         int maxRetries,
-        TimeValue delayIncrement,
+        BackoffPolicy backoffPolicy,
         RepositoriesMetrics repositoriesMetrics
     ) {
         super(delegate);
         this.maxRetries = maxRetries;
-        this.delayIncrement = delayIncrement;
+        this.backoffPolicy = backoffPolicy;
         this.repositoriesMetrics = repositoriesMetrics;
     }
 
@@ -66,6 +68,7 @@ public abstract class TenaciousRetryBlobContainer extends FilterBlobContainer {
 
     private <T, E extends Exception> T execute(CheckedSupplier<T, E> operation) throws E {
         int attempts = 0;
+        final Iterator<TimeValue> iterator = backoffPolicy.iterator();
         while (true) {
             try {
                 T t = operation.get();
@@ -80,7 +83,7 @@ public abstract class TenaciousRetryBlobContainer extends FilterBlobContainer {
                     repositoriesMetrics.allocationTransientErrorRetryCounter()
                         .incrementBy(1, Map.of("cloud_provider", getRepositoryType()));
                     try {
-                        Thread.sleep(delayIncrement.millis() * attempts);
+                        Thread.sleep(iterator.next().millis());
                     } catch (InterruptedException exception) {
                         Thread.currentThread().interrupt();
                     }

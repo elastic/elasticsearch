@@ -315,7 +315,7 @@ class S3BlobStore implements BlobStore {
             return new S3TenaciousRetryBlobContainer(
                 new S3BlobContainer(path, this),
                 Integer.MAX_VALUE,
-                TimeValue.timeValueMillis(50),
+                BackoffPolicy.linearBackoff(TimeValue.timeValueMillis(50), Integer.MAX_VALUE, TimeValue.ONE_MINUTE),
                 s3RepositoriesMetrics.common()
             );
         }

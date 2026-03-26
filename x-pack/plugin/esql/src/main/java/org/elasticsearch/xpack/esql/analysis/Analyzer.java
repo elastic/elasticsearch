@@ -2655,13 +2655,16 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     return relation;
                 }
                 return relation.transformExpressionsUp(FieldAttribute.class, f -> {
-                    if (f.field() instanceof InvalidMappedField imf && imf.types().stream().allMatch(DataType::isDate)) {
+                    if (f.field() instanceof InvalidMappedField imf && allDates(context, relation, imf)) {
                         HashMap<ResolveUnionTypes.TypeResolutionKey, Expression> typeResolutions = new HashMap<>();
                         var convert = new ToDateNanos(f.source(), f, context.configuration());
                         imf.types().forEach(type -> typeResolutions(f, convert, type, imf, typeResolutions));
-                        // This rule runs in the "Initialize" batch, before ResolveUnmapped, so isPotentiallyUnmapped() is always false.
+                        // This rule runs in the "Initialize" batch, before ResolveUnmapped. The isFieldMappedInAllIndices
+                        // check above should prevent reaching here for fields that are unmapped in any index when in LOAD mode.
                         if (imf.isPotentiallyUnmapped()) {
-                            throw new IllegalStateException("Unexpected potentially unmapped field [" + imf.getName() + "]");
+                            throw new IllegalStateException(
+                                "Unexpected potentially unmapped field [" + imf.getName() + "] in DateMillisToNanosInEsRelation"
+                            );
                         }
                         var resolvedField = ResolveUnionTypes.resolvedMultiTypeEsField(f, typeResolutions, null);
                         return new FieldAttribute(
@@ -2678,6 +2681,20 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     return f;
                 });
             });
+        }
+
+        private static boolean allDates(AnalyzerContext context, EsRelation relation, InvalidMappedField imf) {
+            if (imf.types().stream().allMatch(DataType::isDate) == false) {
+                return false;
+            }
+            // If we need to load the fields from unmapped indices, we will treat it as a keyword, i.e., not all types are dates.
+            if (context.unmappedResolution() != UnmappedResolution.LOAD) {
+                return true;
+            }
+            // Since DateMillisToNanosInEsRelation runs before ResolveUnmapped, isPotentiallyUnmapped isn't set yet.
+            int mappedCount = imf.getTypesToIndices().values().stream().mapToInt(Set::size).sum();
+            int totalCount = relation.concreteIndices().values().stream().mapToInt(List::size).sum();
+            return mappedCount >= totalCount;
         }
     }
 

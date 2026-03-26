@@ -339,6 +339,40 @@ heights        | null
 heights        | null
 ;
 
+typeConflictDateNanosDateUnmappedCastToDate
+required_capability: optional_fields_v3
+
+SET unmapped_fields="load"\;
+FROM sample_data, sample_data_ts_nanos, no_mapping_sample_data METADATA _index
+| EVAL ts = @timestamp::date
+| KEEP _index, ts
+| SORT _index, ts
+;
+
+_index:keyword         | ts:datetime
+no_mapping_sample_data | 2024-10-23T12:15:03.360Z
+no_mapping_sample_data | 2024-10-23T12:27:28.948Z
+no_mapping_sample_data | 2024-10-23T13:33:34.937Z
+no_mapping_sample_data | 2024-10-23T13:51:54.732Z
+no_mapping_sample_data | 2024-10-23T13:52:55.015Z
+no_mapping_sample_data | 2024-10-23T13:53:55.832Z
+no_mapping_sample_data | 2024-10-23T13:55:01.543Z
+sample_data            | 2023-10-23T12:15:03.360Z
+sample_data            | 2023-10-23T12:27:28.948Z
+sample_data            | 2023-10-23T13:33:34.937Z
+sample_data            | 2023-10-23T13:51:54.732Z
+sample_data            | 2023-10-23T13:52:55.015Z
+sample_data            | 2023-10-23T13:53:55.832Z
+sample_data            | 2023-10-23T13:55:01.543Z
+sample_data_ts_nanos   | 2023-10-23T12:15:03.360Z
+sample_data_ts_nanos   | 2023-10-23T12:27:28.948Z
+sample_data_ts_nanos   | 2023-10-23T13:33:34.937Z
+sample_data_ts_nanos   | 2023-10-23T13:51:54.732Z
+sample_data_ts_nanos   | 2023-10-23T13:52:55.015Z
+sample_data_ts_nanos   | 2023-10-23T13:53:55.832Z
+sample_data_ts_nanos   | 2023-10-23T13:55:01.543Z
+;
+
 ###########################
 # Mapped x 2 and unmapped #
 ###########################
@@ -1214,55 +1248,4 @@ sample_data                           | 2764889.0
 sample_data                           | 3450233.0
 sample_data                           | 5033755.0
 sample_data                           | 8268153.0
-;
-
-###############################################
-# Date + date_nanos + unmapped (bug repro)    #
-###############################################
-
-typeConflictDateNanosDateUnmappedCastToDate
-required_capability: optional_fields_v3
-
-SET unmapped_fields="load"\;
-FROM sample_data, sample_data_ts_nanos, no_mapping_sample_data METADATA _index
-| EVAL ts = @timestamp::date
-| KEEP _index, ts
-| SORT _index, ts
-;
-
-_index:keyword         | ts:date
-no_mapping_sample_data | 2024-10-23T12:15:03.360Z
-no_mapping_sample_data | 2024-10-23T12:27:28.948Z
-no_mapping_sample_data | 2024-10-23T13:33:34.937Z
-no_mapping_sample_data | 2024-10-23T13:51:54.732Z
-no_mapping_sample_data | 2024-10-23T13:52:55.015Z
-no_mapping_sample_data | 2024-10-23T13:53:55.832Z
-no_mapping_sample_data | 2024-10-23T13:55:01.543Z
-sample_data            | 2023-10-23T12:15:03.360Z
-sample_data            | 2023-10-23T12:27:28.948Z
-sample_data            | 2023-10-23T13:33:34.937Z
-sample_data            | 2023-10-23T13:51:54.732Z
-sample_data            | 2023-10-23T13:52:55.015Z
-sample_data            | 2023-10-23T13:53:55.832Z
-sample_data            | 2023-10-23T13:55:01.543Z
-sample_data_ts_nanos   | 2023-10-23T12:15:03.360Z
-sample_data_ts_nanos   | 2023-10-23T12:27:28.948Z
-sample_data_ts_nanos   | 2023-10-23T13:33:34.937Z
-sample_data_ts_nanos   | 2023-10-23T13:51:54.732Z
-sample_data_ts_nanos   | 2023-10-23T13:52:55.015Z
-sample_data_ts_nanos   | 2023-10-23T13:53:55.832Z
-sample_data_ts_nanos   | 2023-10-23T13:55:01.543Z
-;
-
-typeConflictDateNanosDateTwoIndexCastToLong
-required_capability: union_types
-
-FROM sample_data, sample_data_ts_nanos METADATA _index
-| EVAL ts = @timestamp::long
-| KEEP _index, ts
-| SORT _index, ts
-;
-
-_index:keyword       | ts:long
-sample_data          | 0
 ;

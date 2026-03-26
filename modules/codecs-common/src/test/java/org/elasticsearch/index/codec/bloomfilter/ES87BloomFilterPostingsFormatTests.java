@@ -36,13 +36,15 @@ public class ES87BloomFilterPostingsFormatTests extends BasePostingsFormatTestCa
 
     @Override
     protected Codec getCodec() {
-        return TestUtil.alwaysPostingsFormat(new ES87BloomFilterPostingsFormat(BigArrays.NON_RECYCLING_INSTANCE, field -> {
-            PostingsFormat postingsFormat = TestUtil.getDefaultPostingsFormat();
-            if (postingsFormat instanceof PerFieldPostingsFormat) {
-                postingsFormat = TestUtil.getDefaultPostingsFormat();
+        ES87BloomFilterPostingsFormat postingsFormat = new ES87BloomFilterPostingsFormat();
+        postingsFormat.initialize(BigArrays.NON_RECYCLING_INSTANCE, field -> {
+            PostingsFormat inner = TestUtil.getDefaultPostingsFormat();
+            if (inner instanceof PerFieldPostingsFormat) {
+                inner = TestUtil.getDefaultPostingsFormat();
             }
-            return postingsFormat;
-        }));
+            return inner;
+        });
+        return TestUtil.alwaysPostingsFormat(postingsFormat);
     }
 
     public void testBloomFilterSize() {

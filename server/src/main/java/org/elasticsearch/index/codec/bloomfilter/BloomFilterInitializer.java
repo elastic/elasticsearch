@@ -7,16 +7,15 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-esplugin {
-  description = 'Provides common codec implementations for Elasticsearch'
-  classname = 'org.elasticsearch.index.codec.common.CodecsCommonPlugin'
-}
+package org.elasticsearch.index.codec.bloomfilter;
 
-dependencies {
-  compileOnly "org.apache.lucene:lucene-core:${versions.lucene}"
-  compileOnly project(':libs:core')
-  compileOnly project(':server')
+import org.apache.lucene.codecs.PostingsFormat;
+import org.elasticsearch.common.util.BigArrays;
 
-  testImplementation(project(":test:framework"))
-  testImplementation project(':server')
+import java.util.function.Function;
+
+public interface BloomFilterInitializer {
+
+    void initialize(BigArrays bigArrays, Function<String, PostingsFormat> postingsFormats);
+
 }

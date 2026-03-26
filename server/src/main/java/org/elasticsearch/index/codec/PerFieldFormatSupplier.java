@@ -19,7 +19,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersions;
-import org.elasticsearch.index.codec.bloomfilter.ES87BloomFilterPostingsFormat;
+import org.elasticsearch.index.codec.bloomfilter.BloomFilterInitializer;
 import org.elasticsearch.index.codec.bloomfilter.ES94BloomFilterDocValuesFormat;
 import org.elasticsearch.index.codec.postings.ES812PostingsFormat;
 import org.elasticsearch.index.codec.tsdb.TSDBSyntheticIdPostingsFormat;
@@ -79,11 +79,13 @@ public class PerFieldFormatSupplier {
 
     private final PostingsFormat defaultPostingsFormat;
     private final TSDBSyntheticIdPostingsFormat syntheticIdPostingsFormat;
-    private final ES94BloomFilterDocValuesFormat idBloomFilterDocValuesFormat;
+    private final DocValuesFormat idBloomFilterDocValuesFormat;
 
     public PerFieldFormatSupplier(MapperService mapperService, BigArrays bigArrays, @Nullable ThreadPool threadPool) {
         this.mapperService = mapperService;
-        this.bloomFilterPostingsFormat = new ES87BloomFilterPostingsFormat(bigArrays, this::internalGetPostingsFormatForField);
+        this.bloomFilterPostingsFormat = PostingsFormat.forName("ES87BloomFilter");
+        BloomFilterInitializer es87Initializer = (BloomFilterInitializer) bloomFilterPostingsFormat;
+        es87Initializer.initialize(bigArrays, this::internalGetPostingsFormatForField);
         this.threadPool = threadPool;
         this.defaultPostingsFormat = getDefaultPostingsFormat(mapperService);
         this.knnVectorsFormat = getDefaultKnnVectorsFormat(mapperService, threadPool);

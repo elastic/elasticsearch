@@ -63,7 +63,7 @@ import java.util.function.Function;
  * A {@link PostingsFormat} useful for low doc-frequency fields such as primary keys. Bloom filters
  * offers "fast-fail" for reads in segments known to have no record of the key.
  */
-public class ES87BloomFilterPostingsFormat extends PostingsFormat {
+public class ES87BloomFilterPostingsFormat extends PostingsFormat implements BloomFilterInitializer {
     static final String BLOOM_CODEC_NAME = "ES87BloomFilter";
     static final int VERSION_START = 0;
     static final int VERSION_CURRENT = VERSION_START;
@@ -77,14 +77,14 @@ public class ES87BloomFilterPostingsFormat extends PostingsFormat {
     private Function<String, PostingsFormat> postingsFormats;
     private BigArrays bigArrays;
 
-    public ES87BloomFilterPostingsFormat(BigArrays bigArrays, Function<String, PostingsFormat> postingsFormats) {
-        this();
-        this.bigArrays = Objects.requireNonNull(bigArrays);
-        this.postingsFormats = Objects.requireNonNull(postingsFormats);
-    }
-
     public ES87BloomFilterPostingsFormat() {
         super(BLOOM_CODEC_NAME);
+    }
+
+    @Override
+    public void initialize(BigArrays bigArrays, Function<String, PostingsFormat> postingsFormats) {
+        this.bigArrays = Objects.requireNonNull(bigArrays);
+        this.postingsFormats = Objects.requireNonNull(postingsFormats);
     }
 
     @Override

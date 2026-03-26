@@ -1042,9 +1042,9 @@ required_capability: esql_limit_by
 FROM *
 | ENRICH languages_policy on street 
 | KEEP abbrev, integer, year
-| LIMIT 1 BY abbrev, integer, year
-| LIMIT 1000
 | SORT abbrev
+| LIMIT 1000
+| LIMIT 1 BY abbrev, integer, year
 | LIMIT 5
 ;
 

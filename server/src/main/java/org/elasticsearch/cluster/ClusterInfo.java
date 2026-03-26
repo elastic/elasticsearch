@@ -399,6 +399,17 @@ public class ClusterInfo implements ChunkedToXContent, Writeable, ExpectedShardS
         return estimatedHeapUsages;
     }
 
+    /**
+     * Get the shard heap usage estimate for the specified shard, returning the default if no estimate is
+     * present for that shard
+     *
+     * @param shardId The shard ID
+     * @return The estimated heap usage
+     */
+    public ShardAndIndexHeapUsage getEstimatedShardHeapUsage(ShardId shardId) {
+        return estimatedShardHeapUsages.getOrDefault(shardId, defaultShardHeapUsageForShardsWithoutMetrics);
+    }
+
     public Map<ShardId, ShardAndIndexHeapUsage> getEstimatedShardHeapUsages() {
         return estimatedShardHeapUsages;
     }

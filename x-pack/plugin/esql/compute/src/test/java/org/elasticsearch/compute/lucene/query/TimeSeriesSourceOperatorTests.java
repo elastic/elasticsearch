@@ -83,6 +83,8 @@ public class TimeSeriesSourceOperatorTests extends SourceOperatorTestCase {
         return new TimeSeriesSourceOperator.Factory(
             new IndexedByShardIdFromList<>(contexts),
             c -> queryAndTags,
+            DataPartitioning.AUTO,
+            LuceneOperator.SMALL_INDEX_BOUNDARY,
             randomIntBetween(1, 4),
             between(10, 100),
             between(1, 100)

@@ -25,18 +25,19 @@ import java.io.IOException;
  */
 $if(BytesRef)$
 public sealed interface BytesRefVector extends Vector permits ConstantBytesRefVector, BytesRefArrayVector, ConstantNullVector,
-    OrdinalBytesRefVector {
+    OrdinalBytesRefVector, org.elasticsearch.compute.data.arrow.BytesRefArrowBufVector {
 $elseif(boolean)$
 public sealed interface $Type$Vector extends Vector permits Constant$Type$Vector, $Type$ArrayVector, $Type$BigArrayVector,
-    ConstantNullVector {
+    ConstantNullVector, org.elasticsearch.compute.data.arrow.$Type$ArrowBufVector {
 $elseif(int)$
 public sealed interface $Type$Vector extends Vector permits Constant$Type$Vector, $Type$ArrayVector, $Type$BigArrayVector, $Type$RangeVector,
-    ConstantNullVector {
+    ConstantNullVector, org.elasticsearch.compute.data.arrow.$Type$ArrowBufVector {
 $elseif(double)$
 public sealed interface $Type$Vector extends Vector permits Constant$Type$Vector, $Type$ArrayVector, $Type$BigArrayVector,
-    ConstantNullVector {
+    ConstantNullVector, org.elasticsearch.compute.data.arrow.$Type$ArrowBufVector {
 $else$
-public sealed interface $Type$Vector extends Vector permits Constant$Type$Vector, $Type$ArrayVector, $Type$BigArrayVector, ConstantNullVector {
+public sealed interface $Type$Vector extends Vector permits Constant$Type$Vector, $Type$ArrayVector, $Type$BigArrayVector, ConstantNullVector,
+    org.elasticsearch.compute.data.arrow.$Type$ArrowBufVector {
 $endif$
 
 $if(BytesRef)$
@@ -78,6 +79,15 @@ $endif$
 
     @Override
     ReleasableIterator<? extends $Type$Block> lookup(IntBlock positions, ByteSizeValue targetBlockSize);
+
+    /**
+     * Return a subset of this vector from {@code beginInclusive} to
+     * {@code endExclusive}. This <strong>may</strong> return the same
+     * instance if the range covers all positions, but if it does it
+     * will {@link #incRef()} it.
+     */
+    @Override
+    $Type$Vector slice(int beginInclusive, int endExclusive);
 
 $if(int)$
     /**

@@ -80,7 +80,8 @@ public class QuerySettings {
         type = { "keyword" },
         since = "9.3.0",
         description = "Defines how unmapped fields are treated. Possible values are: "
-            + "\"FAIL\" (default) - fails the query if unmapped fields are present; "
+            + "\"DEFAULT\" (default) - standard ESQL queries fail when referencing unmapped fields, "
+            + "while other query types (e.g. PromQL) may treat them differently; "
             + "\"NULLIFY\" - treats unmapped fields as null values. "
         // + "\"LOAD\" - attempts to load the fields from the source." Commented out since LOAD is currently only under snapshot.
     )
@@ -109,19 +110,33 @@ public class QuerySettings {
                 );
             }
         },
-        UnmappedResolution.FAIL
+        UnmappedResolution.DEFAULT
     );
 
-    @Param(name = "approximation", type = { "boolean", "map_param" }, description = "TODO - add description here")
+    @Param(
+        name = "approximation",
+        type = { "boolean", "map_param" },
+        // TODO: more detailed description of query approximation and when it can be applied
+        description = "Enables query approximation if possible for the query."
+    )
     @MapParam(
         name = "approximation",
         params = {
-            @MapParam.MapParamEntry(name = "num_rows", type = { "integer" }, description = "Number of rows."),
-            @MapParam.MapParamEntry(name = "confidence_level", type = { "double" }, description = "Confidence level.") }
+            @MapParam.MapParamEntry(
+                name = "rows",
+                type = { "integer" },
+                description = "Number of sampled rows used for approximating the query. "
+                    + "Must be at least 10,000. Null uses the system default."
+            ),
+            @MapParam.MapParamEntry(
+                name = "confidence_level",
+                type = { "double" },
+                description = "Confidence level of the computed confidence intervals. "
+                    + "Default is 0.90. Null disables computing confidence intervals."
+            ) }
     )
-    // TODO add examples when approximate is implemented, eg.
-    // @Example(file = "approximate", tag = "approximate-with-boolean")
-    // @Example(file = "approximate", tag = "approximate-with-map")
+    @Example(file = "approximation", tag = "approximationBooleanForDocs", description = "Approximate the sum using default settings.")
+    @Example(file = "approximation", tag = "approximationMapForDocs", description = "Approximate the median based on 10,000 rows.")
     public static final QuerySettingDef<ApproximationSettings> APPROXIMATION = new QuerySettingDef<>(
         "approximation",
         null,

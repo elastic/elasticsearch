@@ -44,6 +44,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_D
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.EXPONENTIAL_HISTOGRAM;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 
 /**
@@ -121,6 +122,9 @@ public class Sum extends NumericAggregate implements SurrogateExpression, Aggreg
     @Override
     public DataType dataType() {
         DataType dt = field().dataType();
+        if (dt == DataType.NULL) {
+            return DataType.NULL;
+        }
         if (dt == DataType.DENSE_VECTOR) {
             return DataType.DENSE_VECTOR;
         }
@@ -211,9 +215,14 @@ public class Sum extends NumericAggregate implements SurrogateExpression, Aggreg
             );
         }
 
-        // SUM(const) is equivalent to MV_SUM(const)*COUNT(*).
-        return field.foldable()
-            ? new Mul(s, new MvSum(s, field), new Count(s, Literal.keyword(s, StringUtils.WILDCARD), filter(), window()))
-            : null;
+        if (field.foldable()) {
+            if (field().dataType() == NULL) {
+                return new Literal(s, null, NULL);
+            }
+            // SUM(const) is equivalent to MV_SUM(const)*COUNT(*).
+            return new Mul(s, new MvSum(s, field), new Count(s, Literal.keyword(s, StringUtils.WILDCARD), filter(), window()));
+        } else {
+            return null;
+        }
     }
 }

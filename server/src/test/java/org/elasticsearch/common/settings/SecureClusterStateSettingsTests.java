@@ -138,11 +138,11 @@ public class SecureClusterStateSettingsTests extends ESTestCase {
         assertThat(otherSecureClusterStateSettings, equalTo(secureClusterStateSettings));
     }
 
-    public void testConstructFromSecureSettings() {
+    public void testConstructFromMockSecureSettings() {
         var mockSecureSettings = new MockSecureSettings();
         mockSecureSettings.setFile("foo", "bar".getBytes(StandardCharsets.UTF_8));
         mockSecureSettings.setFile("goo", "baz".getBytes(StandardCharsets.UTF_8));
-        assertThat(new SecureClusterStateSettings(mockSecureSettings), equalTo(secureClusterStateSettings));
+        assertThat(mockSecureSettings.toSecureClusterStateSettings(), equalTo(secureClusterStateSettings));
     }
 
     public void testClose() throws IOException {

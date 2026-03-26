@@ -56,22 +56,25 @@ import static org.elasticsearch.entitlement.qa.test.EntitlementTest.ExpectedAcce
 @SuppressWarnings({ "unused" /* called via reflection */, "deprecation" })
 class NetworkAccessCheckActions {
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void serverSocketAccept() throws IOException {
         try (ServerSocket socket = new DummyImplementations.DummyBoundServerSocket()) {
             try {
                 socket.accept();
             } catch (IOException e) {
+                // Any other IOException (including entitlement denials) should propagate.
                 // Our dummy socket cannot accept connections unless we tell the JDK how to create a socket for it.
                 // But Socket.setSocketImplFactory(); is one of the methods we always forbid, so we cannot use it.
                 // Still, we can check accept is called (allowed/denied), we don't care if it fails later for this
                 // known reason.
-                assert e.getMessage().contains("client socket implementation factory not set");
+                if (e.getMessage() == null || e.getMessage().contains("client socket implementation factory not set") == false) {
+                    throw e;
+                }
             }
         }
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void serverSocketBind() throws IOException {
         try (ServerSocket socket = new DummyImplementations.DummyServerSocket()) {
             socket.bind(null);
@@ -85,14 +88,14 @@ class NetworkAccessCheckActions {
         }
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void socketBind() throws IOException {
         try (Socket socket = new DummyImplementations.DummySocket()) {
             socket.bind(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0));
         }
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void socketConnect() throws IOException {
         try (Socket socket = new DummyImplementations.DummySocket()) {
             socket.connect(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0));
@@ -107,24 +110,34 @@ class NetworkAccessCheckActions {
         } catch (InvalidAlgorithmParameterException ex) {
             // Assert we actually hit the class we care about, LDAPCertStore (or its impl)
             assert Arrays.stream(ex.getStackTrace()).anyMatch(e -> e.getClassName().endsWith("LDAPCertStore"));
+        } catch (NoSuchAlgorithmException ex) {
+            // In some environments (e.g. with FIPS enabled) the LDAP CertStore is not available.
+            // When this is a genuine entitlement denial, the exception wraps a NotEntitledException as its cause;
+            // otherwise (provider simply not present), we swallow it — the entitlement check still ran.
+            // The bridge is compile-only (loaded in a separate classloader), so we must compare by class name
+            // rather than using instanceof.
+            if (ex.getCause() != null
+                && ex.getCause().getClass().getName().equals("org.elasticsearch.entitlement.bridge.NotEntitledException")) {
+                throw ex;
+            }
         }
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void serverSocketChannelBind() throws IOException {
         try (var serverSocketChannel = ServerSocketChannel.open()) {
             serverSocketChannel.bind(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0));
         }
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void serverSocketChannelBindWithBacklog() throws IOException {
         try (var serverSocketChannel = ServerSocketChannel.open()) {
             serverSocketChannel.bind(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 50);
         }
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void serverSocketChannelAccept() throws IOException {
         try (var serverSocketChannel = ServerSocketChannel.open()) {
             serverSocketChannel.configureBlocking(false);
@@ -137,14 +150,14 @@ class NetworkAccessCheckActions {
         }
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void asynchronousServerSocketChannelBind() throws IOException {
         try (var serverSocketChannel = AsynchronousServerSocketChannel.open()) {
             serverSocketChannel.bind(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0));
         }
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void asynchronousServerSocketChannelBindWithBacklog() throws IOException {
         try (var serverSocketChannel = AsynchronousServerSocketChannel.open()) {
             serverSocketChannel.bind(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 50);
@@ -184,14 +197,14 @@ class NetworkAccessCheckActions {
         }
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void socketChannelBind() throws IOException {
         try (var socketChannel = SocketChannel.open()) {
             socketChannel.bind(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0));
         }
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void socketChannelConnect() throws IOException {
         try (var socketChannel = SocketChannel.open()) {
             try {
@@ -203,12 +216,12 @@ class NetworkAccessCheckActions {
         }
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void socketChannelOpenProtocol() throws IOException {
         SocketChannel.open(StandardProtocolFamily.INET).close();
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void socketChannelOpenAddress() throws IOException {
         try {
             SocketChannel.open(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0)).close();
@@ -217,7 +230,7 @@ class NetworkAccessCheckActions {
         }
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void asynchronousSocketChannelBind() throws IOException {
         try (var socketChannel = AsynchronousSocketChannel.open()) {
             socketChannel.bind(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0));
@@ -253,14 +266,14 @@ class NetworkAccessCheckActions {
         }
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void datagramChannelBind() throws IOException {
         try (var channel = DatagramChannel.open()) {
             channel.bind(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0));
         }
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void datagramChannelConnect() throws IOException {
         try (var channel = DatagramChannel.open()) {
             channel.configureBlocking(false);
@@ -273,7 +286,7 @@ class NetworkAccessCheckActions {
         }
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void datagramChannelSend() throws IOException {
         try (var channel = DatagramChannel.open()) {
             channel.configureBlocking(false);
@@ -281,7 +294,7 @@ class NetworkAccessCheckActions {
         }
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void datagramChannelReceive() throws IOException {
         try (var channel = DatagramChannel.open()) {
             channel.configureBlocking(false);
@@ -320,14 +333,26 @@ class NetworkAccessCheckActions {
         });
     }
 
-    @EntitlementTest(expectedAccess = ALWAYS_DENIED)
-    static void setDefaultResponseCache() {
+    @EntitlementTest(expectedAccess = ALWAYS_DENIED, isExpectedNoOp = true)
+    static boolean setDefaultResponseCache() {
+        var original = ResponseCache.getDefault();
         ResponseCache.setDefault(null);
+        boolean changed = ResponseCache.getDefault() != original;
+        if (changed) {
+            ResponseCache.setDefault(original);
+        }
+        return changed;
     }
 
-    @EntitlementTest(expectedAccess = ALWAYS_DENIED)
-    static void setDefaultProxySelector() {
+    @EntitlementTest(expectedAccess = ALWAYS_DENIED, isExpectedNoOp = true)
+    static boolean setDefaultProxySelector() {
+        var original = ProxySelector.getDefault();
         ProxySelector.setDefault(null);
+        boolean changed = ProxySelector.getDefault() != original;
+        if (changed) {
+            ProxySelector.setDefault(original);
+        }
+        return changed;
     }
 
     @EntitlementTest(expectedAccess = ALWAYS_DENIED, isExpectedNoOp = true)
@@ -372,22 +397,28 @@ class NetworkAccessCheckActions {
         return connection.getSSLSocketFactory() != original;
     }
 
-    @EntitlementTest(expectedAccess = ALWAYS_DENIED)
+    @EntitlementTest(expectedAccess = ALWAYS_DENIED, expectedExceptionIfDenied = IOException.class)
     static void datagramSocket$$setDatagramSocketImplFactory() throws IOException {
         DatagramSocket.setDatagramSocketImplFactory(() -> { throw new IllegalStateException(); });
     }
 
-    @EntitlementTest(expectedAccess = ALWAYS_DENIED)
-    static void httpURLConnection$$setFollowRedirects() {
-        HttpURLConnection.setFollowRedirects(HttpURLConnection.getFollowRedirects());
+    @EntitlementTest(expectedAccess = ALWAYS_DENIED, isExpectedNoOp = true)
+    static boolean httpURLConnection$$setFollowRedirects() {
+        boolean original = HttpURLConnection.getFollowRedirects();
+        HttpURLConnection.setFollowRedirects(original == false);
+        boolean changed = HttpURLConnection.getFollowRedirects() != original;
+        if (changed) {
+            HttpURLConnection.setFollowRedirects(original);
+        }
+        return changed;
     }
 
-    @EntitlementTest(expectedAccess = ALWAYS_DENIED)
+    @EntitlementTest(expectedAccess = ALWAYS_DENIED, expectedExceptionIfDenied = IOException.class)
     static void serverSocket$$setSocketFactory() throws IOException {
         ServerSocket.setSocketFactory(() -> { throw new IllegalStateException(); });
     }
 
-    @EntitlementTest(expectedAccess = ALWAYS_DENIED)
+    @EntitlementTest(expectedAccess = ALWAYS_DENIED, expectedExceptionIfDenied = IOException.class)
     static void socket$$setSocketImplFactory() throws IOException {
         Socket.setSocketImplFactory(() -> { throw new IllegalStateException(); });
     }
@@ -397,9 +428,15 @@ class NetworkAccessCheckActions {
         URL.setURLStreamHandlerFactory(__ -> { throw new IllegalStateException(); });
     }
 
-    @EntitlementTest(expectedAccess = ALWAYS_DENIED)
-    static void urlConnection$$setFileNameMap() {
+    @EntitlementTest(expectedAccess = ALWAYS_DENIED, isExpectedNoOp = true)
+    static boolean urlConnection$$setFileNameMap() {
+        var original = URLConnection.getFileNameMap();
         URLConnection.setFileNameMap(__ -> { throw new IllegalStateException(); });
+        boolean changed = URLConnection.getFileNameMap() != original;
+        if (changed) {
+            URLConnection.setFileNameMap(original);
+        }
+        return changed;
     }
 
     @EntitlementTest(expectedAccess = ALWAYS_DENIED)
@@ -414,7 +451,7 @@ class NetworkAccessCheckActions {
         }
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = SocketException.class)
     static void connectDatagramSocket() throws SocketException {
         try (var socket = new DummyImplementations.DummyDatagramSocket()) {
             socket.connect(new InetSocketAddress(1234));
@@ -428,7 +465,7 @@ class NetworkAccessCheckActions {
         }
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void joinGroupDatagramSocket() throws IOException {
         try (var socket = new DummyImplementations.DummyDatagramSocket()) {
             socket.joinGroup(
@@ -438,7 +475,7 @@ class NetworkAccessCheckActions {
         }
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void leaveGroupDatagramSocket() throws IOException {
         try (var socket = new DummyImplementations.DummyDatagramSocket()) {
             socket.leaveGroup(
@@ -448,21 +485,21 @@ class NetworkAccessCheckActions {
         }
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void sendDatagramSocket() throws IOException {
         try (var socket = new DummyImplementations.DummyDatagramSocket()) {
             socket.send(new DatagramPacket(new byte[] { 0 }, 1, InetAddress.getLocalHost(), 1234));
         }
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void receiveDatagramSocket() throws IOException {
         try (var socket = new DummyImplementations.DummyDatagramSocket()) {
             socket.receive(new DatagramPacket(new byte[1], 1, InetAddress.getLocalHost(), 1234));
         }
     }
 
-    @EntitlementTest(expectedAccess = ALWAYS_DENIED)
+    @EntitlementTest(expectedAccess = ALWAYS_DENIED, expectedExceptionIfDenied = IOException.class)
     static void javaXmlNetworkRequest() throws Exception {
         // java.xml is part of the jdk, but not a system module. this checks it can't access the network
         var saxParser = SAXParserFactory.newInstance().newSAXParser();

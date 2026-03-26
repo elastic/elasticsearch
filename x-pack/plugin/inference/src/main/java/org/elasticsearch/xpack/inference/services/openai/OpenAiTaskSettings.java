@@ -54,9 +54,7 @@ public abstract class OpenAiTaskSettings<T extends OpenAiTaskSettings<T>> implem
         Map<String, Object> headers = extractOptionalMapRemoveNulls(map, HEADERS, validationException);
         var stringHeaders = validateMapStringValues(headers, HEADERS, validationException, false, null);
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return createSettings(user, stringHeaders);
     }

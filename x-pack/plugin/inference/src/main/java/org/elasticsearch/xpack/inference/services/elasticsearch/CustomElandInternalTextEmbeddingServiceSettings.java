@@ -60,9 +60,7 @@ public class CustomElandInternalTextEmbeddingServiceSettings extends Elasticsear
         ValidationException validationException = new ValidationException();
         var commonFields = commonFieldsFromMap(map, validationException);
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new CustomElandInternalTextEmbeddingServiceSettings(commonFields);
     }

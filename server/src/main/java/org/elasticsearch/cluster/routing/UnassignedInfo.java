@@ -138,7 +138,9 @@ public record UnassignedInfo(
          */
         REROUTE_CANCELLED,
         /**
-         * When a shard moves from started back to initializing.
+         * A replica shard which restarted initialization either because the primary changed or because it was previously a relocation
+         * target whose relocation source has failed; the "source" of a replica relocation isn't the source of its data, that's the primary,
+         * but we represent the movement of a STARTED replica shard as if it was.
          */
         REINITIALIZED,
         /**

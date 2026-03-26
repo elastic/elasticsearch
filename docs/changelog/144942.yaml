@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 144914
+pr: 144942
+summary: Correctly manage NULL data type for SUM
+type: bug

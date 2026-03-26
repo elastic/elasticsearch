@@ -291,13 +291,14 @@ foo:integer
 
 statsAggs
 required_capability: optional_fields_nullify_tech_preview
+required_capability: fix_sum_of_null_optimization
 
 SET unmapped_fields="nullify"\;
 ROW x = 1
 | STATS s = SUM(foo)
 ;
 
-s:double
+s:null
 null
 ;
 
@@ -315,13 +316,14 @@ null
 
 statsAggsGrouped
 required_capability: optional_fields_nullify_tech_preview
+required_capability: fix_sum_of_null_optimization
 
 SET unmapped_fields="nullify"\;
 ROW x = 1
 | STATS s = SUM(foo) BY bar
 ;
 
-s:double | bar:null
+s:null   | bar:null
 null     | null
 ;
 
@@ -583,13 +585,14 @@ null           | 1985           | null           | abc            | fork3
 
 inlinestatsCount
 required_capability: optional_fields_nullify_tech_preview
+required_capability: fix_sum_of_null_optimization
 
 SET unmapped_fields="nullify"\;
 ROW x = 1
 | INLINE STATS c = COUNT(*), s = SUM(does_not_exist) BY d = does_not_exist
 ;
 
-x:integer      | does_not_exist:null | c:long         | s:double       | d:null
+x:integer      | does_not_exist:null | c:long         | s:null         | d:null
 1              | null                | 1              | null           | null
 ;
 
@@ -818,6 +821,7 @@ null     | 2024-05-10T00:00:00.000Z
 maxOverTimeOfDoubleNoGroupingUnmappedNullify
 required_capability: optional_fields_nullify_tech_preview
 required_capability: ts_command_v0
+required_capability: fix_sum_of_null_optimization
 
 SET unmapped_fields="nullify"\;
 TS k8s_unmapped
@@ -825,7 +829,7 @@ TS k8s_unmapped
 | SORT time_bucket | LIMIT 10
 ;
 
-cost:double | time_bucket:datetime
+cost:null   | time_bucket:datetime
 null        | 2024-05-10T00:00:00.000Z
 null        | 2024-05-10T00:01:00.000Z
 null        | 2024-05-10T00:02:00.000Z

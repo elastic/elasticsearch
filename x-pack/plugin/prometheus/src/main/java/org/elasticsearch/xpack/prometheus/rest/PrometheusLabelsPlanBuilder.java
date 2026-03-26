@@ -39,7 +39,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
  *                                 └── UnresolvedRelation(index, TS)
  * </pre>
  *
- * <p>The response listener ({@link PrometheusLabelsResponseListener}) strips the {@code "labels."}
+ * <p>The response listener strips the {@code "labels."}
  * prefix from each deduplicated label name and always prepends {@code __name__} to signal to
  * clients that the metric-name label is available for all metrics (both Prometheus and OTel).
  */

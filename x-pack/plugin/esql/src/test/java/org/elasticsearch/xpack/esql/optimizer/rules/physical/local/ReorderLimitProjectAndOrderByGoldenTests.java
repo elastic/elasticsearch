@@ -23,6 +23,7 @@ public class ReorderLimitProjectAndOrderByGoldenTests extends GoldenTestCase {
      * In this case the 2*salary AS language_name ends up in a Project and LimitBy references it, so LimitBy -> Project cannot be swapped
      */
     public void testLimitByAndProjectNotSwapped() {
+        assumeTrue("SORT | LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_TOPN_BY.isEnabled());
         runGoldenTest("""
             FROM employees
             | RENAME languages AS language_code

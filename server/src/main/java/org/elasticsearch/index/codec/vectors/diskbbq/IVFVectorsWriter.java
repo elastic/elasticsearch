@@ -197,7 +197,8 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
                 fieldWriter.fieldInfo,
                 fieldWriter.delegate,
                 maxDoc,
-                preconditionVectors(preconditioner)
+                preconditionVectors(preconditioner),
+                sortMap
             );
 
             // build centroids
@@ -257,17 +258,18 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
         FieldInfo fieldInfo,
         FlatFieldVectorsWriter<float[]> fieldVectorsWriter,
         int maxDoc,
-        Consumer<List<float[]>> vectorTransform
+        Consumer<List<float[]>> vectorTransform,
+        Sorter.DocMap sortMap
     ) throws IOException {
         List<float[]> vectors = fieldVectorsWriter.getVectors();
         vectorTransform.accept(vectors);
-        if (vectors.size() == maxDoc) {
+        if (vectors.size() == maxDoc && sortMap == null) {
             return KMeansFloatVectorValues.build(vectors, null, fieldInfo.getVectorDimension());
         }
         final DocIdSetIterator iterator = fieldVectorsWriter.getDocsWithFieldSet().iterator();
         final int[] docIds = new int[vectors.size()];
         for (int i = 0; i < docIds.length; i++) {
-            docIds[i] = iterator.nextDoc();
+            docIds[i] = sortMap == null ? iterator.nextDoc() : sortMap.oldToNew(iterator.nextDoc());
         }
         assert iterator.nextDoc() == NO_MORE_DOCS;
         return KMeansFloatVectorValues.build(vectors, docIds, fieldInfo.getVectorDimension());

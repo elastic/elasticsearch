@@ -11,6 +11,7 @@ package org.elasticsearch.action.search;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
@@ -738,8 +739,8 @@ public class SearchTransportService {
                 response.writeTo(out);
                 bytesRef = out.moveToBytesReference();
             } catch (Exception e) {
-                channelListener.onFailure(e);
-                return;
+                // Propagate to caller so wrapFailureListener in SearchService can free the reader context.
+                throw ExceptionsHelper.convertToRuntime(e);
             }
             // respondAndRelease releases the bytes once the transport layer completes.
             ActionListener.respondAndRelease(channelListener, new BytesTransportResponse(bytesRef, transportVersion));

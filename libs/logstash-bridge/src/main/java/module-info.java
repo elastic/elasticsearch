@@ -24,7 +24,9 @@ module org.elasticsearch.logstashbridge {
     requires org.elasticsearch.redact;
     requires org.elasticsearch.spatial;
     requires org.elasticsearch.wildcard;
-    requires org.elasticsearch.ingest.geoip;
+    requires org.elasticsearch.iplocation.api;
+    requires org.elasticsearch.ip_location;
+    requires org.elasticsearch.ingest.iplocation;
     requires com.maxmind.db;
 
     exports org.elasticsearch.logstashbridge;

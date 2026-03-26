@@ -502,7 +502,9 @@ setup:
       indices.forcemerge:
         index: test
         max_num_segments: 1
-
+  - do:
+      indices.refresh:
+        index: test
   - do:
       search:
         index: test

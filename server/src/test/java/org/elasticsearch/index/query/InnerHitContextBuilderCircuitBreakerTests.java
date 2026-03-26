@@ -38,7 +38,6 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 
-import static org.elasticsearch.index.query.SearchExecutionContextHelper.SHARD_SEARCH_STATS;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
@@ -72,7 +71,7 @@ public class InnerHitContextBuilderCircuitBreakerTests extends ESTestCase {
                 IndexMetadata.builder("test").settings(indexSettingsSettings).build(),
                 Settings.EMPTY
             );
-            KeywordFieldMapper fieldMapper = new KeywordFieldMapper.Builder("field", indexSettings).build(
+            KeywordFieldMapper fieldMapper = new KeywordFieldMapper.Builder("field", indexSettings.getIndexVersionCreated()).build(
                 MapperBuilderContext.root(false, false)
             );
             MappingLookup mappingLookup = MappingLookup.fromMappers(
@@ -103,8 +102,7 @@ public class InnerHitContextBuilderCircuitBreakerTests extends ESTestCase {
                 null,
                 Collections.emptyMap(),
                 null,
-                MapperMetrics.NOOP,
-                SHARD_SEARCH_STATS
+                MapperMetrics.NOOP
             );
 
             CircuitBreaker cb = newLimitedBreaker(ByteSizeValue.ofMb(100));

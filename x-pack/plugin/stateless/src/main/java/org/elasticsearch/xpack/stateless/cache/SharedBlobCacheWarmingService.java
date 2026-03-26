@@ -718,6 +718,10 @@ public class SharedBlobCacheWarmingService {
 
     private record WarmingRun(Type type, ShardId shardId, String logIdentifier, Map<String, Object> labels) {}
 
+    protected void scheduleWarmingTask(ActionListener<Releasable> warmTask) {
+        throttledTaskRunner.enqueueTask(warmTask);
+    }
+
     private class RecoveryWarmer extends AbstractWarmer {
 
         private final ConcurrentMap<BlobRegion, BlobRangesQueue> queues = new ConcurrentHashMap<>();
@@ -1053,7 +1057,8 @@ public class SharedBlobCacheWarmingService {
         }
     }
 
-    private abstract class AbstractWarmer implements Releasable {
+    // protected for tests
+    protected abstract class AbstractWarmer implements Releasable {
 
         protected final WarmingRun warmingRun;
         protected final BlobStoreCacheDirectory directory;
@@ -1110,7 +1115,7 @@ public class SharedBlobCacheWarmingService {
         }
 
         protected void scheduleWarmingTask(ActionListener<Releasable> warmTask) {
-            throttledTaskRunner.enqueueTask(warmTask);
+            SharedBlobCacheWarmingService.this.scheduleWarmingTask(warmTask);
             tasksCount.incrementAndGet();
         }
 
@@ -1306,9 +1311,12 @@ public class SharedBlobCacheWarmingService {
             }
         }
 
+        // protected for tests
         protected class WarmBlobByteRangeTask implements ActionListener<Releasable> {
-            private final BlobFile blobFile;
-            private final ByteRange byteRangeToWarm;
+            // protected for tests
+            protected final BlobFile blobFile;
+            // protected for tests
+            protected final ByteRange byteRangeToWarm;
             private final ActionListener<Void> listener;
 
             WarmBlobByteRangeTask(BlobFile blobFile, ByteRange byteRangeToWarm, ActionListener<Void> listener) {

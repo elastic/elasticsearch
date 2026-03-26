@@ -17,10 +17,15 @@
 
 package org.elasticsearch.xpack.stateless.cache;
 
+import co.elastic.elasticsearch.serverless.constants.ServerlessSharedSettings;
+
+import org.apache.lucene.document.Field;
+import org.apache.lucene.document.KeywordField;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
@@ -35,13 +40,17 @@ import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
@@ -49,11 +58,14 @@ import org.elasticsearch.index.store.LuceneFilesExtensions;
 import org.elasticsearch.telemetry.InstrumentType;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.RecordingMeterRegistry;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.FakeTimeThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
 import org.elasticsearch.xpack.stateless.TestUtils;
+import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.AbstractWarmer.WarmBlobByteRangeTask;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.Type;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReader;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReaderService;
@@ -66,6 +78,7 @@ import org.elasticsearch.xpack.stateless.commits.BlobLocation;
 import org.elasticsearch.xpack.stateless.commits.InternalFilesReplicatedRanges;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
+import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit.TimestampFieldValueRange;
 import org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommitTestUtils;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
@@ -82,6 +95,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -89,14 +103,18 @@ import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.LongConsumer;
 import java.util.function.LongFunction;
 
 import static org.elasticsearch.blobcache.common.BlobCacheBufferedIndexInput.BUFFER_SIZE;
+import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING;
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.Type.INDEXING;
 import static org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.Type.INDEXING_EARLY;
 import static org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.Type.SEARCH;
+import static org.elasticsearch.xpack.stateless.commits.IndexCommitTimestampFieldRangeTests.getIndexWriterConfig;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
@@ -858,6 +876,192 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             assertThat(first.attributes().get("file_extension"), is("other"));
             assertThat(first.value(), is(1L));
         }
+    }
+
+    public void testByteRangeCacheWarmingTasksAsCommitsAge() throws Exception {
+        final int primaryTerm = 1;
+        final var boostWindow = TimeValue.timeValueDays(randomIntBetween(1, 30));
+        final List<Long> timestampsToCheckWarmingFor = new ArrayList<>();
+        final Map<String, WarmBlobByteRangeTask> warmTasksForBCCs = ConcurrentCollections.newConcurrentMap();
+        // warming is rounded to cache region size, so let's keep it small so that we don't have to generate large BCCs
+        long regionSizeInBytes = SharedBytes.PAGE_SIZE * randomLongBetween(1, 3);
+        AtomicReference<FakeTimeThreadPool> fakeTimeThreadPool = new AtomicReference<>();
+        try (
+            var fakeNode = new FakeStatelessNode(
+                this::newEnvironment,
+                this::newNodeEnvironment,
+                xContentRegistry(),
+                primaryTerm,
+                TestProjectResolvers.DEFAULT_PROJECT_ONLY,
+                null
+            ) {
+                @Override
+                protected ThreadPool createThreadPool() {
+                    FakeTimeThreadPool threadPool = new FakeTimeThreadPool(
+                        getClass().getName(),
+                        0L,
+                        StatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, true)
+                    );
+                    fakeTimeThreadPool.set(threadPool);
+                    return threadPool;
+                }
+
+                @Override
+                protected SharedBlobCacheWarmingService createSharedBlobCacheWarmingService(
+                    StatelessSharedBlobCacheService cacheService,
+                    ThreadPool threadPool,
+                    TelemetryProvider telemetryProvider,
+                    ClusterSettings clusterSettings
+                ) {
+                    return new SharedBlobCacheWarmingService(cacheService, threadPool, telemetryProvider, clusterSettings) {
+                        @Override
+                        protected void scheduleWarmingTask(ActionListener<Releasable> task) {
+                            if (task instanceof WarmBlobByteRangeTask warmTask) {
+                                warmTasksForBCCs.put(warmTask.blobFile.blobName(), warmTask);
+                            }
+                            super.scheduleWarmingTask(task);
+                        }
+                    };
+                }
+
+                @Override
+                protected Settings nodeSettings() {
+                    Settings settings = super.nodeSettings();
+                    return Settings.builder()
+                        .put(settings)
+                        .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSizeInBytes))
+                        .put(ServerlessSharedSettings.BOOST_WINDOW_SETTING.getKey(), boostWindow)
+                        .put(SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofMb(64))
+                        .build();
+                }
+            }
+        ) {
+            var numberOfBatchedCompoundCommits = randomIntBetween(1, 2);
+            Map<String, BlobLocation> uploadedBlobLocations = new HashMap<>();
+            Set<String> bccBlobNames = ConcurrentCollections.newConcurrentSet();
+            VirtualBatchedCompoundCommit vbcc = null;
+            for (int i = 0; i < numberOfBatchedCompoundCommits; i++) {
+                var indexCommits = generateLargeIndexCommits(fakeNode);
+                vbcc = new VirtualBatchedCompoundCommit(
+                    fakeNode.shardId,
+                    "fake-node-id",
+                    primaryTerm,
+                    indexCommits.get(0).getGeneration(),
+                    fileName -> uploadedBlobLocations.get(fileName),
+                    ESTestCase::randomNonNegativeLong,
+                    fakeNode.sharedCacheService.getRegionSize(),
+                    randomIntBetween(0, fakeNode.sharedCacheService.getRegionSize())
+                );
+                long minMillisPerBcc = Long.MAX_VALUE;
+                long maxMillisPerBcc = Long.MIN_VALUE;
+                do {
+                    for (StatelessCommitRef ref : indexCommits) {
+                        long minMillis = randomLongBetween(1, Long.MAX_VALUE - 1 - boostWindow.getMillis());
+                        long maxMillis = randomLongBetween(minMillis, Long.MAX_VALUE - 1 - boostWindow.getMillis());
+                        minMillisPerBcc = Math.min(minMillisPerBcc, minMillis);
+                        maxMillisPerBcc = Math.max(maxMillisPerBcc, maxMillis);
+                        TimestampFieldValueRange timestampFieldValueRange = new TimestampFieldValueRange(minMillis, maxMillis);
+                        assertTrue(vbcc.appendCommit(ref, randomBoolean(), timestampFieldValueRange));
+                    }
+                    // time-based warming only works for blobs > 2 cache regions (1.5 actually but that's a detail not worth dealing with)
+                    if (vbcc.getTotalSizeInBytes() >= 2 * regionSizeInBytes) {
+                        break;
+                    }
+                    indexCommits = generateLargeIndexCommits(fakeNode);
+                } while (true);
+                vbcc.freeze();
+                // upload vbcc
+                var indexBlobContainer = fakeNode.getShardContainer();
+                try (var vbccInputStream = vbcc.getFrozenInputStreamForUpload()) {
+                    indexBlobContainer.writeBlobAtomic(
+                        OperationPurpose.INDICES,
+                        vbcc.getBlobName(),
+                        vbccInputStream,
+                        vbcc.getTotalSizeInBytes(),
+                        true
+                    );
+                }
+                uploadedBlobLocations.putAll(vbcc.lastCompoundCommit().commitFiles());
+                bccBlobNames.add(vbcc.getBlobName());
+                // record some timestamps to check warming byte ranges
+                {
+                    timestampsToCheckWarmingFor.add(randomLongBetween(0, minMillisPerBcc));
+                    int nTimestampsInsideBccTimeRange = randomIntBetween(1, 4);
+                    for (int j = 0; j < nTimestampsInsideBccTimeRange; j++) {
+                        timestampsToCheckWarmingFor.add(randomLongBetween(minMillisPerBcc, maxMillisPerBcc));
+                    }
+                    int nTimestampsInsideBoostWindow = randomIntBetween(1, 4);
+                    for (int j = 0; j < nTimestampsInsideBoostWindow; j++) {
+                        timestampsToCheckWarmingFor.add(randomLongBetween(maxMillisPerBcc, maxMillisPerBcc + boostWindow.getMillis()));
+                    }
+                    timestampsToCheckWarmingFor.add(randomLongBetween(maxMillisPerBcc + boostWindow.getMillis() + 1, Long.MAX_VALUE));
+                }
+            }
+            final var lastCommit = vbcc.getFrozenBatchedCompoundCommit().lastCompoundCommit();
+            // update search directory with the latest commit
+            fakeNode.searchDirectory.updateCommit(lastCommit);
+            BlobStoreCacheDirectoryTestUtils.updateLatestUploadedBcc(fakeNode.searchDirectory, vbcc.primaryTermAndGeneration());
+            BlobStoreCacheDirectoryTestUtils.updateLatestCommitInfo(
+                fakeNode.searchDirectory,
+                lastCommit.primaryTermAndGeneration(),
+                fakeNode.clusterService.localNode().getId()
+            );
+
+            Map<String, WarmBlobByteRangeTask> prevWarmTasksForBCCs = new HashMap<>();
+            // as time passes on, BCC blobs are warmed less and less
+            Collections.sort(timestampsToCheckWarmingFor);
+            for (int i = 0; i < timestampsToCheckWarmingFor.size(); i++) {
+                long timestamp = timestampsToCheckWarmingFor.get(i);
+                fakeTimeThreadPool.get().setCurrentTimeInMillis(timestamp);
+                warmTasksForBCCs.clear();
+                var listener = new SubscribableListener<Void>();
+                fakeNode.warmingService.warmCacheRecovery(
+                    SEARCH,
+                    mockIndexShard(fakeNode),
+                    lastCommit,
+                    fakeNode.searchDirectory,
+                    null,
+                    randomBoolean(),
+                    listener
+                );
+                safeAwait(listener);
+                if (i == 0) {
+                    // the first timestamp is early enough so that all BCCs are warmed completely
+                    assertThat(bccBlobNames, containsInAnyOrder(warmTasksForBCCs.keySet().toArray()));
+                } else if (i == timestampsToCheckWarmingFor.size() - 1) {
+                    // the last timestamp is late enough so that no BCC is warmed at all
+                    assertThat(warmTasksForBCCs.size(), is(0));
+                } else {
+                    // warming less than the last time
+                    for (var warmTask : warmTasksForBCCs.values()) {
+                        assertTrue(
+                            warmTask.byteRangeToWarm.end() <= prevWarmTasksForBCCs.get(warmTask.blobFile.blobName()).byteRangeToWarm.end()
+                        );
+                    }
+                }
+                prevWarmTasksForBCCs.clear();
+                prevWarmTasksForBCCs.putAll(warmTasksForBCCs);
+            }
+        }
+    }
+
+    private List<StatelessCommitRef> generateLargeIndexCommits(FakeStatelessNode fakeNode) throws IOException {
+        // generate some big commits (relative to cache region size) in order to properly test cover byte range warming
+        var numberOfDocuments = randomIntBetween(1, 512);
+        // the number of commits per BCC is not important
+        var numberOfCommits = randomIntBetween(1, 3);
+        return fakeNode.generateIndexCommits(
+            numberOfCommits,
+            false,
+            false,
+            generation -> {},
+            (commitId) -> randomList(numberOfDocuments, numberOfDocuments, () -> {
+                LuceneDocument document = new LuceneDocument();
+                document.add(new KeywordField(randomAlphaOfLength(2), randomAlphanumericOfLength(8), Field.Store.YES));
+                return document;
+            }),
+            getIndexWriterConfig(randomBoolean(), false)
+        );
     }
 
     public void testOnlyTheFirstRegionIsLoadedWhenReplicatedContentIsPresent() throws IOException {

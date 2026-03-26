@@ -249,8 +249,9 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
                 }
             } else {
                 return allocation.decision(Decision.YES, NAME, """
-                    Node [%s] is hot-spotting, but has a single shard max write load ratio of [%.2f] that exceeds the threshold of \
-                    [%.2f]. Nothing to do.""", node.getShortNodeDescription(), maxShardWriteLoadAsRatio, maxShardWriteLoadThreshold);
+                    Node [%s] is hot-spotting due to a single shard executing [%.2f] percent of the writes. But since this is above the\
+                    single shard write load threshold ([%.2f]%), moving shards away from this node is not expected to resolve the hot-spot.\
+                    """, node.getShortNodeDescription(), maxShardWriteLoadAsRatio * 100, maxShardWriteLoadThreshold * 100);
             }
         }
 

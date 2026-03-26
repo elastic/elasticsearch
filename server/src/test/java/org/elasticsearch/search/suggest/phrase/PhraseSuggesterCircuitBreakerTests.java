@@ -53,7 +53,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.index.query.SearchExecutionContextHelper.SHARD_SEARCH_STATS;
 import static org.hamcrest.Matchers.equalTo;
 
 public class PhraseSuggesterCircuitBreakerTests extends ESTestCase {
@@ -111,7 +110,7 @@ public class PhraseSuggesterCircuitBreakerTests extends ESTestCase {
                 IndexMetadata.builder("test").settings(indexSettingsSettings).build(),
                 Settings.EMPTY
             );
-            KeywordFieldMapper bodyMapper = new KeywordFieldMapper.Builder("body", indexSettings).build(
+            KeywordFieldMapper bodyMapper = new KeywordFieldMapper.Builder("body", indexSettings.getIndexVersionCreated()).build(
                 MapperBuilderContext.root(false, false)
             );
             MappingLookup mappingLookup = MappingLookup.fromMappers(
@@ -142,8 +141,7 @@ public class PhraseSuggesterCircuitBreakerTests extends ESTestCase {
                 null,
                 Collections.emptyMap(),
                 null,
-                MapperMetrics.NOOP,
-                SHARD_SEARCH_STATS
+                MapperMetrics.NOOP
             );
             CircuitBreaker cb = newLimitedBreaker(ByteSizeValue.ofMb(100));
             SearchExecutionContext ctx = new SearchExecutionContext(baseCtx, cb);
@@ -230,8 +228,7 @@ public class PhraseSuggesterCircuitBreakerTests extends ESTestCase {
                 null,
                 Collections.emptyMap(),
                 null,
-                MapperMetrics.NOOP,
-                SHARD_SEARCH_STATS
+                MapperMetrics.NOOP
             );
             SearchExecutionContext ctx = new SearchExecutionContext(baseCtx, cb);
 

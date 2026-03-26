@@ -48,7 +48,6 @@ import org.mockito.Mockito;
 import java.io.IOException;
 import java.util.Collections;
 
-import static org.elasticsearch.index.query.SearchExecutionContextHelper.SHARD_SEARCH_STATS;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -98,7 +97,6 @@ public class QueryBuilderStoreTests extends ESTestCase {
             when(searchExecutionContext.getParserConfig()).thenReturn(parserConfig());
             when(searchExecutionContext.getForField(fieldMapper.fieldType(), fielddataOperation)).thenReturn(
                 new BytesBinaryIndexFieldData(fieldMapper.fullPath(), CoreValuesSourceType.KEYWORD)
-
             );
             when(searchExecutionContext.getFieldType(Mockito.anyString())).thenAnswer(invocation -> {
                 final String fieldName = (String) invocation.getArguments()[0];
@@ -197,8 +195,7 @@ public class QueryBuilderStoreTests extends ESTestCase {
                 null,
                 Collections.emptyMap(),
                 null,
-                MapperMetrics.NOOP,
-                SHARD_SEARCH_STATS
+                MapperMetrics.NOOP
             );
             SearchExecutionContext searchExecutionContext = new SearchExecutionContext(baseContext, circuitBreaker);
 

@@ -110,7 +110,7 @@ public class PrometheusLabelValuesResponseListenerTests extends ESTestCase {
 
     public void testOnFailureBadRequest() {
         FakeRestRequest fakeRequest = new FakeRestRequest();
-        FakeRestChannel channel = new FakeRestChannel(fakeRequest, true, 1);
+        FakeRestChannel channel = new FakeRestChannel(fakeRequest, true);
         ActionListener<EsqlQueryResponse> listener = PrometheusLabelValuesResponseListener.create(channel, 0);
 
         ElasticsearchStatusException ex = new ElasticsearchStatusException("bad selector syntax", RestStatus.BAD_REQUEST);
@@ -122,7 +122,7 @@ public class PrometheusLabelValuesResponseListenerTests extends ESTestCase {
 
     public void testOnFailureInternalError() {
         FakeRestRequest fakeRequest = new FakeRestRequest();
-        FakeRestChannel channel = new FakeRestChannel(fakeRequest, true, 1);
+        FakeRestChannel channel = new FakeRestChannel(fakeRequest, true);
         ActionListener<EsqlQueryResponse> listener = PrometheusLabelValuesResponseListener.create(channel, 0);
 
         listener.onFailure(new RuntimeException("something went wrong"));
@@ -133,7 +133,7 @@ public class PrometheusLabelValuesResponseListenerTests extends ESTestCase {
 
     public void testOnFailureResponseBodyContainsBadDataErrorType() {
         FakeRestRequest fakeRequest = new FakeRestRequest();
-        FakeRestChannel channel = new FakeRestChannel(fakeRequest, true, 1);
+        FakeRestChannel channel = new FakeRestChannel(fakeRequest, true);
         ActionListener<EsqlQueryResponse> listener = PrometheusLabelValuesResponseListener.create(channel, 0);
 
         ElasticsearchStatusException ex = new ElasticsearchStatusException("invalid parameter", RestStatus.BAD_REQUEST);
@@ -147,7 +147,7 @@ public class PrometheusLabelValuesResponseListenerTests extends ESTestCase {
 
     public void testOnFailureTimeoutReturnsExecutionErrorType() {
         FakeRestRequest fakeRequest = new FakeRestRequest();
-        FakeRestChannel channel = new FakeRestChannel(fakeRequest, true, 1);
+        FakeRestChannel channel = new FakeRestChannel(fakeRequest, true);
         ActionListener<EsqlQueryResponse> listener = PrometheusLabelValuesResponseListener.create(channel, 0);
 
         // Generic RuntimeException does not trigger timeout — errorType is "execution"
@@ -186,7 +186,7 @@ public class PrometheusLabelValuesResponseListenerTests extends ESTestCase {
 
     public void testOnFailureUnknownColumnReturnsEmptyData() throws Exception {
         FakeRestRequest fakeRequest = new FakeRestRequest();
-        FakeRestChannel channel = new FakeRestChannel(fakeRequest, true, 1);
+        FakeRestChannel channel = new FakeRestChannel(fakeRequest, true);
         ActionListener<EsqlQueryResponse> listener = PrometheusLabelValuesResponseListener.create(channel, 0);
 
         ElasticsearchStatusException ex = new ElasticsearchStatusException("Unknown column [nonexistent_label]", RestStatus.BAD_REQUEST);

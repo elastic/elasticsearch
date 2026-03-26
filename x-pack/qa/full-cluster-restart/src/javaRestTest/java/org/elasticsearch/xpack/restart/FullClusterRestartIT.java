@@ -282,8 +282,13 @@ public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCas
                     }
                     logger.debug("new watch status: {}", newStatus);
                     assertThat(
-                        "version increased: [" + versionIncreased.get() + "], executed: [" + executed.get() + "], execution state: [" +
-                            newStatus.get("execution_state") + "]",
+                        "version increased: ["
+                            + versionIncreased.get()
+                            + "], executed: ["
+                            + executed.get()
+                            + "], execution state: ["
+                            + newStatus.get("execution_state")
+                            + "]",
                         versionIncreased.get() && executed.get(),
                         is(true)
                     );

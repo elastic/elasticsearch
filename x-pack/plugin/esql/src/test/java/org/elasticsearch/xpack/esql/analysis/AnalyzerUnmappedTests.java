@@ -910,7 +910,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
     }
 
     private static String setUnmappedLoad(String query) {
-        assumeTrue("Requires OPTIONAL_FIELDS_V2", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V2.isEnabled());
+        assumeTrue("Requires OPTIONAL_FIELDS_V3", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V3.isEnabled());
         return "SET unmapped_fields=\"load\"; " + query;
     }
 

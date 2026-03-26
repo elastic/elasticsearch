@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.index.codec.tsdb.es819;
+package org.elasticsearch.index.codec.tsdb;
 
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.store.Directory;
@@ -26,14 +26,13 @@ import java.io.IOException;
  * Fork of {@link org.apache.lucene.codecs.lucene90.IndexedDISI#writeBitSet(DocIdSetIterator, IndexOutput)} but that allows
  * building jump list iteratively by one docid at a time instead of relying on docidset iterator.
  */
-final class DISIAccumulator implements Closeable {
+public final class DISIAccumulator implements Closeable {
 
     private static final int BLOCK_SIZE = 65536; // The number of docIDs that a single block represents
 
     private static final int DENSE_BLOCK_LONGS = BLOCK_SIZE / Long.SIZE; // 1024
-    public static final byte DEFAULT_DENSE_RANK_POWER = 9; // Every 512 docIDs / 8 longs
 
-    static final int MAX_ARRAY_LENGTH = (1 << 12) - 1;
+    public static final int MAX_ARRAY_LENGTH = (1 << 12) - 1;
 
     final Directory dir;
     final IOContext context;
@@ -49,7 +48,7 @@ final class DISIAccumulator implements Closeable {
     int prevBlock = -1;
     int jumpBlockIndex = 0;
 
-    DISIAccumulator(Directory dir, IOContext context, IndexOutput data, byte denseRankPower) throws IOException {
+    public DISIAccumulator(Directory dir, IOContext context, IndexOutput data, byte denseRankPower) throws IOException {
         this.dir = dir;
         this.context = context;
         this.denseRankPower = denseRankPower;
@@ -68,7 +67,7 @@ final class DISIAccumulator implements Closeable {
         this.origo = disiTempOutput.getFilePointer(); // All jumps are relative to the origo
     }
 
-    void addDocId(int doc) throws IOException {
+    public void addDocId(int doc) throws IOException {
         final int block = doc >>> 16;
         if (prevBlock != -1 && block != prevBlock) {
             // Track offset+index from previous block up to current
@@ -86,7 +85,7 @@ final class DISIAccumulator implements Closeable {
         prevBlock = block;
     }
 
-    short build(IndexOutput data) throws IOException {
+    public short build(IndexOutput data) throws IOException {
         if (blockCardinality > 0) {
             jumps = addJumps(jumps, disiTempOutput.getFilePointer() - origo, totalCardinality, jumpBlockIndex, prevBlock + 1);
             totalCardinality += blockCardinality;

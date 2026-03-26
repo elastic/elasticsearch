@@ -11,6 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequestBuilder;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequestBuilder;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.AdminClient;
 import org.elasticsearch.common.Strings;
@@ -228,8 +229,15 @@ public class AuthorizationTaskExecutorIT extends ESSingleNodeTestCase {
         var listener = new PlainActionFuture<List<UnparsedModel>>();
         modelRegistry.getAllModels(true, listener);
 
-        var endpoints = listener.actionGet(TimeValue.THIRTY_SECONDS);
-        return endpoints.stream().filter(m -> m.service().equals(ElasticInferenceService.NAME)).toList();
+        try {
+            var endpoints = listener.actionGet(TimeValue.THIRTY_SECONDS);
+            return endpoints.stream().filter(m -> m.service().equals(ElasticInferenceService.NAME)).toList();
+        } catch (SearchPhaseExecutionException e) {
+            // This can happen if the internal inference indices shards have not been initialized yet.
+            // We fail so that when this is called in assertBusy we can retry.
+            fail();
+            return List.of();
+        }
     }
 
     private void restartPollingTaskAndWaitForAuthResponse() throws Exception {

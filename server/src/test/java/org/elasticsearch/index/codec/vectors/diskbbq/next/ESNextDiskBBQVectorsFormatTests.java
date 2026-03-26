@@ -362,7 +362,6 @@ public class ESNextDiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCas
     }
 
     public void testIndexSortOnFlush() throws IOException {
-        format = new ESNextDiskBBQVectorsFormat(MIN_VECTORS_PER_CLUSTER, MIN_CENTROIDS_PER_PARENT_CLUSTER);
         IndexWriterConfig config = newIndexWriterConfig().setCodec(TestUtil.alwaysKnnVectorsFormat(format))
             .setIndexSort(new Sort(new SortField("sort", SortField.Type.STRING)))
             .setMergePolicy(NoMergePolicy.INSTANCE);

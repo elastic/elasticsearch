@@ -7,10 +7,9 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.index.codec.tsdb.es819;
+package org.elasticsearch.index.codec.tsdb;
 
 import org.apache.lucene.store.IndexInput;
-import org.elasticsearch.index.codec.tsdb.PartitionedDocValues;
 
 import java.io.IOException;
 
@@ -18,8 +17,8 @@ import java.io.IOException;
  * Reads prefix-based partition metadata written by {@link PrefixedPartitionsWriter}.
  * The data consists of delta-encoded prefix keys and their corresponding starting document IDs.
  */
-final class PrefixedPartitionsReader {
-    static PartitionedDocValues.PrefixPartitions prefixPartitions(IndexInput dataIn, PartitionedDocValues.PrefixPartitions reused)
+public final class PrefixedPartitionsReader {
+    public static PartitionedDocValues.PrefixPartitions prefixPartitions(IndexInput dataIn, PartitionedDocValues.PrefixPartitions reused)
         throws IOException {
         final int numPartitions = dataIn.readVInt();
         final int[] prefixes;

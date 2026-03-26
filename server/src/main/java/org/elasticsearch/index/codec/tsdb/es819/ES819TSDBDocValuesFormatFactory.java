@@ -17,7 +17,7 @@ import org.elasticsearch.index.IndexVersions;
  * Factory class for creating instances of {@link DocValuesFormat} tailored for time-series
  * use cases in relation to specific index versions and numeric block size preferences.
  */
-public final class TSDBDocValuesFormatFactory {
+public final class ES819TSDBDocValuesFormatFactory {
 
     static final DocValuesFormat ES_819_2_TSDB_DOC_VALUES_FORMAT = ES819TSDBDocValuesFormat.getInstance(false);
     static final DocValuesFormat ES_819_2_TSDB_DOC_VALUES_FORMAT_LARGE_NUMERIC_BLOCK = ES819TSDBDocValuesFormat.getInstance(true);
@@ -46,7 +46,7 @@ public final class TSDBDocValuesFormatFactory {
         true
     );
 
-    private TSDBDocValuesFormatFactory() {}
+    private ES819TSDBDocValuesFormatFactory() {}
 
     /**
      * Creates and returns a DocValuesFormat instance based on the specified index version

@@ -150,7 +150,10 @@ public class Clusters {
 
     private static Version distributionVersion(String key) {
         final String val = System.getProperty(key);
-        return val != null ? Version.fromString(val) : Version.CURRENT;
+        if (val == null) {
+            throw new IllegalStateException("System property [" + key + "] is required but not set");
+        }
+        return Version.fromString(val);
     }
 
     private static boolean supportRetryOnShardFailures(Version version) {

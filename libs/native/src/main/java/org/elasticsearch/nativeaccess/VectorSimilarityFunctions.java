@@ -64,6 +64,21 @@ public interface VectorSimilarityFunctions {
         }
     }
 
+    enum BFloat16QueryType {
+        BFLOAT16(Short.BYTES),
+        FLOAT32(Float.BYTES);
+
+        private final int bytes;
+
+        BFloat16QueryType(int bytes) {
+            this.bytes = bytes;
+        }
+
+        public int bytes() {
+            return bytes;
+        }
+    }
+
     /**
      * The various flavors of BBQ indices. Single vector score returns results as a long.
      */
@@ -154,6 +169,8 @@ public interface VectorSimilarityFunctions {
     }
 
     MethodHandle getHandle(Function function, DataType dataType, Operation operation);
+
+    MethodHandle getBFloat16Handle(Function function, BFloat16QueryType queryType, Operation operation);
 
     MethodHandle getHandle(Function function, BBQType bbqType, Operation operation);
 

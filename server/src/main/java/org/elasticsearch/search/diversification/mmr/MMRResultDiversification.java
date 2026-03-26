@@ -55,7 +55,7 @@ public class MMRResultDiversification extends ResultDiversification<MMRResultDiv
         int topDocsSize = context.getSize();
 
         float[] mmrCachedScores = new float[docs.length];
-        Arrays.fill(mmrCachedScores, Float.NEGATIVE_INFINITY);
+        Arrays.fill(mmrCachedScores, Float.POSITIVE_INFINITY);
 
         for (int x = 0; x < topDocsSize && selectedDocRanks.size() < topDocsSize && selectedDocRanks.size() < docs.length; x++) {
             int thisMaxMMRDocRank = -1;
@@ -80,7 +80,7 @@ public class MMRResultDiversification extends ResultDiversification<MMRResultDiv
 
                 // compute MMR
                 float querySimilarityScore = querySimilarity.getOrDefault(docRank, 0.0f);
-                float mmr = Float.max(
+                float mmr = Float.min(
                     context.getLambda() * querySimilarityScore - (1 - context.getLambda()) * similarityToLastSelected,
                     mmrCachedScores[docRank - 1]
                 );

@@ -43,7 +43,6 @@ import org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.logging.LogConfigurator;
-import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.search.vectors.IVFKnnSearchStrategy;
 import org.junit.Before;
@@ -363,10 +362,6 @@ public class ES940DiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCase
     }
 
     public void testIndexSortOnFlush() throws IOException {
-        format = new ESNextDiskBBQVectorsFormat(
-            ESNextDiskBBQVectorsFormat.MIN_VECTORS_PER_CLUSTER,
-            ESNextDiskBBQVectorsFormat.MIN_CENTROIDS_PER_PARENT_CLUSTER
-        );
         IndexWriterConfig config = newIndexWriterConfig().setCodec(TestUtil.alwaysKnnVectorsFormat(format))
             .setIndexSort(new Sort(new SortField("sort", SortField.Type.STRING)))
             .setMergePolicy(NoMergePolicy.INSTANCE);

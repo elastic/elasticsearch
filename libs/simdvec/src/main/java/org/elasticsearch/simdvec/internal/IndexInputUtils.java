@@ -23,7 +23,7 @@ import java.lang.ref.Reference;
 import java.nio.ByteBuffer;
 import java.util.function.IntFunction;
 
-import static org.elasticsearch.simdvec.internal.vectorization.PanamaVectorConstants.SUPPORTS_HEAP_SEGMENTS;
+import static org.elasticsearch.simdvec.internal.vectorization.JdkFeatures.SUPPORTS_HEAP_SEGMENTS;
 
 /**
  * Utility for obtaining a {@link MemorySegment} view of data in an

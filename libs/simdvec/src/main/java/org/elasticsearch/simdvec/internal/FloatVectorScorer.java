@@ -27,7 +27,7 @@ import static org.elasticsearch.simdvec.internal.Similarities.dotProductF32;
 import static org.elasticsearch.simdvec.internal.Similarities.dotProductF32BulkWithOffsets;
 import static org.elasticsearch.simdvec.internal.Similarities.squareDistanceF32;
 import static org.elasticsearch.simdvec.internal.Similarities.squareDistanceF32BulkWithOffsets;
-import static org.elasticsearch.simdvec.internal.vectorization.PanamaVectorConstants.SUPPORTS_HEAP_SEGMENTS;
+import static org.elasticsearch.simdvec.internal.vectorization.JdkFeatures.SUPPORTS_HEAP_SEGMENTS;
 
 public abstract sealed class FloatVectorScorer extends RandomVectorScorer.AbstractRandomVectorScorer {
 

@@ -27,7 +27,7 @@ import java.util.Optional;
 import static org.elasticsearch.simdvec.internal.Similarities.cosineI8;
 import static org.elasticsearch.simdvec.internal.Similarities.dotProductI8;
 import static org.elasticsearch.simdvec.internal.Similarities.squareDistanceI8;
-import static org.elasticsearch.simdvec.internal.vectorization.PanamaVectorConstants.SUPPORTS_HEAP_SEGMENTS;
+import static org.elasticsearch.simdvec.internal.vectorization.JdkFeatures.SUPPORTS_HEAP_SEGMENTS;
 
 public abstract sealed class ByteVectorScorer extends RandomVectorScorer.AbstractRandomVectorScorer {
 

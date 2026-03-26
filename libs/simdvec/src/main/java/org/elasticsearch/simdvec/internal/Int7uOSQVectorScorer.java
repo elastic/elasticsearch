@@ -24,7 +24,7 @@ import java.util.Optional;
 
 import static org.elasticsearch.simdvec.internal.Similarities.dotProductI7u;
 import static org.elasticsearch.simdvec.internal.Similarities.dotProductI7uBulkWithOffsets;
-import static org.elasticsearch.simdvec.internal.vectorization.PanamaVectorConstants.SUPPORTS_HEAP_SEGMENTS;
+import static org.elasticsearch.simdvec.internal.vectorization.JdkFeatures.SUPPORTS_HEAP_SEGMENTS;
 
 /**
  * JDK-22+ implementation for Int7 OSQ query-time scorers.

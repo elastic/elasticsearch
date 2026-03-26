@@ -25,7 +25,7 @@ import java.util.Optional;
 
 import static org.elasticsearch.simdvec.internal.Similarities.dotProductI4;
 import static org.elasticsearch.simdvec.internal.Similarities.dotProductI4BulkWithOffsets;
-import static org.elasticsearch.simdvec.internal.vectorization.PanamaVectorConstants.SUPPORTS_HEAP_SEGMENTS;
+import static org.elasticsearch.simdvec.internal.vectorization.JdkFeatures.SUPPORTS_HEAP_SEGMENTS;
 
 /**
  * Int4 packed-nibble query-time scorer. The float query is quantized externally

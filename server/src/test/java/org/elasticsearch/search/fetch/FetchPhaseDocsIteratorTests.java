@@ -14,10 +14,9 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.elasticsearch.index.cache.query.TrivialQueryCachingPolicy;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.query.QuerySearchResult;
@@ -157,15 +156,7 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
         IndexReader reader = writer.getReader();
         writer.close();
 
-        ContextIndexSearcher searcher = new ContextIndexSearcher(reader, null, null, new QueryCachingPolicy() {
-            @Override
-            public void onUse(Query query) {}
-
-            @Override
-            public boolean shouldCache(Query query) {
-                return false;
-            }
-        }, randomBoolean());
+        ContextIndexSearcher searcher = new ContextIndexSearcher(reader, null, null, TrivialQueryCachingPolicy.NEVER, randomBoolean());
 
         // deliberately unsorted doc ids so that the doc-id-sorted iteration order
         // differs from the original order

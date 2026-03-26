@@ -185,6 +185,13 @@ public class ChangePoint extends UnaryPlan
         if (DataType.isSortable(type) == false) {
             failures.add(fail(key, "CHANGE_POINT only supports sortable keys, found expression [{}] type [{}]", key.sourceText(), type));
         }
+        // Grouping must be sortable
+        if (grouping != null) {
+            type = grouping.dataType();
+            if (DataType.isSortable(type) == false) {
+                failures.add(fail(grouping, "CHANGE_POINT grouping only support sortable values, found expression [{}] type [{}]", grouping.sourceText(), type));
+            }
+        }
         // Value must be a number
         type = value.dataType();
         if (DataType.isNullOrNumeric(type) == false) {

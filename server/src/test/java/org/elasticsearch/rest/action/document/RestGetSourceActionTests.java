@@ -41,7 +41,7 @@ import static org.hamcrest.Matchers.instanceOf;
 public final class RestGetSourceActionTests extends RestActionTestCase {
 
     private static RestRequest request = new FakeRestRequest();
-    private static FakeRestChannel channel = new FakeRestChannel(request, true, 0);
+    private static FakeRestChannel channel = new FakeRestChannel(request, true);
     private static RestGetSourceResponseListener listener = new RestGetSourceResponseListener(channel, request);
     private final List<String> compatibleMediaType = Collections.singletonList(randomCompatibleMediaType(RestApiVersion.V_7));
 

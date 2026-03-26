@@ -18,8 +18,8 @@ import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
 import org.elasticsearch.index.mapper.TsidExtractingIdFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
 
@@ -299,21 +299,38 @@ class TSDBSyntheticIdDocValuesHolder {
      * @throws IOException if any I/O exception occurs
      */
     BytesRef docSyntheticId(int docID) throws IOException {
-        return docSyntheticId(docID, docTsIdOrdinal(docID), docTimestamp(docID));
+        return docSyntheticId(docID, docTsIdOrdinal(docID), docTimestamp(docID), null);
     }
 
-    BytesRef docSyntheticId(int docID, int docTsIdOrd, long docTimestamp) throws IOException {
-        return docSyntheticId(lookupTsIdOrd(docTsIdOrd), docTimestamp, docRoutingHash(docID));
+    BytesRef docSyntheticId(int docID, int docTsIdOrd, long docTimestamp, @Nullable BytesRefBuilder scratch) throws IOException {
+        return docSyntheticId(lookupTsIdOrd(docTsIdOrd), docTimestamp, docRoutingHash(docID), scratch);
     }
 
-    private static BytesRef docSyntheticId(BytesRef tsId, long timestamp, BytesRef routingHashBytes) {
+    private static BytesRef docSyntheticId(BytesRef tsId, long timestamp, BytesRef routingHashBytes, @Nullable BytesRefBuilder scratch) {
         assert tsId != null;
         assert timestamp > 0L;
         assert routingHashBytes != null;
-        // TODO We can avoid the decode/encode here by having a specialized createSyntheticIdBytesRef(BytesRef, long, BytesRef) and just
-        // reverse the routing has bytes to Big Endian.
-        String routingHashString = Uid.decodeId(routingHashBytes.bytes, routingHashBytes.offset, routingHashBytes.length);
-        int routingHash = TimeSeriesRoutingHashFieldMapper.decode(routingHashString);
-        return TsidExtractingIdFieldMapper.createSyntheticIdBytesRef(tsId, timestamp, routingHash);
+
+        final boolean needsEscape = Byte.toUnsignedInt(tsId.bytes[tsId.offset]) >= Uid.BASE64_ESCAPE;
+        final int offset = needsEscape ? 1 : 0;
+        final int length = TsidExtractingIdFieldMapper.syntheticIdLength(tsId) + offset;
+
+        if (scratch != null) {
+            scratch.grow(length);
+            if (needsEscape) {
+                scratch.setByteAt(0, (byte) Uid.BASE64_ESCAPE);
+            }
+            TsidExtractingIdFieldMapper.writeSyntheticId(tsId, timestamp, routingHashBytes, scratch.bytes(), offset);
+            scratch.setLength(length);
+            return scratch.get();
+        }
+
+        // Fallback without scratch (allocates)
+        byte[] bytes = new byte[length];
+        if (needsEscape) {
+            bytes[0] = (byte) Uid.BASE64_ESCAPE;
+        }
+        TsidExtractingIdFieldMapper.writeSyntheticId(tsId, timestamp, routingHashBytes, bytes, offset);
+        return new BytesRef(bytes);
     }
 }

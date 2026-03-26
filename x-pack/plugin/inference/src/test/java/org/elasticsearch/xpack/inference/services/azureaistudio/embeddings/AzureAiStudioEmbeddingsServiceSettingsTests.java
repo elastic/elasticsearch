@@ -432,13 +432,13 @@ public class AzureAiStudioEmbeddingsServiceSettingsTests extends AbstractBWCWire
 
         assertThat(xContentResult, is(XContentHelper.stripWhitespace(Strings.format("""
             {
-            	"target": "%s",
-            	"provider": "%s",
-            	"endpoint_type": "%s",
-            	"rate_limit": {
-            		"requests_per_minute": %d
-            	},
-            	"dimensions_set_by_user": %b
+              "target": "%s",
+              "provider": "%s",
+              "endpoint_type": "%s",
+              "rate_limit": {
+                "requests_per_minute": %d
+              },
+              "dimensions_set_by_user": %b
             }
             """, TEST_TARGET, TEST_PROVIDER, TEST_ENDPOINT_TYPE, TEST_RATE_LIMIT, dimensionsSetByUser))));
     }
@@ -467,16 +467,16 @@ public class AzureAiStudioEmbeddingsServiceSettingsTests extends AbstractBWCWire
                     Strings.format(
                         """
                             {
-                            	"target": "%s",
-                            	"provider": "%s",
-                            	"endpoint_type": "%s",
-                            	"rate_limit": {
-                            		"requests_per_minute": %d
-                            	},
-                            	"dimensions": %d,
-                            	"max_input_tokens": %d,
-                            	"similarity": "%s",
-                            	"dimensions_set_by_user": %b
+                              "target": "%s",
+                              "provider": "%s",
+                              "endpoint_type": "%s",
+                              "rate_limit": {
+                                "requests_per_minute": %d
+                              },
+                              "dimensions": %d,
+                              "max_input_tokens": %d,
+                              "similarity": "%s",
+                              "dimensions_set_by_user": %b
                             }
                             """,
                         TEST_TARGET,
@@ -517,15 +517,15 @@ public class AzureAiStudioEmbeddingsServiceSettingsTests extends AbstractBWCWire
                     Strings.format(
                         """
                             {
-                            	"target": "%s",
-                            	"provider": "%s",
-                            	"endpoint_type": "%s",
-                            	"rate_limit": {
-                            		"requests_per_minute": %d
-                            	},
-                            	"dimensions": %d,
-                            	"max_input_tokens": %d,
-                            	"similarity": "%s"
+                              "target": "%s",
+                              "provider": "%s",
+                              "endpoint_type": "%s",
+                              "rate_limit": {
+                                "requests_per_minute": %d
+                              },
+                              "dimensions": %d,
+                              "max_input_tokens": %d,
+                              "similarity": "%s"
                             }
                             """,
                         TEST_TARGET,

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.services.azureaistudio.rerank;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
@@ -125,19 +126,16 @@ public class AzureAiStudioRerankServiceSettingsTests extends AbstractBWCWireSeri
         settings.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
 
-        assertThat(
-            xContentResult,
-            is(
-                Strings.format(
-                    """
-                        {"target":"%s","provider":"%s","endpoint_type":"%s","rate_limit":{"requests_per_minute":%d}}""",
-                    TEST_TARGET,
-                    TEST_PROVIDER,
-                    TEST_ENDPOINT_TYPE,
-                    TEST_RATE_LIMIT
-                )
-            )
-        );
+        assertThat(xContentResult, is(XContentHelper.stripWhitespace(Strings.format("""
+            {
+              "target": "%s",
+              "provider": "%s",
+              "endpoint_type": "%s",
+              "rate_limit": {
+                "requests_per_minute": %d
+              }
+            }
+            """, TEST_TARGET, TEST_PROVIDER, TEST_ENDPOINT_TYPE, TEST_RATE_LIMIT))));
     }
 
     public void testToFilteredXContent_WritesAllValues() throws IOException {
@@ -152,19 +150,16 @@ public class AzureAiStudioRerankServiceSettingsTests extends AbstractBWCWireSeri
         filteredXContent.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
 
-        assertThat(
-            xContentResult,
-            is(
-                Strings.format(
-                    """
-                        {"target":"%s","provider":"%s","endpoint_type":"%s","rate_limit":{"requests_per_minute":%d}}""",
-                    TEST_TARGET,
-                    TEST_PROVIDER,
-                    TEST_ENDPOINT_TYPE,
-                    TEST_RATE_LIMIT
-                )
-            )
-        );
+        assertThat(xContentResult, is(XContentHelper.stripWhitespace(Strings.format("""
+            {
+              "target": "%s",
+              "provider": "%s",
+              "endpoint_type": "%s",
+              "rate_limit": {
+                "requests_per_minute": %d
+              }
+            }
+            """, TEST_TARGET, TEST_PROVIDER, TEST_ENDPOINT_TYPE, TEST_RATE_LIMIT))));
     }
 
     public static HashMap<String, Object> createRequestSettingsMap(String target, String provider, String endpointType, Integer rateLimit) {

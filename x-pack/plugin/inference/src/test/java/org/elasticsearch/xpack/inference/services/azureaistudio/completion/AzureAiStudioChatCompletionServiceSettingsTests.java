@@ -130,12 +130,12 @@ public class AzureAiStudioChatCompletionServiceSettingsTests extends AbstractBWC
 
         assertThat(xContentResult, is(XContentHelper.stripWhitespace(Strings.format("""
             {
-            	"target": "%s",
-            	"provider": "%s",
-            	"endpoint_type": "%s",
-            	"rate_limit": {
-            		"requests_per_minute": %d
-            	}
+              "target": "%s",
+              "provider": "%s",
+              "endpoint_type": "%s",
+              "rate_limit": {
+                "requests_per_minute": %d
+              }
             }
             """, TEST_TARGET, TEST_PROVIDER, TEST_ENDPOINT_TYPE, TEST_RATE_LIMIT))));
     }
@@ -154,12 +154,12 @@ public class AzureAiStudioChatCompletionServiceSettingsTests extends AbstractBWC
 
         assertThat(xContentResult, is(XContentHelper.stripWhitespace(Strings.format("""
             {
-            	"target": "%s",
-            	"provider": "%s",
-            	"endpoint_type": "%s",
-            	"rate_limit": {
-            		"requests_per_minute": %d
-            	}
+              "target": "%s",
+              "provider": "%s",
+              "endpoint_type": "%s",
+              "rate_limit": {
+                "requests_per_minute": %d
+              }
             }
             """, TEST_TARGET, TEST_PROVIDER, TEST_ENDPOINT_TYPE, TEST_RATE_LIMIT))));
     }

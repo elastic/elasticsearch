@@ -69,7 +69,7 @@ public class QueryLogger<Context extends QueryLoggerContext> extends ActivityLog
 
     @Override
     protected boolean shouldLog(Context context) {
-        if (logSystemSearches == false && context instanceof QueryLoggerContext qc && qc.isSystemSearch(systemChecker)) {
+        if (logSystemSearches == false && context.isSystemSearch(systemChecker)) {
             return false;
         }
         return super.shouldLog(context);
@@ -105,7 +105,7 @@ public class QueryLogger<Context extends QueryLoggerContext> extends ActivityLog
     }
 
     protected void addFields(Context context, ESLogMessage logMessage) {
-        if (context instanceof QueryLoggerContext qc && qc.isSystemSearch(systemChecker)) {
+        if (context.isSystemSearch(systemChecker)) {
             logMessage.field(QueryLogging.QUERY_FIELD_IS_SYSTEM, true);
         }
     }

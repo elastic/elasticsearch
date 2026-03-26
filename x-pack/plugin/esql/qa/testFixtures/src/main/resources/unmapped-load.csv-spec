@@ -914,8 +914,9 @@ emp_no:integer | first_name:keyword | last_name:keyword | _index:keyword
 ;
 
 
-// Verify that a partially-mapped TEXT field is not automatically loaded from _source.
-// gender is mapped as text in employees_gender_text and unmapped in employees_no_gender.
+// Verify that a partially-mapped TEXT field is not automatically loaded from _source for the unmapped field index.
+// employees_no_gender doesn't have the gender field in its mappings, but it does have it in its _source, while
+// employees_gender_text has gender mapped as a TEXT field. Don't load gender from _source for employees_no_gender.
 partiallyMappedTextFieldNotLoaded
 required_capability: index_metadata_field
 required_capability: optional_fields_v4

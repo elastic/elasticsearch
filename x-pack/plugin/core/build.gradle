@@ -28,7 +28,6 @@ esplugin {
   classname ='org.elasticsearch.xpack.core.XPackPlugin'
   hasNativeController =false
   requiresKeystore =false
-  extendedPlugins = ['data-streams']
 }
 
 tasks.withType(AbstractDependenciesTask).configureEach {
@@ -81,7 +80,6 @@ dependencies {
   api "com.unboundid:unboundid-ldapsdk:${versions.ldapsdk}"
 
   implementation project(":x-pack:plugin:core:template-resources")
-  compileOnly project(':modules:data-streams')
 
   testImplementation "org.elasticsearch:mocksocket:${versions.mocksocket}"
   testImplementation project(path: ':modules:reindex')

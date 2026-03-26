@@ -9,19 +9,24 @@ package org.elasticsearch.xpack.esql.datasource.orc;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.fs.RawLocalFileSystem;
+import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.hive.ql.exec.vector.BytesColumnVector;
 import org.apache.hadoop.hive.ql.exec.vector.DoubleColumnVector;
 import org.apache.hadoop.hive.ql.exec.vector.ListColumnVector;
 import org.apache.hadoop.hive.ql.exec.vector.LongColumnVector;
 import org.apache.hadoop.hive.ql.exec.vector.TimestampColumnVector;
 import org.apache.hadoop.hive.ql.exec.vector.VectorizedRowBatch;
+import org.apache.hadoop.hive.ql.io.sarg.PredicateLeaf;
+import org.apache.hadoop.hive.ql.io.sarg.SearchArgument;
+import org.apache.hadoop.hive.ql.io.sarg.SearchArgumentFactory;
 import org.apache.lucene.util.BytesRef;
+import org.apache.orc.CompressionKind;
 import org.apache.orc.OrcFile;
 import org.apache.orc.TypeDescription;
 import org.apache.orc.Writer;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -34,11 +39,13 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.CloseableIterator;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.io.ByteArrayInputStream;
+import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -102,7 +109,7 @@ public class OrcFormatReaderTests extends ESTestCase {
         assertEquals(DataType.LONG, attributes.get(0).dataType());
 
         assertEquals("name", attributes.get(1).name());
-        assertEquals(DataType.KEYWORD, attributes.get(1).dataType());
+        assertEquals(DataType.TEXT, attributes.get(1).dataType());
 
         assertEquals("age", attributes.get(2).name());
         assertEquals(DataType.INTEGER, attributes.get(2).dataType());
@@ -572,7 +579,7 @@ public class OrcFormatReaderTests extends ESTestCase {
         }
     }
 
-    public void testReadUnsupportedTypeReturnsNullBlock() throws Exception {
+    public void testReadListColumnAsMultiValue() throws Exception {
         TypeDescription schema = TypeDescription.createStruct()
             .addField("id", TypeDescription.createLong())
             .addField("tags", TypeDescription.createList(TypeDescription.createString()));
@@ -581,6 +588,7 @@ public class OrcFormatReaderTests extends ESTestCase {
             batch.size = 2;
             LongColumnVector idCol = (LongColumnVector) batch.cols[0];
             ListColumnVector tagsCol = (ListColumnVector) batch.cols[1];
+            tagsCol.childCount = 3;
             BytesColumnVector tagsChild = (BytesColumnVector) tagsCol.child;
 
             tagsChild.ensureSize(3, false);
@@ -601,7 +609,7 @@ public class OrcFormatReaderTests extends ESTestCase {
 
         SourceMetadata metadata = reader.metadata(storageObject);
         List<Attribute> attributes = metadata.schema();
-        assertEquals(DataType.UNSUPPORTED, attributes.get(1).dataType());
+        assertEquals(DataType.TEXT, attributes.get(1).dataType());
 
         try (CloseableIterator<Page> iterator = reader.read(storageObject, null, 1024)) {
             assertTrue(iterator.hasNext());
@@ -614,9 +622,12 @@ public class OrcFormatReaderTests extends ESTestCase {
             assertEquals(1L, idBlock.getLong(0));
             assertEquals(2L, idBlock.getLong(1));
 
-            Block tagsBlock = page.getBlock(1);
-            assertTrue(tagsBlock.isNull(0));
-            assertTrue(tagsBlock.isNull(1));
+            BytesRefBlock tagsBlock = (BytesRefBlock) page.getBlock(1);
+            assertEquals(2, tagsBlock.getValueCount(0));
+            assertEquals(new BytesRef("a"), tagsBlock.getBytesRef(0, new BytesRef()));
+            assertEquals(new BytesRef("b"), tagsBlock.getBytesRef(1, new BytesRef()));
+            assertEquals(1, tagsBlock.getValueCount(1));
+            assertEquals(new BytesRef("x"), tagsBlock.getBytesRef(2, new BytesRef()));
         }
     }
 
@@ -654,6 +665,101 @@ public class OrcFormatReaderTests extends ESTestCase {
         }
     }
 
+    // --- Pushdown tests ---
+
+    public void testWithPushedFilterReturnsNewInstance() {
+        OrcFormatReader reader = new OrcFormatReader(blockFactory);
+        SearchArgument sarg = SearchArgumentFactory.newBuilder().startAnd().equals("id", PredicateLeaf.Type.LONG, 1L).end().build();
+        FormatReader withFilter = reader.withPushedFilter(sarg);
+        assertNotSame("withPushedFilter must return a new instance", reader, withFilter);
+    }
+
+    public void testWithPushedFilterNullReturnsThis() {
+        OrcFormatReader reader = new OrcFormatReader(blockFactory);
+        assertSame("withPushedFilter(null) must return same instance", reader, reader.withPushedFilter(null));
+    }
+
+    public void testReadWithPushedFilterMatchingAll() throws Exception {
+        // Create ORC file with values 1-5, push filter that matches all (id > 0)
+        TypeDescription schema = TypeDescription.createStruct().addField("id", TypeDescription.createLong());
+        byte[] orcData = createOrcFile(schema, batch -> {
+            batch.size = 5;
+            LongColumnVector idCol = (LongColumnVector) batch.cols[0];
+            for (int i = 0; i < 5; i++) {
+                idCol.vector[i] = i + 1;
+            }
+        });
+
+        SearchArgument sarg = SearchArgumentFactory.newBuilder().startNot().lessThanEquals("id", PredicateLeaf.Type.LONG, 0L).end().build();
+
+        OrcFormatReader reader = (OrcFormatReader) new OrcFormatReader(blockFactory).withPushedFilter(sarg);
+        StorageObject storageObject = createStorageObject(orcData);
+        try (CloseableIterator<Page> iter = reader.read(storageObject, null, 1024)) {
+            assertTrue(iter.hasNext());
+            Page page = iter.next();
+            // All rows should be returned since filter matches all
+            assertEquals(5, page.getPositionCount());
+        }
+    }
+
+    public void testReadWithPushedFilterMatchingNone() throws Exception {
+        // Create ORC file with values 1-5, push filter that matches none (id > 100)
+        TypeDescription schema = TypeDescription.createStruct().addField("id", TypeDescription.createLong());
+        byte[] orcData = createOrcFile(schema, batch -> {
+            batch.size = 5;
+            LongColumnVector idCol = (LongColumnVector) batch.cols[0];
+            for (int i = 0; i < 5; i++) {
+                idCol.vector[i] = i + 1;
+            }
+        });
+
+        // id > 100 → NOT(id <= 100) — file stats have max=5, so entire file is skipped
+        SearchArgument sarg = SearchArgumentFactory.newBuilder()
+            .startNot()
+            .lessThanEquals("id", PredicateLeaf.Type.LONG, 100L)
+            .end()
+            .build();
+
+        OrcFormatReader reader = (OrcFormatReader) new OrcFormatReader(blockFactory).withPushedFilter(sarg);
+        StorageObject storageObject = createStorageObject(orcData);
+        try (CloseableIterator<Page> iter = reader.read(storageObject, null, 1024)) {
+            // File-level stats should show max=5 < 100, so all stripes should be skipped
+            assertFalse("No rows should match the filter", iter.hasNext());
+        }
+    }
+
+    public void testReadWithPushedFilterAndColumnProjection() throws Exception {
+        TypeDescription schema = TypeDescription.createStruct()
+            .addField("id", TypeDescription.createLong())
+            .addField("name", TypeDescription.createString());
+
+        byte[] orcData = createOrcFile(schema, batch -> {
+            batch.size = 3;
+            LongColumnVector idCol = (LongColumnVector) batch.cols[0];
+            BytesColumnVector nameCol = (BytesColumnVector) batch.cols[1];
+            idCol.vector[0] = 1L;
+            nameCol.setVal(0, "Alice".getBytes(StandardCharsets.UTF_8));
+            idCol.vector[1] = 2L;
+            nameCol.setVal(1, "Bob".getBytes(StandardCharsets.UTF_8));
+            idCol.vector[2] = 3L;
+            nameCol.setVal(2, "Charlie".getBytes(StandardCharsets.UTF_8));
+        });
+
+        // Filter id >= 1 (matches all — just testing that filter + projection work together)
+        SearchArgument sarg = SearchArgumentFactory.newBuilder().startNot().lessThan("id", PredicateLeaf.Type.LONG, 1L).end().build();
+
+        OrcFormatReader reader = (OrcFormatReader) new OrcFormatReader(blockFactory).withPushedFilter(sarg);
+        StorageObject storageObject = createStorageObject(orcData);
+        try (CloseableIterator<Page> iter = reader.read(storageObject, List.of("name"), 1024)) {
+            assertTrue(iter.hasNext());
+            Page page = iter.next();
+            assertEquals(3, page.getPositionCount());
+            assertEquals(1, page.getBlockCount());
+            BytesRefBlock nameBlock = (BytesRefBlock) page.getBlock(0);
+            assertEquals("Alice", nameBlock.getBytesRef(0, new BytesRef()).utf8ToString());
+        }
+    }
+
     @FunctionalInterface
     private interface BatchPopulator {
         void populate(VectorizedRowBatch batch);
@@ -675,7 +781,7 @@ public class OrcFormatReaderTests extends ESTestCase {
         OrcFile.WriterOptions writerOptions = OrcFile.writerOptions(conf)
             .setSchema(schema)
             .fileSystem(localFs)
-            .compress(org.apache.orc.CompressionKind.NONE);
+            .compress(CompressionKind.NONE);
 
         try (Writer writer = OrcFile.createWriter(orcPath, writerOptions)) {
             VectorizedRowBatch batch = schema.createRowBatch();
@@ -698,23 +804,21 @@ public class OrcFormatReaderTests extends ESTestCase {
      *   <li>{@code setPermission} — shells out for {@code chmod}.</li>
      * </ul>
      */
-    private static class NoPermissionLocalFileSystem extends org.apache.hadoop.fs.RawLocalFileSystem {
+    private static class NoPermissionLocalFileSystem extends RawLocalFileSystem {
         @Override
         @SuppressForbidden(reason = "Bypass Hadoop's LocalFSFileOutputStream to avoid Shell.<clinit>")
-        protected OutputStream createOutputStreamWithMode(Path p, boolean append, org.apache.hadoop.fs.permission.FsPermission permission)
-            throws IOException {
+        protected OutputStream createOutputStreamWithMode(Path p, boolean append, FsPermission permission) throws IOException {
             return new FileOutputStream(pathToFile(p), append);
         }
 
         @Override
-        public void setPermission(Path p, org.apache.hadoop.fs.permission.FsPermission permission) {
+        public void setPermission(Path p, FsPermission permission) {
             // no-op: skip chmod calls that would trigger Shell
         }
 
         @Override
         @SuppressForbidden(reason = "Hadoop API requires java.io.File in method signature")
-        protected boolean mkOneDirWithMode(Path p, java.io.File p2f, org.apache.hadoop.fs.permission.FsPermission permission)
-            throws IOException {
+        protected boolean mkOneDirWithMode(Path p, File p2f, FsPermission permission) throws IOException {
             return p2f.mkdir() || p2f.isDirectory();
         }
     }

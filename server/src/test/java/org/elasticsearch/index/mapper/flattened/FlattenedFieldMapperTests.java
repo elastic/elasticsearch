@@ -90,16 +90,26 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
         checker.registerConflictCheck("similarity", b -> b.field("similarity", "boolean"));
         checker.registerConflictCheck("time_series_dimensions", b -> b.field("time_series_dimensions", List.of("one", "two")));
 
-        checker.registerUpdateCheck(b -> b.field("eager_global_ordinals", true), m -> assertTrue(m.fieldType().eagerGlobalOrdinals()));
         checker.registerUpdateCheck(
+            "eager_global_ordinals",
+            b -> b.field("eager_global_ordinals", true),
+            m -> assertTrue(m.fieldType().eagerGlobalOrdinals())
+        );
+        checker.registerUpdateCheck(
+            "ignore_above",
             b -> b.field("ignore_above", 256),
             m -> assertEquals(256, ((FlattenedFieldMapper) m).fieldType().ignoreAbove().get())
         );
         checker.registerUpdateCheck(
+            "split_queries_on_whitespace",
             b -> b.field("split_queries_on_whitespace", true),
             m -> assertEquals("_whitespace", m.fieldType().getTextSearchInfo().searchAnalyzer().name())
         );
-        checker.registerUpdateCheck(b -> b.field("depth_limit", 10), m -> assertEquals(10, ((FlattenedFieldMapper) m).depthLimit()));
+        checker.registerUpdateCheck(
+            "depth_limit",
+            b -> b.field("depth_limit", 10),
+            m -> assertEquals(10, ((FlattenedFieldMapper) m).depthLimit())
+        );
     }
 
     @Override
@@ -1145,6 +1155,36 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
             }
             assertFalse(info, rightIterator.hasNext());
         }
+    }
+
+    public void testMultiValueSortedSet() throws IOException {
+        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        MapperService mapperService = createMapperService(
+            fieldMapping(b -> b.field("type", "flattened").startObject("doc_values").field("multi_value", "sorted_set").endObject())
+        );
+        FlattenedFieldMapper mapper = (FlattenedFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
+        assertThat(mapper.fieldType().hasDocValues(), equalTo(true));
+    }
+
+    public void testMultiValueDefaultIsSortedSet() throws IOException {
+        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "flattened")));
+        FlattenedFieldMapper mapper = (FlattenedFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
+        assertThat(mapper.fieldType().hasDocValues(), equalTo(true));
+    }
+
+    public void testMultiValueSortedNotAllowed() throws IOException {
+        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        var e = expectThrows(
+            MapperParsingException.class,
+            () -> createMapperService(
+                fieldMapping(b -> b.field("type", "flattened").startObject("doc_values").field("multi_value", "sorted").endObject())
+            )
+        );
+        assertThat(
+            e.getMessage(),
+            containsString("Unknown value [sorted] for field [multi_value] - accepted values are [no, sorted_set, arrays]")
+        );
     }
 
     @Override

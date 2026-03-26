@@ -3,5 +3,5 @@
 ## Parameters
 
 `number`
-:   Multivalue expression.
+:   Expression that can be null, a single value, or multiple values.
 

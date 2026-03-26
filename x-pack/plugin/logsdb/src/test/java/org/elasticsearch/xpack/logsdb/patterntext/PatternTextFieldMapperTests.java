@@ -163,9 +163,13 @@ public class PatternTextFieldMapperTests extends MapperTestCase {
     @Override
     protected void registerParameters(ParameterChecker checker) throws IOException {
         checker.registerUpdateCheck(
+            "meta",
             b -> { b.field("meta", Collections.singletonMap("format", "mysql.access")); },
             m -> assertEquals(Collections.singletonMap("format", "mysql.access"), m.fieldType().meta())
         );
+        checker.registerConflictCheck("disable_templating", b -> b.field("disable_templating", true));
+        checker.registerConflictCheck("analyzer", b -> b.field("analyzer", "standard"));
+        checker.registerConflictCheck("index_options", b -> b.field("index_options", "positions"));
     }
 
     @Override

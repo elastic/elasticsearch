@@ -31,7 +31,9 @@ import java.util.List;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.APIBlock.READ;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.APIBlock.WRITE;
+import static org.elasticsearch.cluster.metadata.MetadataIndexStateService.VERIFIED_READ_ONLY_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
 /**
@@ -83,6 +85,7 @@ public class DataStreamLifecycleConvertToFrozenMarkReadOnlyIT extends ESIntegTes
 
         // Verify the WRITE block is now present on the index
         assertIndexWriteBlock(true);
+        assertIndexVerifiedReadOnly();
     }
 
     /**
@@ -113,6 +116,7 @@ public class DataStreamLifecycleConvertToFrozenMarkReadOnlyIT extends ESIntegTes
 
         // Verify the WRITE block is now present on the index
         assertIndexWriteBlock(true);
+        assertIndexVerifiedReadOnly();
     }
 
     /**
@@ -145,11 +149,14 @@ public class DataStreamLifecycleConvertToFrozenMarkReadOnlyIT extends ESIntegTes
 
         // Verify the WRITE block is now present on the index
         assertIndexWriteBlock(true);
+        assertIndexVerifiedReadOnly();
     }
 
     /**
      * Tests that calling maybeMarkIndexReadOnly twice in succession does not fail.
-     * The first call adds the block, and the second call detects it and skips.
+     * The first call adds the block, and the second call detects it and skips without
+     * making any cluster state changes (verified by checking that the index metadata
+     * settings version and cluster state version remain unchanged after the second call).
      */
     public void testMarkIndexReadOnlyCalledTwiceSuccessfully() {
         internalCluster().startNode();
@@ -168,6 +175,13 @@ public class DataStreamLifecycleConvertToFrozenMarkReadOnlyIT extends ESIntegTes
         // First call adds the block
         converter.maybeMarkIndexReadOnly();
         assertIndexWriteBlock(true);
+        assertIndexVerifiedReadOnly();
+
+        // Capture the index metadata state after the first call to verify the second call is a no-op
+        ClusterState stateAfterFirstCall = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
+        IndexMetadata idxMetaAfterFirstCall = stateAfterFirstCall.projectState(Metadata.DEFAULT_PROJECT_ID).metadata().index(INDEX_NAME);
+        long settingsVersionAfterFirstCall = idxMetaAfterFirstCall.getSettingsVersion();
+        long clusterStateVersionAfterFirstCall = stateAfterFirstCall.version();
 
         // Get fresh project state with the block now present
         ProjectState updatedProjectState = getCurrentProjectState();
@@ -181,6 +195,21 @@ public class DataStreamLifecycleConvertToFrozenMarkReadOnlyIT extends ESIntegTes
         // Second call should be idempotent (skips since block is already present)
         converter2.maybeMarkIndexReadOnly();
         assertIndexWriteBlock(true);
+        assertIndexVerifiedReadOnly();
+
+        // Verify the second call did not cause any cluster state changes
+        ClusterState stateAfterSecondCall = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
+        IndexMetadata idxMetaAfterSecondCall = stateAfterSecondCall.projectState(Metadata.DEFAULT_PROJECT_ID).metadata().index(INDEX_NAME);
+        assertThat(
+            "Settings version should not change on second idempotent call",
+            idxMetaAfterSecondCall.getSettingsVersion(),
+            is(settingsVersionAfterFirstCall)
+        );
+        assertThat(
+            "Cluster state version should not change on second idempotent call",
+            stateAfterSecondCall.version(),
+            is(clusterStateVersionAfterFirstCall)
+        );
     }
 
     /**
@@ -204,7 +233,7 @@ public class DataStreamLifecycleConvertToFrozenMarkReadOnlyIT extends ESIntegTes
         dataNodeTransport.addRequestHandlingBehavior(
             TransportVerifyShardIndexBlockAction.TYPE.name(),
             (handler, request, channel, task) -> {
-                throw new ElasticsearchException("simulated shard verification failure");
+                channel.sendResponse(new ElasticsearchException("simulated shard verification failure"));
             }
         );
 
@@ -221,6 +250,34 @@ public class DataStreamLifecycleConvertToFrozenMarkReadOnlyIT extends ESIntegTes
         } finally {
             dataNodeTransport.clearAllRules();
         }
+    }
+
+    /**
+     * Tests that maybeMarkIndexReadOnly throws an ElasticsearchException when the index
+     * is deleted after the converter is created but before maybeMarkIndexReadOnly is called.
+     * This simulates a race condition where the index disappears mid-run.
+     */
+    public void testMarkIndexReadOnlyThrowsWhenIndexDeletedBeforeCall() {
+        internalCluster().startNode();
+        createIndex(
+            INDEX_NAME,
+            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
+        );
+        ensureGreen(INDEX_NAME);
+
+        ProjectState projectState = getCurrentProjectState();
+        DataStreamLifecycleConvertToFrozen converter = new DataStreamLifecycleConvertToFrozen(
+            INDEX_NAME,
+            client(),
+            projectState,
+            licenseState
+        );
+
+        // Delete the index after the converter is constructed but before calling maybeMarkIndexReadOnly
+        assertAcked(indicesAdmin().prepareDelete(INDEX_NAME));
+
+        ElasticsearchException exception = expectThrows(ElasticsearchException.class, converter::maybeMarkIndexReadOnly);
+        assertThat(exception.getMessage(), containsString("DLM unable to mark index"));
     }
 
     /**
@@ -251,6 +308,7 @@ public class DataStreamLifecycleConvertToFrozenMarkReadOnlyIT extends ESIntegTes
 
         converter.maybeMarkIndexReadOnly();
         assertIndexWriteBlock(true);
+        assertIndexVerifiedReadOnly();
 
         // Stop the current master to trigger a failover
         internalCluster().stopCurrentMasterNode();
@@ -259,6 +317,7 @@ public class DataStreamLifecycleConvertToFrozenMarkReadOnlyIT extends ESIntegTes
 
         // Verify the WRITE block survived the master failover
         assertIndexWriteBlock(true);
+        assertIndexVerifiedReadOnly();
     }
 
     private ProjectState getCurrentProjectState() {
@@ -272,9 +331,19 @@ public class DataStreamLifecycleConvertToFrozenMarkReadOnlyIT extends ESIntegTes
         ClusterBlock writeBlock = WRITE.getBlock();
         String expectation = expected ? "should have" : "should not have";
         assertThat(
-            "Index [" + DataStreamLifecycleConvertToFrozenMarkReadOnlyIT.INDEX_NAME + "] " + expectation + " WRITE block",
-            clusterState.blocks().hasIndexBlock(projectId, DataStreamLifecycleConvertToFrozenMarkReadOnlyIT.INDEX_NAME, writeBlock),
+            "Index [" + INDEX_NAME + "] " + expectation + " WRITE block",
+            clusterState.blocks().hasIndexBlock(projectId, INDEX_NAME, writeBlock),
             is(expected)
+        );
+    }
+
+    private static void assertIndexVerifiedReadOnly() {
+        ClusterState clusterState = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
+        IndexMetadata idxMeta = clusterState.projectState(Metadata.DEFAULT_PROJECT_ID).metadata().index(INDEX_NAME);
+        assertThat(
+            "Index [" + INDEX_NAME + "] " + "should be verified read-only",
+            VERIFIED_READ_ONLY_SETTING.get(idxMeta.getSettings()),
+            is(true)
         );
     }
 }

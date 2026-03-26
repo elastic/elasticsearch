@@ -555,7 +555,7 @@ partial_mapping_sample_data           | 2024-10-23T13:55:01.543Z | Connected to 
 ;
 
 threeIndicesKeepMessageUnmappedThird
-required_capability: optional_fields_v2
+required_capability: optional_fields_v3
 required_capability: source_field_mapping
 
 SET unmapped_fields="load"\;
@@ -589,7 +589,7 @@ sample_data                           | 2023-10-23T12:15:03.360Z | Connected to 
 ;
 
 threeIndicesDropClientIpUnmappedThird
-required_capability: optional_fields_v2
+required_capability: optional_fields_v3
 required_capability: source_field_mapping
 
 SET unmapped_fields="load"\;
@@ -624,7 +624,7 @@ sample_data                           | 2023-10-23T12:15:03.360Z | Connected to 
 ;
 
 threeIndicesKeepMessageExcludedThird
-required_capability: optional_fields_v2
+required_capability: optional_fields_v3
 required_capability: source_field_mapping
 
 SET unmapped_fields="load"\;
@@ -658,7 +658,7 @@ sample_data                                 | 2023-10-23T12:15:03.360Z | Connect
 ;
 
 threeIndicesDropClientIpExcludedThird
-required_capability: optional_fields_v2
+required_capability: optional_fields_v3
 required_capability: source_field_mapping
 
 SET unmapped_fields="load"\;

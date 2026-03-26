@@ -28,10 +28,10 @@ MARCH_AMD64_TIER2   = icelake-client
 
 # Compilers
 # Darwin cross-compilation: -nostdinc blocks host (glibc) headers, then we
-# explicitly add back clang builtins, clang's libc++.
+# add our minimal C++ std headers (tinystd) and clang builtins.
 CLANG_RESOURCE = $(shell clang++-18 -print-resource-dir)
 CLANG       = clang++-18 --target=arm64-apple-macos14 -nostdinc \
-                -isystem /usr/lib/llvm-18/include/c++/v1 \
+                -isystem src/vec/headers/darwin/tinystd \
                 -isystem $(CLANG_RESOURCE)/include
 CLANG_LINK  = clang++-18 --target=arm64-apple-macos14 -fuse-ld=lld -nostdlib -Wl,-undefined,dynamic_lookup
 GCC_ARM     = aarch64-linux-gnu-g++-14
@@ -77,7 +77,7 @@ $(OBJ_DARWIN_TIER2): $(OBJ_DARWIN)/%.o: src/vec/c/aarch64/%.cpp | $(OBJ_DARWIN)
 
 $(DYLIB): $(OBJ_DARWIN_TIER1) $(OBJ_DARWIN_TIER2) | $(OUT_DIR_AARCH64)
 	$(CLANG_LINK) -shared $^ -o $@
-	llvm-strip-18 $@
+	llvm-strip-18 --strip-debug $@
 
 # --- linux-aarch64 ---
 

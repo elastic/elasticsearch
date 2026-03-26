@@ -9,8 +9,8 @@
 
 # Cross-compilation toolchain image for libvec.
 # Contains clang-18+lld-18 (Darwin target) and gcc-14 (Linux targets).
-# No macOS SDK required — Darwin builds use -ffreestanding with clang's own
-# libc++ headers (libc++-18-dev).
+# No macOS SDK required — Darwin builds use a minimal C++ std library
+# (tinystd) bundled in the source tree, with clang's freestanding headers.
 #
 # To build and push (see also build_cross_toolchain_image.sh):
 #   docker build \
@@ -37,7 +37,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         clang-18 \
         lld-18 \
         llvm-18 \
-        libc++-18-dev \
         gcc-14 \
         g++-14 \
         gcc-14-aarch64-linux-gnu \

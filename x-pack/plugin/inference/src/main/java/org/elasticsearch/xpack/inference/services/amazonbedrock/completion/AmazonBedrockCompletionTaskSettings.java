@@ -74,9 +74,7 @@ public class AmazonBedrockCompletionTaskSettings implements TaskSettings {
             validationException
         );
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new AmazonBedrockCompletionTaskSettings(temperature, topP, topK, maxNewTokens);
     }

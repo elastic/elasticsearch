@@ -25,13 +25,21 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.fielddata.FieldDataContext;
+import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.BytesBinaryIndexFieldData;
 import org.elasticsearch.index.mapper.BinaryFieldMapper;
 import org.elasticsearch.index.mapper.DocumentParserContext;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
+import org.elasticsearch.index.mapper.MapperMetrics;
+import org.elasticsearch.index.mapper.Mapping;
+import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.TestDocumentParserContext;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RegexpQueryBuilder;
@@ -43,10 +51,13 @@ import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.mockito.Mockito;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.List;
+import java.util.function.BiFunction;
 
 import static org.hamcrest.Matchers.greaterThan;
 import static org.mockito.Mockito.mock;
@@ -157,7 +168,7 @@ public class QueryBuilderStoreTests extends ESTestCase {
                 Settings.EMPTY
             );
 
-            KeywordFieldMapper keywordMapper = new KeywordFieldMapper.Builder(fieldName, indexSettings).build(
+            KeywordFieldMapper keywordMapper = new KeywordFieldMapper.Builder(fieldName, indexSettings.getIndexVersionCreated()).build(
                 MapperBuilderContext.root(false, false)
             );
             MappingLookup mappingLookup = MappingLookup.fromMappers(
@@ -169,8 +180,7 @@ public class QueryBuilderStoreTests extends ESTestCase {
 
             BytesBinaryIndexFieldData fieldData = new BytesBinaryIndexFieldData(
                 fieldMapper.fullPath(),
-                CoreValuesSourceType.KEYWORD,
-                BinaryDocValuesField::new
+                CoreValuesSourceType.KEYWORD
             );
             BiFunction<MappedFieldType, FieldDataContext, IndexFieldData<?>> indexFieldDataLookup = (mft, fdc) -> fieldData;
 
@@ -201,7 +211,6 @@ public class QueryBuilderStoreTests extends ESTestCase {
 
             PercolateQuery.QueryStore queryStore = PercolateQueryBuilder.createStore(
                 fieldMapper.fieldType(),
-                false,
                 searchExecutionContext
             );
 

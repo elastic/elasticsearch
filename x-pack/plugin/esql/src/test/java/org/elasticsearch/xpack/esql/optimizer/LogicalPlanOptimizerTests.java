@@ -4590,7 +4590,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * \_Project[[s{r}#3, s_expr{r}#5, s_null{r}#7, w{r}#10]]
      *   \_Project[[s{r}#3, s_expr{r}#5, s_null{r}#7, w{r}#10]]
      *     \_Eval[[MVSUM([1, 2][INTEGER]) * $$COUNT$s$0{r}#25 AS s, MVSUM(314.0[DOUBLE] / 100[INTEGER]) * $$COUNT$s$0{r}#25 AS s
-     * _expr, MVSUM(null[NULL]) * $$COUNT$s$0{r}#25 AS s_null]]
+     * _expr, null[NULL] AS s_null]]
      *       \_Aggregate[[w{r}#10],[COUNT(*[KEYWORD]) AS $$COUNT$s$0, w{r}#10]]
      *         \_Eval[[emp_no{f}#15 % 2[INTEGER] AS w]]
      *           \_EsRelation[test][_meta_field{f}#21, emp_no{f}#15, first_name{f}#16, ..]
@@ -4631,14 +4631,12 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var count_expr = as(mul_expr.right(), ReferenceAttribute.class);
         assertThat(count_expr.name(), equalTo("$$COUNT$s$0"));
 
-        // s_null == mv_sum(null) * count(*)
+        // s_null == null (literal) — SUM(null) short-circuits to a null literal of NULL type
         var s_null = as(exprs.get(2), Alias.class);
         assertThat(s_null.name(), equalTo("s_null"));
-        var mul_null = as(s_null.child(), Mul.class);
-        var mvSum_null = as(mul_null.left(), MvSum.class);
-        assertThat(mvSum_null.field(), equalTo(NULL));
-        var count_null = as(mul_null.right(), ReferenceAttribute.class);
-        assertThat(count_null.name(), equalTo("$$COUNT$s$0"));
+        var nullLiteral = as(s_null.child(), Literal.class);
+        assertNull(nullLiteral.value());
+        assertThat(nullLiteral.dataType(), equalTo(DataType.NULL));
 
         var countAgg = as(Alias.unwrap(agg.aggregates().get(0)), Count.class);
         assertThat(countAgg.children().get(0), instanceOf(Literal.class));

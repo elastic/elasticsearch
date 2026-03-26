@@ -16,5 +16,11 @@ import java.util.Map;
 
 public interface SecretSettings extends ToXContentObject, VersionedNamedWriteable {
 
+    /**
+     * Update the secret settings with the provided settings, combining them as necessary.
+     *
+     * @param newSecrets a <b>modifiable</b> map with the new secret settings
+     * @return the updated secret settings
+     */
     SecretSettings newSecretSettings(Map<String, Object> newSecrets);
 }

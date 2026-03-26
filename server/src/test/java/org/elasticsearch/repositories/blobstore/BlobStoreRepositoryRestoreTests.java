@@ -78,7 +78,12 @@ public class BlobStoreRepositoryRestoreTests extends IndexShardTestCase {
 
             // snapshot the shard
             @FixForMultiProject(description = "randomize when snapshot and restore support multiple projects, see also ES-10225, ES-10228")
-            final Repository repository = TestUtils.createRepository(ProjectId.DEFAULT, createTempDir(), xContentRegistry());
+            final Repository repository = TestUtils.createRepository(
+                ProjectId.DEFAULT,
+                createTempDir(),
+                xContentRegistry(),
+                shard.shardId().getIndex()
+            );
             final Snapshot snapshot = new Snapshot(repository.getMetadata().name(), new SnapshotId(randomAlphaOfLength(10), "_uuid"));
             snapshotShard(shard, snapshot, repository);
 
@@ -157,7 +162,12 @@ public class BlobStoreRepositoryRestoreTests extends IndexShardTestCase {
 
             // snapshot the shard
             @FixForMultiProject(description = "randomize when snapshot and restore support multiple projects, see also ES-10225, ES-10228")
-            final Repository repository = TestUtils.createRepository(ProjectId.DEFAULT, createTempDir(), xContentRegistry());
+            final Repository repository = TestUtils.createRepository(
+                ProjectId.DEFAULT,
+                createTempDir(),
+                xContentRegistry(),
+                shard.shardId().getIndex()
+            );
             final Snapshot snapshot = new Snapshot(repository.getMetadata().name(), new SnapshotId(randomAlphaOfLength(10), "_uuid"));
             final ShardGeneration shardGen = snapshotShard(shard, snapshot, repository);
             assertNotNull(shardGen);

@@ -9,7 +9,12 @@
 
 package org.elasticsearch.repositories.blobstore;
 
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -17,6 +22,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.fs.FsRepository;
@@ -24,14 +31,30 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.nio.file.Path;
 
+import static org.elasticsearch.test.ESTestCase.indexSettings;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
 
 public class TestUtils {
+
+    record RepositoryAndClusterService(Repository repository, ClusterService clusterService) {}
+
     /** Create a {@link Repository} with a random name **/
-    static Repository createRepository(ProjectId projectId, Path tempDir, NamedXContentRegistry xContentRegistry) {
+    static Repository createRepository(ProjectId projectId, Path tempDir, NamedXContentRegistry xContentRegistry, Index... indices) {
+        return createRepositoryAndClusterService(projectId, tempDir, xContentRegistry, indices).repository;
+    }
+
+    static RepositoryAndClusterService createRepositoryAndClusterService(
+        ProjectId projectId,
+        Path tempDir,
+        NamedXContentRegistry xContentRegistry,
+        Index... indices
+    ) {
         Settings settings = Settings.builder().put("location", randomAlphaOfLength(10)).build();
         RepositoryMetadata repositoryMetadata = new RepositoryMetadata(randomAlphaOfLength(10), FsRepository.TYPE, settings);
         final ClusterService clusterService = BlobStoreTestUtil.mockClusterService(projectId, repositoryMetadata);
+        if (indices != null && indices.length > 0) {
+            registerIndices(clusterService, projectId, indices);
+        }
         final FsRepository repository = new FsRepository(
             projectId,
             repositoryMetadata,
@@ -45,7 +68,32 @@ public class TestUtils {
         // Apply state once to initialize repo properly like RepositoriesService would
         repository.updateState(clusterService.state());
         repository.start();
-        return repository;
+        return new RepositoryAndClusterService(repository, clusterService);
+    }
+
+    private static void registerIndices(ClusterService clusterService, ProjectId projectId, Index... indices) {
+        clusterService.submitUnbatchedStateUpdateTask("register-indices", new ClusterStateUpdateTask() {
+            @Override
+            public ClusterState execute(ClusterState currentState) {
+                var projectBuilder = ProjectMetadata.builder(currentState.metadata().getProject(projectId));
+                for (Index index : indices) {
+                    projectBuilder.put(
+                        IndexMetadata.builder(index.getName())
+                            .settings(indexSettings(IndexVersion.current(), 1, 0).put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID()))
+                            .build(),
+                        false
+                    );
+                }
+                return ClusterState.builder(currentState)
+                    .metadata(Metadata.builder(currentState.metadata()).put(projectBuilder.build()).build())
+                    .build();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                throw new AssertionError(e);
+            }
+        });
     }
 
     private static Environment createEnvironment(Path tempDir) {

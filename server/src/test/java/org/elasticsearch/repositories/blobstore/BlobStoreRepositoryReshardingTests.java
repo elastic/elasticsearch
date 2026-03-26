@@ -59,7 +59,7 @@ public class BlobStoreRepositoryReshardingTests extends IndexShardTestCase {
         shards.add(shard);
         recoverShardFromStore(shard);
 
-        Repository repository = TestUtils.createRepository(projectId, createTempDir(), xContentRegistry());
+        Repository repository = TestUtils.createRepository(projectId, createTempDir(), xContentRegistry(), shard.shardId().getIndex());
 
         // Perform a normal shard snapshot unaffected by resharding.
         var snapshot = new Snapshot(projectId, repository.getMetadata().name(), new SnapshotId(randomAlphaOfLength(10), "snapshot1"));
@@ -124,7 +124,7 @@ public class BlobStoreRepositoryReshardingTests extends IndexShardTestCase {
         shards.add(shard0);
         recoverShardFromStore(shard0);
 
-        Repository repository = TestUtils.createRepository(projectId, createTempDir(), xContentRegistry());
+        Repository repository = TestUtils.createRepository(projectId, createTempDir(), xContentRegistry(), shard0.shardId().getIndex());
 
         // Emulate a split 1 -> 2.
         IndexMetadata reshardedMetadata = IndexMetadata.builder(shard0.indexSettings().getIndexMetadata())
@@ -201,7 +201,7 @@ public class BlobStoreRepositoryReshardingTests extends IndexShardTestCase {
         shards.add(shard0);
         recoverShardFromStore(shard0);
 
-        Repository repository = TestUtils.createRepository(projectId, createTempDir(), xContentRegistry());
+        Repository repository = TestUtils.createRepository(projectId, createTempDir(), xContentRegistry(), shard0.shardId().getIndex());
 
         // Perform a normal shard snapshot unaffected by resharding.
         var snapshot = new Snapshot(projectId, repository.getMetadata().name(), new SnapshotId(randomAlphaOfLength(10), "snapshot1"));
@@ -330,7 +330,7 @@ public class BlobStoreRepositoryReshardingTests extends IndexShardTestCase {
         shards.add(shard1);
         recoverShardFromStore(shard1);
 
-        Repository repository = TestUtils.createRepository(projectId, createTempDir(), xContentRegistry());
+        Repository repository = TestUtils.createRepository(projectId, createTempDir(), xContentRegistry(), shard0.shardId().getIndex());
         // Perform a normal post-resharding snapshot.
         var postReshardSnapshot = new Snapshot(
             projectId,

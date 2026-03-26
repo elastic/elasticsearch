@@ -3486,7 +3486,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             logger.debug("[{}][{}] snapshot to [{}][{}][{}] ...", shardId, snapshotId, metadata.name(), context.indexId(), generation);
             final Set<String> blobs;
             if (generation == null) {
-                snapshotStatus.ensureNotAborted();
+                ensureNotAborted(shardId, snapshotId, snapshotStatus, null);
                 snapshotStatus.updateStatusDescription("snapshot task runner: listing blob prefixes");
                 try {
                     blobs = shardContainer.listBlobsByPrefix(OperationPurpose.SNAPSHOT_METADATA, SNAPSHOT_INDEX_PREFIX).keySet();
@@ -3497,7 +3497,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 blobs = Collections.singleton(SNAPSHOT_INDEX_PREFIX + generation);
             }
 
-            snapshotStatus.ensureNotAborted();
+            ensureNotAborted(shardId, snapshotId, snapshotStatus, null);
             snapshotStatus.updateStatusDescription("snapshot task runner: loading snapshot blobs");
             Tuple<BlobStoreIndexShardSnapshots, ShardGeneration> tuple = buildBlobStoreIndexShardSnapshots(
                 context.indexId(),
@@ -3758,7 +3758,12 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         }
     }
 
-    private static void ensureNotAborted(ShardId shardId, SnapshotId snapshotId, IndexShardSnapshotStatus snapshotStatus, String fileName) {
+    private void ensureNotAborted(
+        ShardId shardId,
+        SnapshotId snapshotId,
+        IndexShardSnapshotStatus snapshotStatus,
+        @Nullable String fileName
+    ) {
         var shardSnapshotStage = snapshotStatus.getStage();
         try {
             IndexShardSnapshotStatus.ensureNotAborted(shardSnapshotStage);
@@ -3790,6 +3795,14 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             );
             assert e instanceof AbortedSnapshotException || e instanceof PausedSnapshotException : e;
             throw e;
+        }
+        assert projectId != null : "snapshot repository should have non-null project ID";
+        final var metadata = clusterService.state().metadata();
+        if (metadata.hasProject(projectId) == false || metadata.getProject(projectId).hasIndex(shardId.getIndex()) == false) {
+            throw new IndexShardSnapshotFailedException(
+                shardId,
+                "index " + shardId.getIndex() + " was deleted during snapshot [" + snapshotId + "]"
+            );
         }
     }
 

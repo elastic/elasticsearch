@@ -123,9 +123,7 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
         throwIfNotEmptyMap(jsonParserMap, JSON_PARSER, NAME);
         throwIfNotEmptyMap(responseParserMap, RESPONSE, NAME);
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new CustomServiceSettings(
             textEmbeddingSettings,

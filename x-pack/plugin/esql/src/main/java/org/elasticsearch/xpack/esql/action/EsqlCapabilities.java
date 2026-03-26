@@ -225,8 +225,8 @@ public class EsqlCapabilities {
         METADATA_FIELDS,
 
         /**
-         * Support for optional fields (might or might not be present in the mappings) using FAIL/NULLIFY only.
-         * Compared to {@link #OPTIONAL_FIELDS_V2}, this does not enable support for LOAD.
+         * Support for optional fields (might or might not be present in the mappings) using DEFAULT/NULLIFY only.
+         * Compared to {@link #OPTIONAL_FIELDS_V3}, this does not enable support for LOAD.
          */
         OPTIONAL_FIELDS_NULLIFY_TECH_PREVIEW,
 
@@ -248,10 +248,11 @@ public class EsqlCapabilities {
         OPTIONAL_FIELDS_DETECT_UNMAPPED_FIELDS_IN_AGG_FILTERS,
 
         /**
-         * Support for optional fields (might or might not be present in the mappings) using FAIL/NULLIFY/LOAD.
-         * V2:  prevent pushing down filters and sorts to Lucene of potentially unmapped fields.
+         * Support for optional fields (might or might not be present in the mappings) using DEFAULT/NULLIFY/LOAD.
+         * V2:  Prevent pushing down filters and sorts to Lucene of potentially unmapped fields.
+         * V3:  Fix synthetic _source numeric load bug (#143916)
          */
-        OPTIONAL_FIELDS_V2(Build.current().isSnapshot()),
+        OPTIONAL_FIELDS_V3(Build.current().isSnapshot()),
 
         /**
          * Support specifically for *just* the _index METADATA field. Used by CsvTests, since that is the only metadata field currently
@@ -1209,6 +1210,10 @@ public class EsqlCapabilities {
          * Views with branching (requires subqueries/FORK).
          */
         VIEWS_WITH_BRANCHING(VIEWS_WITH_NO_BRANCHING.isEnabled() && SUBQUERY_IN_FROM_COMMAND.isEnabled()),
+        /**
+         * Added telemetry for views
+         */
+        VIEWS_TELEMETRY,
 
         /**
          * Support for the {@code leading_zeros} named parameter.
@@ -2335,11 +2340,15 @@ public class EsqlCapabilities {
         FIX_PASSTHROUGH_FIELD_CAPS_OBJECT_PARENT,
 
         /**
-         * LIMIT n BY expr1, expr2 support for retaining at most n docs per group.
-         * Enables the feature without a preceding SORT.
-         *
+         * Enables the feature LIMIT n BY expr1, expr2 for retaining at most n docs per group.
+         * The feature will not work if we had SORT | LIMIT n BY
          */
         ESQL_LIMIT_BY(Build.current().isSnapshot()),
+
+        /**
+         * Enables the SORT | LIMIT n BY expr1, expr2 support, see ESQL_LIMIT_BY for more context
+         */
+        ESQL_TOPN_BY(Build.current().isSnapshot()),
 
         /**
          * Fix window validation in time-series aggregations when TBUCKET uses a numeric target bucket count.
@@ -2353,10 +2362,15 @@ public class EsqlCapabilities {
         CHANGE_POINT_SUPPORT_NULL_COLUMN,
 
         /**
+         * Support CHANGE_POINT arguments in any order
+         */
+        CHANGE_POINT_ARGS_ANY_ORDER,
+
+        /**
          * Reject loading sub-fields of flattened fields when {@code unmapped_fields="load"}
          * See https://github.com/elastic/elasticsearch/issues/143494
          */
-        REJECT_LOADING_FLATTENED_SUBFIELDS(OPTIONAL_FIELDS_V2.isEnabled()),
+        REJECT_LOADING_FLATTENED_SUBFIELDS(OPTIONAL_FIELDS_V3.isEnabled()),
 
         FIX_DIV_ERROR_MESSAGE,
 
@@ -2364,6 +2378,18 @@ public class EsqlCapabilities {
          * Added {@link org.elasticsearch.xpack.esql.planner.PlannerSettings#DOC_THRESHOLD_AUTO_PARTITIONING}
          */
         AUTO_PARTITION_DOCS_THRESHOLD,
+
+        /**
+         * Rename the {@code unmapped_fields} default setting from {@code "fail"} to {@code "default"}.
+         * See https://github.com/elastic/elasticsearch/issues/144833
+         */
+        UNMAPPED_FIELDS_DEFAULT_SETTING_RENAME,
+
+        /**
+         * Fix for {@code SUM(null)} producing a type mismatch after surrogate expansion.
+         * See https://github.com/elastic/elasticsearch/issues/144914
+         */
+        FIX_SUM_OF_NULL_OPTIMIZATION,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

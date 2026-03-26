@@ -321,6 +321,34 @@ public class JDKVectorLibraryBBQTests extends VectorSimilarityFunctionsTests {
         assertThat(ex.getMessage(), containsString("out of bounds for length"));
     }
 
+    // Verifies that individual offset values are bounds-checked against the data segment.
+    public void testBulkOffsetsOutOfRange() {
+        assumeTrue(notSupportedMsg(), supported());
+        final int indexVectorBytes = numBytes(size, type.dataBits());
+        final int queryVectorBytes = numBytes(size, type.queryBits());
+        final int numVecs = 3;
+        var indexSegment = arena.allocate((long) indexVectorBytes * numVecs);
+        var query = arena.allocate(queryVectorBytes);
+        var scores = arena.allocate((long) numVecs * Float.BYTES);
+        var offsetsSegment = arena.allocate((long) numVecs * Integer.BYTES);
+
+        offsetsSegment.setAtIndex(ValueLayout.JAVA_INT, 0, 0);
+        offsetsSegment.setAtIndex(ValueLayout.JAVA_INT, 1, numVecs);
+        offsetsSegment.setAtIndex(ValueLayout.JAVA_INT, 2, 0);
+        Exception ex = expectThrows(
+            IOOBE,
+            () -> nativeSimilarityBulkWithOffsets(indexSegment, query, indexVectorBytes, indexVectorBytes, offsetsSegment, numVecs, scores)
+        );
+        assertThat(ex.getMessage(), containsString("out of bounds for length"));
+
+        offsetsSegment.setAtIndex(ValueLayout.JAVA_INT, 1, -1);
+        ex = expectThrows(
+            IOOBE,
+            () -> nativeSimilarityBulkWithOffsets(indexSegment, query, indexVectorBytes, indexVectorBytes, offsetsSegment, numVecs, scores)
+        );
+        assertThat(ex.getMessage(), containsString("out of bounds for length"));
+    }
+
     private static void pack(byte[] unpackedVector, byte[] packedVector, byte elementBits) {
         for (int i = 0; i < unpackedVector.length; i++) {
             var value = unpackedVector[i];

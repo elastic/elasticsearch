@@ -128,7 +128,6 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
 
     // TODO make configurable via lookback_delta parameter and (cluster?) setting
     public static final Duration DEFAULT_LOOKBACK = Duration.ofMinutes(5);
-    public static final String STEP_COLUMN_NAME = "step";
 
     public TranslatePromqlToEsqlPlan() {
         super(OptimizerRules.TransformDirection.UP);
@@ -720,7 +719,7 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
             null,
             ConfigurationAware.CONFIGURATION_MARKER
         );
-        return new Alias(b.source(), STEP_COLUMN_NAME, b, promqlCommand.stepId());
+        return new Alias(b.source(), promqlCommand.stepColumnName(), b, promqlCommand.stepId());
     }
 
     private static Expression resolveTimeBucketSize(PromqlCommand promqlCommand) {
@@ -804,7 +803,7 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
      * @param matcher the label matcher to translate
      * @return the ESQL Expression, or null if the matcher matches all or none
      */
-    private static Expression translateLabelMatcher(Source source, Expression field, LabelMatcher matcher) {
+    public static Expression translateLabelMatcher(Source source, Expression field, LabelMatcher matcher) {
         // Check for universal matchers
         if (matcher.matchesAll()) {
             return Literal.fromBoolean(source, true); // No filter needed (matches everything)

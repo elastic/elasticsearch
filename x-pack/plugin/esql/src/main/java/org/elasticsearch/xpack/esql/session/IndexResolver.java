@@ -408,10 +408,7 @@ public class IndexResolver {
         Map<String, Set<String>> fieldToMappedIndices = new HashMap<>();
 
         for (FieldCapabilitiesIndexResponse response : fieldCapsResponse.getIndexResponses()) {
-            boolean isNew = indexMappingHashToDuplicateCount.compute(
-                response.getIndexMappingHash(),
-                (k, v) -> v == null ? 1 : v + 1
-            ) <= 1;
+            boolean isNew = indexMappingHashToDuplicateCount.compute(response.getIndexMappingHash(), (k, v) -> v == null ? 1 : v + 1) <= 1;
             String indexName = response.getIndexName();
             for (IndexFieldCapabilities fc : response.get().values()) {
                 if (fc.isMetadatafield()) {

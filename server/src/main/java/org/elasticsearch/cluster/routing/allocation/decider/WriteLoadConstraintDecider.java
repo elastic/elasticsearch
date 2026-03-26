@@ -251,10 +251,17 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
                     return Decision.NOT_PREFERRED;
                 }
             } else {
-                return allocation.decision(Decision.YES, NAME, """
-                    Node [%s] is hot-spotting due to a single shard executing [%.2f] percent of the writes. But since this is above the \
-                    single shard write load threshold ([%.2f]%), moving shards away from this node is not expected to resolve the hot-spot.\
-                    """, node.getShortNodeDescription(), maxShardWriteLoadProportion.get() * 100, maxShardWriteLoadThreshold * 100);
+                return allocation.decision(
+                    Decision.YES,
+                    NAME,
+                    """
+                        Node [%s] is hot-spotting due to a single shard executing [%.2f] percent of the writes. But since this is above \
+                        the single shard write load threshold ([%.2f]), moving shards away from this node is not expected to resolve \
+                        the hot-spot.""",
+                    node.getShortNodeDescription(),
+                    maxShardWriteLoadProportion.get() * 100,
+                    maxShardWriteLoadThreshold * 100
+                );
             }
         }
 

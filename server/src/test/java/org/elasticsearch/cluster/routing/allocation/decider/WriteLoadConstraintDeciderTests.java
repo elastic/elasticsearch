@@ -755,8 +755,9 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
         Decision moveDecision = writeLoadDecider.canRemain(indexMetadata, highShardRouting, routingNode, routingAllocation);
         assertEquals(Decision.Type.YES, moveDecision.type());
         String explanationRegex = Strings.format("""
-            Node \\[%s\\] is hot-spotting, but has a single shard max write load proportion of \\[0.95\\] that exceeds the \
-            threshold of \\[0.90\\]. Nothing to do.""", node.getShortNodeDescription());
+            Node \\[%s\\] is hot-spotting due to a single shard executing \\[95.00\\] percent of the writes. But since this is above the \
+            single shard write load threshold \\(\\[90.00\\]\\), moving shards away from this node is not expected to resolve the \
+            hot-spot.""", node.getShortNodeDescription());
 
         assertThat(moveDecision.getExplanation(), matchesPattern(explanationRegex));
 

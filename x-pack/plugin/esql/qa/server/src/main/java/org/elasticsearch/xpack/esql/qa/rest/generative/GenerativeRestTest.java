@@ -12,6 +12,7 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.esql.AssertWarnings;
 import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
+import org.elasticsearch.xpack.esql.approximation.ApproximationPlan;
 import org.elasticsearch.xpack.esql.generator.Column;
 import org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator;
 import org.elasticsearch.xpack.esql.generator.LookupIdx;
@@ -22,6 +23,7 @@ import org.elasticsearch.xpack.esql.generator.command.CommandGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.EnrichGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.EvalGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.LookupJoinGenerator;
+import org.elasticsearch.xpack.esql.generator.command.source.FromGenerator;
 import org.elasticsearch.xpack.esql.qa.rest.ProfileLogger;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase;
 import org.junit.AfterClass;
@@ -215,9 +217,17 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
                 public void run(CommandGenerator generator, CommandGenerator.CommandDescription current) {
                     final String command = current.commandString();
 
-                    final QueryExecuted result = previousResult == null
+                    QueryExecuted result = previousResult == null
                         ? execute(command, 0)
                         : execute(previousResult.query() + command, previousResult.depth());
+
+                    // Strip the artificial query approximation columns, that are added after
+                    // query execution, and trailing all other columns. These columns confuse
+                    // follow-up command generation (that try to reference them), and result
+                    // validation (that expect columns added after them).
+                    if (FromGenerator.hasApproximationSettings(result.query())) {
+                        result = stripApproximationColumns(result);
+                    }
 
                     final boolean hasException = result.exception() != null;
                     if (hasException
@@ -285,6 +295,30 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
                 }
             }
         }
+    }
+
+    /**
+     * Strips {@code _approximation_} metadata columns from a {@link QueryExecuted}.
+     */
+    private static QueryExecuted stripApproximationColumns(QueryExecuted qe) {
+        if (qe == null || qe.outputSchema() == null) {
+            return qe;
+        }
+        List<Integer> keepIndices = new ArrayList<>();
+        for (int i = 0; i < qe.outputSchema().size(); i++) {
+            if (qe.outputSchema().get(i).name().startsWith(ApproximationPlan.CONFIDENCE_INTERVAL_COLUMN_PREFIX) == false
+                && qe.outputSchema().get(i).name().startsWith(ApproximationPlan.CERTIFIED_COLUMN_PREFIX) == false) {
+                keepIndices.add(i);
+            }
+        }
+        if (keepIndices.size() == qe.outputSchema().size()) {
+            return qe;
+        }
+        List<Column> schema = keepIndices.stream().map(qe.outputSchema()::get).toList();
+        List<List<Object>> rows = qe.result() == null
+            ? null
+            : qe.result().stream().map(row -> keepIndices.stream().map(row::get).toList()).toList();
+        return new QueryExecuted(qe.query(), qe.depth(), schema, rows, qe.exception());
     }
 
     protected CommandGenerator sourceCommand() {

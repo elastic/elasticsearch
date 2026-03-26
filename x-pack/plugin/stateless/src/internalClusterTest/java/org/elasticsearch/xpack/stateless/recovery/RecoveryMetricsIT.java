@@ -309,13 +309,10 @@ public class RecoveryMetricsIT extends AbstractStatelessPluginIntegTestCase {
         );
         ensureGreen(indexName);
 
-        int numDocs = randomIntBetween(100, 1000);
-        indexDocs(indexName, numDocs);
+        indexDocs(indexName, randomIntBetween(100, 1000));
+        flush(indexName);
+        indexDocs(indexName, randomIntBetween(100, 1000));
         refresh(indexName);
-        if (hollowEnabled) {
-            // Flush so that the IndexShardCacheWarmer on the target node can prewarm some bytes
-            flush(indexName);
-        }
 
         var plugin = internalCluster().getInstance(PluginsService.class, indexingNode2)
             .filterPlugins(TestTelemetryPlugin.class)
@@ -339,14 +336,18 @@ public class RecoveryMetricsIT extends AbstractStatelessPluginIntegTestCase {
                 .setSettings(Settings.builder().put(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name", indexingNode1))
         );
 
-        // Wait until the IndexShardCacheWarmer warms the commit (the non-hollow one, in case hollowing is enabled)
-        // to ensure that it reads some bytes (otherwise it could race with recovery getting bytes into the cache first).
-        assertBusy(
-            () -> assertThat(
-                plugin.getLongCounterMeasurement(SharedBlobCacheWarmingService.BLOB_CACHE_WARMING_PAGE_ALIGNED_BYTES_TOTAL_METRIC).size(),
-                greaterThan(0)
-            )
-        );
+        // Wait until the IndexShardCacheWarmer warms the commit to ensure that it reads some bytes (otherwise it could race with
+        // recovery getting bytes into the cache first).
+        // Note: we don't do warming for to-be-hollowed shards. Hence, we skip waiting and don't expect warming metrics.
+        if (hollowEnabled == false) {
+            assertBusy(
+                () -> assertThat(
+                    plugin.getLongCounterMeasurement(SharedBlobCacheWarmingService.BLOB_CACHE_WARMING_PAGE_ALIGNED_BYTES_TOTAL_METRIC)
+                        .size(),
+                    greaterThan(0)
+                )
+            );
+        }
         warmingDone.countDown();
 
         ensureGreen(indexName);
@@ -379,22 +380,20 @@ public class RecoveryMetricsIT extends AbstractStatelessPluginIntegTestCase {
             SharedBlobCacheWarmingService.BLOB_CACHE_WARMING_PAGE_ALIGNED_BYTES_TOTAL_METRIC
         );
         if (hollowEnabled) {
-            // One from the IndexShardCacheWarmer for the non-hollow commit
-            assertThat(measurements.size(), equalTo(1));
-            assertThat(measurements.get(0).attributes().get("prewarming_type"), equalTo("INDEXING_EARLY"));
-
+            // We don't warm for to-be-hollowed shards. This is a weak assertion as there is no wait.
+            assertThat(measurements.size(), equalTo(0));
         } else {
             // One from IndexShardCacheWarmer and the other from StatelessIndexEventListener (which we may need to wait for it to appear)
             assertBusy(() -> assertThat(measurements.size(), equalTo(2)));
+            long totalBytesWarmed = 0;
+            for (final Measurement metric : measurements) {
+                final long bytesWarmed = metric.getLong();
+                assertThat(bytesWarmed, greaterThanOrEqualTo(0L));
+                totalBytesWarmed += bytesWarmed;
+                assertMetricAttributes(metric, true);
+            }
+            assertThat(totalBytesWarmed, greaterThan(0L));
         }
-        long totalBytesWarmed = 0;
-        for (final Measurement metric : measurements) {
-            final long bytesWarmed = metric.getLong();
-            assertThat(bytesWarmed, greaterThanOrEqualTo(0L));
-            totalBytesWarmed += bytesWarmed;
-            assertMetricAttributes(metric, true);
-        }
-        assertThat(totalBytesWarmed, greaterThan(0L));
     }
 
     public void testRecoveryMetricPublicationBytesReadToCacheFromIndexing() {

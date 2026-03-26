@@ -69,6 +69,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.xpack.stateless.commits.HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED;
 import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS;
 import static org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectoryTestUtils.getCacheService;
 import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction.PREWARM_RELOCATION_ACTION_NAME;
@@ -279,7 +280,12 @@ public class IndexingShardRelocationAvoidListIT extends AbstractStatelessPluginI
     }
 
     public void testRelocatingIndexShardReceivesDeletedBlobForPrewarming() throws Exception {
-        var settings = Settings.builder().put(STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), 2).build();
+        // Disable hollow shards as we don't prewarm cache during relocation for to-be-hollowed shards
+        var settings = Settings.builder()
+            .put(STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), 2)
+            .put(STATELESS_HOLLOW_INDEX_SHARDS_ENABLED.getKey(), false)
+            .build();
+
         startMasterOnlyNode(settings);
         final String indexNodeA = startIndexNode(settings);
 

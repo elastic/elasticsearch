@@ -199,6 +199,7 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
 
         // UUID is changed so that we can follow indexes on same cluster
         assertNotEquals(leaderMetadata.getIndexUUID(), followerMetadata.getIndexUUID());
+        assertEquals(leaderMetadata.getTransportVersion(), followerMetadata.getTransportVersion());
     }
 
     public void testDocsAreRecovered() throws Exception {

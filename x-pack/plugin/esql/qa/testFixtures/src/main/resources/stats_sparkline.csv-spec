@@ -60,6 +60,7 @@ required_capability: fn_sparkline
 FROM employees
 | INLINE STATS sparkline = SPARKLINE(COUNT(*), hire_date, 20, "1985-01-01T00:00:00Z", "1985-12-31T00:00:00Z")
 | KEEP sparkline, emp_no
+| SORT emp_no ASC
 | LIMIT 3
 ;
 

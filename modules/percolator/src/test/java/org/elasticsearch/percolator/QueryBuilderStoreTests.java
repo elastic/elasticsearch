@@ -33,7 +33,6 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.BytesBinaryIndexFieldData;
 import org.elasticsearch.index.mapper.BinaryFieldMapper;
 import org.elasticsearch.index.mapper.DocumentParserContext;
-import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
@@ -46,7 +45,6 @@ import org.elasticsearch.index.query.RegexpQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.WildcardQueryBuilder;
-import org.elasticsearch.script.field.BinaryDocValuesField;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.test.ESTestCase;
@@ -178,10 +176,7 @@ public class QueryBuilderStoreTests extends ESTestCase {
                 IndexMode.STANDARD
             );
 
-            BytesBinaryIndexFieldData fieldData = new BytesBinaryIndexFieldData(
-                fieldMapper.fullPath(),
-                CoreValuesSourceType.KEYWORD
-            );
+            BytesBinaryIndexFieldData fieldData = new BytesBinaryIndexFieldData(fieldMapper.fullPath(), CoreValuesSourceType.KEYWORD);
             BiFunction<MappedFieldType, FieldDataContext, IndexFieldData<?>> indexFieldDataLookup = (mft, fdc) -> fieldData;
 
             SearchExecutionContext baseContext = new SearchExecutionContext(
@@ -209,10 +204,7 @@ public class QueryBuilderStoreTests extends ESTestCase {
             );
             SearchExecutionContext searchExecutionContext = new SearchExecutionContext(baseContext, circuitBreaker);
 
-            PercolateQuery.QueryStore queryStore = PercolateQueryBuilder.createStore(
-                fieldMapper.fieldType(),
-                searchExecutionContext
-            );
+            PercolateQuery.QueryStore queryStore = PercolateQueryBuilder.createStore(fieldMapper.fieldType(), searchExecutionContext);
 
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
                 LeafReaderContext leafContext = indexReader.leaves().get(0);

@@ -383,7 +383,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
             Objects.checkFromIndexSize(0L, (long) length * queryElementSize, b.byteSize());
             Objects.checkFromIndexSize(0L, (long) count * Integer.BYTES, offsets.byteSize());
             Objects.checkFromIndexSize(0L, (long) count * Float.BYTES, result.byteSize());
-            assert validateBulkOffsets(a, offsets, count, length, pitch, result, (long)length * Short.BYTES);
+            assert validateBulkOffsets(a, offsets, count, length, pitch, result, (long) length * Short.BYTES);
             return true;
         }
 

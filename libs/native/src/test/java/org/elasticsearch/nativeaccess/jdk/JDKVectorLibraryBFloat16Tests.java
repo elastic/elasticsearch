@@ -231,7 +231,7 @@ public class JDKVectorLibraryBFloat16Tests extends VectorSimilarityFunctionsTest
         final int numVecs = 3;
         final int pitch = dims * BFloat16.BYTES;
         var vectorsSegment = arena.allocate((long) pitch * numVecs);
-        var query = switch(queryType) {
+        var query = switch (queryType) {
             case BFLOAT16 -> arena.allocate((long) dims * BFloat16.BYTES);
             case FLOAT32 -> arena.allocate((long) dims * Float.BYTES);
         };

@@ -699,6 +699,21 @@ public class PercolateQueryBuilder extends LeafQueryBuilder<PercolateQueryBuilde
             public void addNamedQuery(String name, Query query) {
                 source.addNamedQuery(name, query);
             }
+
+            @Override
+            public void addCircuitBreakerMemory(long bytes, String label) {
+                source.addCircuitBreakerMemory(bytes, label);
+            }
+
+            @Override
+            public long getQueryConstructionMemoryUsed() {
+                return source.getQueryConstructionMemoryUsed();
+            }
+
+            @Override
+            public void releaseQueryConstructionMemory() {
+                source.releaseQueryConstructionMemory();
+            }
         };
 
         // This means that fields in the query need to exist in the mapping prior to registering this query

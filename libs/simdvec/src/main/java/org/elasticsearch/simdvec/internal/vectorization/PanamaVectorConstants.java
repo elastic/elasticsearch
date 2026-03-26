@@ -58,5 +58,12 @@ public final class PanamaVectorConstants {
         ENABLE_INTEGER_VECTORS = (isAMD64withoutAVX2 == false) || vs.isPresent();
     }
 
+    /**
+     * Whether the current JDK supports passing heap-backed MemorySegments to native downcalls.
+     * This is true on JDK 22+, where heap segments work with Panama FFM native calls.
+     * On JDK 21, heap segments cannot be passed to native function handles.
+     */
+    public static final boolean SUPPORTS_HEAP_SEGMENTS = Runtime.version().feature() >= 22;
+
     private PanamaVectorConstants() {}
 }

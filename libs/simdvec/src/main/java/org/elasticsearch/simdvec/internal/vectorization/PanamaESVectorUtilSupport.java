@@ -44,7 +44,7 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
     static final boolean HAS_FAST_INTEGER_VECTORS = PanamaVectorConstants.ENABLE_INTEGER_VECTORS;
 
     static final boolean SUPPORTS_NATIVE_VECTORS = NativeAccess.instance().getVectorSimilarityFunctions().isPresent();
-    static final boolean SUPPORTS_HEAP_SEGMENTS = Runtime.version().feature() >= 22;
+    static final boolean SUPPORTS_HEAP_SEGMENTS = PanamaVectorConstants.SUPPORTS_HEAP_SEGMENTS;
 
     private static FloatVector fma(FloatVector a, FloatVector b, FloatVector c) {
         if (Constants.HAS_FAST_VECTOR_FMA) {

@@ -21,7 +21,7 @@ import java.lang.foreign.ValueLayout;
 
 public class NativeBinaryQuantizedVectorScorer extends DefaultES93BinaryQuantizedVectorScorer {
 
-    private static final boolean SUPPORTS_HEAP_SEGMENTS = Runtime.version().feature() >= 22;
+    private static final boolean SUPPORTS_HEAP_SEGMENTS = PanamaVectorConstants.SUPPORTS_HEAP_SEGMENTS;
 
     private byte[] scratch;
 

@@ -236,7 +236,7 @@ public final class MemorySegmentESNextOSQVectorsScorer extends ESNextOSQVectorsS
         MSDibitToInt4ESNextOSQVectorsScorer, MSInt4SymmetricESNextOSQVectorsScorer, MSD7Q7ESNextOSQVectorsScorer {
 
         static final boolean NATIVE_SUPPORTED = NativeAccess.instance().getVectorSimilarityFunctions().isPresent();
-        static final boolean SUPPORTS_HEAP_SEGMENTS = Runtime.version().feature() >= 22;
+        static final boolean SUPPORTS_HEAP_SEGMENTS = PanamaVectorConstants.SUPPORTS_HEAP_SEGMENTS;
 
         static final float ONE_BIT_SCALE = ESNextOSQVectorsScorer.BIT_SCALES[0];
         static final float TWO_BIT_SCALE = ESNextOSQVectorsScorer.BIT_SCALES[1];

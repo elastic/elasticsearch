@@ -71,9 +71,7 @@ public class GoogleVertexAiChatCompletionTaskSettings implements TaskSettings {
             validationException
         );
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new GoogleVertexAiChatCompletionTaskSettings(thinkingConfig, maxTokens);
     }

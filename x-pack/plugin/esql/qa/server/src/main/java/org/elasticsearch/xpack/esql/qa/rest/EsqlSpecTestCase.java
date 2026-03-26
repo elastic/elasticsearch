@@ -367,7 +367,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
             && testCase.expectedWarnings().isEmpty() // avoid shifting warnings positions in source query
             && testCase.expectedWarningsRegex().isEmpty() // regexp might also contain line/position
             && query.startsWith("SET") == false // avoid conflicts with provided settings
-                ? "SET unmapped_fields=\"nullify\"; " + query
+                ? "SET unmapped_fields=" + randomFrom("\"nullify\"; ", "\"default\"; ") + query
                 : query;
     }
 

@@ -1279,7 +1279,8 @@ class NodeConstruction {
             clusterService,
             systemIndices
         );
-        final SystemMetrics systemMetrics = new SystemMetrics(telemetryProvider.getMeterRegistry());
+        boolean emitOTelMetrics = settings.getAsBoolean("telemetry.otel.metrics.enabled", false);
+        final SystemMetrics systemMetrics = new SystemMetrics(telemetryProvider.getMeterRegistry(), emitOTelMetrics);
 
         OnlinePrewarmingService onlinePrewarmingService = pluginsService.loadSingletonServiceProvider(
             OnlinePrewarmingServiceProvider.class,

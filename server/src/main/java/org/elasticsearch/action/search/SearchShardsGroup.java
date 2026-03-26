@@ -31,14 +31,14 @@ public class SearchShardsGroup implements Writeable {
     private final ShardId shardId;
     private final List<String> allocatedNodes;
     // Legacy wire-only marker. Modern responses omit skipped groups.
-    private final boolean skipped;
+    private final boolean skippedFromWire;
     private final SplitShardCountSummary reshardSplitShardCountSummary;
     private final transient boolean preFiltered;
 
     public SearchShardsGroup(ShardId shardId, List<String> allocatedNodes, SplitShardCountSummary reshardSplitShardCountSummary) {
         this.shardId = shardId;
         this.allocatedNodes = allocatedNodes;
-        this.skipped = false;
+        this.skippedFromWire = false;
         this.reshardSplitShardCountSummary = reshardSplitShardCountSummary;
         this.preFiltered = true;
     }
@@ -49,7 +49,7 @@ public class SearchShardsGroup implements Writeable {
     SearchShardsGroup(ClusterSearchShardsGroup oldGroup) {
         this.shardId = oldGroup.getShardId();
         this.allocatedNodes = Arrays.stream(oldGroup.getShards()).map(ShardRouting::currentNodeId).toList();
-        this.skipped = false;
+        this.skippedFromWire = false;
         // This value is specific to resharding feature and this code path is specific to CCS
         // involving 8.x remote cluster.
         // We don't currently expect resharding to be used in such conditions so it's unset.
@@ -60,7 +60,7 @@ public class SearchShardsGroup implements Writeable {
     public SearchShardsGroup(StreamInput in) throws IOException {
         this.shardId = new ShardId(in);
         this.allocatedNodes = in.readStringCollectionAsList();
-        this.skipped = in.readBoolean();
+        this.skippedFromWire = in.readBoolean();
         this.reshardSplitShardCountSummary = in.getTransportVersion().supports(IndexReshardService.RESHARDING_SHARD_SUMMARY_IN_ESQL)
             ? SplitShardCountSummary.fromInt(in.readVInt())
             : SplitShardCountSummary.UNSET;
@@ -89,7 +89,7 @@ public class SearchShardsGroup implements Writeable {
      * Returns true if this group was marked as skipped on a legacy wire response.
      */
     boolean skippedOnWire() {
-        return skipped;
+        return skippedFromWire;
     }
 
     /**

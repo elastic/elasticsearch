@@ -54,6 +54,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
+import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ESTestCase;
@@ -81,6 +82,7 @@ import org.elasticsearch.xpack.stateless.action.TransportNewCommitNotificationAc
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.Type;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
+import org.elasticsearch.xpack.stateless.commits.HollowShardsService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
 import org.elasticsearch.xpack.stateless.engine.IndexEngine;
@@ -124,8 +126,10 @@ import static org.elasticsearch.xpack.stateless.commits.HollowShardsService.STAT
 import static org.elasticsearch.xpack.stateless.objectstore.ObjectStoreTestUtils.getObjectStoreMockRepository;
 import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction.ID_LOOKUP_RECENCY_THRESHOLD_SETTING;
 import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction.PREWARM_RELOCATION_ACTION_NAME;
+import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction.PRIMARY_CONTEXT_HANDOFF_ACTION_NAME;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -151,6 +155,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
         var plugins = new ArrayList<>(super.nodePlugins());
         plugins.remove(TestUtils.StatelessPluginWithTrialLicense.class);
         plugins.add(TestStatelessPlugin.class);
+        plugins.add(TestTelemetryPlugin.class);
         plugins.add(MockRepository.Plugin.class);
         plugins.add(InternalSettingsPlugin.class);
         plugins.add(ShutdownPlugin.class);
@@ -212,8 +217,6 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
     public void testCacheIsWarmedBeforeIndexingShardRelocation_AfterHandoff() {
         startMasterOnlyNode();
 
-        final var hollowSettings = randomHollowIndexNodeSettings();
-        final var hollowEnabled = STATELESS_HOLLOW_INDEX_SHARDS_ENABLED.get(hollowSettings);
         var nodeSettings = Settings.builder()
             .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), CACHE_SIZE.getStringRep())
             .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), REGION_SIZE.getStringRep())
@@ -223,7 +226,8 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
                 ByteSizeValue.ofBytes((long) (REGION_SIZE.getBytes() * 0.06d)).getStringRep()
             )
             .put(StatelessCommitService.STATELESS_COMMIT_USE_INTERNAL_FILES_REPLICATED_CONTENT.getKey(), randomBoolean())
-            .put(hollowSettings)
+            // Disable hollow shards as we don't prewarm cache during relocation for to-be-hollowed shards
+            .put(STATELESS_HOLLOW_INDEX_SHARDS_ENABLED.getKey(), false)
             .build();
         var indexNodeA = startIndexNode(nodeSettings);
 
@@ -265,16 +269,12 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             });
         }), waitForWarmingsCompleted::countDown))) {
             runOnWarmingComplete(indexNodeB, Type.INDEXING_EARLY, refs.acquire().map(ignored -> null));
-            if (hollowEnabled == false) {
-                runOnWarmingComplete(indexNodeB, Type.INDEXING, refs.acquire().map(ignored -> null));
-            }
+            runOnWarmingComplete(indexNodeB, Type.INDEXING, refs.acquire().map(ignored -> null));
         }
 
-        final MockLog.LoggingExpectation[] loggingExpectations = hollowEnabled
-            ? new MockLog.LoggingExpectation[] { expectCacheWarmingCompleteEvent(Type.INDEXING_EARLY) }
-            : new MockLog.LoggingExpectation[] {
-                expectCacheWarmingCompleteEvent(Type.INDEXING_EARLY),
-                expectCacheWarmingCompleteEvent(Type.INDEXING) };
+        final MockLog.LoggingExpectation[] loggingExpectations = new MockLog.LoggingExpectation[] {
+            expectCacheWarmingCompleteEvent(Type.INDEXING_EARLY),
+            expectCacheWarmingCompleteEvent(Type.INDEXING) };
         assertThatLogger(() -> {
             var shutdownNodeId = client().admin()
                 .cluster()
@@ -318,10 +318,10 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
                 ByteSizeValue.ofBytes((long) (REGION_SIZE.getBytes() * 0.06d)).getStringRep()
             )
             .put(StatelessCommitService.STATELESS_COMMIT_USE_INTERNAL_FILES_REPLICATED_CONTENT.getKey(), randomBoolean())
+            // Disable hollow shards as we don't prewarm cache during relocation for to-be-hollowed shards
+            .put(STATELESS_HOLLOW_INDEX_SHARDS_ENABLED.getKey(), false)
             .build();
-        final var hollowSettings = randomHollowIndexNodeSettings();
-        final var hollowEnabled = STATELESS_HOLLOW_INDEX_SHARDS_ENABLED.get(hollowSettings);
-        final var nodeSettings = Settings.builder().put(cacheSettings).put(hollowSettings).build();
+        final var nodeSettings = Settings.builder().put(cacheSettings).build();
         var indexNodeA = startIndexNode(nodeSettings);
 
         final String indexName = randomIdentifier();
@@ -357,11 +357,9 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
 
         PlainActionFuture<CompletedWarmingDetails> earlyWarmingIsComplete = new PlainActionFuture<>();
         runOnWarmingComplete(indexNodeB, Type.INDEXING_EARLY, earlyWarmingIsComplete);
-        final MockLog.LoggingExpectation[] loggingExpectations = hollowEnabled
-            ? new MockLog.LoggingExpectation[] { expectCacheWarmingCompleteEvent(Type.INDEXING_EARLY) }
-            : new MockLog.LoggingExpectation[] {
-                expectCacheWarmingCompleteEvent(Type.INDEXING_EARLY),
-                expectCacheWarmingCompleteEvent(Type.INDEXING) };
+        final MockLog.LoggingExpectation[] loggingExpectations = new MockLog.LoggingExpectation[] {
+            expectCacheWarmingCompleteEvent(Type.INDEXING_EARLY),
+            expectCacheWarmingCompleteEvent(Type.INDEXING) };
         assertThatLogger(() -> {
             var shutdownNodeId = client().admin()
                 .cluster()
@@ -715,6 +713,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), REGION_SIZE.getStringRep())
             .put(SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), REGION_SIZE.getStringRep())
             .put(disableIndexingDiskAndMemoryControllersNodeSettings())
+            // We don't pre-warm for shards that are to-be-hollowed.
             .put(STATELESS_HOLLOW_INDEX_SHARDS_ENABLED.getKey(), false)
             // Metric is always emitted regardless of the feature being enabled or not
             .put(SharedBlobCacheWarmingService.PREWARM_INDEX_SHARD_FOR_ID_LOOKUPS_SETTING.getKey(), randomBoolean())
@@ -993,6 +992,105 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
                 assertNotNull(VersionsAndSeqNoResolver.timeSeriesLoadDocIdAndVersion(searcher.getIndexReader(), Uid.encodeId(id), false));
             }
         }
+    }
+
+    public void testBccIsPrewarmedForHollowShardRelocation() throws Exception {
+        startMasterOnlyNode();
+
+        var nodeSettings = Settings.builder()
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), CACHE_SIZE.getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), REGION_SIZE.getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), REGION_SIZE.getStringRep())
+            .put(
+                StatelessCommitService.STATELESS_UPLOAD_MAX_SIZE.getKey(),
+                ByteSizeValue.ofBytes((long) (REGION_SIZE.getBytes() * 0.06d)).getStringRep()
+            )
+            .put(StatelessCommitService.STATELESS_COMMIT_USE_INTERNAL_FILES_REPLICATED_CONTENT.getKey(), randomBoolean())
+            .put(STATELESS_HOLLOW_INDEX_SHARDS_ENABLED.getKey(), true)
+            .put(HollowShardsService.SETTING_HOLLOW_INGESTION_TTL.getKey(), TimeValue.ZERO)
+            .put(HollowShardsService.SETTING_HOLLOW_INGESTION_DS_NON_WRITE_TTL.getKey(), TimeValue.ZERO)
+            .put(disableIndexingDiskAndMemoryControllersNodeSettings())
+            .build();
+        var indexNodeA = startIndexNode(nodeSettings);
+
+        final String indexName = randomIdentifier();
+        assertAcked(
+            prepareCreate(
+                indexName,
+                Settings.builder()
+                    .put(MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY.getKey(), 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                    .put(EngineConfig.USE_COMPOUND_FILE, randomBoolean())
+            )
+        );
+
+        indexDocs(indexName, randomIntBetween(100, 10000));
+        flush(indexName);
+
+        var indexNodeB = startIndexNode(nodeSettings);
+        ensureStableCluster(3);
+
+        // Assert that the shard on node A is hollowable (i.e. to-be-hollowed) and that prewarm is NOT sent for it
+        var hollowShardsServiceA = internalCluster().getInstance(HollowShardsService.class, indexNodeA);
+        var indexShardOnA = findIndexShard(indexName);
+        assertBusy(() -> assertTrue(hollowShardsServiceA.isHollowableIndexShard(indexShardOnA)));
+
+        var prewarmSentDuringHollowableRelocation = new AtomicBoolean(false);
+        MockTransportService.getInstance(indexNodeA).addSendBehavior((connection, requestId, action, request, options) -> {
+            if (PREWARM_RELOCATION_ACTION_NAME.equals(action)) {
+                prewarmSentDuringHollowableRelocation.set(true);
+            }
+            connection.sendRequest(requestId, action, request, options);
+        });
+
+        // Relocate from A to B: the shard is to-be-hollowed, so prewarm should be skipped
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", indexNodeA), indexName);
+        ensureGreen(indexName);
+        assertThat(findIndexShard(resolveIndex(indexName), 0).routingEntry().currentNodeId(), equalTo(getNodeId(indexNodeB)));
+        assertFalse("Prewarm should not be sent for to-be-hollowed shard relocation", prewarmSentDuringHollowableRelocation.get());
+
+        // Verify the shard is now hollow on node B
+        var hollowShardsServiceB = internalCluster().getInstance(HollowShardsService.class, indexNodeB);
+        hollowShardsServiceB.ensureHollowShard(findIndexShard(resolveIndex(indexName), 0).shardId(), true);
+
+        MockTransportService.getInstance(indexNodeA).clearAllRules();
+
+        // Start node C and block the primary context handoff so that we can assert cache writes from prewarm
+        // before recovery itself populates the cache
+        var indexNodeC = startIndexNode(nodeSettings);
+        ensureStableCluster(4);
+
+        final var prewarmCachePopulated = new CountDownLatch(1);
+        MockTransportService.getInstance(indexNodeC)
+            .addRequestHandlingBehavior(PRIMARY_CONTEXT_HANDOFF_ACTION_NAME, (handler, request, channel, task) -> {
+                safeAwait(prewarmCachePopulated);
+                handler.messageReceived(request, channel, task);
+            });
+
+        var plugin = getTelemetryPlugin(indexNodeC);
+        plugin.resetMeter();
+        // Relocate hollow shard from B to C: prewarm SHOULD be sent because the shard is hollow (not hollowable)
+        updateIndexSettings(
+            Settings.builder().putNull("index.routing.allocation.exclude._name").put("index.routing.allocation.require._name", indexNodeC),
+            indexName
+        );
+
+        // The prewarm's readIndexingShardState reads the BCC through the cache directory, populating the cache. Wait for those cache writes
+        // to appear before letting recovery proceed. The warming service itself is not invoked for hollow commits.
+        assertBusy(() -> {
+            plugin.collect();
+            long warmingBytes = plugin.getLongCounterMeasurement("es.blob_cache.population.bytes.total")
+                .stream()
+                .filter(m -> BlobCacheMetrics.CachePopulationReason.Warming.name().equals(m.attributes().get("reason")))
+                .mapToLong(Measurement::getLong)
+                .sum();
+            assertThat(warmingBytes, greaterThan(0L));
+        });
+        prewarmCachePopulated.countDown();
+
+        ensureGreen(indexName);
+        assertThat(findIndexShard(resolveIndex(indexName), 0).routingEntry().currentNodeId(), equalTo(getNodeId(indexNodeC)));
     }
 
     /**

@@ -504,7 +504,6 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         return attributes;
     }
 
-
     private ValuesSourceReaderOperator.LoaderAndConverter constructBlockLoader() throws IOException {
         EsQueryExec queryExec = new EsQueryExec(
             Source.EMPTY,

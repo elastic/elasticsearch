@@ -91,7 +91,7 @@ public class DataStreamLifecycleConvertToFrozen implements DlmFrozenTransitionRu
         // Todo: WIP - steps will be implemented in follow-up PRs
         maybeMarkIndexReadOnly();
         String indexForForceMerge = maybeCloneIndex();
-        maybeForceMergeIndex("todo");
+        maybeForceMergeIndex(indexForForceMerge);
         maybeTakeSnapshot();
         maybeMountSearchableSnapshot();
     }

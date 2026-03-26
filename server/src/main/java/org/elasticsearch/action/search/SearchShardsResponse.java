@@ -24,6 +24,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.internal.AliasFilter;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
@@ -71,7 +72,7 @@ public final class SearchShardsResponse extends ActionResponse {
     }
 
     public SearchShardsResponse(StreamInput in) throws IOException {
-        this.groups = in.readCollectionAsList(SearchShardsGroup::new);
+        final List<SearchShardsGroup> groupsFromWire = in.readCollectionAsList(SearchShardsGroup::new);
         this.nodes = in.readCollectionAsList(DiscoveryNode::new);
         this.aliasFilters = in.readMap(AliasFilter::readFrom);
         if (in.getTransportVersion().supports(SEARCH_SHARDS_RESOLVED_INDEX_EXPRESSIONS)) {
@@ -79,10 +80,37 @@ public final class SearchShardsResponse extends ActionResponse {
         } else {
             this.resolvedIndexExpressions = null;
         }
+        int skippedOnWire = 0;
+        final List<SearchShardsGroup> nonSkippedGroups = new ArrayList<>(groupsFromWire.size());
+        for (SearchShardsGroup group : groupsFromWire) {
+            if (group.skippedOnWire()) {
+                skippedOnWire++;
+            } else {
+                nonSkippedGroups.add(group);
+            }
+        }
+        this.groups = nonSkippedGroups;
         if (in.getTransportVersion().supports(SEARCH_SHARDS_NUM_SKIPPED2)) {
-            this.numSkippedShards = in.readVInt();
+            // Wire contract: either the aggregate field carries skipped shards (modern) or skipped=true
+            // groups do (legacy hybrid). If both are non-zero they must match (redundant duplicate encoding);
+            // conflicting values cannot be reconciled and indicate a corrupt or incompatible sender.
+            final int aggregate = in.readVInt();
+            if (aggregate > 0 && skippedOnWire > 0) {
+                if (aggregate != skippedOnWire) {
+                    throw new IOException(
+                        "Conflicting skipped shard encodings on wire: numSkippedShards="
+                            + aggregate
+                            + " but also "
+                            + skippedOnWire
+                            + " skipped groups"
+                    );
+                }
+                this.numSkippedShards = aggregate;
+            } else {
+                this.numSkippedShards = aggregate + skippedOnWire;
+            }
         } else {
-            this.numSkippedShards = 0;
+            this.numSkippedShards = skippedOnWire;
         }
     }
 

@@ -32,10 +32,10 @@ import java.util.concurrent.ExecutionException;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.emptyIterable;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
+import static org.junit.Assert.assertEquals;
 
 public class SearchShardsIT extends ESIntegTestCase {
 
@@ -85,17 +85,11 @@ public class SearchShardsIT extends ESIntegTestCase {
             );
             var resp = client().execute(TransportSearchShardsAction.TYPE, request).actionGet();
             assertThat(resp.getGroups(), hasSize(indicesWithData));
+            assertEquals(indicesWithoutData, resp.getNumSkippedShards());
             for (SearchShardsGroup g : resp.getGroups()) {
-                String indexName = g.shardId().getIndexName();
                 assertThat(g.allocatedNodes(), not(empty()));
-                if (indexName.contains("without")) {
-                    assertTrue(g.skipped());
-                } else {
-                    assertFalse(g.skipped());
-                }
             }
             assertGroupsSortedByShardId(resp.getGroups());
-            assertThat(resp.getNumSkippedShards(), equalTo(indicesWithoutData));
         }
         {
             MatchAllQueryBuilder matchAll = new MatchAllQueryBuilder();
@@ -110,9 +104,7 @@ public class SearchShardsIT extends ESIntegTestCase {
             );
             SearchShardsResponse resp = client().execute(TransportSearchShardsAction.TYPE, request).actionGet();
             assertThat(resp.getGroups(), hasSize(indicesWithData + indicesWithoutData));
-            for (SearchShardsGroup g : resp.getGroups()) {
-                assertFalse(g.skipped());
-            }
+            assertEquals(0, resp.getNumSkippedShards());
             assertGroupsSortedByShardId(resp.getGroups());
         }
     }
@@ -151,9 +143,11 @@ public class SearchShardsIT extends ESIntegTestCase {
                 );
                 var searchShardsResponse = client().execute(TransportSearchShardsAction.TYPE, searchShardsRequest).actionGet();
 
-                assertThat(searchShardsResponse.getGroups(), hasSize(searchResponse.getTotalShards()));
-                long skippedShards = searchShardsResponse.getGroups().stream().filter(SearchShardsGroup::skipped).count();
-                assertThat(skippedShards, equalTo((long) searchResponse.getSkippedShards()));
+                assertEquals(
+                    searchResponse.getTotalShards(),
+                    searchShardsResponse.getGroups().size() + searchShardsResponse.getNumSkippedShards()
+                );
+                assertEquals(searchResponse.getSkippedShards(), searchShardsResponse.getNumSkippedShards());
                 assertGroupsSortedByShardId(searchShardsResponse.getGroups());
             });
         }
@@ -198,9 +192,7 @@ public class SearchShardsIT extends ESIntegTestCase {
             );
             SearchShardsResponse resp = client().execute(TransportSearchShardsAction.TYPE, request).actionGet();
             assertThat(resp.getGroups(), hasSize(totalShards));
-            for (SearchShardsGroup group : resp.getGroups()) {
-                assertFalse(group.skipped());
-            }
+            assertEquals(0, resp.getNumSkippedShards());
             assertThat(canMatchRequests, emptyIterable());
         } finally {
             for (TransportService transportService : internalCluster().getInstances(TransportService.class)) {

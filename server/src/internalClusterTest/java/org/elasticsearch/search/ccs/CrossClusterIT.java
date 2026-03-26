@@ -16,7 +16,6 @@ import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.SearchShardsGroup;
 import org.elasticsearch.action.search.SearchShardsRequest;
 import org.elasticsearch.action.search.SearchShardsResponse;
 import org.elasticsearch.action.search.TransportSearchAction;
@@ -78,6 +77,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
+import static org.junit.Assert.assertEquals;
 
 // formerly called CrossClusterSearchIT, but since this one mostly does
 // actions besides searching, it was renamed so a new CrossClusterSearchIT
@@ -586,9 +586,7 @@ public class CrossClusterIT extends AbstractCrossClusterSearchTestCase {
             SearchShardsRequest request = new SearchShardsRequest(indices, indicesOptions, query, null, null, randomBoolean(), "cluster_a");
             SearchShardsResponse resp = remoteClient.execute(TransportSearchShardsAction.TYPE, request).actionGet();
             assertThat(resp.getGroups(), hasSize(numShards));
-            for (SearchShardsGroup group : resp.getGroups()) {
-                assertFalse(group.skipped());
-            }
+            assertEquals(0, resp.getNumSkippedShards());
         }
         {
             QueryBuilder query = new TermQueryBuilder("_index", "cluster_a:my_index");
@@ -602,10 +600,8 @@ public class CrossClusterIT extends AbstractCrossClusterSearchTestCase {
                 randomFrom("cluster_b", null)
             );
             SearchShardsResponse resp = remoteClient.execute(TransportSearchShardsAction.TYPE, request).actionGet();
-            assertEquals(resp.getNumSkippedShards(), numShards);
-            for (SearchShardsGroup group : resp.getGroups()) {
-                assertTrue(group.skipped());
-            }
+            assertEquals(numShards, resp.getNumSkippedShards());
+            assertEquals(0, resp.getGroups().size());
         }
         {
             QueryBuilder query = new TermQueryBuilder("_index", "cluster_a:not_my_index");
@@ -619,10 +615,8 @@ public class CrossClusterIT extends AbstractCrossClusterSearchTestCase {
                 randomFrom("cluster_a", "cluster_b", null)
             );
             SearchShardsResponse resp = remoteClient.execute(TransportSearchShardsAction.TYPE, request).actionGet();
-            assertEquals(resp.getNumSkippedShards(), numShards);
-            for (SearchShardsGroup group : resp.getGroups()) {
-                assertTrue(group.skipped());
-            }
+            assertEquals(numShards, resp.getNumSkippedShards());
+            assertEquals(0, resp.getGroups().size());
         }
     }
 }

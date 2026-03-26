@@ -11,7 +11,6 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.SearchShardsGroup;
 import org.elasticsearch.action.search.SearchShardsRequest;
 import org.elasticsearch.action.search.SearchShardsResponse;
 import org.elasticsearch.action.search.SearchType;
@@ -53,7 +52,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING;
 import static org.elasticsearch.cluster.node.DiscoveryNode.getRolesFromSettings;
@@ -67,6 +65,7 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
+import static org.junit.Assert.assertEquals;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFrozenSearchableSnapshotsIntegTestCase {
@@ -233,20 +232,8 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
             if (includeIndexCoveringSearchRangeInSearchRequest) {
                 SearchShardsResponse searchShardsResponse = client().execute(TransportSearchShardsAction.TYPE, searchShardsRequest)
                     .actionGet();
-                assertThat(searchShardsResponse.getGroups().size(), equalTo(totalShards));
-                List<List<SearchShardsGroup>> partitionedBySkipped = searchShardsResponse.getGroups()
-                    .stream()
-                    .collect(
-                        Collectors.teeing(
-                            Collectors.filtering(g -> g.skipped(), Collectors.toList()),
-                            Collectors.filtering(g -> g.skipped() == false, Collectors.toList()),
-                            List::of
-                        )
-                    );
-                List<SearchShardsGroup> skipped = partitionedBySkipped.get(0);
-                List<SearchShardsGroup> notSkipped = partitionedBySkipped.get(1);
-                assertThat(skipped.size(), equalTo(0));
-                assertThat(notSkipped.size(), equalTo(totalShards));
+                assertEquals(totalShards, searchShardsResponse.getGroups().size());
+                assertEquals(0, searchShardsResponse.getNumSkippedShards());
             } else {
                 SearchShardsResponse searchShardsResponse = null;
                 try {
@@ -256,9 +243,7 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
                 }
 
                 if (searchShardsResponse != null) {
-                    for (SearchShardsGroup group : searchShardsResponse.getGroups()) {
-                        assertFalse("no shard should be marked as skipped", group.skipped());
-                    }
+                    assertEquals(0, searchShardsResponse.getNumSkippedShards());
                 }
             }
         }
@@ -366,9 +351,8 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
                         // ignore as this is what should happen
                     }
                     if (searchShardsResponse != null) {
-                        for (SearchShardsGroup group : searchShardsResponse.getGroups()) {
-                            assertTrue("the shard is skipped because index value is outside the query time range", group.skipped());
-                        }
+                        assertEquals(0, searchShardsResponse.getGroups().size());
+                        assertEquals(indexOutsideSearchRangeShardCount, searchShardsResponse.getNumSkippedShards());
                     }
                 }
             } else {
@@ -862,9 +846,7 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
                 // ignore as this is expected to happen
             }
             if (searchShardsResponse != null) {
-                for (SearchShardsGroup group : searchShardsResponse.getGroups()) {
-                    assertFalse("no shard should be marked as skipped", group.skipped());
-                }
+                assertEquals(0, searchShardsResponse.getNumSkippedShards());
             }
         }
 
@@ -920,20 +902,8 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
                 // ignore as this is expected to happen
             }
             if (searchShardsResponse != null) {
-                assertThat(searchShardsResponse.getGroups().size(), equalTo(indexWithinSearchRangeShardCount));
-                List<List<SearchShardsGroup>> partitionedBySkipped = searchShardsResponse.getGroups()
-                    .stream()
-                    .collect(
-                        Collectors.teeing(
-                            Collectors.filtering(g -> g.skipped(), Collectors.toList()),
-                            Collectors.filtering(g -> g.skipped() == false, Collectors.toList()),
-                            List::of
-                        )
-                    );
-                List<SearchShardsGroup> skipped = partitionedBySkipped.get(0);
-                List<SearchShardsGroup> notSkipped = partitionedBySkipped.get(1);
-                assertThat(skipped.size(), equalTo(0));
-                assertThat(notSkipped.size(), equalTo(indexWithinSearchRangeShardCount));
+                assertEquals(indexWithinSearchRangeShardCount, searchShardsResponse.getGroups().size());
+                assertEquals(0, searchShardsResponse.getNumSkippedShards());
             }
         }
     }

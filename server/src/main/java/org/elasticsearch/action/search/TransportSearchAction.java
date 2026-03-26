@@ -1664,7 +1664,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     null,
                     null,
                     searchShardsGroup.preFiltered(),
-                    searchShardsGroup.skipped(),
+                    false,
                     // This parameter is specific to the resharding feature.
                     // Resharding is currently not supported with CCS.
                     SplitShardCountSummary.UNSET

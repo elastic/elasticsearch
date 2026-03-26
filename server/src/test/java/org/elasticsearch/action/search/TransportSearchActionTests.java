@@ -279,9 +279,9 @@ public class TransportSearchActionTests extends ESTestCase {
                 AliasFilter.of(new MatchAllQueryBuilder(), Strings.EMPTY_ARRAY)
             );
             List<SearchShardsGroup> groups = List.of(
-                new SearchShardsGroup(new ShardId("foo", "foo_id", 0), List.of("node1", "node2"), false, SplitShardCountSummary.UNSET),
-                new SearchShardsGroup(new ShardId("foo", "foo_id", 1), List.of("node2", "node1"), true, SplitShardCountSummary.UNSET),
-                new SearchShardsGroup(new ShardId("bar", "bar_id", 0), List.of("node2", "node1"), false, SplitShardCountSummary.UNSET)
+                new SearchShardsGroup(new ShardId("foo", "foo_id", 0), List.of("node1", "node2"), SplitShardCountSummary.UNSET),
+                new SearchShardsGroup(new ShardId("foo", "foo_id", 1), List.of("node2", "node1"), SplitShardCountSummary.UNSET),
+                new SearchShardsGroup(new ShardId("bar", "bar_id", 0), List.of("node2", "node1"), SplitShardCountSummary.UNSET)
             );
             searchShardsResponseMap.put("test_cluster_1", new SearchShardsResponse(groups, 0, nodes, aliasFilters1));
         }
@@ -316,7 +316,6 @@ public class TransportSearchActionTests extends ESTestCase {
         {
             SearchShardIterator shardIt = iteratorList.get(0);
             assertTrue(shardIt.prefiltered());
-            assertFalse(shardIt.skip());
             assertThat(shardIt.shardId(), equalTo(new ShardId("foo", "foo_id", 0)));
             assertArrayEquals(new String[] { "some_alias_for_foo", "some_other_foo_alias" }, shardIt.getOriginalIndices().indices());
             assertEquals("test_cluster_1", shardIt.getClusterAlias());
@@ -334,7 +333,6 @@ public class TransportSearchActionTests extends ESTestCase {
         {
             SearchShardIterator shardIt = iteratorList.get(1);
             assertTrue(shardIt.prefiltered());
-            assertTrue(shardIt.skip());
             assertThat(shardIt.shardId(), equalTo(new ShardId("foo", "foo_id", 1)));
             assertArrayEquals(new String[] { "some_alias_for_foo", "some_other_foo_alias" }, shardIt.getOriginalIndices().indices());
             assertEquals("test_cluster_1", shardIt.getClusterAlias());
@@ -352,7 +350,6 @@ public class TransportSearchActionTests extends ESTestCase {
         {
             SearchShardIterator shardIt = iteratorList.get(2);
             assertTrue(shardIt.prefiltered());
-            assertFalse(shardIt.skip());
             assertThat(shardIt.shardId(), equalTo(new ShardId("bar", "bar_id", 0)));
             assertArrayEquals(new String[] { "bar" }, shardIt.getOriginalIndices().indices());
             assertEquals("test_cluster_1", shardIt.getClusterAlias());
@@ -369,7 +366,6 @@ public class TransportSearchActionTests extends ESTestCase {
         {
             SearchShardIterator shardIt = iteratorList.get(3);
             assertFalse(shardIt.prefiltered());
-            assertFalse(shardIt.skip());
             assertArrayEquals(new String[] { "some_alias_for_xyz" }, shardIt.getOriginalIndices().indices());
             assertThat(shardIt.shardId(), equalTo(new ShardId("xyz", "xyz_id", 0)));
             assertEquals("test_cluster_2", shardIt.getClusterAlias());
@@ -379,6 +375,27 @@ public class TransportSearchActionTests extends ESTestCase {
             assertThat(shard.getNodeId(), equalTo("node3"));
             assertNull(shardIt.nextOrNull());
         }
+    }
+
+    public void testProcessRemoteShardsIgnoresAggregateSkippedCountInGroups() {
+        Map<String, SearchShardsResponse> searchShardsResponseMap = new LinkedHashMap<>();
+        List<DiscoveryNode> nodes = List.of(DiscoveryNodeUtils.create("node1"));
+        Map<String, AliasFilter> aliasFilters = Map.of("foo_id", AliasFilter.EMPTY);
+        List<SearchShardsGroup> groups = List.of(
+            new SearchShardsGroup(new ShardId("foo", "foo_id", 0), List.of("node1"), SplitShardCountSummary.UNSET)
+        );
+        searchShardsResponseMap.put("test_cluster_1", new SearchShardsResponse(groups, 10, nodes, aliasFilters));
+
+        Map<String, OriginalIndices> remoteIndicesByCluster = Map.of(
+            "test_cluster_1",
+            new OriginalIndices(new String[] { "fo*" }, SearchRequest.DEFAULT_INDICES_OPTIONS)
+        );
+        List<SearchShardIterator> iteratorList = TransportSearchAction.getRemoteShardsIterator(
+            searchShardsResponseMap,
+            remoteIndicesByCluster,
+            aliasFilters
+        );
+        assertEquals(1, iteratorList.size());
     }
 
     public void testBuildConnectionLookup() {

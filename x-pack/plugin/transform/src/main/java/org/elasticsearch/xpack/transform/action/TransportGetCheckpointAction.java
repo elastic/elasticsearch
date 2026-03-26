@@ -178,8 +178,7 @@ public class TransportGetCheckpointAction extends HandledTransportAction<Request
      * Retains only (node, shard) pairs that appear in the search shards response.
      * <p>
      * Here "skipped" means <em>not in the search shards response</em>: shards that would not be
-     * queried for the given request. This is unrelated to {@link SearchShardsGroup#skipped()},
-     * which indicates a different condition (e.g. pre-filtered or non-matching shards).
+     * queried for the given request.
      *
      * @param nodesAndShards      primary shards per node from the cluster state
      * @param searchShardsResponse result of the search_shards API for the same request

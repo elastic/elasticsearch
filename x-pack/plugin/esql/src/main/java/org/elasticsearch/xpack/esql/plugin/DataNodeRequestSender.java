@@ -512,10 +512,6 @@ abstract class DataNodeRequestSender {
                     continue;
                 }
                 totalShards++;
-                if (group.skipped()) {
-                    skippedShards++;
-                    continue;
-                }
                 List<DiscoveryNode> allocatedNodes = new ArrayList<>(group.allocatedNodes().size());
                 for (String n : group.allocatedNodes()) {
                     allocatedNodes.add(nodes.get(n));

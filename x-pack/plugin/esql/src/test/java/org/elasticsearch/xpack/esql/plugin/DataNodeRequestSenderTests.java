@@ -421,6 +421,22 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
         assertThat(response.failedShards, equalTo(0));
     }
 
+    /**
+     * {@link org.elasticsearch.action.search.SearchShardsResponse#getNumSkippedShards()} supplies the can-match skip count;
+     * {@link DataNodeRequestSender} adds {@link NodeListener#onSkip()} runtime skips. Final {@link ComputeResponse#skippedShards}
+     * must be the sum with no reliance on per-group skipped flags in {@link org.elasticsearch.action.search.SearchShardsGroup}.
+     */
+    public void testSkippedShardsIncludeCanMatchAndRuntimeSkips() {
+        var targetShards = List.of(targetShard(shard1, node1), targetShard(shard2, node2));
+        var response = safeGet(sendRequests(randomBoolean(), 1, targetShards, 3, (node, shardIds, aliasFilters, listener) -> {
+            runWithDelay(listener::onSkip);
+        }));
+        assertEquals(5, response.totalShards);
+        assertEquals(5, response.skippedShards);
+        assertEquals(0, response.successfulShards);
+        assertEquals(0, response.failedShards);
+    }
+
     public void testQueryHotShardsFirst() {
         var warnNode = DiscoveryNodeUtils.builder("node-2").roles(Set.of(DATA_WARM_NODE_ROLE)).build();
         var coldNode = DiscoveryNodeUtils.builder("node-3").roles(Set.of(DATA_COLD_NODE_ROLE)).build();
@@ -665,7 +681,7 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
         List<DataNodeRequestSender.TargetShard> shards,
         Sender sender
     ) {
-        return sendRequests(allowPartialResults, concurrentRequests, shards, shardIds -> {
+        return sendRequests(allowPartialResults, concurrentRequests, shards, 0, shardIds -> {
             throw new AssertionError("No shard resolution is expected here");
         }, sender);
     }
@@ -674,6 +690,29 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
         boolean allowPartialResults,
         int concurrentRequests,
         List<DataNodeRequestSender.TargetShard> shards,
+        int skippedFromCanMatch,
+        Sender sender
+    ) {
+        return sendRequests(allowPartialResults, concurrentRequests, shards, skippedFromCanMatch, shardIds -> {
+            throw new AssertionError("No shard resolution is expected here");
+        }, sender);
+    }
+
+    PlainActionFuture<ComputeResponse> sendRequests(
+        boolean allowPartialResults,
+        int concurrentRequests,
+        List<DataNodeRequestSender.TargetShard> shards,
+        Resolver resolver,
+        Sender sender
+    ) {
+        return sendRequests(allowPartialResults, concurrentRequests, shards, 0, resolver, sender);
+    }
+
+    PlainActionFuture<ComputeResponse> sendRequests(
+        boolean allowPartialResults,
+        int concurrentRequests,
+        List<DataNodeRequestSender.TargetShard> shards,
+        int skippedFromCanMatch,
         Resolver resolver,
         Sender sender
     ) {
@@ -709,7 +748,11 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
             void searchShards(Set<String> concreteIndices, ActionListener<TargetShards> listener) {
                 runWithDelay(
                     () -> listener.onResponse(
-                        new TargetShards(shards.stream().collect(toMap(TargetShard::shardId, Function.identity())), shards.size(), 0)
+                        new TargetShards(
+                            shards.stream().collect(toMap(TargetShard::shardId, Function.identity())),
+                            shards.size() + skippedFromCanMatch,
+                            skippedFromCanMatch
+                        )
                     )
                 );
             }

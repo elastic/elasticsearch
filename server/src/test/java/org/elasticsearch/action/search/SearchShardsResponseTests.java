@@ -26,6 +26,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.iterable.Iterables;
+import org.elasticsearch.index.IndexReshardService;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.query.RandomQueryBuilder;
@@ -35,6 +36,7 @@ import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
+import org.junit.Assume;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -46,6 +48,7 @@ import java.util.Map;
 import static org.elasticsearch.test.VersionUtils.randomCompatibleVersion;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.junit.Assert.assertEquals;
 
 public class SearchShardsResponseTests extends AbstractWireSerializingTestCase<SearchShardsResponse> {
 
@@ -73,9 +76,7 @@ public class SearchShardsResponseTests extends AbstractWireSerializingTestCase<S
             for (int j = 0; j < numOfAllocatedNodes; j++) {
                 allocatedNodes.add(UUIDs.randomBase64UUID());
             }
-            groups.add(
-                new SearchShardsGroup(shardId, allocatedNodes, randomBoolean(), SplitShardCountSummary.fromInt(randomIntBetween(0, 1024)))
-            );
+            groups.add(new SearchShardsGroup(shardId, allocatedNodes, SplitShardCountSummary.fromInt(randomIntBetween(0, 1024))));
         }
         Map<String, AliasFilter> aliasFilters = new HashMap<>();
         for (SearchShardsGroup g : groups) {
@@ -96,9 +97,7 @@ public class SearchShardsResponseTests extends AbstractWireSerializingTestCase<S
             case 0 -> {
                 List<SearchShardsGroup> groups = new ArrayList<>(r.getGroups());
                 ShardId shardId = new ShardId(randomAlphaOfLengthBetween(5, 10), UUIDs.randomBase64UUID(), randomInt(2));
-                groups.add(
-                    new SearchShardsGroup(shardId, List.of(), randomBoolean(), SplitShardCountSummary.fromInt(randomIntBetween(0, 1024)))
-                );
+                groups.add(new SearchShardsGroup(shardId, List.of(), SplitShardCountSummary.fromInt(randomIntBetween(0, 1024))));
                 return new SearchShardsResponse(groups, 0, r.getNodes(), r.getAliasFilters());
             }
             case 1 -> {
@@ -147,14 +146,12 @@ public class SearchShardsResponseTests extends AbstractWireSerializingTestCase<S
         SearchShardsGroup group1 = Iterables.get(newResponse.getGroups(), 0);
         assertThat(group1.shardId(), equalTo(new ShardId("index-1", "uuid-1", 0)));
         assertThat(group1.allocatedNodes(), equalTo(List.of("node-1", "node-2")));
-        assertFalse(group1.skipped());
         assertThat(group1.reshardSplitShardCountSummary(), equalTo(SplitShardCountSummary.UNSET));
         assertFalse(group1.preFiltered());
 
         SearchShardsGroup group2 = Iterables.get(newResponse.getGroups(), 1);
         assertThat(group2.shardId(), equalTo(new ShardId("index-2", "uuid-2", 7)));
         assertThat(group2.allocatedNodes(), equalTo(List.of("node-1")));
-        assertFalse(group2.skipped());
         assertThat(group2.reshardSplitShardCountSummary(), equalTo(SplitShardCountSummary.UNSET));
         assertFalse(group2.preFiltered());
 
@@ -162,7 +159,98 @@ public class SearchShardsResponseTests extends AbstractWireSerializingTestCase<S
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.setTransportVersion(version);
             AssertionError error = expectThrows(AssertionError.class, () -> newResponse.writeTo(out));
-            assertThat(error.getMessage(), equalTo("Serializing a response created from a legacy response is not allowed"));
+            assertEquals("Serializing a response created from a legacy response is not allowed", error.getMessage());
+        }
+    }
+
+    public void testWireDeserializationUsesAggregateSkippedCountWithoutDoubleCounting() throws IOException {
+        TransportVersion version = TransportVersion.current();
+        SearchShardsResponse response = readResponseFromWire(version, List.of(true, false), 1);
+        assertEquals(1, response.getGroups().size());
+        assertEquals(1, response.getNumSkippedShards());
+    }
+
+    public void testWireDeserializationRejectsConflictingSkippedEncodings() throws IOException {
+        TransportVersion version = TransportVersion.current();
+        IOException e = expectThrows(IOException.class, () -> readResponseFromWire(version, List.of(true, false), 5));
+        assertEquals("Conflicting skipped shard encodings on wire: numSkippedShards=5 but also 1 skipped groups", e.getMessage());
+    }
+
+    public void testWireDeserializationFallsBackToSkippedGroupsWhenAggregateIsZero() throws IOException {
+        TransportVersion version = TransportVersion.current();
+        SearchShardsResponse response = readResponseFromWire(version, List.of(true, true, false), 0);
+        assertEquals(1, response.getGroups().size());
+        assertEquals(2, response.getNumSkippedShards());
+    }
+
+    public void testWireDeserializationForOldVersionCountsSkippedGroups() throws IOException {
+        TransportVersion oldVersion = TransportVersionUtils.getPreviousVersion(SearchShardsResponse.SEARCH_SHARDS_NUM_SKIPPED2);
+        SearchShardsResponse response = readResponseFromWire(oldVersion, List.of(true, false, true), -1);
+        assertEquals(1, response.getGroups().size());
+        assertEquals(2, response.getNumSkippedShards());
+    }
+
+    public void testWireDeserializationAggregateOnlyEncoding() throws IOException {
+        TransportVersion version = TransportVersion.current();
+        SearchShardsResponse response = readResponseFromWire(version, List.of(false, false, false), 4);
+        assertEquals(3, response.getGroups().size());
+        assertEquals(4, response.getNumSkippedShards());
+    }
+
+    public void testWireDeserializationZeroSkippedAggregateAndNoSkippedGroups() throws IOException {
+        TransportVersion version = TransportVersion.current();
+        SearchShardsResponse response = readResponseFromWire(version, List.of(false, false), 0);
+        assertEquals(2, response.getGroups().size());
+        assertEquals(0, response.getNumSkippedShards());
+    }
+
+    public void testWireDeserializationRedundantEqualAggregateAndSkippedGroups() throws IOException {
+        TransportVersion version = TransportVersion.current();
+        SearchShardsResponse response = readResponseFromWire(version, List.of(true, true, false), 2);
+        assertEquals(1, response.getGroups().size());
+        assertEquals(2, response.getNumSkippedShards());
+    }
+
+    /**
+     * Before {@link IndexReshardService#RESHARDING_SHARD_SUMMARY_IN_ESQL}, {@link SearchShardsGroup} does not write or read
+     * the split-shard summary vint. The test helper must mirror that so bytes stay aligned for older transport versions.
+     */
+    public void testWireRoundTripBeforeReshardSummaryVersion() throws IOException {
+        TransportVersion version = TransportVersionUtils.getPreviousVersion(IndexReshardService.RESHARDING_SHARD_SUMMARY_IN_ESQL);
+        Assume.assumeTrue(version.supports(SearchShardsResponse.SEARCH_SHARDS_NUM_SKIPPED2));
+        SearchShardsResponse response = readResponseFromWire(version, List.of(true, false), 1);
+        assertEquals(1, response.getGroups().size());
+        assertEquals(1, response.getNumSkippedShards());
+    }
+
+    private SearchShardsResponse readResponseFromWire(TransportVersion version, List<Boolean> skippedFlags, int numSkippedShards)
+        throws IOException {
+        List<ShardId> shardIds = new ArrayList<>();
+        for (int i = 0; i < skippedFlags.size(); i++) {
+            shardIds.add(new ShardId("index-" + i, UUIDs.randomBase64UUID(), i));
+        }
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.setTransportVersion(version);
+            out.writeCollection(shardIds, (stream, shardId) -> {
+                shardId.writeTo(stream);
+                stream.writeStringCollection(List.of("node-a"));
+                stream.writeBoolean(skippedFlags.get(shardId.id()));
+                if (version.supports(IndexReshardService.RESHARDING_SHARD_SUMMARY_IN_ESQL)) {
+                    SplitShardCountSummary.UNSET.writeTo(stream);
+                }
+            });
+            out.writeCollection(List.<DiscoveryNode>of());
+            out.writeMap(Map.<String, AliasFilter>of(), (stream, aliasFilter) -> stream.writeWriteable(aliasFilter));
+            if (version.supports(SearchShardsResponse.SEARCH_SHARDS_RESOLVED_INDEX_EXPRESSIONS)) {
+                out.writeOptionalWriteable(null);
+            }
+            if (version.supports(SearchShardsResponse.SEARCH_SHARDS_NUM_SKIPPED2)) {
+                out.writeVInt(numSkippedShards);
+            }
+            try (var in = out.bytes().streamInput()) {
+                in.setTransportVersion(version);
+                return new SearchShardsResponse(in);
+            }
         }
     }
 }

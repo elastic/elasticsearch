@@ -45,12 +45,12 @@ public class TransportGetCheckpointActionTests extends ESTestCase {
         Set.of(SHARD_A_0, SHARD_A_1, SHARD_B_0, SHARD_B_1)
     );
 
-    public void testFilterOutSkippedShards_EmptyNodesAndShards() {
+    public void testFilterOutSkippedShards_EmptyInputNodesAndGroups() {
         SearchShardsResponse searchShardsResponse = new SearchShardsResponse(
             Set.of(
-                new SearchShardsGroup(SHARD_A_0, List.of(NODE_0, NODE_1), true, SplitShardCountSummary.UNSET),
-                new SearchShardsGroup(SHARD_B_0, List.of(NODE_1, NODE_2), false, SplitShardCountSummary.UNSET),
-                new SearchShardsGroup(SHARD_B_1, List.of(NODE_0, NODE_2), true, SplitShardCountSummary.UNSET)
+                new SearchShardsGroup(SHARD_A_0, List.of(NODE_0, NODE_1), SplitShardCountSummary.UNSET),
+                new SearchShardsGroup(SHARD_B_0, List.of(NODE_1, NODE_2), SplitShardCountSummary.UNSET),
+                new SearchShardsGroup(SHARD_B_1, List.of(NODE_0, NODE_2), SplitShardCountSummary.UNSET)
             ),
             0,
             Set.of(),
@@ -75,10 +75,10 @@ public class TransportGetCheckpointActionTests extends ESTestCase {
     public void testFilterOutSkippedShards_SomeNodesEmptyAfterFiltering() {
         SearchShardsResponse searchShardsResponse = new SearchShardsResponse(
             Set.of(
-                new SearchShardsGroup(SHARD_A_0, List.of(NODE_0, NODE_2), false, SplitShardCountSummary.UNSET),
-                new SearchShardsGroup(SHARD_A_1, List.of(NODE_0, NODE_2), false, SplitShardCountSummary.UNSET),
-                new SearchShardsGroup(SHARD_B_0, List.of(NODE_0, NODE_2), false, SplitShardCountSummary.UNSET),
-                new SearchShardsGroup(SHARD_B_1, List.of(NODE_0, NODE_2), false, SplitShardCountSummary.UNSET)
+                new SearchShardsGroup(SHARD_A_0, List.of(NODE_0, NODE_2), SplitShardCountSummary.UNSET),
+                new SearchShardsGroup(SHARD_A_1, List.of(NODE_0, NODE_2), SplitShardCountSummary.UNSET),
+                new SearchShardsGroup(SHARD_B_0, List.of(NODE_0, NODE_2), SplitShardCountSummary.UNSET),
+                new SearchShardsGroup(SHARD_B_1, List.of(NODE_0, NODE_2), SplitShardCountSummary.UNSET)
             ),
             0,
             Set.of(),
@@ -109,8 +109,8 @@ public class TransportGetCheckpointActionTests extends ESTestCase {
     public void testFilterOutSkippedShards() {
         SearchShardsResponse searchShardsResponse = new SearchShardsResponse(
             Set.of(
-                new SearchShardsGroup(SHARD_A_0, List.of(NODE_0, NODE_1), false, SplitShardCountSummary.UNSET),
-                new SearchShardsGroup(SHARD_B_0, List.of(NODE_1, NODE_2), false, SplitShardCountSummary.UNSET)
+                new SearchShardsGroup(SHARD_A_0, List.of(NODE_0, NODE_1), SplitShardCountSummary.UNSET),
+                new SearchShardsGroup(SHARD_B_0, List.of(NODE_1, NODE_2), SplitShardCountSummary.UNSET)
             ),
             3,
             Set.of(),

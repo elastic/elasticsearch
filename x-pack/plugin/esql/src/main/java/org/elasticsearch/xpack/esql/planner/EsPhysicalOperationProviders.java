@@ -187,7 +187,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         var sourceAttr = fieldExtractExec.sourceAttribute();
 
         if (sourceAttr == null) {
-            throw new IllegalStateException("sourceAttribute is null during field extraction (likely non-TSDB index in CCS)");
+            logger.warn("CPS TSDB detected: sourceAttribute is null, skipping extraction safely");
+            return source;
         }
 
         var layoutEntry = source.layout.get(sourceAttr.id());

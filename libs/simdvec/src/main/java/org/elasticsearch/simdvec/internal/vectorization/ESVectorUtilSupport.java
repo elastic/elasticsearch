@@ -67,7 +67,7 @@ public interface ESVectorUtilSupport {
 
     int quantizeVectorWithIntervals(float[] vector, int[] quantize, float lowInterval, float upperInterval, byte bit);
 
-    void squareDistanceBulk(float[] query, float[] v0, float[] v1, float[] v2, float[] v3, float[] distances);
+    void squareDistanceBulk(float[] query, float[] v0, float[] v1, float[] v2, float[] v3, int distancesOffset, float[] distances);
 
     void soarDistanceBulk(
         float[] v1,
@@ -90,4 +90,14 @@ public interface ESVectorUtilSupport {
     int indexOf(byte[] bytes, int offset, int length, byte marker);
 
     int codePointCount(BytesRef bytesRef);
+
+    void linearCombination(float scaleOther, float[] other, float scaleDest, float[] dest);
+
+    float logSumExpBase2(float[] vector);
+
+    float logSumExpNQT(float[] vector);
+
+    float logSumExpNQT(float[] v1, float[] v2, float eps);
+
+    void pow2CombineAndScale(float[] v1, float[] v2, float a, float eps, float[] result);
 }

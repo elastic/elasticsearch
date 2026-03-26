@@ -9,18 +9,31 @@
 
 package org.elasticsearch.index.codec.vectors.cluster;
 
+import org.elasticsearch.simdvec.ESVectorUtil;
+import org.elasticsearch.simdvec.MathUtils;
+
 /**
- * The Sinkhorn algorithm (aka Iterative Proportional Fitting) finds the closest approximation to the (n x k) input matrix, such that its
- * rows and columns sum to 1/n and 1/k, respectively. In this implementation, we perform the iterations in the log domain for numerical
- * stability.
+ * The Sinkhorn algorithm (aka Iterative Proportional Fitting) solves the optimal transport problem with entropic regularization.
+ * Given an (n x k) cost matrix C, the problem is:
+ * min_P sum_i sum_j (P[i][j] * C[i][j] + eps * C[i][j] * log2(C[i][j]))
+ * such that the rows and columns of P sum to 1/n and 1/k, respectively.
+ * In this implementation, we start from the base-2 logarithm/exponentiation instead of the natural one. Then, we use
+ * <a href="https://arxiv.org/pdf/2206.08957">Not-Quite-Trascendental</a> (NQT) approximations to pow2 and log2. This gives a massive
+ * boost in performance.
  */
 public class SinkhornIterations {
     private final float[] logRowSums;
     private final float[] logColumnSums;
+    private final float[][] transposedInput;
+    private final float rawLogRowSumTarget;
+    private final float rawLogColumnSumTarget;
 
     SinkhornIterations(int nRows, int nColumns) {
         logRowSums = new float[nRows];
         logColumnSums = new float[nColumns];
+        transposedInput = new  float[nColumns][nRows];
+        rawLogRowSumTarget = MathUtils.log2NQT(nRows);
+        rawLogColumnSumTarget = MathUtils.log2NQT(nColumns);
     }
 
     /**
@@ -32,64 +45,49 @@ public class SinkhornIterations {
      * @param result the solution with rows summing to 1/n and columns summing to 1/k.
      */
     public void compute(float[][] input, int iterations, float eps, float[][] result) {
-        int nRows = input.length;
-        int nColumns = input[0].length;
+        transpose(input, transposedInput);
 
-        float logRowSumTarget = -eps * (float) Math.log(nRows);
-        float logColumnSumTarget = -eps * (float) Math.log(nColumns);
+        float logRowSumTarget = -eps * rawLogRowSumTarget;
+        float logColumnSumTarget = -eps * rawLogColumnSumTarget;
 
         for (int i = 0; i < iterations; i++) {
             // Update logRowSums (normalize across columns)
-            rowVectorSubtractAndNormalize(logColumnSums, input, eps, result);
-            LogSumExp.compute(result, LogSumExp.Axis.ROWS,  logRowSums);
-            affineTransform(logRowSums, -eps, logRowSumTarget);
+            logSumExpNQT(logColumnSums, input, eps, -eps, logRowSumTarget, logRowSums);
 
             // Update logColumnSums (normalize across rows)
-            columnVectorSubtractAndNormalize(logRowSums, input, eps, result);
-            LogSumExp.compute(result, LogSumExp.Axis.COLUMNS,  logColumnSums);
-            affineTransform(logColumnSums, -eps, logColumnSumTarget);
+            logSumExpNQT(logRowSums, transposedInput, eps, -eps, logColumnSumTarget, logColumnSums);
         }
 
-        combinePartialsAndNormalize(logRowSums, logColumnSums, input, eps, result);
+        createTransportPlan(logRowSums, logColumnSums, input, eps, result);
     }
 
-    // Assumes that the length of the input vector is equal to the number of columns fof the input matrix
-    private static void rowVectorSubtractAndNormalize(float[] vector, float[][] matrix, float normConstant, float[][] result) {
-        int nRows = matrix.length;
-        int nColumns = matrix[0].length;
-
+    private static void transpose(float[][] input, float[][] output) {
+        int nRows = input.length;
+        int nColumns = input[0].length;
         for (int i = 0; i < nRows; i++) {
             for (int j = 0; j < nColumns; j++) {
-                result[i][j] = (vector[j] - matrix[i][j]) / normConstant;
+                output[j][i] = input[i][j];
             }
         }
     }
 
-    // Assumes that the length of the input vector is equal to the number of rows fof the input matrix
-    private static void columnVectorSubtractAndNormalize(float[] vector, float[][] matrix, float normConstant, float[][] result) {
-        int nRows = matrix.length;
-        int nColumns = matrix[0].length;
-
-        for (int i = 0; i < nRows; i++) {
-            for (int j = 0; j < nColumns; j++) {
-                result[i][j] = (vector[i] - matrix[i][j]) / normConstant;
-            }
-        }
-    }
-
-    // Computes v[i] = a * v[i] + b.
-    private static void affineTransform(float[] vector, float a, float b) {
-        for (int i = 0; i < vector.length; i++) {
-            vector[i] = a * vector[i] + b;
-        }
-    }
-
-    private static void combinePartialsAndNormalize(float[] rowVector, float[] columnvector, float[][] matrix, float normConstant,
-                                                    float[][] result) {
+    // Creates the Sinkhorn plan:
+    // result = np.pow(2, (rowVector + columnVector.T - matrix) / eps)
+    // Instead of base-2 logarithms and powers, it uses NQT.
+    private static void createTransportPlan(float[] rowVector, float[] columnvector, float[][] matrix, float eps,
+                                            float[][] result) {
         for (int i = 0; i < rowVector.length; i++) {
-            for (int j = 0; j < columnvector.length; j++) {
-                result[i][j] = (float) Math.exp((rowVector[i] + columnvector[j] - matrix[i][j]) / normConstant);
-            }
+            ESVectorUtil.pow2CombineAndScale(columnvector, matrix[i], rowVector[i], eps, result[i]);
+        }
+    }
+
+    // Calculates the Sinkhorn update:
+    // For each row i: result[i] = a * log2(sum_j(pow(2, (vector[j] - matrix[i][j]) / eps))) + b
+    // Instead of base-2 logarithms and powers, it uses NQT.
+    public static void logSumExpNQT(float[] vector, float[][] matrix, float eps, float a, float b, float[] result) {
+        int nRows = matrix.length;
+        for (int i = 0; i < nRows; i++) {
+            result[i] = a * ESVectorUtil.logSumExpNQT(vector, matrix[i], eps) + b;
         }
     }
 }

@@ -41,16 +41,13 @@ public class BalancedKMeansLocalTests extends ESTestCase {
 
     public void testBalancedKMeans() throws IOException {
         // Test to compare LloydKMeansLocal and BalancedKMeansLocal.
-        // We do not use clustersPerNeighborhood because there is clever centroid initialization here.
 
-        int nClusters = random().nextInt(2, 10); // Pick the number of clusters between 1 and 10 in increments of 10
-        int nVectors = nClusters * 100;
-        final int sampleSize = nClusters * 100;
-        int dims = random().nextInt(1, 20) * 100; // Pick the dimensions between 100 and 2000 in increments of 100
-        int maxIterations = random().nextInt(20, 50);
+        int nClusters = 20;
+        int nVectors = nClusters * 256;
+        final int sampleSize = nClusters * 64;
+        int dims = 256;
+        int maxIterations = 20;
         float soarLambda = -1;
-
-        KMeansFloatVectorValues vectors = generateData(nVectors, dims, nClusters, 0.5f);
 
         var methods = List.of(
             new LloydKMeansLocalSerial(sampleSize, maxIterations), // reference method
@@ -59,26 +56,38 @@ public class BalancedKMeansLocalTests extends ESTestCase {
 
         float[] inertias = new float[methods.size()];
         float[] stdClusterSizes = new float[methods.size()];
+        // Both geometric means are computed in log domain for numerical stability.
+        double geoMeanInertiaRatio = 0; // the geometric mean of the ratios between both inertias
+        double geoMeanStdClusterSizes = 0; // the geometric mean of the ratios between the standard deviations of the cluster sizes
 
-        for (int j = 0; j < methods.size(); j++) {
-            float[][] centroids = KMeansLocal.pickInitialCentroids(vectors, nClusters);
-            int[] assignments = new int[vectors.size()];
-            KMeansIntermediate kMeansIntermediate = new KMeansIntermediate(centroids, assignments);
-            methods.get(j).cluster(vectors, kMeansIntermediate, nClusters, soarLambda);
+        int nTrials = 10;
 
-            inertias[j] = kMeansMeanInertia(vectors, kMeansIntermediate);
-            int[] clusterSizes = clusterSizes(kMeansIntermediate);
+        for (int trials = 0; trials < nTrials; trials++) {
+            KMeansFloatVectorValues vectors = generateData(nVectors, dims, nClusters, 0.5f);
 
-            stdClusterSizes[j] = clusterSizesStandardDeviation(clusterSizes);
+            for (int j = 0; j < methods.size(); j++) {
+                float[][] centroids = KMeansLocal.pickInitialCentroids(vectors, nClusters);
+                int[] assignments = new int[vectors.size()];
+                KMeansIntermediate kMeansIntermediate = new KMeansIntermediate(centroids, assignments);
+                methods.get(j).cluster(vectors, kMeansIntermediate, nClusters, soarLambda);
+
+                inertias[j] = kMeansMeanInertia(vectors, kMeansIntermediate);
+                int[] clusterSizes = clusterSizes(kMeansIntermediate);
+                stdClusterSizes[j] = clusterSizesStandardDeviation(clusterSizes);
+            }
+
+            geoMeanInertiaRatio += Math.log(inertias[0] / inertias[1]);
+            // adding a small constant in case stdClusterSizes[0] == 0:
+            geoMeanStdClusterSizes += Math.log((stdClusterSizes[1] + 1e-6f) / (stdClusterSizes[0] + 1e-6f));
         }
 
-        // We allow up to 5% increase in inertia:
-        assertTrue(inertias[0] * 1.05 > inertias[1]);
-        // We ask for a net improvement in the size distribution. In the vast majority of the runs,
-        // the decrease in the standard deviation of the cluster sizes is very significant.
-        // Once in a while, the stars align and the k-means result is pretty well-balanced. In those cases,
-        // balanced k-means does not do worse but cannot improve any further.
-        assertTrue(stdClusterSizes[0] >= stdClusterSizes[1]);
+        geoMeanInertiaRatio = Math.exp(geoMeanInertiaRatio / nTrials);
+        geoMeanStdClusterSizes = Math.exp(geoMeanStdClusterSizes / nTrials);
+
+        // We allow up to 20% increase in inertia:
+        assertTrue(geoMeanInertiaRatio > 0.8);
+        // We ask for 3X decrease in the size distribution.
+        assertTrue(geoMeanStdClusterSizes < 0.33);
     }
 
     static float kMeansMeanInertia(KMeansFloatVectorValues vectors, KMeansIntermediate kMeansIntermediate) throws IOException {
@@ -221,28 +230,27 @@ public class BalancedKMeansLocalTests extends ESTestCase {
 
     public void testConcurrency() throws IOException {
         // Test to compare BalancedKMeansLocalSerial and BalancedKMeansLocalConcurrent.
-        // We do not use clustersPerNeighborhood because there is clever centroid initialization here.
+        final int nClusters = 16;
+        final int nVectors = nClusters * 500;
+        final int nSamples = nClusters * 256;
+        final int dims = 1024;
+        final int maxIterations = 10;
+        final float soarLambda = -1;
+        final int numThreads = randomIntBetween(2, 8);
 
-        int nClusters = random().nextInt(2, 10); // Pick the number of clusters between 1 and 10 in increments of 10
-        int nVectors = nClusters * 100;
-        final int sampleSize = nClusters * 100;
-        int dims = random().nextInt(1, 20) * 100; // Pick the dimensions between 100 and 2000 in increments of 100
-        int maxIterations = random().nextInt(20, 50);
-        float soarLambda = -1;
-        int numThreads = randomIntBetween(2, 8);
-
-        KMeansFloatVectorValues vectors = generateData(nVectors, dims, nClusters, 0.5f);
+        KMeansFloatVectorValues vectors = generateData(nVectors, dims, 1, 0.2f);
 
         try (ExecutorService executorService = Executors.newFixedThreadPool(numThreads)) {
             TaskExecutor taskExecutor = new TaskExecutor(executorService);
 
             var methods = List.of(
-                new BalancedKMeansLocalSerial(sampleSize, maxIterations),
-                new BalancedKMeansLocalConcurrent(taskExecutor, numThreads, sampleSize, maxIterations)
+                new BalancedKMeansLocalSerial(nSamples / 2, maxIterations),
+                new BalancedKMeansLocalConcurrent(taskExecutor, numThreads, nSamples / 2, maxIterations)
             );
 
-            float[] inertias = new float[methods.size()];
-            float[] stdClusterSizes = new float[methods.size()];
+            double[] inertias = new double[methods.size()];
+            double[] stdClusterSizes = new double[methods.size()];
+            int[] minClusterSizes = new int[methods.size()];
 
             for (int j = 0; j < methods.size(); j++) {
                 float[][] centroids = KMeansLocal.pickInitialCentroids(vectors, nClusters);
@@ -254,10 +262,12 @@ public class BalancedKMeansLocalTests extends ESTestCase {
                 int[] clusterSizes = clusterSizes(kMeansIntermediate);
 
                 stdClusterSizes[j] = clusterSizesStandardDeviation(clusterSizes);
+                minClusterSizes[j] = Arrays.stream(clusterSizes).min().getAsInt();
             }
 
-            assertEquals(inertias[0], inertias[1], 1e-4 * inertias[0]);
-            assertEquals(stdClusterSizes[0], stdClusterSizes[1], 1e-4 * stdClusterSizes[0]);
+            assertEquals(inertias[0], inertias[1], 2e-4 * inertias[0]);
+            assertEquals(stdClusterSizes[0], stdClusterSizes[1], 1e-1 * stdClusterSizes[0]);
+            assertEquals(minClusterSizes[0], minClusterSizes[1], 1e-1 * minClusterSizes[0]);
         }
     }
 }

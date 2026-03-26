@@ -13,6 +13,7 @@ import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.VectorUtil;
+import org.elasticsearch.simdvec.MathUtils;
 
 final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
 
@@ -320,11 +321,11 @@ final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
     }
 
     @Override
-    public void squareDistanceBulk(float[] query, float[] v0, float[] v1, float[] v2, float[] v3, float[] distances) {
-        distances[0] = VectorUtil.squareDistance(query, v0);
-        distances[1] = VectorUtil.squareDistance(query, v1);
-        distances[2] = VectorUtil.squareDistance(query, v2);
-        distances[3] = VectorUtil.squareDistance(query, v3);
+    public void squareDistanceBulk(float[] query, float[] v0, float[] v1, float[] v2, float[] v3, int distancesOffset, float[] distances) {
+        distances[distancesOffset] = VectorUtil.squareDistance(query, v0);
+        distances[distancesOffset + 1] = VectorUtil.squareDistance(query, v1);
+        distances[distancesOffset + 2] = VectorUtil.squareDistance(query, v2);
+        distances[distancesOffset + 3] = VectorUtil.squareDistance(query, v3);
     }
 
     @Override
@@ -483,5 +484,79 @@ final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
     @Override
     public int codePointCount(BytesRef bytesRef) {
         return ByteArrayUtils.codePointCount(bytesRef.bytes, bytesRef.offset, bytesRef.length);
+    }
+
+    @Override
+    public void linearCombination(float scaleOther, float[] other, float scaleDest, float[] dest) {
+        if (other.length != dest.length) {
+            throw new IllegalArgumentException("vector dimensions differ: " + other.length + "!=" + dest.length);
+        }
+        for (int d = 0; d < dest.length; d++) {
+            dest[d] = scaleOther * other[d] + scaleDest * dest[d];
+        }
+    }
+
+    @Override
+    public float logSumExpBase2(float[] vector) {
+        assert vector.length > 0;
+
+        // Uses a <a href="https://www.nowozin.net/sebastian/blog/streaming-log-sum-exp-computation.html">streaming algorithm</a>.
+        float maxVal = Float.NEGATIVE_INFINITY;
+        float sum = 0.0f;
+        for (float v : vector) {
+            float newMaxVal = Math.max(maxVal, v);
+            sum *= (float) Math.pow(2, maxVal - newMaxVal);
+            sum += (float) Math.pow(2, v - newMaxVal);
+            maxVal = newMaxVal;
+        }
+
+        return maxVal + (float) (Math.log(sum) / Math.log(2));
+    }
+
+    @Override
+    public float logSumExpNQT(float[] vector) {
+        assert vector.length > 0;
+
+        // Uses a <a href="https://www.nowozin.net/sebastian/blog/streaming-log-sum-exp-computation.html">streaming algorithm</a>.
+        float maxVal = Float.NEGATIVE_INFINITY;
+        float sum = 0.0f;
+        for (float v : vector) {
+            float newMaxVal = Math.max(maxVal, v);
+            sum *= MathUtils.pow2NQT(maxVal - newMaxVal);
+            sum += MathUtils.pow2NQT(v - newMaxVal);
+            maxVal = newMaxVal;
+        }
+
+        return maxVal + MathUtils.log2NQT(sum);
+    }
+
+    @Override
+    public float logSumExpNQT(float[] v1, float[] v2, float eps) {
+        assert v1.length > 0;
+        assert v1.length == v2.length;
+
+        // Uses a <a href="https://www.nowozin.net/sebastian/blog/streaming-log-sum-exp-computation.html">streaming algorithm</a>.
+        float maxVal = Float.NEGATIVE_INFINITY;
+        float sum = 0.0f;
+        for (int i = 0; i < v1.length; i++) {
+            float v =  (v1[i] - v2[i]) / eps;
+            float newMaxVal = Math.max(maxVal, v);
+            sum *= MathUtils.pow2NQT(maxVal - newMaxVal);
+            sum += MathUtils.pow2NQT(v - newMaxVal);
+            maxVal = newMaxVal;
+        }
+
+        return maxVal + MathUtils.log2NQT(sum);
+    }
+
+    @Override
+    public void pow2CombineAndScale(float[] v1, float[] v2, float a, float eps, float[] result) {
+        assert v1.length > 0;
+        assert v1.length == v2.length;
+        assert v1.length == result.length;
+
+        for (int j = 0; j < v1.length; j++) {
+            result[j] = (float) Math.pow(2, (a + v1[j] - v2[j]) / eps);
+        }
     }
 }

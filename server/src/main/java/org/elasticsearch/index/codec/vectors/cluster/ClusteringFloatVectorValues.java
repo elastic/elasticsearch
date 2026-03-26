@@ -91,10 +91,9 @@ public abstract sealed class ClusteringFloatVectorValues extends FloatVectorValu
         IntToIntFunction ordTranslator,
         float[][] squaredDistances
     ) throws IOException {
-        final float[] tempDistances = new float[4];
         for (int i = startOrd; i < endOrd; i++) {
             float[] vector = vectorValue(i);
-            computeSquaredDistances(vector, centroids, tempDistances, squaredDistances[i]);
+            computeSquaredDistances(vector, centroids, squaredDistances[i]);
         }
     }
 
@@ -282,7 +281,7 @@ public abstract sealed class ClusteringFloatVectorValues extends FloatVectorValu
         float minDsq = Float.MAX_VALUE;
         int i = 0;
         for (; i < limit; i += 4) {
-            ESVectorUtil.squareDistanceBulk(vector, centroids[i], centroids[i + 1], centroids[i + 2], centroids[i + 3], distances);
+            ESVectorUtil.squareDistanceBulk(vector, centroids[i], centroids[i + 1], centroids[i + 2], centroids[i + 3], 0, distances);
             for (int j = 0; j < distances.length; j++) {
                 float dsq = distances[j];
                 if (dsq < minDsq) {
@@ -306,15 +305,13 @@ public abstract sealed class ClusteringFloatVectorValues extends FloatVectorValu
      *
      * @param vector    the vector to assign
      * @param centroids the centroid vectors to compare against
-     * @param tempDistances scratch array of length 4 used for bulk distance results
      * @param distances the computed distances
      */
-    private static void computeSquaredDistances(float[] vector, float[][] centroids, float[] tempDistances, float[] distances) {
+    private static void computeSquaredDistances(float[] vector, float[][] centroids, float[] distances) {
         final int limit = centroids.length - 3;
         int i = 0;
         for (; i < limit; i += 4) {
-            ESVectorUtil.squareDistanceBulk(vector, centroids[i], centroids[i + 1], centroids[i + 2], centroids[i + 3], tempDistances);
-            System.arraycopy(tempDistances, 0, distances, i, tempDistances.length);
+            ESVectorUtil.squareDistanceBulk(vector, centroids[i], centroids[i + 1], centroids[i + 2], centroids[i + 3], i, distances);
         }
         for (; i < centroids.length; i++) {
             distances[i] = ESVectorUtil.squareDistance(vector, centroids[i]);
@@ -358,6 +355,7 @@ public abstract sealed class ClusteringFloatVectorValues extends FloatVectorValu
                 centroids[neighborhood.neighbors()[i + 1]],
                 centroids[neighborhood.neighbors()[i + 2]],
                 centroids[neighborhood.neighbors()[i + 3]],
+                0,
                 distances
             );
             for (int j = 0; j < distances.length; j++) {

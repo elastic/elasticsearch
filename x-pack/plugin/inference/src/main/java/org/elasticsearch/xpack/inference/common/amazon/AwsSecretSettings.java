@@ -23,7 +23,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.EnumSet;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
@@ -115,7 +114,7 @@ public class AwsSecretSettings implements SecretSettings {
 
     @Override
     public SecretSettings newSecretSettings(Map<String, Object> newSecrets) {
-        return fromMap(new HashMap<>(newSecrets));
+        return fromMap(newSecrets);
     }
 
     public SecureString accessKey() {

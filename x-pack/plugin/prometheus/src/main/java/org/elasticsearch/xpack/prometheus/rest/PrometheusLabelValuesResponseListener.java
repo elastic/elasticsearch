@@ -23,7 +23,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Converts an {@link EsqlQueryResponse} from a {@link PrometheusLabelValuesPlanBuilder} plan into the
+ * Converts an {@link EsqlQueryResponse} into the
  * Prometheus {@code /api/v1/label/{name}/values} JSON response format.
  *
  * <p>ESQL has already sorted and deduplicated the values via {@code STATS BY} and {@code ORDER BY}.

@@ -18,7 +18,6 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.MapperTestUtils;
-import org.elasticsearch.index.codec.bloomfilter.ES87BloomFilterPostingsFormat;
 import org.elasticsearch.index.codec.postings.ES812PostingsFormat;
 import org.elasticsearch.index.codec.tsdb.TSDBSyntheticIdPostingsFormat;
 import org.elasticsearch.index.mapper.MapperService;
@@ -100,7 +99,7 @@ public class PerFieldMapperCodecTests extends ESTestCase {
         assertThat(perFieldMapperCodec.useBloomFilter("_id"), is(true));
         assertThat(
             perFieldMapperCodec.getPostingsFormatForField("_id"),
-            instanceOf(randomSyntheticId ? TSDBSyntheticIdPostingsFormat.class : ES87BloomFilterPostingsFormat.class)
+            instanceOf(randomSyntheticId ? TSDBSyntheticIdPostingsFormat.class : BloomFilter87Initializer.class)
         );
         assertThat(perFieldMapperCodec.useBloomFilter("another_field"), is(false));
 
@@ -114,7 +113,7 @@ public class PerFieldMapperCodecTests extends ESTestCase {
         assertThat(perFieldMapperCodec.useBloomFilter("_id"), is(true));
         assertThat(
             perFieldMapperCodec.getPostingsFormatForField("_id"),
-            instanceOf(randomSyntheticId ? TSDBSyntheticIdPostingsFormat.class : ES87BloomFilterPostingsFormat.class)
+            instanceOf(randomSyntheticId ? TSDBSyntheticIdPostingsFormat.class : BloomFilter87Initializer.class)
         );
         assertThat(perFieldMapperCodec.useBloomFilter("another_field"), is(false));
         assertThat(perFieldMapperCodec.getPostingsFormatForField("another_field"), instanceOf(ES812PostingsFormat.class));
@@ -181,7 +180,7 @@ public class PerFieldMapperCodecTests extends ESTestCase {
                 randomSyntheticId
             );
             var result = perFieldMapperCodec.getPostingsFormatForField("_id");
-            if (result instanceof ES87BloomFilterPostingsFormat es87BloomFilterPostingsFormat) {
+            if (result instanceof BloomFilter87Initializer es87BloomFilterPostingsFormat) {
                 Function<String, PostingsFormat> postingsFormats = es87BloomFilterPostingsFormat.getPostingsFormats();
                 result = postingsFormats.apply("_id");
             }

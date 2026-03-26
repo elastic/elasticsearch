@@ -7,15 +7,12 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.index.codec.bloomfilter;
+package org.elasticsearch.index.codec.plugin;
 
-import org.apache.lucene.codecs.PostingsFormat;
-import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.plugins.Plugin;
 
-import java.util.function.Function;
-
-public interface BloomFilterInitializer {
-
-    void initialize(BigArrays bigArrays, Function<String, PostingsFormat> postingsFormats);
-
-}
+/**
+ * Plugin that provides common codec implementations. Codec registration is done
+ * via the Lucene SPI mechanism (META-INF/services). This is just required to define codecs common as a module.
+ */
+public class CodecsCommonPlugin extends Plugin {}

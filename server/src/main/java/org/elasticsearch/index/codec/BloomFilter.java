@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.index.codec.bloomfilter;
+package org.elasticsearch.index.codec;
 
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.util.BytesRef;

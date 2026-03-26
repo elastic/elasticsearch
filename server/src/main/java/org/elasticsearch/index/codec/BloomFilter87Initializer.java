@@ -9,11 +9,15 @@
 
 package org.elasticsearch.index.codec;
 
-import org.elasticsearch.plugins.Plugin;
+import org.apache.lucene.codecs.PostingsFormat;
+import org.elasticsearch.common.util.BigArrays;
 
-/**
- * Plugin that provides common codec implementations. Codec registration is done
- * via the Lucene SPI mechanism (META-INF/services). This is just required to define codecs common as a module.
- */
-public class CodecsCommonPlugin extends Plugin {
+import java.util.function.Function;
+
+public interface BloomFilter87Initializer {
+
+    void initialize(BigArrays bigArrays, Function<String, PostingsFormat> postingsFormats);
+
+    Function<String, PostingsFormat> getPostingsFormats();
+
 }

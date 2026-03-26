@@ -44,6 +44,8 @@ import org.elasticsearch.common.lucene.store.IndexOutputOutputStream;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ByteArray;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.index.codec.BloomFilter87Initializer;
+import org.elasticsearch.index.codec.LazyFilterTermsEnum;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -63,7 +65,7 @@ import java.util.function.Function;
  * A {@link PostingsFormat} useful for low doc-frequency fields such as primary keys. Bloom filters
  * offers "fast-fail" for reads in segments known to have no record of the key.
  */
-public class ES87BloomFilterPostingsFormat extends PostingsFormat implements BloomFilterInitializer {
+public class ES87BloomFilterPostingsFormat extends PostingsFormat implements BloomFilter87Initializer {
     static final String BLOOM_CODEC_NAME = "ES87BloomFilter";
     static final int VERSION_START = 0;
     static final int VERSION_CURRENT = VERSION_START;

@@ -50,6 +50,8 @@ import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.index.codec.BloomFilter;
+import org.elasticsearch.index.codec.BloomFilter94Initializer;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -84,7 +86,7 @@ import static org.elasticsearch.index.codec.bloomfilter.BloomFilterHashFunctions
  *       be found in {@link BloomFilterMetadata}.
  * </ol>
  */
-public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
+public class ES94BloomFilterDocValuesFormat extends DocValuesFormat implements BloomFilter94Initializer {
     public static final String FORMAT_NAME = "ES94BloomFilterDocValuesFormat";
     public static final String STORED_FIELDS_BLOOM_FILTER_EXTENSION = "sfbf";
     public static final String STORED_FIELDS_METADATA_BLOOM_FILTER_EXTENSION = "sfbfm";
@@ -102,8 +104,8 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
     static final int DEFAULT_BLOOM_FILTER_OVERSIZE_FACTOR = 24;
     static final ByteSizeValue MAX_BLOOM_FILTER_SIZE = ByteSizeValue.ofMb(8);
 
-    private final BigArrays bigArrays;
-    private final String bloomFilterFieldName;
+    private BigArrays bigArrays;
+    private String bloomFilterFieldName;
     private final boolean optimizedMergeEnabled;
     private final int numHashFunctions;
 
@@ -126,6 +128,12 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
         this.bloomFilterFieldName = bloomFilterFieldName;
         this.optimizedMergeEnabled = optimizedMergeEnabled;
         this.numHashFunctions = DEFAULT_NUM_HASH_FUNCTIONS;
+    }
+
+    @Override
+    public void initialize(BigArrays bigArrays, String bloomFilterFieldName) {
+        this.bigArrays = bigArrays;
+        this.bloomFilterFieldName = bloomFilterFieldName;
     }
 
     @Override

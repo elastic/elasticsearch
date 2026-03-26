@@ -19,8 +19,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersions;
-import org.elasticsearch.index.codec.bloomfilter.BloomFilterInitializer;
-import org.elasticsearch.index.codec.bloomfilter.ES94BloomFilterDocValuesFormat;
 import org.elasticsearch.index.codec.postings.ES812PostingsFormat;
 import org.elasticsearch.index.codec.tsdb.TSDBSyntheticIdPostingsFormat;
 import org.elasticsearch.index.codec.tsdb.es819.TSDBDocValuesFormatFactory;
@@ -73,24 +71,22 @@ public class PerFieldFormatSupplier {
     private static final ES812PostingsFormat es812PostingsFormat = new ES812PostingsFormat();
     private static final PostingsFormat completionPostingsFormat = PostingsFormat.forName("Completion104");
 
-    private final PostingsFormat bloomFilterPostingsFormat;
+    private final BigArrays bigArrays;
     private final MapperService mapperService;
     private final ThreadPool threadPool;
 
     private final PostingsFormat defaultPostingsFormat;
     private final TSDBSyntheticIdPostingsFormat syntheticIdPostingsFormat;
-    private final DocValuesFormat idBloomFilterDocValuesFormat;
+    private PostingsFormat bloomFilterPostingsFormat;
+    private DocValuesFormat idBloomFilterDocValuesFormat;
 
     public PerFieldFormatSupplier(MapperService mapperService, BigArrays bigArrays, @Nullable ThreadPool threadPool) {
+        this.bigArrays = bigArrays;
         this.mapperService = mapperService;
-        this.bloomFilterPostingsFormat = PostingsFormat.forName("ES87BloomFilter");
-        BloomFilterInitializer es87Initializer = (BloomFilterInitializer) bloomFilterPostingsFormat;
-        es87Initializer.initialize(bigArrays, this::internalGetPostingsFormatForField);
         this.threadPool = threadPool;
         this.defaultPostingsFormat = getDefaultPostingsFormat(mapperService);
         this.knnVectorsFormat = getDefaultKnnVectorsFormat(mapperService, threadPool);
         this.syntheticIdPostingsFormat = new TSDBSyntheticIdPostingsFormat();
-        this.idBloomFilterDocValuesFormat = new ES94BloomFilterDocValuesFormat(bigArrays, IdFieldMapper.NAME);
     }
 
     private static PostingsFormat getDefaultPostingsFormat(final MapperService mapperService) {
@@ -138,6 +134,12 @@ public class PerFieldFormatSupplier {
             return syntheticIdPostingsFormat;
         }
         if (useBloomFilter(field)) {
+            if (bloomFilterPostingsFormat == null) {
+                var bloomFilterPostingsFormat = PostingsFormat.forName("ES87BloomFilter");
+                BloomFilter87Initializer es87Initializer = (BloomFilter87Initializer) bloomFilterPostingsFormat;
+                es87Initializer.initialize(bigArrays, this::internalGetPostingsFormatForField);
+                this.bloomFilterPostingsFormat = bloomFilterPostingsFormat;
+            }
             return bloomFilterPostingsFormat;
         }
         return internalGetPostingsFormatForField(field);
@@ -197,6 +199,12 @@ public class PerFieldFormatSupplier {
 
     public DocValuesFormat getDocValuesFormatForField(String field) {
         if (useTSDBSyntheticId(field)) {
+            if (idBloomFilterDocValuesFormat == null) {
+                var idBloomFilterDocValuesFormat = DocValuesFormat.forName("ES94BloomFilterDocValuesFormat");
+                BloomFilter94Initializer es94Initializer = (BloomFilter94Initializer) idBloomFilterDocValuesFormat;
+                es94Initializer.initialize(bigArrays, IdFieldMapper.NAME);
+                this.idBloomFilterDocValuesFormat = idBloomFilterDocValuesFormat;
+            }
             return idBloomFilterDocValuesFormat;
         }
 

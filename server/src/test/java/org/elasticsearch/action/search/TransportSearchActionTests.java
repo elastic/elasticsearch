@@ -60,6 +60,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
+import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.TermsQueryBuilder;
@@ -1302,6 +1303,63 @@ public class TransportSearchActionTests extends ESTestCase {
                 }
             });
             assertEquals(0, service.getConnectionManager().size());
+        } finally {
+            for (MockTransportService mockTransportService : mockTransportServices) {
+                mockTransportService.close();
+            }
+        }
+    }
+
+    public void testCollectSearchShardsUpdatesClusterInfoWhenNoGroupsReturned() throws Exception {
+        DiscoveryNode[] nodes = new DiscoveryNode[1];
+        Map<String, OriginalIndices> remoteIndicesByCluster = new HashMap<>();
+        Settings.Builder builder = Settings.builder();
+        MockTransportService[] mockTransportServices = startTransport(1, nodes, remoteIndicesByCluster, builder, false);
+        Settings settings = builder.build();
+        try (
+            MockTransportService service = MockTransportService.createNewService(
+                settings,
+                VersionInformation.CURRENT,
+                TransportVersion.current(),
+                threadPool,
+                null
+            )
+        ) {
+            service.start();
+            service.acceptIncomingRequests();
+            TaskId parentTaskId = new TaskId("n", 1);
+            TransportSearchAction.SearchTimeProvider timeProvider = new TransportSearchAction.SearchTimeProvider(
+                0L,
+                0L,
+                () -> TimeUnit.MILLISECONDS.toNanos(123L)
+            );
+            var clusters = new SearchResponse.Clusters(null, remoteIndicesByCluster, false, clusterAlias -> false);
+            final CountDownLatch latch = new CountDownLatch(1);
+            AtomicReference<Map<String, SearchShardsResponse>> response = new AtomicReference<>();
+            TransportSearchAction.collectSearchShards(
+                parentTaskId,
+                IndicesOptions.lenientExpandOpen(),
+                null,
+                null,
+                new MatchNoneQueryBuilder(),
+                true,
+                null,
+                remoteIndicesByCluster,
+                clusters,
+                timeProvider,
+                service,
+                new LatchedActionListener<>(ActionTestUtils.assertNoFailureListener(response::set), latch),
+                null,
+                false,
+                null,
+                null
+            );
+            awaitLatch(latch, 5, TimeUnit.SECONDS);
+            assertNotNull(response.get());
+            SearchResponse.Cluster cluster = clusters.getCluster("remote0");
+            assertThat(cluster.getStatus(), equalTo(SearchResponse.Cluster.Status.SUCCESSFUL));
+            assertThat(cluster.getTotalShards(), equalTo(0));
+            assertThat(cluster.getTook(), equalTo(new TimeValue(123L)));
         } finally {
             for (MockTransportService mockTransportService : mockTransportServices) {
                 mockTransportService.close();

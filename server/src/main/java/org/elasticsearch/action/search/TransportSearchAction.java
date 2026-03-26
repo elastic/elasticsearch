@@ -1379,6 +1379,11 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 void innerOnResponse(SearchShardsResponse searchShardsResponse) {
                     assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH_COORDINATION);
                     searchShardsResponses.put(clusterAlias, searchShardsResponse);
+                    // If search_shards yields no target groups for this cluster, there won't be a follow-up
+                    // SearchResponse to populate per-cluster metadata later.
+                    if (searchShardsResponse.getGroups().isEmpty()) {
+                        ccsClusterInfoUpdate(searchShardsResponse, clusters, clusterAlias, timeProvider);
+                    }
                 }
 
                 @Override
@@ -1592,6 +1597,27 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 .setTimedOut(searchResponse.isTimedOut())
                 .build();
         });
+    }
+
+    /**
+     * Updates per-cluster metadata when the ccs_minimize_roundtrips=false preflight completes but no
+     * shard groups are returned for a cluster, meaning no subsequent search phase will run for it.
+     */
+    static void ccsClusterInfoUpdate(
+        SearchShardsResponse searchShardsResponse,
+        SearchResponse.Clusters clusters,
+        String clusterAlias,
+        SearchTimeProvider timeProvider
+    ) {
+        clusters.swapCluster(clusterAlias, (k, v) -> new SearchResponse.Cluster.Builder(v).setStatus(SearchResponse.Cluster.Status.SUCCESSFUL)
+            .setTotalShards(0)
+            .setSuccessfulShards(0)
+            .setSkippedShards(searchShardsResponse.getNumSkippedShards())
+            .setFailedShards(0)
+            .setFailures(List.of())
+            .setTook(new TimeValue(timeProvider.buildTookInMillis()))
+            .setTimedOut(false)
+            .build());
     }
 
     void executeLocalSearch(

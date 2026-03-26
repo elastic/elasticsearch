@@ -914,6 +914,128 @@ emp_no:integer | first_name:keyword | last_name:keyword | _index:keyword
 ;
 
 
+employeesNoNamesLoadStats
+required_capability: index_metadata_field
+required_capability: optional_fields_v4
+
+SET unmapped_fields="load"\;
+FROM employees, employees_no_names METADATA _index
+| KEEP emp_no, first_name, last_name, _index
+| SORT emp_no, _index
+| LIMIT 6
+| STATS count(*) BY first_name
+;
+ignoreOrder:true
+
+count(*):long | first_name:keyword
+2             | Bezalel
+2             | Georgi
+2             | Parto
+;
+
+employeesNoNamesLoadStatsByFirstName
+required_capability: optional_fields_v4
+
+SET unmapped_fields="load"\;
+FROM employees, employees_no_names
+| KEEP emp_no, first_name, last_name
+| STATS c=count(*) BY first_name
+| SORT first_name ASC NULLS FIRST
+| LIMIT 5
+;
+
+c:long | first_name:keyword
+20     | null
+2      | Alejandro
+2      | Amabile
+2      | Anneke
+2      | Anoosh
+;
+
+employeesNoNamesLoadInlineStats
+required_capability: index_metadata_field
+required_capability: optional_fields_v4
+
+SET unmapped_fields="load"\;
+FROM employees, employees_no_names METADATA _index
+| KEEP emp_no, first_name, last_name, _index
+| INLINE STATS c=count(*) BY first_name
+| SORT first_name NULLS FIRST, emp_no, _index
+| LIMIT 6
+;
+
+emp_no:integer | last_name:keyword | _index:keyword     | c:long | first_name:keyword
+10030          | Demeyer           | employees          | 20     | null
+10030          | Demeyer           | employees_no_names | 20     | null
+10031          | Joslin            | employees          | 20     | null
+10031          | Joslin            | employees_no_names | 20     | null
+10032          | Reistad           | employees          | 20     | null
+10032          | Reistad           | employees_no_names | 20     | null
+;
+
+employeesNoNamesLoadInlineStatsCount
+required_capability: index_metadata_field
+required_capability: optional_fields_v4
+
+SET unmapped_fields="load"\;
+FROM employees, employees_no_names METADATA _index
+| KEEP emp_no, first_name, last_name, _index
+| INLINE STATS c=count(first_name) BY last_name
+| SORT first_name NULLS FIRST, emp_no DESC, _index
+| LIMIT 22
+;
+
+emp_no:integer | first_name:keyword | _index:keyword     | c:long | last_name:keyword
+10039          | null               | employees          | 0      | Brender
+10039          | null               | employees_no_names | 0      | Brender
+10038          | null               | employees          | 2      | Lortz
+10038          | null               | employees_no_names | 2      | Lortz
+10037          | null               | employees          | 0      | Makrucki
+10037          | null               | employees_no_names | 0      | Makrucki
+10036          | null               | employees          | 0      | Portugali
+10036          | null               | employees_no_names | 0      | Portugali
+10035          | null               | employees          | 0      | Chappelet
+10035          | null               | employees_no_names | 0      | Chappelet
+10034          | null               | employees          | 0      | Swan
+10034          | null               | employees_no_names | 0      | Swan
+10033          | null               | employees          | 0      | Merlo
+10033          | null               | employees_no_names | 0      | Merlo
+10032          | null               | employees          | 2      | Reistad
+10032          | null               | employees_no_names | 2      | Reistad
+10031          | null               | employees          | 0      | Joslin
+10031          | null               | employees_no_names | 0      | Joslin
+10030          | null               | employees          | 0      | Demeyer
+10030          | null               | employees_no_names | 0      | Demeyer
+10059          | Alejandro          | employees          | 2      | McAlpine
+10059          | Alejandro          | employees_no_names | 2      | McAlpine
+;
+
+employeesNoNamesLoadStatsWhereStartsWith
+required_capability: optional_fields_v4
+
+SET unmapped_fields="load"\;
+FROM employees, employees_no_names
+| KEEP emp_no, first_name, last_name
+| STATS c=count(first_name) WHERE STARTS_WITH(last_name, "M") BY last_name
+| SORT c DESC, last_name
+| LIMIT 12
+;
+
+c:long | last_name:keyword
+2      | Malabarba
+2      | Maliniak
+2      | Mandell
+2      | McAlpine
+2      | McClurg
+2      | McFarlin
+2      | Meriste
+2      | Mondadori
+2      | Montemayor
+2      | Morton
+0      | Awdeh
+0      | Azuma
+;
+
 // Verify that a partially-mapped TEXT field is not automatically loaded from _source for the unmapped field index.
 // employees_no_gender doesn't have the gender field in its mappings, but it does have it in its _source, while
 // employees_gender_text has gender mapped as a TEXT field. Don't load gender from _source for employees_no_gender.

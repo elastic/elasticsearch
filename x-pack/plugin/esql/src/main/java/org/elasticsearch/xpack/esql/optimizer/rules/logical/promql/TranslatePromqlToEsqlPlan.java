@@ -327,7 +327,8 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
         List<Attribute> requiredByChild = switch (agg.grouping()) {
             /* BY demands its own explicit labels. */
             case BY -> groupingLabels;
-            /* WITHOUT passes through what the parent demanded minus the excluded labels (e.g. parent wants {cluster,pod}, WITHOUT(pod) passes {cluster}). */
+            /* WITHOUT passes through what the parent demanded minus the excluded labels
+            (e.g. parent wants {cluster,pod}, WITHOUT(pod) passes {cluster}). */
             case WITHOUT -> difference(ctx.requiredLabels(), groupingLabels);
             /* NONE collapses everything, so no labels are required. */
             case NONE -> List.of();
@@ -346,7 +347,8 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
         List<Attribute> exposedLabels = switch (agg.grouping()) {
             /* BY exports its declared labels. */
             case BY -> normalizeLabels(agg.output());
-            /* WITHOUT exports whatever the child exposed minus the excluded labels (e.g. child exposes {cluster,region,pod}, WITHOUT(pod) exposes {cluster,region}). */
+            /* WITHOUT exports whatever the child exposed minus the excluded labels
+            (e.g. child exposes {cluster,region,pod}, WITHOUT(pod) exposes {cluster,region}). */
             case WITHOUT -> difference(childResult.exposedLabels(), groupingLabels);
             /* NONE collapses to a single series with no labels. */
             case NONE -> List.of();

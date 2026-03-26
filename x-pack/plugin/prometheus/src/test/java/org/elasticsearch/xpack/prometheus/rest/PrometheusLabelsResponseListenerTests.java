@@ -104,7 +104,7 @@ public class PrometheusLabelsResponseListenerTests extends ESTestCase {
 
     public void testOnFailureBadRequest() throws Exception {
         FakeRestRequest fakeRequest = new FakeRestRequest();
-        FakeRestChannel channel = new FakeRestChannel(fakeRequest, true, 1);
+        FakeRestChannel channel = new FakeRestChannel(fakeRequest, true);
         var listener = PrometheusLabelsResponseListener.create(channel, 0);
 
         ElasticsearchStatusException ex = new ElasticsearchStatusException("bad selector syntax", RestStatus.BAD_REQUEST);
@@ -116,7 +116,7 @@ public class PrometheusLabelsResponseListenerTests extends ESTestCase {
 
     public void testOnFailureInternalError() throws Exception {
         FakeRestRequest fakeRequest = new FakeRestRequest();
-        FakeRestChannel channel = new FakeRestChannel(fakeRequest, true, 1);
+        FakeRestChannel channel = new FakeRestChannel(fakeRequest, true);
         var listener = PrometheusLabelsResponseListener.create(channel, 0);
 
         listener.onFailure(new RuntimeException("something went wrong"));
@@ -127,7 +127,7 @@ public class PrometheusLabelsResponseListenerTests extends ESTestCase {
 
     public void testOnFailureResponseBodyContainsErrorType() throws Exception {
         FakeRestRequest fakeRequest = new FakeRestRequest();
-        FakeRestChannel channel = new FakeRestChannel(fakeRequest, true, 1);
+        FakeRestChannel channel = new FakeRestChannel(fakeRequest, true);
         var listener = PrometheusLabelsResponseListener.create(channel, 0);
 
         ElasticsearchStatusException ex = new ElasticsearchStatusException("invalid parameter", RestStatus.BAD_REQUEST);

@@ -249,7 +249,6 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
     }
 
     private void initiatePrewarm(Task task, StatelessPrimaryRelocationAction.Request request) {
-        // TODO(ES-13400): make prewarm conditional on shard not being hollow or about to be hollowed.
         try {
             final ShardId shardId = request.shardId();
             final BatchedCompoundCommit latestBcc = statelessCommitService.getLatestUploadedBcc(shardId);
@@ -262,26 +261,30 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
             final var indexService = indicesService.indexServiceSafe(shardId.getIndex());
             final var engine = indexService.getShard(shardId.id()).getEngineOrNull();
             if (engine instanceof IndexEngine indexEngine) {
-                // TODO: do we need to check if the shard is going to be hollowed and therefore, skip preWarming for ID looups?
                 hasRecentIdLookup = indexEngine.hasRecentIdLookup(idLookupRecencyThreshold);
             }
+            final IndexShard indexShard = indexService.getShard(shardId.id());
 
-            transportService.sendChildRequest(
-                request.targetNode(),
-                PREWARM_RELOCATION_ACTION_NAME,
-                new PrewarmRelocationRequest(
-                    shardId,
-                    new BlobFileWithLength(latestBcc.toBlobFile(), latestBcc.calculateBccBlobLength()),
-                    hasRecentIdLookup
-                ),
-                task,
-                TransportRequestOptions.EMPTY,
-                // The response (whether prewarm succeeded or not) does not affect the relocation listener, so we use a noop listener
-                new ActionListenerResponseHandler<>(ActionListener.noop().delegateResponse((l, e) -> {
-                    logger.debug(format("%s ignoring prewarm action failure", shardId), e);
-                    l.onFailure(e);
-                }), in -> ActionResponse.Empty.INSTANCE, recoveryExecutor)
-            );
+            // If the shard is not about to be hollowed, then send an action to the target node to begin warming the cache immediately.
+            // Note that if the shard is already hollow, the target warming will just read a single region.
+            if (hollowShardsService.isHollowableIndexShard(indexShard) == false) {
+                transportService.sendChildRequest(
+                    request.targetNode(),
+                    PREWARM_RELOCATION_ACTION_NAME,
+                    new PrewarmRelocationRequest(
+                        shardId,
+                        new BlobFileWithLength(latestBcc.toBlobFile(), latestBcc.calculateBccBlobLength()),
+                        hasRecentIdLookup
+                    ),
+                    task,
+                    TransportRequestOptions.EMPTY,
+                    // The response (whether prewarm succeeded or not) does not affect the relocation listener, so we use a noop listener
+                    new ActionListenerResponseHandler<>(ActionListener.noop().delegateResponse((l, e) -> {
+                        logger.debug(format("%s ignoring prewarm action failure", shardId), e);
+                        l.onFailure(e);
+                    }), in -> ActionResponse.Empty.INSTANCE, recoveryExecutor)
+                );
+            }
         } catch (Exception e) {
             logger.trace(format("%s ignoring prewarm message failure", request.shardId()), e);
         }

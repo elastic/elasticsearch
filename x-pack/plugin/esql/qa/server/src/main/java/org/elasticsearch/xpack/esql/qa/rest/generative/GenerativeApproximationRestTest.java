@@ -76,9 +76,5 @@ public abstract class GenerativeApproximationRestTest extends EsqlSpecTestCase {
         );
         assumeTrue("Test must contain STATS to be included in approximation tests", testCase.query.toLowerCase().contains("stats"));
         assumeFalse("bug: https://github.com/elastic/elasticsearch/issues/144914", "sumOfConst".equals(testName));  // file: stats.csv-spec
-
-        // dense_vector
-        assumeFalse("...", "denseVectorLiteralCount".equals(testName));
-        assumeFalse("...", "denseVectorCount".equals(testName));
     }
 }

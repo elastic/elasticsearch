@@ -488,6 +488,19 @@ a:long         | b:long         | _approximation_confidence_interval(a):long | _
 ;
 
 
+Exact dense vector count
+required_capability: approximation_v6
+
+SET approximation={"rows":10000}\;
+from dense_vector
+| stats count_vectors = count(float_vector)
+;
+
+count_vectors:long | _approximation_confidence_interval(count_vectors):long | _approximation_certified(count_vectors):boolean
+4                  | [4,4]                                                  | true
+;
+
+
 Warn on no stats
 required_capability: approximation_v6
 

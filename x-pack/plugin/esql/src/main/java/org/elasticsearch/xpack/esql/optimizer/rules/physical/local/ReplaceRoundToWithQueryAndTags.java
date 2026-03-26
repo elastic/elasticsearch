@@ -283,7 +283,6 @@ import static org.elasticsearch.xpack.esql.plugin.QueryPragmas.ROUNDTO_PUSHDOWN_
  * <li>Tags are not supported by {@code TimeSeriesSourceOperator}, this rewrite does not apply to timeseries indices.</li>
  * <li>Tags are not supported by {@code LuceneCountOperator}, this rewrite does not apply to {@code EsStatsQueryExec}, count with grouping
  *    is not supported by {@code EsStatsQueryExec} today.</li>
- * <li>This rewrite doesn't work in the presence of query approximation. (TODO: figure out why)</li>
  * </ol>
  */
 public class ReplaceRoundToWithQueryAndTags extends PhysicalOptimizerRules.ParameterizedOptimizerRule<
@@ -294,9 +293,6 @@ public class ReplaceRoundToWithQueryAndTags extends PhysicalOptimizerRules.Param
 
     @Override
     protected PhysicalPlan rule(EvalExec evalExec, LocalPhysicalOptimizerContext ctx) {
-        if (ctx.configuration().approximationSettings() != null) {
-            return evalExec;
-        }
         PhysicalPlan plan = evalExec;
         // TimeSeriesSourceOperator and LuceneTopNSourceOperator do not support QueryAndTags, skip them
         // Lookup join is not supported yet

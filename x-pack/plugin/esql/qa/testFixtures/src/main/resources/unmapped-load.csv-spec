@@ -1074,7 +1074,7 @@ sameMappingHashFullyMapped
 required_capability: optional_fields_v3
 
 SET unmapped_fields="load"\;
-FROM sample_data, sample_data_copy
+FROM sample_data, cloned_sample_data
 | STATS c = COUNT(*) BY message
 | SORT message
 ;
@@ -1092,7 +1092,7 @@ sameMappingHashWithUnmappedIndex
 required_capability: optional_fields_v3
 
 SET unmapped_fields="load"\;
-FROM sample_data, sample_data_copy, no_mapping_sample_data
+FROM sample_data, cloned_sample_data, no_mapping_sample_data
 | STATS c = COUNT(*) BY message
 | SORT message
 ;

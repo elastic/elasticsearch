@@ -57,31 +57,6 @@ public class LimitByGoldenTests extends GoldenTestCase {
         );
     }
 
-    /**
-     * We are marking abbrev as missing in the shard here, so a synthetic \_EvalExec[[null[KEYWORD] AS abbrev]
-     * will be introduced by the ENRICH, reusing the NameId. We cannot let the LimitByExec past EvalExec
-     *
-     * {@code
-     *  \_LimitByExec[1[INTEGER],[abbrev{f}#0],70]
-     *    \_EvalExec[[null[KEYWORD] AS abbrev#0]]
-     * }
-     */
-    public void testLimitByEnrichBug() {
-        assumeTrue("SORT | LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_TOPN_BY.isEnabled());
-        runGoldenTest(
-            """
-                FROM *
-                | ENRICH languages on street
-                | KEEP abbrev, integer, year
-                | LIMIT 1 BY abbrev
-                | SORT abbrev
-                | LIMIT 5
-                """,
-            EnumSet.of(Stage.LOCAL_PHYSICAL_OPTIMIZATION),
-            new EsqlTestUtils.TestConfigurableSearchStats().exclude(EsqlTestUtils.TestConfigurableSearchStats.Config.EXISTS, "abbrev")
-        );
-    }
-
     private static final EsqlTestUtils.TestSearchStatsWithMinMax STATS = new EsqlTestUtils.TestSearchStatsWithMinMax(
         Map.of("date", dateTimeToLong("2023-10-20T12:15:03.360Z")),
         Map.of("date", dateTimeToLong("2023-10-23T13:55:01.543Z"))

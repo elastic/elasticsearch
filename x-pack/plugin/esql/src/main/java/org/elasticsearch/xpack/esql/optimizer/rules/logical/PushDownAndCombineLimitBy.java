@@ -96,15 +96,28 @@ public final class PushDownAndCombineLimitBy extends OptimizerRules.Parameterize
      * past such a child would leave the grouping attribute unresolved.
      */
     private static boolean groupingAttrsDefinedByChild(LimitBy limitBy, UnaryPlan child) {
-        if (child instanceof GeneratingPlan<?> generatingPlan) {
-            Set<NameId> generatedIds = new HashSet<>();
-            for (Attribute a : generatingPlan.generatedAttributes()) {
-                generatedIds.add(a.id());
-            }
-            for (Expression g : limitBy.groupings()) {
-                if (g instanceof Attribute a && generatedIds.contains(a.id())) {
-                    return true;
-                }
+        if (child instanceof GeneratingPlan<?> plan) {
+            return groupingAttrsDefinedBy(limitBy, plan);
+        }
+        // If the plan is not a GeneratingPlan we could still be generating new attributes in the child (e.g. a LOOKUP JOIN)
+        // The child introduces needed grouping attributes if there's any of those missing in the grandchild
+        return groupingAttrsNotInOutput(limitBy, child.child());
+    }
+
+    /**
+     * Returns {@code true} if any attribute referenced by the LimitBy's groupings is produced by the given
+     * {@link GeneratingPlan}. This directly checks the plan's generated attributes rather than comparing
+     * child vs grandchild output, which correctly handles the case where a generated attribute shadows
+     * (reuses the same {@link NameId} as) an attribute from the grandchild.
+     */
+    private static boolean groupingAttrsDefinedBy(LimitBy limitBy, GeneratingPlan<?> generatingPlan) {
+        Set<NameId> generatedIds = new HashSet<>();
+        for (Attribute a : generatingPlan.generatedAttributes()) {
+            generatedIds.add(a.id());
+        }
+        for (Expression g : limitBy.groupings()) {
+            if (g instanceof Attribute a && generatedIds.contains(a.id())) {
+                return true;
             }
         }
         return false;

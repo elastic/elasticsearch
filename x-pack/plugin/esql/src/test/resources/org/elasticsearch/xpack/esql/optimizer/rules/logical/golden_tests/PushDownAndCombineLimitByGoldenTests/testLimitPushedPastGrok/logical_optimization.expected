@@ -1,0 +1,4 @@
+Grok[first_name{f}#0,Parser[pattern=(?<first_letter>.)(?<rest>.*), grok=org.elasticsearch.grok.Grok@63530f8e],[first_letter{r}#1, rest{r}#2]]
+\_Limit[1000[INTEGER],false,false]
+  \_LimitBy[2[INTEGER],[salary{f}#3],false]
+    \_EsRelation[employees][avg_worked_seconds{f}#4, birth_date{f}#5, emp_no{f}#6, first_name{f}#0, gender{f}#7, height{f}#8, height.float{f}#9, height.half_float{f}#10, height.scaled_float{f}#11, hire_date{f}#12, is_rehired{f}#13, job_positions{f}#14, languages{f}#15, languages.byte{f}#16, languages.long{f}#17, languages.short{f}#18, last_name{f}#19, salary{f}#3, salary_change{f}#20, salary_change.int{f}#21, salary_change.keyword{f}#22, salary_change.long{f}#23, still_hired{f}#24]

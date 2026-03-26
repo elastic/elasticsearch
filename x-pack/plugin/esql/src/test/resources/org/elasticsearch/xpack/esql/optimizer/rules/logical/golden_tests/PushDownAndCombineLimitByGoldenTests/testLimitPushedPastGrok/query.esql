@@ -1,0 +1,3 @@
+FROM employees
+| GROK first_name "(?<first_letter>.)(?<rest>.*)"
+| LIMIT 2 BY salary

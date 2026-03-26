@@ -56,7 +56,7 @@ public class TimeSeriesWithout extends GroupingFunction.NonEvaluatableGroupingFu
         super(source, fields);
     }
 
-    public TimeSeriesWithout(StreamInput in) throws IOException {
+    private TimeSeriesWithout(StreamInput in) throws IOException {
         this(Source.readFrom((PlanStreamInput) in), in.readNamedWriteableCollectionAsList(Expression.class));
     }
 

@@ -376,7 +376,7 @@ public class EsqlFunctionRegistry {
                 def(Bucket.class, Bucket::new, "bucket", "bin"),
                 def(Categorize.class, Categorize::new, "categorize"),
                 defTS(TBucket.class, TBucket::new, "tbucket"),
-                def(TimeSeriesWithout.class, (NaryBuilder<TimeSeriesWithout>) TimeSeriesWithout::new, "without") },
+                def(TimeSeriesWithout.class, TimeSeriesWithout::new, "without") },
             // aggregate functions
             // since they declare two public constructors - one with filter (for nested where) and one without
             // use casting to disambiguate between the two

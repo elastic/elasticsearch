@@ -3952,6 +3952,19 @@ public class VerifierTests extends ESTestCase {
         defaultAnalyzer().query("FROM test | EVAL x = TOP_SNIPPETS(first_name, CONCAT(\"search\", \" terms\"))");
     }
 
+    /**
+     * A second {@code STATS} on a time-series pipeline becomes a regular {@link org.elasticsearch.xpack.esql.plan.logical.Aggregate};
+     * {@code WITHOUT} is only valid on {@link org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate} until non-TS support exists.
+     */
+    public void testWithoutOnlyInTimeSeriesStats() {
+        assumeTrue("requires WITHOUT grouping", EsqlCapabilities.Cap.ESQL_WITHOUT_GROUPING.isEnabled());
+        k8s().error("""
+            FROM k8s
+            | STATS mc = max(network.cost) BY cluster, pod, region
+            | STATS d = sum(mc) BY WITHOUT(region)
+            """, containsString("WITHOUT is only supported in time-series queries (i.e. TS | ...) at the moment"));
+    }
+
     private static TestAnalyzer defaultAnalyzer() {
         return analyzer().addDefaultIndex().stripErrorPrefix(true);
     }

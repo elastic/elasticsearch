@@ -39,25 +39,14 @@ public class AlibabaCloudSearchSparseTaskSettingsTests extends AbstractWireSeria
     }
 
     public void testUpdatedTaskSettings() {
-        {
-            var initialSettings = createRandom();
-            var newSettings = createRandom();
-            AlibabaCloudSearchSparseTaskSettings updatedSettings = (AlibabaCloudSearchSparseTaskSettings) initialSettings
-                .updatedTaskSettings(Map.of(RETURN_TOKEN, newSettings.isReturnToken()));
-        }
-        {
-            var initialSettings = createRandom();
-            var newSettings = createRandom();
-            AlibabaCloudSearchSparseTaskSettings updatedSettings = (AlibabaCloudSearchSparseTaskSettings) initialSettings
-                .updatedTaskSettings(
-                    Map.of(
-                        INPUT_TYPE,
-                        newSettings.getInputType() == null ? InputType.SEARCH.toString() : newSettings.getInputType().toString(),
-                        RETURN_TOKEN,
-                        newSettings.isReturnToken()
-                    )
-                );
-        }
+        var initialSettings = createRandom();
+        var newSettings = createRandom();
+        var newSettingsInputType = newSettings.getInputType() == null ? InputType.SEARCH.toString() : newSettings.getInputType().toString();
+        var updatedSettings = initialSettings.updatedTaskSettings(
+            new HashMap<>(Map.of(INPUT_TYPE, newSettingsInputType, RETURN_TOKEN, newSettings.isReturnToken()))
+        );
+        assertThat(updatedSettings.getInputType().toString(), is(newSettingsInputType));
+        assertThat(updatedSettings.isReturnToken(), is(newSettings.isReturnToken()));
     }
 
     public void testIsEmpty() {

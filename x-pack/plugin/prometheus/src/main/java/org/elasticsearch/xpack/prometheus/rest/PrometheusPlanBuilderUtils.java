@@ -106,13 +106,15 @@ final class PrometheusPlanBuilderUtils {
      * <p>Special handling for {@code __name__}:
      * <ul>
      *   <li>EQ (e.g. {@code {__name__="up"}}): emits {@code IsNotNull(series)} — checks the metric
-     *       field itself exists, which works for both Prometheus (labels.__name__ present) and OTel
-     *       (field named "up" exists). The parser always provides a non-null {@code series()} for EQ.</li>
+     *       field itself exists, which works for both Prometheus ({@code labels.__name__} present) and
+     *       OTel (field named "up" exists). The parser always provides a non-null {@code series()} for
+     *       EQ.</li>
      *   <li>NEQ / REG / NREG whose automaton does not match all strings: falls back to filtering on
      *       {@code __name__}. OTel metrics that lack this label will be excluded — unavoidable,
      *       as we have no way to enumerate all field names by regex or negation.</li>
      *   <li>NEQ / REG / NREG whose automaton matches all strings (e.g. {@code =~".*"}): no constraint
-     *       is emitted, matching all series including OTel.</li>
+     *       is emitted — the constraint would always be satisfied, and omitting it also preserves
+     *       OTel metrics that lack {@code __name__}.</li>
      * </ul>
      */
     static Expression buildSelectorCondition(InstantSelector selector) {
@@ -131,10 +133,15 @@ final class PrometheusPlanBuilderUtils {
                     Expression matcherCond = TranslatePromqlToEsqlPlan.translateLabelMatcher(Source.EMPTY, nameField, matcher);
                     conditions.add(combineAnd(List.of(new IsNotNull(Source.EMPTY, nameField), matcherCond)));
                 }
-                // matchesAll() == true: universal automaton — no constraint on metric name
+                // matchesAll() == true: the automaton accepts every string (e.g. =~".*"), so this
+                // constraint would always be satisfied — omitting it also preserves OTel metrics
+                // that lack __name__.
             } else {
-                Expression field = new UnresolvedAttribute(Source.EMPTY, matcher.name());
-                Expression cond = TranslatePromqlToEsqlPlan.translateLabelMatcher(Source.EMPTY, field, matcher);
+                Expression cond = TranslatePromqlToEsqlPlan.translateLabelMatcher(
+                    Source.EMPTY,
+                    new UnresolvedAttribute(Source.EMPTY, matcher.name()),
+                    matcher
+                );
                 if (cond != null) {
                     conditions.add(cond);
                 }

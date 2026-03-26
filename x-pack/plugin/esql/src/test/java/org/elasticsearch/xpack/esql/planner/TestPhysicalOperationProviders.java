@@ -301,7 +301,7 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
         }
         return (indexDoc, blockCopier) -> {
             // For regular FieldAttributes, check if the field is mapped in this index.
-            // If not, return nulls (simulates missing doc values for unmapped fields).
+            // If not, return nulls (simulates unmapped fields that happen to still be in _source/the csv file).
             if (attribute instanceof FieldAttribute fa) {
                 var indexPage = getIndexPage(indexDoc);
                 if (indexPage.mappedFields().contains(fa.fieldName().string()) == false) {

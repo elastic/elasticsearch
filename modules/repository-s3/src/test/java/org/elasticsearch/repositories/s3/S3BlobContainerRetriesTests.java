@@ -255,7 +255,8 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
             BigArrays.NON_RECYCLING_INSTANCE,
             new DeterministicTaskQueue().getThreadPool(),
             new S3RepositoriesMetrics(new RepositoriesMetrics(recordingMeterRegistry)),
-            BackoffPolicy.constantBackoff(TimeValue.timeValueMillis(1), MAX_NUMBER_SNAPSHOT_DELETE_RETRIES)
+            BackoffPolicy.constantBackoff(TimeValue.timeValueMillis(1), MAX_NUMBER_SNAPSHOT_DELETE_RETRIES),
+            BackoffPolicy.linearBackoff(TimeValue.timeValueMillis(100), Integer.MAX_VALUE, TimeValue.ONE_MINUTE)
         );
         return new S3BlobContainer(
             Objects.requireNonNullElse(blobContainerPath, randomBoolean() ? BlobPath.EMPTY : BlobPath.EMPTY.add("foo")),

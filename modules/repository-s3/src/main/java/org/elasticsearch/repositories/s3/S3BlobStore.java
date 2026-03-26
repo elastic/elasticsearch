@@ -111,6 +111,7 @@ class S3BlobStore implements BlobStore {
     private final TimeValue getRegisterRetryDelay;
 
     private final boolean addPurposeCustomQueryParameter;
+    private final BackoffPolicy transientErrorBackoffPolicy;
 
     /**
      * Some storage claims S3-compatibility despite failing to support the {@code If-Match} and {@code If-None-Match} functionality
@@ -134,7 +135,8 @@ class S3BlobStore implements BlobStore {
         BigArrays bigArrays,
         ThreadPool threadPool,
         S3RepositoriesMetrics s3RepositoriesMetrics,
-        BackoffPolicy retryThrottledDeleteBackoffPolicy
+        BackoffPolicy retryThrottledDeleteBackoffPolicy,
+        BackoffPolicy transientErrorBackoffPolicy
     ) {
         this.projectId = projectId;
         this.service = service;
@@ -154,6 +156,7 @@ class S3BlobStore implements BlobStore {
         this.retryThrottledDeleteBackoffPolicy = retryThrottledDeleteBackoffPolicy;
         this.getRegisterRetryDelay = S3Repository.GET_REGISTER_RETRY_DELAY.get(repositoryMetadata.settings());
         this.addPurposeCustomQueryParameter = service.settings(projectId, repositoryMetadata).addPurposeCustomQueryParameter;
+        this.transientErrorBackoffPolicy = transientErrorBackoffPolicy;
     }
 
     MetricPublisher getMetricPublisher(Operation operation, OperationPurpose purpose) {
@@ -310,12 +313,11 @@ class S3BlobStore implements BlobStore {
 
     @Override
     public BlobContainer blobContainer(BlobPath path) {
-
         if (service.isStateless) {
             return new S3TenaciousRetryBlobContainer(
                 new S3BlobContainer(path, this),
                 Integer.MAX_VALUE,
-                BackoffPolicy.linearBackoff(TimeValue.timeValueMillis(50), Integer.MAX_VALUE, TimeValue.ONE_MINUTE),
+                transientErrorBackoffPolicy,
                 s3RepositoriesMetrics.common()
             );
         }

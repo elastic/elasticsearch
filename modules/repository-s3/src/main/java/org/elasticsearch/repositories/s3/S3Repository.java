@@ -228,6 +228,28 @@ class S3Repository extends MeteredBlobStoreRepository {
     );
 
     /**
+     * Shard allocation processes are susceptible to transient errors from cloud provider repositories,
+     * including network connectivity and identity authorization issues.
+     */
+    static final Setting<TimeValue> RETRY_TRANSIENT_ERROR_DELAY_INCREMENT = Setting.timeSetting(
+        "gcs.transient_error_retry.delay_increment",
+        TimeValue.timeValueMillis(50),
+        TimeValue.ZERO
+    );
+
+    static final Setting<TimeValue> RETRY_TRANSIENT_ERROR_MAXIMUM_DELAY = Setting.timeSetting(
+        "gcs.transient_error_retry.maximum_delay",
+        TimeValue.timeValueMinutes(1),
+        TimeValue.ZERO
+    );
+
+    static final Setting<Integer> RETRY_TRANSIENT_ERROR_MAX_NUMBER_OF_RETRIES = Setting.intSetting(
+        "gcs.transient_error_retry.maximum_number_of_retries",
+        Integer.MAX_VALUE,
+        0
+    );
+
+    /**
      * Time to wait before trying again if getRegister fails.
      */
     static final Setting<TimeValue> GET_REGISTER_RETRY_DELAY = Setting.timeSetting(
@@ -500,6 +522,11 @@ class S3Repository extends MeteredBlobStoreRepository {
                 RETRY_THROTTLED_DELETE_DELAY_INCREMENT.get(metadata.settings()),
                 RETRY_THROTTLED_DELETE_MAX_NUMBER_OF_RETRIES.get(metadata.settings()),
                 RETRY_THROTTLED_DELETE_MAXIMUM_DELAY.get(metadata.settings())
+            ),
+            BackoffPolicy.linearBackoff(
+                RETRY_TRANSIENT_ERROR_DELAY_INCREMENT.get(metadata.settings()),
+                RETRY_TRANSIENT_ERROR_MAX_NUMBER_OF_RETRIES.get(metadata.settings()),
+                RETRY_TRANSIENT_ERROR_MAXIMUM_DELAY.get(metadata.settings())
             )
         );
     }

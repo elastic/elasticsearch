@@ -18,7 +18,7 @@ import java.util.Locale;
 import java.util.Set;
 
 /**
- * A high-level representation of a kind of ip location database that is supported by the {@link GeoIpProcessor}.
+ * A high-level representation of a kind of ip location database that is used for resolving geolocation information based on IP addresses.
  * <p>
  * A database has a set of properties that are valid to use with it (see {@link Database#properties()}),
  * as well as a list of default properties to use if no properties are specified (see {@link Database#defaultProperties()}).

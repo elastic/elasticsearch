@@ -151,7 +151,8 @@ public class MapperUtils {
                 changePoint.value(),
                 changePoint.key(),
                 changePoint.targetType(),
-                changePoint.targetPvalue()
+                changePoint.targetPvalue(),
+                changePoint.grouping()
             );
         }
 

@@ -2340,7 +2340,7 @@ public class EsqlCapabilities {
 
         /**
          * Enables the feature LIMIT n BY expr1, expr2 for retaining at most n docs per group.
-         * The feature will not work if we had SORT | LIMIT n BY
+         * The feature will not work if we had SORT | LIMIT n BY // TODO remove
          */
         ESQL_LIMIT_BY(Build.current().isSnapshot()),
 
@@ -2359,6 +2359,11 @@ public class EsqlCapabilities {
          * <a href="https://github.com/elastic/elasticsearch/pull/144388"></a>
          */
         CHANGE_POINT_SUPPORT_NULL_COLUMN,
+
+        /**
+         * Support the BY grouping clause in CHANGE_POINT to detect change points independently per group.
+         */
+        CHANGE_POINT_BY(Build.current().isSnapshot()),
 
         /**
          * Reject loading sub-fields of flattened fields when {@code unmapped_fields="load"}

@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
@@ -56,15 +57,25 @@ public class ChangePoint extends UnaryPlan
     private final Attribute key;
     private final Attribute targetType;
     private final Attribute targetPvalue;
+    private final Attribute grouping;
 
     private List<Attribute> output;
 
-    public ChangePoint(Source source, LogicalPlan child, Attribute value, Attribute key, Attribute targetType, Attribute targetPvalue) {
+    public ChangePoint(
+        Source source,
+        LogicalPlan child,
+        Attribute value,
+        Attribute key,
+        Attribute targetType,
+        Attribute targetPvalue,
+        Attribute grouping
+    ) {
         super(source, child);
         this.value = value;
         this.key = key;
         this.targetType = targetType;
         this.targetPvalue = targetPvalue;
+        this.grouping = grouping;
     }
 
     @Override
@@ -79,12 +90,12 @@ public class ChangePoint extends UnaryPlan
 
     @Override
     protected NodeInfo<ChangePoint> info() {
-        return NodeInfo.create(this, ChangePoint::new, child(), value, key, targetType, targetPvalue);
+        return NodeInfo.create(this, ChangePoint::new, child(), value, key, targetType, targetPvalue, grouping);
     }
 
     @Override
     public UnaryPlan replaceChild(LogicalPlan newChild) {
-        return new ChangePoint(source(), newChild, value, key, targetType, targetPvalue);
+        return new ChangePoint(source(), newChild, value, key, targetType, targetPvalue, grouping);
     }
 
     @Override
@@ -111,19 +122,25 @@ public class ChangePoint extends UnaryPlan
         return targetPvalue;
     }
 
+    public Attribute grouping() {
+        return grouping;
+    }
+
     @Override
     protected AttributeSet computeReferences() {
-        return Expressions.references(List.of(key, value));
+        return grouping == null
+            ? Expressions.references(List.of(key, value))
+            : Expressions.references(List.of(key, value, grouping));
     }
 
     @Override
     public boolean expressionsResolved() {
-        return value.resolved() && key.resolved();
+        return value.resolved() && key.resolved() && (grouping == null || grouping.resolved());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), value, key, targetType, targetPvalue);
+        return Objects.hash(super.hashCode(), value, key, targetType, targetPvalue, grouping);
     }
 
     @Override
@@ -132,25 +149,33 @@ public class ChangePoint extends UnaryPlan
             && Objects.equals(value, ((ChangePoint) other).value)
             && Objects.equals(key, ((ChangePoint) other).key)
             && Objects.equals(targetType, ((ChangePoint) other).targetType)
-            && Objects.equals(targetPvalue, ((ChangePoint) other).targetPvalue);
+            && Objects.equals(targetPvalue, ((ChangePoint) other).targetPvalue)
+            && Objects.equals(grouping, ((ChangePoint) other).grouping);
     }
 
-    private Order order() {
-        return new Order(source(), key, Order.OrderDirection.ASC, Order.NullsPosition.LAST);
+    private List<Order> orders() {
+        List<Order> order = new ArrayList<>();
+        if (grouping != null) {
+            order.add(new Order(source(), grouping, Order.OrderDirection.ASC, Order.NullsPosition.LAST));
+        }
+        order.add(new Order(source(), key, Order.OrderDirection.ASC, Order.NullsPosition.LAST));
+        return order;
     }
 
     @Override
     public LogicalPlan surrogate() {
-        OrderBy orderBy = new OrderBy(source(), child(), List.of(order()));
-        // The first Limit of N+1 data points is necessary to generate a possible warning,
-        Limit limit = new Limit(
-            source(),
-            new Literal(Source.EMPTY, ChangePointOperator.INPUT_VALUE_COUNT_LIMIT + 1, DataType.INTEGER),
-            orderBy
-        );
-        ChangePoint changePoint = new ChangePoint(source(), limit, value, key, targetType, targetPvalue);
+        OrderBy orderBy = new OrderBy(source(), child(), orders());
+        Literal limitPlusOne = new Literal(Source.EMPTY, ChangePointOperator.INPUT_VALUE_COUNT_LIMIT + 1, DataType.INTEGER);
+        Literal limitExact = new Literal(Source.EMPTY, ChangePointOperator.INPUT_VALUE_COUNT_LIMIT, DataType.INTEGER);
+        // The first Limit of N+1 data points is necessary to generate a possible warning. // TODO I don't get this
+        LogicalPlan limited = grouping == null
+            ? new Limit(source(), limitPlusOne, orderBy)
+            : new LimitBy(source(), limitPlusOne, orderBy, List.of(grouping));
+        ChangePoint changePoint = new ChangePoint(source(), limited, value, key, targetType, targetPvalue, grouping);
         // The second Limit of N data points is to truncate the output.
-        return new Limit(source(), new Literal(Source.EMPTY, ChangePointOperator.INPUT_VALUE_COUNT_LIMIT, DataType.INTEGER), changePoint);
+        return grouping == null
+            ? new Limit(source(), limitExact, changePoint)
+            : new LimitBy(source(), limitExact, changePoint, List.of(grouping));
     }
 
     @Override

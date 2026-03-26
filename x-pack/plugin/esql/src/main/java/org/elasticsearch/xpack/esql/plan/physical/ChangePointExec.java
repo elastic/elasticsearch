@@ -24,6 +24,7 @@ public class ChangePointExec extends UnaryExec {
     private final Attribute key;
     private final Attribute targetType;
     private final Attribute targetPvalue;
+    private final Attribute grouping;
 
     private List<Attribute> output;
 
@@ -33,13 +34,15 @@ public class ChangePointExec extends UnaryExec {
         Attribute value,
         Attribute key,
         Attribute targetType,
-        Attribute targetPvalue
+        Attribute targetPvalue,
+        Attribute grouping
     ) {
         super(source, child);
         this.value = value;
         this.key = key;
         this.targetType = targetType;
         this.targetPvalue = targetPvalue;
+        this.grouping = grouping;
     }
 
     @Override
@@ -54,17 +57,18 @@ public class ChangePointExec extends UnaryExec {
 
     @Override
     protected NodeInfo<? extends ChangePointExec> info() {
-        return NodeInfo.create(this, ChangePointExec::new, child(), value, key, targetType, targetPvalue);
+        return NodeInfo.create(this, ChangePointExec::new, child(), value, key, targetType, targetPvalue, grouping);
     }
 
     @Override
     public ChangePointExec replaceChild(PhysicalPlan newChild) {
-        return new ChangePointExec(source(), newChild, value, key, targetType, targetPvalue);
+        return new ChangePointExec(source(), newChild, value, key, targetType, targetPvalue, grouping);
     }
 
     @Override
     protected AttributeSet computeReferences() {
-        return key.references().combine(value.references());
+        AttributeSet refs = key.references().combine(value.references());
+        return grouping == null ? refs : refs.combine(grouping.references());
     }
 
     @Override
@@ -91,9 +95,13 @@ public class ChangePointExec extends UnaryExec {
         return targetPvalue;
     }
 
+    public Attribute grouping() {
+        return grouping;
+    }
+
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), value, key, targetType, targetPvalue);
+        return Objects.hash(super.hashCode(), value, key, targetType, targetPvalue, grouping);
     }
 
     @Override
@@ -102,6 +110,7 @@ public class ChangePointExec extends UnaryExec {
             && Objects.equals(value, ((ChangePointExec) other).value)
             && Objects.equals(key, ((ChangePointExec) other).key)
             && Objects.equals(targetType, ((ChangePointExec) other).targetType)
-            && Objects.equals(targetPvalue, ((ChangePointExec) other).targetPvalue);
+            && Objects.equals(targetPvalue, ((ChangePointExec) other).targetPvalue)
+            && Objects.equals(grouping, ((ChangePointExec) other).grouping);
     }
 }

@@ -24,7 +24,10 @@ import org.elasticsearch.xpack.ml.aggs.changepoint.ChangeType;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 
 /**
  * Find spikes, dips and change point in a list of values.
@@ -37,11 +40,14 @@ public class ChangePointOperator extends CompleteInputCollectorOperator {
     private static final Logger logger = LogManager.getLogger(ChangePointOperator.class);
     public static final int INPUT_VALUE_COUNT_LIMIT = 1000;
 
-    public record Factory(int channel, WarningSourceLocation source) implements OperatorFactory {
+    public record Factory(int channel, int groupingChannel, WarningSourceLocation source) implements OperatorFactory {
 
         @Override
         public Operator get(DriverContext driverContext) {
-            return new ChangePointOperator(driverContext, channel, source);
+            if (groupingChannel == -1) { // TODO maybe null instead
+                return new ChangePointOperator(driverContext, channel, source);
+            }
+            return new ChangePointOperator(driverContext, channel, groupingChannel, source);
         }
 
         @Override
@@ -52,6 +58,7 @@ public class ChangePointOperator extends CompleteInputCollectorOperator {
 
     private final DriverContext driverContext;
     private final int channel;
+    private final int groupChannel;
     private final WarningSourceLocation source;
 
     private final Deque<Page> outputPages;
@@ -60,6 +67,17 @@ public class ChangePointOperator extends CompleteInputCollectorOperator {
     public ChangePointOperator(DriverContext driverContext, int channel, WarningSourceLocation source) {
         this.driverContext = driverContext;
         this.channel = channel;
+        this.groupChannel = -1;
+        this.source = source;
+
+        outputPages = new ArrayDeque<>();
+        warnings = null;
+    }
+
+    public ChangePointOperator(DriverContext driverContext, int channel, int groupingChannel, WarningSourceLocation source) {
+        this.driverContext = driverContext;
+        this.channel = channel;
+        this.groupChannel = groupingChannel;
         this.source = source;
 
         outputPages = new ArrayDeque<>();
@@ -71,7 +89,183 @@ public class ChangePointOperator extends CompleteInputCollectorOperator {
         return outputPages.isEmpty() == false;
     }
 
+    private ChangeType flush(List<Double> values, List<Integer> bucketIndexes) {
+        MlAggsHelper.DoubleBucketValues bucketValues = new MlAggsHelper.DoubleBucketValues(
+            null,
+            values.stream().mapToDouble(Double::doubleValue).toArray(),
+            bucketIndexes.stream().mapToInt(Integer::intValue).toArray()
+        );
+        ChangeType changeType = ChangePointDetector.getChangeType(bucketValues);
+        return changeType;
+    }
+
+    private void createOutputPagesGrouped() {
+        int valuesCount = 0;
+        for (Page page : inputPages) {
+            valuesCount += page.getPositionCount();
+        }
+        boolean tooManyValues = valuesCount > INPUT_VALUE_COUNT_LIMIT;
+        if (tooManyValues) {
+            valuesCount = INPUT_VALUE_COUNT_LIMIT;
+        }
+
+        List<Double> values = new ArrayList<>();
+        List<Integer> bucketIndexes = new ArrayList<>();
+        int valuesIndex = 0;
+        Object previousGroupKey = BlockUtils.toJavaObject(inputPages.peek().getBlock(groupChannel), 0); // if it exists
+        Map<Integer, ChangeType> changepoints = new HashMap<>(); // globalRowNumber to changePoint
+
+        boolean hasNulls = false;
+        boolean hasMultivalued = false; // TODO record for these two?
+        boolean hasIndeterminableChangePoint = false;
+        String indeterminableChangePointReason = "";
+        for (Page inputPage : inputPages) {
+            Block inputBlock = inputPage.getBlock(channel);
+            Block groupBlock = inputPage.getBlock(groupChannel);
+            for (int i = 0; i < inputBlock.getPositionCount() && valuesIndex < valuesCount; i++) {
+                Object value = BlockUtils.toJavaObject(inputBlock, i);
+                Object currentGroupKey = BlockUtils.toJavaObject(groupBlock, i);
+
+                if (Objects.equals(currentGroupKey, previousGroupKey) == false) {
+                    if (values.isEmpty() == false) {
+                        var changeType = flush(values, bucketIndexes);
+                        var changePointIndex = changeType.changePoint();
+                        if (changePointIndex >= 0) {
+                            changepoints.put(changePointIndex, changeType);
+                        }
+                        if (changeType instanceof ChangeType.Indeterminable indeterminable) {
+                            hasIndeterminableChangePoint = true;
+                            indeterminableChangePointReason = indeterminable.getReason();
+                        }
+                        values.clear();
+                        bucketIndexes.clear();
+                    }
+                    previousGroupKey = currentGroupKey;
+                }
+
+                if (value == null) {
+                    hasNulls = true;
+                    valuesIndex++;
+                } else if (value instanceof List<?>) {
+                    hasMultivalued = true;
+                    valuesIndex++;
+                } else {
+                    values.add(((Number) value).doubleValue());
+                    bucketIndexes.add(valuesIndex++);
+                }
+            }
+        }
+
+        // flush last page
+        if (values.isEmpty() == false) {
+            var changeType = flush(values, bucketIndexes);
+            var changePointIndex = changeType.changePoint();
+            if (changePointIndex >= 0) {
+                changepoints.put(changePointIndex, changeType);
+            }
+            if (changeType instanceof ChangeType.Indeterminable indeterminable) {
+                hasIndeterminableChangePoint = true;
+                indeterminableChangePointReason = indeterminable.getReason();
+            }
+        }
+
+        BlockFactory blockFactory = driverContext.blockFactory();
+        int pageStartIndex = 0;
+        while (inputPages.isEmpty() == false) {
+            Page inputPage = inputPages.peek();
+            Page outputPage;
+            Block changeTypeBlock = null;
+            Block changePvalueBlock = null;
+            boolean success = false;
+            try {
+                if (pageContainsChangePoints(changepoints, pageStartIndex, pageStartIndex + inputPage.getPositionCount())) {
+                    try (
+                        BytesRefBlock.Builder changeTypeBlockBuilder = blockFactory.newBytesRefBlockBuilder(inputPage.getPositionCount());
+                        DoubleBlock.Builder pvalueBlockBuilder = blockFactory.newDoubleBlockBuilder(inputPage.getPositionCount())
+                    ) {
+                        for (int i = 0; i < inputPage.getPositionCount(); i++) {
+                            if (changepoints.containsKey(pageStartIndex + i)) {
+                                var changeType = changepoints.get(pageStartIndex + i);
+                                changeTypeBlockBuilder.appendBytesRef(new BytesRef(changeType.getWriteableName()));
+                                pvalueBlockBuilder.appendDouble(changeType.pValue());
+                            } else {
+                                changeTypeBlockBuilder.appendNull();
+                                pvalueBlockBuilder.appendNull();
+                            }
+                        }
+                        changeTypeBlock = changeTypeBlockBuilder.build();
+                        changePvalueBlock = pvalueBlockBuilder.build();
+                    }
+                } else {
+                    changeTypeBlock = blockFactory.newConstantNullBlock(inputPage.getPositionCount());
+                    changePvalueBlock = blockFactory.newConstantNullBlock(inputPage.getPositionCount());
+                }
+
+                outputPage = inputPage.appendBlocks(new Block[] { changeTypeBlock, changePvalueBlock });
+                success = true;
+            } finally {
+                if (success == false) {
+                    Releasables.closeExpectNoException(changeTypeBlock, changePvalueBlock);
+                }
+            }
+
+            inputPages.removeFirst();
+            outputPages.add(outputPage);
+            pageStartIndex += inputPage.getPositionCount();
+        }
+
+        if (hasIndeterminableChangePoint) {
+            if (logger.isDebugEnabled()) {
+                logger.debug("Change point indeterminable: {}", indeterminableChangePointReason);
+            }
+            warnings(false).registerException(new IllegalArgumentException(indeterminableChangePointReason));
+        }
+        if (tooManyValues) {
+            if (logger.isDebugEnabled()) {
+                logger.debug("Too many values: limit is {}, some values were ignored", INPUT_VALUE_COUNT_LIMIT);
+            }
+            warnings(true).registerException(
+                new IllegalArgumentException("too many values; keeping only first " + INPUT_VALUE_COUNT_LIMIT + " values")
+            );
+        }
+        if (hasNulls) {
+            if (logger.isDebugEnabled()) {
+                logger.debug("Values contain nulls; skipping them");
+            }
+            warnings(true).registerException(new IllegalArgumentException("values contain nulls; skipping them"));
+        }
+        if (hasMultivalued) {
+            if (logger.isDebugEnabled()) {
+                logger.debug("Values contain multivalued entries; skipping them");
+            }
+            warnings(true).registerException(
+                new IllegalArgumentException(
+                    "values contains multivalued entries; skipping them (please consider reducing them with e.g. MV_AVG or MV_SUM)"
+                )
+            );
+        }
+    }
+
+    private boolean pageContainsChangePoints(Map<Integer, ChangeType> changepoints, int pageStartIndex, int pageEndIndex) {
+        // TODO we could take advantage of sorted inputs?
+        for (int i = pageStartIndex; i < pageEndIndex; i++) {
+            if (changepoints.containsKey(i)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private void createOutputPages() {
+        if (groupChannel != -1) {
+            createOutputPagesGrouped();
+        } else {
+            createOutputPagesFlat();
+        }
+    }
+
+
+    private void createOutputPagesFlat() {
         int valuesCount = 0;
         for (Page page : inputPages) {
             valuesCount += page.getPositionCount();

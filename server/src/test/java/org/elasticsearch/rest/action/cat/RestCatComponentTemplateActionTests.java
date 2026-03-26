@@ -82,7 +82,7 @@ public class RestCatComponentTemplateActionTests extends RestActionTestCase {
         FakeRestRequest getCatComponentTemplateRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.GET)
             .withPath("_cat/component_templates")
             .build();
-        FakeRestChannel channel = new FakeRestChannel(getCatComponentTemplateRequest, true, 0);
+        FakeRestChannel channel = new FakeRestChannel(getCatComponentTemplateRequest, true);
 
         // execute action
         try (var threadPool = createThreadPool()) {
@@ -101,7 +101,7 @@ public class RestCatComponentTemplateActionTests extends RestActionTestCase {
             .withPath("_cat/component_templates")
             .withParams(singletonMap("name", "test"))
             .build();
-        FakeRestChannel channel = new FakeRestChannel(getCatComponentTemplateRequest, true, 0);
+        FakeRestChannel channel = new FakeRestChannel(getCatComponentTemplateRequest, true);
 
         // execute action
         try (var threadPool = createThreadPool()) {

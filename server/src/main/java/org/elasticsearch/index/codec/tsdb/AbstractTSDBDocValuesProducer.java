@@ -79,6 +79,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
     private static final int DEFAULT_NUMERIC_BLOCK_SHIFT = 7;
     private final TSDBDocValuesFormatConfig formatConfig;
     private final DocOffsetsCodec.Decoder docOffsetsDecoder;
+    private final EntryFactory entryFactory;
 
     @SuppressWarnings("this-escape")
     protected AbstractTSDBDocValuesProducer(
@@ -88,9 +89,11 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
         final String metaCodec,
         final String metaExtension,
         final TSDBDocValuesFormatConfig formatConfig,
-        final DocOffsetsCodec.Decoder docOffsetsDecoder
+        final DocOffsetsCodec.Decoder docOffsetsDecoder,
+        final EntryFactory entryFactory
     ) throws IOException {
         this.docOffsetsDecoder = docOffsetsDecoder;
+        this.entryFactory = entryFactory;
         this.numerics = new IntObjectHashMap<>();
         this.binaries = new IntObjectHashMap<>();
         this.sorted = new IntObjectHashMap<>();
@@ -170,6 +173,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
 
     protected AbstractTSDBDocValuesProducer(final AbstractTSDBDocValuesProducer original) {
         this.docOffsetsDecoder = original.docOffsetsDecoder;
+        this.entryFactory = original.entryFactory;
         this.numerics = original.numerics;
         this.binaries = original.binaries;
         this.sorted = original.sorted;
@@ -1324,20 +1328,12 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
 
         @Override
         public int prefixPartitionBits() {
-            if (entry instanceof PrefixPartitionedEntry partition) {
-                return partition.partitionNumBits;
-            }
-            return 0;
+            return entry.prefixPartitionBits();
         }
 
         @Override
         public PrefixPartitions prefixPartitions(PrefixPartitions reused) throws IOException {
-            if (entry instanceof PrefixPartitionedEntry partitioned) {
-                var slice = data.slice("partitioning", partitioned.partitionStartPointer, partitioned.partitionDataLength);
-                return PrefixedPartitionsReader.prefixPartitions(slice, reused);
-            } else {
-                return null;
-            }
+            return entry.prefixPartitions(data, reused);
         }
     }
 
@@ -1960,7 +1956,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
     }
 
     private NumericEntry readNumeric(IndexInput meta, int numericBlockShift) throws IOException {
-        final NumericEntry entry = new NumericEntry();
+        final NumericEntry entry = entryFactory.createNumericEntry();
         readNumeric(meta, entry, numericBlockShift);
         return entry;
     }
@@ -1988,7 +1984,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
         } else {
             compression = BinaryDVCompressionMode.NO_COMPRESS;
         }
-        final BinaryEntry entry = new BinaryEntry(compression);
+        final BinaryEntry entry = entryFactory.createBinaryEntry(compression);
 
         entry.dataOffset = meta.readLong();
         entry.dataLength = meta.readLong();
@@ -2030,7 +2026,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
     }
 
     private SortedNumericEntry readSortedNumeric(IndexInput meta, int numericBlockShift) throws IOException {
-        final SortedNumericEntry entry = new SortedNumericEntry();
+        final SortedNumericEntry entry = entryFactory.createSortedNumericEntry();
         readSortedNumeric(meta, entry, numericBlockShift);
         return entry;
     }
@@ -2048,20 +2044,14 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
 
     private SortedEntry readSorted(int version, IndexInput meta, int numericBlockShift, int termsDictBlockLz4Shift, boolean primarySorted)
         throws IOException {
-        SortedEntry entry = new SortedEntry();
-        entry.ordsEntry = new NumericEntry();
-        entry.termsDictEntry = new TermsDictEntry();
+        SortedEntry entry = entryFactory.createSortedEntry();
+        entry.ordsEntry = entryFactory.createNumericEntry();
+        entry.termsDictEntry = entryFactory.createTermsDictEntry();
         if (version >= formatConfig.versionPrefixPartitions()) {
             readTermDict(meta, entry.termsDictEntry, termsDictBlockLz4Shift);
             readNumeric(meta, entry.ordsEntry, numericBlockShift);
             if (primarySorted && meta.readByte() == 1) {
-                PrefixPartitionedEntry partitioned = new PrefixPartitionedEntry();
-                partitioned.ordsEntry = entry.ordsEntry;
-                partitioned.termsDictEntry = entry.termsDictEntry;
-                partitioned.partitionNumBits = meta.readByte();
-                partitioned.partitionStartPointer = meta.readLong();
-                partitioned.partitionDataLength = meta.readVLong();
-                return partitioned;
+                entry.readMeta(meta);
             }
         } else {
             readNumeric(meta, entry.ordsEntry, numericBlockShift);
@@ -2077,7 +2067,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
         int termsDictBlockLz4Shift,
         boolean primarySorted
     ) throws IOException {
-        SortedSetEntry entry = new SortedSetEntry();
+        SortedSetEntry entry = entryFactory.createSortedSetEntry();
         byte multiValued = meta.readByte();
         switch (multiValued) {
             case 0: // singlevalued
@@ -2088,9 +2078,9 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
             default:
                 throw new CorruptIndexException("Invalid multiValued flag: " + multiValued, meta);
         }
-        entry.ordsEntry = new SortedNumericEntry();
+        entry.ordsEntry = entryFactory.createSortedNumericEntry();
         readSortedNumeric(meta, entry.ordsEntry, numericBlockShift);
-        entry.termsDictEntry = new TermsDictEntry();
+        entry.termsDictEntry = entryFactory.createTermsDictEntry();
         readTermDict(meta, entry.termsDictEntry, termsDictBlockLz4Shift);
         return entry;
     }
@@ -2685,6 +2675,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
 
     private record DocValuesSkipperEntry(long offset, long length, long minValue, long maxValue, int docCount, int maxDocId) {}
 
+    /** Numeric field entry holding block index, value offsets, and DISI metadata. */
     public static class NumericEntry {
         public long docsWithFieldOffset;
         public long docsWithFieldLength;
@@ -2701,7 +2692,8 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
         public NumericFieldReader fieldReader;
     }
 
-    static class BinaryEntry {
+    /** Binary field entry holding data offsets, compression mode, and address metadata. */
+    public static class BinaryEntry {
         final BinaryDVCompressionMode compression;
 
         long dataOffset;
@@ -2728,30 +2720,75 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
         }
     }
 
+    /** Sorted-numeric field entry extending {@link NumericEntry} with per-document value count addresses. */
     public static class SortedNumericEntry extends NumericEntry {
         public DirectMonotonicReader.Meta addressesMeta;
         public long addressesOffset;
         public long addressesLength;
     }
 
-    static class SortedEntry {
+    /**
+     * Sorted field entry holding ordinal and terms dictionary metadata.
+     * Subclasses may override {@link #readMeta}, {@link #prefixPartitionBits},
+     * and {@link #prefixPartitions} to encapsulate codec-specific behavior.
+     */
+    public static class SortedEntry {
         NumericEntry ordsEntry;
         TermsDictEntry termsDictEntry;
+
+        /** Reads codec-specific sorted metadata from the meta stream. */
+        void readMeta(IndexInput meta) throws IOException {}
+
+        /** @return partition bit count, 0 if not partitioned */
+        int prefixPartitionBits() {
+            return 0;
+        }
+
+        /** @return prefix partitions, null if not partitioned */
+        PartitionedDocValues.PrefixPartitions prefixPartitions(IndexInput data, PartitionedDocValues.PrefixPartitions reused)
+            throws IOException {
+            return null;
+        }
     }
 
-    static class PrefixPartitionedEntry extends SortedEntry {
-        int partitionNumBits;
-        long partitionStartPointer;
-        long partitionDataLength;
+    /**
+     * ES819 sorted entry carrying prefix partition metadata. Encapsulates
+     * reading and access to partition data as an implementation detail.
+     */
+    public static class PrefixPartitionedEntry extends SortedEntry {
+        private int partitionNumBits;
+        private long partitionStartPointer;
+        private long partitionDataLength;
+
+        @Override
+        void readMeta(IndexInput meta) throws IOException {
+            partitionNumBits = meta.readByte();
+            partitionStartPointer = meta.readLong();
+            partitionDataLength = meta.readVLong();
+        }
+
+        @Override
+        int prefixPartitionBits() {
+            return partitionNumBits;
+        }
+
+        @Override
+        PartitionedDocValues.PrefixPartitions prefixPartitions(IndexInput data, PartitionedDocValues.PrefixPartitions reused)
+            throws IOException {
+            IndexInput slice = data.slice("partitioning", partitionStartPointer, partitionDataLength);
+            return PrefixedPartitionsReader.prefixPartitions(slice, reused);
+        }
     }
 
-    static class SortedSetEntry {
+    /** Sorted-set field entry holding either a single-valued {@link SortedEntry} or multi-valued ordinals. */
+    public static class SortedSetEntry {
         SortedEntry singleValueEntry;
         SortedNumericEntry ordsEntry;
         TermsDictEntry termsDictEntry;
     }
 
-    static class TermsDictEntry {
+    /** Terms dictionary entry holding term data offsets, address metadata, and reverse index pointers. */
+    public static class TermsDictEntry {
         long termsDictSize;
         DirectMonotonicReader.Meta termsAddressesMeta;
         int maxTermLength;

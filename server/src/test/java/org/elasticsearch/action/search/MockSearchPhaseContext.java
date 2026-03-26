@@ -74,7 +74,6 @@ public final class MockSearchPhaseContext extends AbstractSearchAsyncAction<Sear
             new SearchRequest(),
             ActionListener.noop(),
             List.of(),
-            Collections.emptyMap(),
             null,
             ClusterState.EMPTY_STATE,
             new SearchTask(0, "n/a", "n/a", () -> "test", null, Collections.emptyMap()),
@@ -129,12 +128,11 @@ public final class MockSearchPhaseContext extends AbstractSearchAsyncAction<Sear
 
     @Override
     public void sendSearchResponse(SearchResponseSections internalSearchResponse, AtomicArray<SearchPhaseResult> queryResults) {
-        boolean isMultiShard = getNumShards() > 1;
         String scrollId = getRequest().scroll() != null
-            ? TransportSearchHelper.buildScrollId(queryResults, bigArrays.bytesRefRecycler(), isMultiShard)
+            ? TransportSearchHelper.buildScrollId(queryResults, bigArrays.bytesRefRecycler())
             : null;
         BytesReference searchContextId = getRequest().pointInTimeBuilder() != null
-            ? new BytesArray(TransportSearchHelper.buildScrollId(queryResults, bigArrays.bytesRefRecycler(), isMultiShard))
+            ? new BytesArray(TransportSearchHelper.buildScrollId(queryResults, bigArrays.bytesRefRecycler()))
             : null;
         var existing = searchResponse.getAndSet(
             new SearchResponse(

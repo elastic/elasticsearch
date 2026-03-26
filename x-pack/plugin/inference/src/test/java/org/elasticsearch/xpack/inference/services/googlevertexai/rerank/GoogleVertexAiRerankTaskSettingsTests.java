@@ -19,7 +19,6 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -43,7 +42,7 @@ public class GoogleVertexAiRerankTaskSettingsTests extends AbstractBWCWireSerial
             newSettingsMap.put(GoogleVertexAiRerankTaskSettings.TOP_N, newSettings.topN());
         }
         GoogleVertexAiRerankTaskSettings updatedSettings = (GoogleVertexAiRerankTaskSettings) initialSettings.updatedTaskSettings(
-            Collections.unmodifiableMap(newSettingsMap)
+            newSettingsMap
         );
         if (newSettings.topN() == null) {
             assertEquals(initialSettings.topN(), updatedSettings.topN());

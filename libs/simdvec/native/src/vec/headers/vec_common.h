@@ -48,6 +48,13 @@ static inline const T* offsets_mapper(const T* data, const int32_t i, const int3
     return data + (int64_t)offsets[i] * pitch;
 }
 
+// Sparse layout: vectors reside in disjoint memory regions. `data` is an array
+// of pre-resolved pointers — one per vector — so pitch and offsets are unused.
+template <typename T>
+static inline const T* sparse_mapper(const T* const* data, const int32_t i, const int32_t* offsets, const int32_t pitch) {
+    return data[i];
+}
+
 // Populates out[0..N-1] by invoking mapper for indices [base..base+N-1],
 // with a bounds check that sets out-of-range entries to nullptr.
 // Uses recursive template instantiation so each index is a compile-time constant.

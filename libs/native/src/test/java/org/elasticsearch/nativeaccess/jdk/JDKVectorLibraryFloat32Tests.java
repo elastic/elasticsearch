@@ -226,6 +226,31 @@ public class JDKVectorLibraryFloat32Tests extends VectorSimilarityFunctionsTests
         assertArrayEquals(expectedScores, bulkScores, delta);
     }
 
+    // Verifies that individual offset values are bounds-checked against the data segment.
+    public void testBulkOffsetsOutOfRange() {
+        assumeTrue(notSupportedMsg(), supported());
+        final int dims = size;
+        final int numVecs = 3;
+        final int pitch = dims * Float.BYTES;
+        var vectorsSegment = arena.allocate((long) pitch * numVecs);
+        var query = arena.allocate((long) dims * Float.BYTES);
+        var scores = arena.allocate((long) numVecs * Float.BYTES);
+        var offsetsSegment = arena.allocate((long) numVecs * Integer.BYTES);
+
+        offsetsSegment.setAtIndex(ValueLayout.JAVA_INT, 0, 0);
+        offsetsSegment.setAtIndex(ValueLayout.JAVA_INT, 1, numVecs);
+        offsetsSegment.setAtIndex(ValueLayout.JAVA_INT, 2, 0);
+        Exception ex = expectThrows(
+            IOOBE,
+            () -> similarityBulkWithOffsets(vectorsSegment, query, dims, pitch, offsetsSegment, numVecs, scores)
+        );
+        assertThat(ex.getMessage(), containsString("out of bounds for length"));
+
+        offsetsSegment.setAtIndex(ValueLayout.JAVA_INT, 1, -1);
+        ex = expectThrows(IOOBE, () -> similarityBulkWithOffsets(vectorsSegment, query, dims, pitch, offsetsSegment, numVecs, scores));
+        assertThat(ex.getMessage(), containsString("out of bounds for length"));
+    }
+
     public void testBulkIllegalDims() {
         assumeTrue(notSupportedMsg(), supported());
         var segA = arena.allocate((long) size * 3 * Float.BYTES);

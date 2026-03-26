@@ -34,9 +34,7 @@ public class GoogleVertexAiRerankTaskSettings implements TaskSettings, TopNProvi
         ValidationException validationException = new ValidationException();
 
         Integer topN = extractOptionalPositiveInteger(map, TOP_N, ModelConfigurations.TASK_SETTINGS, validationException);
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new GoogleVertexAiRerankTaskSettings(topN);
     }

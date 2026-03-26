@@ -44,13 +44,10 @@ import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Insist;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
-import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
-import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
-import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.session.FieldNameUtils;
@@ -116,7 +113,8 @@ public class Verifier {
     Collection<Failure> verify(LogicalPlan plan, BitSet partialMetrics, UnmappedResolution unmappedResolution) {
         assert partialMetrics != null;
         Failures failures = new Failures();
-        boolean unmappedTimestampHandled = unmappedResolution != UnmappedResolution.FAIL && isTimestampUnmappedInAllIndices(plan, failures);
+        boolean unmappedTimestampHandled = unmappedResolution != UnmappedResolution.DEFAULT
+            && isTimestampUnmappedInAllIndices(plan, failures);
 
         // quick verification for unresolved attributes
         checkUnresolvedAttributes(plan, failures, unmappedTimestampHandled);
@@ -157,7 +155,6 @@ public class Verifier {
             checkUnsupportedAttributeRenaming(p, failures);
             checkInsist(p, failures);
             checkLimitBeforeInlineStats(p, failures);
-            checkLimitBy(p, failures);
         });
 
         if (failures.hasFailures() == false) {
@@ -374,23 +371,6 @@ public class Verifier {
         }
     }
 
-    // TODO: remove this check when SORT + LIMIT BY (TopN) support is added
-    private static void checkLimitBy(LogicalPlan plan, Failures failures) {
-        if (plan instanceof LimitBy limitBy) {
-            LogicalPlan child = limitBy.child();
-            while (child instanceof UnaryPlan unary) {
-                if (child instanceof OrderBy) {
-                    failures.add(fail(limitBy, "SORT cannot be used before LIMIT BY"));
-                    break;
-                }
-                if (child instanceof Limit) {
-                    break;
-                }
-                child = unary.child();
-            }
-        }
-    }
-
     /**
      * The {@code unmapped_fields} setting does not apply to the implicit {@code @timestamp} reference ({@link TimestampAware} functions).
      * Only emits the specific message when {@code @timestamp} is truly absent from all source index mappings;
@@ -438,6 +418,9 @@ public class Verifier {
             if (p instanceof EsRelation esRelation && esRelation.indexMode() == IndexMode.LOOKUP) {
                 failures.add(fail(p, "LOOKUP JOIN is not supported with unmapped_fields=\"load\""));
             }
+            if (p instanceof PromqlCommand) {
+                failures.add(fail(p, "PROMQL is not supported with unmapped_fields=\"load\""));
+            }
         });
     }
 
@@ -453,7 +436,7 @@ public class Verifier {
             f -> failures.add(
                 fail(
                     f,
-                    "unmapped_fields=\"load\" does not support full-text search function [{}]; use \"fail\" or \"nullify\"",
+                    "unmapped_fields=\"load\" does not support full-text search function [{}]; use \"default\" or \"nullify\"",
                     f.functionName()
                 )
             )

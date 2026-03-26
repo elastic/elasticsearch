@@ -75,4 +75,18 @@ public final class FloatArrowBufVector extends AbstractArrowBufVector<FloatVecto
         return new FloatLookup(asBlock(), positions, targetBlockSize);
     }
 
+    @Override
+    public FloatVector slice(int beginInclusive, int endExclusive) {
+        if (beginInclusive == 0 && endExclusive == getPositionCount()) {
+            incRef();
+            return this;
+        }
+        try (FloatVector.FixedBuilder builder = blockFactory().newFloatVectorFixedBuilder(endExclusive - beginInclusive)) {
+            for (int i = beginInclusive; i < endExclusive; i++) {
+                builder.appendFloat(getFloat(i));
+            }
+            return builder.build();
+        }
+    }
+
 }

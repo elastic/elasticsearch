@@ -408,20 +408,23 @@ public class IndexResolver {
         Map<String, Set<String>> fieldToMappedIndices = new HashMap<>();
 
         for (FieldCapabilitiesIndexResponse response : fieldCapsResponse.getIndexResponses()) {
-            if (indexMappingHashToDuplicateCount.compute(response.getIndexMappingHash(), (k, v) -> v == null ? 1 : v + 1) > 1) {
-                continue;
-            }
+            boolean isNew = indexMappingHashToDuplicateCount.compute(
+                response.getIndexMappingHash(),
+                (k, v) -> v == null ? 1 : v + 1
+            ) <= 1;
             String indexName = response.getIndexName();
             for (IndexFieldCapabilities fc : response.get().values()) {
                 if (fc.isMetadatafield()) {
                     // ESQL builds the metadata fields if they are asked for without using the resolution.
                     continue;
                 }
-                List<IndexFieldCapabilities> all = fieldsCaps.computeIfAbsent(
-                    fc.name(),
-                    (_key) -> new IndexFieldCapabilitiesWithSourceHash(new ArrayList<>(), response.getIndexMappingHash())
-                ).fieldCapabilities;
-                all.add(fc);
+                if (isNew) {
+                    List<IndexFieldCapabilities> all = fieldsCaps.computeIfAbsent(
+                        fc.name(),
+                        (_key) -> new IndexFieldCapabilitiesWithSourceHash(new ArrayList<>(), response.getIndexMappingHash())
+                    ).fieldCapabilities;
+                    all.add(fc);
+                }
                 fieldToMappedIndices.computeIfAbsent(fc.name(), k -> new HashSet<>()).add(indexName);
             }
         }

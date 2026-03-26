@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedTimestamp;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.index.EsIndex;
@@ -671,6 +672,28 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         for (String suffix : TYPE_CONFLICT_QUERY_SUFFIXES) {
             typeConflictVerificationFailure(setUnmappedLoad("FROM foo, bar " + suffix), resolutions);
         }
+    }
+
+    public void testSameMappingHashNotPartiallyUnmapped() {
+        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
+
+        FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
+            List.of(
+                fieldCapabilitiesIndexResponse("foo", fieldResponseMap("message", "long")),
+                fieldCapabilitiesIndexResponse("bar", fieldResponseMap("message", "long"))
+            ),
+            List.of()
+        );
+        var resolutions = indexResolutions(mergedResolution("foo,bar", caps));
+        TestAnalyzer ta = analyzer();
+        for (var entry : resolutions.entrySet()) {
+            ta.addIndex(entry.getKey().indexPattern(), entry.getValue());
+        }
+        var plan = ta.statement(setUnmappedLoad("FROM foo, bar | EVAL x = message + 1"));
+        var limit = as(plan, Limit.class);
+        var eval = as(limit.child(), org.elasticsearch.xpack.esql.plan.logical.Eval.class);
+        var attr = eval.output().stream().filter(a -> a.name().equals("message")).findFirst().orElseThrow();
+        assertThat(attr.dataType(), is(DataType.LONG));
     }
 
     private static final String UNMAPPED_TIMESTAMP_SUFFIX = UnresolvedTimestamp.UNRESOLVED_SUFFIX + Verifier.UNMAPPED_TIMESTAMP_SUFFIX;

@@ -65,9 +65,7 @@ public class CohereCompletionServiceSettings extends FilteredXContentObject impl
             }
         }
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new CohereCompletionServiceSettings(uri, modelId, rateLimitSettings, apiVersion);
     }

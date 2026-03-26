@@ -37,9 +37,7 @@ public class AlibabaCloudSearchRerankTaskSettings implements TaskSettings {
             return EMPTY_SETTINGS;
         }
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return of();
     }

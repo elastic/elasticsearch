@@ -753,7 +753,9 @@ public final class Rate$Type$GroupingAggregatorFunction extends AbstractRateGrou
             }
             return Double.NaN;
         }
-        final double increase = lastValue - firstValue;
+        // Interpolation might introduce precision errors, so we try to account for that.
+        double diff = lastValue - firstValue;
+        final double increase = Math.abs(diff) <= 0.00000000000001 ? 0 : diff;
         assert increase >= 0 : "increase must be non-negative, got " + lastValue + " - " + firstValue;
         return (isRateOverTime) ? increase / (lastTsSec - firstTsSec) : increase;
     }

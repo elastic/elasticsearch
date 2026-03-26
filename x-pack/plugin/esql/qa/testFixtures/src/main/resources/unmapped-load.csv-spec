@@ -1068,3 +1068,44 @@ FROM partial_mapping_sample_data
 msg_count:integer | unmapped_messag:keyword
 5                 | foo
 ;
+
+// Regression test: indices with the same mapping hash must not be treated as partially unmapped.
+sameMappingHashFullyMapped
+required_capability: optional_fields_v3
+
+SET unmapped_fields="load"\;
+FROM sample_data, sample_data_copy
+| STATS c = COUNT(*) BY message
+| SORT message
+;
+
+c:long | message:keyword
+2      | Connected to 10.1.0.1
+2      | Connected to 10.1.0.2
+2      | Connected to 10.1.0.3
+6      | Connection error
+2      | Disconnected
+;
+
+// Regression test: two same-hash indices + an unmapped index should still treat the field as partially unmapped.
+sameMappingHashWithUnmappedIndex
+required_capability: optional_fields_v3
+
+SET unmapped_fields="load"\;
+FROM sample_data, sample_data_copy, no_mapping_sample_data
+| STATS c = COUNT(*) BY message
+| SORT message
+;
+
+c:long | message:keyword
+1      | 42
+2      | Connected to 10.1.0.1
+1      | Connected to 10.1.0.1!
+2      | Connected to 10.1.0.2
+1      | Connected to 10.1.0.2!
+2      | Connected to 10.1.0.3
+1      | Connected to 10.1.0.3!
+6      | Connection error
+3      | Connection error?
+2      | Disconnected
+;

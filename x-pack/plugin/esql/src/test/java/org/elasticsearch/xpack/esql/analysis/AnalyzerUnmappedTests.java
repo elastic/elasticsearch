@@ -696,6 +696,26 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         assertThat(attr.dataType(), is(DataType.LONG));
     }
 
+    public void testSameMappingHashWithUnmappedIndex() {
+        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
+
+        FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
+            List.of(
+                fieldCapabilitiesIndexResponse("foo", fieldResponseMap("message", "long")),
+                fieldCapabilitiesIndexResponse("bar", fieldResponseMap("message", "long")),
+                fieldCapabilitiesIndexResponse("baz", Map.of())
+            ),
+            List.of()
+        );
+        var resolutions = indexResolutions(mergedResolution("foo,bar,baz", caps));
+        TestAnalyzer ta = analyzer();
+        for (var entry : resolutions.entrySet()) {
+            ta.addIndex(entry.getKey().indexPattern(), entry.getValue());
+        }
+        var e = expectThrows(VerificationException.class, () -> ta.statement(setUnmappedLoad("FROM foo, bar, baz | SORT message")));
+        assertThat(e.getMessage(), allOf(containsString("Cannot use field [message]"), containsString("[long] in [bar, foo]")));
+    }
+
     private static final String UNMAPPED_TIMESTAMP_SUFFIX = UnresolvedTimestamp.UNRESOLVED_SUFFIX + Verifier.UNMAPPED_TIMESTAMP_SUFFIX;
 
     public void testTbucketWithUnmappedTimestamp() {

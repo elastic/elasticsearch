@@ -51,9 +51,7 @@ public class GoogleVertexAiSecretSettings implements SecretSettings {
             validationException
         );
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new GoogleVertexAiSecretSettings(secureServiceAccountJson);
     }

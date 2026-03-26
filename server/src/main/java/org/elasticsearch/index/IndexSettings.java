@@ -982,6 +982,8 @@ public final class IndexSettings {
         );
     }
 
+    public static final boolean DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG = new FeatureFlag("disable_sequence_numbers").isEnabled();
+
     public static final Setting<SeqNoFieldMapper.SeqNoIndexOptions> SEQ_NO_INDEX_OPTIONS_SETTING = Setting.enumSetting(
         SeqNoFieldMapper.SeqNoIndexOptions.class,
         settings -> {
@@ -989,6 +991,8 @@ public final class IndexSettings {
             if ((indexMode == IndexMode.LOGSDB || indexMode == IndexMode.TIME_SERIES)
                 && (IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(settings).onOrAfter(IndexVersions.SEQ_NO_WITHOUT_POINTS)
                     || IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(settings).equals(IndexVersions.ZERO))) {
+                return SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY.toString();
+            } else if (DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG && settings.getAsBoolean("index.disable_sequence_numbers", false)) {
                 return SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY.toString();
             } else {
                 return SeqNoFieldMapper.SeqNoIndexOptions.POINTS_AND_DOC_VALUES.toString();
@@ -1023,7 +1027,6 @@ public final class IndexSettings {
         Property.Dynamic
     );
 
-    public static final boolean DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG = new FeatureFlag("disable_sequence_numbers").isEnabled();
     public static final Setting<Boolean> DISABLE_SEQUENCE_NUMBERS = Setting.boolSetting(
         "index.disable_sequence_numbers",
         false,

@@ -64,9 +64,7 @@ public class ElasticsearchInternalServiceSettings implements ServiceSettings {
     public static Builder fromRequestMap(Map<String, Object> map) {
         var validationException = new ValidationException();
         var builder = fromMap(map, validationException);
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
         return builder;
     }
 

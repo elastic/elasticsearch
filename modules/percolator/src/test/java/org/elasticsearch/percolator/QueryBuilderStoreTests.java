@@ -125,7 +125,7 @@ public class QueryBuilderStoreTests extends ESTestCase {
                 Collections.emptyList(),
                 IndexMode.STANDARD
             );
-            SearchExecutionContext baseContext = new SearchExecutionContext(
+            SearchExecutionContext searchExecutionContext = new SearchExecutionContext(
                 0,
                 0,
                 indexSettings,

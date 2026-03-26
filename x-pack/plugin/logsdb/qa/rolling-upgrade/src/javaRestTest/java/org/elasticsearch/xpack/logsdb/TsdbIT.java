@@ -10,7 +10,6 @@
 package org.elasticsearch.xpack.logsdb;
 
 import org.apache.http.util.EntityUtils;
-import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.xcontent.XContentHelper;

@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.index.codec.tsdb.es819;
+package org.elasticsearch.index.codec.tsdb;
 
 import org.apache.lucene.codecs.DocValuesProducer;
 import org.apache.lucene.index.EmptyDocValuesProducer;
@@ -18,17 +18,22 @@ import org.apache.lucene.index.SortedSetDocValues;
 
 import java.io.IOException;
 
-class TsdbDocValuesProducer extends EmptyDocValuesProducer {
+/**
+ * Wraps a {@link DocValuesProducer} to carry pre-computed {@link DocValuesConsumerUtil.MergeStats}
+ * through the optimized merge path. When wrapping another {@code TsdbDocValuesProducer}, the merge
+ * stats are carried over to avoid recomputation.
+ */
+public class TsdbDocValuesProducer extends EmptyDocValuesProducer {
 
-    final DocValuesConsumerUtil.MergeStats mergeStats;
-    final DocValuesProducer actual;
+    public final DocValuesConsumerUtil.MergeStats mergeStats;
+    private final DocValuesProducer actual;
 
-    TsdbDocValuesProducer(DocValuesConsumerUtil.MergeStats mergeStats) {
+    public TsdbDocValuesProducer(DocValuesConsumerUtil.MergeStats mergeStats) {
         this.mergeStats = mergeStats;
         this.actual = null;
     }
 
-    TsdbDocValuesProducer(DocValuesProducer valuesProducer) {
+    public TsdbDocValuesProducer(DocValuesProducer valuesProducer) {
         if (valuesProducer instanceof TsdbDocValuesProducer tsdb) {
             mergeStats = tsdb.mergeStats;
         } else {

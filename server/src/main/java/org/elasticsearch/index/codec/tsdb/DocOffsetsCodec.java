@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.index.codec.tsdb.es819;
+package org.elasticsearch.index.codec.tsdb;
 
 import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.DataOutput;
@@ -22,7 +22,7 @@ import java.util.Arrays;
  * Each codec defines custom strategies for compression and decompression
  * of document offsets for compressed binary doc values.
  */
-enum DocOffsetsCodec {
+public enum DocOffsetsCodec {
 
     /**
      * A codec that uses delta encoding and bit-packing for storage of document offsets.

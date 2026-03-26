@@ -140,6 +140,12 @@ public final class FlattenedFieldMapper extends FieldMapper {
         return ((FlattenedFieldMapper) in).builder;
     }
 
+    public static final DocValuesParameter.Values DEFAULT_DOC_VALUES_PARAMS = new DocValuesParameter.Values(
+        true,
+        DocValuesParameter.Values.Cardinality.LOW,
+        DocValuesParameter.Values.MultiValue.SORTED_SET
+    );
+
     public static class Builder extends FieldMapper.Builder {
 
         final Parameter<Integer> depthLimit = Parameter.intParam(
@@ -154,7 +160,10 @@ public final class FlattenedFieldMapper extends FieldMapper {
         });
 
         private final Parameter<Boolean> indexed = Parameter.indexParam(m -> builder(m).indexed.get(), true);
-        private final Parameter<Boolean> hasDocValues = Parameter.docValuesParam(m -> builder(m).hasDocValues.get(), true);
+        private final DocValuesParameter docValuesParameters = DocValuesParameter.sortedSet(
+            DEFAULT_DOC_VALUES_PARAMS,
+            m -> builder(m).docValuesParameters.getValue()
+        );
 
         private final Parameter<String> nullValue = Parameter.stringParam("null_value", false, m -> builder(m).nullValue.get(), null)
             .acceptsNull();
@@ -178,14 +187,14 @@ public final class FlattenedFieldMapper extends FieldMapper {
             false
         );
         private final Parameter<List<String>> dimensions = dimensionsParam(m -> builder(m).dimensions.get()).addValidator(v -> {
-            if (v.isEmpty() == false && (indexed.getValue() == false || hasDocValues.getValue() == false)) {
+            if (v.isEmpty() == false && (indexed.getValue() == false || docValuesParameters.getValue().enabled() == false)) {
                 throw new IllegalArgumentException(
                     "Field ["
                         + TIME_SERIES_DIMENSIONS_ARRAY_PARAM
                         + "] requires that ["
                         + indexed.name
                         + "] and ["
-                        + hasDocValues.name
+                        + docValuesParameters.name
                         + "] are true"
                 );
             }
@@ -265,7 +274,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
         protected Parameter<?>[] getParameters() {
             return new Parameter<?>[] {
                 indexed,
-                hasDocValues,
+                docValuesParameters,
                 depthLimit,
                 nullValue,
                 eagerGlobalOrdinals,
@@ -294,7 +303,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
             boolean hasRootDocValues = hasRootDocValues();
             MappedFieldType ft = new RootFlattenedFieldType(
                 context.buildFullName(leafName()),
-                IndexType.terms(indexed.get(), hasDocValues.get()),
+                IndexType.terms(indexed.get(), docValuesParameters.get().enabled()),
                 meta.get(),
                 splitQueriesOnWhitespace.get(),
                 eagerGlobalOrdinals.get(),

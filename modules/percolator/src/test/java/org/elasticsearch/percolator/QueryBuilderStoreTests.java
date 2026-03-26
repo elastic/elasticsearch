@@ -125,7 +125,6 @@ public class QueryBuilderStoreTests extends ESTestCase {
                 Collections.emptyList(),
                 IndexMode.STANDARD
             );
-            CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(100));
             SearchExecutionContext baseContext = new SearchExecutionContext(
                 0,
                 0,
@@ -149,7 +148,6 @@ public class QueryBuilderStoreTests extends ESTestCase {
                 null,
                 MapperMetrics.NOOP
             );
-            SearchExecutionContext searchExecutionContext = new SearchExecutionContext(baseContext, breaker);
 
             PercolateQuery.QueryStore queryStore = PercolateQueryBuilder.createStore(
                 fieldMapper.fieldType(),

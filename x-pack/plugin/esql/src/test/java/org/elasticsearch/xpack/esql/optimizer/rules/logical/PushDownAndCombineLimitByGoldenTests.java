@@ -50,19 +50,19 @@ public class PushDownAndCombineLimitByGoldenTests extends GoldenTestCase {
         );
     }
 
-    public void testLimitByNotPushedPastGrok() {
+    public void testLimitByNotPushedPastDissect() {
         runGoldenTest("""
-            FROM employees
-            | GROK first_name "(?<first_letter>.)(?<rest>.*)"
-            | LIMIT 2 BY first_letter, salary
+            FROM web_logs
+            | DISSECT uri "/%{path}/%{file}"
+            | LIMIT 2 BY path, domain
             """, STAGES, STATS);
     }
 
-    public void testLimitPushedPastGrok() {
+    public void testLimitPushedPastDissect() {
         runGoldenTest("""
-            FROM employees
-            | GROK first_name "(?<first_letter>.)(?<rest>.*)"
-            | LIMIT 2 BY salary
+            FROM web_logs
+            | DISSECT uri "/%{path}/%{file}"
+            | LIMIT 2 BY domain
             """, STAGES, STATS);
     }
 

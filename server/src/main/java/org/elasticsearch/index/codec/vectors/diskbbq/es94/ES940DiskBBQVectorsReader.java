@@ -53,7 +53,7 @@ import static org.elasticsearch.simdvec.ESNextOSQVectorsScorer.BULK_SIZE;
  * Default implementation of {@link IVFVectorsReader}. It scores the posting lists centroids using
  * brute force and then scores the top ones using the posting list.
  */
-public class ES940DiskBBQVectorsReader extends IVFVectorsReader implements VectorPreconditioner {
+public class ES940DiskBBQVectorsReader extends IVFVectorsReader<ES940DiskBBQVectorsReader.NextFieldEntry> implements VectorPreconditioner {
 
     public ES940DiskBBQVectorsReader(SegmentReadState state, GenericFlatVectorReaders.LoadFlatVectorsReader getFormatReader)
         throws IOException {
@@ -106,7 +106,7 @@ public class ES940DiskBBQVectorsReader extends IVFVectorsReader implements Vecto
         FloatVectorValues values,
         float visitRatio
     ) throws IOException {
-        final FieldEntry fieldEntry = fields.get(fieldInfo.number);
+        final NextFieldEntry fieldEntry = fields.get(fieldInfo.number);
         int bulkSize = fieldEntry.getBulkSize();
         float approximateDocsPerCentroid = approximateCost / numCentroids;
         if (approximateDocsPerCentroid <= 1.25) {
@@ -182,7 +182,7 @@ public class ES940DiskBBQVectorsReader extends IVFVectorsReader implements Vecto
     }
 
     @Override
-    protected FieldEntry doReadField(
+    protected NextFieldEntry doReadField(
         IndexInput input,
         String rawVectorFormat,
         boolean useDirectIOReads,
@@ -224,13 +224,13 @@ public class ES940DiskBBQVectorsReader extends IVFVectorsReader implements Vecto
 
     @Override
     public Preconditioner getPreconditioner(FieldInfo fieldInfo) throws IOException {
-        final FieldEntry fieldEntry = fields.get(fieldInfo.number);
+        final NextFieldEntry fieldEntry = fields.get(fieldInfo.number);
         // only seems possible in tests
         if (fieldEntry == null) {
             return null;
         }
-        long preconditionerOffset = ((NextFieldEntry) fieldEntry).preconditionerOffset();
-        long preconditionerLength = ((NextFieldEntry) fieldEntry).preconditionerLength();
+        long preconditionerOffset = fieldEntry.preconditionerOffset();
+        long preconditionerLength = fieldEntry.preconditionerLength();
         if (preconditionerLength > 0) {
             IndexInput ivfPreconditionerSlice = ivfCentroids.slice("preconditioner", preconditionerOffset, preconditionerLength);
             if (ivfPreconditionerSlice != null) {
@@ -598,14 +598,14 @@ public class ES940DiskBBQVectorsReader extends IVFVectorsReader implements Vecto
         Bits acceptDocs,
         IndexInput centroidSlice
     ) throws IOException {
-        FieldEntry entry = fields.get(fieldInfo.number);
+        NextFieldEntry entry = fields.get(fieldInfo.number);
         final int bitsRequired = DirectWriter.bitsRequired(entry.numCentroids());
         final long sizeLookup = directWriterSizeOnDisk(
             getReaderForField(fieldInfo.name).getFloatVectorValues(fieldInfo.name).size(),
             bitsRequired
         );
         centroidSlice.skipBytes(sizeLookup);
-        ES940DiskBBQVectorsFormat.QuantEncoding quantEncoding = ((NextFieldEntry) entry).quantEncoding();
+        ES940DiskBBQVectorsFormat.QuantEncoding quantEncoding = entry.quantEncoding();
         int numParents = centroidSlice.readVInt();
         final QueryQuantizer queryQuantizer;
         if (numParents > 0) {

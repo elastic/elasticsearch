@@ -232,19 +232,19 @@ class S3Repository extends MeteredBlobStoreRepository {
      * including network connectivity and identity authorization issues.
      */
     static final Setting<TimeValue> RETRY_TRANSIENT_ERROR_DELAY_INCREMENT = Setting.timeSetting(
-        "gcs.transient_error_retry.delay_increment",
+        "s3.transient_error_retry.delay_increment",
         TimeValue.timeValueMillis(50),
         TimeValue.ZERO
     );
 
     static final Setting<TimeValue> RETRY_TRANSIENT_ERROR_MAXIMUM_DELAY = Setting.timeSetting(
-        "gcs.transient_error_retry.maximum_delay",
+        "s3.transient_error_retry.maximum_delay",
         TimeValue.timeValueMinutes(1),
         TimeValue.ZERO
     );
 
     static final Setting<Integer> RETRY_TRANSIENT_ERROR_MAX_NUMBER_OF_RETRIES = Setting.intSetting(
-        "gcs.transient_error_retry.maximum_number_of_retries",
+        "s3.transient_error_retry.maximum_number_of_retries",
         Integer.MAX_VALUE,
         0
     );

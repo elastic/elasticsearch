@@ -135,7 +135,7 @@ final class ElasticServiceAccounts {
                     .privileges("read", "write", "monitor", "create_index", "auto_configure", "maintenance", "view_index_metadata")
                     .build(),
                 // Read permissions to deliver Defend integration's managed library files
-                RoleDescriptor.IndicesPrivileges.builder().indices("endpoint-fleetfiles-*").privileges("read").build(),
+                RoleDescriptor.IndicesPrivileges.builder().indices(".endpoint-fleetfiles-*").privileges("read").build(),
                 // Custom permissions required for stateful agentless integrations
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices("agentless-*")

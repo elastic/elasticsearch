@@ -10,7 +10,6 @@
 package org.elasticsearch.index.codec.tsdb.es819;
 
 import org.apache.lucene.codecs.DocValuesFormat;
-import org.apache.lucene.codecs.perfield.PerFieldDocValuesFormat;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.LeafReaderContext;
@@ -24,6 +23,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.codec.Elasticsearch93Lucene104Codec;
 import org.elasticsearch.index.codec.LegacyPerFieldMapperCodec;
+import org.elasticsearch.index.codec.perfield.XPerFieldDocValuesFormat;
 import org.elasticsearch.index.codec.tsdb.ES93TSDBDefaultCompressionLucene103Codec;
 import org.elasticsearch.index.codec.tsdb.PartitionedDocValues;
 import org.elasticsearch.index.engine.Engine;
@@ -169,8 +169,8 @@ public class TSDBDocValuesFormatSingleNodeTests extends ESSingleNodeTestCase {
             if (deduplicateFieldInfosCodec.delegate() instanceof LegacyPerFieldMapperCodec legacyPerFieldMapperCodec) {
                 docValuesFormatProvider = legacyPerFieldMapperCodec::getDocValuesFormatForField;
             } else if (deduplicateFieldInfosCodec.delegate() instanceof ES93TSDBDefaultCompressionLucene103Codec es93TSDB103Codec) {
-                assertThat(es93TSDB103Codec.docValuesFormat(), instanceOf(PerFieldDocValuesFormat.class));
-                docValuesFormatProvider = (field) -> ((PerFieldDocValuesFormat) es93TSDB103Codec.docValuesFormat())
+                assertThat(es93TSDB103Codec.docValuesFormat(), instanceOf(XPerFieldDocValuesFormat.class));
+                docValuesFormatProvider = (field) -> ((XPerFieldDocValuesFormat) es93TSDB103Codec.docValuesFormat())
                     .getDocValuesFormatForField(field);
             } else {
                 fail("Unexpected codec type: " + codec.getClass().getName());

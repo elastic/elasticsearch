@@ -93,9 +93,6 @@ tests:
 - class: org.elasticsearch.xpack.security.SecurityRolesMultiProjectIT
   method: testUpdatingFileBasedRoleAffectsAllProjects
   issue: https://github.com/elastic/elasticsearch/issues/129775
-- class: org.elasticsearch.action.support.ThreadedActionListenerTests
-  method: testRejectionHandling
-  issue: https://github.com/elastic/elasticsearch/issues/130129
 - class: org.elasticsearch.xpack.searchablesnapshots.cache.shared.NodesCachesStatsIntegTests
   method: testNodesCachesStats
   issue: https://github.com/elastic/elasticsearch/issues/129863
@@ -306,9 +303,6 @@ tests:
 - class: org.elasticsearch.indices.IndicesRequestCacheIT
   method: testCanCache
   issue: https://github.com/elastic/elasticsearch/issues/144526
-- class: org.elasticsearch.http.netty4.Netty4IncrementalRequestHandlingIT
-  method: testBulkIndexingRequestSplitting
-  issue: https://github.com/elastic/elasticsearch/issues/144579
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:spatial.convertCartesianFromStringParseError}
   issue: https://github.com/elastic/elasticsearch/issues/144580

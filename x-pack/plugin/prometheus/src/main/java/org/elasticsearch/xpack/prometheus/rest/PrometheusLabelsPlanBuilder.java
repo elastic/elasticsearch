@@ -83,9 +83,14 @@ final class PrometheusLabelsPlanBuilder {
             List.of(new Order(Source.EMPTY, dimField, Order.OrderDirection.ASC, Order.NullsPosition.LAST))
         );
 
-        if (limit > 0) {
-            plan = new Limit(Source.EMPTY, Literal.integer(Source.EMPTY, limit), plan);
-        }
+        // limit=0 means "unlimited" in Prometheus semantics. We still emit an explicit LIMIT so
+        // that ESQL's AddImplicitLimit rule sees an existing node and does not silently inject its
+        // own default (1 000 rows + a warning header). Integer.MAX_VALUE is then quietly capped to
+        // esql.query.result_truncation_max_size (default 10 000) without a warning.
+        // limit>0 uses limit+1 as a sentinel: if the response contains exactly limit+1 rows we
+        // know the result was truncated and the listener emits a Prometheus warnings field.
+        int limitValue = limit > 0 ? limit + 1 : Integer.MAX_VALUE;
+        plan = new Limit(Source.EMPTY, Literal.integer(Source.EMPTY, limitValue), plan);
         return plan;
     }
 }

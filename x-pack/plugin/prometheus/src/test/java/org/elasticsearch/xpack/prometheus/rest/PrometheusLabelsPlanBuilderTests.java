@@ -34,36 +34,38 @@ public class PrometheusLabelsPlanBuilderTests extends ESTestCase {
     private static final Instant START = Instant.ofEpochSecond(1_700_000_000L);
     private static final Instant END = Instant.ofEpochSecond(1_700_003_600L);
 
-    public void testBuildPlanWithoutLimitTopIsOrderBy() {
+    public void testBuildPlanZeroLimitTopIsLimitWithMaxValue() {
+        // limit=0 means "unlimited": an explicit Limit(Integer.MAX_VALUE) is emitted so that ESQL's
+        // AddImplicitLimit rule sees an existing node and does not inject its own default.
         LogicalPlan plan = PrometheusLabelsPlanBuilder.buildPlan("*", List.of("up"), START, END, 0);
-        assertThat(plan, instanceOf(OrderBy.class));
+        assertThat(plan, instanceOf(Limit.class));
+        assertThat(((Limit) plan).child(), instanceOf(OrderBy.class));
+        assertThat(((Limit) plan).limit().fold(null), is(Integer.MAX_VALUE));
     }
 
-    public void testBuildPlanWithLimitTopIsLimit() {
+    public void testBuildPlanWithLimitTopIsLimitPlusOneSentinel() {
+        // limit>0 uses limit+1 as sentinel so the response listener can detect truncation.
         LogicalPlan plan = PrometheusLabelsPlanBuilder.buildPlan("*", List.of("up"), START, END, 100);
         assertThat(plan, instanceOf(Limit.class));
         assertThat(((Limit) plan).child(), instanceOf(OrderBy.class));
-    }
-
-    public void testBuildPlanZeroLimitDoesNotAddLimitNode() {
-        LogicalPlan plan = PrometheusLabelsPlanBuilder.buildPlan("*", List.of("up"), START, END, 0);
-        assertThat(plan, instanceOf(OrderBy.class));
+        assertThat(((Limit) plan).limit().fold(null), is(101));
     }
 
     public void testBuildPlanContainsAggregateUnderOrderBy() {
         LogicalPlan plan = PrometheusLabelsPlanBuilder.buildPlan("*", List.of("up"), START, END, 0);
-        assertThat(((OrderBy) plan).child(), instanceOf(Aggregate.class));
+        OrderBy orderBy = (OrderBy) ((Limit) plan).child();
+        assertThat(orderBy.child(), instanceOf(Aggregate.class));
     }
 
     public void testBuildPlanContainsMvExpandUnderAggregate() {
         LogicalPlan plan = PrometheusLabelsPlanBuilder.buildPlan("*", List.of("up"), START, END, 0);
-        Aggregate agg = (Aggregate) ((OrderBy) plan).child();
+        Aggregate agg = (Aggregate) ((OrderBy) ((Limit) plan).child()).child();
         assertThat(agg.child(), instanceOf(MvExpand.class));
     }
 
     public void testBuildPlanContainsTsInfoUnderMvExpand() {
         LogicalPlan plan = PrometheusLabelsPlanBuilder.buildPlan("*", List.of("up"), START, END, 0);
-        Aggregate agg = (Aggregate) ((OrderBy) plan).child();
+        Aggregate agg = (Aggregate) ((OrderBy) ((Limit) plan).child()).child();
         MvExpand mvExpand = (MvExpand) agg.child();
         assertThat(mvExpand.child(), instanceOf(TsInfo.class));
     }

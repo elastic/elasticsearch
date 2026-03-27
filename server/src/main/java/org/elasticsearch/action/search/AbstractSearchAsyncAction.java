@@ -529,9 +529,11 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         });
     }
 
-    synchronized void accumulateDirectoryMetrics(DirectoryMetrics metrics) {
-        if (metrics != DirectoryMetrics.EMPTY) {
-            mergedDirectoryMetrics = mergedDirectoryMetrics.merge(metrics);
+    void accumulateDirectoryMetrics(DirectoryMetrics metrics) {
+        if (metrics.isEmpty() == false) {
+            synchronized (this) {
+                mergedDirectoryMetrics = mergedDirectoryMetrics.merge(metrics);
+            }
         }
     }
 

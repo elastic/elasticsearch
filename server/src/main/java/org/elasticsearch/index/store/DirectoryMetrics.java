@@ -95,6 +95,10 @@ public class DirectoryMetrics implements ToXContentFragment, Writeable {
         }
     }
 
+    public boolean isEmpty() {
+        return data.isEmpty();
+    }
+
     public PluggableMetrics<?> metrics(String type) {
         return data.get(type);
     }

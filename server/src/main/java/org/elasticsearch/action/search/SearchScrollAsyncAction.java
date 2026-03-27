@@ -246,9 +246,11 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> {
         };
     }
 
-    protected synchronized void accumulateDirectoryMetrics(DirectoryMetrics metrics) {
-        if (metrics != DirectoryMetrics.EMPTY) {
-            mergedDirectoryMetrics = mergedDirectoryMetrics.merge(metrics);
+    protected void accumulateDirectoryMetrics(DirectoryMetrics metrics) {
+        if (metrics.isEmpty() == false) {
+            synchronized (this) {
+                mergedDirectoryMetrics = mergedDirectoryMetrics.merge(metrics);
+            }
         }
     }
 

@@ -95,9 +95,7 @@ public class FireworksAiEmbeddingsServiceSettings extends FilteredXContentObject
             case REQUEST -> dims != null;
         };
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new FireworksAiEmbeddingsServiceSettings(
             modelId,

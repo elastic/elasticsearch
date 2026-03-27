@@ -12,18 +12,18 @@
 | date_nanos | boolean |
 | dense_vector | boolean |
 | double | boolean |
-| exponential_histogram {applies_to}`stack: preview 9.3.0` | boolean |
+| exponential_histogram {applies_to}`stack: preview 9.3.0, ga 9.4.0` | boolean |
 | geo_point | boolean |
 | geo_shape | boolean |
 | geohash | boolean |
 | geohex | boolean |
 | geotile | boolean |
-| histogram {applies_to}`stack: preview 9.3.0` | boolean |
+| histogram {applies_to}`stack: preview 9.3.0, ga 9.4.0` | boolean |
 | integer | boolean |
 | ip | boolean |
 | keyword | boolean |
 | long | boolean |
-| tdigest {applies_to}`stack: preview 9.3.0` | boolean |
+| tdigest {applies_to}`stack: preview 9.3.0, ga 9.4.0` | boolean |
 | text | boolean |
 | unsigned_long | boolean |
 | version | boolean |

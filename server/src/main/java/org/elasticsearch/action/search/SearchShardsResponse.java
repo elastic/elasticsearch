@@ -91,24 +91,8 @@ public final class SearchShardsResponse extends ActionResponse {
         }
         this.groups = nonSkippedGroups;
         if (in.getTransportVersion().supports(SEARCH_SHARDS_NUM_SKIPPED2)) {
-            // Wire contract: either the aggregate field carries skipped shards (modern) or skipped=true
-            // groups do (legacy hybrid). If both are non-zero they must match (redundant duplicate encoding);
-            // conflicting values cannot be reconciled and indicate a corrupt or incompatible sender.
-            final int aggregate = in.readVInt();
-            if (aggregate > 0 && skippedOnWire > 0) {
-                if (aggregate != skippedOnWire) {
-                    throw new IOException(
-                        "Conflicting skipped shard encodings on wire: numSkippedShards="
-                            + aggregate
-                            + " but also "
-                            + skippedOnWire
-                            + " skipped groups"
-                    );
-                }
-                this.numSkippedShards = aggregate;
-            } else {
-                this.numSkippedShards = aggregate + skippedOnWire;
-            }
+            assert skippedOnWire == 0 : "search_shards_num_skipped2 version skippedOnWire should be 0, is " + skippedOnWire;
+            this.numSkippedShards = in.readVInt();
         } else {
             this.numSkippedShards = skippedOnWire;
         }

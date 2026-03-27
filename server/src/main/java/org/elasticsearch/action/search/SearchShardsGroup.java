@@ -88,7 +88,7 @@ public class SearchShardsGroup implements Writeable {
     /**
      * Returns true if this group was marked as skipped on a legacy wire response.
      */
-    boolean skippedOnWire() {
+    public boolean skippedOnWire() {
         return skippedFromWire;
     }
 
@@ -115,7 +115,8 @@ public class SearchShardsGroup implements Writeable {
     public boolean equals(Object o) {
         if (o == null || getClass() != o.getClass()) return false;
         SearchShardsGroup that = (SearchShardsGroup) o;
-        return preFiltered == that.preFiltered
+        return skippedFromWire == that.skippedFromWire
+            && preFiltered == that.preFiltered
             && Objects.equals(shardId, that.shardId)
             && Objects.equals(allocatedNodes, that.allocatedNodes)
             && Objects.equals(reshardSplitShardCountSummary, that.reshardSplitShardCountSummary);
@@ -123,11 +124,20 @@ public class SearchShardsGroup implements Writeable {
 
     @Override
     public int hashCode() {
-        return Objects.hash(shardId, allocatedNodes, reshardSplitShardCountSummary, preFiltered);
+        return Objects.hash(shardId, allocatedNodes, skippedFromWire, reshardSplitShardCountSummary, preFiltered);
     }
 
     @Override
     public String toString() {
-        return "SearchShardsGroup{" + "shardId=" + shardId + ", allocatedNodes=" + allocatedNodes + ", preFiltered=" + preFiltered + '}';
+        return "SearchShardsGroup{"
+            + "shardId="
+            + shardId
+            + ", allocatedNodes="
+            + allocatedNodes
+            + ", skippedFromWire="
+            + skippedFromWire
+            + ", preFiltered="
+            + preFiltered
+            + '}';
     }
 }

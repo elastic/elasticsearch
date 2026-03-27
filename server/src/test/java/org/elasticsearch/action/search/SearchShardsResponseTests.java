@@ -36,7 +36,6 @@ import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
-import org.junit.Assume;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -46,6 +45,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.test.VersionUtils.randomCompatibleVersion;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.junit.Assert.assertEquals;
@@ -163,64 +163,29 @@ public class SearchShardsResponseTests extends AbstractWireSerializingTestCase<S
         }
     }
 
-    public void testWireDeserializationUsesAggregateSkippedCountWithoutDoubleCounting() throws IOException {
+    public void testWireDeserializationUsesAggregateSkippedCount() throws IOException {
         TransportVersion version = TransportVersion.current();
-        SearchShardsResponse response = readResponseFromWire(version, List.of(true, false), 1);
-        assertEquals(1, response.getGroups().size());
+        // search_shards_num_skipped2: skipped shards are only in the aggregate vint, not per-group booleans on wire.
+        SearchShardsResponse response = readResponseFromWire(version, List.of(false, false), 1);
+        assertEquals(2, response.getGroups().size());
         assertEquals(1, response.getNumSkippedShards());
-    }
-
-    public void testWireDeserializationRejectsConflictingSkippedEncodings() throws IOException {
-        TransportVersion version = TransportVersion.current();
-        IOException e = expectThrows(IOException.class, () -> readResponseFromWire(version, List.of(true, false), 5));
-        assertEquals("Conflicting skipped shard encodings on wire: numSkippedShards=5 but also 1 skipped groups", e.getMessage());
-    }
-
-    public void testWireDeserializationFallsBackToSkippedGroupsWhenAggregateIsZero() throws IOException {
-        TransportVersion version = TransportVersion.current();
-        SearchShardsResponse response = readResponseFromWire(version, List.of(true, true, false), 0);
-        assertEquals(1, response.getGroups().size());
-        assertEquals(2, response.getNumSkippedShards());
-    }
-
-    public void testWireDeserializationForOldVersionCountsSkippedGroups() throws IOException {
-        TransportVersion oldVersion = TransportVersionUtils.getPreviousVersion(SearchShardsResponse.SEARCH_SHARDS_NUM_SKIPPED2);
-        SearchShardsResponse response = readResponseFromWire(oldVersion, List.of(true, false, true), -1);
-        assertEquals(1, response.getGroups().size());
-        assertEquals(2, response.getNumSkippedShards());
-    }
-
-    public void testWireDeserializationAggregateOnlyEncoding() throws IOException {
-        TransportVersion version = TransportVersion.current();
-        SearchShardsResponse response = readResponseFromWire(version, List.of(false, false, false), 4);
-        assertEquals(3, response.getGroups().size());
-        assertEquals(4, response.getNumSkippedShards());
-    }
-
-    public void testWireDeserializationZeroSkippedAggregateAndNoSkippedGroups() throws IOException {
-        TransportVersion version = TransportVersion.current();
-        SearchShardsResponse response = readResponseFromWire(version, List.of(false, false), 0);
+        response = readResponseFromWire(version, List.of(false, false), 0);
         assertEquals(2, response.getGroups().size());
         assertEquals(0, response.getNumSkippedShards());
+
     }
 
-    public void testWireDeserializationRedundantEqualAggregateAndSkippedGroups() throws IOException {
+    public void testWireDeserializationRejectsHybridSkippedEncodingOnCurrentVersion() {
         TransportVersion version = TransportVersion.current();
-        SearchShardsResponse response = readResponseFromWire(version, List.of(true, true, false), 2);
+        AssertionError assertionError = expectThrows(AssertionError.class, () -> readResponseFromWire(version, List.of(true, false), 5));
+        assertThat(assertionError.getMessage(), containsString("skippedOnWire should be 0"));
+    }
+
+    public void testWireDeserializationFallsBackToSkippedGroups() throws IOException {
+        TransportVersion oldVersion = TransportVersionUtils.getPreviousVersion(SearchShardsResponse.SEARCH_SHARDS_NUM_SKIPPED2);
+        SearchShardsResponse response = readResponseFromWire(oldVersion, List.of(true, true, false), 0);
         assertEquals(1, response.getGroups().size());
         assertEquals(2, response.getNumSkippedShards());
-    }
-
-    /**
-     * Before {@link IndexReshardService#RESHARDING_SHARD_SUMMARY_IN_ESQL}, {@link SearchShardsGroup} does not write or read
-     * the split-shard summary vint. The test helper must mirror that so bytes stay aligned for older transport versions.
-     */
-    public void testWireRoundTripBeforeReshardSummaryVersion() throws IOException {
-        TransportVersion version = TransportVersionUtils.getPreviousVersion(IndexReshardService.RESHARDING_SHARD_SUMMARY_IN_ESQL);
-        Assume.assumeTrue(version.supports(SearchShardsResponse.SEARCH_SHARDS_NUM_SKIPPED2));
-        SearchShardsResponse response = readResponseFromWire(version, List.of(true, false), 1);
-        assertEquals(1, response.getGroups().size());
-        assertEquals(1, response.getNumSkippedShards());
     }
 
     private SearchShardsResponse readResponseFromWire(TransportVersion version, List<Boolean> skippedFlags, int numSkippedShards)

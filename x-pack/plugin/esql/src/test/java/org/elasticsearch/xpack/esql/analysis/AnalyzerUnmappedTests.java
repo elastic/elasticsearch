@@ -37,6 +37,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+import static java.util.Collections.emptyMap;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
@@ -1039,9 +1040,9 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("Cannot use field [message]"));
     }
 
-    private static EsIndex partialIndex(String name, Map<String, EsField> mapping, Set<String> partiallyUnmappedFields) {
-        return new EsIndex(name, mapping, Map.of(name, IndexMode.STANDARD), Map.of(), Map.of(), partiallyUnmappedFields);
-    }
+    // private static EsIndex partialIndex(String name, Map<String, EsField> mapping, Set<String> partiallyUnmappedFields) {
+    //     return new EsIndex(name, mapping, Map.of(name, IndexMode.STANDARD), Map.of(), Map.of(), partiallyUnmappedFields);
+    // }
 
     private static EsField longField(String name) {
         return new EsField(name, DataType.LONG, emptyMap(), true, EsField.TimeSeriesFieldType.NONE);

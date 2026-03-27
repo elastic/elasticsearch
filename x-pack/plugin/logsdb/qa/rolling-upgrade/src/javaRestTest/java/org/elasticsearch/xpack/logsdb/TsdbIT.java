@@ -182,7 +182,7 @@ public class TsdbIT extends AbstractLogsdbRollingUpgradeTestCase {
         assertThat(secondBackingIndex, backingIndexEqualTo(dataStreamName, 2));
         indexDoc(dataStreamName);
         // maybe force merge
-        if (true) {
+        if (randomBoolean()) {
             forceMerge(dataStreamName);
         }
         assertSearch(dataStreamName, 10);

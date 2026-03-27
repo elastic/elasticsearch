@@ -59,13 +59,13 @@ public class VectorScorerInt4BenchmarkTests extends ESTestCase {
 
             try {
                 float expected = scalar.score();
-                if(supportsHeapSegments()) {
+                if (supportsHeapSegments()) {
                     assertEquals("LUCENE score", expected, lucene.score(), delta);
                     assertEquals("NATIVE score", expected, nativeBench.score(), delta);
                 }
             } finally {
                 scalar.teardown();
-                if(supportsHeapSegments()) {
+                if (supportsHeapSegments()) {
                     lucene.teardown();
                     nativeBench.teardown();
                 }
@@ -86,13 +86,13 @@ public class VectorScorerInt4BenchmarkTests extends ESTestCase {
 
             try {
                 float expected = scalar.scoreQuery();
-                if(supportsHeapSegments()) {
+                if (supportsHeapSegments()) {
                     assertEquals("LUCENE scoreQuery", expected, lucene.scoreQuery(), delta);
                     assertEquals("NATIVE scoreQuery", expected, nativeBench.scoreQuery(), delta);
                 }
             } finally {
                 scalar.teardown();
-                if(supportsHeapSegments()) {
+                if (supportsHeapSegments()) {
                     lucene.teardown();
                     nativeBench.teardown();
                 }

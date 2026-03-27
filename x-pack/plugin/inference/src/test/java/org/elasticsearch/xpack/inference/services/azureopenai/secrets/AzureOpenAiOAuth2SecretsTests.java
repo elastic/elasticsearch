@@ -38,7 +38,7 @@ public class AzureOpenAiOAuth2SecretsTests extends AbstractBWCWireSerializationT
         var clientSecret = randomSecureStringOfLength(15);
         var expectedSettings = new AzureOpenAiOAuth2Secrets(clientSecret);
         var newSettings = (AzureOpenAiOAuth2Secrets) initialSettings.newSecretSettings(
-            Map.of(CLIENT_SECRET_FIELD, clientSecret.toString())
+            new HashMap<>(Map.of(CLIENT_SECRET_FIELD, clientSecret.toString()))
         );
 
         assertThat(newSettings, is(expectedSettings));

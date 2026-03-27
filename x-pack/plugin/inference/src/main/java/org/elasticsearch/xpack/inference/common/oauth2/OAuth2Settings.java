@@ -44,8 +44,6 @@ public class OAuth2Settings implements ToXContentFragment, Writeable {
     private static final String CLIENT_ID_CONFIG_DESCRIPTION = "ID of application registered with the authorization server.";
     private static final String SCOPES_CONFIG_DESCRIPTION = "The permissions that the application is requesting.";
 
-    private record UpdateSettings(@Nullable String clientId, @Nullable List<String> scopes) {}
-
     private final String clientId;
     private final List<String> scopes;
 
@@ -125,20 +123,38 @@ public class OAuth2Settings implements ToXContentFragment, Writeable {
         return scopes;
     }
 
-    public ValidationResult<OAuth2Settings> updateServiceSettings(Map<String, Object> map, ValidationException validationException) {
-        var updated = fromMapForUpdate(map, validationException);
+    /**
+     * Updates the current settings with OAuth2 fields present in the provided map.
+     * Any OAuth2 fields absent from the map fall back to the values already held by this instance,
+     * so partial updates are accepted. The result is always a successful {@link ValidationResult}
+     * as long as the existing instance is valid.
+     *
+     * @param serviceSettingsMap the map containing potential updates to the service settings; may or may not contain OAuth2 fields
+     * @param validationException the exception to which any validation errors should be added
+     * @return a {@link ValidationResult} containing the updated {@link OAuth2Settings}
+     */
+    public ValidationResult<OAuth2Settings> updateServiceSettings(
+        Map<String, Object> serviceSettingsMap,
+        ValidationException validationException
+    ) {
+        var extractedClientId = extractOptionalString(
+            serviceSettingsMap,
+            CLIENT_ID_FIELD,
+            ModelConfigurations.SERVICE_SETTINGS,
+            validationException
+        );
+        var extractedScopes = extractStringList(
+            serviceSettingsMap,
+            SCOPES_FIELD,
+            ModelConfigurations.SERVICE_SETTINGS,
+            validationException
+        );
 
-        var clientIdToUpdate = updated.clientId() != null ? updated.clientId() : this.clientId;
-        var scopesToUpdate = updated.scopes() != null ? updated.scopes() : this.scopes;
-
-        return validateFields(clientIdToUpdate, scopesToUpdate, validationException);
-    }
-
-    private static UpdateSettings fromMapForUpdate(Map<String, Object> map, ValidationException validationException) {
-        var clientId = extractOptionalString(map, CLIENT_ID_FIELD, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        var scopes = extractStringList(map, SCOPES_FIELD, ModelConfigurations.SERVICE_SETTINGS, validationException);
-
-        return new UpdateSettings(clientId, scopes);
+        return validateFields(
+            extractedClientId != null ? extractedClientId : this.clientId,
+            extractedScopes != null ? extractedScopes : this.scopes,
+            validationException
+        );
     }
 
     @Override

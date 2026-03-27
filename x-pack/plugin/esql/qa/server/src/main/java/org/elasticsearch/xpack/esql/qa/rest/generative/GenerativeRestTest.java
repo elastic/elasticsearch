@@ -42,6 +42,7 @@ import static org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator.COLUMN_N
 import static org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator.COLUMN_ORIGINAL_TYPES;
 import static org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator.COLUMN_TYPE;
 import static org.elasticsearch.xpack.esql.generator.command.pipe.KeepGenerator.UNMAPPED_FIELD_NAMES;
+import static org.elasticsearch.xpack.esql.generator.command.source.FromGenerator.SET_UNMAPPED_FIELDS_PREFIX;
 
 public abstract class GenerativeRestTest extends ESRestTestCase implements QueryExecutor {
 
@@ -80,7 +81,9 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         "illegal data type \\[datetime\\]", // https://github.com/elastic/elasticsearch/issues/142137
         "Expected to replace a single StubRelation in the plan, but none found", // https://github.com/elastic/elasticsearch/issues/142219
         "blocks is empty", // https://github.com/elastic/elasticsearch/issues/142473
-        "Overflow to represent absolute value of Integer.MIN_VALUE", // https://github.com/elastic/elasticsearch/issues/142642
+        "Overflow to represent absolute value of .*.MIN_VALUE", // https://github.com/elastic/elasticsearch/issues/142642
+        "illegal query_string option \\[boost\\]", // https://github.com/elastic/elasticsearch/issues/142758
+        "found value \\[.*\\] type \\[unsupported\\]", // https://github.com/elastic/elasticsearch/issues/142761
 
         // Awaiting fixes for correctness
         "Expecting at most \\[.*\\] columns, got \\[.*\\]", // https://github.com/elastic/elasticsearch/issues/129561
@@ -261,7 +264,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         return EsqlQueryGenerator.sourceCommand();
     }
 
-    private static CommandGenerator.ValidationResult checkResults(
+    protected static CommandGenerator.ValidationResult checkResults(
         List<CommandGenerator.CommandDescription> previousCommands,
         CommandGenerator commandGenerator,
         CommandGenerator.CommandDescription commandDescription,
@@ -288,12 +291,15 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
             if (isFirstLastSameFieldError(outputValidation.errorMessage(), result.query())) {
                 return outputValidation;
             }
+            if (isForkOptimizationBugWithUnmappedFields(outputValidation.errorMessage(), result.query())) {
+                return outputValidation;
+            }
             fail("query: " + result.query() + "\nerror: " + outputValidation.errorMessage());
         }
         return outputValidation;
     }
 
-    private void checkException(QueryExecuted query) {
+    protected void checkException(QueryExecuted query) {
         for (Pattern allowedError : ALLOWED_ERROR_PATTERNS) {
             if (isAllowedError(query.exception().getMessage(), allowedError)) {
                 return;
@@ -303,6 +309,9 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
             return;
         }
         if (isFirstLastSameFieldError(query.exception().getMessage(), query.query())) {
+            return;
+        }
+        if (isForkOptimizationBugWithUnmappedFields(query.exception().getMessage(), query.query())) {
             return;
         }
         fail("query: " + query.query() + "\nexception: " + query.exception().getMessage());
@@ -389,6 +398,20 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         return false;
     }
 
+    private static final Pattern FORK_OPTIMIZED_INCORRECTLY_PATTERN = Pattern.compile(
+        ".*Plan \\[.*\\] optimized incorrectly due to missing references \\[_fork.*",
+        Pattern.DOTALL
+    );
+
+    /**
+     * When {@code SET unmapped_fields="nullify"} is used, the _fork reference can go missing
+     * during plan optimization.
+     * See <a href="https://github.com/elastic/elasticsearch/issues/142762">#142762</a>
+     */
+    static boolean isForkOptimizationBugWithUnmappedFields(String errorMessage, String query) {
+        return query.startsWith(SET_UNMAPPED_FIELDS_PREFIX) && FORK_OPTIMIZED_INCORRECTLY_PATTERN.matcher(errorMessage).matches();
+    }
+
     @Override
     @SuppressWarnings("unchecked")
     public QueryExecuted execute(String query, int depth) {
@@ -433,7 +456,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
 
     private List<String> availableIndices() throws IOException {
         return availableDatasetsForEs(true, supportsSourceFieldMapping(), false, requiresTimeSeries(), cap -> false).stream()
-            .filter(x -> x.requiresInferenceEndpoint() == false)
+            .filter(x -> x.inferenceEndpoints().isEmpty())
             .map(x -> x.indexName())
             .toList();
     }

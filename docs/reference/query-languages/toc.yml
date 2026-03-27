@@ -124,6 +124,7 @@ toc:
                   - file: esql/commands/limit.md
                   - file: esql/commands/lookup-join.md
                   - file: esql/commands/mv_expand.md
+                  - file: esql/commands/registered-domain.md
                   - file: esql/commands/rename.md
                   - file: esql/commands/rerank.md
                   - file: esql/commands/sample.md

@@ -126,6 +126,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Insist;
@@ -139,6 +140,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.Fuse;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.FuseScoreEval;
@@ -226,6 +228,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             Limiter.ONCE,
             new ResolveConfigurationAware(),
             new ResolveTable(),
+            new ResolveExternalRelations(),
             new PruneEmptyUnionAllBranch(),
             new ResolveEnrich(),
             new ResolveLookupTables(),
@@ -440,6 +443,48 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     mappingAsAttributes(list, source, attribute.name(), fieldProperties);
                 }
             }
+        }
+    }
+
+    /**
+     * Resolves UnresolvedExternalRelation nodes using pre-resolved metadata from ExternalSourceResolver.
+     * This rule mirrors the ResolveTable pattern but uses ExternalSourceResolution instead of IndexResolution.
+     * <p>
+     * This rule creates {@link ExternalRelation} nodes from any SourceMetadata,
+     * avoiding the need for source-specific logical plan nodes in core ESQL code.
+     */
+    private static class ResolveExternalRelations extends ParameterizedAnalyzerRule<UnresolvedExternalRelation, AnalyzerContext> {
+
+        @Override
+        protected LogicalPlan rule(UnresolvedExternalRelation plan, AnalyzerContext context) {
+            // Extract the table path from the expression
+            String tablePath = extractTablePath(plan.tablePath());
+            if (tablePath == null) {
+                // Path is not a simple literal (e.g., it's a parameter reference)
+                // Return the plan as-is for now
+                return plan;
+            }
+
+            // Get pre-resolved source (metadata + file set) from context
+            var resolvedSource = context.externalSourceResolution().resolvedSource(tablePath);
+            if (resolvedSource == null) {
+                // Still unresolved - return as-is to keep the error message
+                return plan;
+            }
+
+            var metadata = resolvedSource.metadata();
+            return new ExternalRelation(plan.source(), tablePath, metadata, metadata.schema(), resolvedSource.fileSet());
+        }
+
+        private String extractTablePath(Expression tablePath) {
+            if (tablePath instanceof Literal literal && literal.value() != null) {
+                Object value = literal.value();
+                if (value instanceof org.apache.lucene.util.BytesRef) {
+                    return BytesRefs.toString((org.apache.lucene.util.BytesRef) value);
+                }
+                return value.toString();
+            }
+            return null;
         }
     }
 

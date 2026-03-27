@@ -179,16 +179,24 @@ public abstract class AbstractCompoundOutputEvaluatorTests extends OperatorTestC
 
     protected abstract Map<String, Class<?>> getSupportedOutputFieldMappings();
 
-    protected void evaluateAndCompare(List<String> input, List<String> requestedFields, List<Object[]> expectedRowComputationOutput) {
+    /**
+     * Accepts expected values as either {@code Object[]} (multiple values per field) or a single {@code Object}
+     * (wrapped as one value for that field) for readability.
+     */
+    protected void evaluateAndCompare(List<String> input, List<String> requestedFields, List<?> expectedRowComputationOutput) {
         evaluateAndCompare(input, requestedFields, expectedRowComputationOutput, Warnings.NOOP_WARNINGS);
     }
 
     protected void evaluateAndCompare(
         List<String> inputList,
         List<String> requestedFields,
-        List<Object[]> expectedRowComputationOutput,
+        List<?> expectedRowComputationOutput,
         Warnings warnings
     ) {
+        List<Object[]> normalized = new ArrayList<>(expectedRowComputationOutput.size());
+        for (Object item : expectedRowComputationOutput) {
+            normalized.add(item instanceof Object[] o ? o : new Object[] { item });
+        }
         CompoundOutputEvaluator.OutputFieldsCollector outputFieldsCollector = createOutputFieldsCollector(requestedFields);
         CompoundOutputEvaluator evaluator = new CompoundOutputEvaluator(DataType.TEXT, warnings, outputFieldsCollector);
         Block.Builder[] targetBlocks = new Block.Builder[requestedFields.size()];
@@ -214,26 +222,40 @@ public abstract class AbstractCompoundOutputEvaluatorTests extends OperatorTestC
                 }
                 evaluator.computeRow(inputBlock, 0, targetBlocks, new BytesRef());
 
-                for (int j = 0; j < expectedRowComputationOutput.size(); j++) {
-                    Object[] expectedValues = expectedRowComputationOutput.get(j);
+                for (int j = 0; j < normalized.size(); j++) {
+                    Object[] expectedValues = normalized.get(j);
                     try (Block builtBlock = targetBlocks[j].build()) {
+                        assertThat(
+                            "Expected single position for field [" + requestedFields.get(j) + "]",
+                            builtBlock.getPositionCount(),
+                            is(1)
+                        );
+                        int position = 0;
+                        int firstValueIndex = builtBlock.getFirstValueIndex(position);
+                        int actualValueCount = builtBlock.getValueCount(position);
+                        int expectedValueCount = expectedValues.length;
+                        if (expectedValueCount == 1 && expectedValues[0] == null) {
+                            expectedValueCount = 0;
+                        }
+                        assertThat(
+                            "Value count mismatch for field [" + requestedFields.get(j) + "]",
+                            actualValueCount,
+                            is(expectedValueCount)
+                        );
+                        if (expectedValueCount == 0) {
+                            continue;
+                        }
                         for (int k = 0; k < expectedValues.length; k++) {
+                            int valueIndex = firstValueIndex + k;
                             Object value = expectedValues[k];
                             switch (value) {
-                                case null -> assertThat(
-                                    "Expected null for field [" + requestedFields.get(k) + "]",
-                                    builtBlock.isNull(k),
-                                    is(true)
-                                );
                                 case String s -> {
                                     BytesRefBlock fieldBlock = (BytesRefBlock) builtBlock;
-                                    assertThat(fieldBlock.isNull(k), is(false));
-                                    assertThat(fieldBlock.getBytesRef(k, new BytesRef()).utf8ToString(), is(s));
+                                    assertThat(fieldBlock.getBytesRef(valueIndex, new BytesRef()).utf8ToString(), is(s));
                                 }
                                 case Integer v -> {
                                     IntBlock fieldBlock = (IntBlock) builtBlock;
-                                    assertThat(fieldBlock.isNull(k), is(false));
-                                    assertThat(fieldBlock.getInt(k), is(v));
+                                    assertThat(fieldBlock.getInt(valueIndex), is(v));
                                 }
                                 default -> throw new IllegalArgumentException("Unsupported expected output type: " + value.getClass());
                             }

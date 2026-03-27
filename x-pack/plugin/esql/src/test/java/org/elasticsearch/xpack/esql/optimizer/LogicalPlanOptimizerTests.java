@@ -134,6 +134,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.RegisteredDomain;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.Sample;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
@@ -9968,7 +9969,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testPushDownSampleAndLimitThroughUriParts() {
-        assumeTrue("requires compound output capability", EsqlCapabilities.Cap.URI_PARTS_COMMAND.isEnabled());
+        assumeTrue("requires uri_parts command capability", EsqlCapabilities.Cap.URI_PARTS_COMMAND.isEnabled());
         var query = "FROM test | URI_PARTS parts = \"http://example.com/foo/bar?baz=qux\" | SAMPLE .5";
         var optimized = optimizedPlan(query);
         // UriParts should be above Sample and Limit
@@ -9980,7 +9981,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testPushDownUriPartsPastProject() {
-        assumeTrue("requires compound output capability", EsqlCapabilities.Cap.URI_PARTS_COMMAND.isEnabled());
+        assumeTrue("requires uri_parts command capability", EsqlCapabilities.Cap.URI_PARTS_COMMAND.isEnabled());
         String query = """
             from test
             | rename first_name as x
@@ -10002,7 +10003,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testCombineOrderByThroughUriParts() {
-        assumeTrue("requires compound output capability", EsqlCapabilities.Cap.URI_PARTS_COMMAND.isEnabled());
+        assumeTrue("requires uri_parts command capability", EsqlCapabilities.Cap.URI_PARTS_COMMAND.isEnabled());
         String query = """
             from test
             | sort emp_no
@@ -10015,5 +10016,52 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertThat(orderNames(topN), contains("u.domain"));
         var uriParts = as(topN.child(), UriParts.class);
         as(uriParts.child(), EsRelation.class);
+    }
+
+    public void testPushDownSampleAndLimitThroughRegisteredDomain() {
+        assumeTrue("requires registered_domain command capability", EsqlCapabilities.Cap.REGISTERED_DOMAIN_COMMAND.isEnabled());
+        var query = "FROM test | registered_domain parts = \"www.example.co.uk\" | SAMPLE .5";
+        var optimized = optimizedPlan(query);
+        var registeredDomain = as(optimized, RegisteredDomain.class);
+        var limit = as(registeredDomain.child(), Limit.class);
+        var sample = as(limit.child(), Sample.class);
+        assertThat(sample.probability().fold(FoldContext.small()), equalTo(0.5));
+        as(sample.child(), EsRelation.class);
+    }
+
+    public void testPushDownRegisteredDomainPastProject() {
+        assumeTrue("requires registered_domain command capability", EsqlCapabilities.Cap.REGISTERED_DOMAIN_COMMAND.isEnabled());
+        String query = """
+            from test
+            | rename first_name as x
+            | keep x
+            | registered_domain rd = x
+            """;
+        LogicalPlan plan = optimizedPlan(query);
+
+        var keep = as(plan, Project.class);
+        var registeredDomain = as(keep.child(), RegisteredDomain.class);
+        assertThat(
+            registeredDomain.output().stream().map(Attribute::name).collect(Collectors.toSet()),
+            hasItems("rd.domain", "rd.registered_domain", "rd.top_level_domain", "rd.subdomain")
+        );
+        var limit = as(registeredDomain.child(), Limit.class);
+        as(limit.child(), EsRelation.class);
+    }
+
+    public void testCombineOrderByThroughRegisteredDomain() {
+        assumeTrue("requires registered_domain command capability", EsqlCapabilities.Cap.REGISTERED_DOMAIN_COMMAND.isEnabled());
+        String query = """
+            from test
+            | sort emp_no
+            | registered_domain rd = first_name
+            | sort rd.registered_domain
+            """;
+        LogicalPlan plan = optimizedPlan(query);
+
+        var topN = as(plan, TopN.class);
+        assertThat(orderNames(topN), contains("rd.registered_domain"));
+        var registeredDomain = as(topN.child(), RegisteredDomain.class);
+        as(registeredDomain.child(), EsRelation.class);
     }
 }

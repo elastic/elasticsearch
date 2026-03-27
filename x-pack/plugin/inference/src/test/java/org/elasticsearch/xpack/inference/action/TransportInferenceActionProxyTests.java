@@ -72,7 +72,7 @@ public class TransportInferenceActionProxyTests extends ESTestCase {
                        "content": [
                             {
                                 "text": "some text",
-                                "type": "string"
+                                "type": "text"
                             }
                         ]
                     }
@@ -107,7 +107,7 @@ public class TransportInferenceActionProxyTests extends ESTestCase {
                        "content": [
                             {
                                 "text": "some text",
-                                "type": "string"
+                                "type": "text"
                             }
                         ]
                     }

@@ -607,6 +607,43 @@ public class MapperServiceTests extends MapperServiceTestCase {
         assertEquals(subobjectsFirst.mappingSource(), subobjectsLast.mappingSource());
     }
 
+    public void testBulkMergeSubobjectsFalseWithDottedNotation() throws IOException {
+        // Simulates template composition where one component template defines host.os.name via
+        // dotted notation (creating an intermediate host object), and another defines host as
+        // an explicit object with subobjects: false. Uses a fresh mapper service (no existing
+        // mapper) to exercise the applyFieldsBudget path.
+        final MapperService mapperService = createMapperService(IndexVersion.current(), Settings.EMPTY, () -> true);
+        CompressedXContent dottedMapping = new CompressedXContent("""
+            {
+              "_doc": {
+                "properties": {
+                  "host.os.name": {
+                    "type": "keyword"
+                  }
+                }
+              }
+            }""");
+        CompressedXContent objectMapping = new CompressedXContent("""
+            {
+              "_doc": {
+                "properties": {
+                  "host": {
+                    "type": "object",
+                    "subobjects": false,
+                    "properties": {
+                      "ip": {
+                        "type": "ip"
+                      }
+                    }
+                  }
+                }
+              }
+            }""");
+        DocumentMapper merged = mapperService.merge("_doc", List.of(dottedMapping, objectMapping), MergeReason.INDEX_TEMPLATE);
+        assertNotNull(merged.mappers().objectMappers().get("host"));
+        assertEquals(ObjectMapper.Subobjects.DISABLED, merged.mappers().objectMappers().get("host").subobjects());
+    }
+
     public void testMergeMultipleRoots() throws IOException {
         CompressedXContent mapping1 = new CompressedXContent("""
             {
@@ -1756,7 +1793,7 @@ public class MapperServiceTests extends MapperServiceTestCase {
         assertThat(
             e.getMessage(),
             containsString(
-                "Failed to parse mapping: Object mapper [parent] was found in a context where subobjects is set to false. "
+                "Object mapper [parent] was found in a context where subobjects is set to false. "
                     + "Auto-flattening [parent] failed because the value of [dynamic] (FALSE) is not compatible "
                     + "with the value from its parent context (TRUE)"
             )
@@ -1797,7 +1834,7 @@ public class MapperServiceTests extends MapperServiceTestCase {
         assertThat(
             e.getMessage(),
             containsString(
-                "Failed to parse mapping: Object mapper [parent] was found in a context where subobjects is set to false. "
+                "Object mapper [parent] was found in a context where subobjects is set to false. "
                     + "Auto-flattening [parent] failed because the value of [dynamic] (TRUE) is not compatible "
                     + "with the value from its parent context (FALSE)"
             )

@@ -77,6 +77,7 @@ import org.elasticsearch.xpack.esql.plan.logical.MMR;
 import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
+import org.elasticsearch.xpack.esql.plan.logical.RegisteredDomain;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.Sample;
@@ -84,6 +85,7 @@ import org.elasticsearch.xpack.esql.plan.logical.SourceCommand;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UriParts;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.Fuse;
@@ -483,6 +485,23 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     }
 
     @Override
+    public PlanFactory visitRegisteredDomainCommand(EsqlBaseParser.RegisteredDomainCommandContext ctx) {
+        Source source = source(ctx);
+
+        Attribute outputPrefix = visitQualifiedName(ctx.qualifiedName());
+        if (outputPrefix == null) {
+            throw new ParsingException(source, "REGISTERED_DOMAIN command requires an output field prefix");
+        }
+
+        Expression input = expression(ctx.primaryExpression());
+        if (input == null) {
+            throw new ParsingException(source, "REGISTERED_DOMAIN command requires an input expression");
+        }
+
+        return child -> RegisteredDomain.createInitialInstance(source, child, input, outputPrefix);
+    }
+
+    @Override
     public PlanFactory visitStatsCommand(EsqlBaseParser.StatsCommandContext ctx) {
         final Stats stats = stats(source(ctx), ctx.grouping, ctx.stats);
         // Only the first STATS command in a TS query is treated as the time-series aggregation.
@@ -755,6 +774,17 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     @Override
     public LogicalPlan visitTimeSeriesCommand(EsqlBaseParser.TimeSeriesCommandContext ctx) {
         return visitRelation(source(ctx), SourceCommand.TS, ctx.indexPatternAndMetadataFields());
+    }
+
+    @Override
+    public LogicalPlan visitExternalCommand(EsqlBaseParser.ExternalCommandContext ctx) {
+        Source source = source(ctx);
+        Expression tablePath = expression(ctx.stringOrParameter());
+
+        MapExpression options = visitCommandNamedParameters(ctx.commandNamedParameters());
+        Map<String, Expression> params = options != null ? options.keyFoldedMap() : Map.of();
+
+        return new UnresolvedExternalRelation(source, tablePath, params);
     }
 
     @Override

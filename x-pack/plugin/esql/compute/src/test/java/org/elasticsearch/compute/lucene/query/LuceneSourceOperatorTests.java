@@ -20,6 +20,7 @@ import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
@@ -497,7 +498,9 @@ public class LuceneSourceOperatorTests extends SourceOperatorTestCase {
             String name,
             boolean asUnsupportedSource,
             MappedFieldType.FieldExtractPreference fieldExtractPreference,
-            BlockLoaderFunctionConfig blockLoaderFunctionConfig
+            BlockLoaderFunctionConfig blockLoaderFunctionConfig,
+            ByteSizeValue blockLoaderSizeOrdinals,
+            ByteSizeValue blockLoaderSizeScript
         ) {
             throw new UnsupportedOperationException();
         }

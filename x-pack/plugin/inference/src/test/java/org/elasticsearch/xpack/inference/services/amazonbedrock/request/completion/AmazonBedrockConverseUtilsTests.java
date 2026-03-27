@@ -27,7 +27,6 @@ import java.util.Map;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.request.completion.AmazonBedrockConverseUtils.DEFAULT_USER_MESSAGE;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.request.completion.AmazonBedrockConverseUtils.HI_TEXT;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.request.completion.AmazonBedrockConverseUtils.PLEASE_CONTINUE_TEXT;
-import static org.elasticsearch.xpack.inference.services.amazonbedrock.request.completion.AmazonBedrockConverseUtils.TEXT_CONTENT_TYPE;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.request.completion.AmazonBedrockConverseUtils.convertChatCompletionMessagesToConverse;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.translation.Constants.FUNCTION_TYPE;
 import static org.hamcrest.Matchers.containsString;
@@ -59,9 +58,7 @@ public class AmazonBedrockConverseUtilsTests extends ESTestCase {
     public void testConvertChatCompletionMessages_SystemMessage() {
         var messages = List.of(
             new UnifiedCompletionRequest.Message(
-                new UnifiedCompletionRequest.ContentObjects(
-                    List.of(new UnifiedCompletionRequest.ContentObject(SYSTEM_TEXT, TEXT_CONTENT_TYPE))
-                ),
+                new UnifiedCompletionRequest.ContentObjects(List.of(new UnifiedCompletionRequest.ContentObjectText(SYSTEM_TEXT))),
                 ChatCompletionRole.SYSTEM.toString(),
                 null,
                 null
@@ -210,9 +207,9 @@ public class AmazonBedrockConverseUtilsTests extends ESTestCase {
         var userMessage = new UnifiedCompletionRequest.Message(
             new UnifiedCompletionRequest.ContentObjects(
                 List.of(
-                    new UnifiedCompletionRequest.ContentObject("", TEXT_CONTENT_TYPE),
-                    new UnifiedCompletionRequest.ContentObject(VALID_TEXT, TEXT_CONTENT_TYPE),
-                    new UnifiedCompletionRequest.ContentObject("", TEXT_CONTENT_TYPE)
+                    new UnifiedCompletionRequest.ContentObjectText(""),
+                    new UnifiedCompletionRequest.ContentObjectText(VALID_TEXT),
+                    new UnifiedCompletionRequest.ContentObjectText("")
                 )
             ),
             ChatCompletionRole.USER.toString(),
@@ -223,8 +220,8 @@ public class AmazonBedrockConverseUtilsTests extends ESTestCase {
         var assistantMessage = new UnifiedCompletionRequest.Message(
             new UnifiedCompletionRequest.ContentObjects(
                 List.of(
-                    new UnifiedCompletionRequest.ContentObject("", TEXT_CONTENT_TYPE),
-                    new UnifiedCompletionRequest.ContentObject(ASSISTANT_RESPONSE, TEXT_CONTENT_TYPE)
+                    new UnifiedCompletionRequest.ContentObjectText(""),
+                    new UnifiedCompletionRequest.ContentObjectText(ASSISTANT_RESPONSE)
                 )
             ),
             ChatCompletionRole.ASSISTANT.toString(),
@@ -253,9 +250,9 @@ public class AmazonBedrockConverseUtilsTests extends ESTestCase {
         var systemMessage = new UnifiedCompletionRequest.Message(
             new UnifiedCompletionRequest.ContentObjects(
                 List.of(
-                    new UnifiedCompletionRequest.ContentObject("", TEXT_CONTENT_TYPE),
-                    new UnifiedCompletionRequest.ContentObject(SYSTEM_INSTRUCTION, TEXT_CONTENT_TYPE),
-                    new UnifiedCompletionRequest.ContentObject("", TEXT_CONTENT_TYPE)
+                    new UnifiedCompletionRequest.ContentObjectText(""),
+                    new UnifiedCompletionRequest.ContentObjectText(SYSTEM_INSTRUCTION),
+                    new UnifiedCompletionRequest.ContentObjectText("")
                 )
             ),
             ChatCompletionRole.SYSTEM.toString(),

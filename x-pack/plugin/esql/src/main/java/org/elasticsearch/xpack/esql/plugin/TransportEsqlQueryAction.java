@@ -50,6 +50,7 @@ import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.action.EsqlQueryTask;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
 import org.elasticsearch.xpack.esql.core.async.AsyncTaskManagementService;
+import org.elasticsearch.xpack.esql.datasources.OperatorFactoryRegistry;
 import org.elasticsearch.xpack.esql.enrich.AbstractLookupService;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
@@ -140,6 +141,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         );
         AbstractLookupService.LookupShardContextFactory lookupLookupShardContextFactory = AbstractLookupService.LookupShardContextFactory
             .fromSearchService(searchService);
+        PlannerSettings.Holder plannerSettings = new PlannerSettings.Holder(clusterService);
         this.enrichLookupService = new EnrichLookupService(
             clusterService,
             searchService.getIndicesService(),
@@ -148,7 +150,8 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             indexNameExpressionResolver,
             bigArrays,
             blockFactoryProvider.blockFactory(),
-            projectResolver
+            projectResolver,
+            plannerSettings
         );
         this.lookupFromIndexService = new LookupFromIndexService(
             clusterService,
@@ -158,7 +161,8 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             indexNameExpressionResolver,
             bigArrays,
             blockFactoryProvider.blockFactory(),
-            projectResolver
+            projectResolver,
+            plannerSettings
         );
 
         this.asyncTaskManagementService = new AsyncTaskManagementService<>(
@@ -191,13 +195,16 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             new CrossProjectModeDecider(clusterService.getSettings())
         );
 
+        OperatorFactoryRegistry operatorFactoryRegistry = planExecutor.dataSourceModule()
+            .createOperatorFactoryRegistry(threadPool.executor(ThreadPool.Names.SEARCH));
         this.computeService = new ComputeService(
             services,
             enrichLookupService,
             lookupFromIndexService,
             threadPool,
             bigArrays,
-            blockFactoryProvider.blockFactory()
+            blockFactoryProvider.blockFactory(),
+            operatorFactoryRegistry
         );
 
         this.activityLogger = new ActivityLogger<>(

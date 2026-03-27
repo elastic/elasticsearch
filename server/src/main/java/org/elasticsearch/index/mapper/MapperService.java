@@ -295,7 +295,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         this.mappingParser = new MappingParser(
             mappingParserContextSupplier,
             metadataMapperParsers,
-            this::getMetadataMappers,
+            this::getMetadataBuilders,
             this::resolveDocumentType
         );
         this.bitSetProducer = bitSetProducer;
@@ -323,28 +323,22 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         return this.documentParser;
     }
 
-    Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> getMetadataMappers() {
+    Map<String, MetadataFieldMapper.Builder> getMetadataBuilders() {
         final MappingParserContext mappingParserContext = parserContext();
-        final DocumentMapper existingMapper = mapper;
         final Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers = mapperRegistry.getMetadataMapperParsers(
             indexSettings.getIndexVersionCreated()
         );
-        Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappers = new LinkedHashMap<>();
-        if (existingMapper == null) {
-            for (MetadataFieldMapper.TypeParser parser : metadataMapperParsers.values()) {
-                MetadataFieldMapper metadataFieldMapper = parser.getDefault(mappingParserContext);
-                // A MetadataFieldMapper may choose to not be added to the metadata mappers
-                // of an index (eg TimeSeriesIdFieldMapper is only added to time series indices)
-                // In this case its TypeParser will return null instead of the MetadataFieldMapper
-                // instance.
-                if (metadataFieldMapper != null) {
-                    metadataMappers.put(metadataFieldMapper.getClass(), metadataFieldMapper);
-                }
+        Map<String, MetadataFieldMapper.Builder> metadataBuilders = new LinkedHashMap<>();
+        for (MetadataFieldMapper.TypeParser parser : metadataMapperParsers.values()) {
+            // A MetadataFieldMapper may choose to not be added to the metadata mappers
+            // of an index (eg TimeSeriesIdFieldMapper is only added to time series indices)
+            // In this case its TypeParser will return null.
+            MetadataFieldMapper.Builder builder = parser.getDefaultBuilder(mappingParserContext);
+            if (builder != null) {
+                metadataBuilders.put(builder.leafName(), builder);
             }
-        } else {
-            metadataMappers.putAll(existingMapper.mapping().getMetadataMappersMap());
         }
-        return metadataMappers;
+        return metadataBuilders;
     }
 
     /**
@@ -393,11 +387,12 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         if (newMappingMetadata != null) {
             String type = newMappingMetadata.type();
             CompressedXContent incomingMappingSource = newMappingMetadata.source();
-            Mapping incomingMapping = parseMapping(type, MergeReason.MAPPING_UPDATE, incomingMappingSource);
+            MappingBuilder incomingBuilder = mappingParser.parseToBuilder(type, MergeReason.MAPPING_UPDATE, incomingMappingSource);
             DocumentMapper previousMapper;
             synchronized (this) {
                 previousMapper = this.mapper;
-                assert assertRefreshIsNotNeeded(previousMapper, type, incomingMapping);
+                assert assertRefreshIsNotNeeded(type, incomingBuilder);
+                Mapping incomingMapping = buildMapping(incomingBuilder, MergeReason.MAPPING_RECOVERY);
                 this.mapper = newDocumentMapper(incomingMapping, MergeReason.MAPPING_RECOVERY, incomingMappingSource);
                 this.mappingVersion = newIndexMetadata.getMappingVersion();
             }
@@ -412,8 +407,9 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         }
     }
 
-    private boolean assertRefreshIsNotNeeded(DocumentMapper currentMapper, String type, Mapping incomingMapping) {
-        Mapping mergedMapping = mergeMappings(currentMapper, incomingMapping, MergeReason.MAPPING_RECOVERY, indexSettings);
+    private boolean assertRefreshIsNotNeeded(String type, MappingBuilder incomingBuilder) {
+        Mapping mergedMapping = mergeBuilders(incomingBuilder, MergeReason.MAPPING_RECOVERY);
+        Mapping incomingMapping = incomingBuilder.build(MergeReason.MAPPING_RECOVERY);
         // skip the runtime section or removed runtime fields will make the assertion fail
         ToXContent.MapParams params = new ToXContent.MapParams(Collections.singletonMap(RootObjectMapper.TOXCONTENT_SKIP_RUNTIME, "true"));
         CompressedXContent mergedMappingSource;
@@ -619,23 +615,56 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     private DocumentMapper doMerge(String type, MergeReason reason, Map<String, Object> mappingSourceAsMap) {
-        Mapping incomingMapping = parseMapping(type, reason, mappingSourceAsMap);
-        // TODO: In many cases the source here is equal to mappingSource so we need not serialize again.
-        // We should identify these cases reliably and save expensive serialization here
+        MappingBuilder incomingBuilder;
+        try {
+            incomingBuilder = mappingParser.parseToBuilder(type, reason, mappingSourceAsMap);
+        } catch (Exception e) {
+            throw new MapperParsingException("Failed to parse mapping: {}", e, e.getMessage());
+        }
         if (reason == MergeReason.MAPPING_AUTO_UPDATE_PREFLIGHT) {
             // only doing a merge without updating the actual #mapper field, no need to synchronize
-            Mapping mapping = mergeMappings(this.mapper, incomingMapping, MergeReason.MAPPING_AUTO_UPDATE_PREFLIGHT, this.indexSettings);
+            Mapping mapping = mergeBuilders(incomingBuilder, MergeReason.MAPPING_AUTO_UPDATE_PREFLIGHT);
             return newDocumentMapper(mapping, MergeReason.MAPPING_AUTO_UPDATE_PREFLIGHT, mapping.toCompressedXContent());
         } else {
             // synchronized concurrent mapper updates are guaranteed to set merged mappers derived from the mapper value previously read
             // TODO: can we even have concurrent updates here?
             synchronized (this) {
-                Mapping mapping = mergeMappings(this.mapper, incomingMapping, reason, this.indexSettings);
+                Mapping mapping = mergeBuilders(incomingBuilder, reason);
                 DocumentMapper newMapper = newDocumentMapper(mapping, reason, mapping.toCompressedXContent());
                 this.mapper = newMapper;
                 assert assertSerialization(newMapper, reason);
                 return newMapper;
             }
+        }
+    }
+
+    private Mapping mergeBuilders(MappingBuilder incomingBuilder, MergeReason reason) {
+        long newFieldsBudget = getMaxFieldsToAddDuringMerge(this.mapper, indexSettings, reason);
+        if (this.mapper == null) {
+            try {
+                return buildMapping(applyFieldsBudget(incomingBuilder, newFieldsBudget, reason), reason);
+            } catch (MapperParsingException e) {
+                throw e;
+            } catch (Exception e) {
+                throw new MapperParsingException("Failed to parse mapping: {}", e, e.getMessage());
+            }
+        }
+        MappingBuilder existingBuilder = mappingParser.parseToBuilder(this.mapper.type(), reason, this.mapper.mappingSource());
+        existingBuilder.merge(incomingBuilder, reason, newFieldsBudget);
+        return buildMapping(existingBuilder, reason);
+    }
+
+    private static MappingBuilder applyFieldsBudget(MappingBuilder builder, long fieldsBudget, MergeReason reason) {
+        MappingBuilder shallowBuilder = builder.withoutMappers();
+        shallowBuilder.merge(builder, reason, fieldsBudget);
+        return shallowBuilder;
+    }
+
+    private static Mapping buildMapping(MappingBuilder builder, MergeReason reason) {
+        try {
+            return builder.build(reason);
+        } catch (Exception e) {
+            throw new MapperParsingException("Failed to parse mapping: {}", e, e.getMessage());
         }
     }
 
@@ -677,15 +706,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         }
     }
 
-    public static Mapping mergeMappings(
-        DocumentMapper currentMapper,
-        Mapping incomingMapping,
-        MergeReason reason,
-        IndexSettings indexSettings
-    ) {
-        return mergeMappings(currentMapper, incomingMapping, reason, getMaxFieldsToAddDuringMerge(currentMapper, indexSettings, reason));
-    }
-
     private static long getMaxFieldsToAddDuringMerge(DocumentMapper currentMapper, IndexSettings indexSettings, MergeReason reason) {
         if (reason.isAutoUpdate() && indexSettings.isIgnoreDynamicFieldsBeyondLimit()) {
             // If the index setting ignore_dynamic_beyond_limit is enabled,
@@ -711,14 +731,18 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         }
     }
 
-    static Mapping mergeMappings(DocumentMapper currentMapper, Mapping incomingMapping, MergeReason reason, long newFieldsBudget) {
-        Mapping newMapping;
-        if (currentMapper == null) {
-            newMapping = incomingMapping.withFieldsBudget(newFieldsBudget);
-        } else {
-            newMapping = currentMapper.mapping().merge(incomingMapping, reason, newFieldsBudget);
+    Mapping mergeMappings(CompressedXContent incomingMappingSource, MergeReason reason, long newFieldsBudget) {
+        MappingBuilder incomingBuilder = mappingParser.parseToBuilder(SINGLE_MAPPING_NAME, reason, incomingMappingSource);
+        return mergeMappings(incomingBuilder, reason, newFieldsBudget);
+    }
+
+    private Mapping mergeMappings(MappingBuilder incomingBuilder, MergeReason reason, long newFieldsBudget) {
+        if (this.mapper == null) {
+            return applyFieldsBudget(incomingBuilder, newFieldsBudget, reason).build(reason);
         }
-        return newMapping;
+        MappingBuilder existingBuilder = mappingParser.parseToBuilder(this.mapper.type(), reason, this.mapper.mappingSource());
+        existingBuilder.merge(incomingBuilder, reason, newFieldsBudget);
+        return existingBuilder.build(reason);
     }
 
     private boolean assertSerialization(DocumentMapper mapper, MergeReason reason) {

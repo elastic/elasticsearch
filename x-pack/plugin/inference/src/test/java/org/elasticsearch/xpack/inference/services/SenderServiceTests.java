@@ -16,13 +16,16 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
+import org.elasticsearch.inference.EmbeddingRequest;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.InferenceStringGroup;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.InferencePlugin;
@@ -43,6 +46,9 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.xpack.core.inference.action.UnifiedCompletionRequestTests.randomContentObjectFile;
+import static org.elasticsearch.xpack.core.inference.action.UnifiedCompletionRequestTests.randomContentObjectImage;
+import static org.elasticsearch.xpack.core.inference.action.UnifiedCompletionRequestTests.randomContentObjectText;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterService;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
@@ -287,6 +293,60 @@ public class SenderServiceTests extends ESTestCase {
             testService.infer(model, null, null, null, List.of(testInput), false, Map.of(), null, null, listener);
             assertNotNull(listener.actionGet(TIMEOUT));
             assertTrue(doInferCalled.get());
+        }
+    }
+
+    public void testMultimodalChatCompletionNotSupportedByDefault() throws IOException {
+        var sender = createMockSender();
+
+        var factory = mock(HttpRequestSender.Factory.class);
+        when(factory.createSender()).thenReturn(sender);
+
+        try (var service = new TestSenderService(factory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            var request = new UnifiedCompletionRequest(
+                List.of(
+                    new UnifiedCompletionRequest.Message(
+                        new UnifiedCompletionRequest.ContentObjects(
+                            List.of(randomContentObjectText(), randomContentObjectImage(), randomContentObjectFile())
+                        ),
+                        "user",
+                        null,
+                        null
+                    )
+                ),
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+            );
+            service.unifiedCompletionInfer(mock(Model.class), request, TIMEOUT, listener);
+
+            var exception = assertThrows(UnsupportedOperationException.class, () -> listener.actionGet(TIMEOUT));
+            assertThat(exception.getMessage(), is("The test service service does not support unified completion with non-text inputs"));
+        }
+    }
+
+    public void testEmbeddingInferNotSupportedByDefault() throws IOException {
+        var sender = createMockSender();
+
+        var factory = mock(HttpRequestSender.Factory.class);
+        when(factory.createSender()).thenReturn(sender);
+
+        try (var service = new TestSenderService(factory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            var request = new EmbeddingRequest(List.of(new InferenceStringGroup("input")), null, null);
+            var model = mock(Model.class);
+            var config = mock(ModelConfigurations.class);
+            when(model.getConfigurations()).thenReturn(config);
+            when(config.getService()).thenReturn("test service");
+            service.embeddingInfer(model, request, TIMEOUT, listener);
+
+            var exception = assertThrows(UnsupportedOperationException.class, () -> listener.actionGet(TIMEOUT));
+            assertThat(exception.getMessage(), is("The test service service does not support embedding"));
         }
     }
 

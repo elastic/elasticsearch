@@ -1079,6 +1079,14 @@ public class AzureBlobStore implements BlobStore {
         }
     }
 
+    public RepositoriesMetrics getRepositoriesMetrics() {
+        return requestMetricsRecorder.repositoriesMetrics;
+    }
+
+    public RepositoryMetadata getRepositoryMetadata() {
+        return repositoryMetadata;
+    }
+
     // visible for testing
     RequestMetricsRecorder getMetricsRecorder() {
         return requestMetricsRecorder;

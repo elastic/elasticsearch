@@ -52,6 +52,7 @@ import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_P
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.invalidModelTypeForUpdateModelWithEmbeddingDetails;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwUnsupportedEmbeddingOperation;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwUnsupportedMultimodalUnifiedCompletionOperation;
 
 public class SageMakerService implements InferenceService, RerankingInferenceService {
     public static final String NAME = "amazon_sagemaker";
@@ -245,6 +246,10 @@ public class SageMakerService implements InferenceService, RerankingInferenceSer
         if (model instanceof SageMakerModel == false) {
             listener.onFailure(createInvalidModelException(model));
             return;
+        }
+
+        if (request.containsMultimodalContent()) {
+            throwUnsupportedMultimodalUnifiedCompletionOperation(NAME);
         }
 
         try {

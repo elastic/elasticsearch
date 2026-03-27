@@ -141,6 +141,11 @@ public class TDigestFieldMapper extends FieldMapper {
         }
 
         @Override
+        public String contentType() {
+            return CONTENT_TYPE;
+        }
+
+        @Override
         public TDigestFieldMapper build(MapperBuilderContext context) {
             return new TDigestFieldMapper(
                 leafName(),

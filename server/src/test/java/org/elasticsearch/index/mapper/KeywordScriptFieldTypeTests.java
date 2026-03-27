@@ -27,17 +27,22 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Operations;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.lucene.search.function.ScriptScoreQuery;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.BinaryScriptFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.StringScriptFieldData;
+import org.elasticsearch.index.mapper.blockloader.script.KeywordScriptBlockDocValuesReader;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.script.DocReader;
 import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.Script;
@@ -51,6 +56,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
 import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -403,6 +409,44 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
     }
 
     public void testBlockLoader() throws IOException {
+        testBlockLoader(newLimitedBreaker(ByteSizeValue.ofMb(1)), f -> f);
+    }
+
+    public void testWithCrankyBreaker() throws IOException {
+        CircuitBreaker cranky = new CrankyCircuitBreakerService.CrankyCircuitBreaker();
+        try {
+            testBlockLoader(cranky, r -> r);
+            logger.info("Cranky breaker didn't break. This should be rare, but possible randomly.");
+        } catch (CircuitBreakingException e) {
+            logger.info("Cranky breaker broke", e);
+        }
+        assertThat(cranky.getUsed(), equalTo(0L));
+    }
+
+    public void testWithCrankyFactory() throws IOException {
+        try {
+            testBlockLoader(newLimitedBreaker(ByteSizeValue.ofMb(1)), CrankyLeafFactory::new);
+            logger.info("Cranky factory didn't break.");
+        } catch (IllegalStateException e) {
+            logger.info("Cranky factory broke", e);
+        }
+    }
+
+    public void testWithCrankyBreakerAndFactory() throws IOException {
+        CircuitBreaker cranky = new CrankyCircuitBreakerService.CrankyCircuitBreaker();
+        try {
+            testBlockLoader(cranky, CrankyLeafFactory::new);
+            logger.info("Cranky breaker nor reader didn't break. This should be rare, but possible randomly.");
+        } catch (IllegalStateException | CircuitBreakingException e) {
+            logger.info("Cranky breaker or reader broke", e);
+        }
+        assertThat(cranky.getUsed(), equalTo(0L));
+    }
+
+    private void testBlockLoader(
+        CircuitBreaker breaker,
+        Function<StringFieldScript.LeafFactory, StringFieldScript.LeafFactory> factoryWrapper
+    ) throws IOException {
         try (
             Directory directory = newDirectory();
             RandomIndexWriter iw = new RandomIndexWriter(random(), directory, newIndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE))
@@ -414,14 +458,17 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
                 )
             );
             try (DirectoryReader reader = iw.getReader()) {
-                KeywordScriptFieldType fieldType = build("append_param", Map.of("param", "-Suffix"), OnScriptError.FAIL);
+                KeywordScriptFieldType fieldType = buildWrapped("append_param", Map.of("param", "-Suffix"), factoryWrapper);
                 assertThat(
-                    blockLoaderReadValuesFromColumnAtATimeReader(reader, fieldType, 0),
+                    blockLoaderReadValuesFromColumnAtATimeReader(breaker, reader, fieldType, 0),
                     equalTo(List.of(new BytesRef("1-Suffix"), new BytesRef("2-Suffix")))
                 );
-                assertThat(blockLoaderReadValuesFromColumnAtATimeReader(reader, fieldType, 1), equalTo(List.of(new BytesRef("2-Suffix"))));
                 assertThat(
-                    blockLoaderReadValuesFromRowStrideReader(reader, fieldType),
+                    blockLoaderReadValuesFromColumnAtATimeReader(breaker, reader, fieldType, 1),
+                    equalTo(List.of(new BytesRef("2-Suffix")))
+                );
+                assertThat(
+                    blockLoaderReadValuesFromRowStrideReader(breaker, reader, fieldType),
                     equalTo(List.of(new BytesRef("1-Suffix"), new BytesRef("2-Suffix")))
                 );
             }
@@ -445,19 +492,25 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
                 // Assert implementations:
                 BlockLoader loader = fieldType.blockLoader(blContext(Settings.EMPTY, true));
                 assertThat(loader, instanceOf(KeywordScriptBlockDocValuesReader.KeywordScriptBlockLoader.class));
+                CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(1));
                 // ignored source doesn't support column at a time loading:
-                var columnAtATimeLoader = loader.columnAtATimeReader(reader.leaves().getFirst()).get();
-                assertThat(columnAtATimeLoader, instanceOf(KeywordScriptBlockDocValuesReader.class));
-                var rowStrideReader = loader.rowStrideReader(reader.leaves().getFirst());
-                assertThat(rowStrideReader, instanceOf(KeywordScriptBlockDocValuesReader.class));
+                try (var columnAtATimeLoader = loader.columnAtATimeReader(reader.leaves().getFirst()).apply(breaker)) {
+                    assertThat(columnAtATimeLoader, instanceOf(KeywordScriptBlockDocValuesReader.class));
+                }
+                try (var rowStrideReader = loader.rowStrideReader(breaker, reader.leaves().getFirst())) {
+                    assertThat(rowStrideReader, instanceOf(KeywordScriptBlockDocValuesReader.class));
+                }
 
                 var catBytes = new BytesRef("cat");
                 var dogBytes = new BytesRef("dog");
 
                 // Assert values:
-                assertThat(blockLoaderReadValuesFromColumnAtATimeReader(reader, fieldType, 0), equalTo(List.of(catBytes, dogBytes)));
-                assertThat(blockLoaderReadValuesFromColumnAtATimeReader(reader, fieldType, 1), equalTo(List.of(dogBytes)));
-                assertThat(blockLoaderReadValuesFromRowStrideReader(reader, fieldType), equalTo(List.of(catBytes, dogBytes)));
+                assertThat(
+                    blockLoaderReadValuesFromColumnAtATimeReader(breaker, reader, fieldType, 0),
+                    equalTo(List.of(catBytes, dogBytes))
+                );
+                assertThat(blockLoaderReadValuesFromColumnAtATimeReader(breaker, reader, fieldType, 1), equalTo(List.of(dogBytes)));
+                assertThat(blockLoaderReadValuesFromRowStrideReader(breaker, reader, fieldType), equalTo(List.of(catBytes, dogBytes)));
             }
         }
     }
@@ -479,18 +532,19 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
                 // Assert implementations:
                 BlockLoader loader = fieldType.blockLoader(blContext(settings, true));
                 assertThat(loader, instanceOf(FallbackSyntheticSourceBlockLoader.class));
+                CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(1));
                 // ignored source doesn't support column at a time loading:
-                var columnAtATimeLoader = loader.columnAtATimeReader(reader.leaves().getFirst());
-                assertThat(columnAtATimeLoader, nullValue());
-                var rowStrideReader = loader.rowStrideReader(reader.leaves().getFirst());
-                assertThat(
-                    rowStrideReader.getClass().getName(),
-                    equalTo("org.elasticsearch.index.mapper.FallbackSyntheticSourceBlockLoader$IgnoredSourceRowStrideReader")
-                );
+                assertThat(loader.columnAtATimeReader(reader.leaves().getFirst()), nullValue());
+                try (var rowStrideReader = loader.rowStrideReader(breaker, reader.leaves().getFirst())) {
+                    assertThat(
+                        rowStrideReader.getClass().getName(),
+                        equalTo("org.elasticsearch.index.mapper.FallbackSyntheticSourceBlockLoader$IgnoredSourceRowStrideReader")
+                    );
+                }
 
                 // Assert values:
                 assertThat(
-                    blockLoaderReadValuesFromRowStrideReader(settings, reader, fieldType, true),
+                    blockLoaderReadValuesFromRowStrideReader(breaker, settings, reader, fieldType, true),
                     equalTo(List.of(new BytesRef("cat"), new BytesRef("dog")))
                 );
             }
@@ -547,6 +601,19 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
         return new KeywordScriptFieldType("test", factory(script), script, emptyMap(), onScriptError);
     }
 
+    protected KeywordScriptFieldType buildWrapped(
+        String code,
+        Map<String, Object> params,
+        Function<StringFieldScript.LeafFactory, StringFieldScript.LeafFactory> leafFactoryWrapper
+    ) {
+        Script script = new Script(ScriptType.INLINE, "test", code, params);
+        StringFieldScript.Factory factory = factory(script);
+        StringFieldScript.Factory wrapped = (fieldName, params1, searchLookup, onScriptError) -> leafFactoryWrapper.apply(
+            factory.newFactory(fieldName, params1, searchLookup, onScriptError)
+        );
+        return new KeywordScriptFieldType("test", wrapped, script, emptyMap(), OnScriptError.FAIL);
+    }
+
     private static StringFieldScript.Factory factory(Script script) {
         return switch (script.getIdOrCode()) {
             case "read_foo" -> (fieldName, params, lookup, onScriptError) -> ctx -> new StringFieldScript(
@@ -600,5 +667,21 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
             };
             default -> throw new IllegalArgumentException("unsupported script [" + script.getIdOrCode() + "]");
         };
+    }
+
+    private static class CrankyLeafFactory implements StringFieldScript.LeafFactory {
+        private final StringFieldScript.LeafFactory next;
+
+        private CrankyLeafFactory(StringFieldScript.LeafFactory next) {
+            this.next = next;
+        }
+
+        @Override
+        public StringFieldScript newInstance(LeafReaderContext ctx) {
+            if (between(0, 20) == 0) {
+                throw new IllegalStateException("cranky");
+            }
+            return next.newInstance(ctx);
+        }
     }
 }

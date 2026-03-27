@@ -30,6 +30,7 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.time.DateMathParser;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexSettings;
@@ -672,6 +673,9 @@ public abstract class MappedFieldType {
      * Arguments for {@link #blockLoader}.
      */
     public interface BlockLoaderContext {
+        ByteSizeValue DEFAULT_ORDINALS_BYTE_SIZE = ByteSizeValue.ofKb(100);
+        ByteSizeValue DEFAULT_SCRIPT_BYTE_SIZE = ByteSizeValue.ofKb(300);
+
         /**
          * The name of the index.
          */
@@ -716,6 +720,16 @@ public abstract class MappedFieldType {
 
         @Nullable
         BlockLoaderFunctionConfig blockLoaderFunctionConfig();
+
+        /**
+         * Number of bytes reserved for each ordinals {@link BlockLoader.Reader}.
+         */
+        ByteSizeValue ordinalsByteSize();
+
+        /**
+         * Number of bytes reserved for each script {@link BlockLoader.Reader}.
+         */
+        ByteSizeValue scriptByteSize();
     }
 
 }

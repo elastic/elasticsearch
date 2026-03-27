@@ -16,6 +16,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
@@ -39,7 +40,6 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.mapper.BlockLoader;
-import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -65,7 +65,6 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.sort.SortBuilder;
@@ -160,6 +159,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
     }
 
     private final IndexedByShardId<? extends ShardContext> shardContexts;
+
     private final PlannerSettings plannerSettings;
 
     public EsPhysicalOperationProviders(
@@ -193,8 +193,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 s.storedFieldsSequentialProportion()
             )
         );
-        boolean reuseColumnLoaders = fieldExtractExec.attributesToExtract().size() <= context.plannerSettings()
-            .reuseColumnLoadersThreshold();
+        boolean reuseColumnLoaders = fieldExtractExec.attributesToExtract().size() <= plannerSettings.reuseColumnLoadersThreshold();
         return source.with(
             new ValuesSourceReaderOperator.Factory(
                 plannerSettings.valuesLoadingJumboSize(),
@@ -229,9 +228,16 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         }
         boolean isUnsupported = attr.dataType() == DataType.UNSUPPORTED;
         String fieldName = getFieldName(attr);
-        BlockLoader blockLoader = shardContext.blockLoader(fieldName, isUnsupported, fieldExtractPreference, functionConfig);
         MultiTypeEsField unionTypes = findUnionTypes(attr);
         if (unionTypes == null) {
+            BlockLoader blockLoader = shardContext.blockLoader(
+                fieldName,
+                isUnsupported,
+                fieldExtractPreference,
+                functionConfig,
+                plannerSettings.blockLoaderSizeOrdinals(),
+                plannerSettings.blockLoaderSizeScript()
+            );
             return ValuesSourceReaderOperator.load(blockLoader);
         }
         // Use the fully qualified name `cluster:index-name` because multiple types are resolved on coordinator with the cluster prefix
@@ -244,10 +250,25 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             BlockLoaderExpression.PushedBlockLoaderExpression e = ble.tryPushToFieldLoading(SearchStats.EMPTY);
             if (e != null) {
                 return ValuesSourceReaderOperator.load(
-                    shardContext.blockLoader(fieldName, isUnsupported, fieldExtractPreference, e.config())
+                    shardContext.blockLoader(
+                        fieldName,
+                        isUnsupported,
+                        fieldExtractPreference,
+                        e.config(),
+                        plannerSettings.blockLoaderSizeOrdinals(),
+                        plannerSettings.blockLoaderSizeScript()
+                    )
                 );
             }
         }
+        BlockLoader blockLoader = shardContext.blockLoader(
+            fieldName,
+            isUnsupported,
+            fieldExtractPreference,
+            functionConfig,
+            plannerSettings.blockLoaderSizeOrdinals(),
+            plannerSettings.blockLoaderSizeScript()
+        );
         return ValuesSourceReaderOperator.loadAndConvert(blockLoader, new TypeConverter((EsqlScalarFunction) conversion));
     }
 
@@ -554,7 +575,9 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             String name,
             boolean asUnsupportedSource,
             MappedFieldType.FieldExtractPreference fieldExtractPreference,
-            BlockLoaderFunctionConfig blockLoaderFunctionConfig
+            BlockLoaderFunctionConfig blockLoaderFunctionConfig,
+            ByteSizeValue blockLoaderSizeOrdinals,
+            ByteSizeValue blockLoaderSizeScript
         ) {
             if (asUnsupportedSource) {
                 return ConstantNull.INSTANCE;
@@ -564,52 +587,15 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 // the field does not exist in this context
                 return ConstantNull.INSTANCE;
             }
-            BlockLoader loader = fieldType.blockLoader(new MappedFieldType.BlockLoaderContext() {
-                @Override
-                public String indexName() {
-                    return ctx.getFullyQualifiedIndex().getName();
-                }
-
-                @Override
-                public IndexSettings indexSettings() {
-                    return ctx.getIndexSettings();
-                }
-
-                @Override
-                public MappedFieldType.FieldExtractPreference fieldExtractPreference() {
-                    return fieldExtractPreference;
-                }
-
-                @Override
-                public SearchLookup lookup() {
-                    return ctx.lookup();
-                }
-
-                @Override
-                public Set<String> sourcePaths(String name) {
-                    return ctx.sourcePath(name);
-                }
-
-                @Override
-                public String parentField(String field) {
-                    return ctx.parentPath(field);
-                }
-
-                @Override
-                public FieldNamesFieldMapper.FieldNamesFieldType fieldNames() {
-                    return (FieldNamesFieldMapper.FieldNamesFieldType) ctx.lookup().fieldType(FieldNamesFieldMapper.NAME);
-                }
-
-                @Override
-                public BlockLoaderFunctionConfig blockLoaderFunctionConfig() {
-                    return blockLoaderFunctionConfig;
-                }
-
-                @Override
-                public MappingLookup mappingLookup() {
-                    return ctx.getMappingLookup();
-                }
-            });
+            BlockLoader loader = fieldType.blockLoader(
+                new EsqlBlockLoaderContext(
+                    ctx,
+                    fieldExtractPreference,
+                    blockLoaderFunctionConfig,
+                    blockLoaderSizeOrdinals,
+                    blockLoaderSizeScript
+                )
+            );
             if (loader == null) {
                 HeaderWarning.addWarning("Field [{}] cannot be retrieved, it is unsupported or not indexed; returning null", name);
                 return ConstantNull.INSTANCE;

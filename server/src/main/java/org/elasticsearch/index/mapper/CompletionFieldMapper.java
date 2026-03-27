@@ -196,6 +196,11 @@ public class CompletionFieldMapper extends FieldMapper {
         }
 
         @Override
+        public String contentType() {
+            return CONTENT_TYPE;
+        }
+
+        @Override
         public CompletionFieldMapper build(MapperBuilderContext context) {
             checkCompletionContextsLimit();
             NamedAnalyzer completionAnalyzer = new NamedAnalyzer(

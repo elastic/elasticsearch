@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.operator.compariso
 import org.elasticsearch.xpack.esql.core.tree.Location;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.evaluator.command.RegisteredDomainFunctionBridge;
 import org.elasticsearch.xpack.esql.evaluator.command.UriPartsFunctionBridge;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
@@ -78,6 +79,7 @@ import org.elasticsearch.xpack.esql.plan.logical.MMR;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.RegisteredDomain;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
@@ -3592,7 +3594,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
             "rename",
             "sort",
             "stats",
-            "uri_parts" };
+            "uri_parts",
+            "registered_domain" };
         for (String keyword : keywords) {
             var plan = query("FROM test | STATS avg(" + keyword + ")");
             var aggregate = as(plan, Aggregate.class);
@@ -4573,7 +4576,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testUriPartsCommand() {
-        assumeTrue("requires compound output capability", EsqlCapabilities.Cap.URI_PARTS_COMMAND.isEnabled());
+        assumeTrue("requires uri_parts command capability", EsqlCapabilities.Cap.URI_PARTS_COMMAND.isEnabled());
         LogicalPlan cmd = processingCommand("uri_parts p = a");
         UriParts parts = as(cmd, UriParts.class);
         assertEqualsIgnoringIds(attribute("a"), parts.getInput());
@@ -4586,6 +4589,22 @@ public class StatementParserTests extends AbstractStatementParserTests {
             .collect(Collectors.toList());
 
         List<String> actualFieldNames = parts.generatedAttributes().stream().map(NamedExpression::name).collect(Collectors.toList());
+        assertEquals(expectedFieldNames, actualFieldNames);
+    }
+
+    public void testRegisteredDomainCommand() {
+        assumeTrue("requires registered_domain command capability", EsqlCapabilities.Cap.REGISTERED_DOMAIN_COMMAND.isEnabled());
+        LogicalPlan cmd = processingCommand("registered_domain rd = a");
+        RegisteredDomain domain = as(cmd, RegisteredDomain.class);
+        assertEqualsIgnoringIds(attribute("a"), domain.getInput());
+
+        List<String> expectedFieldNames = RegisteredDomainFunctionBridge.getAllOutputFields()
+            .keySet()
+            .stream()
+            .map(name -> "rd." + name)
+            .collect(Collectors.toList());
+
+        List<String> actualFieldNames = domain.generatedAttributes().stream().map(NamedExpression::name).collect(Collectors.toList());
         assertEquals(expectedFieldNames, actualFieldNames);
     }
 

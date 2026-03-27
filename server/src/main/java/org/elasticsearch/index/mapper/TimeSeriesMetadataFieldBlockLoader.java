@@ -11,8 +11,9 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedSetDocValues;
-import org.apache.lucene.util.IOSupplier;
+import org.apache.lucene.util.IOFunction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 
@@ -41,13 +42,13 @@ public final class TimeSeriesMetadataFieldBlockLoader implements BlockLoader {
     }
 
     @Override
-    public IOSupplier<ColumnAtATimeReader> columnAtATimeReader(LeafReaderContext context) {
+    public IOFunction<CircuitBreaker, ColumnAtATimeReader> columnAtATimeReader(LeafReaderContext context) {
         return null;
     }
 
     @Override
-    public RowStrideReader rowStrideReader(LeafReaderContext context) throws IOException {
-        return new TimeSeries();
+    public RowStrideReader rowStrideReader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
+        return new TimeSeries(breaker);
     }
 
     @Override
@@ -69,6 +70,10 @@ public final class TimeSeriesMetadataFieldBlockLoader implements BlockLoader {
     }
 
     private static class TimeSeries extends BlockStoredFieldsReader {
+        protected TimeSeries(CircuitBreaker breaker) {
+            super(breaker);
+        }
+
         @Override
         public void read(int docId, StoredFields storedFields, Builder builder) throws IOException {
             // TODO support appending BytesReference
@@ -111,5 +116,10 @@ public final class TimeSeriesMetadataFieldBlockLoader implements BlockLoader {
             return result;
         }
         throw new IllegalStateException("The TimeSeriesMetadataFieldBlockLoader cannot be used in non-time series mode.");
+    }
+
+    @Override
+    public String toString() {
+        return "TimeSeriesMetadata";
     }
 }

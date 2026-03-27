@@ -9,6 +9,9 @@
 
 package org.elasticsearch.inference;
 
+import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -16,6 +19,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -27,9 +31,15 @@ import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.EnumSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 
+import static org.elasticsearch.inference.UnifiedCompletionRequest.ContentObject.ContentObjectType.FILE;
+import static org.elasticsearch.inference.UnifiedCompletionRequest.ContentObject.ContentObjectType.IMAGE_URL;
+import static org.elasticsearch.inference.UnifiedCompletionRequest.ContentObject.ContentObjectType.TEXT;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
@@ -62,15 +72,26 @@ public record UnifiedCompletionRequest(
     public static final String TOOL_CHOICE_FIELD = "tool_choice";
     public static final String TOOL_FIELD = "tools";
     private static final String TEXT_FIELD = "text";
+    private static final String IMAGE_URL_FIELD = "image_url";
+    private static final String URL_FIELD = "url";
+    private static final String DETAIL_FIELD = "detail";
+    private static final String FILE_FIELD = "file";
+    private static final String FILE_DATA_FIELD = "file_data";
+    private static final String FILE_ID_FIELD = "file_id";
+    private static final String FILENAME_FIELD = "filename";
     public static final String TYPE_FIELD = "type";
     private static final String MODEL_FIELD = "model";
     private static final String MAX_COMPLETION_TOKENS_FIELD = "max_completion_tokens";
     private static final String MAX_TOKENS_FIELD = "max_tokens";
 
+    public static TransportVersion MULTIMODAL_CHAT_COMPLETION_SUPPORT_ADDED = TransportVersion.fromName(
+        "inference_api_multimodal_chat_completion"
+    );
+
     /**
      * We currently allow providers to override the model id that is written to JSON.
      * Rather than use {@link #model()}, providers are expected to pass in the modelId via
-     * {@link org.elasticsearch.xcontent.ToXContent.Params}.
+     * {@link Params}.
      */
     private static final String MODEL_ID_PARAM = "model_id_value";
     /**
@@ -88,7 +109,7 @@ public record UnifiedCompletionRequest(
     public static final String INCLUDE_STREAM_OPTIONS_PARAM = "include_stream_options";
 
     /**
-     * Creates a {@link org.elasticsearch.xcontent.ToXContent.Params} that causes ToXContent to include the key values:
+     * Creates a {@link Params} that causes ToXContent to include the key values:
      * - Key: {@link #MODEL_FIELD}, Value: modelId, if modelId is not null
      * - Key: {@link #MAX_TOKENS_FIELD}, Value: {@link #maxCompletionTokens()}
      */
@@ -100,7 +121,7 @@ public record UnifiedCompletionRequest(
     }
 
     /**
-     * Creates a {@link org.elasticsearch.xcontent.ToXContent.Params} that causes ToXContent to include the key values:
+     * Creates a {@link Params} that causes ToXContent to include the key values:
      * - Key: {@link #MODEL_FIELD}, Value: modelId, if modelId is not null
      * - Key: {@link #MAX_TOKENS_FIELD}, Value: {@link #maxCompletionTokens()}
      * - Key: {@link #INCLUDE_STREAM_OPTIONS_PARAM}, Value: "false"
@@ -120,7 +141,7 @@ public record UnifiedCompletionRequest(
     }
 
     /**
-     * Creates a {@link org.elasticsearch.xcontent.ToXContent.Params} that causes ToXContent to include the key values:
+     * Creates a {@link Params} that causes ToXContent to include the key values:
      * - Key: {@link #MODEL_FIELD}, Value: modelId
      * - Key: {@link #MAX_COMPLETION_TOKENS_FIELD}, Value: {@link #maxCompletionTokens()}
      */
@@ -132,14 +153,16 @@ public record UnifiedCompletionRequest(
     }
 
     /**
-     * Creates a {@link org.elasticsearch.xcontent.ToXContent.Params} that causes ToXContent to include the key values:
+     * Creates a {@link Params} that causes ToXContent to include the key values:
      * - Key: {@link #MAX_COMPLETION_TOKENS_FIELD}, Value: {@link #maxCompletionTokens()}
      */
     public static Params withMaxCompletionTokens(Params params) {
         return new DelegatingMapParams(Map.of(MAX_TOKENS_PARAM, MAX_COMPLETION_TOKENS_FIELD), params);
     }
 
-    public sealed interface Content extends NamedWriteable, ToXContent permits ContentObjects, ContentString {}
+    public sealed interface Content extends NamedWriteable, ToXContent permits ContentObjects, ContentString {
+        boolean containsMultimodalContent();
+    }
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<UnifiedCompletionRequest, Void> PARSER = new ConstructingObjectParser<>(
@@ -176,6 +199,9 @@ public record UnifiedCompletionRequest(
         return List.of(
             new NamedWriteableRegistry.Entry(Content.class, ContentObjects.NAME, ContentObjects::new),
             new NamedWriteableRegistry.Entry(Content.class, ContentString.NAME, ContentString::new),
+            new NamedWriteableRegistry.Entry(ContentObject.class, ContentObjectText.NAME, ContentObjectText::new),
+            new NamedWriteableRegistry.Entry(ContentObject.class, ContentObjectImage.NAME, ContentObjectImage::new),
+            new NamedWriteableRegistry.Entry(ContentObject.class, ContentObjectFile.NAME, ContentObjectFile::new),
             new NamedWriteableRegistry.Entry(ToolChoice.class, ToolChoiceObject.NAME, ToolChoiceObject::new),
             new NamedWriteableRegistry.Entry(ToolChoice.class, ToolChoiceString.NAME, ToolChoiceString::new)
         );
@@ -240,6 +266,10 @@ public record UnifiedCompletionRequest(
         return builder;
     }
 
+    public boolean containsMultimodalContent() {
+        return messages().stream().anyMatch(m -> m.content().containsMultimodalContent());
+    }
+
     public record Message(Content content, String role, @Nullable String toolCallId, @Nullable List<ToolCall> toolCalls)
         implements
             Writeable,
@@ -266,7 +296,7 @@ public record UnifiedCompletionRequest(
         private static Content parseContent(XContentParser parser) throws IOException {
             var token = parser.currentToken();
             if (token == XContentParser.Token.START_ARRAY) {
-                var parsedContentObjects = XContentParserUtils.parseList(parser, (p) -> ContentObject.PARSER.apply(p, null));
+                var parsedContentObjects = XContentParserUtils.parseList(parser, (p) -> ContentObject.fromMap(p.map()));
                 return new ContentObjects(parsedContentObjects);
             } else if (token == XContentParser.Token.VALUE_STRING) {
                 return ContentString.of(parser);
@@ -316,12 +346,12 @@ public record UnifiedCompletionRequest(
         public static final String NAME = "content_objects";
 
         public ContentObjects(StreamInput in) throws IOException {
-            this(in.readCollectionAsImmutableList(ContentObject::new));
+            this(in.readNamedWriteableCollectionAsList(ContentObject.class));
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeCollection(contentObjects);
+            out.writeNamedWriteableCollection(contentObjects);
         }
 
         @Override
@@ -333,27 +363,89 @@ public record UnifiedCompletionRequest(
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             return builder.field(CONTENT_FIELD, contentObjects);
         }
+
+        @Override
+        public boolean containsMultimodalContent() {
+            return contentObjects.stream().anyMatch(o -> o.type().equals(TEXT) == false);
+        }
     }
 
-    public record ContentObject(String text, String type) implements Writeable, ToXContentObject {
-        static final ConstructingObjectParser<ContentObject, Void> PARSER = new ConstructingObjectParser<>(
-            ContentObject.class.getSimpleName(),
-            args -> new ContentObject((String) args[0], (String) args[1])
-        );
+    public abstract static sealed class ContentObject implements NamedWriteable, ToXContent permits ContentObjectText, ContentObjectImage,
+        ContentObjectFile {
 
-        static {
-            PARSER.declareString(constructorArg(), new ParseField("text"));
-            PARSER.declareString(constructorArg(), new ParseField("type"));
+        public enum ContentObjectType {
+            TEXT,
+            IMAGE_URL,
+            FILE;
+
+            @Override
+            public String toString() {
+                return name().toLowerCase(Locale.ROOT);
+            }
+
+            public static ContentObjectType fromString(String name) {
+                try {
+                    return valueOf(name.trim().toUpperCase(Locale.ROOT));
+                } catch (IllegalArgumentException ex) {
+                    throw getUnrecognizedTypeException(name, CONTENT_FIELD, ContentObjectType.class);
+                }
+            }
         }
 
-        public ContentObject(StreamInput in) throws IOException {
-            this(in.readString(), in.readString());
+        final ContentObjectType type;
+
+        ContentObject(ContentObjectType type) {
+            this.type = type;
+        }
+
+        @SuppressWarnings("unchecked")
+        public static ContentObject fromMap(Map<String, Object> map) {
+            String typeString = extractRequiredFieldOfType(map, TYPE_FIELD, String.class, CONTENT_FIELD);
+            ContentObjectType type = ContentObjectType.fromString(typeString);
+            ContentObject content = switch (type) {
+                case TEXT -> new ContentObjectText(extractRequiredFieldOfType(map, TEXT_FIELD, String.class, CONTENT_FIELD));
+                case IMAGE_URL -> {
+                    Map<String, Object> imageUrlMap = extractRequiredFieldOfType(map, IMAGE_URL_FIELD, Map.class, CONTENT_FIELD);
+                    yield new ContentObjectImage(ContentObjectImageUrl.fromMap(imageUrlMap));
+                }
+                case FILE -> {
+                    Map<String, Object> fileFieldsMap = extractRequiredFieldOfType(map, FILE_FIELD, Map.class, CONTENT_FIELD);
+                    yield new ContentObjectFile(ContentObjectFileFields.fromMap(fileFieldsMap));
+                }
+            };
+            throwIfNotEmptyMap(map, CONTENT_FIELD);
+            return content;
+        }
+
+        public ContentObjectType type() {
+            return type;
+        }
+    }
+
+    public static final class ContentObjectText extends ContentObject {
+        public static final String NAME = "content_object_text";
+        private final String text;
+
+        public ContentObjectText(String text) {
+            super(TEXT);
+            this.text = text;
+        }
+
+        public ContentObjectText(StreamInput in) throws IOException {
+            this(in.readString());
+            if (in.getTransportVersion().supports(MULTIMODAL_CHAT_COMPLETION_SUPPORT_ADDED) == false) {
+                in.readString();
+            }
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(text);
-            out.writeString(type);
+            if (out.getTransportVersion().supports(MULTIMODAL_CHAT_COMPLETION_SUPPORT_ADDED)) {
+                out.writeString(text);
+            } else {
+                out.writeString(text);
+                out.writeString(TEXT.toString());
+            }
         }
 
         public String toString() {
@@ -364,7 +456,251 @@ public record UnifiedCompletionRequest(
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field(TEXT_FIELD, text);
-            builder.field(TYPE_FIELD, type);
+            builder.field(TYPE_FIELD, type.toString());
+            return builder.endObject();
+        }
+
+        public String text() {
+            return text;
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (obj == this) return true;
+            if (obj == null || obj.getClass() != this.getClass()) return false;
+            var that = (ContentObjectText) obj;
+            return Objects.equals(this.text, that.text);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(text);
+        }
+
+        @Override
+        public String getWriteableName() {
+            return NAME;
+        }
+    }
+
+    public static final class ContentObjectImage extends ContentObject {
+        public static final String NAME = "content_object_image";
+        private final ContentObjectImageUrl imageUrl;
+
+        public ContentObjectImage(ContentObjectImageUrl imageUrl) {
+            super(IMAGE_URL);
+            this.imageUrl = imageUrl;
+        }
+
+        public ContentObjectImage(StreamInput in) throws IOException {
+            this(new ContentObjectImageUrl(in));
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            if (out.getTransportVersion().supports(MULTIMODAL_CHAT_COMPLETION_SUPPORT_ADDED) == false) {
+                throw new ElasticsearchStatusException(
+                    "Cannot send a multimodal chat completion request to an older node. "
+                        + "Please wait until all nodes are upgraded before using multimodal chat completion inputs",
+                    RestStatus.BAD_REQUEST
+                );
+            }
+            imageUrl.writeTo(out);
+        }
+
+        public String toString() {
+            return imageUrl + ":" + type;
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field(IMAGE_URL_FIELD, imageUrl);
+            builder.field(TYPE_FIELD, type.toString());
+            return builder.endObject();
+        }
+
+        public ContentObjectImageUrl imageUrl() {
+            return imageUrl;
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (obj == this) return true;
+            if (obj == null || obj.getClass() != this.getClass()) return false;
+            var that = (ContentObjectImage) obj;
+            return Objects.equals(this.imageUrl, that.imageUrl);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(imageUrl);
+        }
+
+        @Override
+        public String getWriteableName() {
+            return NAME;
+        }
+    }
+
+    public record ContentObjectImageUrl(String url, @Nullable ImageUrlDetail detail) implements Writeable, ToXContentObject {
+        public static ContentObjectImageUrl fromMap(Map<String, Object> map) {
+            String url = extractRequiredFieldOfType(map, URL_FIELD, String.class, URL_FIELD);
+            String detailString = extractOptionalFieldOfType(map, DETAIL_FIELD, String.class, URL_FIELD);
+            ImageUrlDetail detail = detailString == null ? null : ImageUrlDetail.fromString(detailString);
+            throwIfNotEmptyMap(map, IMAGE_URL_FIELD);
+            return new ContentObjectImageUrl(url, detail);
+        }
+
+        public ContentObjectImageUrl(StreamInput in) throws IOException {
+            this(in.readString(), in.readOptionalEnum(ImageUrlDetail.class));
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(url);
+            out.writeOptionalEnum(detail);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field(URL_FIELD, url);
+            if (detail != null) {
+                builder.field(DETAIL_FIELD, detail);
+            }
+            return builder.endObject();
+        }
+    }
+
+    public enum ImageUrlDetail {
+        AUTO,
+        LOW,
+        HIGH;
+
+        @Override
+        public String toString() {
+            return name().toLowerCase(Locale.ROOT);
+        }
+
+        public static ImageUrlDetail fromString(String name) {
+            try {
+                return valueOf(name.trim().toUpperCase(Locale.ROOT));
+            } catch (IllegalArgumentException ex) {
+                throw getUnrecognizedTypeException(name, URL_FIELD, ImageUrlDetail.class);
+            }
+        }
+    }
+
+    public static final class ContentObjectFile extends ContentObject {
+        public static final String NAME = "content_object_file";
+        private final ContentObjectFileFields fileFields;
+
+        public ContentObjectFile(ContentObjectFileFields fileFields) {
+            super(FILE);
+            this.fileFields = fileFields;
+        }
+
+        public ContentObjectFile(StreamInput in) throws IOException {
+            this(new ContentObjectFileFields(in));
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            if (out.getTransportVersion().supports(MULTIMODAL_CHAT_COMPLETION_SUPPORT_ADDED) == false) {
+                throw new ElasticsearchStatusException(
+                    "Cannot send a multimodal chat completion request to an older node. "
+                        + "Please wait until all nodes are upgraded before using multimodal chat completion inputs",
+                    RestStatus.BAD_REQUEST
+                );
+            }
+            fileFields.writeTo(out);
+        }
+
+        public String toString() {
+            return fileFields + ":" + type;
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field(FILE_FIELD, fileFields);
+            builder.field(TYPE_FIELD, type.toString());
+            return builder.endObject();
+        }
+
+        public ContentObjectFileFields fileFields() {
+            return fileFields;
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (obj == this) return true;
+            if (obj == null || obj.getClass() != this.getClass()) return false;
+            var that = (ContentObjectFile) obj;
+            return Objects.equals(this.fileFields, that.fileFields);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(fileFields);
+        }
+
+        @Override
+        public String getWriteableName() {
+            return NAME;
+        }
+    }
+
+    // The file_id field is not currently supported, but it's part of the OpenAI schema, so it's treated as an optional field for
+    // serialization. file_id not being supported means that file_data and filename are effectively required despite being optional in the
+    // OpenAI schema, but they are also treated as optional for serialization, in order to make it possible to add support for file_id in
+    // future without needing to introduce a new transport version or worry about backward compatibility.
+    public record ContentObjectFileFields(@Nullable String fileData, @Nullable String fileId, @Nullable String filename)
+        implements
+            Writeable,
+            ToXContentObject {
+
+        public static ContentObjectFileFields fromMap(Map<String, Object> map) {
+            String fileData = extractRequiredFieldOfType(map, FILE_DATA_FIELD, String.class, FILE_FIELD);
+            String filename = extractRequiredFieldOfType(map, FILENAME_FIELD, String.class, FILE_FIELD);
+            if (map.containsKey(FILE_ID_FIELD)) {
+                throw new ElasticsearchStatusException(
+                    Strings.format(
+                        "Field [%s] is not supported for content of type [%s]",
+                        FILE_ID_FIELD,
+                        ContentObject.ContentObjectType.FILE
+                    ),
+                    RestStatus.BAD_REQUEST
+                );
+            }
+            throwIfNotEmptyMap(map, FILE_FIELD);
+            return new ContentObjectFileFields(fileData, null, filename);
+        }
+
+        public ContentObjectFileFields(StreamInput in) throws IOException {
+            this(in.readOptionalString(), in.readOptionalString(), in.readOptionalString());
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeOptionalString(fileData);
+            out.writeOptionalString(fileId);
+            out.writeOptionalString(filename);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            if (fileData != null) {
+                builder.field(FILE_DATA_FIELD, fileData);
+            }
+            if (fileId != null) {
+                builder.field(FILE_ID_FIELD, fileId);
+            }
+            if (filename != null) {
+                builder.field(FILENAME_FIELD, filename);
+            }
             return builder.endObject();
         }
     }
@@ -398,6 +734,11 @@ public record UnifiedCompletionRequest(
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             return builder.field(CONTENT_FIELD, content);
+        }
+
+        @Override
+        public boolean containsMultimodalContent() {
+            return false;
         }
     }
 
@@ -645,5 +986,69 @@ public record UnifiedCompletionRequest(
                 return builder.endObject();
             }
         }
+    }
+
+    public static <T> T extractRequiredFieldOfType(Map<String, Object> sourceMap, String key, Class<T> type, String containingObject) {
+        return extractFieldOfType(sourceMap, key, type, true, containingObject);
+    }
+
+    public static <T> T extractOptionalFieldOfType(Map<String, Object> sourceMap, String key, Class<T> type, String containingObject) {
+        return extractFieldOfType(sourceMap, key, type, false, containingObject);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <T> T extractFieldOfType(
+        Map<String, Object> sourceMap,
+        String key,
+        Class<T> type,
+        boolean required,
+        String containingObject
+    ) {
+        Object o = sourceMap.remove(key);
+        if (o == null) {
+            if (required) {
+                throw new ElasticsearchStatusException(
+                    Strings.format("Field [%s] in object [%s] is required but was not found", key, containingObject),
+                    RestStatus.BAD_REQUEST
+                );
+            } else {
+                return null;
+            }
+        }
+
+        if (type.isAssignableFrom(o.getClass())) {
+            return (T) o;
+        } else {
+            throw new ElasticsearchStatusException(
+                Strings.format(
+                    "Field [%s] in object [%s] is not of the expected type. Expected [%s] but was [%s]",
+                    key,
+                    containingObject,
+                    type.getSimpleName(),
+                    o.getClass().getSimpleName()
+                ),
+                RestStatus.BAD_REQUEST
+            );
+        }
+    }
+
+    public static void throwIfNotEmptyMap(Map<String, Object> map, String containingObject) {
+        if (map != null && map.isEmpty() == false) {
+            throw new ElasticsearchStatusException(
+                Strings.format("[%s] contains unknown fields %s", containingObject, map.keySet()),
+                RestStatus.BAD_REQUEST
+            );
+        }
+    }
+
+    private static <E extends Enum<E>> ElasticsearchStatusException getUnrecognizedTypeException(
+        String name,
+        String containingObject,
+        Class<E> clazz
+    ) {
+        return new ElasticsearchStatusException(
+            Strings.format("Unrecognized type [%s] in object [%s], must be one of %s", name, containingObject, EnumSet.allOf(clazz)),
+            RestStatus.BAD_REQUEST
+        );
     }
 }

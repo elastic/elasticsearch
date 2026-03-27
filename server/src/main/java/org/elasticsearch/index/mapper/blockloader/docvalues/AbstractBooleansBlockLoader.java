@@ -13,9 +13,12 @@ import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.index.mapper.blockloader.ConstantNull;
 
 import java.io.IOException;
+
+import static org.elasticsearch.index.mapper.blockloader.docvalues.AbstractLongsFromDocValuesBlockLoader.ESTIMATED_SIZE;
 
 /**
  * Loads {@code boolean}s from doc values.
@@ -33,30 +36,52 @@ public abstract class AbstractBooleansBlockLoader extends BlockDocValuesReader.D
     }
 
     @Override
-    public AllReader reader(LeafReaderContext context) throws IOException {
-        SortedNumericDocValues docValues = context.reader().getSortedNumericDocValues(fieldName);
-        if (docValues != null) {
-            NumericDocValues singleton = DocValues.unwrapSingleton(docValues);
-            if (singleton != null) {
-                return singletonReader(singleton);
+    public AllReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
+        breaker.addEstimateBytesAndMaybeBreak(ESTIMATED_SIZE, "load blocks");
+        boolean release = true;
+        try {
+            SortedNumericDocValues docValues = context.reader().getSortedNumericDocValues(fieldName);
+            if (docValues != null) {
+                release = false;
+                NumericDocValues singleton = DocValues.unwrapSingleton(docValues);
+                if (singleton != null) {
+                    return singletonReader(breaker, singleton);
+                }
+                return sortedReader(breaker, docValues);
             }
-            return sortedReader(docValues);
+            NumericDocValues singleton = context.reader().getNumericDocValues(fieldName);
+            if (singleton != null) {
+                release = false;
+                return singletonReader(breaker, singleton);
+            }
+            return ConstantNull.READER;
+        } finally {
+            if (release) {
+                breaker.addWithoutBreaking(-ESTIMATED_SIZE);
+            }
         }
-        NumericDocValues singleton = context.reader().getNumericDocValues(fieldName);
-        if (singleton != null) {
-            return singletonReader(singleton);
-        }
-        return ConstantNull.READER;
     }
 
-    protected abstract AllReader singletonReader(NumericDocValues docValues);
+    protected abstract AllReader singletonReader(CircuitBreaker breaker, NumericDocValues docValues);
 
-    protected abstract AllReader sortedReader(SortedNumericDocValues docValues);
+    protected abstract AllReader sortedReader(CircuitBreaker breaker, SortedNumericDocValues docValues);
 
-    public static class Singleton extends BlockDocValuesReader {
+    protected abstract static class BooleansBlockDocValuesReader extends BlockDocValuesReader {
+        public BooleansBlockDocValuesReader(CircuitBreaker breaker) {
+            super(breaker);
+        }
+
+        @Override
+        public final void close() {
+            breaker.addWithoutBreaking(-ESTIMATED_SIZE);
+        }
+    }
+
+    public static class Singleton extends BooleansBlockDocValuesReader {
         private final NumericDocValues numericDocValues;
 
-        public Singleton(NumericDocValues numericDocValues) {
+        public Singleton(CircuitBreaker breaker, NumericDocValues numericDocValues) {
+            super(breaker);
             this.numericDocValues = numericDocValues;
         }
 
@@ -101,10 +126,11 @@ public abstract class AbstractBooleansBlockLoader extends BlockDocValuesReader.D
         }
     }
 
-    static class Sorted extends BlockDocValuesReader {
+    static class Sorted extends BooleansBlockDocValuesReader {
         private final SortedNumericDocValues numericDocValues;
 
-        Sorted(SortedNumericDocValues numericDocValues) {
+        Sorted(CircuitBreaker breaker, SortedNumericDocValues numericDocValues) {
+            super(breaker);
             this.numericDocValues = numericDocValues;
         }
 

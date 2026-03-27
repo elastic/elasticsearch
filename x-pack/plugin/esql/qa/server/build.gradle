@@ -8,4 +8,14 @@ dependencies {
   // Requirement for some ESQL-specific utilities
   implementation project(':x-pack:plugin:esql')
   api project(xpackModule('esql:qa:testFixtures'))
+  
+  // S3 fixture infrastructure for external source tests (Iceberg, Parquet)
+  api project(':test:fixtures:s3-fixture')
+  api project(':test:fixtures:aws-fixture-utils')
+
+  // GCS fixture infrastructure for external source tests
+  api project(':test:fixtures:gcs-fixture')
+  
+  // Access to test utilities including IcebergS3FixtureUtils
+  api(project(path: xpackModule('esql'), configuration: 'testRuntimeElements'))
 }

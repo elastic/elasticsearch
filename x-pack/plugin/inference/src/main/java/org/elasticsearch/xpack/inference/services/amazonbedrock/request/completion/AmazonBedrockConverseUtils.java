@@ -171,7 +171,8 @@ public final class AmazonBedrockConverseUtils {
             );
             case UnifiedCompletionRequest.ContentObjects objectsContent -> objectsContent.contentObjects()
                 .stream()
-                .filter(obj -> obj.text().isEmpty() == false && obj.type().equals(TEXT_CONTENT_TYPE))
+                .filter(anObject -> anObject instanceof UnifiedCompletionRequest.ContentObjectText obj && obj.text().isEmpty() == false)
+                .map(UnifiedCompletionRequest.ContentObjectText.class::cast)
                 .map(obj -> SystemContentBlock.builder().text(obj.text()).build())
                 .toList();
         };
@@ -185,6 +186,7 @@ public final class AmazonBedrockConverseUtils {
             );
             case UnifiedCompletionRequest.ContentObjects objectsContent -> objectsContent.contentObjects()
                 .stream()
+                .map(UnifiedCompletionRequest.ContentObjectText.class::cast)
                 .map(obj -> ToolResultContentBlock.builder().text(obj.text()).build())
                 .toList();
         };
@@ -239,7 +241,8 @@ public final class AmazonBedrockConverseUtils {
             );
             case UnifiedCompletionRequest.ContentObjects objectsContent -> objectsContent.contentObjects()
                 .stream()
-                .filter(obj -> obj.text().isEmpty() == false)
+                .filter(anObject -> anObject instanceof UnifiedCompletionRequest.ContentObjectText obj && obj.text().isEmpty() == false)
+                .map(UnifiedCompletionRequest.ContentObjectText.class::cast)
                 .map(obj -> ContentBlock.builder().text(obj.text()).build())
                 .toList();
         };

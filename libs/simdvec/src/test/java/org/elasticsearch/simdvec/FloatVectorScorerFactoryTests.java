@@ -24,7 +24,7 @@ import java.nio.ByteOrder;
 import java.util.List;
 import java.util.Objects;
 import java.util.Random;
-import java.util.function.Function;
+import java.util.function.IntFunction;
 
 import static org.elasticsearch.simdvec.VectorSimilarityType.DOT_PRODUCT;
 import static org.elasticsearch.simdvec.VectorSimilarityType.EUCLIDEAN;
@@ -57,7 +57,7 @@ public class FloatVectorScorerFactoryTests extends AbstractVectorTestCase {
         testRandomSupplier(maxChunkSize, FloatVectorScorerFactoryTests::randomVector);
     }
 
-    void testRandomSupplier(long maxChunkSize, Function<Integer, float[]> floatsSupplier) throws IOException {
+    void testRandomSupplier(long maxChunkSize, IntFunction<float[]> floatsSupplier) throws IOException {
         var factory = AbstractVectorTestCase.factory.get();
 
         try (Directory dir = new MMapDirectory(createTempDir("testRandom"), maxChunkSize)) {

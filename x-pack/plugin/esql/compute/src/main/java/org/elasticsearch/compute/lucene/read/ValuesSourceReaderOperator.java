@@ -9,7 +9,8 @@ package org.elasticsearch.compute.lucene.read;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.util.IOSupplier;
+import org.apache.lucene.util.IOFunction;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DocBlock;
@@ -266,10 +267,10 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
 
     @Override
     public void close() {
-        Releasables.close(super::close, converterEvaluators);
+        Releasables.close(super::close, converterEvaluators, Releasables.wrap(fields));
     }
 
-    protected class FieldWork {
+    protected class FieldWork implements Releasable {
         final FieldInfo info;
         private final int fieldIdx;
 
@@ -291,16 +292,17 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
         void sameSegment(int firstDoc) {
             if (columnAtATime != null && columnAtATime.canReuse(firstDoc) == false) {
                 // TODO count the number of times we can't reuse?
+                columnAtATime.close();
                 columnAtATime = null;
             }
             if (rowStride != null && rowStride.canReuse(firstDoc) == false) {
+                rowStride.close();
                 rowStride = null;
             }
         }
 
         void sameShardNewSegment() {
-            columnAtATime = null;
-            rowStride = null;
+            closeReaders();
         }
 
         void newShard(int shard) {
@@ -308,22 +310,25 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
             loader = l.loader;
             converter = l.converter == null ? null : converterEvaluators.get(shard, fieldIdx, info.name, l.converter);
             log.debug("moved to shard {} {} {}", shard, loader, converter);
-            columnAtATime = null;
-            rowStride = null;
+            sameShardNewSegment();
         }
 
         BlockLoader.ColumnAtATimeReader columnAtATime(LeafReaderContext ctx) throws IOException {
             if (columnAtATime == null) {
-                IOSupplier<BlockLoader.ColumnAtATimeReader> supplier = loader.columnAtATimeReader(ctx);
-                if (supplier == null) {
+                IOFunction<CircuitBreaker, BlockLoader.ColumnAtATimeReader> fn = loader.columnAtATimeReader(ctx);
+                if (fn == null) {
                     trackReader("column_at_a_time", null);
                     return null;
                 }
                 if (reuseColumnLoaders) {
-                    columnAtATime = supplier.get();
+                    columnAtATime = fn.apply(driverContext.breaker());
                     trackReader("column_at_a_time", columnAtATime);
                 } else {
-                    columnAtATime = new ColumnAtATimeReaderWithoutReuse(supplier, r -> trackReader("column_at_a_time", r));
+                    columnAtATime = new ColumnAtATimeReaderWithoutReuse(
+                        driverContext.breaker(),
+                        fn,
+                        r -> trackReader("column_at_a_time", r)
+                    );
                 }
             }
             return columnAtATime;
@@ -331,7 +336,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
 
         BlockLoader.RowStrideReader rowStride(LeafReaderContext ctx) throws IOException {
             if (rowStride == null) {
-                rowStride = loader.rowStrideReader(ctx);
+                rowStride = loader.rowStrideReader(driverContext.breaker(), ctx);
                 trackReader("row_stride", this.rowStride);
             }
             return rowStride;
@@ -339,6 +344,17 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
 
         private void trackReader(String type, BlockLoader.Reader reader) {
             readersBuilt.merge(info.name + ":" + type + ":" + reader, 1, (prev, one) -> prev + one);
+        }
+
+        @Override
+        public void close() {
+            closeReaders();
+        }
+
+        private void closeReaders() {
+            Releasables.close(columnAtATime, rowStride);
+            columnAtATime = null;
+            rowStride = null;
         }
     }
 

@@ -10,6 +10,7 @@
 package org.elasticsearch.index.mapper.blockloader.docvalues.fn;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.TestBlock;
 import org.elasticsearch.index.mapper.blockloader.docvalues.LongsBlockLoader;
@@ -23,40 +24,40 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.nullValue;
 
-public class MvMaxLongsFromDocValuesBlockLoaderTests extends AbstractIntsFromDocValuesBlockLoaderTests {
+public class MvMaxLongsFromDocValuesBlockLoaderTests extends AbstractLongsFromDocValuesBlockLoaderTests {
     public MvMaxLongsFromDocValuesBlockLoaderTests(boolean blockAtATime, boolean multiValues, boolean missingValues) {
         super(blockAtATime, multiValues, missingValues);
     }
 
     @Override
-    protected void innerTest(LeafReaderContext ctx, int mvCount) throws IOException {
+    protected void innerTest(CircuitBreaker breaker, LeafReaderContext ctx, int mvCount) throws IOException {
         var longsLoader = new LongsBlockLoader("field");
         var mvMaxLongsLoader = new MvMaxLongsFromDocValuesBlockLoader("field");
-
-        var longsReader = longsLoader.reader(ctx);
-        var mvMaxLongsReader = mvMaxLongsLoader.reader(ctx);
-        assertThat(mvMaxLongsReader, readerMatcher());
         BlockLoader.Docs docs = TestBlock.docs(ctx);
-        try (
-            TestBlock longs = read(longsLoader, longsReader, ctx, docs);
-            TestBlock maxLongs = read(mvMaxLongsLoader, mvMaxLongsReader, ctx, docs);
-        ) {
-            checkBlocks(longs, maxLongs);
-        }
 
-        longsReader = longsLoader.reader(ctx);
-        mvMaxLongsReader = mvMaxLongsLoader.reader(ctx);
-        for (int i = 0; i < ctx.reader().numDocs(); i += 10) {
-            int[] docsArray = new int[Math.min(10, ctx.reader().numDocs() - i)];
-            for (int d = 0; d < docsArray.length; d++) {
-                docsArray[d] = i + d;
-            }
-            docs = TestBlock.docs(docsArray);
+        try (var longsReader = longsLoader.reader(breaker, ctx); var mvMaxLongsReader = mvMaxLongsLoader.reader(breaker, ctx);) {
+            assertThat(mvMaxLongsReader, readerMatcher());
             try (
                 TestBlock longs = read(longsLoader, longsReader, ctx, docs);
                 TestBlock maxLongs = read(mvMaxLongsLoader, mvMaxLongsReader, ctx, docs);
             ) {
                 checkBlocks(longs, maxLongs);
+            }
+        }
+
+        try (var longsReader = longsLoader.reader(breaker, ctx); var mvMaxLongsReader = mvMaxLongsLoader.reader(breaker, ctx);) {
+            for (int i = 0; i < ctx.reader().numDocs(); i += 10) {
+                int[] docsArray = new int[Math.min(10, ctx.reader().numDocs() - i)];
+                for (int d = 0; d < docsArray.length; d++) {
+                    docsArray[d] = i + d;
+                }
+                docs = TestBlock.docs(docsArray);
+                try (
+                    TestBlock longs = read(longsLoader, longsReader, ctx, docs);
+                    TestBlock maxLongs = read(mvMaxLongsLoader, mvMaxLongsReader, ctx, docs);
+                ) {
+                    checkBlocks(longs, maxLongs);
+                }
             }
         }
     }

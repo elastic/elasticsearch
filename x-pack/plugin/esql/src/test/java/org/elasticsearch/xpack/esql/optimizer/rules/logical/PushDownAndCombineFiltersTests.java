@@ -52,6 +52,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.RegisteredDomain;
 import org.elasticsearch.xpack.esql.plan.logical.UriParts;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
@@ -2382,7 +2383,7 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
     }
 
     public void testPushDownFilterPastUriParts() {
-        assumeTrue("requires compound output capability", EsqlCapabilities.Cap.URI_PARTS_COMMAND.isEnabled());
+        assumeTrue("requires uri_parts command capability", EsqlCapabilities.Cap.URI_PARTS_COMMAND.isEnabled());
         String query = """
             FROM test
             | WHERE emp_no > 10000
@@ -2416,6 +2417,38 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
         assertThat(as(condition2.left(), FieldAttribute.class).name(), is("salary"));
 
         // 5. Finally, the relation
+        as(bottomFilter.child(), EsRelation.class);
+    }
+
+    public void testPushDownFilterPastRegisteredDomain() {
+        assumeTrue("requires registered_domain command capability", EsqlCapabilities.Cap.REGISTERED_DOMAIN_COMMAND.isEnabled());
+        String query = """
+            FROM test
+            | WHERE emp_no > 10000
+            | registered_domain rd = first_name
+            | WHERE rd.registered_domain == "example.co.uk" AND salary > 5000
+            """;
+        LogicalPlan plan = optimizedPlan(query);
+
+        var limit = as(plan, Limit.class);
+
+        var topFilter = as(limit.child(), Filter.class);
+        assertThat(topFilter.condition(), instanceOf(Equals.class));
+        var topEquals = as(topFilter.condition(), Equals.class);
+        assertThat(as(topEquals.left(), ReferenceAttribute.class).name(), is("rd.registered_domain"));
+
+        var registeredDomain = as(topFilter.child(), RegisteredDomain.class);
+
+        var bottomFilter = as(registeredDomain.child(), Filter.class);
+        assertThat(bottomFilter.condition(), instanceOf(And.class));
+        var bottomAnd = as(bottomFilter.condition(), And.class);
+
+        var condition1 = as(bottomAnd.left(), GreaterThan.class);
+        assertThat(as(condition1.left(), FieldAttribute.class).name(), is("emp_no"));
+
+        var condition2 = as(bottomAnd.right(), GreaterThan.class);
+        assertThat(as(condition2.left(), FieldAttribute.class).name(), is("salary"));
+
         as(bottomFilter.child(), EsRelation.class);
     }
 }

@@ -56,6 +56,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 
 import static org.elasticsearch.rest.RestRequest.INTERNAL_MARKER_REQUEST_PARAMETERS;
@@ -471,51 +472,58 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
         BulkRequestModifier bulkRequestModifier,
         int i
     ) {
-        for (StreamType streamType : StreamType.getEnabledStreamTypesForProject(projectMetadata)) {
-            if (req instanceof IndexRequest ir && ir.isPipelineResolved() == false) {
-                IllegalArgumentException e = null;
-                if (streamType.matchesStreamPrefix(req.index())) {
-                    e = new IllegalArgumentException(
+        final Consumer<Exception> errHandler = e -> {
+            final Boolean failureStoreEnabled = resolveFailureStore(req.index(), projectMetadata, threadPool.absoluteTimeInMillis());
+
+            if (featureService.clusterHasFeature(clusterService.state(), DataStream.DATA_STREAM_FAILURE_STORE_FEATURE)) {
+                if (Boolean.TRUE.equals(failureStoreEnabled)) {
+                    bulkRequestModifier.markItemForFailureStore(i, req.index(), e);
+                } else if (Boolean.FALSE.equals(failureStoreEnabled)) {
+                    bulkRequestModifier.markItemAsFailed(i, e, IndexDocFailureStoreStatus.NOT_ENABLED);
+                } else {
+                    bulkRequestModifier.markItemAsFailed(i, e, IndexDocFailureStoreStatus.NOT_APPLICABLE_OR_UNKNOWN);
+                }
+            } else {
+                bulkRequestModifier.markItemAsFailed(i, e, IndexDocFailureStoreStatus.NOT_APPLICABLE_OR_UNKNOWN);
+            }
+        };
+
+        if (req instanceof IndexRequest ir && ir.isPipelineResolved() == false) {
+            final StreamType parentStream = StreamType.enabledParentStreamOf(projectMetadata, req.index());
+            if (parentStream != null) {
+                errHandler.accept(
+                    new IllegalArgumentException(
                         "Direct writes to child streams are prohibited. Index directly into the ["
-                            + streamType.getStreamName()
+                            + parentStream.getStreamName()
                             + "] stream instead"
+                    )
+                );
+                return;
+            }
+            final StreamType streamTarget = StreamType.exactEnabledStreamMatch(projectMetadata, ir.index());
+            if (streamTarget != null) {
+                if (ir.getPipeline() != null) {
+                    errHandler.accept(
+                        new IllegalArgumentException(
+                            "Cannot provide a pipeline when writing to a stream "
+                                + "however the ["
+                                + ir.getPipeline()
+                                + "] pipeline was provided when writing to the ["
+                                + streamTarget.getStreamName()
+                                + "] stream"
+                        )
                     );
+                    return;
                 }
-                if (e == null && streamType.getStreamName().equals(ir.index()) && ir.getPipeline() != null) {
-                    e = new IllegalArgumentException(
-                        "Cannot provide a pipeline when writing to a stream "
-                            + "however the ["
-                            + ir.getPipeline()
-                            + "] pipeline was provided when writing to the ["
-                            + streamType.getStreamName()
-                            + "] stream"
+                if (streamsRestrictedParamsUsed(bulkRequest)) {
+                    errHandler.accept(
+                        new IllegalArgumentException(
+                            "When writing to a stream, only the following parameters are allowed: ["
+                                + String.join(", ", STREAMS_ALLOWED_PARAMS)
+                                + "] however the following were used: "
+                                + bulkRequest.requestParamsUsed()
+                        )
                     );
-                }
-                if (e == null && streamsRestrictedParamsUsed(bulkRequest) && req.index().equals(streamType.getStreamName())) {
-                    e = new IllegalArgumentException(
-                        "When writing to a stream, only the following parameters are allowed: ["
-                            + String.join(", ", STREAMS_ALLOWED_PARAMS)
-                            + "] however the following were used: "
-                            + bulkRequest.requestParamsUsed()
-                    );
-                }
-
-                if (e != null) {
-                    Boolean failureStoreEnabled = resolveFailureStore(req.index(), projectMetadata, threadPool.absoluteTimeInMillis());
-
-                    if (featureService.clusterHasFeature(clusterService.state(), DataStream.DATA_STREAM_FAILURE_STORE_FEATURE)) {
-                        if (Boolean.TRUE.equals(failureStoreEnabled)) {
-                            bulkRequestModifier.markItemForFailureStore(i, req.index(), e);
-                        } else if (Boolean.FALSE.equals(failureStoreEnabled)) {
-                            bulkRequestModifier.markItemAsFailed(i, e, IndexDocFailureStoreStatus.NOT_ENABLED);
-                        } else {
-                            bulkRequestModifier.markItemAsFailed(i, e, IndexDocFailureStoreStatus.NOT_APPLICABLE_OR_UNKNOWN);
-                        }
-                    } else {
-                        bulkRequestModifier.markItemAsFailed(i, e, IndexDocFailureStoreStatus.NOT_APPLICABLE_OR_UNKNOWN);
-                    }
-
-                    break;
                 }
             }
         }

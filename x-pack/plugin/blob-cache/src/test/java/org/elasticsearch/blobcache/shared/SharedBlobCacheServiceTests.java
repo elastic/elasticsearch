@@ -47,6 +47,7 @@ import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -653,6 +654,170 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 "no decay should be scheduled when consuming initial free list with initial_decays=0",
                 cacheService.epoch(),
                 equalTo(0L)
+            );
+        }
+    }
+
+    /**
+     * When freq0 is below threshold and the freelist is non-empty, allocation uses a free region
+     * and does not schedule decay.
+     */
+    public void testNoDecayWhenFreelistNonEmptyAndFreq0BelowThreshold() throws IOException {
+        final int numRegions = between(20, 100);
+        final int threshold = Math.max(1, (int) (numRegions * 0.05));
+        Settings settings = Settings.builder()
+            .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(numRegions)).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(1)).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_INITIAL_DECAYS_SETTING.getKey(), 0)
+            .put("path.home", createTempDir())
+            .build();
+        long fileLength = size(numRegions + 10);
+        DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        try (
+            NodeEnvironment env = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cache = new SharedBlobCacheService<TestCacheKey>(
+                env,
+                settings,
+                taskQueue.getThreadPool(),
+                taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
+                BlobCacheMetrics.NOOP
+            )
+        ) {
+            var keys = new ArrayList<TestCacheKey>(numRegions);
+            var regions = new ArrayList<SharedBlobCacheService.CacheFileRegion<TestCacheKey>>(numRegions);
+            for (int i = 0; i < numRegions; i++) {
+                var key = generateCacheKey();
+                keys.add(key);
+                regions.add(cache.get(key, fileLength, 0));
+            }
+            cache.get(generateCacheKey(), fileLength, 0);
+            taskQueue.runAllRunnableTasks();
+            for (int i = 0; i < numRegions - 1; i++) {
+                cache.get(keys.get(i), fileLength, 0);
+            }
+            long freq0Count = regions.stream().filter(r -> r.isEvicted() == false).filter(r -> cache.getFreq(r) == 0).count();
+            assertThat("freq0 count must be below threshold", freq0Count, lessThan((long) threshold));
+
+            var soleFreq0Region = cache.get(keys.get(numRegions - 1), fileLength, 0);
+            synchronized (cache) {
+                assertTrue(tryEvict(soleFreq0Region));
+            }
+            taskQueue.runAllRunnableTasks();
+            assertThat(cache.freeRegionCount(), equalTo(1));
+            long epochBefore = cache.epoch();
+            cache.get(generateCacheKey(), fileLength, 0);
+            taskQueue.runAllRunnableTasks();
+            assertThat("no decay when freelist is non-empty even though freq0 is below threshold", cache.epoch(), equalTo(epochBefore));
+        }
+    }
+
+    /**
+     * When freq0 is below threshold and the freelist is empty, allocation that triggers eviction
+     * does schedule decay.
+     */
+    public void testDecayWhenFreelistEmptyAndFreq0BelowThreshold() throws IOException {
+        final int numRegions = between(20, 100);
+        final int threshold = Math.max(1, (int) (numRegions * 0.05));
+        Settings settings = Settings.builder()
+            .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(numRegions)).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(1)).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_INITIAL_DECAYS_SETTING.getKey(), 0)
+            .put("path.home", createTempDir())
+            .build();
+        long fileLength = size(numRegions + 10);
+        DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        try (
+            NodeEnvironment env = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cache = new SharedBlobCacheService<TestCacheKey>(
+                env,
+                settings,
+                taskQueue.getThreadPool(),
+                taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
+                BlobCacheMetrics.NOOP
+            )
+        ) {
+            var keys = new ArrayList<TestCacheKey>(numRegions);
+            var regions = new ArrayList<SharedBlobCacheService.CacheFileRegion<TestCacheKey>>(numRegions);
+            for (int i = 0; i < numRegions; i++) {
+                var key = generateCacheKey();
+                keys.add(key);
+                regions.add(cache.get(key, fileLength, 0));
+            }
+            cache.get(generateCacheKey(), fileLength, 0);
+            taskQueue.runAllRunnableTasks();
+            for (int i = 0; i < numRegions - 1; i++) {
+                cache.get(keys.get(i), fileLength, 0);
+            }
+            long freq0Count = regions.stream().filter(r -> r.isEvicted() == false).filter(r -> cache.getFreq(r) == 0).count();
+            assertThat("freq0 below threshold", freq0Count, lessThan((long) threshold));
+            assertThat(cache.freeRegionCount(), equalTo(0));
+
+            long epochBefore = cache.epoch();
+            cache.get(generateCacheKey(), fileLength, 0);
+            taskQueue.runAllRunnableTasks();
+            assertThat(
+                "decay is provoked when freelist is empty and freq0 is below threshold (5% of numRegions)",
+                cache.epoch(),
+                equalTo(epochBefore + 1L)
+            );
+        }
+    }
+
+    /**
+     * When freq0 is at or above threshold (5% of numRegions), allocation that triggers eviction
+     * does not schedule decay (right time, not sooner).
+     */
+    public void testNoDecayWhenFreq0AtOrAboveThreshold() throws IOException {
+        final int numRegions = between(20, 100);
+        final int threshold = Math.max(1, (int) (numRegions * 0.05));
+        Settings settings = Settings.builder()
+            .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(numRegions)).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(1)).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_INITIAL_DECAYS_SETTING.getKey(), 0)
+            .put("path.home", createTempDir())
+            .build();
+        long fileLength = size(numRegions + 10);
+        DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        try (
+            NodeEnvironment env = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cache = new SharedBlobCacheService<TestCacheKey>(
+                env,
+                settings,
+                taskQueue.getThreadPool(),
+                taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
+                BlobCacheMetrics.NOOP
+            )
+        ) {
+            var keys = new ArrayList<TestCacheKey>(numRegions);
+            var regions = new ArrayList<SharedBlobCacheService.CacheFileRegion<TestCacheKey>>(numRegions);
+            for (int i = 0; i < numRegions; i++) {
+                var key = generateCacheKey();
+                keys.add(key);
+                regions.add(cache.get(key, fileLength, 0));
+            }
+            cache.get(generateCacheKey(), fileLength, 0);
+            taskQueue.runAllRunnableTasks();
+            int promoted = 0;
+            for (int i = 0; i < numRegions && promoted < numRegions - threshold - 1; i++) {
+                if (regions.get(i).isEvicted() == false) {
+                    cache.get(keys.get(i), fileLength, 0);
+                    promoted++;
+                }
+            }
+            long freq0Count = regions.stream().filter(r -> r.isEvicted() == false).filter(r -> cache.getFreq(r) == 0).count();
+            assertThat("freq0 must be at or above threshold so decay is not triggered", freq0Count, greaterThanOrEqualTo((long) threshold));
+            assertThat(cache.freeRegionCount(), equalTo(0));
+
+            long epochBefore = cache.epoch();
+            cache.get(generateCacheKey(), fileLength, 0);
+            taskQueue.runAllRunnableTasks();
+            assertThat(
+                "decay is not provoked when freq0 is at or above threshold (5% of numRegions), even with empty freelist",
+                cache.epoch(),
+                equalTo(epochBefore)
             );
         }
     }

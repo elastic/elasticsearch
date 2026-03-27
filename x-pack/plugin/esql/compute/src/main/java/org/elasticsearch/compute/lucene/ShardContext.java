@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.lucene;
 
 import org.apache.lucene.search.IndexSearcher;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.index.mapper.BlockLoader;
@@ -60,7 +61,9 @@ public interface ShardContext extends RefCounted {
         String name,
         boolean asUnsupportedSource,
         MappedFieldType.FieldExtractPreference fieldExtractPreference,
-        BlockLoaderFunctionConfig blockLoaderFunctionConfig
+        BlockLoaderFunctionConfig blockLoaderFunctionConfig,
+        ByteSizeValue blockLoaderSizeOrdinals,
+        ByteSizeValue blockLoaderSizeScript
     );
 
     /**

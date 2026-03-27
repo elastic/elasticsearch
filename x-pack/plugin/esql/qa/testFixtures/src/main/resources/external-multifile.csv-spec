@@ -1,0 +1,31 @@
+// Tests for reading data merged from multiple files via glob patterns.
+// Uses {{employees_multifile}} template which resolves to multifile/*.parquet (or *.csv).
+// Discovery correctness is validated in GlobDiscoveryLocalTests; these tests verify data merging.
+
+// AwaitsFix: multifile CSV test data (iceberg-fixtures/multifile/) not yet created; glob matches no files
+readAllEmployeesMultiFile-Ignore
+EXTERNAL "{{employees_multifile}}"
+| STATS count = COUNT(*);
+
+count:long
+100
+;
+
+aggregateMultiFileByGender-Ignore
+EXTERNAL "{{employees_multifile}}"
+| STATS count = COUNT(*) BY gender
+| SORT gender;
+
+count:long | gender:keyword
+33         | "F"
+57         | "M"
+10         | null
+;
+
+multiFileSalaryStats-Ignore
+EXTERNAL "{{employees_multifile}}"
+| STATS min_salary = MIN(salary), max_salary = MAX(salary), avg_salary = AVG(salary);
+
+min_salary:integer | max_salary:integer | avg_salary:double
+25324              | 74999              | 48248.55
+;

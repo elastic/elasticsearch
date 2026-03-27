@@ -105,7 +105,6 @@ public class MetricValidator {
 
         static final Set<String> REPO_ATTRIBUTES = Set.of("operation", "purpose", "repo_name", "repo_type");
         static final Set<String> REPO_SNAPSHOT_ATTRIBUTES = Set.of("repo_name", "repo_type", "state", "stage");
-        static final Set<String> REPO_S3_ATTRIBUTES = Sets.addToCopy(REPO_ATTRIBUTES, "action");
 
         static final Set<String> REINDEX_ATTRIBUTES = Set.of("reindex_source");
 
@@ -206,9 +205,9 @@ public class MetricValidator {
             Map.entry("es.repositories.operations.unsuccessful.total", REPO_ATTRIBUTES),
             Map.entry("es.repositories.requests.http_request_time.histogram", REPO_ATTRIBUTES),
             Map.entry("es.repositories.requests.total", REPO_ATTRIBUTES),
-            Map.entry("es.repositories.s3.input_stream.retry.attempts.histogram", REPO_S3_ATTRIBUTES),
-            Map.entry("es.repositories.s3.input_stream.retry.event.total", REPO_S3_ATTRIBUTES),
-            Map.entry("es.repositories.s3.input_stream.retry.success.total", REPO_S3_ATTRIBUTES),
+            Map.entry("es.repositories.input_stream.retry.attempts.histogram", REPO_ATTRIBUTES),
+            Map.entry("es.repositories.input_stream.retry.event.total", REPO_ATTRIBUTES),
+            Map.entry("es.repositories.input_stream.retry.success.total", REPO_ATTRIBUTES),
             Map.entry("es.repositories.snapshots.blobs.uploaded.total", REPO_SNAPSHOT_ATTRIBUTES),
             Map.entry("es.repositories.snapshots.by_state.current", REPO_SNAPSHOT_ATTRIBUTES),
             Map.entry("es.repositories.snapshots.completed.total", REPO_SNAPSHOT_ATTRIBUTES),

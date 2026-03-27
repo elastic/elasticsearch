@@ -12,6 +12,7 @@ package org.elasticsearch.index.mapper.blockloader.docvalues;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.index.mapper.BinaryFieldMapper;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.blockloader.ConstantNull;
@@ -36,18 +37,28 @@ public class BytesRefsFromCustomBinaryBlockLoader extends BlockDocValuesReader.D
     }
 
     @Override
-    public AllReader reader(LeafReaderContext context) throws IOException {
-        BinaryDocValues docValues = context.reader().getBinaryDocValues(fieldName);
-        if (docValues == null) {
-            return ConstantNull.READER;
+    public AllReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
+        breaker.addEstimateBytesAndMaybeBreak(BytesRefsFromBinaryBlockLoader.ESTIMATED_SIZE, "load blocks");
+        boolean release = true;
+        try {
+            BinaryDocValues docValues = context.reader().getBinaryDocValues(fieldName);
+            if (docValues == null) {
+                return ConstantNull.READER;
+            }
+            release = false;
+            return new BytesRefsFromCustomBinary(breaker, docValues);
+        } finally {
+            if (release) {
+                breaker.addWithoutBreaking(-BytesRefsFromBinaryBlockLoader.ESTIMATED_SIZE);
+            }
         }
-        return new BytesRefsFromCustomBinary(docValues);
     }
 
     public abstract static class AbstractBytesRefsFromBinary extends BlockDocValuesReader {
         protected final BinaryDocValues docValues;
 
-        public AbstractBytesRefsFromBinary(BinaryDocValues docValues) {
+        public AbstractBytesRefsFromBinary(CircuitBreaker breaker, BinaryDocValues docValues) {
+            super(breaker);
             this.docValues = docValues;
         }
 
@@ -81,8 +92,8 @@ public class BytesRefsFromCustomBinaryBlockLoader extends BlockDocValuesReader.D
     static class BytesRefsFromCustomBinary extends AbstractBytesRefsFromBinary {
         private final CustomBinaryDocValuesReader reader = new CustomBinaryDocValuesReader();
 
-        BytesRefsFromCustomBinary(BinaryDocValues docValues) {
-            super(docValues);
+        BytesRefsFromCustomBinary(CircuitBreaker breaker, BinaryDocValues docValues) {
+            super(breaker, docValues);
         }
 
         @Override
@@ -109,6 +120,11 @@ public class BytesRefsFromCustomBinaryBlockLoader extends BlockDocValuesReader.D
         @Override
         public String toString() {
             return "BlockDocValuesReader.BytesCustom";
+        }
+
+        @Override
+        public void close() {
+            breaker.addWithoutBreaking(-BytesRefsFromBinaryBlockLoader.ESTIMATED_SIZE);
         }
     }
 }

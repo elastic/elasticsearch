@@ -14,6 +14,8 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.TestBlock;
@@ -83,43 +85,50 @@ public class AggregateMetricDoublePartialBlockLoaderTests extends ESTestCase {
             }
             iw.forceMerge(1);
             try (DirectoryReader dr = iw.getReader()) {
+                CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(1));
                 LeafReaderContext ctx = getOnlyLeafReader(dr).getContext();
-                innerTest(ctx);
+                innerTest(breaker, ctx);
             }
         }
     }
 
-    private void innerTest(LeafReaderContext ctx) throws IOException {
+    private void innerTest(CircuitBreaker breaker, LeafReaderContext ctx) throws IOException {
         var allMetricFields = generateMetricFields();
         var metricFieldsToLoad = generateMetricsToLoad(allMetricFields);
         AggregateMetricDoubleBlockLoader aggMetricPartialLoader = new AggregateMetricDoubleBlockLoader(metricFieldsToLoad);
         AggregateMetricDoubleBlockLoader aggMetricAllLoader = new AggregateMetricDoubleBlockLoader(allMetricFields);
-        var aggMetricPartialReader = aggMetricPartialLoader.reader(ctx);
-        var aggMetricAllReader = aggMetricAllLoader.reader(ctx);
-        assertThat(aggMetricPartialReader, readerMatcher());
-        assertThat(aggMetricAllReader, readerMatcher());
-
         BlockLoader.Docs docs = TestBlock.docs(ctx);
         try (
-            TestBlock aggMetricsPartial = read(aggMetricPartialLoader, aggMetricPartialReader, ctx, docs);
-            TestBlock aggMetricsAll = read(aggMetricAllLoader, aggMetricAllReader, ctx, docs)
+            var aggMetricPartialReader = aggMetricPartialLoader.reader(breaker, ctx);
+            var aggMetricAllReader = aggMetricAllLoader.reader(breaker, ctx);
         ) {
-            checkBlocks(aggMetricsAll, aggMetricsPartial);
-        }
+            assertThat(aggMetricPartialReader, readerMatcher());
+            assertThat(aggMetricAllReader, readerMatcher());
 
-        aggMetricPartialReader = aggMetricPartialLoader.reader(ctx);
-        aggMetricAllReader = aggMetricAllLoader.reader(ctx);
-        for (int i = 0; i < ctx.reader().numDocs(); i += 10) {
-            int[] docsArray = new int[Math.min(10, ctx.reader().numDocs() - i)];
-            for (int d = 0; d < docsArray.length; d++) {
-                docsArray[d] = i + d;
-            }
-            docs = TestBlock.docs(docsArray);
             try (
                 TestBlock aggMetricsPartial = read(aggMetricPartialLoader, aggMetricPartialReader, ctx, docs);
                 TestBlock aggMetricsAll = read(aggMetricAllLoader, aggMetricAllReader, ctx, docs)
             ) {
                 checkBlocks(aggMetricsAll, aggMetricsPartial);
+            }
+        }
+
+        try (
+            var aggMetricPartialReader = aggMetricPartialLoader.reader(breaker, ctx);
+            var aggMetricAllReader = aggMetricAllLoader.reader(breaker, ctx);
+        ) {
+            for (int i = 0; i < ctx.reader().numDocs(); i += 10) {
+                int[] docsArray = new int[Math.min(10, ctx.reader().numDocs() - i)];
+                for (int d = 0; d < docsArray.length; d++) {
+                    docsArray[d] = i + d;
+                }
+                docs = TestBlock.docs(docsArray);
+                try (
+                    TestBlock aggMetricsPartial = read(aggMetricPartialLoader, aggMetricPartialReader, ctx, docs);
+                    TestBlock aggMetricsAll = read(aggMetricAllLoader, aggMetricAllReader, ctx, docs)
+                ) {
+                    checkBlocks(aggMetricsAll, aggMetricsPartial);
+                }
             }
         }
     }

@@ -135,10 +135,16 @@ public class PerFieldFormatSupplier {
         }
         if (useBloomFilter(field)) {
             if (bloomFilterPostingsFormat == null) {
-                var bloomFilterPostingsFormat = PostingsFormat.forName("ES87BloomFilter");
-                BloomFilter87Initializer es87Initializer = (BloomFilter87Initializer) bloomFilterPostingsFormat;
-                es87Initializer.initialize(bigArrays, this::internalGetPostingsFormatForField);
-                this.bloomFilterPostingsFormat = bloomFilterPostingsFormat;
+                // TODO: hack
+                // Can we be lenient here?
+                try {
+                    var bloomFilterPostingsFormat = PostingsFormat.forName("ES87BloomFilter");
+                    BloomFilter87Initializer es87Initializer = (BloomFilter87Initializer) bloomFilterPostingsFormat;
+                    es87Initializer.initialize(bigArrays, this::internalGetPostingsFormatForField);
+                    this.bloomFilterPostingsFormat = bloomFilterPostingsFormat;
+                } catch (IllegalArgumentException e) {
+                    return internalGetPostingsFormatForField(field);
+                }
             }
             return bloomFilterPostingsFormat;
         }

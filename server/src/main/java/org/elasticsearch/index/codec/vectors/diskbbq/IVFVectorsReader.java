@@ -57,6 +57,15 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
     private static final double RATIO_WEIGHT = 0.85;
     private static final double K_WEIGHT = 0.15;
 
+    // Segment-size cap constants.
+    // Empirical power-law curve calibrated on GIST-1M, Wiki-Cohere-1M, and MSMarco-130M datasets.
+    // Caps the visit ratio for large segments where fewer clusters need visiting to achieve the target recall.
+    // Produces ~10% cap for small segments (100K), ~4.5% at 1M, and ~2-3% for large segments (5-10M).
+    private static final double CAP_COEFFICIENT = 0.045;
+    private static final int CAP_REF_SIZE = 1_000_000;
+    private static final double CAP_EXPONENT = 0.35;
+    static final float DEFAULT_TARGET_RECALL = 0.9f;
+
     protected final IndexInput ivfCentroids, ivfClusters;
     private final SegmentReadState state;
     private final FieldInfos fieldInfos;
@@ -322,7 +331,7 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
 
         FieldEntry entry = fields.get(fieldInfo.number);
         if (visitRatio == dynamicVisitRatio) {
-            visitRatio = computeDynamicVisitRatio(numCands, k);
+            visitRatio = Math.min(computeDynamicVisitRatio(numCands, k), computeSegmentSizeCap(numVectors));
         }
         // we account for soar vectors here. We can potentially visit a vector twice so we multiply by 2 here.
         long maxVectorVisited = (long) (2.0 * visitRatio * numVectors);
@@ -383,6 +392,26 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
 
     private static double logScale(double value, double log1pMax) {
         return Math.max(0.0, Math.min(1.0, Math.log1p(value) / log1pMax));
+    }
+
+    /**
+     * Computes a segment-size-aware cap on the visit ratio.
+     * Larger segments have better-formed IVF clusters and need a lower visit ratio to achieve the target recall.
+     * The power-law curve is calibrated on multi-dataset experiments (GIST-1M, Wiki-Cohere, MSMarco-130M).
+     * <p>
+     * Formula: cap = {@link #CAP_COEFFICIENT} * ({@link #CAP_REF_SIZE} / numVectors)^{@link #CAP_EXPONENT}
+     *              * (0.1 / (1 - targetRecall))
+     *
+     * @param numVectors number of vectors in the segment
+     * @return the upper-bound visit ratio for this segment size
+     */
+    static float computeSegmentSizeCap(int numVectors) {
+        if (numVectors <= 0) {
+            return (float) V_MAX;
+        }
+        double sizeScale = Math.pow((double) CAP_REF_SIZE / numVectors, CAP_EXPONENT);
+        double recallScale = 0.1 / (1.0 - DEFAULT_TARGET_RECALL);
+        return (float) Math.min(1.0, CAP_COEFFICIENT * sizeScale * recallScale);
     }
 
     @Override

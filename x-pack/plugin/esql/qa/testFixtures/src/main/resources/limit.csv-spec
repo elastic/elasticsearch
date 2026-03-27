@@ -1089,7 +1089,7 @@ FROM web_logs
 | KEEP p.scheme, p.domain, p.path, p.query
 ;
 
-p.scheme:keyword | p.domain:keyword | p.path:keyword | p.query:keyword
+p.scheme:keyword | p.domain:keyword   | p.path:keyword           | p.query:keyword
 null             | null               | /api/v1/users/123        | null
 ftp              | files.internal     | /data.zip                | null
 https            | discuss.elastic.co | /c/elasticsearch         | null

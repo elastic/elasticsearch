@@ -475,7 +475,7 @@ public class RemoteScrollablePaginatedHitSourceTests extends ESTestCase {
         RemoteInfo remoteInfo = remoteInfo();
         TestRemoteScrollablePaginatedHitSource paginatedHitSource = new TestRemoteScrollablePaginatedHitSource(client, remoteInfo);
         paginatedHitSource.remoteVersion = Version.CURRENT;
-        paginatedHitSource.setScroll("scroll_123");
+        paginatedHitSource.setScrollId("scroll_123");
         AtomicBoolean closeCallbackCalled = new AtomicBoolean();
 
         paginatedHitSource.close(() -> closeCallbackCalled.set(true));

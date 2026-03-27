@@ -205,7 +205,7 @@ public class ClientScrollablePaginatedHitSourceTests extends ESTestCase {
             new ParentTaskAssigningClient(client, parentTask),
             new SearchRequest().scroll(timeValueSeconds(10))
         );
-        paginatedHitSource.setScroll("scroll_123");
+        paginatedHitSource.setScrollId("scroll_123");
         AtomicBoolean closeCallbackCalled = new AtomicBoolean();
 
         paginatedHitSource.close(() -> closeCallbackCalled.set(true));

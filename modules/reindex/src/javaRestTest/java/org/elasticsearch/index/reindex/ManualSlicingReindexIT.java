@@ -101,34 +101,24 @@ public class ManualSlicingReindexIT extends ESRestTestCase {
      * @return parsed JSON body (e.g. {@code created}, {@code version_conflicts}, {@code failures})
      * @throws IOException if the request fails
      */
-    private static Map<String, Object> performReindex(String sourceIndex, String destIndex, int sliceId, int sliceMax)
-        throws IOException {
+    private static Map<String, Object> performReindex(String sourceIndex, String destIndex, int sliceId, int sliceMax) throws IOException {
         Request request = new Request("POST", "/_reindex");
         request.addParameter("refresh", "true");
-        request.setJsonEntity(
-            String.format(
-                Locale.ROOT,
-                """
-                    {
-                      "source": {
-                        "index": "%s",
-                        "slice": {
-                          "id": %d,
-                          "max": %d
-                        }
-                      },
-                      "dest": {
-                        "index": "%s",
-                        "op_type": "create"
-                      }
-                    }
-                    """,
-                sourceIndex,
-                sliceId,
-                sliceMax,
-                destIndex
-            )
-        );
+        request.setJsonEntity(String.format(Locale.ROOT, """
+            {
+              "source": {
+                "index": "%s",
+                "slice": {
+                  "id": %d,
+                  "max": %d
+                }
+              },
+              "dest": {
+                "index": "%s",
+                "op_type": "create"
+              }
+            }
+            """, sourceIndex, sliceId, sliceMax, destIndex));
         Response response = assertOK(client().performRequest(request));
         return entityAsMap(response);
     }
@@ -179,14 +169,12 @@ public class ManualSlicingReindexIT extends ESRestTestCase {
 
         Request search = new Request("POST", "/" + destIndex + "/_search");
         search.addParameter("rest_total_hits_as_int", "true");
-        search.setJsonEntity(
-            String.format(Locale.ROOT, """
-                {
-                  "size": %d,
-                  "query": { "match_all": {} }
-                }
-                """, docCount)
-        );
+        search.setJsonEntity(String.format(Locale.ROOT, """
+            {
+              "size": %d,
+              "query": { "match_all": {} }
+            }
+            """, docCount));
         Response searchResponse = assertOK(client().performRequest(search));
         ObjectPath path = ObjectPath.createFromResponse(searchResponse);
         @SuppressWarnings("unchecked")

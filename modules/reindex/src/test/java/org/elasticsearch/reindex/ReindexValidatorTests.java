@@ -11,7 +11,6 @@ package org.elasticsearch.reindex;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -26,6 +25,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.index.reindex.RemoteInfo;
 import org.elasticsearch.indices.EmptySystemIndices;
@@ -34,7 +34,6 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.test.ESTestCase;
 
-import java.lang.reflect.Field;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
@@ -188,12 +187,6 @@ public class ReindexValidatorTests extends ESTestCase {
             indexResolver,
             EmptySystemIndices.INSTANCE
         );
-        return new ReindexValidator(
-            settings,
-            mock(ClusterService.class),
-            indexResolver,
-            DefaultProjectResolver.INSTANCE,
-            autoCreateIndex
-        );
+        return new ReindexValidator(settings, mock(ClusterService.class), indexResolver, DefaultProjectResolver.INSTANCE, autoCreateIndex);
     }
 }

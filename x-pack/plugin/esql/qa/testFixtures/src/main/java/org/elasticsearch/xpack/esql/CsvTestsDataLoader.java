@@ -107,6 +107,7 @@ public class CsvTestsDataLoader {
         new TestDataset("languages_mixed_numerics").withSetting("lookup-settings.json"),
         new TestDataset("ul_logs"),
         new TestDataset("sample_data"),
+        new TestDataset("sample_data").withIndex("cloned_sample_data"),
         new TestDataset("partial_mapping_sample_data"),
         new TestDataset("no_mapping_sample_data", "mapping-no_mapping_sample_data.json", "partial_mapping_sample_data.csv").withTypeMapping(
             Stream.of("timestamp", "client_ip", "event_duration").collect(toMap(k -> k, k -> "keyword"))
@@ -210,7 +211,13 @@ public class CsvTestsDataLoader {
         new TestDataset("many_numbers").withSetting("many_numbers-settings.json"),
         new TestDataset("mmr_text_vector_keyword"),
         new TestDataset("json_logs"),
-        new TestDataset("flattened_otel_logs")
+        new TestDataset("flattened_otel_logs"),
+        new TestDataset(
+            "metric_temporality",
+            "metric_temporality-mappings.json",
+            "metric_temporality.csv",
+            "metric_temporality-settings.json"
+        )
     ).collect(toMap(TestDataset::indexName, Function.identity()));
 
     // Developer flags for faster iteration when debugging specific csv-spec tests:
@@ -472,7 +479,9 @@ public class CsvTestsDataLoader {
     /**
      * Load test datasets into Elasticsearch.
      *
-     * @param indicesToLoad null to load all indices (default); empty list to load nothing; non-empty list to load only those indices
+     * @param indicesToLoad null to load all indices (default); empty list to load nothing; non-empty list to load only those indices.
+     *                      When non-null, enrich policies whose source index is in this list are also loaded (unless skipped by
+     *                      {@code tests.spec_indices} / {@code tests.spec_enrich_policies}).
      */
     public static void loadDataSetIntoEs(
         RestClient client,
@@ -488,6 +497,9 @@ public class CsvTestsDataLoader {
         }
         if (indicesToLoad != null) {
             loadDatasetsIntoEs(client, indicesToLoad);
+            if (timeSeriesOnly == false) {
+                loadEnrichPoliciesForLoadedSourceIndices(client, indicesToLoad);
+            }
         } else {
             loadDataSets(
                 client,
@@ -500,6 +512,27 @@ public class CsvTestsDataLoader {
             );
             if (timeSeriesOnly == false) {
                 loadEnrichPolicies(client);
+            }
+        }
+    }
+
+    /**
+     * Loads enrich policies whose source index is in {@code loadedIndexNames}, mirroring
+     * {@link #loadEnrichPolicies(RestClient)} rules for {@code tests.spec_indices} /
+     * {@code tests.spec_enrich_policies}.
+     */
+    private static void loadEnrichPoliciesForLoadedSourceIndices(RestClient client, List<String> loadedIndexNames) throws IOException {
+        if (specEnrichPolicies != null || specIndices == null) {
+            Set<String> loaded = new HashSet<>(loadedIndexNames);
+            logger.info("Loading enrich policies for loaded indices {}", loadedIndexNames);
+            for (var policy : ENRICH_POLICIES.values()) {
+                if (loaded.contains(policy.index()) == false) {
+                    continue;
+                }
+                if (specEnrichPolicies != null && specEnrichPolicies.contains(policy.policyName()) == false) {
+                    continue;
+                }
+                loadEnrichPolicy(client, policy);
             }
         }
     }
@@ -665,7 +698,7 @@ public class CsvTestsDataLoader {
     private static void loadView(RestClient client, ViewConfig view) throws IOException {
         logger.debug("Loading view [{}] from file [/views/{}.esql]", view.name, view.name);
         Request request = new Request("PUT", "/_query/view/" + view.name);
-        request.setJsonEntity("{\"query\":\"" + view.loadQuery().replace("\"", "\\\"").replace("\n", "") + "\"}");
+        request.setJsonEntity("{\"query\":\"" + view.loadQuery().replace("\"", "\\\"").replace("\r", "").replace("\n", "") + "\"}");
         client.performRequest(request);
     }
 

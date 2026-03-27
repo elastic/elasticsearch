@@ -168,6 +168,30 @@ public class FloatVectorScorerFactoryTests extends AbstractVectorTestCase {
         }
     }
 
+    // Verifies that bulkScore with zero nodes returns NEGATIVE_INFINITY without throwing,
+    // as Lucene's exactSearch path can call bulkScore with an empty batch when filters exclude all docs.
+    public void testBulkScoreWithZeroNodes() throws IOException {
+        assumeTrue(notSupportedMsg(), supported());
+        var factory = AbstractVectorTestCase.factory.get();
+        final int dims = randomIntBetween(64, 4096);
+        final int size = randomIntBetween(2, 100);
+
+        try (var dir = new MMapDirectory(createTempDir("testBulkScoreWithZeroNodes"))) {
+            String fileName = "testBulkScoreWithZeroNodes-" + dims;
+            writeTestDataFile(FloatVectorScorerFactoryTests::randomVector, dir, fileName, size, dims, new float[size][]);
+            try (IndexInput in = dir.openInput(fileName, IOContext.DEFAULT)) {
+                for (var sim : List.of(DOT_PRODUCT, EUCLIDEAN, MAXIMUM_INNER_PRODUCT)) {
+                    var values = vectorValues(dims, size, in, sim.function());
+                    var supplier = factory.getFloatVectorScorerSupplier(sim, in, values).get();
+                    var scorer = supplier.scorer();
+                    scorer.setScoringOrdinal(0);
+                    float result = scorer.bulkScore(new int[0], new float[0], 0);
+                    assertEquals(Float.NEGATIVE_INFINITY, result, 0f);
+                }
+            }
+        }
+    }
+
     static FloatVectorValues vectorValues(int dims, int size, IndexInput in, VectorSimilarityFunction sim) {
         return new OffHeapFloatVectorValues.DenseOffHeapVectorValues(dims, size, in, dims * Float.BYTES, null, sim);
     }

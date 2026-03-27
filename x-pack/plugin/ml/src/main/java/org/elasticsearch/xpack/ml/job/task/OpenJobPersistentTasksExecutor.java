@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -98,6 +99,7 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
     private final JobResultsProvider jobResultsProvider;
     private final AnomalyDetectionAuditor auditor;
     private final XPackLicenseState licenseState;
+    private final ClusterSettings clusterSettings;
 
     private volatile ClusterState clusterState;
 
@@ -119,6 +121,7 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
         this.jobResultsProvider = new JobResultsProvider(client, settings, expressionResolver);
         this.auditor = auditor;
         this.licenseState = licenseState;
+        this.clusterSettings = clusterService.getClusterSettings();
         clusterService.addListener(event -> clusterState = event.state());
     }
 
@@ -241,21 +244,62 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
         JobTask jobTask = (JobTask) task;
         jobTask.setAutodetectProcessManager(autodetectProcessManager);
         JobTaskState jobTaskState = (JobTaskState) state;
+
+        // This indicates a system-initiated reassignment as an opposite to a user-initiated open.
+        boolean isReassignment = jobTaskState != null && jobTaskState.getAllocationId() != task.getAllocationId();
+
+        if (isReassignment) {
+            // System-initiated reassignment: wrap the pipeline in retry logic with exponential backoff.
+            // The task was previously assigned; this is a reopen after node failure/upgrade.
+            createOpenJobRetryableAction(
+                jobTask,
+                jobTaskState,
+                params,
+                ActionListener.wrap(success -> { /* job is OPENED; state transition handled inside pipeline */ }, e -> {
+                    if (autodetectProcessManager.isNodeDying() == false) {
+                        failTask(jobTask, "failed after retries: " + e.getMessage());
+                    }
+                })
+            ).run();
+        } else {
+            // User-initiated (new open or fresh state): run pipeline directly (fail-fast on any error)
+            executeOpenJobPipeline(jobTask, jobTaskState, params, ActionListener.wrap(success -> { /* job is OPENED */ }, e -> {
+                if (autodetectProcessManager.isNodeDying() == false) {
+                    failTask(jobTask, e.getMessage());
+                }
+            }));
+        }
+    }
+
+    /**
+     * Executes the full job opening pipeline: mapping updates -> snapshot verification ->
+     * forecast cleanup -> datafeed check -> revert -> openJob.
+     *
+     * Errors are routed to {@code listener.onFailure()} rather than calling {@code failTask()}
+     * directly, so that the caller (e.g. {@link OpenJobRetryableAction}) can decide whether
+     * to retry or fail.
+     */
+    void executeOpenJobPipeline(
+        JobTask jobTask,
+        JobTaskState jobTaskState,
+        OpenJobAction.JobParams params,
+        ActionListener<Boolean> listener
+    ) {
         JobState jobState = jobTaskState == null ? null : jobTaskState.getState();
         ActionListener<Boolean> checkSnapshotVersionListener = ActionListener.wrap(
             mappingsUpdate -> jobResultsProvider.setRunningForecastsToFailed(
                 params.getJobId(),
-                ActionListener.wrap(r -> runJob(jobTask, jobState, params), e -> {
+                ActionListener.wrap(r -> runJob(jobTask, jobState, params, listener), e -> {
                     if (autodetectProcessManager.isNodeDying() == false) {
                         logger.warn(() -> "[" + params.getJobId() + "] failed to set forecasts to failed", e);
-                        runJob(jobTask, jobState, params);
+                        runJob(jobTask, jobState, params, listener);
                     }
                 })
             ),
             e -> {
                 if (autodetectProcessManager.isNodeDying() == false) {
                     logger.error(() -> "[" + params.getJobId() + "] Failed verifying snapshot version", e);
-                    failTask(jobTask, "failed snapshot verification; cause: " + e.getMessage());
+                    listener.onFailure(e);
                 }
             }
         );
@@ -265,12 +309,12 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
             e -> {
                 if (autodetectProcessManager.isNodeDying() == false) {
                     logger.error(() -> "[" + params.getJobId() + "] Failed to update results mapping", e);
-                    failTask(jobTask, "failed to update results mapping; cause: " + e.getMessage());
+                    listener.onFailure(e);
                 }
             }
         );
 
-        // We need to update the results index as we MAY update the current forecast results, setting the running forcasts to failed
+        // We need to update the results index as we MAY update the current forecast results, setting the running forecasts to failed
         // This writes to the results index, which might need updating
         ElasticsearchMappings.addDocMappingIfMissing(
             AnomalyDetectorsIndex.jobResultsAliasedName(params.getJobId()),
@@ -283,10 +327,22 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
         );
     }
 
+    /**
+     * Factory method for {@link OpenJobRetryableAction}. Protected to allow test spies to intercept creation.
+     */
+    protected OpenJobRetryableAction createOpenJobRetryableAction(
+        JobTask jobTask,
+        JobTaskState jobTaskState,
+        OpenJobAction.JobParams params,
+        ActionListener<Boolean> listener
+    ) {
+        return new OpenJobRetryableAction(jobTask, jobTaskState, params, listener);
+    }
+
     // Exceptions that occur while the node is dying, i.e. after the JVM has received a SIGTERM,
     // are ignored. Core services will be stopping in response to the SIGTERM and we want the
     // job to try to open again on another node, not spuriously fail on the dying node.
-    private void runJob(JobTask jobTask, JobState jobState, OpenJobAction.JobParams params) {
+    private void runJob(JobTask jobTask, JobState jobState, OpenJobAction.JobParams params, ActionListener<Boolean> listener) {
         // If the node is already running its exit handlers then do nothing - shortly
         // the persistent task will get assigned to a new node and the code below will
         // run there instead.
@@ -311,41 +367,73 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
             if (runningDatafeedId != null) {
                 // This job has a running datafeed attached to it.
                 // In order to prevent gaps in the model we revert to the current snapshot deleting intervening results.
-                RevertToCurrentSnapshotAction revertToCurrentSnapshotAction = new RevertToCurrentSnapshotAction(
-                    jobTask,
-                    ActionListener.wrap(response -> openJob(jobTask), e -> {
-                        if (autodetectProcessManager.isNodeDying() == false) {
-                            logger.error(() -> "[" + jobTask.getJobId() + "] failed to revert to current snapshot", e);
-                            failTask(jobTask, "failed to revert to current snapshot");
-                        }
-                    })
-                );
-                revertToCurrentSnapshotAction.run();
+                revertToCurrentSnapshot(jobTask, ActionListener.wrap(response -> openJob(jobTask, listener), e -> {
+                    if (autodetectProcessManager.isNodeDying() == false) {
+                        logger.error(() -> "[" + jobTask.getJobId() + "] failed to revert to current snapshot", e);
+                        listener.onFailure(e);
+                    }
+                }));
             } else {
-                openJob(jobTask);
+                openJob(jobTask, listener);
             }
         }, e -> {
             if (autodetectProcessManager.isNodeDying() == false) {
                 logger.error(() -> "[" + jobTask.getJobId() + "] failed to search for associated datafeed", e);
-                failTask(jobTask, "failed to search for associated datafeed");
+                listener.onFailure(e);
             }
         });
 
         getRunningDatafeed(jobTask.getJobId(), getRunningDatafeedListener);
     }
 
-    private void failTask(JobTask jobTask, String reason) {
+    private void revertToCurrentSnapshot(JobTask jobTask, ActionListener<Boolean> listener) {
+        ActionListener<GetJobsAction.Response> jobListener = ActionListener.wrap(jobResponse -> {
+            List<Job> jobPage = jobResponse.getResponse().results();
+            assert jobPage.size() == 1;
+
+            String jobSnapshotId = jobPage.get(0).getModelSnapshotId();
+            if (jobSnapshotId == null) {
+                logger.info("[{}] job has running datafeed task; resetting as no snapshot exists", jobTask.getJobId());
+                ResetJobAction.Request request = new ResetJobAction.Request(jobTask.getJobId());
+                request.setSkipJobStateValidation(true);
+                request.masterNodeTimeout(PERSISTENT_TASK_MASTER_NODE_TIMEOUT);
+                request.ackTimeout(PERSISTENT_TASK_MASTER_NODE_TIMEOUT);
+                executeAsyncWithOrigin(client, ML_ORIGIN, ResetJobAction.INSTANCE, request, listener.map(response -> true));
+            } else {
+                logger.info("[{}] job has running datafeed task; reverting to current snapshot", jobTask.getJobId());
+                RevertModelSnapshotAction.Request request = new RevertModelSnapshotAction.Request(jobTask.getJobId(), jobSnapshotId);
+                request.setForce(true);
+                request.setDeleteInterveningResults(true);
+                request.masterNodeTimeout(PERSISTENT_TASK_MASTER_NODE_TIMEOUT);
+                request.ackTimeout(PERSISTENT_TASK_MASTER_NODE_TIMEOUT);
+                executeAsyncWithOrigin(client, ML_ORIGIN, RevertModelSnapshotAction.INSTANCE, request, listener.map(response -> true));
+            }
+        }, error -> listener.onFailure(ExceptionsHelper.serverError("[{}] error getting job", error, jobTask.getJobId())));
+
+        GetJobsAction.Request request = new GetJobsAction.Request(jobTask.getJobId());
+        request.masterNodeTimeout(PERSISTENT_TASK_MASTER_NODE_TIMEOUT);
+        executeAsyncWithOrigin(client, ML_ORIGIN, GetJobsAction.INSTANCE, request, jobListener);
+    }
+
+    void failTask(JobTask jobTask, String reason) {
         String jobId = jobTask.getJobId();
         auditor.error(jobId, reason);
         JobTaskState failedState = new JobTaskState(JobState.FAILED, jobTask.getAllocationId(), reason, Instant.now());
-        jobTask.updatePersistentTaskState(failedState, ActionListener.wrap(r -> {
-            logger.debug("[{}] updated task state to failed", jobId);
-            stopAssociatedDatafeedForFailedJob(jobId);
-        }, e -> {
-            logger.error(() -> "[" + jobId + "] error while setting task state to failed; marking task as failed", e);
-            jobTask.markAsFailed(e);
-            stopAssociatedDatafeedForFailedJob(jobId);
-        }));
+        new UpdateStateRetryableAction(
+            logger,
+            client.threadPool(),
+            jobTask,
+            failedState,
+            clusterSettings.get(MachineLearning.JOB_OPEN_RETRY_TIMEOUT),
+            ActionListener.wrap(r -> {
+                logger.debug("[{}] updated task state to failed", jobId);
+                stopAssociatedDatafeedForFailedJob(jobId);
+            }, e -> {
+                logger.error(() -> "[" + jobId + "] failed to set task state to failed after retries", e);
+                jobTask.markAsFailed(e);
+                stopAssociatedDatafeedForFailedJob(jobId);
+            })
+        ).run();
     }
 
     private void stopAssociatedDatafeedForFailedJob(String jobId) {
@@ -456,99 +544,10 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
         executeAsyncWithOrigin(client, ML_ORIGIN, GetJobsAction.INSTANCE, request, jobListener);
     }
 
-    /**
-     * This action reverts a job to its current snapshot if one exists or resets the job.
-     * This action is retryable. As this action happens when a job is relocating to another node,
-     * it is common that this happens during rolling upgrades. During a rolling upgrade, it is
-     * probable that data nodes containing shards of the ML indices might not be available temporarily
-     * which results to failures in the revert/reset action. Thus, it is important to retry a few times
-     * so that the job manages to successfully recover without user intervention.
-     */
-    private class RevertToCurrentSnapshotAction extends RetryableAction<Boolean> {
-
-        private final JobTask jobTask;
-        private volatile boolean hasFailedAtLeastOnce;
-
-        private RevertToCurrentSnapshotAction(JobTask jobTask, ActionListener<Boolean> listener) {
-            super(
-                logger,
-                client.threadPool(),
-                // No need to wait before first execution
-                TimeValue.timeValueMillis(1),
-                // Retry for 15 minutes. This should be enough time for at least some replicas
-                // to be available so that and data deletion can succeed.
-                TimeValue.timeValueMinutes(15),
-                listener,
-                client.threadPool().executor(MachineLearning.UTILITY_THREAD_POOL_NAME)
-            );
-            this.jobTask = Objects.requireNonNull(jobTask);
-        }
-
-        @Override
-        public void tryAction(ActionListener<Boolean> listener) {
-            ActionListener<GetJobsAction.Response> jobListener = ActionListener.wrap(jobResponse -> {
-                List<Job> jobPage = jobResponse.getResponse().results();
-                // We requested a single concrete job so if it didn't exist we would get an error
-                assert jobPage.size() == 1;
-
-                String jobSnapshotId = jobPage.get(0).getModelSnapshotId();
-                if (jobSnapshotId == null) {
-                    logger.info("[{}] job has running datafeed task; resetting as no snapshot exists", jobTask.getJobId());
-                    ResetJobAction.Request request = new ResetJobAction.Request(jobTask.getJobId());
-                    request.setSkipJobStateValidation(true);
-                    request.masterNodeTimeout(PERSISTENT_TASK_MASTER_NODE_TIMEOUT);
-                    request.ackTimeout(PERSISTENT_TASK_MASTER_NODE_TIMEOUT);
-                    executeAsyncWithOrigin(
-                        client,
-                        ML_ORIGIN,
-                        ResetJobAction.INSTANCE,
-                        request,
-                        ActionListener.wrap(response -> listener.onResponse(true), listener::onFailure)
-                    );
-                } else {
-                    logger.info("[{}] job has running datafeed task; reverting to current snapshot", jobTask.getJobId());
-                    RevertModelSnapshotAction.Request request = new RevertModelSnapshotAction.Request(
-                        jobTask.getJobId(),
-                        jobSnapshotId == null ? ModelSnapshot.EMPTY_SNAPSHOT_ID : jobSnapshotId
-                    );
-                    request.setForce(true);
-                    request.setDeleteInterveningResults(true);
-                    request.masterNodeTimeout(PERSISTENT_TASK_MASTER_NODE_TIMEOUT);
-                    request.ackTimeout(PERSISTENT_TASK_MASTER_NODE_TIMEOUT);
-                    executeAsyncWithOrigin(
-                        client,
-                        ML_ORIGIN,
-                        RevertModelSnapshotAction.INSTANCE,
-                        request,
-                        ActionListener.wrap(response -> listener.onResponse(true), listener::onFailure)
-                    );
-                }
-            }, error -> listener.onFailure(ExceptionsHelper.serverError("[{}] error getting job", error, jobTask.getJobId())));
-
-            // We need to refetch the job in order to learn what is its current model snapshot
-            // as the one that exists in the task params is outdated.
-            GetJobsAction.Request request = new GetJobsAction.Request(jobTask.getJobId());
-            request.masterNodeTimeout(PERSISTENT_TASK_MASTER_NODE_TIMEOUT);
-            executeAsyncWithOrigin(client, ML_ORIGIN, GetJobsAction.INSTANCE, request, jobListener);
-        }
-
-        @Override
-        public boolean shouldRetry(Exception e) {
-            if (jobTask.isClosing() || jobTask.isVacating()) {
-                return false;
-            }
-            if (hasFailedAtLeastOnce == false) {
-                hasFailedAtLeastOnce = true;
-                logger.error(() -> "[" + jobTask.getJobId() + "] error reverting job to its current snapshot; attempting retry", e);
-            }
-            return true;
-        }
-    }
-
     // Exceptions that occur while the node is dying, i.e. after the JVM has received a SIGTERM,
     // are ignored. Core services will be stopping in response to the SIGTERM and we want the
     // job to try to open again on another node, not spuriously fail on the dying node.
-    private void openJob(JobTask jobTask) {
+    private void openJob(JobTask jobTask, ActionListener<Boolean> listener) {
         String jobId = jobTask.getJobId();
         autodetectProcessManager.openJob(jobTask, clusterState, PERSISTENT_TASK_MASTER_NODE_TIMEOUT, (e2, shouldFinalizeJob) -> {
             if (e2 == null) {
@@ -565,7 +564,10 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
                         ML_ORIGIN,
                         FinalizeJobExecutionAction.INSTANCE,
                         finalizeRequest,
-                        ActionListener.wrap(response -> jobTask.markAsCompleted(), e -> {
+                        ActionListener.wrap(response -> {
+                            jobTask.markAsCompleted();
+                            listener.onResponse(true);
+                        }, e -> {
                             // This error is logged even if the node is dying. This is a nasty place for the node to get killed,
                             // as most of the job's close sequence has executed, just not the finalization step. The job will
                             // restart on a different node. If the coordinating node for the close request notices that the job
@@ -576,21 +578,24 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
                             Throwable unwrapped = ExceptionsHelper.unwrapCause(e);
                             if (unwrapped instanceof DocumentMissingException || unwrapped instanceof ResourceNotFoundException) {
                                 jobTask.markAsCompleted();
+                                listener.onResponse(true);
                             } else if (autodetectProcessManager.isNodeDying() == false) {
                                 // In this case we prefer to mark the task as failed, which means the job
                                 // will appear closed. The reason is that the job closed successfully and
                                 // we just failed to update some fields like the finish time. It is preferable
                                 // to let the job close than setting it to failed.
                                 jobTask.markAsFailed(e);
+                                listener.onFailure(e);
                             }
                         })
                     );
                 } else {
                     jobTask.markAsCompleted();
+                    listener.onResponse(true);
                 }
             } else if (autodetectProcessManager.isNodeDying() == false) {
                 logger.error(() -> "[" + jobTask.getJobId() + "] failed to open job", e2);
-                failTask(jobTask, "failed to open job: " + e2.getMessage());
+                listener.onFailure(e2);
             }
         });
     }
@@ -660,5 +665,56 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
     @Override
     protected String getJobId(OpenJobAction.JobParams params) {
         return params.getJobId();
+    }
+
+    /**
+     * Retries the entire job opening pipeline for system-initiated reassignments.
+     *
+     * Uses exponential backoff with:
+     * - Initial delay: 5 seconds
+     * - Max delay: 5 minutes
+     * - Total timeout: from {@link MachineLearning#JOB_OPEN_RETRY_TIMEOUT} (default 60 minutes)
+     *
+     * Only applies to reassignments (detected via {@link JobTaskState#isStatusStale(PersistentTask)}).
+     * User-initiated opens fail fast.
+     */
+    class OpenJobRetryableAction extends RetryableAction<Boolean> {
+
+        private final JobTask jobTask;
+        private final JobTaskState jobTaskState;
+        private final OpenJobAction.JobParams params;
+
+        OpenJobRetryableAction(
+            JobTask jobTask,
+            JobTaskState jobTaskState,
+            OpenJobAction.JobParams params,
+            ActionListener<Boolean> listener
+        ) {
+            super(
+                logger,
+                client.threadPool(),
+                TimeValue.timeValueSeconds(5),
+                TimeValue.timeValueMinutes(5),
+                clusterSettings.get(MachineLearning.JOB_OPEN_RETRY_TIMEOUT),
+                listener,
+                client.threadPool().generic()
+            );
+            this.jobTask = Objects.requireNonNull(jobTask);
+            this.jobTaskState = jobTaskState;
+            this.params = Objects.requireNonNull(params);
+        }
+
+        @Override
+        public void tryAction(ActionListener<Boolean> listener) {
+            executeOpenJobPipeline(jobTask, jobTaskState, params, listener);
+        }
+
+        @Override
+        public boolean shouldRetry(Exception e) {
+            if (jobTask.isClosing() || jobTask.isVacating()) {
+                return false;
+            }
+            return org.elasticsearch.xpack.ml.utils.MlRecoverableErrorClassifier.isRecoverable(e);
+        }
     }
 }

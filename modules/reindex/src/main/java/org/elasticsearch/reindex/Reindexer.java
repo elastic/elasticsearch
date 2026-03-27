@@ -748,10 +748,10 @@ public class Reindexer {
         protected void finishHim(
             Exception failure,
             List<BulkItemResponse.Failure> indexingFailures,
-            List<PaginatedSearchFailure> bulkByPaginatedSearchFailures,
+            List<PaginatedSearchFailure> searchFailures,
             boolean timedOut
         ) {
-            super.finishHim(failure, indexingFailures, bulkByPaginatedSearchFailures, timedOut);
+            super.finishHim(failure, indexingFailures, searchFailures, timedOut);
             // A little extra paranoia so we log something if we leave any threads running
             for (Thread thread : createdThreads) {
                 if (thread.isAlive()) {

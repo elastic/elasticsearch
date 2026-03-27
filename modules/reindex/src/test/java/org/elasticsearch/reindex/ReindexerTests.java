@@ -1204,13 +1204,13 @@ public class ReindexerTests extends ESTestCase {
 
     private BulkByScrollResponse reindexResponseWithBulkAndSearchFailures(
         final List<BulkItemResponse.Failure> bulkFailures,
-        List<PaginatedSearchFailure> bulkByPaginatedSearchFailures
+        List<PaginatedSearchFailure> searchFailures
     ) {
         return new BulkByScrollResponse(
             TimeValue.ZERO,
             new BulkByScrollTask.Status(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, timeValueMillis(0), 0f, null, timeValueMillis(0)),
             bulkFailures,
-            bulkByPaginatedSearchFailures,
+            searchFailures,
             false
         );
     }

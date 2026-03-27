@@ -300,13 +300,13 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
         // Since we delete the source index on success, we want to fail the whole job if there are _any_ documents that fail to reindex:
         ActionListener<BulkByScrollResponse> checkForFailuresListener = ActionListener.wrap(bulkByScrollResponse -> {
             if (bulkByScrollResponse.getSearchFailures().isEmpty() == false) {
-                PaginatedSearchFailure firstBulkByPaginatedSearchFailure = bulkByScrollResponse.getSearchFailures().get(0);
+                PaginatedSearchFailure firstSearchFailure = bulkByScrollResponse.getSearchFailures().get(0);
                 listener.onFailure(
                     new ElasticsearchException(
                         "Failure reading data from {} caused by {}",
-                        firstBulkByPaginatedSearchFailure.getReason(),
+                        firstSearchFailure.getReason(),
                         sourceIndexName,
-                        firstBulkByPaginatedSearchFailure.getReason().getMessage()
+                        firstSearchFailure.getReason().getMessage()
                     )
                 );
             } else if (bulkByScrollResponse.getBulkFailures().isEmpty() == false) {

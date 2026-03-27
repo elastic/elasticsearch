@@ -316,10 +316,10 @@ public abstract class AbstractAsyncBulkByScrollAction<
     protected BulkByScrollResponse buildResponse(
         TimeValue took,
         List<BulkItemResponse.Failure> indexingFailures,
-        List<PaginatedSearchFailure> bulkByPaginatedSearchFailures,
+        List<PaginatedSearchFailure> searchFailures,
         boolean timedOut
     ) {
-        return new BulkByScrollResponse(took, task.getStatus(), indexingFailures, bulkByPaginatedSearchFailures, timedOut);
+        return new BulkByScrollResponse(took, task.getStatus(), indexingFailures, searchFailures, timedOut);
     }
 
     /**
@@ -609,9 +609,9 @@ public abstract class AbstractAsyncBulkByScrollAction<
      * Start terminating a request that finished non-catastrophically by refreshing the modified indices and then proceeding to
      * {@link #finishHim(Exception, List, List, boolean)}.
      */
-    void refreshAndFinish(List<Failure> indexingFailures, List<PaginatedSearchFailure> bulkByPaginatedSearchFailures, boolean timedOut) {
+    void refreshAndFinish(List<Failure> indexingFailures, List<PaginatedSearchFailure> searchFailures, boolean timedOut) {
         if (task.isCancelled() || false == mainRequest.isRefresh() || destinationIndices.isEmpty()) {
-            finishHim(null, indexingFailures, bulkByPaginatedSearchFailures, timedOut);
+            finishHim(null, indexingFailures, searchFailures, timedOut);
             return;
         }
         RefreshRequest refresh = new RefreshRequest();
@@ -620,7 +620,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
         bulkClient.admin().indices().refresh(refresh, new ActionListener<>() {
             @Override
             public void onResponse(BroadcastResponse response) {
-                finishHim(null, indexingFailures, bulkByPaginatedSearchFailures, timedOut);
+                finishHim(null, indexingFailures, searchFailures, timedOut);
             }
 
             @Override
@@ -644,13 +644,13 @@ public abstract class AbstractAsyncBulkByScrollAction<
      * Finish the request.
      * @param failure if non null then the request failed catastrophically with this exception
      * @param indexingFailures any indexing failures accumulated during the request
-     * @param bulkByPaginatedSearchFailures any search failures accumulated during the request
+     * @param searchFailures any search failures accumulated during the request
      * @param timedOut have any of the sub-requests timed out?
      */
     protected void finishHim(
         Exception failure,
         List<Failure> indexingFailures,
-        List<PaginatedSearchFailure> bulkByPaginatedSearchFailures,
+        List<PaginatedSearchFailure> searchFailures,
         boolean timedOut
     ) {
         logger.debug("[{}]: finishing without any catastrophic failures", task.getId());
@@ -659,7 +659,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
                 BulkByScrollResponse response = buildResponse(
                     timeValueMillis(System.currentTimeMillis() - startTimeEpochMillis.get()),
                     indexingFailures,
-                    bulkByPaginatedSearchFailures,
+                    searchFailures,
                     timedOut
                 );
                 listener.onResponse(response);

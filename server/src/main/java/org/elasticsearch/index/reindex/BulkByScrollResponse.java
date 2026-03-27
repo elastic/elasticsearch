@@ -35,7 +35,7 @@ public class BulkByScrollResponse extends ActionResponse implements ToXContentFr
     private final TimeValue took;
     private final BulkByScrollTask.Status status;
     private final List<Failure> bulkFailures;
-    private final List<PaginatedSearchFailure> bulkByPaginatedSearchFailures;
+    private final List<PaginatedSearchFailure> searchFailures;
     private boolean timedOut;
     @Nullable
     private final ResumeInfo resumeInfo; // only used on the local node so not serialized in transport
@@ -48,7 +48,7 @@ public class BulkByScrollResponse extends ActionResponse implements ToXContentFr
         took = in.readTimeValue();
         status = new BulkByScrollTask.Status(in);
         bulkFailures = in.readCollectionAsList(Failure::new);
-        bulkByPaginatedSearchFailures = in.readCollectionAsList(PaginatedSearchFailure::new);
+        searchFailures = in.readCollectionAsList(PaginatedSearchFailure::new);
         timedOut = in.readBoolean();
         resumeInfo = null;
     }
@@ -57,24 +57,24 @@ public class BulkByScrollResponse extends ActionResponse implements ToXContentFr
         TimeValue took,
         BulkByScrollTask.Status status,
         List<Failure> bulkFailures,
-        List<PaginatedSearchFailure> bulkByPaginatedSearchFailures,
+        List<PaginatedSearchFailure> searchFailures,
         boolean timedOut
     ) {
-        this(took, status, bulkFailures, bulkByPaginatedSearchFailures, timedOut, null);
+        this(took, status, bulkFailures, searchFailures, timedOut, null);
     }
 
     public BulkByScrollResponse(
         TimeValue took,
         BulkByScrollTask.Status status,
         List<Failure> bulkFailures,
-        List<PaginatedSearchFailure> bulkByPaginatedSearchFailures,
+        List<PaginatedSearchFailure> searchFailures,
         boolean timedOut,
         @Nullable ResumeInfo resumeInfo
     ) {
         this.took = took;
         this.status = requireNonNull(status, "Null status not supported");
         this.bulkFailures = bulkFailures;
-        this.bulkByPaginatedSearchFailures = bulkByPaginatedSearchFailures;
+        this.searchFailures = searchFailures;
         this.timedOut = timedOut;
         this.resumeInfo = resumeInfo;
     }
@@ -83,12 +83,12 @@ public class BulkByScrollResponse extends ActionResponse implements ToXContentFr
         long mergedTook = 0;
         List<BulkByScrollTask.StatusOrException> statuses = new ArrayList<>();
         bulkFailures = new ArrayList<>();
-        bulkByPaginatedSearchFailures = new ArrayList<>();
+        searchFailures = new ArrayList<>();
         for (BulkByScrollResponse response : toMerge) {
             mergedTook = max(mergedTook, response.getTook().millis());
             statuses.add(new BulkByScrollTask.StatusOrException(response.status));
             bulkFailures.addAll(response.getBulkFailures());
-            bulkByPaginatedSearchFailures.addAll(response.getSearchFailures());
+            searchFailures.addAll(response.getSearchFailures());
             timedOut |= response.isTimedOut();
         }
         took = timeValueMillis(mergedTook);
@@ -164,7 +164,7 @@ public class BulkByScrollResponse extends ActionResponse implements ToXContentFr
      * All search failures.
      */
     public List<PaginatedSearchFailure> getSearchFailures() {
-        return bulkByPaginatedSearchFailures;
+        return searchFailures;
     }
 
     /**
@@ -187,7 +187,7 @@ public class BulkByScrollResponse extends ActionResponse implements ToXContentFr
         out.writeTimeValue(took);
         status.writeTo(out);
         out.writeCollection(bulkFailures);
-        out.writeCollection(bulkByPaginatedSearchFailures);
+        out.writeCollection(searchFailures);
         out.writeBoolean(timedOut);
     }
 
@@ -202,7 +202,7 @@ public class BulkByScrollResponse extends ActionResponse implements ToXContentFr
             failure.toXContent(builder, params);
             builder.endObject();
         }
-        for (PaginatedSearchFailure failure : bulkByPaginatedSearchFailures) {
+        for (PaginatedSearchFailure failure : searchFailures) {
             failure.toXContent(builder, params);
         }
         builder.endArray();

@@ -31,7 +31,7 @@ public class BulkIndexByScrollResponseTests extends ESTestCase {
         int took = between(1000, 10000);
         int tookIndex = between(0, mergeCount - 1);
         List<BulkItemResponse.Failure> allBulkFailures = new ArrayList<>();
-        List<PaginatedSearchFailure> allBulkByPaginatedSearchFailures = new ArrayList<>();
+        List<PaginatedSearchFailure> allSearchFailures = new ArrayList<>();
         boolean timedOut = false;
         String reasonCancelled = rarely() ? randomAlphaOfLength(5) : null;
 
@@ -62,20 +62,20 @@ public class BulkIndexByScrollResponseTests extends ESTestCase {
                     .mapToObj(j -> new BulkItemResponse.Failure("idx", "id", new Exception()))
                     .collect(Collectors.toList());
             allBulkFailures.addAll(bulkFailures);
-            List<PaginatedSearchFailure> bulkByPaginatedSearchFailures = frequently()
+            List<PaginatedSearchFailure> searchFailures = frequently()
                 ? emptyList()
                 : IntStream.range(0, between(1, 3)).mapToObj(j -> new PaginatedSearchFailure(new Exception())).collect(Collectors.toList());
-            allBulkByPaginatedSearchFailures.addAll(bulkByPaginatedSearchFailures);
+            allSearchFailures.addAll(searchFailures);
             boolean thisTimedOut = rarely();
             timedOut |= thisTimedOut;
-            responses.add(new BulkByScrollResponse(thisTook, status, bulkFailures, bulkByPaginatedSearchFailures, thisTimedOut));
+            responses.add(new BulkByScrollResponse(thisTook, status, bulkFailures, searchFailures, thisTimedOut));
         }
 
         BulkByScrollResponse merged = new BulkByScrollResponse(responses, reasonCancelled);
 
         assertEquals(timeValueMillis(took), merged.getTook());
         assertEquals(allBulkFailures, merged.getBulkFailures());
-        assertEquals(allBulkByPaginatedSearchFailures, merged.getSearchFailures());
+        assertEquals(allSearchFailures, merged.getSearchFailures());
         assertEquals(timedOut, merged.isTimedOut());
         assertEquals(reasonCancelled, merged.getReasonCancelled());
     }

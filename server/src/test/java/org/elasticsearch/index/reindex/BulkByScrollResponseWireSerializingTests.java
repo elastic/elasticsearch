@@ -160,8 +160,8 @@ public class BulkByScrollResponseWireSerializingTests extends AbstractWireSerial
         return randomList(0, 5, this::randomSearchFailure);
     }
 
-    private List<PaginatedSearchFailure> mutateSearchFailures(List<PaginatedSearchFailure> bulkByPaginatedSearchFailures) {
-        List<PaginatedSearchFailure> newFailures = new ArrayList<>(bulkByPaginatedSearchFailures);
+    private List<PaginatedSearchFailure> mutateSearchFailures(List<PaginatedSearchFailure> searchFailures) {
+        List<PaginatedSearchFailure> newFailures = new ArrayList<>(searchFailures);
         newFailures.add(randomSearchFailure());
         return newFailures;
     }

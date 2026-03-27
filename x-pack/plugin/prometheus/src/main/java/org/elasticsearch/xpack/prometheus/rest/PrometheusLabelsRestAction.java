@@ -70,7 +70,9 @@ public class PrometheusLabelsRestAction extends BaseRestHandler {
             ? PromqlParserUtils.parseDate(Source.EMPTY, startParam)
             : end.minus(DEFAULT_LOOKBACK_HOURS, HOURS);
 
-        // Optional limit; 0 (default) means unlimited per Prometheus semantics
+        // Optional limit; 0 means "disabled" (Prometheus semantics), which defers to the ESQL
+        // result_truncation_max_size cluster setting (default 10 000). Positive values use a
+        // limit+1 sentinel to detect and report truncation.
         int limit = request.paramAsInt(LIMIT_PARAM, DEFAULT_LIMIT);
 
         String index = request.param(INDEX_PARAM, "*");

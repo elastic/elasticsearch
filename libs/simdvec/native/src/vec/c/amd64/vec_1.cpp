@@ -13,7 +13,6 @@
 
 #include <stddef.h>
 #include <stdint.h>
-#include <math.h>
 #include <algorithm>
 #include "vec.h"
 #include "vec_common.h"
@@ -279,7 +278,7 @@ EXPORT f32_t vec_cosi8(const int8_t* a, const int8_t* b, const int32_t dims) {
         res.norm2 += bi * bi;
     }
 
-    return (f32_t) ((double) res.sum / sqrt((double) res.norm1 * res.norm2));
+    return (f32_t) ((double) res.sum / __builtin_sqrt((double) res.norm1 * res.norm2));
 }
 
 template <typename TData, const int8_t*(*mapper)(const TData*, const int32_t, const int32_t*, const int32_t), int batches = 2>

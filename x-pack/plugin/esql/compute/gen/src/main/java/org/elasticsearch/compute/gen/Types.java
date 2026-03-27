@@ -100,6 +100,11 @@ public class Types {
         "GroupingAggregatorFunction",
         "AddInput"
     );
+    static final ClassName GROUPING_AGGREGATOR_FUNCTION_PREPARED_FOR_EVALUATION = ClassName.get(
+        AGGREGATION_PACKAGE,
+        "GroupingAggregatorFunction",
+        "PreparedForEvaluation"
+    );
     static final ClassName SEEN_GROUP_IDS = ClassName.get(AGGREGATION_PACKAGE, "SeenGroupIds");
 
     public static final ClassName INTERMEDIATE_STATE_DESC = ClassName.get(AGGREGATION_PACKAGE, "IntermediateStateDesc");

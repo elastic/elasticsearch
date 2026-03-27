@@ -228,6 +228,7 @@ public class RootFlattenedFromKeyedFieldDataTests extends ESTestCase {
     }
 
     private static IndexReader openReader(RandomIndexWriter writer) throws IOException {
+        writer.forceMerge(1);
         return ElasticsearchDirectoryReader.wrap(DirectoryReader.open(writer.w), new ShardId("test", "_na_", 0));
     }
 

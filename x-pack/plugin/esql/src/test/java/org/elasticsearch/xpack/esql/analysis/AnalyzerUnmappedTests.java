@@ -7,18 +7,23 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedTimestamp;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.index.IndexResolution;
+import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
@@ -31,11 +36,14 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.fieldCapabilitiesIndexResponse;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.fieldResponseMap;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.indexResolutions;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.mergedResolution;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTests.withInlinestatsWarning;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
@@ -46,6 +54,16 @@ import static org.hamcrest.Matchers.not;
 
 // @TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
 public class AnalyzerUnmappedTests extends ESTestCase {
+
+    /**
+     * Query suffixes that use the unsupported type-conflict field [message] in different commands.
+     * Each type conflict test iterates over these to verify the error is raised regardless of how the field is used.
+     */
+    private static final String[] TYPE_CONFLICT_QUERY_SUFFIXES = new String[] {
+        "| SORT message",
+        "| EVAL x = message",
+        "| WHERE message IS NOT NULL" };
+
     public void testFailKeepAndNonMatchingStar() {
         assertUnmappedFailure(test(), """
             FROM test
@@ -590,6 +608,114 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         );
     }
 
+    public void testTypeConflictLongUnmappedNoCast() {
+        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
+
+        FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
+            List.of(
+                fieldCapabilitiesIndexResponse("foo", fieldResponseMap("message", "long")),
+                fieldCapabilitiesIndexResponse("bar", Map.of())
+            ),
+            List.of()
+        );
+        var resolutions = indexResolutions(mergedResolution("foo,bar", caps));
+        for (String suffix : TYPE_CONFLICT_QUERY_SUFFIXES) {
+            typeConflictVerificationFailure(setUnmappedLoad("FROM foo, bar " + suffix), resolutions);
+        }
+    }
+
+    public void testTypeConflictLongKeywordUnmappedNoCast() {
+        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
+
+        FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
+            List.of(
+                fieldCapabilitiesIndexResponse("foo", fieldResponseMap("message", "long")),
+                fieldCapabilitiesIndexResponse("bar", fieldResponseMap("message", "keyword")),
+                fieldCapabilitiesIndexResponse("baz", Map.of())
+            ),
+            List.of()
+        );
+        var resolutions = indexResolutions(mergedResolution("foo,bar,baz", caps));
+        for (String suffix : TYPE_CONFLICT_QUERY_SUFFIXES) {
+            typeConflictVerificationFailure(setUnmappedLoad("FROM foo, bar, baz " + suffix), resolutions);
+        }
+    }
+
+    public void testTypeConflictLongIntUnmappedNoCast() {
+        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
+
+        FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
+            List.of(
+                fieldCapabilitiesIndexResponse("foo", fieldResponseMap("message", "long")),
+                fieldCapabilitiesIndexResponse("bar", fieldResponseMap("message", "integer")),
+                fieldCapabilitiesIndexResponse("baz", Map.of())
+            ),
+            List.of()
+        );
+        var resolutions = indexResolutions(mergedResolution("foo,bar,baz", caps));
+        for (String suffix : TYPE_CONFLICT_QUERY_SUFFIXES) {
+            typeConflictVerificationFailure(setUnmappedLoad("FROM foo, bar, baz " + suffix), resolutions);
+        }
+    }
+
+    public void testTypeConflictTextUnmappedNoCast() {
+        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
+
+        FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
+            List.of(
+                fieldCapabilitiesIndexResponse("foo", fieldResponseMap("message", "text")),
+                fieldCapabilitiesIndexResponse("bar", Map.of())
+            ),
+            List.of()
+        );
+        var resolutions = indexResolutions(mergedResolution("foo,bar", caps));
+        for (String suffix : TYPE_CONFLICT_QUERY_SUFFIXES) {
+            typeConflictVerificationFailure(setUnmappedLoad("FROM foo, bar " + suffix), resolutions);
+        }
+    }
+
+    public void testSameMappingHashNotPartiallyUnmapped() {
+        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
+
+        FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
+            List.of(
+                fieldCapabilitiesIndexResponse("foo", fieldResponseMap("message", "long")),
+                fieldCapabilitiesIndexResponse("bar", fieldResponseMap("message", "long"))
+            ),
+            List.of()
+        );
+        var resolutions = indexResolutions(mergedResolution("foo,bar", caps));
+        TestAnalyzer ta = analyzer();
+        for (var entry : resolutions.entrySet()) {
+            ta.addIndex(entry.getKey().indexPattern(), entry.getValue());
+        }
+        var plan = ta.statement(setUnmappedLoad("FROM foo, bar | EVAL x = message + 1"));
+        var limit = as(plan, Limit.class);
+        var eval = as(limit.child(), org.elasticsearch.xpack.esql.plan.logical.Eval.class);
+        var attr = eval.output().stream().filter(a -> a.name().equals("message")).findFirst().orElseThrow();
+        assertThat(attr.dataType(), is(DataType.LONG));
+    }
+
+    public void testSameMappingHashWithUnmappedIndex() {
+        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
+
+        FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
+            List.of(
+                fieldCapabilitiesIndexResponse("foo", fieldResponseMap("message", "long")),
+                fieldCapabilitiesIndexResponse("bar", fieldResponseMap("message", "long")),
+                fieldCapabilitiesIndexResponse("baz", Map.of())
+            ),
+            List.of()
+        );
+        var resolutions = indexResolutions(mergedResolution("foo,bar,baz", caps));
+        TestAnalyzer ta = analyzer();
+        for (var entry : resolutions.entrySet()) {
+            ta.addIndex(entry.getKey().indexPattern(), entry.getValue());
+        }
+        var e = expectThrows(VerificationException.class, () -> ta.statement(setUnmappedLoad("FROM foo, bar, baz | SORT message")));
+        assertThat(e.getMessage(), allOf(containsString("Cannot use field [message]"), containsString("[long] in [bar, foo]")));
+    }
+
     private static final String UNMAPPED_TIMESTAMP_SUFFIX = UnresolvedTimestamp.UNRESOLVED_SUFFIX + Verifier.UNMAPPED_TIMESTAMP_SUFFIX;
 
     public void testTbucketWithUnmappedTimestamp() {
@@ -897,11 +1023,20 @@ public class AnalyzerUnmappedTests extends ESTestCase {
 
     private static TestAnalyzer index1() {
         Map<String, EsField> mapping = Map.of("field", new UnsupportedEsField("field", List.of("flattened")));
-        return analyzer().addIndex(new EsIndex("test", mapping, Map.of("test", IndexMode.STANDARD), Map.of(), Map.of(), Set.of()));
+        return analyzer().addIndex(new EsIndex("test", mapping, Map.of("test", IndexMode.STANDARD), Map.of(), Map.of(), Map.of()));
     }
 
     private static void assertUnmappedLoadError(TestAnalyzer analyzer, String query, Matcher<String> matcher) {
         analyzer.statementError(setUnmappedLoad(query), matcher);
+    }
+
+    private void typeConflictVerificationFailure(String statement, Map<IndexPattern, IndexResolution> indexResolutions) {
+        TestAnalyzer ta = analyzer();
+        for (var entry : indexResolutions.entrySet()) {
+            ta.addIndex(entry.getKey().indexPattern(), entry.getValue());
+        }
+        var e = expectThrows(VerificationException.class, () -> ta.statement(statement));
+        assertThat(e.getMessage(), containsString("Cannot use field [message]"));
     }
 
     private static String setUnmappedNullify(String query) {
@@ -910,7 +1045,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
     }
 
     private static String setUnmappedLoad(String query) {
-        assumeTrue("Requires OPTIONAL_FIELDS_V3", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V3.isEnabled());
+        assumeTrue("Requires OPTIONAL_FIELDS_V4", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V4.isEnabled());
         return "SET unmapped_fields=\"load\"; " + query;
     }
 

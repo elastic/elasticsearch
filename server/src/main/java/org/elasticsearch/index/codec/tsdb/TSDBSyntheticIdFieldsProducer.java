@@ -200,8 +200,32 @@ public class TSDBSyntheticIdFieldsProducer extends FieldsProducer {
                 // The input is too short to be a valid synthetic _id (which requires _tsid + 8-byte timestamp + 4-byte routing hash).
                 // This can happen when Lucene's FilteredTermsEnum (used by multi-term queries like wildcard or regex) calls seekCeil
                 // with arbitrary byte sequences while iterating over the _id field's terms.
-                if (maxDocs > 0) {
+                // We must still honor the seekCeil contract: position on the first term >= id, or return END.
+                if (maxDocs == 0) {
+                    resetDocID(DocIdSetIterator.NO_MORE_DOCS);
+                    return SeekStatus.END;
+                }
+                if (id == null || id.length == 0) {
                     resetDocID(0);
+                    return SeekStatus.NOT_FOUND;
+                }
+                // Binary search for the first document whose term is >= the sought id.
+                int low = 0;
+                int high = maxDocs - 1;
+                int result = -1;
+                while (low <= high) {
+                    int mid = (low + high) >>> 1;
+                    resetDocID(mid);
+                    int cmp = term().compareTo(id);
+                    if (cmp >= 0) {
+                        result = mid;
+                        high = mid - 1;
+                    } else {
+                        low = mid + 1;
+                    }
+                }
+                if (result >= 0) {
+                    resetDocID(result);
                     return SeekStatus.NOT_FOUND;
                 }
                 resetDocID(DocIdSetIterator.NO_MORE_DOCS);

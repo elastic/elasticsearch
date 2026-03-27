@@ -359,28 +359,48 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
                 // This exercises the code path hit when Lucene's FilteredTermsEnum (multi-term queries) calls seekCeil
                 // with arbitrary prefixes while iterating over the _id field's terms (see #144587).
                 {
-                    var shortInputs = new BytesRef[] {
+                    // Inputs that sort before all terms: empty and zero-filled
+                    var beforeAllInputs = new BytesRef[] {
                         new BytesRef(new byte[0]),
                         new BytesRef(new byte[] { 0 }),
-                        new BytesRef(new byte[] { (byte) 0xFF }),
-                        new BytesRef(randomByteArrayOfLength(randomIntBetween(1, Long.BYTES + Integer.BYTES))),
                         new BytesRef(new byte[Long.BYTES + Integer.BYTES]) };
-                    for (var shortInput : shortInputs) {
+                    for (var shortInput : beforeAllInputs) {
                         var status = syntheticIdTermsEnum.seekCeil(shortInput);
                         assertThat(
-                            "seekCeil with short input [" + shortInput.length + " bytes] should not return FOUND",
+                            "seekCeil with short input [" + shortInput.length + " bytes] should return NOT_FOUND",
                             status,
                             equalTo(TermsEnum.SeekStatus.NOT_FOUND)
                         );
                         assertThat(syntheticIdTermsEnum.term(), notNullValue());
                         assertThat(syntheticIdTermsEnum.term(), equalTo(finalDocs.firstKey()));
 
-                        // Verify the enum is properly positioned and next() walks through all terms
+                        // next() walks all doc IDs (including soft-updated versions), so count == maxDoc
                         int termCount = 1;
                         while (syntheticIdTermsEnum.next() != null) {
                             termCount++;
                         }
-                        assertThat(termCount, equalTo(finalDocs.size()));
+                        assertThat(termCount, equalTo(leafReader.maxDoc()));
+                    }
+
+                    // Input that sorts after all terms (all 0xFF bytes)
+                    var afterAllInput = new BytesRef(new byte[Long.BYTES + Integer.BYTES]);
+                    java.util.Arrays.fill(afterAllInput.bytes, (byte) 0xFF);
+                    var status = syntheticIdTermsEnum.seekCeil(afterAllInput);
+                    assertThat(status, equalTo(TermsEnum.SeekStatus.END));
+                    assertThat(syntheticIdTermsEnum.next(), nullValue());
+
+                    // Random short inputs: verify the seekCeil contract (positioned term >= input, or END)
+                    for (int i = 0; i < 10; i++) {
+                        var shortInput = new BytesRef(randomByteArrayOfLength(randomIntBetween(1, Long.BYTES + Integer.BYTES)));
+                        status = syntheticIdTermsEnum.seekCeil(shortInput);
+                        assertThat(
+                            "seekCeil with short input should not return FOUND",
+                            status == TermsEnum.SeekStatus.NOT_FOUND || status == TermsEnum.SeekStatus.END,
+                            equalTo(true)
+                        );
+                        if (status == TermsEnum.SeekStatus.NOT_FOUND) {
+                            assertThat(syntheticIdTermsEnum.term().compareTo(shortInput), greaterThan(-1));
+                        }
                     }
                 }
 

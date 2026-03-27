@@ -195,11 +195,17 @@ public class TSDBSyntheticIdFieldsProducer extends FieldsProducer {
 
         @Override
         public SeekStatus seekCeil(BytesRef id) throws IOException {
-
             assert id != null;
-            assert Long.BYTES + Integer.BYTES < id.length : id.length;
             if (id == null || id.length <= Long.BYTES + Integer.BYTES) {
-                return SeekStatus.NOT_FOUND;
+                // The input is too short to be a valid synthetic _id (which requires _tsid + 8-byte timestamp + 4-byte routing hash).
+                // This can happen when Lucene's FilteredTermsEnum (used by multi-term queries like wildcard or regex) calls seekCeil
+                // with arbitrary byte sequences while iterating over the _id field's terms.
+                if (maxDocs > 0) {
+                    resetDocID(0);
+                    return SeekStatus.NOT_FOUND;
+                }
+                resetDocID(DocIdSetIterator.NO_MORE_DOCS);
+                return SeekStatus.END;
             }
 
             // Extract the _tsid

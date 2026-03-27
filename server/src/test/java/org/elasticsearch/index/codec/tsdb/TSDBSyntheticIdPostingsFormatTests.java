@@ -355,6 +355,35 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
                     }
                 }
 
+                // Test seekCeil with short byte sequences that are not valid synthetic _ids.
+                // This exercises the code path hit when Lucene's FilteredTermsEnum (multi-term queries) calls seekCeil
+                // with arbitrary prefixes while iterating over the _id field's terms (see #144587).
+                {
+                    var shortInputs = new BytesRef[] {
+                        new BytesRef(new byte[0]),
+                        new BytesRef(new byte[] { 0 }),
+                        new BytesRef(new byte[] { (byte) 0xFF }),
+                        new BytesRef(randomByteArrayOfLength(randomIntBetween(1, Long.BYTES + Integer.BYTES))),
+                        new BytesRef(new byte[Long.BYTES + Integer.BYTES]) };
+                    for (var shortInput : shortInputs) {
+                        var status = syntheticIdTermsEnum.seekCeil(shortInput);
+                        assertThat(
+                            "seekCeil with short input [" + shortInput.length + " bytes] should not return FOUND",
+                            status,
+                            equalTo(TermsEnum.SeekStatus.NOT_FOUND)
+                        );
+                        assertThat(syntheticIdTermsEnum.term(), notNullValue());
+                        assertThat(syntheticIdTermsEnum.term(), equalTo(finalDocs.firstKey()));
+
+                        // Verify the enum is properly positioned and next() walks through all terms
+                        int termCount = 1;
+                        while (syntheticIdTermsEnum.next() != null) {
+                            termCount++;
+                        }
+                        assertThat(termCount, equalTo(finalDocs.size()));
+                    }
+                }
+
                 // Test seek to non-existing terms
                 {
                     if (finalDocs.size() > 1) {

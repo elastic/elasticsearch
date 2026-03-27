@@ -1,12 +1,12 @@
 // Tests focused on query approximation.
 //
-// The data set "many_numbers" contains 125,250 rows with the following columns:
+// The data set "many_numbers" contains 245,350 rows with the following columns:
 //
-// - sv: a single-valued field containing the values 1x1, 2x2, ..., 500x500
-//       (hence the 125,250 rows)
+// - sv: a single-valued field containing the values 1x1, 2x2, ..., 700x700
+//       (hence the 245,350 rows)
 //
 // - mv: a multi-valued field containing the values 1x1, 2x2, ..., 2000x2000
-//       (15-16 values per multi-valued field and 2,001,000 values in total)
+//       (8-9 values per multi-valued field and 2,001,000 values in total)
 //
 // - sv_and_one_mv: same as "sv", except that one row has the field [x,0] instead
 //                  of the single value (this leads in a multi-node setup to exactly
@@ -29,7 +29,7 @@ FROM many_numbers | STATS count=COUNT(*)
 ;
 
 count:long
-125250
+245350
 ;
 
 
@@ -41,7 +41,7 @@ FROM many_numbers | STATS count=COUNT(), sum=SUM(sv)
 ;
 
 count:long     | sum:long
-110000..140000 | 35000000..50000000
+200000..300000 | 90000000..140000000
 ;
 
 
@@ -53,10 +53,11 @@ FROM many_numbers | STATS count=COUNT(*)
 ;
 
 count:long | _approximation_confidence_interval(count):long | _approximation_certified(count):boolean
-125250     | [125250,125250]                                | true
+245350     | [245350,245350]                                | true
 ;
 
 
+// Does not run as a CSV test, because this needs filter pushdown (of sv!=null)
 Exact total single-valued field count
 required_capability: approximation_v6
 
@@ -65,7 +66,7 @@ FROM many_numbers | STATS count=COUNT(sv)
 ;
 
 count:long | _approximation_confidence_interval(count):long | _approximation_certified(count):boolean
-125250     | [125250,125250]                                | true
+245350     | [245350,245350]                                | true
 ;
 
 
@@ -77,7 +78,7 @@ FROM many_numbers | STATS count=COUNT(mv)
 ;
 
 count:long       | _approximation_confidence_interval(count):long | _approximation_certified(count):boolean
-1300000..2700000 | [1300000..2700000,1300000..2700000]            | {any}
+1000000..3000000 | [1000000..3000000,1000000..3000000]            | {any}
 ;
 
 
@@ -88,8 +89,8 @@ SET approximation={"rows":10000}\;
 FROM many_numbers | STATS count=COUNT(sv), avg=AVG(sv), sum=SUM(sv)
 ;
 
-count:long     | avg:double | sum:long           | _approximation_confidence_interval(count):long | _approximation_certified(count):boolean | _approximation_confidence_interval(avg):double | _approximation_certified(avg):boolean | _approximation_confidence_interval(sum):long | _approximation_certified(sum):boolean
-110000..140000 | 315..350   | 35000000..50000000 | [100000..150000,100000..150000]                | {any}                                   | [300..350,300..350]                            | {any}                                 | [35000000..50000000,35000000..50000000]      | {any}
+count:long      | avg:double | sum:long            | _approximation_confidence_interval(count):long | _approximation_certified(count):boolean | _approximation_confidence_interval(avg):double | _approximation_certified(avg):boolean | _approximation_confidence_interval(sum):long | _approximation_certified(sum):boolean
+200000..300000  | 440..490   | 90000000..140000000 | [200000..300000,200000..300000]                | {any}                                   | [440..490,440..490]                            | {any}                                 | [90000000..140000000,90000000..140000000]    | {any}
 ;
 
 
@@ -103,7 +104,7 @@ FROM many_numbers
 ;
 
 count:long       | avg:double | sum:long               | _approximation_confidence_interval(count):long | _approximation_certified(count):boolean | _approximation_confidence_interval(avg):double | _approximation_certified(avg):boolean | _approximation_confidence_interval(sum):long    | _approximation_certified(sum):boolean
-1300000..2700000 | 1315..1350 | 1700000000..3600000000 | [1300000..2700000,1300000..2700000]            | {any}                                   | [1315..1350,1315..1350]                        | {any}                                 | [1700000000..3600000000,1700000000..3600000000] | {any}
+1000000..3000000 | 1250..1410 | 1700000000..3600000000 | [1000000..3000000,1000000..3000000]            | {any}                                   | [1250..1410,1250..1410]                        | {any}                                 | [1700000000..3600000000,1700000000..3600000000] | {any}
 ;
 
 
@@ -144,10 +145,11 @@ FROM many_numbers | STATS count=COUNT(*), count2=COUNT("*"), countValue=COUNT(mv
 ;
 
 count:long     | count2:long    | countValue:long  | _approximation_confidence_interval(count):long | _approximation_certified(count):boolean | _approximation_confidence_interval(count2):long | _approximation_certified(count2):boolean | _approximation_confidence_interval(countValue):long | _approximation_certified(countValue):boolean
-110000..140000 | 110000..140000 | 1300000..2700000 | [110000..140000,110000..140000]                | {any}                                   | [110000..140000,110000..140000]                 | {any}                                    | [1300000..2700000,1300000..2700000]                 | {any}
+200000..300000 | 200000..300000 | 1000000..3000000 | [200000..300000,200000..300000]                | {any}                                   | [200000..300000,200000..300000]                 | {any}                                    | [1000000..3000000,1000000..3000000]                 | {any}
 ;
 
 
+// Does not run as a CSV test, because this needs filter pushdown
 Exact count with where on single-valued data
 required_capability: approximation_v6
 
@@ -158,7 +160,7 @@ FROM many_numbers
 ;
 
 count:long | _approximation_confidence_interval(count):long | _approximation_certified(count):boolean
-120300     | [120300,120300]                                | true
+240400     | [240400,240400]                                | true
 ;
 
 
@@ -173,7 +175,7 @@ FROM many_numbers
 ;
 
 count:long      | avg:double | sum:long               | _approximation_confidence_interval(count):long | _approximation_certified(count):boolean | _approximation_confidence_interval(avg):double | _approximation_certified(avg):boolean | _approximation_confidence_interval(sum):long    | _approximation_certified(sum):boolean
-800000..2200000 | 1525..1585 | 1300000000..3300000000 | [800000..2200000,800000..2200000]              | {any}                                   | [1525..1585,1525..1585]                        | {any}                                 | [1300000000..3300000000,1300000000..3300000000] | {any}
+800000..2200000 | 1510..1600 | 1300000000..3400000000 | [800000..2200000,800000..2200000]              | {any}                                   | [1510..1600,1510..1600]                        | {any}                                 | [1300000000..3400000000,1300000000..3400000000] | {any}
 ;
 
 
@@ -189,7 +191,7 @@ FROM many_numbers
 ;
 
 count:long      | avg:double | sum:long               | _approximation_confidence_interval(count):long | _approximation_certified(count):boolean | _approximation_confidence_interval(avg):double | _approximation_certified(avg):boolean | _approximation_confidence_interval(sum):long    | _approximation_certified(sum):boolean
-800000..2200000 | 1525..1585 | 1300000000..3300000000 | [800000..2200000,800000..2200000]              | {any}                                   | [1525..1585,1525..1585]                        | {any}                                 | [1300000000..3300000000,1300000000..3300000000] | {any}
+800000..2200000 | 1510..1600 | 1300000000..3400000000 | [800000..2200000,800000..2200000]              | {any}                                   | [1510..1600,1510..1600]                        | {any}                                 | [1300000000..3400000000,1300000000..3400000000] | {any}
 ;
 
 
@@ -202,8 +204,8 @@ FROM many_numbers
     | STATS count=COUNT(), avg=AVG(sv), sum=SUM(sv)
 ;
 
-count:long    | avg:double | sum:long            | _approximation_confidence_interval(count):long | _approximation_certified(count):boolean | _approximation_confidence_interval(avg):double | _approximation_certified(avg):boolean | _approximation_confidence_interval(sum):long | _approximation_certified(sum):boolean
-70000..130000 | 310..360   | 20000000..450000000 | [70000..130000,70000..130000]                  | {any}                                   | [310..360,310..360]                            | {any}                                 | [20000000..450000000,20000000..450000000]    | {any}
+count:long     | avg:double | sum:long            | _approximation_confidence_interval(count):long | _approximation_certified(count):boolean | _approximation_confidence_interval(avg):double | _approximation_certified(avg):boolean | _approximation_confidence_interval(sum):long | _approximation_certified(sum):boolean
+160000..230000 | 430..500   | 70000000..110000000 | [160000..230000,160000..230000]                | {any}                                   | [430..500,430..500]                            | {any}                                 | [70000000..110000000,70000000..110000000]    | {any}
 ;
 
 
@@ -227,7 +229,7 @@ FROM many_numbers
 ;
 
 count:long       | avg:double | sum:long               | _approximation_confidence_interval(count):long | _approximation_certified(count):boolean | _approximation_confidence_interval(avg):double | _approximation_certified(avg):boolean | _approximation_confidence_interval(sum):long    | _approximation_certified(sum):boolean
-1300000..2700000 | 2630..2700 | 3400000000..7200000000 | [1300000..2700000,1300000..2700000]            | {any}                                   | [2630..2700,2630..2700]                        | {any}                                 | [3400000000..7200000000,3400000000..7200000000] | {any}
+1000000..3000000 | 2500..2820 | 3400000000..7200000000 | [1000000..3000000,1000000..3000000]            | {any}                                   | [2500..2820,2500..2820]                        | {any}                                 | [3400000000..7200000000,3400000000..7200000000] | {any}
 ;
 
 
@@ -245,7 +247,7 @@ FROM many_numbers
 ;
 
 avg:double | avg2:double | _approximation_confidence_interval(avg):double | _approximation_certified(avg):boolean | _approximation_confidence_interval(avg2):double | _approximation_certified(avg2):boolean
-315..350   | 630..700    | [315..350,315..350]                            | {any}                                 | [630..700,630..700]                             | {any}
+440..490   | 880..980    | [440..490,440..490]                            | {any}                                 | [880..980,880..980]                             | {any}
 ;
 
 
@@ -264,7 +266,7 @@ FROM many_numbers
 ;
 
 y:integer | plus1:double     | _approximation_confidence_interval(plus1):double | _approximation_certified(plus1):boolean
-1         | 3400000..3700000 | [3400000..3700000,3400000..3700000]              | {any}
+1         | 3000000..4000000 | [3000000..4000000,3000000..4000000]              | {any}
 ;
 
 
@@ -280,7 +282,7 @@ FROM many_numbers
 ;
 
 from_str:double
-315..350
+440..490
 ;
 
 
@@ -295,7 +297,7 @@ FROM many_numbers
 ;
 
 sv:double
-[1,315..350]
+[1,440..490]
 ;
 
 
@@ -331,11 +333,11 @@ FROM many_numbers
 ;
 
 count:long | sv:integer | _approximation_confidence_interval(count):long | _approximation_certified(count):boolean
-100..1000  | 500        | [100..1000,100..1000]                          | {any}
-100..1000  | 499        | [100..1000,100..1000]                          | {any}
-100..1000  | 498        | [100..1000,100..1000]                          | {any}
-100..1000  | 497        | [100..1000,100..1000]                          | {any}
-100..1000  | 496        | [100..1000,100..1000]                          | {any}
+100..2000  | 700        | [100..2000,100..2000]                          | {any}
+100..2000  | 699        | [100..2000,100..2000]                          | {any}
+100..2000  | 698        | [100..2000,100..2000]                          | {any}
+100..2000  | 697        | [100..2000,100..2000]                          | {any}
+100..2000  | 696        | [100..2000,100..2000]                          | {any}
 ;
 
 
@@ -406,7 +408,7 @@ FROM many_numbers | STATS count=COUNT(sv_and_one_mv)
 ;
 
 count:long     | _approximation_confidence_interval(count):long | _approximation_certified(count):boolean
-110000..140000 | [110000..140000,110000..140000]                | {any}
+200000..300000 | [200000..300000,200000..300000]                | {any}
 ;
 
 
@@ -450,8 +452,8 @@ FROM many_numbers | RENAME sv AS key | STATS count = COUNT(key) BY key | SORT ke
 ;
 
 count:long | key:integer | _approximation_confidence_interval(count):long | _approximation_certified(count):boolean
-100..1000  | 500         | [100..1000,100..1000]                          | {any}
-100..1000  | 499         | [100..1000,100..1000]                          | {any}
+100..2000  | 700         | [100..2000,100..2000]                          | {any}
+100..2000  | 699         | [100..2000,100..2000]                          | {any}
 ;
 
 
@@ -492,7 +494,7 @@ FROM many_numbers
 ;
 
 median:double | p50:double | key:keyword | _approximation_confidence_interval(median):double | _approximation_certified(median):boolean | _approximation_confidence_interval(p50):double | _approximation_certified(p50):boolean
-330..370      | 330..370   | "key"       | [330..370,330..370]                               | {any}                                    | [330..370,330..370]                            | {any}
+450..540      | 450..540   | "key"       | [450..540,450..540]                               | {any}                                    | [450..540,450..540]                            | {any}
 ;
 
 
@@ -500,12 +502,13 @@ Sum of nulls
 required_capability: approximation_v6
 
 SET approximation=true\;
-FROM employees | STATS s_null = sum(null)
+FROM many_numbers
+| STATS s_null = sum(null)
 ;
 
 // This error message isn't great, because the original query does have a STATS.
 // TODO: fix this
-warning:line 2:18: approximation not supported: query without [STATS] cannot be approximated
+warning:line 3:3: approximation not supported: query without [STATS] cannot be approximated
 
 s_null:null
 null
@@ -531,8 +534,8 @@ SET approximation=true\;
 FROM many_numbers | STATS sum = sum(sv) | EVAL sum_null = sum + null
 ;
 
-sum:long           | sum_null:long | _approximation_confidence_interval(sum):long | _approximation_certified(sum):boolean | _approximation_confidence_interval(sum_null):long  | _approximation_certified(sum_null):boolean
-35000000..50000000 | null          | [35000000..50000000,35000000..50000000]      | {any}                                 | null                                               | null
+sum:long            | sum_null:long | _approximation_confidence_interval(sum):long | _approximation_certified(sum):boolean | _approximation_confidence_interval(sum_null):long  | _approximation_certified(sum_null):boolean
+90000000..140000000 | null          | [90000000..140000000,90000000..140000000]    | {any}                                 | null                                               | null
 ;
 
 
@@ -543,7 +546,7 @@ SET approximation={"rows":10000}\;
 FROM many_numbers| STATS a = COUNT(*), b = COUNT(*) | MV_EXPAND b;
 
 a:long         | b:long         | _approximation_confidence_interval(a):long | _approximation_certified(a):boolean | _approximation_confidence_interval(b):long | _approximation_certified(b):boolean
-110000..140000 | 110000..140000 | [110000..140000,110000..140000]            | {any}                               | [110000..140000,110000..140000]            | {any}
+200000..300000 | 200000..300000 | [200000..300000,200000..300000]            | {any}                               | [200000..300000,200000..300000]            | {any}
 ;
 
 

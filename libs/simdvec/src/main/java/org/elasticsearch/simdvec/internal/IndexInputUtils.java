@@ -23,6 +23,8 @@ import java.lang.ref.Reference;
 import java.nio.ByteBuffer;
 import java.util.function.IntFunction;
 
+import static org.elasticsearch.simdvec.internal.vectorization.JdkFeatures.SUPPORTS_HEAP_SEGMENTS;
+
 /**
  * Utility for obtaining a {@link MemorySegment} view of data in an
  * {@link IndexInput} and passing it to a caller-supplied action. The
@@ -312,8 +314,6 @@ public final class IndexInputUtils {
             );
         }
     }
-
-    private static final boolean SUPPORTS_HEAP_SEGMENTS = Runtime.version().feature() >= 22;
 
     private static <R> R copySlicesAndApply(
         IndexInput in,

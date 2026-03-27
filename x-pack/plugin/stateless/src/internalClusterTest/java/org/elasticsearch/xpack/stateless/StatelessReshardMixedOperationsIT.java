@@ -41,6 +41,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
@@ -136,7 +137,7 @@ public class StatelessReshardMixedOperationsIT extends StatelessReshardDisruptio
             switch (operation) {
                 case REFRESH -> {
                     var refreshResult = client(coordinatorNode).admin().indices().prepareRefresh(indexName).get();
-                    assertEquals(0, refreshResult.getFailedShards());
+                    assertEquals(Arrays.toString(refreshResult.getShardFailures()), 0, refreshResult.getFailedShards());
 
                     indexedAndRefreshed.putAll(indexed);
                     indexed.clear();
@@ -261,8 +262,14 @@ public class StatelessReshardMixedOperationsIT extends StatelessReshardDisruptio
                             for (var entry : fieldValueInHits.entrySet()) {
                                 var fieldValue = Optional.ofNullable(indexedAndRefreshed.get(entry.getKey()))
                                     .or(() -> Optional.ofNullable(allIndexedDocuments.get(entry.getKey())));
-                                assertTrue(fieldValue.isPresent());
-                                assertEquals(entry.getValue(), fieldValue.get());
+                                String message = String.format(
+                                    Locale.ROOT,
+                                    "Expected to see document with field value %s but got %s",
+                                    fieldValue,
+                                    entry.getKey()
+                                );
+                                assertTrue(message, fieldValue.isPresent());
+                                assertEquals(message, entry.getValue(), fieldValue.get());
                             }
                         } finally {
                             searchResponse.decRef();
@@ -270,7 +277,7 @@ public class StatelessReshardMixedOperationsIT extends StatelessReshardDisruptio
                     } catch (ElasticsearchException e) {
                         // We can get "all shards failed" if all search shards are allocated on the same node
                         // or if there is one search node in total and it is down.
-                        assertTrue(e.getMessage().contains("all shards failed"));
+                        assertTrue(e.getMessage(), e.getMessage().contains("all shards failed"));
                     }
                 }
                 case INDEX -> {
@@ -288,6 +295,7 @@ public class StatelessReshardMixedOperationsIT extends StatelessReshardDisruptio
                         try {
                             DocWriteResponse response = indexRequest.execute().actionGet();
                             assertTrue(
+                                response.getResult().name(),
                                 response.getResult() == DocWriteResponse.Result.CREATED
                                     || response.getResult() == DocWriteResponse.Result.UPDATED
                             );

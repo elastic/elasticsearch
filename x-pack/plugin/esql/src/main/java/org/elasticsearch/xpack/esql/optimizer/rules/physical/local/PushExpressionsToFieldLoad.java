@@ -166,7 +166,8 @@ public class PushExpressionsToFieldLoad extends ParameterizedRule<PhysicalPlan, 
                  */
                 return plan;
             }
-            return new ProjectExec(Source.EMPTY, transformedPlan, transformedPlan.output());
+            // return new ProjectExec(Source.EMPTY, transformedPlan, transformedPlan.output());
+            return transformedPlan;
         }
 
         private Expression transformExpression(PhysicalPlan nodeWithExpression, Expression e, BlockLoaderExpression ble) {

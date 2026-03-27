@@ -89,7 +89,7 @@ public class ChangePointOperator extends CompleteInputCollectorOperator {
         return changeType;
     }
 
-    private void createOutputPagesGrouped() {
+    private void createOutputPages() {
         int valuesCount = 0;
         for (Page page : inputPages) {
             valuesCount += page.getPositionCount();
@@ -101,38 +101,41 @@ public class ChangePointOperator extends CompleteInputCollectorOperator {
 
         List<Double> values = new ArrayList<>();
         List<Integer> bucketIndexes = new ArrayList<>();
+        Map<Integer, ChangeType> changepoints = new HashMap<>();
         int valuesIndex = 0;
-        Object previousGroupKey = BlockUtils.toJavaObject(inputPages.peek().getBlock(groupChannel), 0); // if it exists
-        Map<Integer, ChangeType> changepoints = new HashMap<>(); // globalRowNumber to changePoint
+        Object previousGroupKey = groupChannel != null
+            ? BlockUtils.toJavaObject(inputPages.peek().getBlock(groupChannel), 0)
+            : null;
 
         boolean hasNulls = false;
-        boolean hasMultivalued = false; // TODO record for these two?
+        boolean hasMultivalued = false;
         boolean hasIndeterminableChangePoint = false;
         String indeterminableChangePointReason = "";
         for (Page inputPage : inputPages) {
             Block inputBlock = inputPage.getBlock(channel);
-            Block groupBlock = inputPage.getBlock(groupChannel);
+            Block groupBlock = groupChannel != null ? inputPage.getBlock(groupChannel) : null;
             for (int i = 0; i < inputBlock.getPositionCount() && valuesIndex < valuesCount; i++) {
-                Object value = BlockUtils.toJavaObject(inputBlock, i);
-                Object currentGroupKey = BlockUtils.toJavaObject(groupBlock, i);
-
-                if (Objects.equals(currentGroupKey, previousGroupKey) == false) {
-                    if (values.isEmpty() == false) {
-                        var changeType = flush(values, bucketIndexes);
-                        var changePointIndex = changeType.changePoint();
-                        if (changePointIndex >= 0) {
-                            changepoints.put(changePointIndex, changeType);
+                if (groupBlock != null) {
+                    Object currentGroupKey = BlockUtils.toJavaObject(groupBlock, i);
+                    if (Objects.equals(currentGroupKey, previousGroupKey) == false) {
+                        if (values.isEmpty() == false) {
+                            var changeType = flush(values, bucketIndexes);
+                            var changePointIndex = changeType.changePoint();
+                            if (changePointIndex >= 0) {
+                                changepoints.put(changePointIndex, changeType);
+                            }
+                            if (changeType instanceof ChangeType.Indeterminable indeterminable) {
+                                hasIndeterminableChangePoint = true;
+                                indeterminableChangePointReason = indeterminable.getReason();
+                            }
+                            values.clear();
+                            bucketIndexes.clear();
                         }
-                        if (changeType instanceof ChangeType.Indeterminable indeterminable) {
-                            hasIndeterminableChangePoint = true;
-                            indeterminableChangePointReason = indeterminable.getReason();
-                        }
-                        values.clear();
-                        bucketIndexes.clear();
+                        previousGroupKey = currentGroupKey;
                     }
-                    previousGroupKey = currentGroupKey;
                 }
 
+                Object value = BlockUtils.toJavaObject(inputBlock, i);
                 if (value == null) {
                     hasNulls = true;
                     valuesIndex++;
@@ -146,7 +149,7 @@ public class ChangePointOperator extends CompleteInputCollectorOperator {
             }
         }
 
-        // flush last page
+        // flush last (or only) group
         if (values.isEmpty() == false) {
             var changeType = flush(values, bucketIndexes);
             var changePointIndex = changeType.changePoint();
@@ -159,6 +162,11 @@ public class ChangePointOperator extends CompleteInputCollectorOperator {
             }
         }
 
+        buildOutputPages(changepoints);
+        emitWarnings(tooManyValues, hasNulls, hasMultivalued, hasIndeterminableChangePoint, indeterminableChangePointReason);
+    }
+
+    private void buildOutputPages(Map<Integer, ChangeType> changepoints) {
         BlockFactory blockFactory = driverContext.blockFactory();
         int pageStartIndex = 0;
         while (inputPages.isEmpty() == false) {
@@ -174,10 +182,10 @@ public class ChangePointOperator extends CompleteInputCollectorOperator {
                         DoubleBlock.Builder pvalueBlockBuilder = blockFactory.newDoubleBlockBuilder(inputPage.getPositionCount())
                     ) {
                         for (int i = 0; i < inputPage.getPositionCount(); i++) {
-                            if (changepoints.containsKey(pageStartIndex + i)) {
-                                var changeType = changepoints.get(pageStartIndex + i);
-                                changeTypeBlockBuilder.appendBytesRef(new BytesRef(changeType.getWriteableName()));
-                                pvalueBlockBuilder.appendDouble(changeType.pValue());
+                            ChangeType ct = changepoints.get(pageStartIndex + i);
+                            if (ct != null) {
+                                changeTypeBlockBuilder.appendBytesRef(new BytesRef(ct.getWriteableName()));
+                                pvalueBlockBuilder.appendDouble(ct.pValue());
                             } else {
                                 changeTypeBlockBuilder.appendNull();
                                 pvalueBlockBuilder.appendNull();
@@ -203,31 +211,28 @@ public class ChangePointOperator extends CompleteInputCollectorOperator {
             outputPages.add(outputPage);
             pageStartIndex += inputPage.getPositionCount();
         }
+    }
 
-        if (hasIndeterminableChangePoint) {
-            if (logger.isDebugEnabled()) {
-                logger.debug("Change point indeterminable: {}", indeterminableChangePointReason);
-            }
-            warnings(false).registerException(new IllegalArgumentException(indeterminableChangePointReason));
-        }
+    private void emitWarnings(
+        boolean tooManyValues, boolean hasNulls, boolean hasMultivalued, boolean hasIndeterminableChangePoint,
+        String indeterminableReason
+    ) {
         if (tooManyValues) {
-            if (logger.isDebugEnabled()) {
-                logger.debug("Too many values: limit is {}, some values were ignored", INPUT_VALUE_COUNT_LIMIT);
-            }
+            logger.debug(() -> Strings.format("Too many values: limit is %d, some values were ignored", INPUT_VALUE_COUNT_LIMIT));
             warnings(true).registerException(
                 new IllegalArgumentException("too many values; keeping only first " + INPUT_VALUE_COUNT_LIMIT + " values")
             );
         }
+        if (hasIndeterminableChangePoint) {
+            logger.debug(() -> Strings.format("Change point indeterminable: %s", indeterminableReason));
+            warnings(false).registerException(new IllegalArgumentException(indeterminableReason));
+        }
         if (hasNulls) {
-            if (logger.isDebugEnabled()) {
-                logger.debug("Values contain nulls; skipping them");
-            }
+            logger.debug("Values contain nulls; skipping them");
             warnings(true).registerException(new IllegalArgumentException("values contain nulls; skipping them"));
         }
         if (hasMultivalued) {
-            if (logger.isDebugEnabled()) {
-                logger.debug("Values contain multivalued entries; skipping them");
-            }
+            logger.debug("Values contain multivalued entries; skipping them");
             warnings(true).registerException(
                 new IllegalArgumentException(
                     "values contains multivalued entries; skipping them (please consider reducing them with e.g. MV_AVG or MV_SUM)"
@@ -244,130 +249,6 @@ public class ChangePointOperator extends CompleteInputCollectorOperator {
             }
         }
         return false;
-    }
-
-    private void createOutputPages() {
-        if (groupChannel != null) {
-            createOutputPagesGrouped();
-        } else {
-            createOutputPagesFlat();
-        }
-    }
-
-    private void createOutputPagesFlat() {
-        int valuesCount = 0;
-        for (Page page : inputPages) {
-            valuesCount += page.getPositionCount();
-        }
-        boolean tooManyValues = valuesCount > INPUT_VALUE_COUNT_LIMIT;
-        if (tooManyValues) {
-            valuesCount = INPUT_VALUE_COUNT_LIMIT;
-        }
-
-        List<Double> values = new ArrayList<>(valuesCount);
-        List<Integer> bucketIndexes = new ArrayList<>(valuesCount);
-        int valuesIndex = 0;
-        boolean hasNulls = false;
-        boolean hasMultivalued = false;
-        for (Page inputPage : inputPages) {
-            Block inputBlock = inputPage.getBlock(channel);
-            for (int i = 0; i < inputBlock.getPositionCount() && valuesIndex < valuesCount; i++) {
-                Object value = BlockUtils.toJavaObject(inputBlock, i);
-                if (value == null) {
-                    hasNulls = true;
-                    valuesIndex++;
-                } else if (value instanceof List<?>) {
-                    hasMultivalued = true;
-                    valuesIndex++;
-                } else {
-                    values.add(((Number) value).doubleValue());
-                    bucketIndexes.add(valuesIndex++);
-                }
-            }
-        }
-
-        MlAggsHelper.DoubleBucketValues bucketValues = new MlAggsHelper.DoubleBucketValues(
-            null,
-            values.stream().mapToDouble(Double::doubleValue).toArray(),
-            bucketIndexes.stream().mapToInt(Integer::intValue).toArray()
-        );
-        ChangeType changeType = ChangePointDetector.getChangeType(bucketValues);
-        int changePointIndex = changeType.changePoint();
-
-        BlockFactory blockFactory = driverContext.blockFactory();
-        int pageStartIndex = 0;
-        while (inputPages.isEmpty() == false) {
-            Page inputPage = inputPages.peek();
-            Page outputPage;
-            Block changeTypeBlock = null;
-            Block changePvalueBlock = null;
-            boolean success = false;
-            try {
-                if (pageStartIndex <= changePointIndex && changePointIndex < pageStartIndex + inputPage.getPositionCount()) {
-                    try (
-                        BytesRefBlock.Builder changeTypeBlockBuilder = blockFactory.newBytesRefBlockBuilder(inputPage.getPositionCount());
-                        DoubleBlock.Builder pvalueBlockBuilder = blockFactory.newDoubleBlockBuilder(inputPage.getPositionCount())
-                    ) {
-                        for (int i = 0; i < inputPage.getPositionCount(); i++) {
-                            if (pageStartIndex + i == changePointIndex) {
-                                changeTypeBlockBuilder.appendBytesRef(new BytesRef(changeType.getWriteableName()));
-                                pvalueBlockBuilder.appendDouble(changeType.pValue());
-                            } else {
-                                changeTypeBlockBuilder.appendNull();
-                                pvalueBlockBuilder.appendNull();
-                            }
-                        }
-                        changeTypeBlock = changeTypeBlockBuilder.build();
-                        changePvalueBlock = pvalueBlockBuilder.build();
-                    }
-                } else {
-                    changeTypeBlock = blockFactory.newConstantNullBlock(inputPage.getPositionCount());
-                    changePvalueBlock = blockFactory.newConstantNullBlock(inputPage.getPositionCount());
-                }
-
-                outputPage = inputPage.appendBlocks(new Block[] { changeTypeBlock, changePvalueBlock });
-                success = true;
-            } finally {
-                if (success == false) {
-                    Releasables.closeExpectNoException(changeTypeBlock, changePvalueBlock);
-                }
-            }
-
-            inputPages.removeFirst();
-            outputPages.add(outputPage);
-            pageStartIndex += inputPage.getPositionCount();
-        }
-
-        if (changeType instanceof ChangeType.Indeterminable indeterminable) {
-            if (logger.isDebugEnabled()) {
-                logger.debug("Change point indeterminable: {}", indeterminable.getReason());
-            }
-            warnings(false).registerException(new IllegalArgumentException(indeterminable.getReason()));
-        }
-        if (tooManyValues) {
-            if (logger.isDebugEnabled()) {
-                logger.debug("Too many values: limit is {}, some values were ignored", INPUT_VALUE_COUNT_LIMIT);
-            }
-            warnings(true).registerException(
-                new IllegalArgumentException("too many values; keeping only first " + INPUT_VALUE_COUNT_LIMIT + " values")
-            );
-        }
-        if (hasNulls) {
-            if (logger.isDebugEnabled()) {
-                logger.debug("Values contain nulls; skipping them");
-            }
-            warnings(true).registerException(new IllegalArgumentException("values contain nulls; skipping them"));
-        }
-        if (hasMultivalued) {
-            if (logger.isDebugEnabled()) {
-                logger.debug("Values contain multivalued entries; skipping them");
-            }
-            warnings(true).registerException(
-                new IllegalArgumentException(
-                    "values contains multivalued entries; skipping them (please consider reducing them with e.g. MV_AVG or MV_SUM)"
-                )
-            );
-        }
     }
 
     @Override
@@ -392,7 +273,12 @@ public class ChangePointOperator extends CompleteInputCollectorOperator {
 
     @Override
     public String toString() {
-        return "ChangePointOperator[channel=" + channel + "]";
+        if (groupChannel == null) {
+            return "ChangePointOperator[channel=" + channel + "]";
+        }
+        else {
+            return "ChangePointOperator[channel=" + channel + ", groupChannel=" + groupChannel + "]";
+        }
     }
 
     private Warnings warnings(boolean onlyWarnings) {

@@ -152,12 +152,11 @@ public class ChangePoint extends UnaryPlan
     }
 
     private List<Order> orders() {
-        List<Order> order = new ArrayList<>();
+        var keyOrder = new Order(source(), key, Order.OrderDirection.ASC, Order.NullsPosition.LAST);
         if (grouping != null) {
-            order.add(new Order(source(), grouping, Order.OrderDirection.ASC, Order.NullsPosition.LAST));
+            return List.of(new Order(source(), grouping, Order.OrderDirection.ASC, Order.NullsPosition.LAST), keyOrder);
         }
-        order.add(new Order(source(), key, Order.OrderDirection.ASC, Order.NullsPosition.LAST));
-        return order;
+        return List.of(keyOrder);
     }
 
     @Override

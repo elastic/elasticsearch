@@ -5,11 +5,11 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.datasources.spi;
+package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.datasources.CloseableIterator;
+import org.elasticsearch.compute.test.ComputeTestCase;
+import org.elasticsearch.core.Releasables;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -17,17 +17,18 @@ import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-public class FormatReaderLimitingIteratorTests extends ESTestCase {
+public class PageRowLimitingIteratorTests extends ComputeTestCase {
 
     public void testStopsAtLimit() throws IOException {
         List<Page> pages = List.of(page(10), page(10), page(10));
-        try (var iter = new FormatReader.LimitingIterator(listIterator(pages), 25)) {
+        try (var iter = new PageRowLimitingIterator(listIterator(pages), 25)) {
             int totalRows = 0;
             int pageCount = 0;
             while (iter.hasNext()) {
-                Page p = iter.next();
-                totalRows += p.getPositionCount();
-                pageCount++;
+                try (Page p = iter.next()) {
+                    totalRows += p.getPositionCount();
+                    pageCount++;
+                }
             }
             // First two pages: 10+10=20, third page trimmed from 10 to 5
             assertEquals(25, totalRows);
@@ -37,11 +38,12 @@ public class FormatReaderLimitingIteratorTests extends ESTestCase {
 
     public void testStopsBeforeExhaustingIterator() throws IOException {
         List<Page> pages = List.of(page(100), page(100), page(100));
-        try (var iter = new FormatReader.LimitingIterator(listIterator(pages), 50)) {
+        try (var iter = new PageRowLimitingIterator(listIterator(pages), 50)) {
             assertTrue(iter.hasNext());
-            Page p = iter.next();
-            // Page trimmed from 100 to 50
-            assertEquals(50, p.getPositionCount());
+            try (Page p = iter.next()) {
+                // Page trimmed from 100 to 50
+                assertEquals(50, p.getPositionCount());
+            }
             assertFalse(iter.hasNext());
         }
     }
@@ -68,16 +70,17 @@ public class FormatReaderLimitingIteratorTests extends ESTestCase {
             }
         };
 
-        try (var iter = new FormatReader.LimitingIterator(delegate, 50)) {
-            Page p = iter.next(); // 100 rows trimmed to 50, budget exhausted -> delegate closed
-            assertEquals(50, p.getPositionCount());
-            assertTrue(closed.get());
+        try (var iter = new PageRowLimitingIterator(delegate, 50)) {
+            try (Page p = iter.next()) { // 100 rows trimmed to 50, budget exhausted -> delegate closed
+                assertEquals(50, p.getPositionCount());
+                assertTrue(closed.get());
+            }
         }
     }
 
     public void testEmptyIterator() throws IOException {
         List<Page> pages = List.of();
-        try (var iter = new FormatReader.LimitingIterator(listIterator(pages), 10)) {
+        try (var iter = new PageRowLimitingIterator(listIterator(pages), 10)) {
             assertFalse(iter.hasNext());
             expectThrows(NoSuchElementException.class, iter::next);
         }
@@ -85,22 +88,24 @@ public class FormatReaderLimitingIteratorTests extends ESTestCase {
 
     public void testExactLimit() throws IOException {
         List<Page> pages = List.of(page(5), page(5));
-        try (var iter = new FormatReader.LimitingIterator(listIterator(pages), 10)) {
+        try (var iter = new PageRowLimitingIterator(listIterator(pages), 10)) {
             int totalRows = 0;
             while (iter.hasNext()) {
-                totalRows += iter.next().getPositionCount();
+                try (Page p = iter.next()) {
+                    totalRows += p.getPositionCount();
+                }
             }
             assertEquals(10, totalRows);
         }
     }
 
     public void testRejectsNonPositiveLimit() {
-        expectThrows(IllegalArgumentException.class, () -> new FormatReader.LimitingIterator(listIterator(List.of()), 0));
-        expectThrows(IllegalArgumentException.class, () -> new FormatReader.LimitingIterator(listIterator(List.of()), -1));
+        expectThrows(IllegalArgumentException.class, () -> new PageRowLimitingIterator(listIterator(List.of()), 0));
+        expectThrows(IllegalArgumentException.class, () -> new PageRowLimitingIterator(listIterator(List.of()), -1));
     }
 
-    private static Page page(int positionCount) {
-        return new Page(positionCount);
+    private Page page(int positionCount) {
+        return new Page(blockFactory().newIntArrayVector(new int[positionCount], positionCount).asBlock());
     }
 
     private static CloseableIterator<Page> listIterator(List<Page> pages) {
@@ -122,7 +127,9 @@ public class FormatReaderLimitingIteratorTests extends ESTestCase {
             }
 
             @Override
-            public void close() {}
+            public void close() {
+                Releasables.close(list.subList(index, list.size()));
+            }
         };
     }
 }

@@ -30,7 +30,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
  *
  * <p>The resulting plan has the shape:
  * <pre>
- * [Limit(n)]
+ * Limit(limit==0 ? MAX_VALUE : limit+1)
  *   └── OrderBy([dimension_fields ASC])
  *         └── Aggregate([dimension_fields], [dimension_fields])  -- STATS BY for dedup
  *               └── MvExpand(dimension_fields)
@@ -54,7 +54,7 @@ final class PrometheusLabelsPlanBuilder {
      * @param matchSelectors list of {@code match[]} selector strings (may be empty)
      * @param start          start of the time range (inclusive)
      * @param end            end of the time range (inclusive)
-     * @param limit          maximum number of label names to return (0 = disabled)
+     * @param limit          maximum number of label names to return (0 = disabled, defers to ESQL max)
      * @return the logical plan
      * @throws IllegalArgumentException if a selector is not a valid instant vector selector
      */

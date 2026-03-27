@@ -558,7 +558,8 @@ public class FieldTypeLookupTests extends ESTestCase {
 
     public void testFlattenedPassthroughSubFieldResolvedAtRoot() {
         FlattenedFieldMapper labels = createFlattenedMapper("labels", 10, "status", "count");
-        Map<String, MappedFieldType> subFieldTypes = labels.passThroughSubFields().stream()
+        Map<String, MappedFieldType> subFieldTypes = labels.passThroughSubFields()
+            .stream()
             .collect(java.util.stream.Collectors.toMap(FieldMapper::leafName, FieldMapper::fieldType));
 
         FieldTypeLookup lookup = new FieldTypeLookup(List.of(labels), List.of(), List.of(labels), List.of());

@@ -17,7 +17,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 
-import static org.elasticsearch.cluster.node.DiscoveryNodeUtils.create;
+import static org.elasticsearch.cluster.node.DiscoveryNodeUtils.randomDiscoveryNode;
 
 /**
  * Wire serialization tests for {@link Join}.
@@ -43,8 +43,8 @@ public class JoinWireSerializingTests extends AbstractWireSerializingTestCase<Jo
         long lastAcceptedVersion = instance.lastAcceptedVersion();
 
         switch (between(0, 4)) {
-            case 0 -> votingNode = randomValueOtherThan(votingNode, DiscoveryNodeUtils::create);
-            case 1 -> masterCandidateNode = randomValueOtherThan(masterCandidateNode, DiscoveryNodeUtils::create);
+            case 0 -> votingNode = randomValueOtherThan(votingNode, DiscoveryNodeUtils::randomDiscoveryNode);
+            case 1 -> masterCandidateNode = randomValueOtherThan(masterCandidateNode, DiscoveryNodeUtils::randomDiscoveryNode);
             case 2 -> term = randomValueOtherThan(term, ESTestCase::randomNonNegativeLong);
             case 3 -> lastAcceptedTerm = randomValueOtherThan(lastAcceptedTerm, ESTestCase::randomNonNegativeLong);
             case 4 -> lastAcceptedVersion = randomValueOtherThan(lastAcceptedVersion, ESTestCase::randomNonNegativeLong);
@@ -55,6 +55,12 @@ public class JoinWireSerializingTests extends AbstractWireSerializingTestCase<Jo
     }
 
     public static Join randomJoin() {
-        return new Join(create(), create(), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong());
+        return new Join(
+            randomDiscoveryNode(),
+            randomDiscoveryNode(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong()
+        );
     }
 }

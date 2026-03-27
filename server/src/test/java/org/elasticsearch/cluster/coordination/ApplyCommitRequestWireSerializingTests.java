@@ -17,7 +17,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 
-import static org.elasticsearch.cluster.node.DiscoveryNodeUtils.create;
+import static org.elasticsearch.cluster.node.DiscoveryNodeUtils.randomDiscoveryNode;
 
 /**
  * Wire serialization tests for {@link ApplyCommitRequest}.
@@ -31,7 +31,7 @@ public class ApplyCommitRequestWireSerializingTests extends AbstractWireSerializ
 
     @Override
     protected ApplyCommitRequest createTestInstance() {
-        return new ApplyCommitRequest(create(), randomNonNegativeLong(), randomNonNegativeLong());
+        return new ApplyCommitRequest(randomDiscoveryNode(), randomNonNegativeLong(), randomNonNegativeLong());
     }
 
     @Override
@@ -41,7 +41,7 @@ public class ApplyCommitRequestWireSerializingTests extends AbstractWireSerializ
         long version = instance.getVersion();
 
         switch (between(0, 2)) {
-            case 0 -> sourceNode = randomValueOtherThan(sourceNode, DiscoveryNodeUtils::create);
+            case 0 -> sourceNode = randomValueOtherThan(sourceNode, DiscoveryNodeUtils::randomDiscoveryNode);
             case 1 -> term = randomValueOtherThan(term, ESTestCase::randomNonNegativeLong);
             case 2 -> version = randomValueOtherThan(version, ESTestCase::randomNonNegativeLong);
             default -> throw new AssertionError();

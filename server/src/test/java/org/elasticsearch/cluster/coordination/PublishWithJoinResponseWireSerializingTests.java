@@ -40,17 +40,17 @@ public class PublishWithJoinResponseWireSerializingTests extends AbstractWireSer
         PublishResponse publishResponse = instance.getPublishResponse();
         Optional<Join> optionalJoin = instance.getJoin();
 
-        switch (between(0, 1)) {
-            case 0 -> publishResponse = randomValueOtherThan(
-                publishResponse,
-                () -> new PublishResponse(randomNonNegativeLong(), randomNonNegativeLong())
+        if (randomBoolean()) {
+            return new PublishWithJoinResponse(
+                randomValueOtherThan(publishResponse, () -> new PublishResponse(randomNonNegativeLong(), randomNonNegativeLong())),
+                optionalJoin
             );
-            case 1 -> optionalJoin = optionalJoin.isPresent() && randomBoolean()
-                ? Optional.empty()
-                : Optional.of(randomValueOtherThan(optionalJoin.orElse(null), JoinWireSerializingTests::randomJoin));
-            default -> throw new AssertionError();
         }
-
-        return new PublishWithJoinResponse(publishResponse, optionalJoin);
+        return new PublishWithJoinResponse(
+            publishResponse,
+            optionalJoin.isPresent() && randomBoolean()
+                ? Optional.empty()
+                : Optional.of(randomValueOtherThan(optionalJoin.orElse(null), JoinWireSerializingTests::randomJoin))
+        );
     }
 }

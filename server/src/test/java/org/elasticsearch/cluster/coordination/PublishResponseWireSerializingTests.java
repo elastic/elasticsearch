@@ -32,16 +32,15 @@ public class PublishResponseWireSerializingTests extends AbstractWireSerializing
 
     @Override
     protected PublishResponse mutateInstance(PublishResponse publishResponse) throws IOException {
-        long term = publishResponse.getTerm();
-        long version = publishResponse.getVersion();
-
-        int field = between(0, 1);
-        if (field == 0) {
-            term = randomValueOtherThan(term, ESTestCase::randomNonNegativeLong);
-        } else {
-            version = randomValueOtherThan(version, ESTestCase::randomNonNegativeLong);
+        if (randomBoolean()) {
+            return new PublishResponse(
+                randomValueOtherThan(publishResponse.getTerm(), ESTestCase::randomNonNegativeLong),
+                publishResponse.getVersion()
+            );
         }
-
-        return new PublishResponse(term, version);
+        return new PublishResponse(
+            publishResponse.getTerm(),
+            randomValueOtherThan(publishResponse.getVersion(), ESTestCase::randomNonNegativeLong)
+        );
     }
 }

@@ -27,7 +27,7 @@ import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 
 public class DiscoveryNodeUtils {
 
-    public static DiscoveryNode create() {
+    public static DiscoveryNode randomDiscoveryNode() {
         return DiscoveryNodeUtils.builder(UUID.randomUUID().toString())
             .address(new TransportAddress(TransportAddress.META_ADDRESS, randomIntBetween(1, 65535)))
             .build();

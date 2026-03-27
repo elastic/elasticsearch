@@ -9,7 +9,6 @@
 
 package org.elasticsearch.cluster.coordination;
 
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
@@ -29,21 +28,20 @@ public class PreVoteRequestWireSerializingTests extends AbstractWireSerializingT
 
     @Override
     protected PreVoteRequest createTestInstance() {
-        return new PreVoteRequest(DiscoveryNodeUtils.create(), randomNonNegativeLong());
+        return new PreVoteRequest(DiscoveryNodeUtils.randomDiscoveryNode(), randomNonNegativeLong());
     }
 
     @Override
     protected PreVoteRequest mutateInstance(PreVoteRequest instance) throws IOException {
-        DiscoveryNode sourceNode = instance.getSourceNode();
-        long currentTerm = instance.getCurrentTerm();
-
-        int field = between(0, 1);
-        if (field == 0) {
-            sourceNode = randomValueOtherThan(sourceNode, DiscoveryNodeUtils::create);
-        } else {
-            currentTerm = randomValueOtherThan(currentTerm, ESTestCase::randomNonNegativeLong);
+        if (randomBoolean()) {
+            return new PreVoteRequest(
+                randomValueOtherThan(instance.getSourceNode(), DiscoveryNodeUtils::randomDiscoveryNode),
+                instance.getCurrentTerm()
+            );
         }
-
-        return new PreVoteRequest(sourceNode, currentTerm);
+        return new PreVoteRequest(
+            instance.getSourceNode(),
+            randomValueOtherThan(instance.getCurrentTerm(), ESTestCase::randomNonNegativeLong)
+        );
     }
 }

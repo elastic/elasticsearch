@@ -22,7 +22,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
-import static org.elasticsearch.cluster.node.DiscoveryNodeUtils.create;
+import static org.elasticsearch.cluster.node.DiscoveryNodeUtils.randomDiscoveryNode;
 
 /**
  * Wire serialization tests for {@link JoinRequest}.
@@ -36,7 +36,7 @@ public class JoinRequestWireSerializingTests extends AbstractWireSerializingTest
 
     @Override
     protected JoinRequest createTestInstance() {
-        DiscoveryNode sourceNode = create();
+        DiscoveryNode sourceNode = randomDiscoveryNode();
         return new JoinRequest(
             sourceNode,
             CompatibilityVersionsUtils.fakeSystemIndicesRandom(),
@@ -44,7 +44,9 @@ public class JoinRequestWireSerializingTests extends AbstractWireSerializingTest
             randomNonNegativeLong(),
             randomBoolean()
                 ? Optional.empty()
-                : Optional.of(new Join(sourceNode, create(), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong()))
+                : Optional.of(
+                    new Join(sourceNode, randomDiscoveryNode(), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong())
+                )
         );
     }
 
@@ -52,7 +54,7 @@ public class JoinRequestWireSerializingTests extends AbstractWireSerializingTest
     protected JoinRequest mutateInstance(JoinRequest joinRequest) throws IOException {
         return switch (randomInt(4)) {
             case 0 -> {
-                DiscoveryNode discoveryNode = create();
+                DiscoveryNode discoveryNode = randomDiscoveryNode();
                 yield new JoinRequest(
                     discoveryNode,
                     joinRequest.getCompatibilityVersions(),
@@ -61,7 +63,13 @@ public class JoinRequestWireSerializingTests extends AbstractWireSerializingTest
                     // The optional join must always include the source node
                     joinRequest.getOptionalJoin().isPresent()
                         ? Optional.of(
-                            new Join(discoveryNode, create(), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong())
+                            new Join(
+                                discoveryNode,
+                                randomDiscoveryNode(),
+                                randomNonNegativeLong(),
+                                randomNonNegativeLong(),
+                                randomNonNegativeLong()
+                            )
                         )
                         : Optional.empty()
                 );
@@ -93,7 +101,7 @@ public class JoinRequestWireSerializingTests extends AbstractWireSerializingTest
             case 4 -> {
                 Join newJoin = new Join(
                     joinRequest.getSourceNode(),
-                    create(),
+                    randomDiscoveryNode(),
                     randomNonNegativeLong(),
                     randomNonNegativeLong(),
                     randomNonNegativeLong()

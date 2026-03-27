@@ -9,7 +9,6 @@
 
 package org.elasticsearch.cluster.coordination;
 
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
@@ -17,7 +16,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 
-import static org.elasticsearch.cluster.node.DiscoveryNodeUtils.create;
+import static org.elasticsearch.cluster.node.DiscoveryNodeUtils.randomDiscoveryNode;
 
 /**
  * Wire serialization tests for {@link StartJoinRequest}.
@@ -31,21 +30,20 @@ public class StartJoinRequestWireSerializingTests extends AbstractWireSerializin
 
     @Override
     protected StartJoinRequest createTestInstance() {
-        return new StartJoinRequest(create(), randomNonNegativeLong());
+        return new StartJoinRequest(randomDiscoveryNode(), randomNonNegativeLong());
     }
 
     @Override
     protected StartJoinRequest mutateInstance(StartJoinRequest instance) throws IOException {
-        DiscoveryNode masterCandidateNode = instance.getMasterCandidateNode();
-        long term = instance.getTerm();
-
-        int field = between(0, 1);
-        if (field == 0) {
-            masterCandidateNode = randomValueOtherThan(masterCandidateNode, DiscoveryNodeUtils::create);
-        } else {
-            term = randomValueOtherThan(term, ESTestCase::randomNonNegativeLong);
+        if (randomBoolean()) {
+            return new StartJoinRequest(
+                randomValueOtherThan(instance.getMasterCandidateNode(), DiscoveryNodeUtils::randomDiscoveryNode),
+                instance.getTerm()
+            );
         }
-
-        return new StartJoinRequest(masterCandidateNode, term);
+        return new StartJoinRequest(
+            instance.getMasterCandidateNode(),
+            randomValueOtherThan(instance.getTerm(), ESTestCase::randomNonNegativeLong)
+        );
     }
 }

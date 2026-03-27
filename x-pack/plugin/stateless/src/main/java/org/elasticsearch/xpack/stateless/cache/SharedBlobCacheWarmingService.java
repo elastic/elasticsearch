@@ -1212,6 +1212,8 @@ public class SharedBlobCacheWarmingService {
                             maybeFetchBlobRange(item, cacheBlobReader, cacheKey, itemListener.delegateResponse((l, e) -> {
                                 if (ExceptionsHelper.unwrap(e, ResourceAlreadyUploadedException.class) != null) {
                                     logger.debug(() -> "retrying " + blobLocation + " from object store", e);
+                                    // retrying runs on {@link StatelessPlugin#FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL}
+                                    // threads, but that is OK because fetchRange doesn't block or wait for anything.
                                     maybeFetchBlobRange(item, cacheBlobReader, cacheKey, l);
                                 } else {
                                     l.onFailure(e);
@@ -1330,21 +1332,24 @@ public class SharedBlobCacheWarmingService {
             public void onResponse(Releasable releasable) {
                 var cacheKey = new FileCacheKey(warmingRun.shardId(), blobFile.primaryTerm(), blobFile.blobName());
                 var releasedListener = ActionListener.releaseAfter(listener, releasable);
-                fetchRange(cacheKey, releasedListener.delegateResponse((l, e) -> {
+                var cacheBlobReader = directory.getCacheBlobReaderForWarming(blobFile);
+                fetchRange(cacheKey, cacheBlobReader, releasedListener.delegateResponse((l, e) -> {
                     if (ExceptionsHelper.unwrap(e, ResourceAlreadyUploadedException.class) != null) {
                         logger.debug(() -> "retrying " + blobFile + " " + byteRangeToWarm + " from object store", e);
-                        fetchRange(cacheKey, l);
+                        // retrying runs on {@link StatelessPlugin#FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL}
+                        // threads, but that is OK because fetchRange doesn't block or wait for anything.
+                        fetchRange(cacheKey, cacheBlobReader, l);
                     } else {
                         l.onFailure(e);
                     }
                 }));
             }
 
-            private void fetchRange(FileCacheKey cacheKey, ActionListener<Void> l) {
+            private void fetchRange(FileCacheKey cacheKey, CacheBlobReader cacheBlobReader, ActionListener<Void> l) {
                 cacheService.fetchRange(
                     cacheKey,
                     byteRangeToWarm,
-                    directory.getCacheBlobReaderForWarming(blobFile),
+                    cacheBlobReader,
                     WarmBlobByteRangeTask.this,
                     writeBuffer::get,
                     totalBytesCopied::addAndGet,

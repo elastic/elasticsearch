@@ -182,7 +182,9 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
         if (Byte.toUnsignedInt(routingHashBytes.bytes[hashOffset]) >= Uid.BASE64_ESCAPE) {
             hashOffset++; // Skip escape prefix
         }
-        // Write routing hash as BE by reversing the LE bytes from Uid encoding
+        // Write routing hash as BE by reversing the LE bytes from Uid encoding.
+        // This is equivalent to decoding the routing hash via Uid.decodeId and TimeSeriesRoutingHashFieldMapper.decode,
+        // then writing it with ByteUtils.writeIntBE, but avoids the intermediate String allocations.
         int pos = destOffset + tsid.length + Long.BYTES;
         dest[pos] = routingHashBytes.bytes[hashOffset + 3];
         dest[pos + 1] = routingHashBytes.bytes[hashOffset + 2];

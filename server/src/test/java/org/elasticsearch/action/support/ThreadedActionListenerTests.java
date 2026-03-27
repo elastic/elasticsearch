@@ -31,7 +31,13 @@ public class ThreadedActionListenerTests extends ESTestCase {
 
     public void testRejectionHandling() throws InterruptedException {
         final var listenerCount = between(1, 1000);
-        final var countdownLatch = new CountDownLatch(listenerCount);
+
+        // await the completion of some number of listeners before starting to shut the threadpool down ...
+        final var startLatch = new CountDownLatch(between(1, listenerCount));
+
+        // ... but ensure that all the submitted listeners are completed somehow, even the ones submitted after the threadpool closes
+        final var finishLatch = new CountDownLatch(listenerCount);
+
         final var threadPool = new TestThreadPool(
             "test",
             Settings.EMPTY,
@@ -64,9 +70,10 @@ public class ThreadedActionListenerTests extends ESTestCase {
             threadPool.generic().execute(() -> {
                 for (int i = 0; i < listenerCount; i++) {
                     final var pool = randomFrom(pools);
+                    final var forceExecution = (pool.equals("fixed-bounded-queue") || pool.startsWith("scaling")) && randomBoolean();
                     final var listener = new ThreadedActionListener<Void>(
                         threadPool.executor(pool),
-                        (pool.equals("fixed-bounded-queue") || pool.startsWith("scaling")) && rarely(),
+                        forceExecution,
                         ActionListener.runAfter(new ActionListener<>() {
                             @Override
                             public void onResponse(Void ignored) {}
@@ -75,7 +82,9 @@ public class ThreadedActionListenerTests extends ESTestCase {
                             public void onFailure(Exception e) {
                                 assertNull(e.getCause());
                                 if (e instanceof EsRejectedExecutionException esRejectedExecutionException) {
-                                    assertTrue(esRejectedExecutionException.isExecutorShutdown());
+                                    if (pool.equals("fixed-bounded-queue") == false || forceExecution) {
+                                        assertTrue(esRejectedExecutionException.isExecutorShutdown());
+                                    } // else we might have been rejected because of the queue bound and that's ok too
                                     if (e.getSuppressed().length == 0) {
                                         return;
                                     }
@@ -96,12 +105,14 @@ public class ThreadedActionListenerTests extends ESTestCase {
                                 }
 
                             }
-                        }, countdownLatch::countDown)
+                        }, finishLatch::countDown)
                     );
+                    startLatch.countDown();
+                    Thread.yield();
                     synchronized (closeFlag) {
                         if (closeFlag.get() && shutdownUnsafePools.contains(pool)) {
                             // closing, so tasks submitted to this pool may just be dropped
-                            countdownLatch.countDown();
+                            finishLatch.countDown();
                         } else if (randomBoolean()) {
                             listener.onResponse(null);
                         } else {
@@ -111,6 +122,8 @@ public class ThreadedActionListenerTests extends ESTestCase {
                     Thread.yield();
                 }
             });
+            startLatch.countDown(); // sometimes shut down before the first listener
+            safeAwait(startLatch);
         } finally {
             synchronized (closeFlag) {
                 assertTrue(closeFlag.compareAndSet(false, true));
@@ -118,7 +131,7 @@ public class ThreadedActionListenerTests extends ESTestCase {
             }
             assertTrue(threadPool.awaitTermination(10, TimeUnit.SECONDS));
         }
-        assertTrue(countdownLatch.await(10, TimeUnit.SECONDS));
+        safeAwait(finishLatch);
     }
 
     public void testToString() {

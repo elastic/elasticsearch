@@ -66,6 +66,10 @@ However, using a time series aggregation function in combination with an inner t
   [`FORK`](/reference/query-languages/esql/commands/fork.md)) before the `STATS` command is applied. Once `STATS` is
   applied, you can process the tabular output with any applicable ES|QL operations.
 - Add a time range filter on `@timestamp` to limit the data volume scanned and improve query performance.
+- Time series aggregations large result sets, especially if they involve many dimensions and small time buckets.
+  The limits are updated accordingly, with the default result truncation size increased to 10,000 rows. For more
+  information on the limits and how to adjust them, refer to
+  [Result set size limitation](/reference/query-languages/esql/_snippets/common/result-set-size-limitation.md).
 
 ## Examples
 

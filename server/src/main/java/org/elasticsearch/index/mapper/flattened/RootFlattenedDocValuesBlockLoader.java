@@ -39,14 +39,20 @@ final class RootFlattenedDocValuesBlockLoader implements BlockLoader {
     private final BlockFlattenedDocValuesSyntheticFieldLoader fieldLoader;
     private final List<Map.Entry<String, SourceLoader.SyntheticFieldLoader.StoredFieldLoader>> storedFieldLoaders;
 
-    RootFlattenedDocValuesBlockLoader(String name, Mapper.IgnoreAbove ignoreAbove, boolean usesBinaryDocValues) {
+    RootFlattenedDocValuesBlockLoader(
+        String name,
+        Mapper.IgnoreAbove ignoreAbove,
+        boolean usesBinaryDocValues,
+        List<SourceLoader.SyntheticFieldLoader> mappedSubFieldLoaders
+    ) {
         this.ignoreAbove = ignoreAbove;
         this.fieldLoader = new BlockFlattenedDocValuesSyntheticFieldLoader(
             name,
             name + KEYED_FIELD_SUFFIX,
             ignoreAbove.valuesPotentiallyIgnored() ? name + KEYED_IGNORED_VALUES_FIELD_SUFFIX : null,
             null,
-            usesBinaryDocValues
+            usesBinaryDocValues,
+            mappedSubFieldLoaders
         );
         this.storedFieldLoaders = fieldLoader.storedFieldLoaders().toList();
     }
@@ -178,22 +184,28 @@ final class RootFlattenedDocValuesBlockLoader implements BlockLoader {
             String keyedFieldFullPath,
             String keyedIgnoredValuesFieldFullPath,
             String leafName,
-            boolean usesBinaryDocValues
+            boolean usesBinaryDocValues,
+            List<SourceLoader.SyntheticFieldLoader> mappedSubFieldLoaders
         ) {
-            super(fieldFullPath, keyedFieldFullPath, keyedIgnoredValuesFieldFullPath, leafName, usesBinaryDocValues);
+            super(fieldFullPath, keyedFieldFullPath, keyedIgnoredValuesFieldFullPath, leafName, usesBinaryDocValues, mappedSubFieldLoaders);
         }
 
         public void writeToBlock(BlockLoader.BytesRefBuilder builder) throws IOException {
-            if (docValues.count() == 0 && ignoredValues.isEmpty()) {
+            if (hasValue() == false) {
                 builder.appendNull();
                 return;
             }
 
-            var writer = getWriter();
-
             XContentBuilder jsonBuilder = XContentFactory.jsonBuilder();
             jsonBuilder.startObject();
-            writer.write(jsonBuilder);
+            if (hasFlattenedValues()) {
+                getWriter().write(jsonBuilder);
+            }
+            for (SourceLoader.SyntheticFieldLoader loader : getMappedSubFieldLoaders()) {
+                if (loader.hasValue()) {
+                    loader.write(jsonBuilder);
+                }
+            }
             jsonBuilder.endObject();
 
             builder.appendBytesRef(BytesReference.bytes(jsonBuilder).toBytesRef());

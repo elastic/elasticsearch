@@ -10,6 +10,8 @@
 package org.elasticsearch.index.mapper;
 
 import java.util.Collection;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * Implemented by mapper types that expose sub-fields as root-level aliases (passthrough behavior).
@@ -36,4 +38,23 @@ public interface PassThroughFieldSource {
      * eligible sub-fields.
      */
     Collection<FieldMapper> passThroughSubFields();
+
+    static Map<String, FieldMapper> resolveConflictingPriorities(Collection<PassThroughFieldSource> passThroughSources) {
+        // Passthrough sub-fields can be referenced without the prefix of the passthrough source.
+        // Use priority to resolve conflicts when multiple sources expose the same leaf name.
+        Map<String, Integer> passThroughPriorities = new HashMap<>();
+        Map<String, FieldMapper> passThroughAliases = new HashMap<>();
+
+        for (PassThroughFieldSource source : passThroughSources) {
+            for (FieldMapper subField : source.passThroughSubFields()) {
+                String name = subField.leafName();
+                Integer existingPriority = passThroughPriorities.get(name);
+                if (existingPriority == null || source.priority() > existingPriority) {
+                    passThroughAliases.put(name, subField);
+                    passThroughPriorities.put(name, source.priority());
+                }
+            }
+        }
+        return passThroughAliases;
+    }
 }

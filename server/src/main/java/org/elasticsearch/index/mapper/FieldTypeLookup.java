@@ -52,7 +52,7 @@ final class FieldTypeLookup {
     FieldTypeLookup(
         Collection<FieldMapper> fieldMappers,
         Collection<FieldAliasMapper> fieldAliasMappers,
-        Collection<? extends PassThroughFieldSource> passThroughSources,
+        Collection<PassThroughFieldSource> passThroughSources,
         Collection<RuntimeField> runtimeFields
     ) {
 
@@ -101,22 +101,7 @@ final class FieldTypeLookup {
             }
         }
 
-        // Passthrough sub-fields can be referenced without the prefix of the passthrough source.
-        // Use priority to resolve conflicts when multiple sources expose the same leaf name.
-        Map<String, Integer> passThroughPriorities = new HashMap<>();
-        Map<String, FieldMapper> passThroughAliases = new HashMap<>();
-
-        for (PassThroughFieldSource source : passThroughSources) {
-            for (FieldMapper subField : source.passThroughSubFields()) {
-                String name = subField.leafName();
-                Integer existingPriority = passThroughPriorities.get(name);
-                if (existingPriority == null || source.priority() > existingPriority) {
-                    passThroughAliases.put(name, subField);
-                    passThroughPriorities.put(name, source.priority());
-                }
-            }
-        }
-
+        Map<String, FieldMapper> passThroughAliases = PassThroughFieldSource.resolveConflictingPriorities(passThroughSources);
         for (Map.Entry<String, FieldMapper> entry : passThroughAliases.entrySet()) {
             String name = entry.getKey();
             if (fullNameToFieldType.containsKey(name)) {

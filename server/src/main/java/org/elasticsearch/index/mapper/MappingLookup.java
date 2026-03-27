@@ -138,7 +138,7 @@ public final class MappingLookup {
         Collection<FieldMapper> mappers,
         Collection<ObjectMapper> objectMappers,
         Collection<FieldAliasMapper> aliasMappers,
-        Collection<? extends PassThroughFieldSource> passThroughSources,
+        Collection<PassThroughFieldSource> passThroughSources,
         IndexMode indexMode
     ) {
         return new MappingLookup(mapping, mappers, objectMappers, aliasMappers, passThroughSources, indexMode);
@@ -158,7 +158,7 @@ public final class MappingLookup {
         Collection<FieldMapper> mappers,
         Collection<ObjectMapper> objectMappers,
         Collection<FieldAliasMapper> aliasMappers,
-        Collection<? extends PassThroughFieldSource> passThroughSources,
+        Collection<PassThroughFieldSource> passThroughSources,
         IndexMode indexMode
     ) {
         this.totalFieldsCount = mapping.getRoot().getTotalFieldsCount();

@@ -31,6 +31,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.clearInvocations;
@@ -44,14 +45,11 @@ public class TenaciousRetryBlobContainerTests extends ESTestCase {
         final var repositoriesMetrics = new RepositoriesMetrics(recordingMeterRegistry);
 
         BlobContainer blobContainer = mock(BlobContainer.class, invocationOnMock -> {
-            assert invocationOnMock.getMethod().getName().equals("listBlobs") == false;
-            assert invocationOnMock.getMethod().getName().equals("listBlobsByPrefix") == false;
-            // Not supported
-            assert invocationOnMock.getMethod().getName().equals("copyBlob") == false;
+            assert Set.of("listBlobs", "listBlobsByPrefix", "copyBlob").contains(invocationOnMock.getMethod().getName()) == false;
             throw new IOException(invocationOnMock.getMethod().getName());
         });
 
-        TenaciousRetryBlobContainer tenaciousRetryBlobContainer = new TenaciousRetryBlobContainer(
+        TenaciousRetryBlobContainer alwaysRetryBlobContainer = new TenaciousRetryBlobContainer(
             blobContainer,
             Integer.MAX_VALUE,
             BackoffPolicy.linearBackoff(TimeValue.timeValueMillis(50), Integer.MAX_VALUE, TimeValue.ONE_MINUTE),
@@ -79,10 +77,9 @@ public class TenaciousRetryBlobContainerTests extends ESTestCase {
         for (int i = 0; i < randomIntBetween(50, 100); i++) {
             Method method = randomFrom(nonRetryable);
             Object[] args = buildArgs(method);
-            System.out.println(method.getName());
             InvocationTargetException ex = expectThrows(
                 InvocationTargetException.class,
-                () -> method.invoke(tenaciousRetryBlobContainer, args)
+                () -> method.invoke(alwaysRetryBlobContainer, args)
             );
             assertThat(ex.getTargetException().getMessage(), is(method.getName()));
 
@@ -91,6 +88,7 @@ public class TenaciousRetryBlobContainerTests extends ESTestCase {
                 .filter(inv -> inv.getMethod().getName().equals(method.getName()))
                 .count();
 
+            // No retry attempted.
             assertThat(matchingCalls, is(1L));
             clearInvocations(blobContainer);
         }

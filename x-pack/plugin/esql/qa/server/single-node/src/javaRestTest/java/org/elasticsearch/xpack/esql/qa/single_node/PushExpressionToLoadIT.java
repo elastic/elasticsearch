@@ -15,6 +15,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.test.ListMatcher;
 import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
@@ -89,11 +90,7 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
             // introduced, so the plan has no ProjectExec to drop it.
             sig -> assertMap(
                 sig,
-                matchesList().item("LuceneSourceOperator")
-                    .item("ValuesSourceReaderOperator")
-                    .item("EvalOperator")
-                    .item("AggregationOperator")
-                    .item("ExchangeSinkOperator")
+                checkRuleNotApplied()
             )
         );
     }
@@ -118,13 +115,17 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
             // introduced, so the plan has no ProjectExec to drop it.
             sig -> assertMap(
                 sig,
-                matchesList().item("LuceneSourceOperator")
-                    .item("ValuesSourceReaderOperator")
-                    .item("EvalOperator")
-                    .item("AggregationOperator")
-                    .item("ExchangeSinkOperator")
+                checkRuleNotApplied()
             )
         );
+    }
+
+    private static ListMatcher checkRuleNotApplied() {
+        return matchesList().item("LuceneSourceOperator")
+            .item("ValuesSourceReaderOperator")
+            .item("EvalOperator")
+            .item("AggregationOperator")
+            .item("ExchangeSinkOperator");
     }
 
     public void testMvMinToKeyword() throws IOException {

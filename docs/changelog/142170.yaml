@@ -1,0 +1,5 @@
+area: Search
+issues: []
+pr: 142170
+summary: '`CanMatch` returns `numSkipped` per cluster instead of all skipped shards'
+type: enhancement

@@ -62,7 +62,7 @@ tasks.register('syncIcebergFixtures', Sync) {
   into parquetFixtureOutputDir
 }
 
-def csvToParquetFixtures = ['employees', 'web_logs']
+def csvToParquetFixtures = ['employees', 'web_logs', 'books']
 
 def generateParquetTasks = []
 csvToParquetFixtures.each { baseName ->

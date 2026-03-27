@@ -701,7 +701,7 @@ public class AggregatorImplementer {
         }
 
         public void assignToVariable(MethodSpec.Builder builder, int offset, boolean forcePassDown) {
-            builder.addStatement("Block $L = page.getBlock(channels.get($L))", name + "Uncast", offset);
+            builder.addStatement("$T $L = page.getBlock(channels.get($L))", BLOCK, name + "Uncast", offset);
             ClassName blockType = blockType(elementType());
             if (forcePassDown == false) {
                 builder.beginControlFlow("if ($L.areAllValuesNull())", name + "Uncast");

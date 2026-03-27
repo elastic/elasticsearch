@@ -913,7 +913,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
 
         @Override
         public Condition newCondition() {
-            return null;
+            throw new UnsupportedOperationException("Not implemented");
         }
     }
 }

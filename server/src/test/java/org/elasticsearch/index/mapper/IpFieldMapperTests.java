@@ -59,6 +59,7 @@ public class IpFieldMapperTests extends MapperTestCase {
         checker.registerConflictCheck("store", b -> b.field("store", true));
         checker.registerConflictCheck("null_value", b -> b.field("null_value", "::1"));
         registerDimensionChecks(checker);
+        registerScriptChecks(checker);
     }
 
     public void testExistsQueryDocValuesDisabled() throws IOException {
@@ -359,11 +360,15 @@ public class IpFieldMapperTests extends MapperTestCase {
                 .map(v -> new BytesRef(InetAddressPoint.encode((InetAddress) v.v2())))
                 .collect(Collectors.toSet())
                 .stream()
-                .sorted()
+                .sorted(BytesRef::compareTo)
                 .map(v -> InetAddressPoint.decode(v.bytes))
                 .map(NetworkAddress::format)
                 .collect(Collectors.toCollection(ArrayList::new));
-            values.stream().filter(v -> false == v.v2() instanceof InetAddress).map(v -> v.v2()).forEach(outList::add);
+            values.stream()
+                .filter(v -> false == v.v2() instanceof InetAddress)
+                .map(Tuple::v2)
+                .sorted(SyntheticSourceMalformedValueSorter.comparator())
+                .forEach(outList::add);
             Object out = outList.size() == 1 ? outList.get(0) : outList;
             return new SyntheticSourceExample(in, out, this::mapping);
         }
@@ -442,6 +447,45 @@ public class IpFieldMapperTests extends MapperTestCase {
                 };
             }
         };
+    }
+
+    public void testMultiValueSortedSet() throws IOException {
+        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        MapperService mapperService = createSytheticSourceMapperService(
+            fieldMapping(b -> b.field("type", "ip").startObject("doc_values").field("multi_value", "sorted_set").endObject())
+        );
+        IpFieldMapper mapper = (IpFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
+        assertThat(
+            mapper.docValuesParameters(),
+            equalTo(
+                new FieldMapper.DocValuesParameter.Values(
+                    true,
+                    FieldMapper.DocValuesParameter.Values.Cardinality.LOW,
+                    FieldMapper.DocValuesParameter.Values.MultiValue.SORTED_SET
+                )
+            )
+        );
+    }
+
+    public void testMultiValueDefaultIsSortedSet() throws IOException {
+        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "ip")));
+        IpFieldMapper mapper = (IpFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
+        assertThat(mapper.docValuesParameters().multiValue(), equalTo(FieldMapper.DocValuesParameter.Values.MultiValue.SORTED_SET));
+    }
+
+    public void testMultiValueSortedNotAllowed() throws IOException {
+        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        var e = expectThrows(
+            MapperParsingException.class,
+            () -> createMapperService(
+                fieldMapping(b -> b.field("type", "ip").startObject("doc_values").field("multi_value", "sorted").endObject())
+            )
+        );
+        assertThat(
+            e.getMessage(),
+            containsString("Unknown value [sorted] for field [multi_value] - accepted values are [no, sorted_set, arrays]")
+        );
     }
 
     @Override

@@ -7,17 +7,21 @@
 
 package org.elasticsearch.xpack.esql.datasource.s3;
 
+import software.amazon.awssdk.auth.credentials.AnonymousCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
+import software.amazon.awssdk.profiles.ProfileFile;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.S3ClientBuilder;
+import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
 import software.amazon.awssdk.services.s3.model.ListObjectsV2Request;
 import software.amazon.awssdk.services.s3.model.ListObjectsV2Response;
 import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
+import software.amazon.awssdk.services.s3.model.S3Exception;
 import software.amazon.awssdk.services.s3.model.S3Object;
 
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
@@ -49,8 +53,18 @@ public final class S3StorageProvider implements StorageProvider {
     private static S3Client buildS3Client(S3Configuration config) {
         S3ClientBuilder builder = S3Client.builder();
 
+        // Disable profile file loading to prevent the AWS SDK from reading ~/.aws/config
+        // or the path set via AWS_CONFIG_FILE, which would be blocked by the entitlement system.
+        ProfileFile emptyProfileFile = ProfileFile.aggregator().build();
+        builder.overrideConfiguration(c -> {
+            c.defaultProfileFile(emptyProfileFile);
+            c.defaultProfileFileSupplier(() -> emptyProfileFile);
+        });
+
         AwsCredentialsProvider credentialsProvider;
-        if (config != null && config.hasCredentials()) {
+        if (config != null && config.isAnonymous()) {
+            credentialsProvider = AnonymousCredentialsProvider.create();
+        } else if (config != null && config.hasCredentials()) {
             credentialsProvider = StaticCredentialsProvider.create(AwsBasicCredentials.create(config.accessKey(), config.secretKey()));
         } else {
             credentialsProvider = DefaultCredentialsProvider.create();
@@ -123,7 +137,23 @@ public final class S3StorageProvider implements StorageProvider {
         } catch (NoSuchKeyException e) {
             return false;
         } catch (Exception e) {
-            throw new IOException("Failed to check existence of " + path, e);
+            if (e instanceof S3Exception s3e && s3e.statusCode() == 403) {
+                return existsViaRangeGet(bucket, key, path);
+            }
+            throw new IOException("Failed to check existence of " + path + credentialHint(), e);
+        }
+    }
+
+    private boolean existsViaRangeGet(String bucket, String key, StoragePath path) throws IOException {
+        try {
+            GetObjectRequest request = GetObjectRequest.builder().bucket(bucket).key(key).range("bytes=0-0").build();
+            try (var response = s3Client.getObject(request)) {
+                return true;
+            }
+        } catch (NoSuchKeyException e) {
+            return false;
+        } catch (Exception e) {
+            throw new IOException("Failed to check existence of " + path + " (HEAD denied, range GET also failed)" + credentialHint(), e);
         }
     }
 
@@ -135,6 +165,14 @@ public final class S3StorageProvider implements StorageProvider {
     @Override
     public void close() throws IOException {
         s3Client.close();
+    }
+
+    private String credentialHint() {
+        if (config == null || (config.isAnonymous() == false && config.hasCredentials() == false)) {
+            return ". If accessing a public bucket, use WITH (auth = 'none'). "
+                + "Otherwise, provide credentials via WITH (access_key = '...', secret_key = '...') or set AWS environment variables";
+        }
+        return "";
     }
 
     private void validateS3Scheme(StoragePath path) {
@@ -239,7 +277,16 @@ public final class S3StorageProvider implements StorageProvider {
                 continuationToken = response.nextContinuationToken();
                 hasMorePages = response.isTruncated();
             } catch (Exception e) {
-                throw new RuntimeException("Failed to list objects in bucket " + bucket + " with prefix " + prefix, e);
+                String msg = (e instanceof S3Exception s3e && s3e.statusCode() == 403)
+                    ? "Access denied listing objects in bucket ["
+                        + bucket
+                        + "] with prefix ["
+                        + prefix
+                        + "]. "
+                        + "Verify that the configured credentials have s3:ListBucket permission on this bucket, "
+                        + "or use exact file paths instead of glob patterns."
+                    : "Failed to list objects in bucket [" + bucket + "] with prefix [" + prefix + "]";
+                throw new RuntimeException(msg, e);
             }
         }
     }

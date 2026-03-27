@@ -26,6 +26,7 @@ import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -105,6 +106,7 @@ import java.util.function.Supplier;
 import static org.elasticsearch.index.IndexVersions.NEW_SPARSE_VECTOR;
 import static org.elasticsearch.index.IndexVersions.SEMANTIC_TEXT_DEFAULTS_TO_BBQ;
 import static org.elasticsearch.index.IndexVersions.SEMANTIC_TEXT_DEFAULTS_TO_BBQ_BACKPORT_8_X;
+import static org.elasticsearch.index.IndexVersions.SEMANTIC_TEXT_DEFAULTS_TO_JINA_V5;
 import static org.elasticsearch.inference.TaskType.SPARSE_EMBEDDING;
 import static org.elasticsearch.inference.TaskType.TEXT_EMBEDDING;
 import static org.elasticsearch.lucene.search.uhighlight.CustomUnifiedHighlighter.MULTIVAL_SEP_CHAR;
@@ -123,6 +125,7 @@ import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.getEmbe
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.getOffsetsFieldName;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.getOriginalTextFieldName;
 import static org.elasticsearch.xpack.inference.services.elastic.InternalPreconfiguredEndpoints.DEFAULT_ELSER_ENDPOINT_ID_V2;
+import static org.elasticsearch.xpack.inference.services.elastic.InternalPreconfiguredEndpoints.DEFAULT_JINA_V5_ENDPOINT_ID;
 import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService.DEFAULT_ELSER_ID;
 
 /**
@@ -159,6 +162,32 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
     public static final String CONTENT_TYPE = "semantic_text";
     public static final String DEFAULT_FALLBACK_ELSER_INFERENCE_ID = DEFAULT_ELSER_ID;
     public static final String DEFAULT_EIS_ELSER_INFERENCE_ID = DEFAULT_ELSER_ENDPOINT_ID_V2;
+    public static final String DEFAULT_EIS_JINA_V5_INFERENCE_ID = DEFAULT_JINA_V5_ENDPOINT_ID;
+
+    /**
+     * An index setting that allows users to pin the default inference ID for {@code semantic_text} fields that do not declare an explicit
+     * {@code inference_id}. Setting this in an index template insulates users from cluster-level default changes in the inference id.
+     * <p>
+     * The value is not validated against existing inference endpoints at index creation time; an invalid ID will only surface as an error
+     * when a document is indexed against a {@code semantic_text} field that uses this default.
+     */
+    public static final Setting<String> INDEX_SEMANTIC_TEXT_DEFAULT_INFERENCE_ID = Setting.simpleString(
+        "index.semantic_text.default_inference_id",
+        new Setting.Validator<>() {
+            @Override
+            public void validate(String value) {}
+
+            @Override
+            public void validate(String value, Map<Setting<?>, Object> settings, boolean isPresent) {
+                if (isPresent && Strings.isNullOrBlank(value)) {
+                    throw new IllegalArgumentException("[index.semantic_text.default_inference_id] must not be blank");
+                }
+            }
+        },
+        Setting.Property.IndexScope,
+        Setting.Property.Final,
+        Setting.Property.ServerlessPublic
+    );
 
     public static final String UNSUPPORTED_INDEX_MESSAGE = "["
         + CONTENT_TYPE
@@ -169,13 +198,30 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
     public static final float DEFAULT_RESCORE_OVERSAMPLE = 3.0f;
 
     /**
-     * Determines the preferred ELSER inference ID based on EIS availability.
-     * Returns .elser-2-elastic (EIS) when available, otherwise falls back to .elser-2-elasticsearch (ML nodes).
-     * This enables automatic selection of EIS for better performance while maintaining compatibility with on-prem deployments.
+     * Determines the default inference ID for {@code semantic_text} fields that do not declare an explicit {@code inference_id}.
+     * <p>
+     * Resolution order:
+     * <ol>
+     *   <li>If {@link #INDEX_SEMANTIC_TEXT_DEFAULT_INFERENCE_ID} is set on the index, that value is returned directly.</li>
+     *   <li>For indices created on or after {@code SEMANTIC_TEXT_DEFAULTS_TO_JINA_V5}, if the model registry is non-null and
+     *       {@link #DEFAULT_EIS_JINA_V5_INFERENCE_ID} is a registered preconfigured endpoint, that endpoint is returned.</li>
+     *   <li>If the model registry is non-null and {@link #DEFAULT_EIS_ELSER_INFERENCE_ID} is a registered preconfigured endpoint,
+     *       that endpoint is returned.</li>
+     *   <li>Otherwise, falls back to {@link #DEFAULT_FALLBACK_ELSER_INFERENCE_ID} (ML-node ELSER).</li>
+     * </ol>
      */
-    private static String getPreferredElserInferenceId(ModelRegistry modelRegistry) {
-        if (modelRegistry != null && modelRegistry.containsPreconfiguredInferenceEndpointId(DEFAULT_EIS_ELSER_INFERENCE_ID)) {
-            return DEFAULT_EIS_ELSER_INFERENCE_ID;
+    private static String getDefaultInferenceId(ModelRegistry modelRegistry, IndexSettings indexSettings) {
+        if (INDEX_SEMANTIC_TEXT_DEFAULT_INFERENCE_ID.exists(indexSettings.getSettings())) {
+            return INDEX_SEMANTIC_TEXT_DEFAULT_INFERENCE_ID.get(indexSettings.getSettings());
+        }
+        if (modelRegistry != null) {
+            if (indexSettings.getIndexVersionCreated().onOrAfter(SEMANTIC_TEXT_DEFAULTS_TO_JINA_V5)
+                && modelRegistry.containsPreconfiguredInferenceEndpointId(DEFAULT_EIS_JINA_V5_INFERENCE_ID)) {
+                return DEFAULT_EIS_JINA_V5_INFERENCE_ID;
+            }
+            if (modelRegistry.containsPreconfiguredInferenceEndpointId(DEFAULT_EIS_ELSER_INFERENCE_ID)) {
+                return DEFAULT_EIS_ELSER_INFERENCE_ID;
+            }
         }
         return DEFAULT_FALLBACK_ELSER_INFERENCE_ID;
     }
@@ -202,6 +248,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         private final ModelRegistry modelRegistry;
         private final boolean useLegacyFormat;
         private final IndexVersion indexVersionCreated;
+        private final boolean experimentalFeaturesEnabled;
 
         private final Parameter<String> inferenceId;
 
@@ -260,13 +307,14 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             this.modelRegistry = modelRegistry;
             this.useLegacyFormat = InferenceMetadataFieldsMapper.isEnabled(indexSettings.getSettings()) == false;
             this.indexVersionCreated = indexSettings.getIndexVersionCreated();
+            this.experimentalFeaturesEnabled = IndexSettings.DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING.get(indexSettings.getSettings());
             this.vectorsFormatProviders = vectorsFormatProviders;
 
             this.inferenceId = Parameter.stringParam(
                 INFERENCE_ID_FIELD,
                 true,
                 mapper -> ((SemanticTextFieldType) mapper.fieldType()).inferenceId,
-                getPreferredElserInferenceId(modelRegistry)
+                getDefaultInferenceId(modelRegistry, indexSettings)
             ).addValidator(v -> {
                 if (Strings.isEmpty(v)) {
                     throw new IllegalArgumentException(
@@ -289,7 +337,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                 INDEX_OPTIONS_FIELD,
                 true,
                 () -> null,
-                (n, c, o) -> parseIndexOptionsFromMap(n, o, c.indexVersionCreated()),
+                (n, c, o) -> parseIndexOptionsFromMap(n, o, c.indexVersionCreated(), experimentalFeaturesEnabled),
                 mapper -> ((SemanticTextFieldType) mapper.fieldType()).indexOptions,
                 (b, n, v) -> {
                     if (v == null) {
@@ -793,8 +841,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                     context.path().add(fieldName);
                 }
             } else {
-                context.addDynamicMapper(builder, fullPath());
-                return builder.build(context.createDynamicMapperBuilderContext());
+                return (SemanticTextFieldMapper) context.getDynamicMapper(builder);
             }
         } finally {
             context.path().add(leafName());
@@ -1314,6 +1361,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                     modelSettings,
                     indexOptions,
                     useLegacyFormat,
+                    indexSettings.getValue(IndexSettings.DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING),
                     vectorsFormatProviders
                 )
             );
@@ -1332,6 +1380,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         MinimalServiceSettings modelSettings,
         SemanticTextIndexOptions indexOptions,
         boolean useLegacyFormat,
+        boolean experimentalFeaturesEnabled,
         List<VectorsFormatProvider> vectorsFormatProviders
     ) {
         return switch (modelSettings.taskType()) {
@@ -1351,6 +1400,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                     CHUNKED_EMBEDDINGS_FIELD,
                     indexVersionCreated,
                     false,
+                    experimentalFeaturesEnabled,
                     vectorsFormatProviders
                 );
 
@@ -1456,7 +1506,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         int m = Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN;
         int efConstruction = Lucene99HnswVectorsFormat.DEFAULT_BEAM_WIDTH;
         DenseVectorFieldMapper.RescoreVector rescoreVector = new DenseVectorFieldMapper.RescoreVector(DEFAULT_RESCORE_OVERSAMPLE);
-        return new DenseVectorFieldMapper.BBQHnswIndexOptions(m, efConstruction, false, rescoreVector);
+        return new DenseVectorFieldMapper.BBQHnswIndexOptions(m, efConstruction, false, rescoreVector, -1);
     }
 
     static SemanticTextIndexOptions defaultIndexOptions(IndexVersion indexVersionCreated, MinimalServiceSettings modelSettings) {
@@ -1497,7 +1547,12 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         return false;
     }
 
-    private static SemanticTextIndexOptions parseIndexOptionsFromMap(String fieldName, Object node, IndexVersion indexVersion) {
+    private static SemanticTextIndexOptions parseIndexOptionsFromMap(
+        String fieldName,
+        Object node,
+        IndexVersion indexVersion,
+        boolean experimentalFeaturesEnabled
+    ) {
 
         if (node == null) {
             return null;
@@ -1513,6 +1568,9 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         );
         @SuppressWarnings("unchecked")
         Map<String, Object> indexOptionsMap = (Map<String, Object>) entry.getValue();
-        return new SemanticTextIndexOptions(indexOptions, indexOptions.parseIndexOptions(fieldName, indexOptionsMap, indexVersion));
+        return new SemanticTextIndexOptions(
+            indexOptions,
+            indexOptions.parseIndexOptions(fieldName, indexOptionsMap, indexVersion, experimentalFeaturesEnabled)
+        );
     }
 }

@@ -33,7 +33,7 @@ public class GoogleVertexAiSecretSettingsTests extends AbstractBWCWireSerializat
         GoogleVertexAiSecretSettings initialSettings = createRandom();
         GoogleVertexAiSecretSettings newSettings = createRandom();
         GoogleVertexAiSecretSettings newGoogleVertexAiSecretSettings = (GoogleVertexAiSecretSettings) initialSettings.newSecretSettings(
-            Map.of(GoogleVertexAiSecretSettings.SERVICE_ACCOUNT_JSON, newSettings.serviceAccountJson.toString())
+            new HashMap<>(Map.of(GoogleVertexAiSecretSettings.SERVICE_ACCOUNT_JSON, newSettings.serviceAccountJson.toString()))
         );
         assertEquals(newSettings, newGoogleVertexAiSecretSettings);
     }

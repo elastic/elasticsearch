@@ -543,11 +543,7 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
             );
             try (DirectoryReader reader = iw.getReader()) {
                 DateScriptFieldType fieldType = buildWrapped("add_days", Map.of("days", 1), factoryWrapper);
-                assertThat(
-                    blockLoaderReadValuesFromColumnAtATimeReader(breaker, reader, fieldType, 0),
-                    equalTo(List.of(1595518581354L, 1595518581355L))
-                );
-                assertThat(blockLoaderReadValuesFromColumnAtATimeReader(breaker, reader, fieldType, 1), equalTo(List.of(1595518581355L)));
+                assertColumnAtATimeReaderNotSupported(reader, fieldType);
                 assertThat(
                     blockLoaderReadValuesFromRowStrideReader(breaker, reader, fieldType),
                     equalTo(List.of(1595518581354L, 1595518581355L))
@@ -581,25 +577,18 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
             );
 
             try (DirectoryReader reader = iw.getReader()) {
-                // when
                 BlockLoader loader = fieldType.blockLoader(blContext(Settings.EMPTY, true));
-
-                // then
+                assertColumnAtATimeReaderNotSupported(reader, fieldType);
 
                 // assert loader is of expected instance type
                 assertThat(loader, instanceOf(DateScriptBlockDocValuesReader.DateScriptBlockLoader.class));
 
                 CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(1));
-                // ignored source doesn't support column at a time loading:
-                try (var columnAtATimeLoader = loader.columnAtATimeReader(reader.leaves().getFirst()).apply(breaker)) {
-                    assertThat(columnAtATimeLoader, instanceOf(DateScriptBlockDocValuesReader.class));
-                }
                 try (var rowStrideReader = loader.rowStrideReader(breaker, reader.leaves().getFirst())) {
                     assertThat(rowStrideReader, instanceOf(DateScriptBlockDocValuesReader.class));
                 }
 
                 // assert values
-                assertThat(blockLoaderReadValuesFromColumnAtATimeReader(breaker, reader, fieldType, 0), equalTo(expected));
                 assertThat(blockLoaderReadValuesFromRowStrideReader(breaker, reader, fieldType), equalTo(expected));
             }
         }

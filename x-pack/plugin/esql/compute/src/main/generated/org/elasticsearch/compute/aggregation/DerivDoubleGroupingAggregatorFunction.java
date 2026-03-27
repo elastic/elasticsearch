@@ -41,17 +41,12 @@ public final class DerivDoubleGroupingAggregatorFunction implements GroupingAggr
 
   private final boolean dateNanos;
 
-  public DerivDoubleGroupingAggregatorFunction(List<Integer> channels,
-      DerivDoubleAggregator.GroupingState state, DriverContext driverContext, boolean dateNanos) {
-    this.channels = channels;
-    this.state = state;
-    this.driverContext = driverContext;
+  DerivDoubleGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext,
+      boolean dateNanos) {
     this.dateNanos = dateNanos;
-  }
-
-  public static DerivDoubleGroupingAggregatorFunction create(List<Integer> channels,
-      DriverContext driverContext, boolean dateNanos) {
-    return new DerivDoubleGroupingAggregatorFunction(channels, DerivDoubleAggregator.initGrouping(driverContext, dateNanos), driverContext, dateNanos);
+    this.channels = channels;
+    this.state = DerivDoubleAggregator.initGrouping(driverContext, dateNanos);
+    this.driverContext = driverContext;
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -415,14 +410,24 @@ public final class DerivDoubleGroupingAggregatorFunction implements GroupingAggr
   }
 
   @Override
-  public void evaluateIntermediate(Block[] blocks, int offset, IntVector selected) {
-    state.toIntermediate(blocks, offset, selected, driverContext);
+  public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateIntermediate(
+      IntVector selected, GroupingAggregatorEvaluationContext ctx) {
+    return this::evaluateIntermediate;
+  }
+
+  private void evaluateIntermediate(Block[] blocks, int offset, IntVector selectedInPage) {
+    state.toIntermediate(blocks, offset, selectedInPage, driverContext);
   }
 
   @Override
-  public void evaluateFinal(Block[] blocks, int offset, IntVector selected,
+  public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateFinal(IntVector selected,
       GroupingAggregatorEvaluationContext ctx) {
-    blocks[offset] = DerivDoubleAggregator.evaluateFinal(state, selected, ctx);
+    return (blocks, offset, selectedInPage) -> evaluateFinal(blocks, offset, selectedInPage, ctx);
+  }
+
+  private void evaluateFinal(Block[] blocks, int offset, IntVector selectedInPage,
+      GroupingAggregatorEvaluationContext ctx) {
+    blocks[offset] = DerivDoubleAggregator.evaluateFinal(state, selectedInPage, ctx);
   }
 
   @Override

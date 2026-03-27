@@ -159,10 +159,12 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING,
                 IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING,
                 IndexSettings.INDEX_SEARCH_IDLE_AFTER,
+                IndexSettings.DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING,
                 DenseVectorFieldMapper.HNSW_FILTER_HEURISTIC,
                 DenseVectorFieldMapper.HNSW_EARLY_TERMINATION,
                 IndexFieldDataService.INDEX_FIELDDATA_CACHE_KEY,
                 IndexSettings.IGNORE_ABOVE_SETTING,
+                IndexSettings.STORE_FLATTENED_ROOT_DOC_VALUES,
                 FieldMapper.IGNORE_MALFORMED_SETTING,
                 FieldMapper.COERCE_SETTING,
                 Store.INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING,
@@ -252,6 +254,15 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
 
         if (IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG) {
             settings.add(IndexSettings.SYNTHETIC_ID);
+        }
+        if (IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG) {
+            settings.add(IndexSettings.DISABLE_SEQUENCE_NUMBERS);
+        }
+        if (IndexSettings.ALLOW_LARGE_BINARY_BLOCK_SIZE.isEnabled()) {
+            settings.add(IndexSettings.USE_TIME_SERIES_DOC_VALUES_FORMAT_LARGE_BINARY_BLOCK_SIZE);
+        }
+        if (IndexSettings.TIME_SERIES_TEMPORALITY_FEATURE_FLAG.isEnabled()) {
+            settings.add(IndexSettings.TIME_SERIES_TEMPORALITY_FIELD);
         }
         settings.add(IndexSettings.INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING);
         BUILT_IN_INDEX_SETTINGS = Collections.unmodifiableSet(settings);

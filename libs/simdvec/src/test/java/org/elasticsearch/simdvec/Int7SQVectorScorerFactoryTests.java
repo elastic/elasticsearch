@@ -12,7 +12,6 @@ package org.elasticsearch.simdvec;
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 
 import org.apache.lucene.codecs.lucene99.Lucene99ScalarQuantizedVectorScorer;
-import org.apache.lucene.codecs.lucene99.OffHeapQuantizedByteVectorValues;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
@@ -24,6 +23,7 @@ import org.apache.lucene.util.hnsw.UpdateableRandomVectorScorer;
 import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
 import org.apache.lucene.util.quantization.ScalarQuantizedVectorSimilarity;
 import org.apache.lucene.util.quantization.ScalarQuantizer;
+import org.elasticsearch.index.codec.vectors.OffHeapQuantizedByteVectorValues;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -45,6 +45,7 @@ import static org.elasticsearch.simdvec.VectorSimilarityType.COSINE;
 import static org.elasticsearch.simdvec.VectorSimilarityType.DOT_PRODUCT;
 import static org.elasticsearch.simdvec.VectorSimilarityType.EUCLIDEAN;
 import static org.elasticsearch.simdvec.VectorSimilarityType.MAXIMUM_INNER_PRODUCT;
+import static org.elasticsearch.simdvec.internal.vectorization.JdkFeatures.SUPPORTS_HEAP_SEGMENTS;
 import static org.elasticsearch.test.hamcrest.OptionalMatchers.isEmpty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -108,7 +109,7 @@ public class Int7SQVectorScorerFactoryTests extends AbstractVectorTestCase {
                         scorer.setScoringOrdinal(0);
                         assertThat(scorer.score(1), equalTo(expected));
 
-                        if (supportsHeapSegments()) {
+                        if (SUPPORTS_HEAP_SEGMENTS) {
                             var qScorer = factory.getInt7SQVectorScorer(sim.function(), values, query1).get();
                             assertThat(qScorer.score(1), equalTo(expected));
                         }
@@ -230,11 +231,11 @@ public class Int7SQVectorScorerFactoryTests extends AbstractVectorTestCase {
     }
 
     public void testRandomScorer() throws IOException {
-        testRandomScorerImpl(MMapDirectory.DEFAULT_MAX_CHUNK_SIZE, Int7SQVectorScorerFactoryTests.FLOAT_ARRAY_RANDOM_FUNC);
+        testRandomScorerImpl(MMapDirectory.DEFAULT_MAX_CHUNK_SIZE, FLOAT_ARRAY_RANDOM_FUNC);
     }
 
     public void testRandomScorerMax() throws IOException {
-        testRandomScorerImpl(MMapDirectory.DEFAULT_MAX_CHUNK_SIZE, Int7SQVectorScorerFactoryTests.FLOAT_ARRAY_MAX_FUNC);
+        testRandomScorerImpl(MMapDirectory.DEFAULT_MAX_CHUNK_SIZE, FLOAT_ARRAY_MAX_FUNC);
     }
 
     public void testRandomScorerChunkSizeSmall() throws IOException {
@@ -244,7 +245,7 @@ public class Int7SQVectorScorerFactoryTests extends AbstractVectorTestCase {
     }
 
     void testRandomScorerImpl(long maxChunkSize, IntFunction<float[]> floatArraySupplier) throws IOException {
-        assumeTrue("scorer only supported on JDK 22+", Runtime.version().feature() >= 22);
+        assumeTrue("scorer only supported on JDK 22+", SUPPORTS_HEAP_SEGMENTS);
         assumeTrue(notSupportedMsg(), supported());
         var factory = AbstractVectorTestCase.factory.get();
         var scalarQuantizer = new ScalarQuantizer(0.1f, 0.9f, (byte) 7);
@@ -259,7 +260,7 @@ public class Int7SQVectorScorerFactoryTests extends AbstractVectorTestCase {
                 final byte[][] qVectors = new byte[size][];
                 final float[] corrections = new float[size];
 
-                float delta = 1e-6f * dims;
+                float delta = DELTA * dims;
 
                 String fileName = "testRandom-" + sim + "-" + dims + ".vex";
                 logger.info("Testing " + fileName);
@@ -457,7 +458,7 @@ public class Int7SQVectorScorerFactoryTests extends AbstractVectorTestCase {
                         var testScorer = supplier.scorer();
                         testScorer.setScoringOrdinal(idx0);
                         testScorer.bulkScore(nodes, scores, nodes.length);
-                        assertArrayEquals(expected, scores, 1e-6f);
+                        assertArrayEquals(expected, scores, DELTA);
                     }
                 }
             }
@@ -507,8 +508,43 @@ public class Int7SQVectorScorerFactoryTests extends AbstractVectorTestCase {
                         var testScorer = supplier.scorer();
                         testScorer.setScoringOrdinal(idx0);
                         testScorer.bulkScore(nodes, scores, nodes.length);
-                        assertArrayEquals(expected, scores, 1e-6f);
+                        assertArrayEquals(expected, scores, DELTA);
                     }
+                }
+            }
+        }
+    }
+
+    // Verifies that bulkScore with zero nodes returns NEGATIVE_INFINITY without throwing,
+    // as Lucene's exactSearch path can call bulkScore with an empty batch when filters exclude all docs.
+    public void testBulkScoreWithZeroNodes() throws IOException {
+        assumeTrue(notSupportedMsg(), supported());
+        var factory = AbstractVectorTestCase.factory.get();
+        final int dims = 1024;
+        final int size = randomIntBetween(2, 100);
+
+        try (Directory dir = new MMapDirectory(createTempDir("testBulkScoreWithZeroNodes"))) {
+            String fileName = "testBulkScoreWithZeroNodes-" + dims;
+            try (IndexOutput out = dir.createOutput(fileName, IOContext.DEFAULT)) {
+                for (int i = 0; i < size; i++) {
+                    var vec = vector(i, dims);
+                    out.writeBytes(vec, 0, vec.length);
+                    out.writeInt(Float.floatToIntBits((float) i));
+                }
+            }
+            try (IndexInput in = dir.openInput(fileName, IOContext.DEFAULT)) {
+                for (var sim : List.of(COSINE, DOT_PRODUCT, EUCLIDEAN, MAXIMUM_INNER_PRODUCT)) {
+                    var values = vectorValues(dims, size, in, sim.function());
+                    var supplier = factory.getInt7SQVectorScorerSupplier(
+                        sim,
+                        in,
+                        values,
+                        values.getScalarQuantizer().getConstantMultiplier()
+                    ).orElseThrow();
+                    var scorer = supplier.scorer();
+                    scorer.setScoringOrdinal(0);
+                    float result = scorer.bulkScore(new int[0], new float[0], 0);
+                    assertEquals(Float.NEGATIVE_INFINITY, result, 0f);
                 }
             }
         }
@@ -624,20 +660,6 @@ public class Int7SQVectorScorerFactoryTests extends AbstractVectorTestCase {
         }
         return ba;
     }
-
-    static IntFunction<float[]> FLOAT_ARRAY_RANDOM_FUNC = size -> {
-        float[] fa = new float[size];
-        for (int i = 0; i < size; i++) {
-            fa[i] = randomFloat();
-        }
-        return fa;
-    };
-
-    static IntFunction<float[]> FLOAT_ARRAY_MAX_FUNC = size -> {
-        float[] fa = new float[size];
-        Arrays.fill(fa, Float.MAX_VALUE);
-        return fa;
-    };
 
     static IntFunction<byte[]> BYTE_ARRAY_RANDOM_INT7_FUNC = size -> {
         byte[] ba = new byte[size];

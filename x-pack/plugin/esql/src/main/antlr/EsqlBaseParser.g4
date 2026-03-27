@@ -45,7 +45,7 @@ sourceCommand
     | promqlCommand
     // in development
     | {this.isDevVersion()}? explainCommand
-    | {this.isDevVersion()}? externalCommand
+    | {this.isExternalDataSourcesEnabled()}? externalCommand
     ;
 
 processingCommand
@@ -72,10 +72,11 @@ processingCommand
     | uriPartsCommand
     | metricsInfoCommand
     | registeredDomainCommand
+    | tsInfoCommand
+    | mmrCommand
     // in development
     | {this.isDevVersion()}? lookupCommand
     | {this.isDevVersion()}? insistCommand
-    | {this.isDevVersion()}? mmrCommand
     ;
 
 whereCommand
@@ -107,7 +108,7 @@ timeSeriesCommand
     ;
 
 externalCommand
-    : EXTERNAL stringOrParameter commandNamedParameters
+    : DEV_EXTERNAL stringOrParameter commandNamedParameters
     ;
 
 indexPatternAndMetadataFields
@@ -220,7 +221,11 @@ stringOrParameter
     ;
 
 limitCommand
-    : LIMIT constant
+    : LIMIT constant limitByGroupKey?
+    ;
+
+limitByGroupKey:
+    {this.isDevVersion()}? BY booleanExpression (COMMA booleanExpression)*
     ;
 
 sortCommand
@@ -303,7 +308,12 @@ sampleCommand
     ;
 
 changePointCommand
-    : CHANGE_POINT value=qualifiedName (ON key=qualifiedName)? (AS targetType=qualifiedName COMMA targetPvalue=qualifiedName)?
+    : CHANGE_POINT value=qualifiedName (changePointConfiguration)*
+    ;
+
+changePointConfiguration
+    : ON key=qualifiedName
+    | AS targetType=qualifiedName COMMA targetPvalue=qualifiedName
     ;
 
 forkCommand
@@ -360,6 +370,10 @@ metricsInfoCommand
     : METRICS_INFO
     ;
 
+tsInfoCommand
+    : TS_INFO
+    ;
+
 //
 // In development
 //
@@ -388,7 +402,7 @@ setField
     ;
 
 mmrCommand
-    :  DEV_MMR (queryVector=mmrQueryVectorParams)? ON diversifyField=qualifiedName MMR_LIMIT limitValue=integerValue commandNamedParameters
+    :  MMR (queryVector=mmrQueryVectorParams)? ON diversifyField=qualifiedName MMR_LIMIT limitValue=integerValue commandNamedParameters
     ;
 
 mmrQueryVectorParams

@@ -52,7 +52,6 @@ public class JDKVectorLibraryBBQTests extends VectorSimilarityFunctionsTests {
         // remove all square distance (not implemented yet)
         baseParams.removeIf(os -> os[0] == VectorSimilarityFunctions.Function.SQUARE_DISTANCE);
 
-        // duplicate for int1 & int2
         return () -> Stream.of(VectorSimilarityFunctions.BBQType.values())
             .flatMap(bbq -> baseParams.stream().map(os -> CollectionUtils.concatLists(List.of(bbq), Arrays.asList(os))))
             .map(List::toArray)
@@ -319,6 +318,34 @@ public class JDKVectorLibraryBBQTests extends VectorSimilarityFunctionsTests {
 
         var tooSmall = arena.allocate((long) 3 * Float.BYTES - 1);
         ex = expectThrows(IOOBE, () -> nativeSimilarityBulk(segA, segB, size, 3, tooSmall));
+        assertThat(ex.getMessage(), containsString("out of bounds for length"));
+    }
+
+    // Verifies that individual offset values are bounds-checked against the data segment.
+    public void testBulkOffsetsOutOfRange() {
+        assumeTrue(notSupportedMsg(), supported());
+        final int indexVectorBytes = numBytes(size, type.dataBits());
+        final int queryVectorBytes = numBytes(size, type.queryBits());
+        final int numVecs = 3;
+        var indexSegment = arena.allocate((long) indexVectorBytes * numVecs);
+        var query = arena.allocate(queryVectorBytes);
+        var scores = arena.allocate((long) numVecs * Float.BYTES);
+        var offsetsSegment = arena.allocate((long) numVecs * Integer.BYTES);
+
+        offsetsSegment.setAtIndex(ValueLayout.JAVA_INT, 0, 0);
+        offsetsSegment.setAtIndex(ValueLayout.JAVA_INT, 1, numVecs);
+        offsetsSegment.setAtIndex(ValueLayout.JAVA_INT, 2, 0);
+        Exception ex = expectThrows(
+            IOOBE,
+            () -> nativeSimilarityBulkWithOffsets(indexSegment, query, indexVectorBytes, indexVectorBytes, offsetsSegment, numVecs, scores)
+        );
+        assertThat(ex.getMessage(), containsString("out of bounds for length"));
+
+        offsetsSegment.setAtIndex(ValueLayout.JAVA_INT, 1, -1);
+        ex = expectThrows(
+            IOOBE,
+            () -> nativeSimilarityBulkWithOffsets(indexSegment, query, indexVectorBytes, indexVectorBytes, offsetsSegment, numVecs, scores)
+        );
         assertThat(ex.getMessage(), containsString("out of bounds for length"));
     }
 

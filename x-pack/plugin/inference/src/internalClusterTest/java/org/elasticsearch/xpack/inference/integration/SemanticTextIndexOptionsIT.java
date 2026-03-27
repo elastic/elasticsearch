@@ -119,9 +119,9 @@ public class SemanticTextIndexOptionsIT extends ESIntegTestCase {
         IndexOptions indexOptions = new DenseVectorFieldMapper.Int8HnswIndexOptions(
             randomIntBetween(1, 100),
             randomIntBetween(1, 10_000),
-            null,
             randomBoolean(),
-            null
+            null,
+            -1
         );
         assertAcked(
             safeGet(prepareCreate(INDEX_NAME).setMapping(generateMapping(inferenceFieldName, inferenceId, indexOptions)).execute())

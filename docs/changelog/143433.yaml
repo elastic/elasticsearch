@@ -1,0 +1,6 @@
+area: Codec
+issues: []
+pr: 143433
+summary: Rewrite `*substring*` wildcard queries to contains term queries for binary
+  doc values keywords
+type: enhancement

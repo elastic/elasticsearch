@@ -9,10 +9,10 @@
 
 package org.elasticsearch.index.mapper.blockloader.docvalues.fn;
 
-import org.apache.lucene.index.NumericDocValues;
-import org.apache.lucene.index.SortedNumericDocValues;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.index.mapper.blockloader.docvalues.AbstractLongsFromDocValuesBlockLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingNumericDocValues;
+import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingSortedNumericDocValues;
 
 import java.io.IOException;
 
@@ -25,13 +25,13 @@ public class MvMinLongsFromDocValuesBlockLoader extends AbstractLongsFromDocValu
     }
 
     @Override
-    protected AllReader singletonReader(CircuitBreaker breaker, NumericDocValues docValues) {
-        return new Singleton(breaker, docValues);
+    protected ColumnAtATimeReader singletonReader(TrackingNumericDocValues docValues) {
+        return new Singleton(docValues);
     }
 
     @Override
-    protected AllReader sortedReader(CircuitBreaker breaker, SortedNumericDocValues docValues) {
-        return new MvMinSorted(breaker, docValues);
+    protected ColumnAtATimeReader sortedReader(TrackingSortedNumericDocValues docValues) {
+        return new MvMinSorted(docValues);
     }
 
     @Override
@@ -39,11 +39,11 @@ public class MvMinLongsFromDocValuesBlockLoader extends AbstractLongsFromDocValu
         return "LongsFromDocValues[" + fieldName + "]";
     }
 
-    private static class MvMinSorted extends LongsBlockDocValuesReader {
-        private final SortedNumericDocValues numericDocValues;
+    private static class MvMinSorted extends BlockDocValuesReader {
+        private final TrackingSortedNumericDocValues numericDocValues;
 
-        MvMinSorted(CircuitBreaker breaker, SortedNumericDocValues numericDocValues) {
-            super(breaker);
+        MvMinSorted(TrackingSortedNumericDocValues numericDocValues) {
+            super(null);
             this.numericDocValues = numericDocValues;
         }
 
@@ -58,27 +58,27 @@ public class MvMinLongsFromDocValuesBlockLoader extends AbstractLongsFromDocValu
             }
         }
 
-        @Override
-        public void read(int docId, StoredFields storedFields, Builder builder) throws IOException {
-            read(docId, (LongBuilder) builder);
-        }
-
         private void read(int doc, LongBuilder builder) throws IOException {
-            if (false == numericDocValues.advanceExact(doc)) {
+            if (false == numericDocValues.docValues().advanceExact(doc)) {
                 builder.appendNull();
                 return;
             }
-            builder.appendLong(numericDocValues.nextValue());
+            builder.appendLong(numericDocValues.docValues().nextValue());
         }
 
         @Override
         public int docId() {
-            return numericDocValues.docID();
+            return numericDocValues.docValues().docID();
         }
 
         @Override
         public String toString() {
             return "MvMinLongsFromDocValues.Sorted";
+        }
+
+        @Override
+        public void close() {
+            numericDocValues.close();
         }
     }
 }

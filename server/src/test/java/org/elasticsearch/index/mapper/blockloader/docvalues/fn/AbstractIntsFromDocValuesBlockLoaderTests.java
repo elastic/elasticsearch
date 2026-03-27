@@ -19,16 +19,14 @@ import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.index.mapper.AbstractBlockLoaderTestCase;
-import org.elasticsearch.index.mapper.BlockLoader;
-import org.elasticsearch.index.mapper.TestBlock;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
 public abstract class AbstractIntsFromDocValuesBlockLoaderTests extends AbstractBlockLoaderTestCase {
-    public AbstractIntsFromDocValuesBlockLoaderTests(boolean blockAtATime, boolean multiValues, boolean missingValues) {
-        super(blockAtATime, multiValues, missingValues);
+    public AbstractIntsFromDocValuesBlockLoaderTests(boolean multiValues, boolean missingValues) {
+        super(multiValues, missingValues);
     }
 
     protected abstract void innerTest(CircuitBreaker breaker, LeafReaderContext ctx, int mvCount) throws IOException;
@@ -57,15 +55,6 @@ public abstract class AbstractIntsFromDocValuesBlockLoaderTests extends Abstract
                 innerTest(breaker, ctx, mvCount);
             }
         }
-    }
-
-    protected final TestBlock read(BlockLoader loader, BlockLoader.AllReader reader, LeafReaderContext ctx, BlockLoader.Docs docs)
-        throws IOException {
-        BlockLoader.AllReader toUse = blockAtATime
-            ? reader
-            : new ForceDocAtATime(() -> loader.builder(TestBlock.factory(), docs.count()), reader);
-
-        return (TestBlock) toUse.read(TestBlock.factory(), docs, 0, false);
     }
 
     private static IntField field(int v) {

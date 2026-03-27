@@ -38,17 +38,12 @@ public final class CountDistinctDoubleGroupingAggregatorFunction implements Grou
 
   private final int precision;
 
-  public CountDistinctDoubleGroupingAggregatorFunction(List<Integer> channels,
-      HllStates.GroupingState state, DriverContext driverContext, int precision) {
-    this.channels = channels;
-    this.state = state;
-    this.driverContext = driverContext;
+  CountDistinctDoubleGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext,
+      int precision) {
     this.precision = precision;
-  }
-
-  public static CountDistinctDoubleGroupingAggregatorFunction create(List<Integer> channels,
-      DriverContext driverContext, int precision) {
-    return new CountDistinctDoubleGroupingAggregatorFunction(channels, CountDistinctDoubleAggregator.initGrouping(driverContext, precision), driverContext, precision);
+    this.channels = channels;
+    this.state = CountDistinctDoubleAggregator.initGrouping(driverContext, precision);
+    this.driverContext = driverContext;
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -290,14 +285,24 @@ public final class CountDistinctDoubleGroupingAggregatorFunction implements Grou
   }
 
   @Override
-  public void evaluateIntermediate(Block[] blocks, int offset, IntVector selected) {
-    state.toIntermediate(blocks, offset, selected, driverContext);
+  public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateIntermediate(
+      IntVector selected, GroupingAggregatorEvaluationContext ctx) {
+    return this::evaluateIntermediate;
+  }
+
+  private void evaluateIntermediate(Block[] blocks, int offset, IntVector selectedInPage) {
+    state.toIntermediate(blocks, offset, selectedInPage, driverContext);
   }
 
   @Override
-  public void evaluateFinal(Block[] blocks, int offset, IntVector selected,
+  public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateFinal(IntVector selected,
       GroupingAggregatorEvaluationContext ctx) {
-    blocks[offset] = CountDistinctDoubleAggregator.evaluateFinal(state, selected, ctx);
+    return (blocks, offset, selectedInPage) -> evaluateFinal(blocks, offset, selectedInPage, ctx);
+  }
+
+  private void evaluateFinal(Block[] blocks, int offset, IntVector selectedInPage,
+      GroupingAggregatorEvaluationContext ctx) {
+    blocks[offset] = CountDistinctDoubleAggregator.evaluateFinal(state, selectedInPage, ctx);
   }
 
   @Override

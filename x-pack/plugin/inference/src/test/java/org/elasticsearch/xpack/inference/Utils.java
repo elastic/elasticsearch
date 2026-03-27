@@ -65,7 +65,7 @@ public final class Utils {
     public static ClusterService mockClusterService(Settings settings) {
         var clusterService = mock(ClusterService.class);
 
-        var registeredSettings = InferencePlugin.getInferenceSettings();
+        var registeredSettings = InferencePlugin.getClusterSettings();
 
         var cSettings = new ClusterSettings(settings, registeredSettings);
         when(clusterService.getClusterSettings()).thenReturn(cSettings);

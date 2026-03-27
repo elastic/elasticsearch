@@ -27,6 +27,7 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.indices.IndicesExpressionGrouper;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -61,6 +62,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.queryClusterSettings;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.action.EsqlExecutionInfoTests.createEsqlExecutionInfo;
@@ -142,26 +145,17 @@ public class PlanExecutorMetricsTests extends ESTestCase {
         }).when(esqlClient).execute(eq(EsqlResolveFieldsAction.TYPE), any(), any());
 
         // Create a minimal DataSourceModule for testing
-        BlockFactory blockFactory = new BlockFactory(new NoopCircuitBreaker("test"), BigArrays.NON_RECYCLING_INSTANCE);
         List<DataSourcePlugin> plugins = List.of(new DataSourcePlugin() {});
         try (
             DataSourceModule dataSourceModule = new DataSourceModule(
                 plugins,
                 DataSourceCapabilities.build(plugins),
                 Settings.EMPTY,
-                blockFactory,
+                blockFactory(),
                 EsExecutors.DIRECT_EXECUTOR_SERVICE
             )
         ) {
-            var planExecutor = new PlanExecutor(
-                indexResolver,
-                MeterRegistry.NOOP,
-                new XPackLicenseState(() -> 0L),
-                mockQueryLog(),
-                List.of(),
-                Settings.EMPTY,
-                dataSourceModule
-            );
+            var planExecutor = buildPlanExecutor(indexResolver, dataSourceModule);
             var enrichResolver = mockEnrichResolver();
 
             var request = new EsqlQueryRequest();
@@ -252,7 +246,6 @@ public class PlanExecutorMetricsTests extends ESTestCase {
         }).when(esqlClient).execute(eq(EsqlResolveFieldsAction.TYPE), any(), any());
 
         // Create a minimal DataSourceModule for testing
-        BlockFactory blockFactory = new BlockFactory(new NoopCircuitBreaker("test"), BigArrays.NON_RECYCLING_INSTANCE);
         List<DataSourcePlugin> plugins = List.of(new DataSourcePlugin() {});
         DataSourceCapabilities capabilities = DataSourceCapabilities.build(plugins);
         try (
@@ -260,19 +253,11 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                 List.of(plugins.get(0)),
                 capabilities,
                 Settings.EMPTY,
-                blockFactory,
+                blockFactory(),
                 EsExecutors.DIRECT_EXECUTOR_SERVICE
             )
         ) {
-            var planExecutor = new PlanExecutor(
-                indexResolver,
-                MeterRegistry.NOOP,
-                new XPackLicenseState(() -> 0L),
-                mockQueryLog(),
-                List.of(),
-                Settings.EMPTY,
-                dataSourceModule
-            );
+            var planExecutor = buildPlanExecutor(indexResolver, dataSourceModule);
 
             // Initial values should be 0
             assertEquals(0L, planExecutor.metrics().stats().get("settings.time_zone"));
@@ -352,7 +337,6 @@ public class PlanExecutorMetricsTests extends ESTestCase {
         }).when(esqlClient).execute(eq(EsqlResolveFieldsAction.TYPE), any(), any());
 
         // Create a minimal DataSourceModule for testing
-        BlockFactory blockFactory = new BlockFactory(new NoopCircuitBreaker("test"), BigArrays.NON_RECYCLING_INSTANCE);
         List<DataSourcePlugin> plugins = List.of(new DataSourcePlugin() {});
         DataSourceCapabilities capabilities = DataSourceCapabilities.build(plugins);
         try (
@@ -360,19 +344,11 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                 List.of(plugins.get(0)),
                 capabilities,
                 Settings.EMPTY,
-                blockFactory,
+                blockFactory(),
                 EsExecutors.DIRECT_EXECUTOR_SERVICE
             )
         ) {
-            var planExecutor = new PlanExecutor(
-                indexResolver,
-                MeterRegistry.NOOP,
-                new XPackLicenseState(() -> 0L),
-                mockQueryLog(),
-                List.of(),
-                Settings.EMPTY,
-                dataSourceModule
-            );
+            var planExecutor = buildPlanExecutor(indexResolver, dataSourceModule);
 
             // Initial value should be 0
             assertEquals(0L, planExecutor.metrics().stats().get("settings.time_zone"));
@@ -430,7 +406,6 @@ public class PlanExecutorMetricsTests extends ESTestCase {
         }).when(esqlClient).execute(eq(EsqlResolveFieldsAction.TYPE), any(), any());
 
         // Create a minimal DataSourceModule for testing
-        BlockFactory blockFactory = new BlockFactory(new NoopCircuitBreaker("test"), BigArrays.NON_RECYCLING_INSTANCE);
         List<DataSourcePlugin> plugins = List.of(new DataSourcePlugin() {});
         DataSourceCapabilities capabilities = DataSourceCapabilities.build(plugins);
         try (
@@ -438,19 +413,11 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                 List.of(plugins.get(0)),
                 capabilities,
                 Settings.EMPTY,
-                blockFactory,
+                blockFactory(),
                 EsExecutors.DIRECT_EXECUTOR_SERVICE
             )
         ) {
-            var planExecutor = new PlanExecutor(
-                indexResolver,
-                MeterRegistry.NOOP,
-                new XPackLicenseState(() -> 0L),
-                mockQueryLog(),
-                List.of(),
-                Settings.EMPTY,
-                dataSourceModule
-            );
+            var planExecutor = buildPlanExecutor(indexResolver, dataSourceModule);
 
             // Initial value should be 0
             assertEquals(0L, planExecutor.metrics().stats().get("settings.approximation"));
@@ -499,7 +466,6 @@ public class PlanExecutorMetricsTests extends ESTestCase {
         }).when(esqlClient).execute(eq(EsqlResolveFieldsAction.TYPE), any(), any());
 
         // Create a minimal DataSourceModule for testing
-        BlockFactory blockFactory = new BlockFactory(new NoopCircuitBreaker("test"), BigArrays.NON_RECYCLING_INSTANCE);
         List<DataSourcePlugin> plugins = List.of(new DataSourcePlugin() {});
         DataSourceCapabilities capabilities = DataSourceCapabilities.build(plugins);
         try (
@@ -507,19 +473,11 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                 List.of(plugins.get(0)),
                 capabilities,
                 Settings.EMPTY,
-                blockFactory,
+                blockFactory(),
                 EsExecutors.DIRECT_EXECUTOR_SERVICE
             )
         ) {
-            var planExecutor = new PlanExecutor(
-                indexResolver,
-                MeterRegistry.NOOP,
-                new XPackLicenseState(() -> 0L),
-                mockQueryLog(),
-                List.of(),
-                Settings.EMPTY,
-                dataSourceModule
-            );
+            var planExecutor = buildPlanExecutor(indexResolver, dataSourceModule);
 
             // In stateful mode, project_routing metric should not be registered at all
             var nestedMap = planExecutor.metrics().stats().toNestedMap();
@@ -609,5 +567,23 @@ public class PlanExecutorMetricsTests extends ESTestCase {
     @Override
     protected List<String> filteredWarnings() {
         return withDefaultLimitWarning(super.filteredWarnings());
+    }
+
+    private PlanExecutor buildPlanExecutor(IndexResolver indexResolver, DataSourceModule dataSourceModule) {
+        return new PlanExecutor(
+            indexResolver,
+            MeterRegistry.NOOP,
+            new XPackLicenseState(() -> 0L),
+            mockQueryLog(),
+            List.of(),
+            CrossProjectModeDecider.NOOP,
+            dataSourceModule,
+            TEST_FUNCTION_REGISTRY,
+            TEST_PARSER
+        );
+    }
+
+    private BlockFactory blockFactory() {
+        return BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("test")).build();
     }
 }

@@ -48,6 +48,7 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
@@ -56,6 +57,7 @@ import org.elasticsearch.gateway.PriorityComparator;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.snapshots.SnapshotsInfoService;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -89,6 +91,7 @@ public class AllocationService {
     private final ClusterInfoService clusterInfoService;
     private final SnapshotsInfoService snapshotsInfoService;
     private final ShardRoutingRoleStrategy shardRoutingRoleStrategy;
+    private final ShardChangesObserver shardChangesObserver;
 
     // only for tests that use the GatewayAllocator as the unique ExistingShardsAllocator
     @SuppressWarnings("this-escape")
@@ -100,7 +103,7 @@ public class AllocationService {
         SnapshotsInfoService snapshotsInfoService,
         ShardRoutingRoleStrategy shardRoutingRoleStrategy
     ) {
-        this(allocationDeciders, shardsAllocator, clusterInfoService, snapshotsInfoService, shardRoutingRoleStrategy);
+        this(allocationDeciders, shardsAllocator, clusterInfoService, snapshotsInfoService, shardRoutingRoleStrategy, MeterRegistry.NOOP);
         setExistingShardsAllocators(Collections.singletonMap(GatewayAllocator.ALLOCATOR_NAME, gatewayAllocator));
     }
 
@@ -109,13 +112,15 @@ public class AllocationService {
         ShardsAllocator shardsAllocator,
         ClusterInfoService clusterInfoService,
         SnapshotsInfoService snapshotsInfoService,
-        ShardRoutingRoleStrategy shardRoutingRoleStrategy
+        ShardRoutingRoleStrategy shardRoutingRoleStrategy,
+        MeterRegistry meterRegistry
     ) {
         this.allocationDeciders = allocationDeciders;
         this.shardsAllocator = shardsAllocator;
         this.clusterInfoService = clusterInfoService;
         this.snapshotsInfoService = snapshotsInfoService;
         this.shardRoutingRoleStrategy = shardRoutingRoleStrategy;
+        this.shardChangesObserver = new ShardChangesObserver(meterRegistry);
     }
 
     /**
@@ -768,7 +773,9 @@ public class AllocationService {
             clusterState,
             clusterInfoService.getClusterInfo(),
             snapshotsInfoService.snapshotShardSizes(),
-            currentNanoTime
+            currentNanoTime,
+            false,
+            shardChangesObserver
         );
     }
 
@@ -796,6 +803,19 @@ public class AllocationService {
             return new ShardAllocationDecision(allocateDecision, MoveDecision.NOT_TAKEN);
         } else {
             return shardsAllocator.explainShardAllocation(shardRouting, allocation);
+        }
+    }
+
+    public Function<ShardRouting, ShardAllocationDecision> explainAssignedShardAllocationFunction(RoutingAllocation allocation) {
+        assert allocation.debugDecision();
+        final Function<ShardRouting, ShardAllocationDecision> explainFunction = shardsAllocator.explainShardAllocationFunction(allocation);
+        if (Assertions.ENABLED) {
+            return shard -> {
+                assert shard.unassigned() == false;
+                return explainFunction.apply(shard);
+            };
+        } else {
+            return explainFunction;
         }
     }
 

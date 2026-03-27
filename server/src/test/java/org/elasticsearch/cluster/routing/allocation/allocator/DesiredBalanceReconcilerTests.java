@@ -71,6 +71,7 @@ import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.snapshots.SnapshotsInfoService;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.junit.BeforeClass;
@@ -212,7 +213,6 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
         doTestUnassignedPrimariesBeforeUnassignedReplicas(false);
     }
 
-    @AwaitsFix(bugUrl = "ES-9109")
     public void testUnassignedPrimariesBeforeUnassignedReplicasOnMultipleProjects() {
         doTestUnassignedPrimariesBeforeUnassignedReplicas(true);
     }
@@ -615,20 +615,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
             shardIdentifierFromRouting(clusterState.routingTable().shardRoutingTable("index-existing", 0).primaryShard()),
             existingShardSize
         );
-        final var clusterInfo = new ClusterInfo(
-            ImmutableOpenMap.of(),
-            ImmutableOpenMap.of(),
-            shardSizesBuilder.build(),
-            ImmutableOpenMap.of(),
-            ImmutableOpenMap.of(),
-            ImmutableOpenMap.of(),
-            ImmutableOpenMap.of(),
-            ImmutableOpenMap.of(),
-            ImmutableOpenMap.of(),
-            ImmutableOpenMap.of(),
-            Set.of()
-        );
-
+        final var clusterInfo = ClusterInfo.builder().shardSizes(shardSizesBuilder.build()).build();
         final var restoredShardSize = randomNonNegativeLong();
         final var snapshotSizesBuilder = ImmutableOpenMap.<InternalSnapshotsInfoService.SnapshotShard, Long>builder();
         snapshotSizesBuilder.put(
@@ -1705,7 +1692,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
             public ShardAllocationDecision explainShardAllocation(ShardRouting shard, RoutingAllocation allocation) {
                 throw new AssertionError("should not be called");
             }
-        }, clusterInfoService, snapshotsInfoService, TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
+        }, clusterInfoService, snapshotsInfoService, TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY, MeterRegistry.NOOP);
         allocationService.setExistingShardsAllocators(Map.of(GatewayAllocator.ALLOCATOR_NAME, new NoOpExistingShardsAllocator()));
         return allocationService;
     }

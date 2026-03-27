@@ -34,17 +34,13 @@ public class CountGroupingAggregatorFunction implements GroupingAggregatorFuncti
     private final DriverContext driverContext;
     private final boolean countAll;
 
-    public static CountGroupingAggregatorFunction create(DriverContext driverContext, List<Integer> inputChannels) {
-        return new CountGroupingAggregatorFunction(inputChannels, new LongArrayState(driverContext.bigArrays(), 0), driverContext);
-    }
-
     public static List<IntermediateStateDesc> intermediateStateDesc() {
         return INTERMEDIATE_STATE_DESC;
     }
 
-    protected CountGroupingAggregatorFunction(List<Integer> channels, LongArrayState state, DriverContext driverContext) {
+    CountGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext) {
         this.channels = channels;
-        this.state = state;
+        this.state = new LongArrayState(driverContext.bigArrays(), 0);
         this.driverContext = driverContext;
         this.countAll = channels.isEmpty();
     }
@@ -263,24 +259,38 @@ public class CountGroupingAggregatorFunction implements GroupingAggregatorFuncti
     }
 
     @Override
-    public void evaluateIntermediate(Block[] blocks, int offset, IntVector selected) {
-        try (var values = driverContext.blockFactory().newLongVectorFixedBuilder(selected.getPositionCount())) {
-            for (int i = 0; i < selected.getPositionCount(); i++) {
-                int si = selected.getInt(i);
+    public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateIntermediate(
+        IntVector selected,
+        GroupingAggregatorEvaluationContext ctx
+    ) {
+        return this::evaluateIntermediate;
+    }
+
+    private void evaluateIntermediate(Block[] blocks, int offset, IntVector selectedInPage) {
+        try (var values = driverContext.blockFactory().newLongVectorFixedBuilder(selectedInPage.getPositionCount())) {
+            for (int i = 0; i < selectedInPage.getPositionCount(); i++) {
+                int si = selectedInPage.getInt(i);
                 values.appendLong(state.getOrDefault(si));
             }
             blocks[offset] = values.build().asBlock();
             // Unlike other aggregations, we return 0 for groups without values instead of null.
             // Therefore, we can always return true for seen, and do not need to track seen groups.
-            blocks[offset + 1] = driverContext.blockFactory().newConstantBooleanBlockWith(true, selected.getPositionCount());
+            blocks[offset + 1] = driverContext.blockFactory().newConstantBooleanBlockWith(true, selectedInPage.getPositionCount());
         }
     }
 
     @Override
-    public void evaluateFinal(Block[] blocks, int offset, IntVector selected, GroupingAggregatorEvaluationContext evaluationContext) {
-        try (LongVector.Builder builder = evaluationContext.blockFactory().newLongVectorFixedBuilder(selected.getPositionCount())) {
-            for (int i = 0; i < selected.getPositionCount(); i++) {
-                int si = selected.getInt(i);
+    public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateFinal(
+        IntVector selected,
+        GroupingAggregatorEvaluationContext ctx
+    ) {
+        return this::evaluateFinal;
+    }
+
+    private void evaluateFinal(Block[] blocks, int offset, IntVector selectedInPage) {
+        try (LongVector.Builder builder = driverContext.blockFactory().newLongVectorFixedBuilder(selectedInPage.getPositionCount())) {
+            for (int i = 0; i < selectedInPage.getPositionCount(); i++) {
+                int si = selectedInPage.getInt(i);
                 builder.appendLong(state.getOrDefault(si));
             }
             blocks[offset] = builder.build().asBlock();

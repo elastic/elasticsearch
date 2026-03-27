@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.DiskUsage;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.RestoreInProgress;
+import org.elasticsearch.cluster.ShardAndIndexHeapUsage;
 import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -1494,6 +1495,8 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
                 Map.of(),
                 reservedSpace,
                 Map.of(),
+                Map.of(),
+                ShardAndIndexHeapUsage.ZERO,
                 Map.of(),
                 Map.of(),
                 Map.of(),

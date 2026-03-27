@@ -15,6 +15,7 @@ import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.LeafMetaData;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.MultiReader;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.SortedDocValues;
@@ -27,11 +28,14 @@ import org.apache.lucene.search.AcceptDocs;
 import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.Bits;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.compute.lucene.IndexedByShardIdFromList;
 import org.elasticsearch.compute.lucene.PartialLeafReaderContext;
 import org.elasticsearch.compute.lucene.ShardContext;
+import org.elasticsearch.index.codec.tsdb.PartitionedDocValues;
+import org.elasticsearch.index.fielddata.AbstractSortedDocValues;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 
@@ -45,6 +49,8 @@ import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.compute.lucene.query.LuceneSourceOperatorTests.simpleReader;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
@@ -61,23 +67,127 @@ public class LuceneSliceQueueTests extends ESTestCase {
         List<Object> query2 = List.of("q2");
         List<LuceneSlice> sliceList = List.of(
             // query1: new segment
-            new LuceneSlice(0, true, shardContext, List.of(new PartialLeafReaderContext(leaf1, 0, 10)), null, query1),
-            new LuceneSlice(1, false, shardContext, List.of(new PartialLeafReaderContext(leaf2, 0, 10)), null, query1),
-            new LuceneSlice(2, false, shardContext, List.of(new PartialLeafReaderContext(leaf2, 10, 20)), null, query1),
+            new LuceneSlice(
+                0,
+                true,
+                shardContext,
+                List.of(new PartialLeafReaderContext(leaf1, 0, 10)),
+                null,
+                query1,
+                LuceneSlice.NEVER_BLOCKED
+            ),
+            new LuceneSlice(
+                1,
+                false,
+                shardContext,
+                List.of(new PartialLeafReaderContext(leaf2, 0, 10)),
+                null,
+                query1,
+                LuceneSlice.NEVER_BLOCKED
+            ),
+            new LuceneSlice(
+                2,
+                false,
+                shardContext,
+                List.of(new PartialLeafReaderContext(leaf2, 10, 20)),
+                null,
+                query1,
+                LuceneSlice.NEVER_BLOCKED
+            ),
             // query1: new segment
-            new LuceneSlice(3, false, shardContext, List.of(new PartialLeafReaderContext(leaf3, 0, 20)), null, query1),
-            new LuceneSlice(4, false, shardContext, List.of(new PartialLeafReaderContext(leaf3, 10, 20)), null, query1),
-            new LuceneSlice(5, false, shardContext, List.of(new PartialLeafReaderContext(leaf3, 20, 30)), null, query1),
+            new LuceneSlice(
+                3,
+                false,
+                shardContext,
+                List.of(new PartialLeafReaderContext(leaf3, 0, 20)),
+                null,
+                query1,
+                LuceneSlice.NEVER_BLOCKED
+            ),
+            new LuceneSlice(
+                4,
+                false,
+                shardContext,
+                List.of(new PartialLeafReaderContext(leaf3, 10, 20)),
+                null,
+                query1,
+                LuceneSlice.NEVER_BLOCKED
+            ),
+            new LuceneSlice(
+                5,
+                false,
+                shardContext,
+                List.of(new PartialLeafReaderContext(leaf3, 20, 30)),
+                null,
+                query1,
+                LuceneSlice.NEVER_BLOCKED
+            ),
             // query1: new segment
-            new LuceneSlice(6, false, shardContext, List.of(new PartialLeafReaderContext(leaf4, 0, 10)), null, query1),
-            new LuceneSlice(7, false, shardContext, List.of(new PartialLeafReaderContext(leaf4, 10, 20)), null, query1),
+            new LuceneSlice(
+                6,
+                false,
+                shardContext,
+                List.of(new PartialLeafReaderContext(leaf4, 0, 10)),
+                null,
+                query1,
+                LuceneSlice.NEVER_BLOCKED
+            ),
+            new LuceneSlice(
+                7,
+                false,
+                shardContext,
+                List.of(new PartialLeafReaderContext(leaf4, 10, 20)),
+                null,
+                query1,
+                LuceneSlice.NEVER_BLOCKED
+            ),
             // query2: new segment
-            new LuceneSlice(8, true, shardContext, List.of(new PartialLeafReaderContext(leaf2, 0, 10)), null, query2),
-            new LuceneSlice(9, false, shardContext, List.of(new PartialLeafReaderContext(leaf2, 10, 20)), null, query2),
+            new LuceneSlice(
+                8,
+                true,
+                shardContext,
+                List.of(new PartialLeafReaderContext(leaf2, 0, 10)),
+                null,
+                query2,
+                LuceneSlice.NEVER_BLOCKED
+            ),
+            new LuceneSlice(
+                9,
+                false,
+                shardContext,
+                List.of(new PartialLeafReaderContext(leaf2, 10, 20)),
+                null,
+                query2,
+                LuceneSlice.NEVER_BLOCKED
+            ),
             // query1: new segment
-            new LuceneSlice(10, false, shardContext, List.of(new PartialLeafReaderContext(leaf3, 0, 20)), null, query2),
-            new LuceneSlice(11, false, shardContext, List.of(new PartialLeafReaderContext(leaf3, 10, 20)), null, query2),
-            new LuceneSlice(12, false, shardContext, List.of(new PartialLeafReaderContext(leaf3, 20, 30)), null, query2)
+            new LuceneSlice(
+                10,
+                false,
+                shardContext,
+                List.of(new PartialLeafReaderContext(leaf3, 0, 20)),
+                null,
+                query2,
+                LuceneSlice.NEVER_BLOCKED
+            ),
+            new LuceneSlice(
+                11,
+                false,
+                shardContext,
+                List.of(new PartialLeafReaderContext(leaf3, 10, 20)),
+                null,
+                query2,
+                LuceneSlice.NEVER_BLOCKED
+            ),
+            new LuceneSlice(
+                12,
+                false,
+                shardContext,
+                List.of(new PartialLeafReaderContext(leaf3, 20, 30)),
+                null,
+                query2,
+                LuceneSlice.NEVER_BLOCKED
+            )
         );
         // single driver
         {
@@ -150,7 +260,8 @@ public class LuceneSliceQueueTests extends ESTestCase {
                         shardContext,
                         List.of(new PartialLeafReaderContext(leafContext, minDoc, maxDoc)),
                         null,
-                        null
+                        null,
+                        LuceneSlice.NEVER_BLOCKED
                     );
                     sliceList.add(slice);
                 }
@@ -271,6 +382,7 @@ public class LuceneSliceQueueTests extends ESTestCase {
                     context -> shardQueries.get(context.index()),
                     DataPartitioning.SEGMENT,
                     query -> LuceneSliceQueue.PartitioningStrategy.SEGMENT,
+                    LuceneOperator.SMALL_INDEX_BOUNDARY,
                     10,
                     context -> ScoreMode.COMPLETE
                 );
@@ -282,11 +394,134 @@ public class LuceneSliceQueueTests extends ESTestCase {
         }
     }
 
+    public void testTimeSeriesPartitionerSingleSegment() throws IOException {
+        var prefixes = new PartitionedDocValues.PrefixPartitions(3, new int[] { 0, 2, 3 }, new int[] { 0, 100, 300 });
+        MultiReader reader = new MultiReader(new MockLeafReader(500, prefixes));
+        var partitioner = new LuceneSliceQueue.TimeSeriesPartitioner();
+        {
+            List<List<PartialLeafReaderContext>> slices = partitioner.partition(reader.leaves(), 1, 500);
+            assertThat(slices, hasSize(1));
+            assertThat(slices, contains(List.of(new PartialLeafReaderContext(reader.leaves().get(0), 0, 500))));
+        }
+        {
+            List<List<PartialLeafReaderContext>> slices = partitioner.partition(reader.leaves(), 3, 200);
+            assertThat(slices, hasSize(2));
+            assertThat(
+                slices,
+                contains(
+                    List.of(new PartialLeafReaderContext(reader.leaves().get(0), 0, 300)),
+                    List.of(new PartialLeafReaderContext(reader.leaves().get(0), 300, 500))
+                )
+            );
+        }
+        {
+            List<List<PartialLeafReaderContext>> slices = partitioner.partition(reader.leaves(), 5, 100);
+            assertThat(slices, hasSize(3));
+            assertThat(
+                slices,
+                contains(
+                    List.of(new PartialLeafReaderContext(reader.leaves().get(0), 0, 100)),
+                    List.of(new PartialLeafReaderContext(reader.leaves().get(0), 100, 300)),
+                    List.of(new PartialLeafReaderContext(reader.leaves().get(0), 300, 500))
+                )
+            );
+        }
+    }
+
+    public void testTimeSeriesPartitionerMultipleSegments() throws IOException {
+        var prefixes0 = new PartitionedDocValues.PrefixPartitions(2, new int[] { 0, 1 }, new int[] { 0, 100 });
+        var prefixes1 = new PartitionedDocValues.PrefixPartitions(2, new int[] { 1, 6 }, new int[] { 0, 160 });
+        var prefixes2 = new PartitionedDocValues.PrefixPartitions(5, new int[] { 0, 1, 2, 3, 6 }, new int[] { 0, 50, 120, 250, 470 });
+        MultiReader reader = new MultiReader(
+            new MockLeafReader(200, prefixes0),
+            new MockLeafReader(370, prefixes1),
+            new MockLeafReader(801, prefixes2)
+        );
+        var partitioner = new LuceneSliceQueue.TimeSeriesPartitioner();
+        {
+            List<List<PartialLeafReaderContext>> slices = partitioner.partition(reader.leaves(), 1, 1371);
+            assertThat(slices, hasSize(1));
+            assertThat(
+                slices.get(0),
+                containsInAnyOrder(
+                    new PartialLeafReaderContext(reader.leaves().get(0), 0, 200),
+                    new PartialLeafReaderContext(reader.leaves().get(1), 0, 370),
+                    new PartialLeafReaderContext(reader.leaves().get(2), 0, 801)
+                )
+            );
+        }
+        {
+            List<List<PartialLeafReaderContext>> slices = partitioner.partition(reader.leaves(), 2, 750);
+            assertThat(slices, hasSize(2));
+            assertThat(
+                slices.get(0),
+                containsInAnyOrder(
+                    new PartialLeafReaderContext(reader.leaves().get(0), 0, 200),
+                    new PartialLeafReaderContext(reader.leaves().get(1), 0, 160),
+                    new PartialLeafReaderContext(reader.leaves().get(2), 0, 470)
+                )
+            );
+            assertThat(
+                slices.get(1),
+                containsInAnyOrder(
+                    new PartialLeafReaderContext(reader.leaves().get(1), 160, 370),
+                    new PartialLeafReaderContext(reader.leaves().get(2), 470, 801)
+                )
+            );
+        }
+        {
+            List<List<PartialLeafReaderContext>> slices = partitioner.partition(reader.leaves(), 3, 500);
+            assertThat(slices, hasSize(2));
+            assertThat(
+                slices.get(0),
+                containsInAnyOrder(
+                    new PartialLeafReaderContext(reader.leaves().get(0), 0, 200),
+                    new PartialLeafReaderContext(reader.leaves().get(1), 0, 160),
+                    new PartialLeafReaderContext(reader.leaves().get(2), 0, 250)
+                )
+            );
+            assertThat(
+                slices.get(1),
+                containsInAnyOrder(
+                    new PartialLeafReaderContext(reader.leaves().get(1), 160, 370),
+                    new PartialLeafReaderContext(reader.leaves().get(2), 250, 801)
+                )
+            );
+        }
+        {
+            List<List<PartialLeafReaderContext>> slices = partitioner.partition(reader.leaves(), 5, 200);
+            assertThat(slices, hasSize(3));
+            assertThat(
+                slices.get(0),
+                containsInAnyOrder(
+                    new PartialLeafReaderContext(reader.leaves().get(0), 0, 200),
+                    new PartialLeafReaderContext(reader.leaves().get(1), 0, 160),
+                    new PartialLeafReaderContext(reader.leaves().get(2), 0, 120)
+                )
+            );
+            assertThat(slices.get(1), containsInAnyOrder(new PartialLeafReaderContext(reader.leaves().get(2), 120, 470)));
+            assertThat(
+                slices.get(2),
+                containsInAnyOrder(
+                    new PartialLeafReaderContext(reader.leaves().get(1), 160, 370),
+                    new PartialLeafReaderContext(reader.leaves().get(2), 470, 801)
+                )
+            );
+        }
+    }
+
     static class MockLeafReader extends LeafReader {
         private final int maxDoc;
+        private final PartitionedDocValues.PrefixPartitions prefixPartitions;
 
         MockLeafReader(int maxDoc) {
             this.maxDoc = maxDoc;
+            this.prefixPartitions = null;
+        }
+
+        MockLeafReader(int maxDoc, PartitionedDocValues.PrefixPartitions prefixPartitions) {
+            this.maxDoc = maxDoc;
+            this.prefixPartitions = prefixPartitions;
         }
 
         @Override
@@ -311,7 +546,10 @@ public class LuceneSliceQueueTests extends ESTestCase {
 
         @Override
         public SortedDocValues getSortedDocValues(String field) throws IOException {
-            throw new UnsupportedOperationException();
+            if (field.equals("_tsid") == false || prefixPartitions == null) {
+                return null;
+            }
+            return new PartitionedSortedDocValues(prefixPartitions);
         }
 
         @Override
@@ -408,6 +646,49 @@ public class LuceneSliceQueueTests extends ESTestCase {
         @Override
         public CacheHelper getReaderCacheHelper() {
             throw new UnsupportedOperationException();
+        }
+    }
+
+    static class PartitionedSortedDocValues extends AbstractSortedDocValues implements PartitionedDocValues {
+        final PartitionedDocValues.PrefixPartitions prefixPartitions;
+
+        PartitionedSortedDocValues(PrefixPartitions prefixPartitions) {
+            this.prefixPartitions = prefixPartitions;
+        }
+
+        @Override
+        public int ordValue() throws IOException {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public BytesRef lookupOrd(int ord) throws IOException {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public int getValueCount() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public boolean advanceExact(int target) throws IOException {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public int docID() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public PrefixPartitions prefixPartitions(PrefixPartitions reuse) throws IOException {
+            return prefixPartitions;
+        }
+
+        @Override
+        public int prefixPartitionBits() {
+            return 1;
         }
     }
 }

@@ -31,6 +31,7 @@ import org.elasticsearch.inference.RerankingInferenceService;
 import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.inference.chunking.EmbeddingRequestChunker;
@@ -52,7 +53,6 @@ import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_P
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.invalidModelTypeForUpdateModelWithEmbeddingDetails;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwUnsupportedEmbeddingOperation;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwUnsupportedMultimodalUnifiedCompletionOperation;
 
 public class SageMakerService implements InferenceService, RerankingInferenceService {
     public static final String NAME = "amazon_sagemaker";
@@ -123,23 +123,19 @@ public class SageMakerService implements InferenceService, RerankingInferenceSer
     }
 
     @Override
-    public Model parsePersistedConfigWithSecrets(
-        String inferenceEntityId,
-        TaskType taskType,
-        Map<String, Object> config,
-        Map<String, Object> secrets
-    ) {
-        return modelBuilder.fromStorage(inferenceEntityId, taskType, NAME, config, secrets);
+    public Model parsePersistedConfig(UnparsedModel unparsedModel) {
+        return modelBuilder.fromStorage(
+            unparsedModel.inferenceEntityId(),
+            unparsedModel.taskType(),
+            NAME,
+            unparsedModel.settings(),
+            unparsedModel.secrets()
+        );
     }
 
     @Override
     public Model buildModelFromConfigAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
         return modelBuilder.fromStorage(config, secrets);
-    }
-
-    @Override
-    public Model parsePersistedConfig(String modelId, TaskType taskType, Map<String, Object> config) {
-        return modelBuilder.fromStorage(modelId, taskType, NAME, config, null);
     }
 
     @Override
@@ -246,10 +242,6 @@ public class SageMakerService implements InferenceService, RerankingInferenceSer
         if (model instanceof SageMakerModel == false) {
             listener.onFailure(createInvalidModelException(model));
             return;
-        }
-
-        if (request.containsMultimodalContent()) {
-            throwUnsupportedMultimodalUnifiedCompletionOperation(NAME);
         }
 
         try {

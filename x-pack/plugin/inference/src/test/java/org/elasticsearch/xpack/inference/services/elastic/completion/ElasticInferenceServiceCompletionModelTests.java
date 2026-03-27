@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.inference.services.elastic.completion;
 
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.completion.ContentString;
+import org.elasticsearch.inference.completion.Message;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceComponents;
 
@@ -22,7 +24,7 @@ public class ElasticInferenceServiceCompletionModelTests extends ESTestCase {
         var originalModel = createModel("url", "model_id", TaskType.COMPLETION);
 
         var request = new UnifiedCompletionRequest(
-            List.of(new UnifiedCompletionRequest.Message(new UnifiedCompletionRequest.ContentString("message"), "user", null, null)),
+            List.of(new Message(new ContentString("message"), "user", null, null)),
             "new_model_id",
             null,
             null,

@@ -8,6 +8,30 @@ mapped_pages:
 
 Known issues are significant defects or limitations that may impact your implementation. These issues are actively being worked on and will be addressed in a future release. Review the Elasticsearch known issues to help you make informed decisions, such as upgrading to a new version.
 
+## 9.3.1 [elasticsearch-9.3.1-known-issues]
+
+* On multi-node clusters where one or more nodes do not have a GPU, the GPU stats collection for `_xpack/usage` triggers repeated WARN-level log messages from `OutboundHandler`:
+
+  ```
+  [WARN ][o.e.t.OutboundHandler] failed to serialize outbound message [org.elasticsearch.xpack.gpu.NodeGpuStatsResponse@...] java.lang.IllegalStateException: Negative longs unsupported, use writeLong or writeZLong for negative numbers [-1]
+  ```
+
+  The GPU stats for affected nodes are not collected, but all other `_xpack/usage` features continue to work normally. Single-node clusters are not affected because the response does not need to be serialized over the network.
+
+  To mitigate the log flooding, temporarily raise the log level for `OutboundHandler` to `ERROR`:
+
+  ```
+  PUT /_cluster/settings
+  {
+    "persistent": {
+      "logger.org.elasticsearch.transport.OutboundHandler": "ERROR"
+    }
+  }
+  ```
+
+  This bug is fixed in version 9.3.2.
+
+
 ## 9.2.4 [elasticsearch-9.2.4-known-issues]
 
 * Upgrading from 9.1.10 to 9.2.4 may cause the following error:
@@ -17,7 +41,7 @@ Known issues are significant defects or limitations that may impact your impleme
   ...
   org.elasticsearch.xcontent.XContentParseException: [-1:107008] [node_shutdown_info] unknown field [shutdown_started_millis] did you mean [shutdown_startedmillis]
   ```
-  
+
   This bug is addressed in version 9.2.5.
 
 ## 9.2.0 [elasticsearch-9.2.0-known-issues]

@@ -97,8 +97,20 @@ class ValuesBytesRefAggregator {
         ValuesBytesRefAggregators.combineIntermediateInputValues(state, positionOffset, groups, values);
     }
 
-    public static Block evaluateFinal(GroupingState state, IntVector selected, GroupingAggregatorEvaluationContext ctx) {
-        return state.toBlock(ctx.blockFactory(), selected);
+    public static GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateIntermediate(
+        GroupingState state,
+        IntVector selected,
+        GroupingAggregatorEvaluationContext ctx
+    ) {
+        return state.prepareForEmitting(ctx.blockFactory(), selected);
+    }
+
+    public static GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateFinal(
+        GroupingState state,
+        IntVector selected,
+        GroupingAggregatorEvaluationContext ctx
+    ) {
+        return state.prepareForEmitting(ctx.blockFactory(), selected);
     }
 
     public static class SingleState implements AggregatorState {
@@ -164,11 +176,6 @@ class ValuesBytesRefAggregator {
             }
         }
 
-        @Override
-        public void toIntermediate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {
-            blocks[offset] = toBlock(driverContext.blockFactory(), selected);
-        }
-
         void addValueOrdinal(int groupId, int valueOrdinal) {
             if (groupId < firstValues.size()) {
                 int current = firstValues.get(groupId) - 1;
@@ -197,30 +204,47 @@ class ValuesBytesRefAggregator {
          * Builds a {@link Block} with the unique values collected for the {@code #selected}
          * groups. This is the implementation of the final and intermediate results of the agg.
          */
-        Block toBlock(BlockFactory blockFactory, IntVector selected) {
-            try (ValuesNextPreparedForEmitting prepared = nextValues.prepareForEmitting(blockFactory, selected)) {
-                // TODO restore ordinals optimization
+        GroupingAggregatorFunction.PreparedForEvaluation prepareForEmitting(BlockFactory blockFactory, IntVector selected) {
+            return new PreparedForEmitting(selected, blockFactory);
+        }
+
+        private class PreparedForEmitting implements GroupingAggregatorFunction.PreparedForEvaluation {
+            private final IntVector selected;
+            private final BlockFactory blockFactory;
+            private final ValuesNextPreparedForEmitting next;
+
+            PreparedForEmitting(IntVector selected, BlockFactory blockFactory) {
+                this.selected = selected;
+                this.blockFactory = blockFactory;
+                this.next = nextValues.prepareForEmitting(blockFactory, selected);
+            }
+
+            @Override
+            public void evaluate(Block[] blocks, int offset, IntVector selectedInPage) {
                 /*
-                 * We can't build ordinals any more because we may be call multiple times and
-                 * building ordinals *takes* the array of values rather than copying it. We
-                 * will soon grow an optimization where we can check if we're only going to
-                 * call `toBlock` one time. Once we have that we can restore this optimization.
+                 * When selected == selectedInPage we're building one block across the entire
+                 * selected region. So it's safe to run the ordinals optimization which *takes*
+                 * the ordinals.
                  */
-                // if (OrdinalBytesRefBlock.isDense(firstValues.size() + nextValues.size(), bytes.size())) {
-                // return buildOrdinalOutputBlock(blockFactory, selected, prepared);
-                // } else {
-                return buildOutputBlock(blockFactory, selected, prepared);
-                // }
+                if (selected == selectedInPage && OrdinalBytesRefBlock.isDense(firstValues.size() + nextValues.size(), bytes.size())) {
+                    blocks[offset] = buildOrdinalOutputBlock(blockFactory, selectedInPage, next);
+                } else {
+                    blocks[offset] = buildOutputBlock(blockFactory, selectedInPage, next);
+                }
+            }
+
+            @Override
+            public void close() {
+                next.close();
             }
         }
 
-        Block buildOutputBlock(BlockFactory blockFactory, IntVector selected, ValuesNextPreparedForEmitting prepared) {
+        Block buildOutputBlock(BlockFactory blockFactory, IntVector selected, ValuesNextPreparedForEmitting next) {
             /*
              * Insert the ids in order.
              */
             BytesRef scratch = new BytesRef();
             try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(selected.getPositionCount())) {
-                int nextValuesStart = 0;
                 for (int s = 0; s < selected.getPositionCount(); s++) {
                     int group = selected.getInt(s);
                     int firstValue = group >= firstValues.size() ? -1 : firstValues.get(group) - 1;
@@ -228,7 +252,8 @@ class ValuesBytesRefAggregator {
                         builder.appendNull();
                         continue;
                     }
-                    final int nextValuesEnd = prepared.nextValuesEnd(group, nextValuesStart);
+                    final int nextValuesStart = next.nextValuesStart(group);
+                    final int nextValuesEnd = next.nextValuesEnd(group);
                     if (nextValuesEnd == nextValuesStart) {
                         builder.appendBytesRef(bytes.get(firstValue, scratch));
                     } else {
@@ -236,18 +261,17 @@ class ValuesBytesRefAggregator {
                         builder.appendBytesRef(bytes.get(firstValue, scratch));
                         // append values from the nextValues
                         for (int i = nextValuesStart; i < nextValuesEnd; i++) {
-                            var nextValue = nextValues.getInt(prepared, i);
+                            var nextValue = nextValues.getInt(next, i);
                             builder.appendBytesRef(bytes.get(nextValue, scratch));
                         }
                         builder.endPositionEntry();
-                        nextValuesStart = nextValuesEnd;
                     }
                 }
                 return builder.build();
             }
         }
 
-        Block buildOrdinalOutputBlock(BlockFactory blockFactory, IntVector selected, ValuesNextPreparedForEmitting prepared) {
+        Block buildOrdinalOutputBlock(BlockFactory blockFactory, IntVector selected, ValuesNextPreparedForEmitting next) {
             BytesRefVector dict = null;
             IntBlock ordinals = null;
             BytesRefBlock result = null;
@@ -255,7 +279,6 @@ class ValuesBytesRefAggregator {
             dictArray.incRef();
             int estimateSize = Math.toIntExact(firstValues.size() + nextValues.size());
             try (var builder = blockFactory.newIntBlockBuilder(estimateSize)) {
-                int nextValuesStart = 0;
                 for (int s = 0; s < selected.getPositionCount(); s++) {
                     final int group = selected.getInt(s);
                     final int firstValue = group >= firstValues.size() ? -1 : firstValues.get(group) - 1;
@@ -263,18 +286,18 @@ class ValuesBytesRefAggregator {
                         builder.appendNull();
                         continue;
                     }
-                    final int nextValuesEnd = prepared.nextValuesEnd(group, nextValuesStart);
+                    final int nextValuesStart = next.nextValuesStart(group);
+                    final int nextValuesEnd = next.nextValuesEnd(group);
                     if (nextValuesEnd == nextValuesStart) {
                         builder.appendInt(firstValue);
                     } else {
                         builder.beginPositionEntry();
                         builder.appendInt(firstValue);
                         for (int i = nextValuesStart; i < nextValuesEnd; i++) {
-                            builder.appendInt(nextValues.getInt(prepared, i));
+                            builder.appendInt(nextValues.getInt(next, i));
                         }
                         builder.endPositionEntry();
                     }
-                    nextValuesStart = nextValuesEnd;
                 }
                 ordinals = builder.build();
                 dict = blockFactory.newBytesRefArrayVector(dictArray, Math.toIntExact(dictArray.size()));

@@ -667,6 +667,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                         ActionListener<BulkShardOperationsResponse> listener = ActionListener.wrap(handler::accept, errorHandler);
                         new CcrAction(request, listener, followerGroup).execute();
                     } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
                         throw new RuntimeException(e);
                     } finally {
                         if (acquired) {

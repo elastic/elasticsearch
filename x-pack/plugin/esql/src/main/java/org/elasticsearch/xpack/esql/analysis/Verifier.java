@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Neg
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
+import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
@@ -536,10 +537,10 @@ public class Verifier {
             }
             IndexResolution indexResolution = indexResolutions.get(new IndexPattern(relation.source(), relation.indexPattern()));
             if (indexResolution != null && indexResolution.isValid()) {
-                Set<String> partiallyUnmappedFields = indexResolution.get().partiallyUnmappedFields();
+                EsIndex esIndex = indexResolution.get();
                 for (Attribute attr : relation.output()) {
                     if (attr instanceof FieldAttribute fa
-                        && partiallyUnmappedFields.contains(fa.name())
+                        && esIndex.isPartiallyUnmappedField(fa.name())
                         && fa.dataType() != DataType.KEYWORD) {
                         builder.add(fa);
                     }

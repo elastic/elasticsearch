@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
+import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
@@ -68,7 +69,7 @@ import static org.elasticsearch.xpack.esql.core.expression.Attribute.rawTemporar
  * <p>
  *     The actual loading of pushed attributes is handled by {@link InsertFieldExtraction},
  *     which runs after this rule. It sees the new {@link FieldAttribute} references (backed
- *     by {@link FunctionEsField}) and inserts {@link org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec}
+ *     by {@link FunctionEsField}) and inserts {@link FieldExtractExec}
  *     nodes that create the appropriate block loaders.
  * </p>
  */

@@ -215,10 +215,20 @@ public class OsStats implements Writeable, ToXContentFragment {
         }
 
         public Swap(StreamInput in) throws IOException {
-            this.total = in.readLong();
-            assert this.total >= 0 : "expected total swap to be positive, got: " + total;
-            this.free = in.readLong();
-            assert this.free >= 0 : "expected free swap to be positive, got: " + free;
+            long total = in.readLong();
+            assert total >= 0 : "expected total swap to be positive, got: " + total;
+            if (total < 0) {
+                logger.error("negative total swap [{}] deserialized in swap stats", total);
+                total = 0;
+            }
+            this.total = total;
+            long free = in.readLong();
+            assert free >= 0 : "expected free swap to be positive, got: " + free;
+            if (free < 0) {
+                logger.error("negative free swap [{}] deserialized in swap stats", free);
+                free = 0
+            }
+            this.free = free;
         }
 
         @Override

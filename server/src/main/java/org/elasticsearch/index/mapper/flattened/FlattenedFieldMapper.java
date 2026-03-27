@@ -35,12 +35,12 @@ import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexMode;
@@ -226,7 +226,9 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
             () -> null,
             (n, c, o) -> o == null ? null : XContentMapValues.nodeIntegerValue(o),
             m -> builder(m).passthroughWithPriority.get(),
-            (b, n, v) -> { if (v != null) b.field(n, v); },
+            (b, n, v) -> {
+                if (v != null) b.field(n, v);
+            },
             Objects::toString
         ).acceptsNull().addValidator(v -> {
             if (v != null && v < 0) {

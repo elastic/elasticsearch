@@ -122,14 +122,10 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
             b.startObject("host").field("type", "keyword").endObject();
             b.endObject();
         }, m -> assertNotNull(((FlattenedFieldMapper) m).fieldType().getChildFieldType("host")));
-        checker.registerUpdateCheck(
-            "passthrough_with_priority",
-            b -> {
-                b.field("passthrough_with_priority", 5);
-                b.startObject("properties").startObject("status").field("type", "keyword").endObject().endObject();
-            },
-            m -> assertTrue(((FlattenedFieldMapper) m).isPassthrough())
-        );
+        checker.registerUpdateCheck("passthrough_with_priority", b -> {
+            b.field("passthrough_with_priority", 5);
+            b.startObject("properties").startObject("status").field("type", "keyword").endObject().endObject();
+        }, m -> assertTrue(((FlattenedFieldMapper) m).isPassthrough()));
     }
 
     @Override

@@ -126,6 +126,9 @@ public final class CsvAssert {
             if (actualType == Type.INTEGER && expectedType == Type.LONG) {
                 actualType = Type.LONG;
             }
+            if (actualType == Type.DATE_NANOS && expectedType == Type.DATETIME) {
+                actualType = Type.DATETIME;
+            }
             if (actualType == null) {
                 actualType = Type.NULL;
             }

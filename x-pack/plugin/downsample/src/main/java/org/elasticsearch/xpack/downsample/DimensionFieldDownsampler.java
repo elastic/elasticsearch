@@ -41,6 +41,15 @@ public class DimensionFieldDownsampler extends LastValueFieldDownsampler {
         this.isEmpty = false;
     }
 
+    @Override
+    public void reset() {
+        // We do not reset dimensions unless tsid is reset.
+    }
+
+    public void tsidReset() {
+        super.reset();
+    }
+
     /**
      * This is an expensive check that slows down downsampling significantly.
      * Given that index is sorted by tsid as a primary key, this shouldn't really happen.

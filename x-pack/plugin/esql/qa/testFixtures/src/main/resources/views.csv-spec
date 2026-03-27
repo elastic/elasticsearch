@@ -585,6 +585,7 @@ count:long
 compactedViewWithIndexGivesTwoCopies
 required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
+required_capability: views_deduplication_bugfix
 
 // FROM index, view where view is a simple alias to the same index should give two copies
 FROM employees, employees_all
@@ -611,6 +612,7 @@ count:long
 compactedNestedViewWithIndexGivesTripleCopies
 required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
+required_capability: views_deduplication_bugfix
 
 // employees_extra is "FROM employees, employees_all" (200 docs after compaction).
 // FROM employees, employees_extra should give 100 + 200 = 300.
@@ -625,6 +627,7 @@ count:long
 compactedNestedViewWithViewGivesQuadrupleCopies
 required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
+required_capability: views_deduplication_bugfix
 
 // FROM employees_extra, employees_extra: each copy resolves to 200 docs, but de-duplication of same index name gives 200.
 FROM employees_extra, employees_extra

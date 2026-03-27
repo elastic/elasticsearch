@@ -273,6 +273,9 @@ tests:
 - class: org.elasticsearch.test.apmintegration.MetricsApmIT
   method: testApmIntegration {withOTel=false}
   issue: https://github.com/elastic/elasticsearch/issues/144282
+- class: org.elasticsearch.reindex.management.ReindexGetRelocationIT
+  method: testGetReindexFollowsRelocation
+  issue: https://github.com/elastic/elasticsearch/issues/144364
 - class: org.elasticsearch.server.cli.APMJvmOptionsTests
   method: testAPMAgentMetricsDisabledWhenOtelMetricsEnabled
   issue: https://github.com/elastic/elasticsearch/issues/144357
@@ -312,18 +315,6 @@ tests:
 - class: org.elasticsearch.repositories.gcs.GoogleCloudStorageBlobStoreRepositoryTests
   method: testCopy
   issue: https://github.com/elastic/elasticsearch/issues/144692
-- class: org.elasticsearch.xpack.esql.analysis.AnalyzerTests
-  method: testLookupMatchTypeWrong
-  issue: https://github.com/elastic/elasticsearch/issues/144694
-- class: org.elasticsearch.xpack.esql.analysis.AnalyzerTests
-  method: testLookupMissingTable
-  issue: https://github.com/elastic/elasticsearch/issues/144695
-- class: org.elasticsearch.xpack.esql.analysis.AnalyzerTests
-  method: testLookup
-  issue: https://github.com/elastic/elasticsearch/issues/144696
-- class: org.elasticsearch.xpack.esql.analysis.AnalyzerTests
-  method: testLookupMissingField
-  issue: https://github.com/elastic/elasticsearch/issues/144697
 - class: org.elasticsearch.index.store.StoreDirectoryMetricsIT
   method: testDirectoryMetrics
   issue: https://github.com/elastic/elasticsearch/issues/144702

@@ -687,15 +687,26 @@ public class TestAnalyzer {
         assertThat(e, instanceOf(exception));
 
         String message = e.getMessage();
+        if (e instanceof VerificationException) {
+            assertTrue(message.startsWith("Found "));
+        }
         if (stripErrorPrefix) {
-            if (e instanceof VerificationException) {
-                assertTrue(message.startsWith("Found "));
-            }
-            String pattern = "\nline ";
-            int index = message.indexOf(pattern);
-            message = message.substring(index + pattern.length());
+            message = stripErrorPrefix(message);
         }
         assertThat(message, messageMatcher);
+        return message;
+    }
+
+    private String stripErrorPrefix(String message) {
+        int firstLine = message.indexOf("\nline ");
+        if (firstLine > 0) {
+            // VerificationException style
+            return message.substring(firstLine + "\nline ".length());
+        }
+        if (message.startsWith("line ")) {
+            // ParsingException style
+            return message.substring("line ".length());
+        }
         return message;
     }
 

@@ -285,9 +285,7 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
             }
 
             public void setHit(SearchHit hit) {
-                if (this.hit != null) {
-                    this.hit.decRef();
-                }
+                assert this.hit == null : "completion option SearchHit is assigned only once from mergeSuggest";
                 this.hit = hit;
             }
 

@@ -26,6 +26,7 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
+import java.time.Clock;
 import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
@@ -89,7 +90,13 @@ class DlmFrozenTransitionService implements ClusterStateListener, Closeable {
     ) {
         this(
             clusterService,
-            (index, pid) -> new DataStreamLifecycleConvertToFrozen(index, pid, client, clusterService, licenseState),
+            (index, pid) -> new DataStreamLifecycleConvertToFrozen(
+                index,
+               pid, client,
+                clusterService,
+                licenseState,
+                Clock.systemUTC()
+            ),
             POLL_INTERVAL_SETTING.get(clusterService.getSettings()).millis(),
             errorStore
         );

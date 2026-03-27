@@ -42,6 +42,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
 
+import java.time.Clock;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -134,7 +135,8 @@ public class DataStreamLifecycleConvertToFrozenMarkReadOnlyTests extends ESTestC
             projectId,
             createMockClient(),
             clusterService,
-            licenseState
+            licenseState,
+            Clock.systemUTC()
         );
         converter.maybeMarkIndexReadOnly();
 
@@ -151,7 +153,8 @@ public class DataStreamLifecycleConvertToFrozenMarkReadOnlyTests extends ESTestC
             projectId,
             createMockClient(),
             clusterService,
-            licenseState
+            licenseState,
+            Clock.systemUTC()
         );
         // Acknowledged response - should not throw
         converter.maybeMarkIndexReadOnly();
@@ -171,7 +174,8 @@ public class DataStreamLifecycleConvertToFrozenMarkReadOnlyTests extends ESTestC
             projectId,
             createMockClient(),
             clusterService,
-            licenseState
+            licenseState,
+            Clock.systemUTC()
         );
 
         ElasticsearchException exception = expectThrows(ElasticsearchException.class, converter::maybeMarkIndexReadOnly);
@@ -188,7 +192,8 @@ public class DataStreamLifecycleConvertToFrozenMarkReadOnlyTests extends ESTestC
             projectId,
             createMockClient(),
             clusterService,
-            licenseState
+            licenseState,
+            Clock.systemUTC()
         );
 
         ElasticsearchException exception = expectThrows(ElasticsearchException.class, converter::maybeMarkIndexReadOnly);
@@ -212,7 +217,8 @@ public class DataStreamLifecycleConvertToFrozenMarkReadOnlyTests extends ESTestC
             projectId,
             createMockClient(),
             clusterService,
-            licenseState
+            licenseState,
+            Clock.systemUTC()
         );
 
         ElasticsearchException exception = expectThrows(ElasticsearchException.class, converter::maybeMarkIndexReadOnly);
@@ -228,7 +234,8 @@ public class DataStreamLifecycleConvertToFrozenMarkReadOnlyTests extends ESTestC
             projectId,
             createMockClient(),
             clusterService,
-            licenseState
+            licenseState,
+            Clock.systemUTC()
         );
 
         ElasticsearchException exception = expectThrows(ElasticsearchException.class, converter::maybeMarkIndexReadOnly);
@@ -261,7 +268,8 @@ public class DataStreamLifecycleConvertToFrozenMarkReadOnlyTests extends ESTestC
             projectId,
             createMockClient(),
             clusterService,
-            licenseState
+            licenseState,
+            Clock.systemUTC()
         );
         converter.maybeMarkIndexReadOnly();
 
@@ -296,7 +304,8 @@ public class DataStreamLifecycleConvertToFrozenMarkReadOnlyTests extends ESTestC
             projectId,
             createMockClient(),
             clusterService,
-            licenseState
+            licenseState,
+            Clock.systemUTC()
         );
 
         ElasticsearchException exception = expectThrows(ElasticsearchException.class, converter::maybeMarkIndexReadOnly);
@@ -318,7 +327,8 @@ public class DataStreamLifecycleConvertToFrozenMarkReadOnlyTests extends ESTestC
             projectId,
             createMockClient(),
             clusterService,
-            licenseState
+            licenseState,
+            Clock.systemUTC()
         );
 
         ElasticsearchException exception = expectThrows(ElasticsearchException.class, converter::maybeMarkIndexReadOnly);
@@ -334,7 +344,8 @@ public class DataStreamLifecycleConvertToFrozenMarkReadOnlyTests extends ESTestC
             projectId,
             createMockClient(),
             clusterService,
-            licenseState
+            licenseState,
+            Clock.systemUTC()
         );
         converter.maybeMarkIndexReadOnly();
 
@@ -353,7 +364,8 @@ public class DataStreamLifecycleConvertToFrozenMarkReadOnlyTests extends ESTestC
             projectId,
             createMockClient(),
             clusterService,
-            licenseState
+            licenseState,
+            Clock.systemUTC()
         );
 
         assertThat(converter.isEligibleForConvertToFrozen(), is(false));
@@ -369,7 +381,8 @@ public class DataStreamLifecycleConvertToFrozenMarkReadOnlyTests extends ESTestC
             projectId,
             createMockClient(),
             clusterService,
-            licenseState
+            licenseState,
+            Clock.systemUTC()
         );
 
         DlmUnrecoverableException exception = expectThrows(DlmUnrecoverableException.class, converter::isEligibleForConvertToFrozen);
@@ -391,7 +404,8 @@ public class DataStreamLifecycleConvertToFrozenMarkReadOnlyTests extends ESTestC
             projectId,
             createMockClient(),
             clusterService,
-            basicLicenseState
+            basicLicenseState,
+            Clock.systemUTC()
         );
 
         ElasticsearchSecurityException exception = expectThrows(
@@ -411,7 +425,8 @@ public class DataStreamLifecycleConvertToFrozenMarkReadOnlyTests extends ESTestC
             projectId,
             createMockClient(),
             clusterService,
-            licenseState
+            licenseState,
+            Clock.systemUTC()
         );
 
         assertThat(converter.isEligibleForConvertToFrozen(), is(true));

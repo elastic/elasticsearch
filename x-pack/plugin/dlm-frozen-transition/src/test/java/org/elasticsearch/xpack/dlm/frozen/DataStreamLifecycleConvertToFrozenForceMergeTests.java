@@ -44,6 +44,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
 
+import java.time.Clock;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -133,7 +134,8 @@ public class DataStreamLifecycleConvertToFrozenForceMergeTests extends ESTestCas
             projectId,
             createMockClient(),
             clusterService,
-            licenseState
+            licenseState,
+            Clock.systemUTC()
         );
 
         converter.maybeForceMergeIndex(indexName);
@@ -156,7 +158,8 @@ public class DataStreamLifecycleConvertToFrozenForceMergeTests extends ESTestCas
             projectId,
             createMockClient(),
             clusterService,
-            licenseState
+            licenseState,
+            Clock.systemUTC()
         );
 
         converter.maybeForceMergeIndex(indexName);
@@ -175,7 +178,8 @@ public class DataStreamLifecycleConvertToFrozenForceMergeTests extends ESTestCas
             projectId,
             createMockClient(),
             clusterService,
-            licenseState
+            licenseState,
+            Clock.systemUTC()
         );
 
         converter.maybeForceMergeIndex(indexName);
@@ -199,7 +203,8 @@ public class DataStreamLifecycleConvertToFrozenForceMergeTests extends ESTestCas
             projectId,
             createMockClient(),
             clusterService,
-            licenseState
+            licenseState,
+            Clock.systemUTC()
         );
 
         ElasticsearchException exception = expectThrows(ElasticsearchException.class, () -> converter.maybeForceMergeIndex(indexName));
@@ -217,7 +222,8 @@ public class DataStreamLifecycleConvertToFrozenForceMergeTests extends ESTestCas
             projectId,
             createMockClient(),
             clusterService,
-            licenseState
+            licenseState,
+            Clock.systemUTC()
         );
 
         ElasticsearchException exception = expectThrows(ElasticsearchException.class, () -> converter.maybeForceMergeIndex(indexName));
@@ -235,7 +241,8 @@ public class DataStreamLifecycleConvertToFrozenForceMergeTests extends ESTestCas
             projectId,
             createMockClient(),
             clusterService,
-            licenseState
+            licenseState,
+            Clock.systemUTC()
         );
 
         // Should not throw
@@ -254,7 +261,8 @@ public class DataStreamLifecycleConvertToFrozenForceMergeTests extends ESTestCas
             projectId,
             createMockClient(),
             clusterService,
-            licenseState
+            licenseState,
+            Clock.systemUTC()
         );
 
         ElasticsearchException exception = expectThrows(ElasticsearchException.class, () -> converter.maybeForceMergeIndex(indexName));

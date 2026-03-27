@@ -52,5 +52,66 @@ services:
       XPACK_SPACES_DEFAULTSOLUTION: "oblt"
     restart: unless-stopped
 
+  grafana:
+    image: grafana/grafana:latest
+    container_name: es-local-grafana
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - grafana_data:/var/lib/grafana
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: password
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/api/health || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  grafana_dashboard_init:
+    image: alpine:latest
+    container_name: grafana-dashboard-init
+    restart: "no"
+    depends_on:
+      grafana:
+        condition: service_healthy
+    command:
+      - /bin/sh
+      - -c
+      - |
+          apk add --no-cache curl jq --quiet
+          # Skip if dashboard was already imported (preserves any UI edits)
+          STATUS=$$(curl -s -o /dev/null -w "%{http_code}" \
+            -u admin:password http://grafana:3000/api/dashboards/uid/prom-overview)
+          if [ "$$STATUS" = "200" ]; then
+            echo "Dashboard already exists, skipping import."
+            exit 0
+          fi
+          echo "Downloading Prometheus 2.0 Overview dashboard (ID 3662)..."
+          curl -fsSL "https://grafana.com/api/dashboards/3662/revisions/2/download" > /tmp/base.json
+          jq '
+            walk(if type == "string" then gsub("\\$\\{DS_THEMIS\\}"; "$${datasource}") else . end) |
+            .uid = "prom-overview" |
+            del(.__inputs) | del(.__requires) |
+            .templating.list = [{
+              "type": "datasource",
+              "name": "datasource",
+              "label": "Data Source",
+              "query": "prometheus",
+              "current": {"text": "Elasticsearch (Prometheus API)", "value": "es-prometheus"},
+              "hide": 0, "multi": false, "includeAll": false, "refresh": 1, "options": []
+            }] + .templating.list
+          ' /tmp/base.json > /tmp/dashboard.json
+          curl -sf -u admin:password \
+            -X POST http://grafana:3000/api/dashboards/import \
+            -H "Content-Type: application/json" \
+            -d "{\"dashboard\": $$(cat /tmp/dashboard.json), \"overwrite\": false, \"folderId\": 0}"
+          echo "Dashboard imported."
+
 volumes:
   prometheus_data:
+  grafana_data:

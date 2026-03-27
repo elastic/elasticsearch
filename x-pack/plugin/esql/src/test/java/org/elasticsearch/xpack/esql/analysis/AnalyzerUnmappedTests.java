@@ -1041,7 +1041,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
     }
 
     // private static EsIndex partialIndex(String name, Map<String, EsField> mapping, Set<String> partiallyUnmappedFields) {
-    //     return new EsIndex(name, mapping, Map.of(name, IndexMode.STANDARD), Map.of(), Map.of(), partiallyUnmappedFields);
+    // return new EsIndex(name, mapping, Map.of(name, IndexMode.STANDARD), Map.of(), Map.of(), partiallyUnmappedFields);
     // }
 
     private static EsField longField(String name) {

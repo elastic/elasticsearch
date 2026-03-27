@@ -936,9 +936,11 @@ public class ObjectMapper extends Mapper {
     }
 
     private SourceLoader.SyntheticFieldLoader innerSyntheticFieldLoader(SourceFilter filter, Mapper mapper) {
-        if (mapper instanceof MetadataFieldMapper metaMapper) {
-            return metaMapper.syntheticFieldLoader();
+        // We always need the ignored source to load other fields
+        if (mapper instanceof IgnoredSourceFieldMapper ignoredSourceMapper) {
+            return ignoredSourceMapper.syntheticFieldLoader();
         }
+
         if (filter != null && filter.isPathFiltered(mapper.fullPath(), mapper instanceof ObjectMapper)) {
             return SourceLoader.SyntheticFieldLoader.NOTHING;
         }

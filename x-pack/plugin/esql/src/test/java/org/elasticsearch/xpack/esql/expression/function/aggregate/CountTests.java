@@ -43,7 +43,8 @@ public class CountTests extends AbstractAggregationTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         var suppliers = new ArrayList<TestCaseSupplier>();
-        FunctionAppliesTo histogramAppliesTo = appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.3.0", "", true);
+        FunctionAppliesTo histogramPreviewAppliesTo = appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.3.0", "", false);
+        FunctionAppliesTo histogramGaAppliesTo = appliesTo(FunctionAppliesToLifecycle.GA, "9.4.0", "", true);
 
         Stream.of(
             MultiRowTestCaseSupplier.nullCases(1, 1000),
@@ -66,8 +67,14 @@ public class CountTests extends AbstractAggregationTestCase {
             MultiRowTestCaseSupplier.geohexCases(1, 1000),
             MultiRowTestCaseSupplier.stringCases(1, 1000, DataType.KEYWORD),
             MultiRowTestCaseSupplier.stringCases(1, 1000, DataType.TEXT),
-            MultiRowTestCaseSupplier.tdigestCases(1, 1000).stream().map(s -> s.withAppliesTo(histogramAppliesTo)).toList(),
-            MultiRowTestCaseSupplier.exponentialHistogramCases(1, 1000).stream().map(s -> s.withAppliesTo(histogramAppliesTo)).toList()
+            MultiRowTestCaseSupplier.tdigestCases(1, 1000)
+                .stream()
+                .map(s -> s.withAppliesTo(histogramPreviewAppliesTo).withAppliesTo(histogramGaAppliesTo))
+                .toList(),
+            MultiRowTestCaseSupplier.exponentialHistogramCases(1, 1000)
+                .stream()
+                .map(s -> s.withAppliesTo(histogramPreviewAppliesTo).withAppliesTo(histogramGaAppliesTo))
+                .toList()
         ).flatMap(List::stream).map(CountTests::makeSupplier).collect(Collectors.toCollection(() -> suppliers));
 
         // No rows
@@ -92,7 +99,9 @@ public class CountTests extends AbstractAggregationTestCase {
             DataType.AGGREGATE_METRIC_DOUBLE
         )) {
             var field = dataType == DataType.EXPONENTIAL_HISTOGRAM || dataType == DataType.TDIGEST
-                ? TestCaseSupplier.TypedData.multiRow(List.of(), dataType, "field").withAppliesTo(histogramAppliesTo)
+                ? TestCaseSupplier.TypedData.multiRow(List.of(), dataType, "field")
+                    .withAppliesTo(histogramPreviewAppliesTo)
+                    .withAppliesTo(histogramGaAppliesTo)
                 : TestCaseSupplier.TypedData.multiRow(List.of(), dataType, "field");
             suppliers.add(
                 new TestCaseSupplier(
@@ -135,7 +144,7 @@ public class CountTests extends AbstractAggregationTestCase {
             } else if (fieldSupplier.type() == DataType.TDIGEST) {
                 count = fieldData.stream().mapToLong(data -> {
                     TDigestHolder tdigest = (TDigestHolder) data;
-                    return tdigest.getValueCount();
+                    return tdigest.size();
                 }).sum();
             } else if (fieldSupplier.type() == DataType.EXPONENTIAL_HISTOGRAM) {
                 count = fieldData.stream().mapToLong(obj -> ((ExponentialHistogram) obj).valueCount()).sum();

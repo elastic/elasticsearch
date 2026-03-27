@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql;
 
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -28,6 +29,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.TDigestHolder;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Strings;
@@ -37,6 +39,7 @@ import org.elasticsearch.exponentialhistogram.ExponentialHistogramXContent;
 import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.h3.H3;
 import org.elasticsearch.index.mapper.DocumentParsingException;
+import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.test.ESTestCase;
@@ -44,11 +47,14 @@ import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.core.analytics.mapper.EncodedTDigest;
 import org.elasticsearch.xpack.core.analytics.mapper.TDigestParser;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.action.ResponseValueUtils;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
+import org.junit.AssumptionViolatedException;
 import org.supercsv.io.CsvListReader;
 import org.supercsv.prefs.CsvPreference;
 
@@ -56,7 +62,12 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.StringReader;
+import java.io.UncheckedIOException;
 import java.math.BigDecimal;
+import java.net.URL;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
@@ -68,13 +79,16 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
+import static org.apache.lucene.tests.util.LuceneTestCase.assumeFalse;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.elasticsearch.test.ESTestCase.assertThat;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.reader;
 import static org.elasticsearch.xpack.esql.SpecReader.shouldSkipLine;
 import static org.elasticsearch.xpack.esql.core.type.DataTypeConverter.safeToUnsignedLong;
@@ -84,8 +98,12 @@ import static org.elasticsearch.xpack.esql.core.util.NumericUtils.asLongUnsigned
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToAggregateMetricDoubleLiteral;
+import static org.hamcrest.Matchers.everyItem;
+import static org.hamcrest.Matchers.in;
 
 public final class CsvTestUtils {
+    private static final Logger LOGGER = LogManager.getLogger(CsvTestUtils.class);
+
     private static final int MAX_WIDTH = 80;
     private static final CsvPreference CSV_SPEC_PREFERENCES = new CsvPreference.Builder('"', '|', "\r\n").build();
     private static final String NULL_VALUE = "null";
@@ -111,7 +129,142 @@ public final class CsvTestUtils {
         }
     }
 
+    /** Pattern to match template placeholders like {{employees}} */
+    public static final Pattern TEMPLATE_PATTERN = Pattern.compile("\\{\\{(\\w+)}}");
+
+    /** Bootstrap resource: directory for data files. Fallback to a known file if directory is null (e.g. in JAR). */
+    private static final String DATA_DIR_RESOURCE = "/data/";
+
     private CsvTestUtils() {}
+
+    /**
+     * Creates and returns the CSV data directory path. For file protocol, returns the data directory.
+     * For jar protocol, creates a new temp directory. Call once per test run and reuse the result.
+     */
+    public static Path createCsvDataDirectory() {
+        URL resource = CsvTestsDataLoader.class.getResource(DATA_DIR_RESOURCE);
+        if (resource == null) {
+            throw new IllegalStateException("Cannot find resource " + DATA_DIR_RESOURCE);
+        }
+        if ("file".equals(resource.getProtocol())) {
+            try {
+                Path path = PathUtils.get(resource.toURI());
+                return path.toFile().isDirectory() ? path.toAbsolutePath() : path.getParent().toAbsolutePath();
+            } catch (Exception e) {
+                throw new IllegalStateException("Failed to resolve data directory from " + resource, e);
+            }
+        }
+        if ("jar".equals(resource.getProtocol())) {
+            try {
+                Path dir = Files.createTempDirectory("csv-esql-fixtures-");
+                Runtime.getRuntime().addShutdownHook(new Thread(() -> cleanupDir(dir), "csv-esql-fixtures-cleanup"));
+                return dir;
+            } catch (IOException e) {
+                throw new UncheckedIOException("Failed to create temp directory for CSV fixtures", e);
+            }
+        }
+        throw new IllegalStateException("Unsupported resource protocol: " + resource.getProtocol());
+    }
+
+    private static void cleanupDir(Path dir) {
+        try {
+            if (dir != null && Files.exists(dir)) {
+                Files.walk(dir).sorted((a, b) -> -a.compareTo(b)).forEach(p -> {
+                    try {
+                        Files.deleteIfExists(p);
+                    } catch (IOException ignored) {
+                        // Best-effort cleanup
+                    }
+                });
+            }
+        } catch (IOException ignored) {
+            // Best-effort cleanup on shutdown
+        }
+    }
+
+    /**
+     * Returns the directory path for CSV test data as a string. For backward compatibility.
+     * Each call creates a new dir in jar mode; prefer {@link #createCsvDataDirectory()} and reuse.
+     */
+    public static String getCsvDataDirectoryPath() {
+        return createCsvDataDirectory().toAbsolutePath().toString();
+    }
+
+    /**
+     * Returns a template resolver that maps CSV dataset names to file:// URLs.
+     * For jar protocol, extracts files to the given dataDir. Call once per test run with a stable path.
+     */
+    public static Function<String, String> csvFileTemplateResolver(Path dataDir) {
+        ConcurrentHashMap<String, String> cache = new ConcurrentHashMap<>();
+        return templateName -> {
+            CsvTestsDataLoader.TestDataset dataset = CsvTestsDataLoader.CSV_DATASET.get(templateName);
+            if (dataset == null || dataset.dataFileName() == null) {
+                throw new IllegalArgumentException("Failed to resolve CSV path for dataset [" + templateName + "]");
+            }
+            return cache.computeIfAbsent(templateName, k -> {
+                try {
+                    return resolveCsvFilePathLazy("/data/" + dataset.dataFileName(), dataDir);
+                } catch (IOException e) {
+                    throw new UncheckedIOException("Failed to resolve CSV path for dataset [" + templateName + "]", e);
+                }
+            });
+        };
+    }
+
+    /**
+     * No-arg overload for callers that create their own path (e.g. CsvTests). Creates a path per invocation.
+     */
+    public static Function<String, String> csvFileTemplateResolver() {
+        return csvFileTemplateResolver(createCsvDataDirectory());
+    }
+
+    /**
+     * Resolves a resource path to a file:// URL. For file protocol, returns the path directly.
+     * For jar protocol, extracts to dataDir on first use.
+     */
+    public static String resolveCsvFilePathLazy(String resourcePath, Path dataDir) throws IOException {
+        URL resource = CsvTestsDataLoader.class.getResource(resourcePath);
+        if (resource == null) {
+            throw new IllegalStateException("Cannot find resource " + resourcePath);
+        }
+        String protocol = resource.getProtocol();
+        if ("file".equals(protocol)) {
+            return normalizeFileUri(resource.toExternalForm());
+        }
+        if ("jar".equals(protocol)) {
+            String fileName = PathUtils.get(resourcePath).getFileName().toString();
+            Path targetFile = dataDir.resolve(fileName);
+            if (Files.exists(targetFile) == false) {
+                try (InputStream in = CsvTestsDataLoader.getResourceStream(resourcePath)) {
+                    Files.copy(in, targetFile, StandardCopyOption.REPLACE_EXISTING);
+                }
+            }
+            return normalizeFileUri(targetFile.toUri().toURL().toExternalForm());
+        }
+        throw new IllegalStateException("Unsupported resource protocol: " + protocol);
+    }
+
+    private static String normalizeFileUri(String uri) {
+        if (uri != null && uri.startsWith("file:/") && uri.startsWith("file:///") == false) {
+            return "file://" + uri.substring(5);
+        }
+        return uri;
+    }
+
+    /**
+     * Substitutes template placeholders like {{employees}} in the query using the given resolver.
+     */
+    public static String substituteTemplates(String query, Function<String, String> templateResolver) {
+        Matcher matcher = TEMPLATE_PATTERN.matcher(query);
+        StringBuilder result = new StringBuilder();
+        while (matcher.find()) {
+            String templateName = matcher.group(1);
+            String replacement = templateResolver.apply(templateName);
+            matcher.appendReplacement(result, Matcher.quoteReplacement(replacement != null ? replacement : matcher.group(0)));
+        }
+        matcher.appendTail(result);
+        return result.toString();
+    }
 
     public static boolean isEnabled(String testName, String instructions, Version version) {
         if (testName.endsWith("-Ignore")) {
@@ -122,6 +275,46 @@ public final class CsvTestUtils {
             return false;
         }
         return true;
+    }
+
+    public static void checkTestCapabilities(
+        EsqlCapabilities allCapabilities,
+        EsqlCapabilities enabledCapabilities,
+        List<String> requiredCapabilities
+    ) {
+        if (Build.current().isSnapshot()) {
+            assertThat(
+                "Capability is not included in the enabled list capabilities on a snapshot build. Spelling mistake?",
+                requiredCapabilities,
+                everyItem(in(allCapabilities.capabilities()))
+            );
+            assumeTrueLogging(
+                "Capability not supported in this build",
+                enabledCapabilities.capabilities().containsAll(requiredCapabilities)
+            );
+        } else {
+            for (EsqlCapabilities.Cap c : EsqlCapabilities.Cap.values()) {
+                if (false == c.isEnabled()) {
+                    assumeFalseLogging(
+                        c.capabilityName() + " is not supported in non-snapshot releases",
+                        requiredCapabilities.contains(c.capabilityName())
+                    );
+                }
+            }
+        }
+    }
+
+    public static void assumeTrueLogging(String message, boolean condition) {
+        assumeFalseLogging(message, condition == false);
+    }
+
+    public static void assumeFalseLogging(String message, boolean condition) {
+        try {
+            assumeFalse(message, condition);
+        } catch (AssumptionViolatedException ave) {
+            LOGGER.info("skipping test: " + ave.getMessage());
+            throw ave;
+        }
     }
 
     private static final Pattern INSTRUCTION_PATTERN = Pattern.compile("\\[(.*?)]");
@@ -503,6 +696,7 @@ public final class CsvTestUtils {
             BytesRef.class
         ),
         IP_RANGE(InetAddresses::parseCidr, BytesRef.class),
+        JSON(s -> s == null ? null : new BytesRef(s), BytesRef.class),
         DATE_RANGE(s -> EsqlDataTypeConverter.parseDateRange(s, ZoneOffset.UTC), LongRangeBlockBuilder.LongRange.class),
         VERSION(v -> new org.elasticsearch.xpack.versionfield.Version(v).toBytesRef(), BytesRef.class),
         NULL(s -> s, Void.class),
@@ -619,6 +813,10 @@ public final class CsvTestUtils {
         public static Type asType(ElementType elementType, Type actualType) {
             if (actualType == Type.UNSUPPORTED) {
                 return UNSUPPORTED;
+            }
+            // Dense vectors use ElementType.FLOAT but should map to Type.DENSE_VECTOR
+            if (actualType == Type.DENSE_VECTOR) {
+                return DENSE_VECTOR;
             }
             return switch (elementType) {
                 case INT -> INTEGER;
@@ -780,7 +978,15 @@ public final class CsvTestUtils {
                 DocumentParsingException::new,
                 XContentParserUtils::parsingException
             );
-            return new TDigestHolder(parsed.centroids(), parsed.counts(), parsed.min(), parsed.max(), parsed.sum(), parsed.count());
+            TDigestHolder tdigest = new TDigestHolder();
+            tdigest.reset(
+                EncodedTDigest.encodeCentroids(parsed.centroids(), parsed.counts()),
+                parsed.min(),
+                parsed.max(),
+                parsed.sum(),
+                parsed.count()
+            );
+            return tdigest;
         } catch (IOException e) {
             throw new IllegalArgumentException(e);
         }

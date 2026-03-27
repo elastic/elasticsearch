@@ -5,7 +5,19 @@
 | geometry | tolerance | result |
 | --- | --- | --- |
 | cartesian_point | double | cartesian_point |
+| cartesian_point | float | cartesian_point |
+| cartesian_point | integer | cartesian_point |
+| cartesian_point | long | cartesian_point |
 | cartesian_shape | double | cartesian_shape |
+| cartesian_shape | float | cartesian_shape |
+| cartesian_shape | integer | cartesian_shape |
+| cartesian_shape | long | cartesian_shape |
 | geo_point | double | geo_point |
+| geo_point | float | geo_point |
+| geo_point | integer | geo_point |
+| geo_point | long | geo_point |
 | geo_shape | double | geo_shape |
+| geo_shape | float | geo_shape |
+| geo_shape | integer | geo_shape |
+| geo_shape | long | geo_shape |
 

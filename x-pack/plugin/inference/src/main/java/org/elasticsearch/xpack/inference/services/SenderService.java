@@ -56,7 +56,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFrom
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrDefaultEmpty;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwUnsupportedEmbeddingOperation;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwUnsupportedMultimodalUnifiedCompletionOperation;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwUnsupportedReasoningUnifiedCompletionOperation;
 
 public abstract class SenderService<M extends Model> implements InferenceService {
 
@@ -70,7 +70,7 @@ public abstract class SenderService<M extends Model> implements InferenceService
     private final Sender sender;
     private final ServiceComponents serviceComponents;
     private final ClusterService clusterService;
-    private final Map<TaskType, ModelCreator<? extends M>> modelCreators;
+    protected final Map<TaskType, ModelCreator<? extends M>> modelCreators;
 
     public SenderService(
         HttpRequestSender.Factory factory,
@@ -172,17 +172,13 @@ public abstract class SenderService<M extends Model> implements InferenceService
                     validationException.addValidationError("Rerank task type requires a non-null query field");
                 }
 
-                if (validationException.validationErrors().isEmpty() == false) {
-                    throw validationException;
-                }
+                validationException.throwIfValidationErrorsExist();
                 yield new QueryAndDocsInputs(query, input, returnDocuments, topN, stream);
             }
             case TEXT_EMBEDDING, SPARSE_EMBEDDING -> {
                 ValidationException validationException = new ValidationException();
                 service.validateInputType(inputType, model, validationException);
-                if (validationException.validationErrors().isEmpty() == false) {
-                    throw validationException;
-                }
+                validationException.throwIfValidationErrorsExist();
                 yield new EmbeddingsInput(input, inputType, stream);
             }
             default -> throw new ElasticsearchStatusException(
@@ -200,15 +196,14 @@ public abstract class SenderService<M extends Model> implements InferenceService
         ActionListener<InferenceServiceResults> listener
     ) {
         SubscribableListener.newForked(this::init).<InferenceServiceResults>andThen((completionInferListener) -> {
-            if (supportsMultimodalCompletions() || request.containsMultimodalContent() == false) {
-                doUnifiedCompletionInfer(model, new UnifiedChatInput(request, true), timeout, completionInferListener);
-            } else {
-                throwUnsupportedMultimodalUnifiedCompletionOperation(name());
+            if (supportsChatCompletionReasoning() == false && request.containsChatCompletionReasoning()) {
+                throwUnsupportedReasoningUnifiedCompletionOperation(name());
             }
+            doUnifiedCompletionInfer(model, new UnifiedChatInput(request, true), timeout, completionInferListener);
         }).addListener(listener);
     }
 
-    protected boolean supportsMultimodalCompletions() {
+    protected boolean supportsChatCompletionReasoning() {
         return false;
     }
 
@@ -261,9 +256,7 @@ public abstract class SenderService<M extends Model> implements InferenceService
         SubscribableListener.newForked(this::init).<List<ChunkedInference>>andThen((chunkedInferListener) -> {
             ValidationException validationException = new ValidationException();
             validateInputType(inputType, model, validationException);
-            if (validationException.validationErrors().isEmpty() == false) {
-                throw validationException;
-            }
+            validationException.throwIfValidationErrorsExist();
             if (supportsChunkedInfer()) {
                 if (input.isEmpty()) {
                     chunkedInferListener.onResponse(List.of());

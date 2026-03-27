@@ -31,16 +31,10 @@ public final class MinBooleanAggregatorFunction implements AggregatorFunction {
 
   private final List<Integer> channels;
 
-  public MinBooleanAggregatorFunction(DriverContext driverContext, List<Integer> channels,
-      BooleanState state) {
+  MinBooleanAggregatorFunction(DriverContext driverContext, List<Integer> channels) {
     this.driverContext = driverContext;
     this.channels = channels;
-    this.state = state;
-  }
-
-  public static MinBooleanAggregatorFunction create(DriverContext driverContext,
-      List<Integer> channels) {
-    return new MinBooleanAggregatorFunction(driverContext, channels, new BooleanState(MinBooleanAggregator.init()));
+    this.state = new BooleanState(MinBooleanAggregator.init());
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

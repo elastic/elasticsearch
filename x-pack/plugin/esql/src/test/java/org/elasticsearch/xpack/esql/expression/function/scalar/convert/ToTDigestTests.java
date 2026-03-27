@@ -14,16 +14,23 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.compute.data.TDigestHolder;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
+import org.elasticsearch.xpack.core.analytics.mapper.EncodedTDigest;
+import org.elasticsearch.xpack.core.analytics.mapper.ExponentialHistogramToTDigestConverter;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
+
+import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.appliesTo;
 
 public class ToTDigestTests extends AbstractScalarFunctionTestCase {
 
@@ -34,6 +41,7 @@ public class ToTDigestTests extends AbstractScalarFunctionTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         final List<TestCaseSupplier> suppliers = new ArrayList<>();
+        FunctionAppliesTo expHistogramAppliesTo = appliesTo(FunctionAppliesToLifecycle.GA, "9.4.0", "", true);
 
         TestCaseSupplier.forUnaryHistogram(
             suppliers,
@@ -51,6 +59,22 @@ public class ToTDigestTests extends AbstractScalarFunctionTestCase {
             h -> h,
             List.of()
         );
+
+        List<TestCaseSupplier> expHistogramSuppliers = new ArrayList<>();
+        TestCaseSupplier.forUnaryExponentialHistogram(
+            expHistogramSuppliers,
+            "ToTDigestFromExponentialHistogramEvaluator[in=Attribute[channel=0]]",
+            DataType.TDIGEST,
+            ToTDigestTests::fromExponentialHistogram,
+            List.of()
+        );
+        suppliers.addAll(
+            TestCaseSupplier.mapTestCases(
+                expHistogramSuppliers,
+                tc -> tc.withData(tc.getData().stream().map(td -> td.withAppliesTo(expHistogramAppliesTo)).toList())
+            )
+        );
+
         return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
     }
 
@@ -88,9 +112,38 @@ public class ToTDigestTests extends AbstractScalarFunctionTestCase {
                 max = Double.NaN;
                 sum = Double.NaN;
             }
-            return new TDigestHolder(centroids, counts, min, max, sum, totalCount);
+            TDigestHolder tdigest = new TDigestHolder();
+            tdigest.reset(EncodedTDigest.encodeCentroids(centroids, counts), min, max, sum, totalCount);
+            return tdigest;
         } catch (IOException e) {
             throw new IllegalArgumentException(e.getMessage());
         }
+    }
+
+    static TDigestHolder fromExponentialHistogram(ExponentialHistogram in) {
+        EncodedTDigest.CentroidIterator convertedCentroids = ExponentialHistogramToTDigestConverter.convert(
+            in.negativeBuckets(),
+            in.zeroBucket(),
+            in.positiveBuckets()
+        );
+        List<Double> means = new ArrayList<>();
+        List<Long> counts = new ArrayList<>();
+        while (convertedCentroids.next()) {
+            means.add(convertedCentroids.currentMean());
+            counts.add(convertedCentroids.currentCount());
+        }
+        BytesRef encoded = EncodedTDigest.encodeCentroids(means, counts);
+
+        TDigestHolder expected = new TDigestHolder();
+        double min = Double.NaN;
+        double max = Double.NaN;
+        double sum = Double.NaN;
+        if (in.valueCount() > 0) {
+            min = in.min();
+            max = in.max();
+            sum = in.sum();
+        }
+        expected.reset(encoded, min, max, sum, in.valueCount());
+        return expected;
     }
 }

@@ -57,11 +57,13 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
             dm -> {}
         );
         checker.registerUpdateCheck(
+            "enabled",
             topMapping(b -> b.startObject(SourceFieldMapper.NAME).field("enabled", true).endObject()),
             topMapping(b -> b.startObject(SourceFieldMapper.NAME).field("enabled", false).endObject()),
             dm -> assertFalse(dm.metadataMapper(SourceFieldMapper.class).enabled())
         );
         checker.registerUpdateCheck(
+            "mode",
             topMapping(b -> b.startObject(SourceFieldMapper.NAME).field("mode", "stored").endObject()),
             topMapping(b -> b.startObject(SourceFieldMapper.NAME).field("mode", "synthetic").endObject()),
             dm -> {}
@@ -730,11 +732,14 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
 
     public void testRecoverySourceWithTimeSeries() throws IOException {
         {
-            Settings settings = Settings.builder()
+            Settings.Builder settings = Settings.builder()
                 .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
-                .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "field")
-                .build();
-            MapperService mapperService = createMapperService(settings, fieldMapping(b -> {
+                .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "field");
+            if (IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG) {
+                // Synthetic _ids are not relevant to this test and the "123" id used is not synthetic-id-conformant
+                settings.put(IndexSettings.SYNTHETIC_ID.getKey(), false);
+            }
+            MapperService mapperService = createMapperService(settings.build(), fieldMapping(b -> {
                 b.field("type", "keyword");
                 b.field("time_series_dimension", true);
             }));
@@ -743,12 +748,15 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
             assertNull(doc.rootDoc().getField("_recovery_source"));
         }
         {
-            Settings settings = Settings.builder()
+            Settings.Builder settings = Settings.builder()
                 .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
                 .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "field")
-                .put(INDICES_RECOVERY_SOURCE_ENABLED_SETTING.getKey(), false)
-                .build();
-            MapperService mapperService = createMapperService(settings, fieldMapping(b -> {
+                .put(INDICES_RECOVERY_SOURCE_ENABLED_SETTING.getKey(), false);
+            if (IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG) {
+                // Synthetic _ids are not relevant to this test and the "123" id used is not synthetic-id-conformant
+                settings.put(IndexSettings.SYNTHETIC_ID.getKey(), false);
+            }
+            MapperService mapperService = createMapperService(settings.build(), fieldMapping(b -> {
                 b.field("type", "keyword");
                 b.field("time_series_dimension", true);
             }));
@@ -777,22 +785,28 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
                 }
             """;
         {
-            Settings settings = Settings.builder()
+            Settings.Builder settings = Settings.builder()
                 .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
-                .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "field")
-                .build();
-            MapperService mapperService = createMapperService(settings, mappings);
+                .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "field");
+            if (IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG) {
+                // Synthetic _ids are not relevant to this test and the "123" id used is not synthetic-id-conformant
+                settings.put(IndexSettings.SYNTHETIC_ID.getKey(), false);
+            }
+            MapperService mapperService = createMapperService(settings.build(), mappings);
             DocumentMapper docMapper = mapperService.documentMapper();
             ParsedDocument doc = docMapper.parse(source("123", b -> b.field("@timestamp", "2012-02-13").field("field", "value1"), null));
             assertNull(doc.rootDoc().getField("_recovery_source"));
         }
         {
-            Settings settings = Settings.builder()
+            Settings.Builder settings = Settings.builder()
                 .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
                 .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "field")
-                .put(INDICES_RECOVERY_SOURCE_ENABLED_SETTING.getKey(), false)
-                .build();
-            MapperService mapperService = createMapperService(settings, mappings);
+                .put(INDICES_RECOVERY_SOURCE_ENABLED_SETTING.getKey(), false);
+            if (IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG) {
+                // Synthetic _ids are not relevant to this test and the "123" id used is not synthetic-id-conformant
+                settings.put(IndexSettings.SYNTHETIC_ID.getKey(), false);
+            }
+            MapperService mapperService = createMapperService(settings.build(), mappings);
             DocumentMapper docMapper = mapperService.documentMapper();
             ParsedDocument doc = docMapper.parse(
                 source("123", b -> b.field("@timestamp", "2012-02-13").field("field", randomAlphaOfLength(5)), null)

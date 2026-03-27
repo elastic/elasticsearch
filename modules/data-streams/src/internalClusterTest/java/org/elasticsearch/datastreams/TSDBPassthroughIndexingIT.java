@@ -10,6 +10,7 @@ package org.elasticsearch.datastreams;
 
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
@@ -151,6 +152,9 @@ public class TSDBPassthroughIndexingIT extends ESSingleNodeTestCase {
         if (IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG && randomBoolean()) {
             templateSettings.put(IndexSettings.SYNTHETIC_ID.getKey(), true);
         }
+        if (IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG && randomBoolean()) {
+            templateSettings.put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true);
+        }
 
         var request = new TransportPutComposableIndexTemplateAction.Request("id");
         request.indexTemplate(
@@ -187,6 +191,12 @@ public class TSDBPassthroughIndexingIT extends ESSingleNodeTestCase {
             assertThat(deleteResponse.getId(), equalTo(id));
             assertThat(deleteResponse.getResult(), equalTo(DocWriteResponse.Result.DELETED));
             time = time.plusMillis(1);
+        }
+
+        // maybe force merge
+        if (randomBoolean()) {
+            var forceMergeResponse = client().admin().indices().forceMerge(new ForceMergeRequest("k8s").maxNumSegments(1)).actionGet();
+            assertEquals(0, forceMergeResponse.getShardFailures().length);
         }
 
         // validate index:
@@ -227,6 +237,9 @@ public class TSDBPassthroughIndexingIT extends ESSingleNodeTestCase {
         var templateSettings = indexSettings(8, 0).put("index.mode", "time_series");
         if (IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG && randomBoolean()) {
             templateSettings.put(IndexSettings.SYNTHETIC_ID.getKey(), true);
+        }
+        if (IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG && randomBoolean()) {
+            templateSettings.put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true);
         }
 
         var request = new TransportPutComposableIndexTemplateAction.Request("id");

@@ -35,16 +35,10 @@ public final class AllLastFloatByIntAggregatorFunction implements AggregatorFunc
 
   private final List<Integer> channels;
 
-  public AllLastFloatByIntAggregatorFunction(DriverContext driverContext, List<Integer> channels,
-      AllIntFloatState state) {
+  AllLastFloatByIntAggregatorFunction(DriverContext driverContext, List<Integer> channels) {
     this.driverContext = driverContext;
     this.channels = channels;
-    this.state = state;
-  }
-
-  public static AllLastFloatByIntAggregatorFunction create(DriverContext driverContext,
-      List<Integer> channels) {
-    return new AllLastFloatByIntAggregatorFunction(driverContext, channels, AllLastFloatByIntAggregator.initSingle(driverContext));
+    this.state = AllLastFloatByIntAggregator.initSingle(driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

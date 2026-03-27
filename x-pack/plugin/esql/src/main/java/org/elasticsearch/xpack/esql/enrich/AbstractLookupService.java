@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.SearchShardRouting;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -501,6 +502,7 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
                 extractField.dataType() == DataType.UNSUPPORTED,
                 MappedFieldType.FieldExtractPreference.NONE,
                 null,
+                null,
                 plannerSettings.blockLoaderSizeOrdinals(),
                 plannerSettings.blockLoaderSizeScript()
             );
@@ -509,7 +511,7 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
                     fieldName,
                     PlannerUtils.toElementType(extractField.dataType()),
                     false,
-                    shardIdx -> {
+                    (ctx, shardIdx) -> {
                         if (shardIdx != 0) {
                             throw new IllegalStateException("only one shard");
                         }
@@ -531,7 +533,8 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
             ),
             true,
             0,
-            PlannerSettings.SOURCE_RESERVATION_FACTOR.get(Settings.EMPTY)
+            PlannerSettings.SOURCE_RESERVATION_FACTOR.get(Settings.EMPTY),
+            PlannerSettings.DOC_SEQUENCE_BYTES_REF_FIELD_THRESHOLD.getDefault(Settings.EMPTY)
         );
     }
 
@@ -765,7 +768,15 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
 
         static LookupShardContextFactory fromSearchService(SearchService searchService) {
             return shardId -> {
-                ShardSearchRequest shardSearchRequest = new ShardSearchRequest(shardId, 0, AliasFilter.EMPTY);
+                // Lookup indices always have one shard and can't be resharded so the value of `SplitShardCountSummary`
+                // doesn't matter.
+                ShardSearchRequest shardSearchRequest = new ShardSearchRequest(
+                    shardId,
+                    0,
+                    AliasFilter.EMPTY,
+                    null,
+                    SplitShardCountSummary.IRRELEVANT
+                );
                 return LookupShardContext.fromSearchContext(
                     searchService.createSearchContext(shardSearchRequest, SearchService.NO_TIMEOUT)
                 );

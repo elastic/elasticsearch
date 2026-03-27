@@ -16,6 +16,7 @@ import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
+import org.elasticsearch.xpack.esql.CsvTestUtils;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.plugin.ComputeService;
 import org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase;
@@ -23,11 +24,15 @@ import org.junit.Before;
 import org.junit.ClassRule;
 
 import java.io.IOException;
+import java.nio.file.Path;
 
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class EsqlSpecIT extends EsqlSpecTestCase {
+
+    private static final Path CSV_DATA_PATH = CsvTestUtils.createCsvDataDirectory();
+
     @ClassRule
-    public static ElasticsearchCluster cluster = Clusters.testCluster(spec -> {
+    public static ElasticsearchCluster cluster = Clusters.testCluster(CSV_DATA_PATH, spec -> {
         spec.plugin("inference-service-test")
             .setting("logger." + ComputeService.class.getName(), "DEBUG") // So we log a profile
             .settings(nodeSpec -> LOGGING_CLUSTER_SETTINGS);
@@ -35,6 +40,11 @@ public class EsqlSpecIT extends EsqlSpecTestCase {
 
     public EsqlSpecIT(String fileName, String groupName, String testName, Integer lineNumber, CsvTestCase testCase, String instructions) {
         super(fileName, groupName, testName, lineNumber, testCase, instructions);
+    }
+
+    @Override
+    protected Path getCsvDataPath() {
+        return CSV_DATA_PATH;
     }
 
     @Override
@@ -51,6 +61,11 @@ public class EsqlSpecIT extends EsqlSpecTestCase {
     @Override
     protected boolean supportsSourceFieldMapping() {
         return cluster.getNumNodes() == 1;
+    }
+
+    @Override
+    protected String maybeRandomizeQuery(String query) {
+        return randomlyNullify(query);
     }
 
     @Before

@@ -1,0 +1,5 @@
+area: Search
+issues: []
+pr: 144581
+summary: Fix request cache invalidation to use ES cache helper consistently
+type: bug

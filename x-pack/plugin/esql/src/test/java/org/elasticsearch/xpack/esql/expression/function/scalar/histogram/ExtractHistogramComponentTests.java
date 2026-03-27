@@ -105,8 +105,8 @@ public class ExtractHistogramComponentTests extends AbstractScalarFunctionTestCa
                         double max = value.getMax();
                         yield Double.isNaN(max) ? null : max;
                     }
-                    case SUM -> value.getValueCount() > 0 ? value.getSum() : null;
-                    case COUNT -> (double) value.getValueCount();
+                    case SUM -> value.size() > 0 ? value.getSum() : null;
+                    case COUNT -> (double) value.size();
                 };
             }
             default -> throw new IllegalStateException("Unexpected histogram type [" + histogram.type() + "]");

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;

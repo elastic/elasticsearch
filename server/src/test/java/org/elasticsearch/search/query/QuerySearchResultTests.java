@@ -103,6 +103,21 @@ public class QuerySearchResultTests extends ESTestCase {
         return result;
     }
 
+    /**
+     * Test-only: {@link QuerySearchResult#decRef()} does not release refcounted completion option hits; release them
+     * explicitly when discarding instances built with {@link SuggestTests#createTestItem()} (or wire copies thereof).
+     */
+    private static void releaseCompletionSuggestOptionHits(QuerySearchResult result) {
+        if (result.suggest() != null) {
+            var completionHits = result.suggest().collectCompletionOptionHits(false);
+            if (completionHits != null) {
+                for (SearchHit hit : completionHits) {
+                    hit.decRef();
+                }
+            }
+        }
+    }
+
     public void testSerialization() throws Exception {
         QuerySearchResult querySearchResult = createTestInstance();
         try {
@@ -132,9 +147,11 @@ public class QuerySearchResultTests extends ESTestCase {
                 }
                 assertEquals(querySearchResult.terminatedEarly(), deserialized.terminatedEarly());
             } finally {
+                releaseCompletionSuggestOptionHits(deserialized);
                 deserialized.decRef();
             }
         } finally {
+            releaseCompletionSuggestOptionHits(querySearchResult);
             querySearchResult.decRef();
         }
     }
@@ -163,9 +180,11 @@ public class QuerySearchResultTests extends ESTestCase {
                 TransportVersion.current()
             );
             assertTrue("wire-read result should have references", deserialized.hasReferences());
+            releaseCompletionSuggestOptionHits(deserialized);
             assertTrue("single decRef should release", deserialized.decRef());
             assertFalse("after release should have no references", deserialized.hasReferences());
         } finally {
+            releaseCompletionSuggestOptionHits(original);
             original.decRef();
         }
     }
@@ -206,6 +225,7 @@ public class QuerySearchResultTests extends ESTestCase {
             }
 
             assertEquals(n, result.topHitsToReleaseCollector().size());
+            releaseCompletionSuggestOptionHits(result);
             assertTrue(result.decRef());
             for (SearchHits sh : searchHitsList) {
                 assertTrue(sh.hasReferences());
@@ -214,6 +234,7 @@ public class QuerySearchResultTests extends ESTestCase {
             }
         } finally {
             if (result.hasReferences()) {
+                releaseCompletionSuggestOptionHits(result);
                 result.decRef();
             }
         }

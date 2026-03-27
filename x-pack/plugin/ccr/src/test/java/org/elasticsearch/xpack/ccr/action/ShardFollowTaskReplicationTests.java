@@ -653,11 +653,11 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                 final Consumer<BulkShardOperationsResponse> handler,
                 final Consumer<Exception> errorHandler
             ) {
-                boolean acquired = false;
-                try {
-                    acquired = bulkOperationLock.tryLock(SAFE_AWAIT_TIMEOUT.millis(), TimeUnit.MILLISECONDS);
-                    assertTrue(acquired);
-                    Runnable task = () -> {
+                Runnable task = () -> {
+                    boolean acquired = false;
+                    try {
+                        acquired = bulkOperationLock.tryLock(SAFE_AWAIT_TIMEOUT.millis(), TimeUnit.MILLISECONDS);
+                        assertTrue(acquired);
                         BulkShardOperationsRequest request = new BulkShardOperationsRequest(
                             params.getFollowShardId(),
                             followerHistoryUUID,
@@ -666,15 +666,15 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                         );
                         ActionListener<BulkShardOperationsResponse> listener = ActionListener.wrap(handler::accept, errorHandler);
                         new CcrAction(request, listener, followerGroup).execute();
-                    };
-                    threadPool.executor(ThreadPool.Names.GENERIC).execute(task);
-                } catch (InterruptedException e) {
-                    throw new RuntimeException(e);
-                } finally {
-                    if (acquired) {
-                        bulkOperationLock.unlock();
+                    } catch (InterruptedException e) {
+                        throw new RuntimeException(e);
+                    } finally {
+                        if (acquired) {
+                            bulkOperationLock.unlock();
+                        }
                     }
-                }
+                };
+                threadPool.executor(ThreadPool.Names.GENERIC).execute(task);
             }
 
             @Override

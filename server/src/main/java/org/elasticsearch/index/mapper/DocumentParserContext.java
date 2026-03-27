@@ -188,6 +188,7 @@ public abstract class DocumentParserContext {
      * that copy_to field in introduced using a dynamic template
      * in this document and therefore is not present in mapping yet.
      */
+    private final Set<String> mappingCopyToFields;
     private final Set<String> copyToFields;
 
     // Indicates if the source for this context has been marked to be recorded. Applies to synthetic source only.
@@ -211,6 +212,7 @@ public abstract class DocumentParserContext {
         ObjectMapper parent,
         ObjectMapper.Dynamic dynamic,
         Set<String> fieldsAppliedFromTemplates,
+        Set<String> mappingCopyToFields,
         Set<String> copyToFields,
         DynamicMapperSize dynamicMapperSize,
         boolean recordedSource
@@ -232,6 +234,8 @@ public abstract class DocumentParserContext {
         this.parent = parent;
         this.dynamic = dynamic;
         this.fieldsAppliedFromTemplates = fieldsAppliedFromTemplates;
+        this.mappingCopyToFields = mappingCopyToFields;
+        assert this.mappingCopyToFields == Set.copyOf(this.mappingCopyToFields); // ensure that we've been passed an ImmutableSet(12|N)
         this.copyToFields = copyToFields;
         this.dynamicMappersSize = dynamicMapperSize;
         this.recordedSource = recordedSource;
@@ -256,6 +260,7 @@ public abstract class DocumentParserContext {
             parent,
             dynamic,
             in.fieldsAppliedFromTemplates,
+            in.mappingCopyToFields,
             in.copyToFields,
             in.dynamicMappersSize,
             in.recordedSource
@@ -287,7 +292,8 @@ public abstract class DocumentParserContext {
             parent,
             dynamic,
             new HashSet<>(),
-            new HashSet<>(mappingLookup.fieldTypesLookup().getCopyToDestinationFields()),
+            mappingLookup.fieldTypesLookup().getCopyToDestinationFields(),
+            new HashSet<>(),
             new DynamicMapperSize(),
             false
         );
@@ -500,7 +506,7 @@ public abstract class DocumentParserContext {
     }
 
     public boolean isCopyToDestinationField(String name) {
-        return copyToFields.contains(name);
+        return mappingCopyToFields.contains(name) || copyToFields.contains(name);
     }
 
     public void processArrayOffsets(DocumentParserContext context) throws IOException {

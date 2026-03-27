@@ -20,4 +20,3 @@ public class DlmUnrecoverableException extends ElasticsearchException {
         super(msg, args);
     }
 }
-

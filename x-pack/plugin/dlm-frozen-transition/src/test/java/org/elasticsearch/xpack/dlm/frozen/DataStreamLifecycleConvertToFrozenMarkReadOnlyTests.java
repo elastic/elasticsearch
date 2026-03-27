@@ -372,10 +372,7 @@ public class DataStreamLifecycleConvertToFrozenMarkReadOnlyTests extends ESTestC
             licenseState
         );
 
-        DlmUnrecoverableException exception = expectThrows(
-            DlmUnrecoverableException.class,
-            converter::isEligibleForConvertToFrozen
-        );
+        DlmUnrecoverableException exception = expectThrows(DlmUnrecoverableException.class, converter::isEligibleForConvertToFrozen);
         assertThat(exception.getMessage(), containsString(repoName));
     }
 

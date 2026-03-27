@@ -192,6 +192,8 @@ public class DataStreamLifecycleConvertToFrozen implements DlmFrozenTransitionRu
     }
 
     public void maybeForceMergeIndex(String indexForForceMerge) {
+        checkIfThreadInterrupted();
+        isEligibleForConvertToFrozen();
         boolean indexMissing = Optional.ofNullable(getProjectState())
             .map(ProjectState::metadata)
             .map(metadata -> metadata.index(indexForForceMerge))
@@ -244,7 +246,8 @@ public class DataStreamLifecycleConvertToFrozen implements DlmFrozenTransitionRu
     }
 
     public void maybeTakeSnapshot() {
-
+        checkIfThreadInterrupted();
+        isEligibleForConvertToFrozen();
     }
 
     public void maybeMountSearchableSnapshot() {

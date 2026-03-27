@@ -209,18 +209,7 @@ public class SetParserTests extends AbstractStatementParserTests {
     public void testSetUnmappedFields_nonSnapshot() {
         assumeFalse("Requires no snapshot", Build.current().isSnapshot());
 
-        verifySetUnmappedFields(List.of("DEFAULT", "NULLIFY"));
-
-        String name = randomizeCase(UnmappedResolution.LOAD.name());
-        expectThrows(
-            ParsingException.class,
-            containsString(
-                "Error validating setting [unmapped_fields]: Invalid unmapped_fields resolution ["
-                    + name
-                    + "], must be one of [DEFAULT, NULLIFY]"
-            ),
-            () -> statement("SET unmapped_fields=\"" + name + "\"; row a = 1")
-        );
+        verifySetUnmappedFields(List.of("DEFAULT", "NULLIFY", "LOAD"));
     }
 
     private void verifySetUnmappedFields(List<String> modes) {

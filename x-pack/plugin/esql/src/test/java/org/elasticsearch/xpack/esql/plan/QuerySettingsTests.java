@@ -103,13 +103,14 @@ public class QuerySettingsTests extends ESTestCase {
     public void testValidate_UnmappedFields_techPreview() {
         assumeFalse("Requires no snapshot", Build.current().isSnapshot());
 
-        validateUnmappedFields("DEFAULT", "NULLIFY");
+        validateUnmappedFields("DEFAULT", "NULLIFY", "LOAD");
         var settingName = QuerySettings.UNMAPPED_FIELDS.name();
         assertInvalid(
             settingName,
             NON_SNAPSHOT_CTX_WITH_CPS_ENABLED,
             of("UNKNOWN"),
-            "Error validating setting [unmapped_fields]: Invalid unmapped_fields resolution [UNKNOWN], must be one of [DEFAULT, NULLIFY]"
+            "Error validating setting [unmapped_fields]: "
+                + "Invalid unmapped_fields resolution [UNKNOWN], must be one of [DEFAULT, NULLIFY, LOAD]"
         );
     }
 

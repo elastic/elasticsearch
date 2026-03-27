@@ -78,12 +78,12 @@ public class QuerySettings {
     @Param(
         name = "unmapped_fields",
         type = { "keyword" },
-        since = "9.3.0",
+        since = "9.4.0",
         description = "Defines how unmapped fields are treated. Possible values are: "
             + "\"DEFAULT\" (default) - standard ESQL queries fail when referencing unmapped fields, "
             + "while other query types (e.g. PromQL) may treat them differently; "
             + "\"NULLIFY\" - treats unmapped fields as null values. "
-        // + "\"LOAD\" - attempts to load the fields from the source." Commented out since LOAD is currently only under snapshot.
+            + "\"LOAD\" - attempts to load the fields from the source."
     )
     @Example(file = "unmapped-nullify", tag = "unmapped-nullify-simple-keep", description = "Make the field null if it is unmapped.")
     public static final QuerySettingDef<UnmappedResolution> UNMAPPED_FIELDS = new QuerySettingDef<>(

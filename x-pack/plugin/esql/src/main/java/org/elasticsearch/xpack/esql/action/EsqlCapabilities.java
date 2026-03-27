@@ -253,7 +253,7 @@ public class EsqlCapabilities {
          * V3:  Fix synthetic _source numeric load bug (#143916)
          * V4:  Support for union type like resolution for load.
          */
-        OPTIONAL_FIELDS_V4(Build.current().isSnapshot()),
+        OPTIONAL_FIELDS_V4,
 
         /**
          * Support specifically for *just* the _index METADATA field. Used by CsvTests, since that is the only metadata field currently
@@ -2376,7 +2376,7 @@ public class EsqlCapabilities {
          * Reject loading sub-fields of flattened fields when {@code unmapped_fields="load"}
          * See https://github.com/elastic/elasticsearch/issues/143494
          */
-        REJECT_LOADING_FLATTENED_SUBFIELDS(OPTIONAL_FIELDS_V4.isEnabled()),
+        REJECT_LOADING_FLATTENED_SUBFIELDS,
 
         FIX_DIV_ERROR_MESSAGE,
 

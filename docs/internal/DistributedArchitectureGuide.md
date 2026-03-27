@@ -2748,7 +2748,7 @@ field. Each forward updates it to the forwarding node’s cluster state version 
 that version before it redirects again. Retries and awaiting cluster state updates are
 [bounded by the request’s timeout](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/support/replication/TransportReplicationAction.java#L874).
 On each retry attempt the node [checks](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/support/replication/TransportReplicationAction.java#L1102)
-whether the timeout has expired, and if so fails the request with an `UnavailableShardsException`.
+whether the timeout has expired, and if so fails the request.
 
 Once the request
 [reaches](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/support/replication/TransportReplicationAction.java#L964)

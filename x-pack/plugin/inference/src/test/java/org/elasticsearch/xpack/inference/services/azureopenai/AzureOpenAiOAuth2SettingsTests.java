@@ -34,8 +34,8 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class AzureOpenAiOAuth2SettingsTests extends AbstractBWCWireSerializationTestCase<AzureOpenAiOAuth2Settings> {
 
-    private static final String TEST_TENANT_ID = "some_tenant_id";
-    private static final String INITIAL_TEST_TENANT_ID = "initial_tenant_id";
+    public static final String TEST_TENANT_ID = "some_tenant_id";
+    public static final String INITIAL_TEST_TENANT_ID = "initial_tenant_id";
 
     public static AzureOpenAiOAuth2Settings createRandom() {
         return new AzureOpenAiOAuth2Settings(OAuth2SettingsTests.createRandom(), randomAlphaOfLength(10));

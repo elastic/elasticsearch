@@ -1063,6 +1063,7 @@ public class ForkIT extends AbstractEsqlIntegTestCase {
      * Batch size larger than branch count - all branches execute in a single batch.
      */
     public void testBatchSizeLargerThanBranchCount() {
+        assumeTrue("requires query pragmas", canUseQueryPragmas());
         var query = """
             FROM test
             | FORK
@@ -1088,6 +1089,7 @@ public class ForkIT extends AbstractEsqlIntegTestCase {
      * Batch size equals branch count - exactly one batch, no recursion.
      */
     public void testBatchSizeEqualsBranchCount() {
+        assumeTrue("requires query pragmas", canUseQueryPragmas());
         var query = """
             FROM test
             | FORK
@@ -1118,6 +1120,7 @@ public class ForkIT extends AbstractEsqlIntegTestCase {
      * Single branch with batch size 1 - minimal edge case.
      */
     public void testSingleBranchWithBatchSizeOne() {
+        assumeTrue("requires query pragmas", canUseQueryPragmas());
         var query = """
             FROM test
             | FORK
@@ -1141,6 +1144,7 @@ public class ForkIT extends AbstractEsqlIntegTestCase {
      * Three branches with batch size 1 - maximal sequential batching.
      */
     public void testThreeBranchesWithBatchSizeOne() {
+        assumeTrue("requires query pragmas", canUseQueryPragmas());
         var query = """
             FROM test
             | FORK
@@ -1171,6 +1175,7 @@ public class ForkIT extends AbstractEsqlIntegTestCase {
      * All branches return empty results across multiple batches.
      */
     public void testAllEmptyBranchesWithBatching() {
+        assumeTrue("requires query pragmas", canUseQueryPragmas());
         var query = """
             FROM test
             | FORK
@@ -1194,6 +1199,7 @@ public class ForkIT extends AbstractEsqlIntegTestCase {
      * First two branches (batch 1) return no rows, last two (batch 2) return rows.
      */
     public void testEmptyBatchFollowedByNonEmptyBatch() {
+        assumeTrue("requires query pragmas", canUseQueryPragmas());
         var query = """
             FROM test
             | FORK
@@ -1222,6 +1228,7 @@ public class ForkIT extends AbstractEsqlIntegTestCase {
      * First two branches (batch 1) return rows, last two (batch 2) return nothing.
      */
     public void testNonEmptyBatchFollowedByEmptyBatch() {
+        assumeTrue("requires query pragmas", canUseQueryPragmas());
         var query = """
             FROM test
             | FORK
@@ -1250,6 +1257,7 @@ public class ForkIT extends AbstractEsqlIntegTestCase {
      * Tests that schema merging works correctly across batch boundaries.
      */
     public void testDifferentOutputsAcrossBatches() {
+        assumeTrue("requires query pragmas", canUseQueryPragmas());
         var query = """
             FROM test
             | FORK
@@ -1275,6 +1283,7 @@ public class ForkIT extends AbstractEsqlIntegTestCase {
      * Many branches (max 8) with batch size 1 - maximal sequential batching with many recursive calls.
      */
     public void testManyBranchesWithBatchSizeOne() {
+        assumeTrue("requires query pragmas", canUseQueryPragmas());
         var query = """
             FROM test
             | FORK
@@ -1312,6 +1321,7 @@ public class ForkIT extends AbstractEsqlIntegTestCase {
      * Verifies that per-branch sort/limit works correctly across batch boundaries.
      */
     public void testSortAndLimitInBranchesWithBatchSizeOne() {
+        assumeTrue("requires query pragmas", canUseQueryPragmas());
         var query = """
             FROM test
             | FORK

@@ -32,6 +32,7 @@ import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.gpu.codec.ES92GpuHnswSQVectorsFormat;
@@ -460,9 +461,7 @@ public class KnnIndexTester {
 
         @Override
         public void close() throws IOException {
-            if (reader instanceof Closeable c) {
-                c.close();
-            }
+            reader.close();
         }
     }
 
@@ -506,7 +505,7 @@ public class KnnIndexTester {
                     try (var setup = dataGenerator.createIndexingSetup()) {
                         knnIndexer.createIndex(indexResults, writeDir, setup.reader(), setup.factory(), setup.totalDocs(), setup.sort());
                     } finally {
-                        if (sharedDir == null) {
+                        if (writeDir != sharedDir) {
                             writeDir.close();
                         }
                     }
@@ -531,7 +530,7 @@ public class KnnIndexTester {
                     runSearches(testConfiguration, indexPath, readDir, results, parsedArgs, indexPathName, indexType, dataGenerator);
                     logDiagnostics(dirConfig, readDir, "After search");
                 } finally {
-                    if (sharedDir == null) {
+                    if (readDir != sharedDir) {
                         readDir.close();
                     }
                 }
@@ -660,23 +659,21 @@ public class KnnIndexTester {
             boolean hasPartitionRecall = queryResults.stream()
                 .anyMatch(r -> r.perPartitionRecall != null && r.perPartitionRecall.isEmpty() == false);
 
-            List<String> searchHeaderList = new ArrayList<>(
-                List.of(
-                    "index_name",
-                    "index_type",
-                    "visit_percentage(%)",
-                    "latency(ms)",
-                    "net_cpu_time(ms)",
-                    "avg_cpu_count",
-                    "QPS",
-                    "recall",
-                    "visited",
-                    "filter_selectivity",
-                    "filter_cached",
-                    "oversampling_factor",
-                    "num_candidates",
-                    "early_termination"
-                )
+            List<String> searchHeaderList = CollectionUtils.arrayAsArrayList(
+                "index_name",
+                "index_type",
+                "visit_percentage(%)",
+                "latency(ms)",
+                "net_cpu_time(ms)",
+                "avg_cpu_count",
+                "QPS",
+                "recall",
+                "visited",
+                "filter_selectivity",
+                "filter_cached",
+                "oversampling_factor",
+                "num_candidates",
+                "early_termination"
             );
             if (hasPartitionRecall) {
                 searchHeaderList.add("partition_recall_min");
@@ -703,23 +700,21 @@ public class KnnIndexTester {
             String[][] queryResultsArray = new String[queryResults.size()][];
             for (int i = 0; i < queryResults.size(); i++) {
                 Results queryResult = queryResults.get(i);
-                List<String> row = new ArrayList<>(
-                    List.of(
-                        queryResult.indexName,
-                        queryResult.indexType,
-                        String.format(Locale.ROOT, "%.3f", queryResult.visitPercentage),
-                        String.format(Locale.ROOT, "%.2f", queryResult.avgLatency),
-                        String.format(Locale.ROOT, "%.2f", queryResult.netCpuTimeMS),
-                        String.format(Locale.ROOT, "%.2f", queryResult.avgCpuCount),
-                        String.format(Locale.ROOT, "%.2f", queryResult.qps),
-                        String.format(Locale.ROOT, "%.2f", queryResult.avgRecall),
-                        String.format(Locale.ROOT, "%.2f", queryResult.averageVisited),
-                        String.format(Locale.ROOT, "%.2f", queryResult.filterSelectivity),
-                        Boolean.toString(queryResult.filterCached),
-                        String.format(Locale.ROOT, "%.2f", queryResult.overSamplingFactor),
-                        String.format(Locale.ROOT, "%d", queryResult.numCandidates),
-                        Boolean.toString(queryResult.earlyTermination)
-                    )
+                List<String> row = CollectionUtils.arrayAsArrayList(
+                    queryResult.indexName,
+                    queryResult.indexType,
+                    String.format(Locale.ROOT, "%.3f", queryResult.visitPercentage),
+                    String.format(Locale.ROOT, "%.2f", queryResult.avgLatency),
+                    String.format(Locale.ROOT, "%.2f", queryResult.netCpuTimeMS),
+                    String.format(Locale.ROOT, "%.2f", queryResult.avgCpuCount),
+                    String.format(Locale.ROOT, "%.2f", queryResult.qps),
+                    String.format(Locale.ROOT, "%.2f", queryResult.avgRecall),
+                    String.format(Locale.ROOT, "%.2f", queryResult.averageVisited),
+                    String.format(Locale.ROOT, "%.2f", queryResult.filterSelectivity),
+                    Boolean.toString(queryResult.filterCached),
+                    String.format(Locale.ROOT, "%.2f", queryResult.overSamplingFactor),
+                    String.format(Locale.ROOT, "%d", queryResult.numCandidates),
+                    Boolean.toString(queryResult.earlyTermination)
                 );
                 if (hasPartitionRecall) {
                     String partitionMin = "";

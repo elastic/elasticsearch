@@ -106,14 +106,14 @@ import static org.elasticsearch.test.knn.KnnIndexer.VECTOR_FIELD;
 public class KnnSearcher {
 
     private final List<Path> docPath;
-    public final Path indexPath;
-    public final Path queryPath;
-    public final int numDocs;
-    public final int numQueryVectors;
+    private final Path indexPath;
+    private final Path queryPath;
+    private final int numDocs;
+    private final int numQueryVectors;
     private final KnnIndexTester.IndexType indexType;
-    public int dim;
-    public final VectorSimilarityFunction similarityFunction;
-    public final VectorEncoding vectorEncoding;
+    private int dim;
+    private final VectorSimilarityFunction similarityFunction;
+    private final VectorEncoding vectorEncoding;
     private final boolean doPrecondition;
 
     KnnSearcher(Path indexPath, TestConfiguration testConfiguration) {
@@ -130,6 +130,38 @@ public class KnnSearcher {
         }
         this.indexType = testConfiguration.indexType();
         this.doPrecondition = testConfiguration.doPrecondition();
+    }
+
+    public Path indexPath() {
+        return indexPath;
+    }
+
+    public Path queryPath() {
+        return queryPath;
+    }
+
+    public int numDocs() {
+        return numDocs;
+    }
+
+    public int numQueryVectors() {
+        return numQueryVectors;
+    }
+
+    public int dim() {
+        return dim;
+    }
+
+    public void setDim(int dim) {
+        this.dim = dim;
+    }
+
+    public VectorSimilarityFunction similarityFunction() {
+        return similarityFunction;
+    }
+
+    public VectorEncoding vectorEncoding() {
+        return vectorEncoding;
     }
 
     /** Provides the filter query and query-vector-to-search mapping for each search operation. */

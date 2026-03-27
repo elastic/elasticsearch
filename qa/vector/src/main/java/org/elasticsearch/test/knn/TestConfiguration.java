@@ -135,7 +135,7 @@ public record TestConfiguration(
     static final ObjectParser<TestConfiguration.Builder, Void> PARSER = new ObjectParser<>("test_configuration", false, Builder::new);
 
     static {
-        PARSER.declareField(Builder::setDatasetConfig, DatasetConfig::parse, DATASET_FIELD, ObjectParser.ValueType.OBJECT_OR_STRING);
+        PARSER.declareField(Builder::setDatasetConfig, DatasetConfig::parse, DATASET_FIELD, ObjectParser.ValueType.OBJECT);
         PARSER.declareString(Builder::setDataDir, DATA_DIR_FIELD);
         PARSER.declareStringArray(Builder::setDocVectors, DOC_VECTORS_FIELD);
         PARSER.declareString(Builder::setQueryVectors, QUERY_VECTORS_FIELD);
@@ -204,8 +204,8 @@ public record TestConfiguration(
         List<ParameterHelp> params = List.of(
             new ParameterHelp(
                 "dataset",
-                "string|object",
-                "Optional. GCP dataset name (string), or {\"gcp\": {\"name\": \"...\"}}, "
+                "object",
+                "Optional. {\"gcp\": {\"name\": \"...\"}}, "
                     + "{\"file\": {\"doc_vectors\": [...], \"query_vectors\": \"...\"}}, "
                     + "or {\"partition_generated\": {\"num_partitions\": N, "
                     + "\"partition_distribution\": \"uniform|zipf\", \"generator_seed\": L}}."

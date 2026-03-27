@@ -9,7 +9,6 @@
 
 package org.elasticsearch.test.knn.data;
 
-import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.io.Channels;
 import org.elasticsearch.test.knn.IndexVectorReader;
@@ -56,45 +55,50 @@ public class FileDataGenerator implements DataGenerator {
         byte[][] byteQueries = null;
         int offsetByteSize = 0;
 
-        try (FileChannel input = FileChannel.open(searcher.queryPath)) {
+        try (FileChannel input = FileChannel.open(searcher.queryPath())) {
             long queryPathSizeInBytes = input.size();
-            if (searcher.dim == -1) {
+            if (searcher.dim() == -1) {
                 offsetByteSize = 4;
                 ByteBuffer preamble = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN);
                 int bytesRead = Channels.readFromFileChannel(input, 0, preamble);
                 if (bytesRead < 4) {
-                    throw new IllegalArgumentException("queryPath \"" + searcher.queryPath + "\" does not contain a valid dims?");
+                    throw new IllegalArgumentException("queryPath \"" + searcher.queryPath() + "\" does not contain a valid dims?");
                 }
-                searcher.dim = preamble.getInt(0);
-                if (searcher.dim <= 0) {
-                    throw new IllegalArgumentException("queryPath \"" + searcher.queryPath + "\" has invalid dimension: " + searcher.dim);
+                searcher.setDim(preamble.getInt(0));
+                if (searcher.dim() <= 0) {
+                    throw new IllegalArgumentException(
+                        "queryPath \"" + searcher.queryPath() + "\" has invalid dimension: " + searcher.dim()
+                    );
                 }
             }
-            if (queryPathSizeInBytes % (((long) searcher.dim * searcher.vectorEncoding.byteSize + offsetByteSize)) != 0) {
+            if (queryPathSizeInBytes % (((long) searcher.dim() * searcher.vectorEncoding().byteSize + offsetByteSize)) != 0) {
                 throw new IllegalArgumentException(
-                    "queryPath \"" + searcher.queryPath + "\" does not contain a whole number of vectors?  size=" + queryPathSizeInBytes
+                    "queryPath \"" + searcher.queryPath() + "\" does not contain a whole number of vectors?  size=" + queryPathSizeInBytes
                 );
             }
             logger.info(
                 "queryPath size: {} bytes, assuming vector count is {}",
                 queryPathSizeInBytes,
-                queryPathSizeInBytes / ((long) searcher.dim * searcher.vectorEncoding.byteSize + offsetByteSize)
+                queryPathSizeInBytes / ((long) searcher.dim() * searcher.vectorEncoding().byteSize + offsetByteSize)
             );
             IndexVectorReader.VectorReader targetReader = IndexVectorReader.VectorReader.create(
                 input,
-                searcher.dim,
-                searcher.vectorEncoding,
+                searcher.dim(),
+                searcher.vectorEncoding(),
                 offsetByteSize
             );
-            if (searcher.vectorEncoding.equals(VectorEncoding.BYTE)) {
-                byteQueries = new byte[searcher.numQueryVectors][searcher.dim];
-                for (int i = 0; i < searcher.numQueryVectors; i++) {
-                    targetReader.next(byteQueries[i]);
+            switch (searcher.vectorEncoding()) {
+                case BYTE -> {
+                    byteQueries = new byte[searcher.numQueryVectors()][searcher.dim()];
+                    for (int i = 0; i < searcher.numQueryVectors(); i++) {
+                        targetReader.next(byteQueries[i]);
+                    }
                 }
-            } else {
-                floatQueries = new float[searcher.numQueryVectors][searcher.dim];
-                for (int i = 0; i < searcher.numQueryVectors; i++) {
-                    targetReader.next(floatQueries[i]);
+                case FLOAT32 -> {
+                    floatQueries = new float[searcher.numQueryVectors()][searcher.dim()];
+                    for (int i = 0; i < searcher.numQueryVectors(); i++) {
+                        targetReader.next(floatQueries[i]);
+                    }
                 }
             }
         }
@@ -102,14 +106,14 @@ public class FileDataGenerator implements DataGenerator {
         Query selectivityFilter = searchParameters.filterSelectivity() < 1f
             ? KnnSearcher.generateRandomQuery(
                 new Random(searchParameters.seed()),
-                searcher.indexPath,
-                searcher.numDocs,
+                searcher.indexPath(),
+                searcher.numDocs(),
                 searchParameters.filterSelectivity(),
                 searchParameters.filterCached()
             )
             : null;
 
-        var provider = new KnnSearcher.SimpleFilterQueryProvider(searcher.numQueryVectors, selectivityFilter);
+        var provider = new KnnSearcher.SimpleFilterQueryProvider(searcher.numQueryVectors(), selectivityFilter);
         var consumer = new KnnSearcher.FileBasedResultsConsumer(searcher, offsetByteSize, selectivityFilter);
         return new KnnSearcher.SearchSetup(floatQueries, byteQueries, provider, consumer);
     }

@@ -19,7 +19,7 @@ public class PartitionDataGeneratorTests extends ESTestCase {
     public void testUniformDistribution() {
         int numDocs = 1000;
         int numPartitions = 10;
-        var generator = new PartitionDataGenerator(numDocs, 8, numPartitions, "uniform", 42L);
+        var generator = new PartitionDataGenerator(numDocs, 8, numPartitions, DatasetConfig.PartitionDistribution.UNIFORM, 42L);
 
         Map<String, List<Integer>> assignments = generator.getPartitionAssignments();
         assertEquals(numPartitions, assignments.size());
@@ -31,7 +31,7 @@ public class PartitionDataGeneratorTests extends ESTestCase {
     public void testZipfDistribution() {
         int numDocs = 1000;
         int numPartitions = 10;
-        var generator = new PartitionDataGenerator(numDocs, 8, numPartitions, "zipf", 42L);
+        var generator = new PartitionDataGenerator(numDocs, 8, numPartitions, DatasetConfig.PartitionDistribution.ZIPF, 42L);
 
         Map<String, List<Integer>> assignments = generator.getPartitionAssignments();
         assertEquals(numPartitions, assignments.size());
@@ -48,7 +48,7 @@ public class PartitionDataGeneratorTests extends ESTestCase {
     public void testUniformDistributionUnevenSplit() {
         int numDocs = 103;
         int numPartitions = 10;
-        var generator = new PartitionDataGenerator(numDocs, 8, numPartitions, "uniform", 42L);
+        var generator = new PartitionDataGenerator(numDocs, 8, numPartitions, DatasetConfig.PartitionDistribution.UNIFORM, 42L);
 
         Map<String, List<Integer>> assignments = generator.getPartitionAssignments();
         assertEquals(numPartitions, assignments.size());

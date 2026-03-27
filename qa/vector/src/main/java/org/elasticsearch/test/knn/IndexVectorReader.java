@@ -22,6 +22,7 @@ package org.elasticsearch.test.knn;
 
 import org.apache.lucene.index.VectorEncoding;
 import org.elasticsearch.common.io.Channels;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.test.knn.data.PartitionDataGenerator;
 
 import java.io.Closeable;
@@ -38,12 +39,15 @@ import static org.elasticsearch.test.knn.KnnIndexTester.logger;
 /**
  * Provide vectors for indexing. Implementations must be thread-safe.
  */
-public interface IndexVectorReader {
+public interface IndexVectorReader extends Closeable {
     /** Returns the next float vector. Thread-safe. */
     float[] nextFloatVector(int docOrd) throws IOException;
 
     /** Returns the next byte vector. Thread-safe. */
     byte[] nextByteVector(int docOrd) throws IOException;
+
+    @Override
+    default void close() throws IOException {}
 
     /**
      * An {@link IndexVectorReader} that reads vectors from a file channel.
@@ -97,7 +101,7 @@ public interface IndexVectorReader {
      * An {@link IndexVectorReader} that reads vectors sequentially across multiple files.
      * Handles dim detection from file headers, wraps around within each file, and caps at a maximum doc count.
      */
-    class MultiFileVectorReader implements IndexVectorReader, Closeable {
+    class MultiFileVectorReader implements IndexVectorReader {
         private final List<VectorReader> readers;
         private final List<FileChannel> channels;
         private final int[] docsPerReader;
@@ -132,10 +136,10 @@ public interface IndexVectorReader {
                 int offsetByteSize = 0;
                 int dim = resolvedDim;
                 if (dim == -1) {
-                    offsetByteSize = 4;
-                    ByteBuffer preamble = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN);
+                    offsetByteSize = Integer.BYTES;
+                    ByteBuffer preamble = ByteBuffer.allocate(Integer.BYTES).order(ByteOrder.LITTLE_ENDIAN);
                     int bytesRead = Channels.readFromFileChannel(in, 0, preamble);
-                    if (bytesRead < 4) {
+                    if (bytesRead < Integer.BYTES) {
                         throw new IllegalArgumentException(
                             "docsPath \"" + docsPath + "\" does not contain a valid dims?  size=" + docsPathSizeInBytes
                         );
@@ -209,9 +213,7 @@ public interface IndexVectorReader {
 
         @Override
         public void close() throws IOException {
-            for (FileChannel ch : channels) {
-                ch.close();
-            }
+            IOUtils.close(channels);
         }
     }
 
@@ -235,7 +237,7 @@ public interface IndexVectorReader {
 
         VectorReader(FileChannel input, int dim, int bufferSize, int offsetByteSize) throws IOException {
             this.offsetByteSize = offsetByteSize;
-            this.bytes = ByteBuffer.wrap(new byte[bufferSize]).order(ByteOrder.LITTLE_ENDIAN);
+            this.bytes = ByteBuffer.allocate(bufferSize).order(ByteOrder.LITTLE_ENDIAN);
             this.input = input;
             this.target = new float[dim];
             reset();
@@ -272,7 +274,7 @@ public interface IndexVectorReader {
 
         public synchronized void next(byte[] dest) throws IOException {
             readNext();
-            bytes.get(dest).position(0);
+            bytes.get(0, dest);
         }
     }
 }

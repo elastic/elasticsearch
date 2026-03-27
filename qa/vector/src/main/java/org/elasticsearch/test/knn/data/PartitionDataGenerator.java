@@ -21,11 +21,13 @@ import org.elasticsearch.test.knn.SearchParameters;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.stream.IntStream;
 
 import static org.elasticsearch.test.knn.KnnIndexTester.logger;
 
@@ -40,11 +42,13 @@ public class PartitionDataGenerator implements DataGenerator {
     private final int numDocs;
     private final int dimensions;
     private final int numPartitions;
-    private final String distribution;
+    private final DatasetConfig.PartitionDistribution distribution;
     private final Random random;
-    private final Map<String, List<Integer>> partitionAssignments;
+    private final PartitionAssignmentInfo partitionAssignments;
 
-    PartitionDataGenerator(int numDocs, int dimensions, int numPartitions, String distribution, long seed) {
+    record PartitionAssignmentInfo(Map<String, List<Integer>> partitionToDocIds, String[] docPartitionIds, int[] docOrdinals) {}
+
+    PartitionDataGenerator(int numDocs, int dimensions, int numPartitions, DatasetConfig.PartitionDistribution distribution, long seed) {
         this.numDocs = numDocs;
         this.dimensions = dimensions;
         this.numPartitions = numPartitions;
@@ -54,24 +58,11 @@ public class PartitionDataGenerator implements DataGenerator {
     }
 
     /**
-     * Returns the partition_id for a given document ordinal.
-     */
-    String partitionId(int docOrd) {
-        // Iterate through partition assignments to find the partition for this doc
-        for (var entry : partitionAssignments.entrySet()) {
-            if (entry.getValue().contains(docOrd)) {
-                return entry.getKey();
-            }
-        }
-        throw new IllegalStateException("doc " + docOrd + " not assigned to any partition");
-    }
-
-    /**
      * Returns the partition assignments: a map from partition_id to the list of document ordinals assigned to that partition.
      * Documents are assigned contiguously per partition (sorted by partition_id) to facilitate index sorting.
      */
     Map<String, List<Integer>> getPartitionAssignments() {
-        return partitionAssignments;
+        return partitionAssignments.partitionToDocIds();
     }
 
     /**
@@ -125,24 +116,13 @@ public class PartitionDataGenerator implements DataGenerator {
 
     @Override
     public KnnIndexTester.IndexingSetup createIndexingSetup() {
-        var assignments = getPartitionAssignments();
-        int totalDocs = 0;
-        for (var docIds : assignments.values()) {
-            totalDocs += docIds.size();
-        }
-        String[] docPartitionIds = new String[totalDocs];
-        int[] docOrdinals = new int[totalDocs];
-        int idx = 0;
-        for (var entry : assignments.entrySet()) {
-            for (int docId : entry.getValue()) {
-                docPartitionIds[idx] = entry.getKey();
-                docOrdinals[idx] = docId;
-                idx++;
-            }
-        }
+        int totalDocs = partitionAssignments.docOrdinals().length;
         logger.info("IndexingSetup: generated data with {} partitions, dim={}", this.numPartitions, this.dimensions);
         IndexVectorReader vectorReader = new IndexVectorReader.PartitionGeneratingVectorReader(this);
-        KnnIndexer.DocumentFactory documentFactory = new KnnIndexer.PartitionDocumentFactory(docPartitionIds, docOrdinals);
+        KnnIndexer.DocumentFactory documentFactory = new KnnIndexer.PartitionDocumentFactory(
+            partitionAssignments.docPartitionIds(),
+            partitionAssignments.docOrdinals()
+        );
         Sort indexSort = new Sort(new SortField(KnnIndexer.PARTITION_ID_FIELD, SortField.Type.STRING, false));
         return new KnnIndexTester.IndexingSetup(vectorReader, documentFactory, totalDocs, indexSort);
     }
@@ -152,36 +132,35 @@ public class PartitionDataGenerator implements DataGenerator {
         float[][] floatQueries = null;
         byte[][] byteQueries = null;
 
-        if (searcher.vectorEncoding.equals(VectorEncoding.BYTE)) {
-            byteQueries = generateQueryByteVectors(searcher.numQueryVectors);
+        if (searcher.vectorEncoding().equals(VectorEncoding.BYTE)) {
+            byteQueries = generateQueryByteVectors(searcher.numQueryVectors());
         } else {
-            floatQueries = generateQueryVectors(searcher.numQueryVectors);
+            floatQueries = generateQueryVectors(searcher.numQueryVectors());
         }
 
         Query selectivityFilter = searchParameters.filterSelectivity() < 1f
             ? KnnSearcher.generateRandomQuery(
                 new Random(searchParameters.seed()),
-                searcher.indexPath,
-                searcher.numDocs,
+                searcher.indexPath(),
+                searcher.numDocs(),
                 searchParameters.filterSelectivity(),
                 searchParameters.filterCached()
             )
             : null;
 
-        List<String> partitionIds = new ArrayList<>(getPartitionAssignments().keySet());
+        List<String> sampledPartitions = new ArrayList<>(getPartitionAssignments().keySet());
         Random queryRandom = new Random(searchParameters.seed());
-        int numSampledPartitions = Math.min(partitionIds.size(), 10);
-        List<String> sampledPartitions = new ArrayList<>(partitionIds);
+        int numSampledPartitions = Math.min(sampledPartitions.size(), 10);
         Collections.shuffle(sampledPartitions, queryRandom);
         sampledPartitions = sampledPartitions.subList(0, numSampledPartitions);
-        logger.info("Sampled {} of {} partitions for search", numSampledPartitions, partitionIds.size());
+        logger.info("Sampled {} of {} partitions for search", numSampledPartitions, getPartitionAssignments().size());
 
-        var provider = new KnnSearcher.PartitionFilterQueryProvider(sampledPartitions, searcher.numQueryVectors, selectivityFilter);
+        var provider = new KnnSearcher.PartitionFilterQueryProvider(sampledPartitions, searcher.numQueryVectors(), selectivityFilter);
         var consumer = new KnnSearcher.PartitionResultsConsumer(
-            searcher.indexPath,
-            searcher.vectorEncoding,
-            searcher.similarityFunction,
-            searcher.numQueryVectors,
+            searcher.indexPath(),
+            searcher.vectorEncoding(),
+            searcher.similarityFunction(),
+            searcher.numQueryVectors(),
             provider,
             selectivityFilter,
             floatQueries,
@@ -195,27 +174,31 @@ public class PartitionDataGenerator implements DataGenerator {
         return true;
     }
 
-    private Map<String, List<Integer>> computePartitionAssignments() {
+    private PartitionAssignmentInfo computePartitionAssignments() {
         int[] docsPerPartition = computeDocsPerPartition();
         Map<String, List<Integer>> assignments = new LinkedHashMap<>();
+        String[] docPartitionIds = new String[numDocs];
+        int[] docOrdinals = new int[numDocs];
         int docOrd = 0;
         for (int t = 0; t < numPartitions; t++) {
             String partitionId = String.format("partition_%06d", t);
-            List<Integer> docIds = new ArrayList<>(docsPerPartition[t]);
-            for (int d = 0; d < docsPerPartition[t]; d++) {
-                docIds.add(docOrd++);
+            final int startOrd = docOrd;
+            List<Integer> docIds = IntStream.range(0, docsPerPartition[t]).map(d -> startOrd + d).boxed().toList();
+            for (int docId : docIds) {
+                docPartitionIds[docOrd] = partitionId;
+                docOrdinals[docOrd] = docId;
+                docOrd++;
             }
             assignments.put(partitionId, docIds);
         }
         logger.info("Generated partition assignments: {} partitions, {} total docs, distribution={}", numPartitions, docOrd, distribution);
-        return assignments;
+        return new PartitionAssignmentInfo(assignments, docPartitionIds, docOrdinals);
     }
 
     private int[] computeDocsPerPartition() {
         return switch (distribution) {
-            case "uniform" -> computeUniform();
-            case "zipf" -> computeZipf();
-            default -> throw new IllegalArgumentException("Unknown partition distribution: " + distribution + ". Use 'uniform' or 'zipf'.");
+            case UNIFORM -> computeUniform();
+            case ZIPF -> computeZipf();
         };
     }
 
@@ -223,9 +206,7 @@ public class PartitionDataGenerator implements DataGenerator {
         int[] counts = new int[numPartitions];
         int base = numDocs / numPartitions;
         int remainder = numDocs % numPartitions;
-        for (int i = 0; i < numPartitions; i++) {
-            counts[i] = base + (i < remainder ? 1 : 0);
-        }
+        Arrays.setAll(counts, i -> base + (i < remainder ? 1 : 0));
         return counts;
     }
 

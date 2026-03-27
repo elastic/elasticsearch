@@ -169,16 +169,16 @@ public class KnnIndexer {
                     future.get();
                 }
             }
-            logger.info("KnnIndexer: indexed {} documents", numDocsIndexed.get());
+            logger.info("KnnIndexer: indexed {} documents", totalDocs);
             iw.commit();
             ConcurrentMergeScheduler cms = (ConcurrentMergeScheduler) iwc.getMergeScheduler();
             cms.sync();
         }
 
         long elapsed = System.nanoTime() - start;
-        logger.debug("Indexing took {} ms for {} docs", TimeUnit.NANOSECONDS.toMillis(elapsed), numDocsIndexed.get());
+        logger.debug("Indexing took {} ms for {} docs", TimeUnit.NANOSECONDS.toMillis(elapsed), totalDocs);
         result.indexTimeMS = TimeUnit.NANOSECONDS.toMillis(elapsed);
-        result.numDocs = numDocsIndexed.get();
+        result.numDocs = totalDocs;
     }
 
     private IndexWriterConfig createIndexWriterConfig(Sort indexSort) {
@@ -349,13 +349,8 @@ public class KnnIndexer {
         @Override
         public void run() {
             try {
-                while (true) {
-                    int idx = numDocsIndexed.get();
-                    if (idx >= numDocsToIndex) {
-                        break;
-                    } else if (numDocsIndexed.compareAndSet(idx, idx + 1) == false) {
-                        continue;
-                    }
+                int idx;
+                while ((idx = numDocsIndexed.getAndIncrement()) < numDocsToIndex) {
 
                     final IndexableField field;
                     switch (vectorEncoding) {

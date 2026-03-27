@@ -18,6 +18,8 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.util.List;
 
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class TestConfigurationTests extends ESTestCase {
@@ -73,23 +75,6 @@ public class TestConfigurationTests extends ESTestCase {
         KnnIndexTester.main(new String[] { "--help" });
     }
 
-    public void testDatasetConfigParseStringShorthand() throws Exception {
-        String json = """
-            {
-              "dataset": "my-gcp-dataset",
-              "doc_vectors": ["/path/to/docs"],
-              "dimensions": 128
-            }
-            """;
-
-        // Use PARSER.apply to test only the parsing, not build() which requires GCS
-        try (XContentParser parser = createParser(XContentType.JSON.xContent(), json)) {
-            TestConfiguration.Builder builder = TestConfiguration.PARSER.apply(parser, null);
-            assertThat(builder.datasetConfig(), instanceOf(DatasetConfig.GcpDataset.class));
-            assertEquals("my-gcp-dataset", ((DatasetConfig.GcpDataset) builder.datasetConfig()).name());
-        }
-    }
-
     public void testDatasetConfigParsePartitionGenerated() throws Exception {
         String json = """
             {
@@ -111,7 +96,7 @@ public class TestConfigurationTests extends ESTestCase {
             assertThat(config.datasetConfig(), instanceOf(DatasetConfig.PartitionGenerated.class));
             DatasetConfig.PartitionGenerated pg = (DatasetConfig.PartitionGenerated) config.datasetConfig();
             assertEquals(50, pg.numPartitions());
-            assertEquals("zipf", pg.partitionDistribution());
+            assertEquals(DatasetConfig.PartitionDistribution.ZIPF, pg.partitionDistribution());
             assertEquals(99L, pg.generatorSeed());
             assertEquals(64, config.dimensions());
             assertEquals(1000, config.numDocs());
@@ -156,7 +141,7 @@ public class TestConfigurationTests extends ESTestCase {
             assertThat(config.datasetConfig(), instanceOf(DatasetConfig.PartitionGenerated.class));
             DatasetConfig.PartitionGenerated pg = (DatasetConfig.PartitionGenerated) config.datasetConfig();
             assertEquals(100, pg.numPartitions());
-            assertEquals("uniform", pg.partitionDistribution());
+            assertEquals(DatasetConfig.PartitionDistribution.UNIFORM, pg.partitionDistribution());
             assertEquals(42L, pg.generatorSeed());
         }
     }
@@ -192,7 +177,7 @@ public class TestConfigurationTests extends ESTestCase {
             assertThat(config2.datasetConfig(), instanceOf(DatasetConfig.PartitionGenerated.class));
             DatasetConfig.PartitionGenerated pg = (DatasetConfig.PartitionGenerated) config2.datasetConfig();
             assertEquals(25, pg.numPartitions());
-            assertEquals("uniform", pg.partitionDistribution());
+            assertEquals(DatasetConfig.PartitionDistribution.UNIFORM, pg.partitionDistribution());
             assertEquals(777L, pg.generatorSeed());
         }
     }
@@ -234,9 +219,9 @@ public class TestConfigurationTests extends ESTestCase {
             TestConfiguration config = TestConfiguration.fromXContent(parser);
             assertThat(config.datasetConfig(), instanceOf(DatasetConfig.FileDataset.class));
             DatasetConfig.FileDataset fd = (DatasetConfig.FileDataset) config.datasetConfig();
-            assertEquals(List.of("/data/docs1.fvec", "/data/docs2.fvec"), fd.docVectors());
+            assertThat(fd.docVectors(), contains("/data/docs1.fvec", "/data/docs2.fvec"));
             assertEquals("/data/queries.fvec", fd.queryVectors());
-            assertEquals(2, config.docVectors().size());
+            assertThat(config.docVectors(), hasSize(2));
             assertEquals(PathUtils.get("/data/docs1.fvec"), config.docVectors().get(0));
             assertEquals(PathUtils.get("/data/queries.fvec"), config.queryVectors());
         }
@@ -260,7 +245,7 @@ public class TestConfigurationTests extends ESTestCase {
             TestConfiguration config = TestConfiguration.fromXContent(parser);
             assertThat(config.datasetConfig(), instanceOf(DatasetConfig.FileDataset.class));
             DatasetConfig.FileDataset fd = (DatasetConfig.FileDataset) config.datasetConfig();
-            assertEquals(List.of("/data/docs.fvec"), fd.docVectors());
+            assertThat(fd.docVectors(), contains("/data/docs.fvec"));
             assertNull(fd.queryVectors());
             assertNull(config.queryVectors());
         }
@@ -309,7 +294,7 @@ public class TestConfigurationTests extends ESTestCase {
             TestConfiguration.Builder builder2 = TestConfiguration.PARSER.apply(parser2, null);
             assertThat(builder2.datasetConfig(), instanceOf(DatasetConfig.FileDataset.class));
             DatasetConfig.FileDataset fd = (DatasetConfig.FileDataset) builder2.datasetConfig();
-            assertEquals(List.of("/data/docs.fvec"), fd.docVectors());
+            assertThat(fd.docVectors(), contains("/data/docs.fvec"));
             assertEquals("/data/queries.fvec", fd.queryVectors());
         }
     }
@@ -331,10 +316,8 @@ public class TestConfigurationTests extends ESTestCase {
             """;
 
         try (XContentParser parser = createParser(XContentType.JSON.xContent(), json)) {
-            TestConfiguration config = TestConfiguration.fromXContent(parser);
-            // Distribution is validated lazily when the generator is created
-            var ex = expectThrows(IllegalArgumentException.class, () -> config.datasetConfig().createDataGenerator(config));
-            assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString("Unknown partition distribution"));
+            // Distribution is validated at parse time via the enum
+            expectThrows(IllegalArgumentException.class, () -> TestConfiguration.fromXContent(parser));
         }
     }
 

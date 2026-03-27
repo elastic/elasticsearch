@@ -25,8 +25,7 @@ import java.util.Locale;
  * Represents the "dataset" configuration using NamedXContent style parsing:
  *
  * <pre>
- *   "dataset": "somegcpbucketdataset"                                                       — shorthand for GCP
- *   "dataset": { "gcp": { "name": "somegcpbucketdataset" } }                                — explicit GCP
+ *   "dataset": { "gcp": { "name": "somegcpbucketdataset" } }                                — GCP
  *   "dataset": { "file": { "doc_vectors": [...], "query_vectors": "..." } }                 — local files
  *   "dataset": { "partition_generated": { "num_partitions": 50, ... } }                      — synthetic data
  * </pre>
@@ -36,6 +35,16 @@ import java.util.Locale;
  */
 public sealed interface DatasetConfig extends ToXContentFragment permits DatasetConfig.GcpDataset, DatasetConfig.FileDataset,
     DatasetConfig.PartitionGenerated {
+
+    /** Distribution strategy for assigning documents to partitions. */
+    enum PartitionDistribution {
+        UNIFORM,
+        ZIPF;
+
+        static PartitionDistribution fromString(String value) {
+            return valueOf(value.toUpperCase(Locale.ROOT));
+        }
+    }
 
     /**
      * Creates a {@link DataGenerator} that supplies vectors for indexing and queries for searching.
@@ -52,7 +61,11 @@ public sealed interface DatasetConfig extends ToXContentFragment permits Dataset
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            return builder.field("dataset", name);
+            builder.startObject("dataset");
+            builder.startObject("gcp");
+            builder.field("name", name);
+            builder.endObject();
+            return builder.endObject();
         }
     }
 
@@ -78,7 +91,7 @@ public sealed interface DatasetConfig extends ToXContentFragment permits Dataset
     }
 
     /** A synthetically generated partitioned dataset. */
-    record PartitionGenerated(int numPartitions, String partitionDistribution, long generatorSeed) implements DatasetConfig {
+    record PartitionGenerated(int numPartitions, PartitionDistribution partitionDistribution, long generatorSeed) implements DatasetConfig {
 
         static final ParseField NUM_PARTITIONS_FIELD = new ParseField("num_partitions");
         static final ParseField PARTITION_DISTRIBUTION_FIELD = new ParseField("partition_distribution");
@@ -89,7 +102,7 @@ public sealed interface DatasetConfig extends ToXContentFragment permits Dataset
             builder.startObject("dataset");
             builder.startObject("partition_generated");
             builder.field("num_partitions", numPartitions);
-            builder.field("partition_distribution", partitionDistribution);
+            builder.field("partition_distribution", partitionDistribution.name().toLowerCase(Locale.ROOT));
             builder.field("generator_seed", generatorSeed);
             builder.endObject();
             return builder.endObject();
@@ -115,7 +128,7 @@ public sealed interface DatasetConfig extends ToXContentFragment permits Dataset
 
         private static class Builder {
             private int numPartitions = 100;
-            private String partitionDistribution = "uniform";
+            private PartitionDistribution partitionDistribution = PartitionDistribution.UNIFORM;
             private long generatorSeed = 42L;
 
             void setNumPartitions(int numPartitions) {
@@ -123,7 +136,7 @@ public sealed interface DatasetConfig extends ToXContentFragment permits Dataset
             }
 
             void setPartitionDistribution(String partitionDistribution) {
-                this.partitionDistribution = partitionDistribution.toLowerCase(Locale.ROOT);
+                this.partitionDistribution = PartitionDistribution.fromString(partitionDistribution);
             }
 
             void setGeneratorSeed(long generatorSeed) {
@@ -137,12 +150,8 @@ public sealed interface DatasetConfig extends ToXContentFragment permits Dataset
      * or a NamedXContent-style object where the key identifies the dataset type.
      */
     static DatasetConfig parse(XContentParser parser) throws IOException {
-        if (parser.currentToken() == XContentParser.Token.VALUE_STRING) {
-            return new GcpDataset(parser.text());
-        }
-        // NamedXContent style: { "gcp": {...} } or { "partition_generated": {...} }
         if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
-            throw new IllegalArgumentException("Expected a string or object for dataset, got: " + parser.currentToken());
+            throw new IllegalArgumentException("Expected an object for dataset, got: " + parser.currentToken());
         }
         parser.nextToken();
         String typeName = parser.currentName();

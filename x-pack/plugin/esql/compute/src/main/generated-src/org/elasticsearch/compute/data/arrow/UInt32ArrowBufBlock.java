@@ -18,17 +18,17 @@ import org.elasticsearch.core.Nullable;
 // end generated imports
 
 /**
- * Implementation of LongBlock backed by an Arrow buffer holding 64 bits signed integers.
+ * Implementation of LongBlock backed by an Arrow buffer holding unsigned 32 bits integers.
  * <p>
  * This class is generated. Edit {@code X-ArrowBufBlock.java.st} instead.
  */
-public final class LongArrowBufBlock extends AbstractArrowBufBlock<LongVector, LongBlock> implements LongBlock {
+public final class UInt32ArrowBufBlock extends AbstractArrowBufBlock<LongVector, LongBlock> implements LongBlock {
 
     /**
      *  Create an ArrowBuf block based on the constituents of an Arrow <code>ValueVector</code>. The caller must retain the buffers if they
      *  are shared with other blocks or Arrow vectors.
      */
-    public LongArrowBufBlock(
+    public UInt32ArrowBufBlock(
         ArrowBuf valueBuffer,
         @Nullable ArrowBuf validityBuffer,
         @Nullable ArrowBuf offsetBuffer,
@@ -39,32 +39,32 @@ public final class LongArrowBufBlock extends AbstractArrowBufBlock<LongVector, L
         super(valueBuffer, validityBuffer, offsetBuffer, valueCount, offsetCount, blockFactory);
     }
 
-    private LongArrowBufBlock(ValueVector arrowVector, BlockFactory blockFactory) {
+    private UInt32ArrowBufBlock(ValueVector arrowVector, BlockFactory blockFactory) {
         super(arrowVector, blockFactory);
     }
 
-    public static LongArrowBufBlock of(ValueVector arrowVector, BlockFactory blockFactory) {
-        return new LongArrowBufBlock(arrowVector, blockFactory);
+    public static UInt32ArrowBufBlock of(ValueVector arrowVector, BlockFactory blockFactory) {
+        return new UInt32ArrowBufBlock(arrowVector, blockFactory);
     }
 
     @Override
     protected int byteSize() {
-        return Long.BYTES;
+        return Integer.BYTES;
     }
 
     @Override
     protected ArrowBufVectorConstructor<LongVector> vectorConstructor() {
-        return LongArrowBufVector::new;
+        return UInt32ArrowBufVector::new;
     }
 
     @Override
     protected ArrowBufBlockConstructor<LongBlock> blockConstructor() {
-        return LongArrowBufBlock::new;
+        return UInt32ArrowBufBlock::new;
     }
 
     @Override
     public long getLong(int valueIndex) {
-        return valueBuffer.getLong((long) valueIndex * Long.BYTES);
+        return Integer.toUnsignedLong(valueBuffer.getInt((long) valueIndex * Integer.BYTES));
     }
 
     @Override

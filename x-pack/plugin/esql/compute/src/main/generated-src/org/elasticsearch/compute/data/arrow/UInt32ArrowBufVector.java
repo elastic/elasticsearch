@@ -15,76 +15,76 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
-import org.elasticsearch.compute.data.DoubleBlock;
-import org.elasticsearch.compute.data.DoubleLookup;
-import org.elasticsearch.compute.data.DoubleVector;
+import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.LongLookup;
+import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.core.ReleasableIterator;
 
 import java.io.IOException;
 // end generated imports
 
 /**
- * Implementation of DoubleVector backed by an Arrow buffer holding 64 bits floats.
+ * Implementation of LongVector backed by an Arrow buffer holding unsigned 32 bits integers.
  * <p>
  * This class is generated. Edit {@code X-ArrowBufVector.java.st} instead.
  */
-public final class DoubleArrowBufVector extends AbstractArrowBufVector<DoubleVector, DoubleBlock> implements DoubleVector {
+public final class UInt32ArrowBufVector extends AbstractArrowBufVector<LongVector, LongBlock> implements LongVector {
 
     /**
      *  Create an ArrowBuf vector based on the constituents of an Arrow <code>ValueVector</code>. The caller must retain the buffers if they
      *  are shared with other blocks or Arrow vectors.
      */
-    public DoubleArrowBufVector(ArrowBuf valueBuffer, int positionCount, BlockFactory blockFactory) {
+    public UInt32ArrowBufVector(ArrowBuf valueBuffer, int positionCount, BlockFactory blockFactory) {
         super(valueBuffer, positionCount, blockFactory);
     }
 
-    private DoubleArrowBufVector(FixedWidthVector arrowVector, BlockFactory blockFactory) {
+    private UInt32ArrowBufVector(FixedWidthVector arrowVector, BlockFactory blockFactory) {
         super(arrowVector, blockFactory);
     }
 
-    public static DoubleArrowBufVector of(FixedWidthVector arrowVector, BlockFactory blockFactory) {
-        return new DoubleArrowBufVector(arrowVector, blockFactory);
+    public static UInt32ArrowBufVector of(FixedWidthVector arrowVector, BlockFactory blockFactory) {
+        return new UInt32ArrowBufVector(arrowVector, blockFactory);
     }
 
     @Override
-    protected ArrowBufVectorConstructor<DoubleVector> vectorConstructor() {
-        return DoubleArrowBufVector::new;
+    protected ArrowBufVectorConstructor<LongVector> vectorConstructor() {
+        return UInt32ArrowBufVector::new;
     }
 
     @Override
-    protected ArrowBufBlockConstructor<DoubleBlock> blockConstructor() {
-        return DoubleArrowBufBlock::new;
+    protected ArrowBufBlockConstructor<LongBlock> blockConstructor() {
+        return UInt32ArrowBufBlock::new;
     }
 
     @Override
-    public double getDouble(int valueIndex) {
-        return valueBuffer.getDouble((long) valueIndex * Double.BYTES);
+    public long getLong(int valueIndex) {
+        return Integer.toUnsignedLong(valueBuffer.getInt((long) valueIndex * Integer.BYTES));
     }
 
     @Override
     protected int byteSize() {
-        return Double.BYTES;
+        return Integer.BYTES;
     }
 
     @Override
     public ElementType elementType() {
-        return ElementType.DOUBLE;
+        return ElementType.LONG;
     }
 
     @Override
-    public ReleasableIterator<DoubleBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize) {
-        return new DoubleLookup(asBlock(), positions, targetBlockSize);
+    public ReleasableIterator<LongBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize) {
+        return new LongLookup(asBlock(), positions, targetBlockSize);
     }
 
     @Override
-    public DoubleVector slice(int beginInclusive, int endExclusive) {
+    public LongVector slice(int beginInclusive, int endExclusive) {
         if (beginInclusive == 0 && endExclusive == getPositionCount()) {
             incRef();
             return this;
         }
-        try (DoubleVector.FixedBuilder builder = blockFactory().newDoubleVectorFixedBuilder(endExclusive - beginInclusive)) {
+        try (LongVector.FixedBuilder builder = blockFactory().newLongVectorFixedBuilder(endExclusive - beginInclusive)) {
             for (int i = beginInclusive; i < endExclusive; i++) {
-                builder.appendDouble(getDouble(i));
+                builder.appendLong(getLong(i));
             }
             return builder.build();
         }

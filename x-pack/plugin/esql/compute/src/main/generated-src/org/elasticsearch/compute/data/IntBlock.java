@@ -21,7 +21,9 @@ import java.io.IOException;
  * This class is generated. Edit {@code X-Block.java.st} instead.
  */
 public sealed interface IntBlock extends Block permits IntArrayBlock, IntVectorBlock, ConstantNullBlock, IntBigArrayBlock,
-    org.elasticsearch.compute.data.arrow.IntArrowBufBlock {
+    org.elasticsearch.compute.data.arrow.IntArrowBufBlock, org.elasticsearch.compute.data.arrow.UInt8ArrowBufBlock,
+    org.elasticsearch.compute.data.arrow.Int8ArrowBufBlock, org.elasticsearch.compute.data.arrow.UInt16ArrowBufBlock,
+    org.elasticsearch.compute.data.arrow.Int16ArrowBufBlock {
 
     /**
      * Retrieves the int value stored at the given value index.

@@ -24,46 +24,46 @@ import java.io.IOException;
 // end generated imports
 
 /**
- * Implementation of DoubleVector backed by an Arrow buffer holding 64 bits floats.
+ * Implementation of DoubleVector backed by an Arrow buffer holding 16 bits floats.
  * <p>
  * This class is generated. Edit {@code X-ArrowBufVector.java.st} instead.
  */
-public final class DoubleArrowBufVector extends AbstractArrowBufVector<DoubleVector, DoubleBlock> implements DoubleVector {
+public final class Float16ArrowBufVector extends AbstractArrowBufVector<DoubleVector, DoubleBlock> implements DoubleVector {
 
     /**
      *  Create an ArrowBuf vector based on the constituents of an Arrow <code>ValueVector</code>. The caller must retain the buffers if they
      *  are shared with other blocks or Arrow vectors.
      */
-    public DoubleArrowBufVector(ArrowBuf valueBuffer, int positionCount, BlockFactory blockFactory) {
+    public Float16ArrowBufVector(ArrowBuf valueBuffer, int positionCount, BlockFactory blockFactory) {
         super(valueBuffer, positionCount, blockFactory);
     }
 
-    private DoubleArrowBufVector(FixedWidthVector arrowVector, BlockFactory blockFactory) {
+    private Float16ArrowBufVector(FixedWidthVector arrowVector, BlockFactory blockFactory) {
         super(arrowVector, blockFactory);
     }
 
-    public static DoubleArrowBufVector of(FixedWidthVector arrowVector, BlockFactory blockFactory) {
-        return new DoubleArrowBufVector(arrowVector, blockFactory);
+    public static Float16ArrowBufVector of(FixedWidthVector arrowVector, BlockFactory blockFactory) {
+        return new Float16ArrowBufVector(arrowVector, blockFactory);
     }
 
     @Override
     protected ArrowBufVectorConstructor<DoubleVector> vectorConstructor() {
-        return DoubleArrowBufVector::new;
+        return Float16ArrowBufVector::new;
     }
 
     @Override
     protected ArrowBufBlockConstructor<DoubleBlock> blockConstructor() {
-        return DoubleArrowBufBlock::new;
+        return Float16ArrowBufBlock::new;
     }
 
     @Override
     public double getDouble(int valueIndex) {
-        return valueBuffer.getDouble((long) valueIndex * Double.BYTES);
+        return Float.float16ToFloat(valueBuffer.getShort((long) valueIndex * Short.BYTES));
     }
 
     @Override
     protected int byteSize() {
-        return Double.BYTES;
+        return Short.BYTES;
     }
 
     @Override

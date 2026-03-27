@@ -12,23 +12,23 @@ import org.apache.arrow.memory.ArrowBuf;
 import org.apache.arrow.vector.ValueVector;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
-import org.elasticsearch.compute.data.LongBlock;
-import org.elasticsearch.compute.data.LongVector;
+import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.core.Nullable;
 // end generated imports
 
 /**
- * Implementation of LongBlock backed by an Arrow buffer holding 64 bits signed integers.
+ * Implementation of DoubleBlock backed by an Arrow buffer holding 16 bits floats.
  * <p>
  * This class is generated. Edit {@code X-ArrowBufBlock.java.st} instead.
  */
-public final class LongArrowBufBlock extends AbstractArrowBufBlock<LongVector, LongBlock> implements LongBlock {
+public final class Float16ArrowBufBlock extends AbstractArrowBufBlock<DoubleVector, DoubleBlock> implements DoubleBlock {
 
     /**
      *  Create an ArrowBuf block based on the constituents of an Arrow <code>ValueVector</code>. The caller must retain the buffers if they
      *  are shared with other blocks or Arrow vectors.
      */
-    public LongArrowBufBlock(
+    public Float16ArrowBufBlock(
         ArrowBuf valueBuffer,
         @Nullable ArrowBuf validityBuffer,
         @Nullable ArrowBuf offsetBuffer,
@@ -39,36 +39,36 @@ public final class LongArrowBufBlock extends AbstractArrowBufBlock<LongVector, L
         super(valueBuffer, validityBuffer, offsetBuffer, valueCount, offsetCount, blockFactory);
     }
 
-    private LongArrowBufBlock(ValueVector arrowVector, BlockFactory blockFactory) {
+    private Float16ArrowBufBlock(ValueVector arrowVector, BlockFactory blockFactory) {
         super(arrowVector, blockFactory);
     }
 
-    public static LongArrowBufBlock of(ValueVector arrowVector, BlockFactory blockFactory) {
-        return new LongArrowBufBlock(arrowVector, blockFactory);
+    public static Float16ArrowBufBlock of(ValueVector arrowVector, BlockFactory blockFactory) {
+        return new Float16ArrowBufBlock(arrowVector, blockFactory);
     }
 
     @Override
     protected int byteSize() {
-        return Long.BYTES;
+        return Short.BYTES;
     }
 
     @Override
-    protected ArrowBufVectorConstructor<LongVector> vectorConstructor() {
-        return LongArrowBufVector::new;
+    protected ArrowBufVectorConstructor<DoubleVector> vectorConstructor() {
+        return Float16ArrowBufVector::new;
     }
 
     @Override
-    protected ArrowBufBlockConstructor<LongBlock> blockConstructor() {
-        return LongArrowBufBlock::new;
+    protected ArrowBufBlockConstructor<DoubleBlock> blockConstructor() {
+        return Float16ArrowBufBlock::new;
     }
 
     @Override
-    public long getLong(int valueIndex) {
-        return valueBuffer.getLong((long) valueIndex * Long.BYTES);
+    public double getDouble(int valueIndex) {
+        return Float.float16ToFloat(valueBuffer.getShort((long) valueIndex * Short.BYTES));
     }
 
     @Override
     public ElementType elementType() {
-        return ElementType.LONG;
+        return ElementType.DOUBLE;
     }
 }

@@ -1,6 +1,6 @@
 version: 9.3.2
 released: false
-generated: 2026-03-13T00:43:38.142858864Z
+generated: 2026-03-16T21:57:54.602866483Z
 changelogs:
   - pr: 140049
     summary: "[JupiterOne] Add `manage`, `create_index`, `read`, `index`, `write`, `delete`, permission for third party agent indices `kibana_system`"
@@ -10,6 +10,11 @@ changelogs:
     summary: "Apm-server: update monitor mappings to include new TBS metrics"
     area: Monitoring
     type: enhancement
+    issues: []
+  - pr: 141340
+    summary: Skip nullifying aliases for Aggregate groups.
+    area: ES|QL
+    type: bug
     issues: []
   - pr: 141919
     summary: Fix `ClassCastException` when merging `TopHits` with mixed sort field types
@@ -101,6 +106,13 @@ changelogs:
     area: ES|QL
     type: bug
     issues: []
+  - pr: 143399
+    summary: Fix KQL/QSTR with unmapped fields in NULLIFY mode
+    area: ES|QL
+    type: bug
+    issues:
+      - 142968
+      - 142959
   - pr: 143489
     summary: TS command ignores aliases in BY
     area: ES|QL
@@ -144,3 +156,9 @@ changelogs:
     area: Data streams
     type: bug
     issues: []
+  - pr: 144029
+    summary: Fix nullify where in stats
+    area: ES|QL
+    type: bug
+    issues:
+      - 143991

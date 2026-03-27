@@ -1,0 +1,5 @@
+FROM employees
+| FORK ( WHERE false | WHERE emp_no == 1 )
+       ( WHERE emp_no == 2 | LIMIT 100)
+       ( WHERE emp_no == 2 | SORT salary DESC | LIMIT 100)
+| LIMIT 10

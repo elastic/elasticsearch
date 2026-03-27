@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 144329
+pr: 144826
+summary: Propagate empty local relation past joins
+type: bug

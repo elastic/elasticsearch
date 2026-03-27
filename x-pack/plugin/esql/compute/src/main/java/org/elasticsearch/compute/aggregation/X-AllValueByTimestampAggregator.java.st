@@ -381,7 +381,6 @@ public class $Prefix$$Occurrence$$v1_Type$By$v2_Type$Aggregator {
             Releasables.close(observed, hasTimestamp, timestamps, values, super::close);
         }
 
-        @Override
         public void toIntermediate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {
             try (
                 var observedBlockBuilder = driverContext.blockFactory().newBooleanBlockBuilder(selected.getPositionCount());

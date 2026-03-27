@@ -9,9 +9,11 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -76,6 +78,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     private final ExternalSliceQueue sliceQueue;
     private final ErrorPolicy errorPolicy;
     private final int parsingParallelism;
+    private final TimeValue drainTimeout;
 
     public AsyncExternalSourceOperatorFactory(
         StorageProvider storageProvider,
@@ -91,7 +94,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         Map<String, Object> partitionValues,
         ExternalSliceQueue sliceQueue,
         ErrorPolicy errorPolicy,
-        int parsingParallelism
+        int parsingParallelism,
+        TimeValue drainTimeout
     ) {
         if (storageProvider == null) {
             throw new IllegalArgumentException("storageProvider cannot be null");
@@ -129,6 +133,42 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         this.sliceQueue = sliceQueue;
         this.errorPolicy = errorPolicy != null ? errorPolicy : formatReader.defaultErrorPolicy();
         this.parsingParallelism = Math.max(1, parsingParallelism);
+        this.drainTimeout = drainTimeout != null ? drainTimeout : ExternalSourceDrainUtils.DEFAULT_DRAIN_TIMEOUT;
+    }
+
+    public AsyncExternalSourceOperatorFactory(
+        StorageProvider storageProvider,
+        FormatReader formatReader,
+        StoragePath path,
+        List<Attribute> attributes,
+        int batchSize,
+        int maxBufferSize,
+        int rowLimit,
+        Executor executor,
+        FileSet fileSet,
+        Set<String> partitionColumnNames,
+        Map<String, Object> partitionValues,
+        ExternalSliceQueue sliceQueue,
+        ErrorPolicy errorPolicy,
+        int parsingParallelism
+    ) {
+        this(
+            storageProvider,
+            formatReader,
+            path,
+            attributes,
+            batchSize,
+            maxBufferSize,
+            rowLimit,
+            executor,
+            fileSet,
+            partitionColumnNames,
+            partitionValues,
+            sliceQueue,
+            errorPolicy,
+            parsingParallelism,
+            null
+        );
     }
 
     public AsyncExternalSourceOperatorFactory(
@@ -160,7 +200,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             partitionValues,
             sliceQueue,
             errorPolicy,
-            1
+            1,
+            null
         );
     }
 
@@ -192,7 +233,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             partitionValues,
             sliceQueue,
             null,
-            1
+            1,
+            null
         );
     }
 
@@ -223,7 +265,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             partitionValues,
             sliceQueue,
             null,
-            1
+            1,
+            null
         );
     }
 
@@ -253,7 +296,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             partitionValues,
             null,
             null,
-            1
+            1,
+            null
         );
     }
 
@@ -281,7 +325,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             null,
             null,
             null,
-            1
+            1,
+            null
         );
     }
 
@@ -308,7 +353,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             null,
             null,
             null,
-            1
+            1,
+            null
         );
     }
 
@@ -573,17 +619,22 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
 
     private void drainPages(CloseableIterator<Page> pages, AsyncExternalSourceBuffer buffer, VirtualColumnInjector injector) {
         if (injector != null && injector.hasPartitionColumns()) {
-            ExternalSourceDrainUtils.drainPages(new InjectingIterator(pages, injector), buffer);
+            ExternalSourceDrainUtils.drainPages(new InjectingIterator(pages, injector), buffer, drainTimeout);
         } else {
-            ExternalSourceDrainUtils.drainPages(pages, buffer);
+            ExternalSourceDrainUtils.drainPages(pages, buffer, drainTimeout);
         }
     }
 
     private int drainPagesWithBudget(CloseableIterator<Page> pages, AsyncExternalSourceBuffer buffer, VirtualColumnInjector injector) {
         if (injector != null && injector.hasPartitionColumns()) {
-            return ExternalSourceDrainUtils.drainPagesWithBudget(new InjectingIterator(pages, injector), buffer);
+            return ExternalSourceDrainUtils.drainPagesWithBudget(
+                new InjectingIterator(pages, injector),
+                buffer,
+                FormatReader.NO_LIMIT,
+                drainTimeout
+            );
         } else {
-            return ExternalSourceDrainUtils.drainPagesWithBudget(pages, buffer);
+            return ExternalSourceDrainUtils.drainPagesWithBudget(pages, buffer, FormatReader.NO_LIMIT, drainTimeout);
         }
     }
 
@@ -725,5 +776,9 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
 
     public int parsingParallelism() {
         return parsingParallelism;
+    }
+
+    public TimeValue drainTimeout() {
+        return drainTimeout;
     }
 }

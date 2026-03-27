@@ -160,7 +160,6 @@ public class FirstFloatByTimestampAggregator {
             Releasables.close(timestamps, values, super::close);
         }
 
-        @Override
         public void toIntermediate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {
             try (
                 var timestampsBuilder = driverContext.blockFactory().newLongBlockBuilder(selected.getPositionCount());

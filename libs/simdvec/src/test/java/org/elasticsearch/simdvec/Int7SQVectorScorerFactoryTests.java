@@ -45,6 +45,7 @@ import static org.elasticsearch.simdvec.VectorSimilarityType.COSINE;
 import static org.elasticsearch.simdvec.VectorSimilarityType.DOT_PRODUCT;
 import static org.elasticsearch.simdvec.VectorSimilarityType.EUCLIDEAN;
 import static org.elasticsearch.simdvec.VectorSimilarityType.MAXIMUM_INNER_PRODUCT;
+import static org.elasticsearch.simdvec.internal.vectorization.JdkFeatures.SUPPORTS_HEAP_SEGMENTS;
 import static org.elasticsearch.test.hamcrest.OptionalMatchers.isEmpty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -509,6 +510,41 @@ public class Int7SQVectorScorerFactoryTests extends AbstractVectorTestCase {
                         testScorer.bulkScore(nodes, scores, nodes.length);
                         assertArrayEquals(expected, scores, DELTA);
                     }
+                }
+            }
+        }
+    }
+
+    // Verifies that bulkScore with zero nodes returns NEGATIVE_INFINITY without throwing,
+    // as Lucene's exactSearch path can call bulkScore with an empty batch when filters exclude all docs.
+    public void testBulkScoreWithZeroNodes() throws IOException {
+        assumeTrue(notSupportedMsg(), supported());
+        var factory = AbstractVectorTestCase.factory.get();
+        final int dims = 1024;
+        final int size = randomIntBetween(2, 100);
+
+        try (Directory dir = new MMapDirectory(createTempDir("testBulkScoreWithZeroNodes"))) {
+            String fileName = "testBulkScoreWithZeroNodes-" + dims;
+            try (IndexOutput out = dir.createOutput(fileName, IOContext.DEFAULT)) {
+                for (int i = 0; i < size; i++) {
+                    var vec = vector(i, dims);
+                    out.writeBytes(vec, 0, vec.length);
+                    out.writeInt(Float.floatToIntBits((float) i));
+                }
+            }
+            try (IndexInput in = dir.openInput(fileName, IOContext.DEFAULT)) {
+                for (var sim : List.of(COSINE, DOT_PRODUCT, EUCLIDEAN, MAXIMUM_INNER_PRODUCT)) {
+                    var values = vectorValues(dims, size, in, sim.function());
+                    var supplier = factory.getInt7SQVectorScorerSupplier(
+                        sim,
+                        in,
+                        values,
+                        values.getScalarQuantizer().getConstantMultiplier()
+                    ).orElseThrow();
+                    var scorer = supplier.scorer();
+                    scorer.setScoringOrdinal(0);
+                    float result = scorer.bulkScore(new int[0], new float[0], 0);
+                    assertEquals(Float.NEGATIVE_INFINITY, result, 0f);
                 }
             }
         }

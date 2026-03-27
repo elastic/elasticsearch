@@ -325,6 +325,63 @@ public abstract class HeapAttackTestCase extends ESRestTestCase {
         return query;
     }
 
+    /**
+     * Loads {@code countPerLong^5} documents into the {@code manylongs} index with fields
+     * {@code a, b, c, d, e ∈ [0, countPerLong-1]}, one document per unique combination.
+     */
+    protected void initManyLongs(int countPerLong) throws IOException {
+        logger.info("loading many documents with longs");
+        StringBuilder bulk = new StringBuilder();
+        int flush = 0;
+        long numLongs = (long) countPerLong * countPerLong * countPerLong * countPerLong * countPerLong;
+        for (int a = 0; a < countPerLong; a++) {
+            for (int b = 0; b < countPerLong; b++) {
+                for (int c = 0; c < countPerLong; c++) {
+                    for (int d = 0; d < countPerLong; d++) {
+                        for (int e = 0; e < countPerLong; e++) {
+                            bulk.append(String.format(Locale.ROOT, """
+                                {"create":{}}
+                                {"a":%d,"b":%d,"c":%d,"d":%d,"e":%d}
+                                """, a, b, c, d, e));
+                            flush++;
+                            if (flush % 10_000 == 0) {
+                                bulk("manylongs", bulk.toString());
+                                bulk.setLength(0);
+                                logger.info(
+                                    "flushing {}/{} to manylongs",
+                                    flush,
+                                    numLongs
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        initIndex("manylongs", bulk.toString());
+    }
+
+    /**
+     * Builds a query preamble that EVALs {@code count} computed long columns
+     * ({@code i0, i1, ..., i(count-1)}) as running sums over {@code a} and {@code b}.
+     */
+    protected static StringBuilder makeManyLongs(int count) {
+        StringBuilder query = startQuery();
+        query.append("FROM manylongs\\n| EVAL i0 = a + b, i1 = b + i0");
+        for (int i = 2; i < count; i++) {
+            query.append(", i").append(i).append(" = i").append(i - 2).append(" + ").append(i - 1);
+        }
+        return query.append("\\n");
+    }
+
+    protected void initSingleDocIndex() throws IOException {
+        logger.info("loading a single document");
+        initIndex("single", """
+            {"create":{}}
+            {"a":1}
+            """);
+    }
+
     protected static boolean isServerless() throws IOException {
         for (Map<?, ?> nodeInfo : getNodesInfo(adminClient()).values()) {
             for (Object module : (List<?>) nodeInfo.get("modules")) {

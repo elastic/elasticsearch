@@ -13,6 +13,12 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.delete.TransportDeleteSnapshotAction;
+import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
+import org.elasticsearch.action.admin.cluster.snapshots.get.TransportGetSnapshotsAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
@@ -29,23 +35,27 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ProjectState;
+import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.datastreams.DataStreamsPlugin;
-import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.repositories.RepositoriesService;
+import org.elasticsearch.snapshots.SnapshotInfo;
+import org.elasticsearch.snapshots.SnapshotMissingException;
+import org.elasticsearch.snapshots.SnapshotState;
 
+import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.elasticsearch.action.support.master.MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT;
@@ -60,17 +70,27 @@ public class DataStreamLifecycleConvertToFrozen implements DlmFrozenTransitionRu
     private static final Logger logger = LogManager.getLogger(DataStreamLifecycleConvertToFrozen.class);
     public static final String CLONE_INDEX_PREFIX = "dlm-clone-";
     private static final IndicesOptions IGNORE_MISSING_OPTIONS = IndicesOptions.fromOptions(true, true, false, false);
+    private static final TimeValue SNAPSHOT_TIMEOUT = TimeValue.timeValueHours(12);
+    private static final String SNAPSHOT_NAME_PREFIX = "dlm-frozen-";
 
     private final String indexName;
     private final Client client;
     private final ProjectState projectState;
     private final XPackLicenseState licenseState;
+    private final Clock clock;
 
-    public DataStreamLifecycleConvertToFrozen(String indexName, Client client, ProjectState projectState, XPackLicenseState licenseState) {
+    public DataStreamLifecycleConvertToFrozen(
+        String indexName,
+        Client client,
+        ProjectState projectState,
+        XPackLicenseState licenseState,
+        Clock clock
+    ) {
         this.indexName = indexName;
         this.client = client;
         this.projectState = projectState;
         this.licenseState = licenseState;
+        this.clock = clock;
     }
 
     /**
@@ -85,7 +105,7 @@ public class DataStreamLifecycleConvertToFrozen implements DlmFrozenTransitionRu
         maybeMarkIndexReadOnly();
         String indexForForceMerge = maybeCloneIndex();
         maybeForceMergeIndex();
-        maybeTakeSnapshot();
+        maybeTakeSnapshot(indexForForceMerge);
         maybeMountSearchableSnapshot();
     }
 
@@ -171,8 +191,26 @@ public class DataStreamLifecycleConvertToFrozen implements DlmFrozenTransitionRu
 
     }
 
-    public void maybeTakeSnapshot() {
+    /**
+     * Takes a snapshot of the index and waits for completion. If a snapshot with the expected name is already
+     * in progress, checks how long it has been running. If it has been running for longer than the configured
+     * timeout, cancels the snapshot and starts a new one; otherwise leaves it alone to complete. If no snapshot
+     * is currently in progress, checks whether a completed snapshot with the expected name already exists in
+     * the repository. If a valid completed snapshot exists, skips re-taking the snapshot. If an invalid completed snapshot
+     * exists (e.g. failed or partial), deletes it and starts a new one. If no completed snapshot exists, starts a new one.
+     */
+    void maybeTakeSnapshot(String indexName) {
+        String repositoryName = resolveRepositoryName(projectState);
+        String snapshotName = snapshotName(indexName);
 
+        SnapshotsInProgress snapshotsInProgress = SnapshotsInProgress.get(projectState.cluster());
+        long snapshotStartTime = findSnapshotStartTime(snapshotsInProgress, projectState.projectId(), repositoryName, snapshotName);
+
+        if (snapshotStartTime >= 0) {
+            handleInProgressSnapshot(indexName, repositoryName, snapshotName, snapshotStartTime);
+        } else {
+            checkForOrphanedSnapshotAndStart(indexName, repositoryName, snapshotName);
+        }
     }
 
     public void maybeMountSearchableSnapshot() {
@@ -202,7 +240,7 @@ public class DataStreamLifecycleConvertToFrozen implements DlmFrozenTransitionRu
             return false;
         }
 
-        final String repositoryName = getRepositoryForFrozen(projectMetadata, indexName);
+        String repositoryName = resolveRepositoryName(projectState);
         if (Strings.hasText(repositoryName) == false) {
             logger.debug("Default repository not configured, skipping convert-to-frozen steps for index [{}]", indexName);
             throw new ElasticsearchException(
@@ -230,14 +268,10 @@ public class DataStreamLifecycleConvertToFrozen implements DlmFrozenTransitionRu
     }
 
     /**
-     * Return the repository name to use for converting this index to a searchable snapshot, or else null if it is not set.
+     * Resolves the repository name to use for the snapshot and searchable snapshot steps.
      */
-    @Nullable
-    private static String getRepositoryForFrozen(ProjectMetadata projectMetadata, String indexName) {
-        return Optional.ofNullable(projectMetadata.index(indexName))
-            .map(im -> im.getCustomData(DataStreamsPlugin.LIFECYCLE_CUSTOM_INDEX_METADATA_KEY))
-            .map(custom -> custom.get(DataStreamLifecycleService.FROZEN_CANDIDATE_REPOSITORY_METADATA_KEY))
-            .orElse(null);
+    private static String resolveRepositoryName(ProjectState projectState) {
+        return RepositoriesService.DEFAULT_REPOSITORY_SETTING.get(projectState.cluster().metadata().settings());
     }
 
     private ResizeRequest getCloneRequest() {
@@ -428,4 +462,154 @@ public class DataStreamLifecycleConvertToFrozen implements DlmFrozenTransitionRu
     public String getIndexName() {
         return indexName;
     }
+
+    /**
+     * A snapshot for this index is currently running in the cluster. If it has been running longer
+     * than {@link #SNAPSHOT_TIMEOUT}, delete it and start again; otherwise leave it alone.
+     */
+    private void handleInProgressSnapshot(String indexName, String repositoryName, String snapshotName, long snapshotStartTime) {
+        if ((clock.millis() - snapshotStartTime) > SNAPSHOT_TIMEOUT.millis()) {
+            logger.warn(
+                "DLM snapshot [{}] for index [{}] has been running for over [{}], cancelling and restarting",
+                snapshotName,
+                indexName,
+                SNAPSHOT_TIMEOUT
+            );
+            deleteAndRestartSnapshot(indexName, repositoryName, snapshotName);
+        } else {
+            logger.trace("DLM snapshot [{}] for index [{}] is still in progress, skipping", snapshotName, indexName);
+        }
+    }
+
+    /**
+     * No snapshot is currently running for this index. Check whether a completed snapshot already
+     * exists in the repository (without the completion setting on the index). If a valid, successful
+     * snapshot exists, just mark the completion setting directly rather than deleting and recreating.
+     * If the snapshot exists but is invalid (e.g. partial or failed), delete and recreate it.
+     * Otherwise, start a fresh snapshot.
+     */
+    private void checkForOrphanedSnapshotAndStart(String indexName, String repositoryName, String snapshotName) {
+        ProjectId projectId = projectState.projectId();
+
+        GetSnapshotsRequest getRequest = new GetSnapshotsRequest(INFINITE_MASTER_NODE_TIMEOUT, repositoryName);
+        getRequest.snapshots(new String[] { snapshotName });
+        getRequest.ignoreUnavailable(true);
+
+        try {
+            GetSnapshotsResponse response = client.projectClient(projectId).execute(TransportGetSnapshotsAction.TYPE, getRequest).get();
+            List<SnapshotInfo> snapshots = response.getSnapshots();
+            if (snapshots.isEmpty()) {
+                maybeStartSnapshot(indexName, repositoryName, snapshotName);
+                return;
+            }
+            SnapshotInfo existingSnapshot = snapshots.getFirst();
+            if (existingSnapshot.state() == SnapshotState.SUCCESS && existingSnapshot.failedShards() == 0) {
+                logger.info("DLM found valid orphaned snapshot [{}] for index [{}]", snapshotName, indexName);
+            } else {
+                logger.info(
+                    "DLM found invalid orphaned snapshot [{}] for index [{}] (state [{}], failed shards [{}]), "
+                        + "deleting and recreating",
+                    snapshotName,
+                    indexName,
+                    existingSnapshot.state(),
+                    existingSnapshot.failedShards()
+                );
+                deleteAndRestartSnapshot(indexName, repositoryName, snapshotName);
+            }
+        } catch (SnapshotMissingException e) {
+            maybeStartSnapshot(indexName, repositoryName, snapshotName);
+        } catch (Exception e) {
+            if (e instanceof InterruptedException || ExceptionsHelper.unwrapCause(e) instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw e instanceof ElasticsearchException
+                ? (ElasticsearchException) e
+                : new ElasticsearchException("DLM failed while checking snapshots for index [{}]", e, indexName);
+        }
+    }
+
+    private void deleteAndRestartSnapshot(String indexName, String repositoryName, String snapshotName) {
+        ProjectId projectId = projectState.projectId();
+        DeleteSnapshotRequest deleteRequest = new DeleteSnapshotRequest(INFINITE_MASTER_NODE_TIMEOUT, repositoryName, snapshotName);
+
+        try {
+            AcknowledgedResponse resp = client.projectClient(projectId).execute(TransportDeleteSnapshotAction.TYPE, deleteRequest).get();
+            if (resp.isAcknowledged() == false) {
+                logger.warn("DLM failed to acknowledge deletion of snapshot [{}] for index [{}]", snapshotName, indexName);
+                throw new ElasticsearchException(
+                    Strings.format("Failed to acknowledge delete of snapshot [%s] for index [%s]", snapshotName, indexName)
+                );
+            } else {
+                logger.info("DLM successfully deleted stale snapshot [{}] for index [{}]", snapshotName, indexName);
+                maybeStartSnapshot(indexName, repositoryName, snapshotName);
+            }
+        } catch (SnapshotMissingException e) {
+            maybeStartSnapshot(indexName, repositoryName, snapshotName);
+        } catch (Exception e) {
+            if (e instanceof InterruptedException || ExceptionsHelper.unwrapCause(e) instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw e instanceof ElasticsearchException
+                ? (ElasticsearchException) e
+                : new ElasticsearchException("DLM failed to delete stale snapshot [{}] for index [{}]", e, snapshotName, indexName);
+        }
+    }
+
+    private void maybeStartSnapshot(String indexName, String repositoryName, String snapshotName) {
+        CreateSnapshotRequest createRequest = buildCreateSnapshotRequest(repositoryName, indexName, snapshotName);
+        try {
+            var response = client.projectClient(projectState.projectId()).admin().cluster().createSnapshot(createRequest).get();
+            if (response.getSnapshotInfo() != null && response.getSnapshotInfo().failedShards() == 0) {
+                logger.info("DLM successfully created snapshot [{}] for index [{}]", snapshotName, indexName);
+            } else {
+                int failedShards = response.getSnapshotInfo() != null ? response.getSnapshotInfo().failedShards() : -1;
+                throw new ElasticsearchException(
+                    Strings.format(
+                        "DLM snapshot [%s] for index [%s] finished with [%d] failed shards",
+                        snapshotName,
+                        indexName,
+                        failedShards
+                    )
+                );
+            }
+        } catch (Exception e) {
+            if (e instanceof InterruptedException || ExceptionsHelper.unwrapCause(e) instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw e instanceof ElasticsearchException
+                ? (ElasticsearchException) e
+                : new ElasticsearchException("DLM failed to start snapshot [{}] for index [{}]", e, snapshotName, indexName);
+        }
+    }
+
+    /**
+     * Finds the start time of a running snapshot with the given name. Returns {@code -1} if not found.
+     */
+    private static long findSnapshotStartTime(
+        SnapshotsInProgress snapshotsInProgress,
+        ProjectId projectId,
+        String repositoryName,
+        String snapshotName
+    ) {
+        return snapshotsInProgress.forRepo(projectId, repositoryName)
+            .stream()
+            .filter(entry -> entry.snapshot().getSnapshotId().getName().equals(snapshotName))
+            .map(SnapshotsInProgress.Entry::startTime)
+            .findFirst()
+            .orElse(-1L);
+    }
+
+    private static CreateSnapshotRequest buildCreateSnapshotRequest(String repositoryName, String indexName, String snapshotName) {
+        CreateSnapshotRequest request = new CreateSnapshotRequest(INFINITE_MASTER_NODE_TIMEOUT, repositoryName, snapshotName);
+        request.indices(indexName);
+        request.waitForCompletion(true);
+        request.includeGlobalState(false);
+        request.userMetadata(Map.of("dlm-managed", true));
+        return request;
+    }
+
+    static String snapshotName(String indexName) {
+        return SNAPSHOT_NAME_PREFIX + indexName;
+    }
+
 }

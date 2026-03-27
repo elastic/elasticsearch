@@ -226,6 +226,7 @@ public abstract class GoldenTestCase extends ESTestCase {
             Files.writeString(queryPath, esqlQuery);
             TestAnalyzer testAnalyzer = analyzer().addLanguagesLookup()
                 .addAnalysisTestsEnrichResolution()
+                .addAnalysisTestsInferenceResolution()
                 .minimumTransportVersion(transportVersion)
                 .unmappedResolution(statement.setting(UNMAPPED_FIELDS));
             loadIndexResolution(CsvTests.testDatasets(parsedPlan)).forEach(

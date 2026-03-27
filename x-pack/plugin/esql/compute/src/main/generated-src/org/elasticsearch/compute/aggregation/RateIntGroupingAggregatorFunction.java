@@ -359,9 +359,16 @@ public final class RateIntGroupingAggregatorFunction extends AbstractRateGroupin
     }
 
     @Override
-    public void evaluateIntermediate(Block[] blocks, int offset, IntVector selected) {
+    public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateIntermediate(
+        IntVector selected,
+        GroupingAggregatorEvaluationContext ctx
+    ) {
+        return this::evaluateIntermediate;
+    }
+
+    private void evaluateIntermediate(Block[] blocks, int offset, IntVector selectedInPage) {
         BlockFactory blockFactory = driverContext.blockFactory();
-        int positionCount = selected.getPositionCount();
+        int positionCount = selectedInPage.getPositionCount();
         try (
             var flushQueues = rawBuffer.prepareForFlush();
             var timestamps = blockFactory.newLongBlockBuilder(positionCount * 2);
@@ -370,7 +377,7 @@ public final class RateIntGroupingAggregatorFunction extends AbstractRateGroupin
             var resets = blockFactory.newDoubleVectorFixedBuilder(positionCount)
         ) {
             for (int p = 0; p < positionCount; p++) {
-                int group = selected.getInt(p);
+                int group = selectedInPage.getInt(p);
                 var state = flushAndCombineState(flushQueues, group);
                 // Do not combine intervals across shards because intervals from different indices may overlap.
                 if (state != null && state.samples > 0) {
@@ -561,12 +568,19 @@ public final class RateIntGroupingAggregatorFunction extends AbstractRateGroupin
     }
 
     @Override
-    public void evaluateFinal(Block[] blocks, int offset, IntVector selected, GroupingAggregatorEvaluationContext evalContext) {
+    public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateFinal(
+        IntVector selected,
+        GroupingAggregatorEvaluationContext ctx
+    ) {
+        return (blocks, offset, selectedInPage) -> evaluateFinal(blocks, offset, selectedInPage, ctx);
+    }
+
+    private void evaluateFinal(Block[] blocks, int offset, IntVector selectedInPage, GroupingAggregatorEvaluationContext ctx) {
         BlockFactory blockFactory = driverContext.blockFactory();
-        int positionCount = selected.getPositionCount();
+        int positionCount = selectedInPage.getPositionCount();
         try (var flushQueues = rawBuffer.prepareForFlush(); var rates = blockFactory.newDoubleBlockBuilder(positionCount)) {
             for (int p = 0; p < positionCount; p++) {
-                int group = selected.getInt(p);
+                int group = selectedInPage.getInt(p);
                 var state = group < reducedStates.size() ? reducedStates.get(group) : null;
                 var flushQueue = flushQueues.getFlushQueue(group);
                 if (flushQueue != null) {
@@ -590,17 +604,17 @@ public final class RateIntGroupingAggregatorFunction extends AbstractRateGroupin
                     }
                 }
             }
-            if (evalContext instanceof TimeSeriesGroupingAggregatorEvaluationContext tsContext) {
+            if (ctx instanceof TimeSeriesGroupingAggregatorEvaluationContext tsContext) {
                 tsContext.computeAdjacentGroupIds();
             }
             for (int p = 0; p < positionCount; p++) {
-                int group = selected.getInt(p);
+                int group = selectedInPage.getInt(p);
                 var state = group < reducedStates.size() ? reducedStates.get(group) : null;
 
                 final double rate;
                 if (state == null || state.samples == 0) {
                     rate = Double.NaN;
-                } else if (evalContext instanceof TimeSeriesGroupingAggregatorEvaluationContext tsContext) {
+                } else if (ctx instanceof TimeSeriesGroupingAggregatorEvaluationContext tsContext) {
                     rate = computeRate(group, state, tsContext, isRateOverTime, dateFactor);
                 } else {
                     rate = computeRateWithoutExtrapolate(state, isRateOverTime, dateFactor);

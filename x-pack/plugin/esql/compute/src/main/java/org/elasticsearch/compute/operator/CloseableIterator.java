@@ -5,14 +5,12 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.datasources;
+package org.elasticsearch.compute.operator;
 
 import java.io.Closeable;
 import java.util.Iterator;
 
 /**
- * Iterator that must be closed to release resources.
- *
- * @param <T> the type of elements returned by this iterator
+ * An {@link Iterator} with state that must be {@link #close() closed}.
  */
 public interface CloseableIterator<T> extends Iterator<T>, Closeable {}

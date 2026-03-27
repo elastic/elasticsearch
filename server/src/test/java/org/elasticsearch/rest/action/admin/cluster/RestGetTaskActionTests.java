@@ -72,7 +72,7 @@ public class RestGetTaskActionTests extends RestActionTestCase {
             .withPath("/_tasks/" + nodeId + ":" + taskNumber)
             .build();
 
-        action.handleRequest(request, new FakeRestChannel(request, true, 1), verifyingClient);
+        action.handleRequest(request, new FakeRestChannel(request, true), verifyingClient);
 
         assertWarnings(
             "Using the task management APIs to get reindex tasks is deprecated. "
@@ -112,7 +112,7 @@ public class RestGetTaskActionTests extends RestActionTestCase {
             .withPath("/_tasks/" + nodeId + ":" + childTaskNumber)
             .build();
 
-        action.handleRequest(request, new FakeRestChannel(request, true, 1), verifyingClient);
+        action.handleRequest(request, new FakeRestChannel(request, true), verifyingClient);
     }
 
     /**
@@ -147,7 +147,7 @@ public class RestGetTaskActionTests extends RestActionTestCase {
             .withPath("/_tasks/" + nodeId + ":" + taskNumber)
             .build();
 
-        action.handleRequest(request, new FakeRestChannel(request, true, 1), verifyingClient);
+        action.handleRequest(request, new FakeRestChannel(request, true), verifyingClient);
     }
 
     /**
@@ -177,7 +177,7 @@ public class RestGetTaskActionTests extends RestActionTestCase {
             .withPath("/_tasks/" + nodeId + ":" + taskNumber)
             .build();
 
-        action.handleRequest(request, new FakeRestChannel(request, true, 1), failingClient);
+        action.handleRequest(request, new FakeRestChannel(request, true), failingClient);
     }
 
     /**
@@ -209,6 +209,6 @@ public class RestGetTaskActionTests extends RestActionTestCase {
             .withPath("/_tasks/" + nodeId + ":" + taskNumber)
             .build();
 
-        action.handleRequest(request, new FakeRestChannel(request, true, 1), verifyingClient);
+        action.handleRequest(request, new FakeRestChannel(request, true), verifyingClient);
     }
 }

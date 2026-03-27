@@ -73,7 +73,7 @@ public class RestCancelTasksActionTests extends RestActionTestCase {
             .withPath("/_tasks/" + nodeId + ":" + taskNumber + "/_cancel")
             .build();
 
-        action.handleRequest(request, new FakeRestChannel(request, true, 1), verifyingClient);
+        action.handleRequest(request, new FakeRestChannel(request, true), verifyingClient);
 
         assertWarnings(
             "Using the task management APIs to cancel reindex tasks is deprecated. "
@@ -124,7 +124,7 @@ public class RestCancelTasksActionTests extends RestActionTestCase {
             .withPath("/_tasks/_cancel")
             .build();
 
-        action.handleRequest(request, new FakeRestChannel(request, true, 1), verifyingClient);
+        action.handleRequest(request, new FakeRestChannel(request, true), verifyingClient);
 
         assertWarnings(
             "Using the task management APIs to cancel reindex tasks is deprecated. "
@@ -164,7 +164,7 @@ public class RestCancelTasksActionTests extends RestActionTestCase {
             .withPath("/_tasks/" + nodeId + ":" + taskNumber + "/_cancel")
             .build();
 
-        action.handleRequest(request, new FakeRestChannel(request, true, 1), verifyingClient);
+        action.handleRequest(request, new FakeRestChannel(request, true), verifyingClient);
     }
 
     /**
@@ -191,7 +191,7 @@ public class RestCancelTasksActionTests extends RestActionTestCase {
             .withPath("/_tasks/" + nodeId + ":" + taskNumber + "/_cancel")
             .build();
 
-        action.handleRequest(request, new FakeRestChannel(request, true, 1), failingClient);
+        action.handleRequest(request, new FakeRestChannel(request, true), failingClient);
     }
 
     /**
@@ -223,6 +223,6 @@ public class RestCancelTasksActionTests extends RestActionTestCase {
             .withPath("/_tasks/" + nodeId + ":" + taskNumber + "/_cancel")
             .build();
 
-        action.handleRequest(request, new FakeRestChannel(request, true, 1), verifyingClient);
+        action.handleRequest(request, new FakeRestChannel(request, true), verifyingClient);
     }
 }

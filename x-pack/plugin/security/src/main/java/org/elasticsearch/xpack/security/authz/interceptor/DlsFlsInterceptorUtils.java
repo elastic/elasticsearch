@@ -14,7 +14,7 @@ import org.elasticsearch.xpack.security.authz.RBACEngine;
 import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.AUTHORIZATION_INFO_VALUE;
 
 class DlsFlsInterceptorUtils {
-    public static boolean mayCurrentRoleHaveDlsOrFls(ThreadContext threadContext) {
+    public static boolean isCurrentRoleNullOrHasDlsFlsPermissions(ThreadContext threadContext) {
         final Role role = RBACEngine.maybeGetRBACEngineRole(AUTHORIZATION_INFO_VALUE.get(threadContext));
         // if role is null, it means a custom authorization engine is in use, and we have to directly go check indicesAccessControl
         return role == null || role.hasFieldOrDocumentLevelSecurity();

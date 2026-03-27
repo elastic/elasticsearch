@@ -611,6 +611,10 @@ public class EsqlSecurityIT extends ESRestTestCase {
         validateDlsFlsViewException(resp.getResponse(), "view-user1");
     }
 
+    /**
+     * Tests a scenario, where the parent view has DLS, but the nested view has no DLS or FLS.
+     * This ensures that the DLS check is applied at the parent view level
+     */
     public void testViewDlsOnNestedViewOuter() throws Exception {
         createView("test-admin", "nested-dls-view-no-dls", "FROM view-user* | STATS sum=sum(value)");
         createView("test-admin", "nested-dls-view-dls", "FROM nested-dls-view-no-dls");
@@ -621,6 +625,10 @@ public class EsqlSecurityIT extends ESRestTestCase {
         validateDlsFlsViewException(resp.getResponse(), "nested-dls-view-dls");
     }
 
+    /**
+     * Tests a scenario, where the parent view has no DLS or FLS, but the nested view has DLS.
+     * This ensures that the DLS check is applied at the child view level
+     */
     public void testViewDlsOnNestedViewInner() throws Exception {
         createView("test-admin", "nested-dls-view-dls", "FROM view-user* | STATS sum=sum(value)");
         createView("test-admin", "nested-dls-view-no-dls", "FROM nested-dls-view-dls");

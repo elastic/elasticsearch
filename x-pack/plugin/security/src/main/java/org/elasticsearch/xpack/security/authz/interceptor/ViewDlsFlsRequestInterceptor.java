@@ -79,7 +79,7 @@ public class ViewDlsFlsRequestInterceptor implements RequestInterceptor {
             && indicesRequest.indices() != null
             // Checking whether role has FLS or DLS first before checking indicesAccessControl for efficiency
             // because indicesAccessControl can contain a long list of indices
-            && DlsFlsInterceptorUtils.mayCurrentRoleHaveDlsOrFls(threadContext);
+            && DlsFlsInterceptorUtils.isCurrentRoleNullOrHasDlsFlsPermissions(threadContext);
     }
 
     private static ElasticsearchSecurityException getDlsFlsException(List<String> viewsWithDlsOrFls) {

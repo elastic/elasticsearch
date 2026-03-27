@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasource.parquet;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.parquet.ParquetReadOptions;
+import org.apache.parquet.bytes.HeapByteBufferAllocator;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.ColumnReader;
 import org.apache.parquet.column.impl.ColumnReadStoreImpl;
@@ -106,10 +107,21 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
         return new ParquetFilterPushdownSupport();
     }
 
+    /**
+     * Creates a ParquetReadOptions.Builder initialized with an allocator backed by the block factory's circuit breaker.
+     */
+    private ParquetReadOptions.Builder readOptionsBuilder() {
+        // Note: all read operations happen synchronously with the ESQL engine. If some operations
+        // change to be async, we'll have to unwrap the breaker if it's a LocalBreaker.
+        var breaker = blockFactory.breaker();
+        var allocator = new CircuitBreakerByteBufferAllocator(new HeapByteBufferAllocator(), breaker);
+        return ParquetReadOptions.builder().withAllocator(allocator);
+    }
+
     @Override
     public SourceMetadata metadata(StorageObject object) throws IOException {
         InputFile parquetInputFile = new ParquetStorageObjectAdapter(object);
-        ParquetReadOptions options = ParquetReadOptions.builder().build();
+        ParquetReadOptions options = readOptionsBuilder().build();
 
         try (ParquetFileReader reader = ParquetFileReader.open(parquetInputFile, options)) {
             FileMetaData fileMetaData = reader.getFileMetaData();
@@ -224,7 +236,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
         int rowLimit = context.rowLimit();
 
         InputFile parquetInputFile = new ParquetStorageObjectAdapter(object);
-        ParquetReadOptions.Builder optionsBuilder = ParquetReadOptions.builder();
+        ParquetReadOptions.Builder optionsBuilder = readOptionsBuilder();
         if (FilterCompat.isFilteringRequired(pushedFilter)) {
             optionsBuilder.withRecordFilter(pushedFilter);
         }
@@ -274,7 +286,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
     @Override
     public List<long[]> discoverSplitRanges(StorageObject object) throws IOException {
         InputFile parquetInputFile = new ParquetStorageObjectAdapter(object);
-        ParquetReadOptions options = ParquetReadOptions.builder().build();
+        ParquetReadOptions options = readOptionsBuilder().build();
         try (ParquetFileReader reader = ParquetFileReader.open(parquetInputFile, options)) {
             List<BlockMetaData> rowGroups = reader.getRowGroups();
             if (rowGroups.size() <= 1) {
@@ -348,7 +360,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
         ErrorPolicy errorPolicy
     ) throws IOException {
         InputFile parquetInputFile = new ParquetStorageObjectAdapter(object);
-        ParquetReadOptions.Builder optionsBuilder = ParquetReadOptions.builder().withRange(rangeStart, rangeEnd);
+        ParquetReadOptions.Builder optionsBuilder = readOptionsBuilder().withRange(rangeStart, rangeEnd);
         if (FilterCompat.isFilteringRequired(pushedFilter)) {
             optionsBuilder.withRecordFilter(pushedFilter);
         }
@@ -510,6 +522,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
         /** Per-attribute column metadata; null for attributes not present in the file. */
         private final ColumnInfo[] columnInfos;
 
+        private PageReadStore rowGroup;
         private ColumnReader[] columnReaders;
         private long rowsRemainingInGroup;
         private boolean exhausted = false;
@@ -576,7 +589,11 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
         }
 
         private boolean advanceRowGroup() throws IOException {
-            PageReadStore rowGroup = reader.readNextRowGroup();
+            if (rowGroup != null) {
+                rowGroup.close();
+                rowGroup = null;
+            }
+            rowGroup = reader.readNextRowGroup();
             if (rowGroup == null) {
                 exhausted = true;
                 return false;
@@ -595,6 +612,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
                 }
             }
             return rowsRemainingInGroup > 0;
+
         }
 
         @Override
@@ -1130,7 +1148,13 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
 
         @Override
         public void close() throws IOException {
-            reader.close();
+            try {
+                if (rowGroup != null) {
+                    rowGroup.close();
+                }
+            } finally {
+                reader.close();
+            }
         }
     }
 

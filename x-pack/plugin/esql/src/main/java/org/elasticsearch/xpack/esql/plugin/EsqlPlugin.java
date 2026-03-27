@@ -77,6 +77,7 @@ import org.elasticsearch.xpack.esql.action.RestEsqlGetAsyncResultAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlListQueriesAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlQueryAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlStopAsyncAction;
+import org.elasticsearch.xpack.esql.action.RestEsqlStreamAction;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
 import org.elasticsearch.xpack.esql.analysis.PlanCheckerProvider;
 import org.elasticsearch.xpack.esql.common.Failures;
@@ -399,7 +400,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             new RestEsqlStopAsyncAction(),
             new RestEsqlDeleteAsyncResultAction(),
             new RestEsqlListQueriesAction(),
-            new RestEsqlCursorAction()
+            new RestEsqlCursorAction(),
+            new RestEsqlStreamAction()
         );
         if (ESQL_VIEWS_FEATURE_FLAG.isEnabled()) {
             List<RestHandler> restHandlers = new ArrayList<>(releasedRestHandlers);

@@ -81,6 +81,7 @@ import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.StorePageExec;
+import org.elasticsearch.xpack.esql.plan.physical.StreamPageExec;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
@@ -321,7 +322,7 @@ public class ComputeService {
         PlanTimeProfile planTimeProfile,
         ActionListener<Result> listener
     ) {
-        execute(sessionId, rootTask, flags, physicalPlan, configuration, foldContext, execInfo, planTimeProfile, null, listener);
+        execute(sessionId, rootTask, flags, physicalPlan, configuration, foldContext, execInfo, planTimeProfile, null, null, listener);
     }
 
     public void execute(
@@ -334,6 +335,34 @@ public class ComputeService {
         EsqlExecutionInfo execInfo,
         PlanTimeProfile planTimeProfile,
         @Nullable PaginationStoreProvider paginationStoreProvider,
+        ActionListener<Result> listener
+    ) {
+        execute(
+            sessionId,
+            rootTask,
+            flags,
+            physicalPlan,
+            configuration,
+            foldContext,
+            execInfo,
+            planTimeProfile,
+            paginationStoreProvider,
+            null,
+            listener
+        );
+    }
+
+    public void execute(
+        String sessionId,
+        CancellableTask rootTask,
+        EsqlFlags flags,
+        PhysicalPlan physicalPlan,
+        Configuration configuration,
+        FoldContext foldContext,
+        EsqlExecutionInfo execInfo,
+        PlanTimeProfile planTimeProfile,
+        @Nullable PaginationStoreProvider paginationStoreProvider,
+        @Nullable StreamingProvider streamingProvider,
         ActionListener<Result> listener
     ) {
         assert ThreadPool.assertCurrentThreadPool(
@@ -368,7 +397,8 @@ public class ComputeService {
                 null,
                 initialClusterStatuses,
                 planTimeProfile,
-                paginationStoreProvider
+                paginationStoreProvider,
+                streamingProvider
             );
             return;
         }
@@ -393,6 +423,11 @@ public class ComputeService {
             mainPlan = pagination.coordinatorPlan();
             computeTask = pagination.computeTask();
             listener = pagination.listener();
+        } else if (streamingProvider != null) {
+            setColumnsOnStreamingProvider(streamingProvider, subplansAndMainPlan.v2());
+            streamingProvider.setExecutionInfo(execInfo);
+            mainPlan = new StreamPageExec(subplansAndMainPlan.v2(), streamingProvider);
+            computeTask = rootTask;
         } else {
             mainPlan = new OutputExec(subplansAndMainPlan.v2(), collectedPages::add);
             computeTask = rootTask;
@@ -505,6 +540,7 @@ public class ComputeService {
             exchangeSinkSupplier,
             initialClusterStatuses,
             planTimeProfile,
+            null,
             null
         );
     }
@@ -522,7 +558,8 @@ public class ComputeService {
         Supplier<ExchangeSink> exchangeSinkSupplier,
         Map<String, EsqlExecutionInfo.Cluster.Status> initialClusterStatuses,
         PlanTimeProfile planTimeProfile,
-        @Nullable PaginationStoreProvider paginationStoreProvider
+        @Nullable PaginationStoreProvider paginationStoreProvider,
+        @Nullable StreamingProvider streamingProvider
     ) {
         final PhysicalPlan splitPlan = discoverSplits(physicalPlan);
         final ExternalDistributionResult distributionResult = applyExternalDistributionStrategy(splitPlan, configuration);
@@ -552,6 +589,11 @@ public class ComputeService {
                 coordinatorPlan = pagination.coordinatorPlan();
                 computeTask = pagination.computeTask();
                 listener = pagination.listener();
+            } else if (streamingProvider != null) {
+                setColumnsOnStreamingProvider(streamingProvider, coordinatorAndDataNodePlan.v1());
+                streamingProvider.setExecutionInfo(execInfo);
+                coordinatorPlan = new StreamPageExec(coordinatorAndDataNodePlan.v1(), streamingProvider);
+                computeTask = rootTask;
             } else {
                 coordinatorPlan = new OutputExec(coordinatorAndDataNodePlan.v1(), collectedPages::add);
                 computeTask = rootTask;
@@ -1155,7 +1197,17 @@ public class ComputeService {
     }
 
     private static void setColumnsOnProvider(PaginationStoreProvider provider, PhysicalPlan plan) {
-        List<ColumnInfoImpl> columns = plan.output().stream().map(attr -> {
+        List<ColumnInfoImpl> columns = buildColumns(plan);
+        provider.setColumns(columns);
+    }
+
+    private static void setColumnsOnStreamingProvider(StreamingProvider provider, PhysicalPlan plan) {
+        List<ColumnInfoImpl> columns = buildColumns(plan);
+        provider.setColumns(columns);
+    }
+
+    private static List<ColumnInfoImpl> buildColumns(PhysicalPlan plan) {
+        return plan.output().stream().map(attr -> {
             List<String> originalTypes = null;
             if (attr instanceof UnsupportedAttribute ua) {
                 originalTypes = new ArrayList<>(ua.originalTypes());
@@ -1163,7 +1215,6 @@ public class ComputeService {
             }
             return new ColumnInfoImpl(attr.name(), attr.dataType().outputType(), originalTypes);
         }).toList();
-        provider.setColumns(columns);
     }
 
     ActionListener<Void> addCompletionInfo(

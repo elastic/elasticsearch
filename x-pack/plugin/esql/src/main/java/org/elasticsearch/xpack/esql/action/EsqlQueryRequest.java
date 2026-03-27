@@ -65,6 +65,8 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
     private Boolean allowPartialResults = null;
     private String projectRouting;
     private Integer pageSize;
+    private boolean streaming = false;
+    private transient org.elasticsearch.xpack.esql.plugin.StreamingProvider streamingProvider;
 
     /**
      * "Tables" provided in the request for use with things like {@code LOOKUP}.
@@ -281,6 +283,24 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
 
     public EsqlQueryRequest pageSize(Integer pageSize) {
         this.pageSize = pageSize;
+        return this;
+    }
+
+    public boolean streaming() {
+        return streaming;
+    }
+
+    public EsqlQueryRequest streaming(boolean streaming) {
+        this.streaming = streaming;
+        return this;
+    }
+
+    public org.elasticsearch.xpack.esql.plugin.StreamingProvider streamingProvider() {
+        return streamingProvider;
+    }
+
+    public EsqlQueryRequest streamingProvider(org.elasticsearch.xpack.esql.plugin.StreamingProvider streamingProvider) {
+        this.streamingProvider = streamingProvider;
         return this;
     }
 

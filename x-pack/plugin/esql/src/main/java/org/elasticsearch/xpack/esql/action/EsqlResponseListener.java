@@ -7,9 +7,12 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
+import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
@@ -124,8 +127,18 @@ public final class EsqlResponseListener extends RestRefCountedChunkedToXContentL
 
     @Override
     protected void processResponse(EsqlQueryResponse esqlQueryResponse) throws IOException {
+        long t0 = System.nanoTime();
         logPartialFailures(channel.request().rawPath(), channel.request().params(), esqlQueryResponse.getExecutionInfo());
-        channel.sendResponse(buildResponse(esqlQueryResponse));
+        RestResponse response = buildResponse(esqlQueryResponse);
+        long t1 = System.nanoTime();
+        channel.sendResponse(response);
+        long t2 = System.nanoTime();
+        LOGGER.info(
+            "[TIMING] processResponse: buildResponse={}ms, sendResponse={}ms, thread={}",
+            (t1 - t0) / 1_000_000,
+            (t2 - t1) / 1_000_000,
+            Thread.currentThread().getName()
+        );
     }
 
     private RestResponse buildResponse(EsqlQueryResponse esqlResponse) throws IOException {
@@ -147,11 +160,43 @@ public final class EsqlResponseListener extends RestRefCountedChunkedToXContentL
                 );
                 restResponse = RestResponse.chunked(RestStatus.OK, arrowResponse, Releasables.wrap(arrowResponse, releasable));
             } else {
-                restResponse = RestResponse.chunked(
-                    RestStatus.OK,
-                    ChunkedRestResponseBodyPart.fromXContent(esqlResponse, channel.request(), channel),
-                    releasable
-                );
+                ChunkedRestResponseBodyPart body = ChunkedRestResponseBodyPart.fromXContent(esqlResponse, channel.request(), channel);
+                ChunkedRestResponseBodyPart timed = new ChunkedRestResponseBodyPart() {
+                    @Override
+                    public boolean isPartComplete() {
+                        return body.isPartComplete();
+                    }
+
+                    @Override
+                    public boolean isLastPart() {
+                        return body.isLastPart();
+                    }
+
+                    @Override
+                    public void getNextPart(ActionListener<ChunkedRestResponseBodyPart> listener) {
+                        body.getNextPart(listener);
+                    }
+
+                    @Override
+                    public String getResponseContentTypeString() {
+                        return body.getResponseContentTypeString();
+                    }
+
+                    @Override
+                    public ReleasableBytesReference encodeChunk(int sizeHint, Recycler<BytesRef> recycler) throws IOException {
+                        long t0 = System.nanoTime();
+                        ReleasableBytesReference result = body.encodeChunk(sizeHint, recycler);
+                        long t1 = System.nanoTime();
+                        LOGGER.info(
+                            "[TIMING] std.encodeChunk: size={}bytes, time={}ms, thread={}",
+                            result.length(),
+                            (t1 - t0) / 1_000_000,
+                            Thread.currentThread().getName()
+                        );
+                        return result;
+                    }
+                };
+                restResponse = RestResponse.chunked(RestStatus.OK, timed, releasable);
             }
             restResponse.addHeader(HEADER_NAME_TOOK_NANOS, Long.toString(getTook(esqlResponse, TimeUnit.NANOSECONDS)));
             success = true;

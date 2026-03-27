@@ -157,6 +157,7 @@ import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.SampleExec;
 import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
 import org.elasticsearch.xpack.esql.plan.physical.StorePageExec;
+import org.elasticsearch.xpack.esql.plan.physical.StreamPageExec;
 import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plan.physical.TsInfoExec;
@@ -165,6 +166,7 @@ import org.elasticsearch.xpack.esql.plan.physical.inference.RerankExec;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders.ShardContext;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.plugin.StorePageOperator;
+import org.elasticsearch.xpack.esql.plugin.StreamingOutputOperator;
 import org.elasticsearch.xpack.esql.score.ScoreMapper;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.EsqlCCSUtils;
@@ -358,6 +360,8 @@ public class LocalExecutionPlanner {
         // output
         else if (node instanceof StorePageExec storePageExec) {
             return planStorePage(storePageExec, context);
+        } else if (node instanceof StreamPageExec streamPageExec) {
+            return planStreamPage(streamPageExec, context);
         } else if (node instanceof OutputExec outputExec) {
             return planOutput(outputExec, context);
         } else if (node instanceof ExchangeSinkExec exchangeSink) {
@@ -502,6 +506,19 @@ public class LocalExecutionPlanner {
 
         return source.withSink(
             new StorePageOperator.StorePageOperatorFactory(storePageExec.storeProvider(), alignPageToAttributes(output, source.layout)),
+            source.layout
+        );
+    }
+
+    private PhysicalOperation planStreamPage(StreamPageExec streamPageExec, LocalExecutionPlannerContext context) {
+        PhysicalOperation source = plan(streamPageExec.child(), context);
+        var output = streamPageExec.output();
+
+        return source.withSink(
+            new StreamingOutputOperator.StreamingOutputOperatorFactory(
+                streamPageExec.streamingProvider(),
+                alignPageToAttributes(output, source.layout)
+            ),
             source.layout
         );
     }

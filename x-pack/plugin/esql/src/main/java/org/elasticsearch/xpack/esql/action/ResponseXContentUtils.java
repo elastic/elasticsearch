@@ -126,4 +126,65 @@ final class ResponseXContentUtils {
             });
         });
     }
+
+    /** Returns the column values for a subset of rows defined by offset and rowCount. */
+    static Iterator<? extends ToXContent> columnValues(
+        List<ColumnInfoImpl> columns,
+        List<Page> pages,
+        boolean columnar,
+        boolean[] nullColumns,
+        ZoneId zoneId,
+        int offset,
+        int rowCount
+    ) {
+        if (pages.isEmpty() || rowCount <= 0) {
+            return Collections.emptyIterator();
+        } else if (columnar) {
+            return columnarValues(columns, pages, nullColumns, zoneId);
+        } else {
+            return rowValues(columns, pages, nullColumns, zoneId, offset, rowCount);
+        }
+    }
+
+    /**
+     * Returns a row based representation of a subset of rows across the given pages.
+     * Starts at {@code offset} rows into the first page and emits exactly {@code rowCount} rows.
+     */
+    static Iterator<? extends ToXContent> rowValues(
+        List<ColumnInfoImpl> columns,
+        List<Page> pages,
+        boolean[] nullColumns,
+        ZoneId zoneId,
+        int offset,
+        int rowCount
+    ) {
+        final BytesRef scratch = new BytesRef();
+        final int[] remaining = { rowCount };
+        final int[] currentOffset = { offset };
+        return Iterators.flatMap(pages.iterator(), page -> {
+            if (remaining[0] <= 0) {
+                return Collections.emptyIterator();
+            }
+            final int columnCount = columns.size();
+            final PositionToXContent[] toXContents = new PositionToXContent[columnCount];
+            for (int column = 0; column < columnCount; column++) {
+                Block block = page.getBlock(column);
+                toXContents[column] = PositionToXContent.positionToXContent(columns.get(column), block, zoneId, scratch);
+            }
+            int start = currentOffset[0];
+            int available = page.getPositionCount() - start;
+            int count = Math.min(remaining[0], available);
+            remaining[0] -= count;
+            currentOffset[0] = 0;
+            return Iterators.forRange(start, start + count, position -> (builder, params) -> {
+                builder.startArray();
+                for (int c = 0; c < columnCount; c++) {
+                    if (nullColumns == null || nullColumns[c] == false) {
+                        toXContents[c].positionToXContent(builder, params, position);
+                    }
+                }
+                return builder.endArray();
+            });
+        });
+    }
 }

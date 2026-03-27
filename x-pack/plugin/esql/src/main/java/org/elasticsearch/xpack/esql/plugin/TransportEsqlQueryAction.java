@@ -306,8 +306,11 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         // async-query uses EsqlQueryTask, so pull the EsqlExecutionInfo out of the task
         // sync query uses CancellableTask which does not have EsqlExecutionInfo, so create one
         EsqlExecutionInfo executionInfo = getOrCreateExecutionInfo(task, request);
+        final StreamingProvider streamingProvider = request.streamingProvider();
         final PaginationStoreProvider paginationStoreProvider;
-        if (request.pageSize() != null) {
+        if (streamingProvider != null) {
+            paginationStoreProvider = null;
+        } else if (request.pageSize() != null) {
             long expirationMillis = threadPool.absoluteTimeInMillis() + EsqlCursorIndexService.DEFAULT_CURSOR_KEEP_ALIVE.getMillis();
             ZoneId zoneId = request.timeZone() != null ? request.timeZone() : ZoneOffset.UTC;
             Map<String, String> securityHeaders = ClientHelper.filterSecurityHeaders(threadPool.getThreadContext().getHeaders());
@@ -333,6 +336,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             executionInfo,
             planTimeProfile,
             paginationStoreProvider,
+            streamingProvider,
             resultListener
         );
         final var loggingListener = this.activityLogger.wrap(listener, new EsqlLogContextBuilder(task, request));
@@ -477,6 +481,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         @Nullable PaginationStoreProvider paginationStoreProvider,
         ActionListener<EsqlQueryResponse> listener
     ) {
+        long t0 = System.nanoTime();
         var innerResult = result.inner();
         List<ColumnInfoImpl> columns = innerResult.schema().stream().map(c -> {
             List<String> originalTypes;
@@ -506,7 +511,17 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             return;
         }
 
-        listener.onResponse(buildResponse(task, request, columns, allPages, profile, innerResult, result, null));
+        long t1 = System.nanoTime();
+        EsqlQueryResponse response = buildResponse(task, request, columns, allPages, profile, innerResult, result, null);
+        long t2 = System.nanoTime();
+        logger.info(
+            "[TIMING] toResponse: buildColumns={}ms, buildResponse={}ms, totalPages={}, thread={}",
+            (t1 - t0) / 1_000_000,
+            (t2 - t1) / 1_000_000,
+            allPages.size(),
+            Thread.currentThread().getName()
+        );
+        listener.onResponse(response);
     }
 
     private EsqlQueryResponse buildResponse(

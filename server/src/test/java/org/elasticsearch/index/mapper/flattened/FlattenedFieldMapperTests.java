@@ -2049,18 +2049,19 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
     }
 
     public void testPassthroughRootFieldWins() throws IOException {
+        // root "status" is long; passthrough sub-field "status" is keyword — types differ so we can
+        // confirm the root concrete field wins rather than the passthrough alias
         MapperService mapperService = createMapperService(mapping(b -> {
-            b.startObject("status").field("type", "keyword").endObject();
+            b.startObject("status").field("type", "long").endObject();
             b.startObject("labels");
             b.field("type", "flattened");
             b.field("passthrough_with_priority", 10);
             b.startObject("properties").startObject("status").field("type", "keyword").endObject().endObject();
             b.endObject();
         }));
-        // root "status" field should be the concrete one, not the passthrough alias
         MappedFieldType ft = mapperService.fieldType("status");
         assertNotNull(ft);
-        assertEquals("status", ft.name());
+        assertEquals("long", ft.typeName());
     }
 
     public void testPassthroughNotSerializedWhenAbsent() throws IOException {

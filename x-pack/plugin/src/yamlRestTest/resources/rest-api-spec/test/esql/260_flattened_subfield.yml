@@ -54,8 +54,7 @@ setup:
               foo:
                 type: flattened
               bar:
-                type: keyword
-                fields:
+                properties:
                   baz:
                     type: flattened
 
@@ -154,7 +153,6 @@ setup:
       esql.query:
         body:
           # [foo] is flattened in index5
-          # [bar] is keyword in index5
           # [bar].[baz] is flattened in index5
           query: 'SET unmapped_fields="load"; FROM index5 metadata _index, _source | KEEP `foo..`, `foo...`, `foo....`, `foo.*`, `bar.baz.a`'
   - match: { error.type: verification_exception }

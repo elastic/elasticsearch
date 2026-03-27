@@ -327,9 +327,6 @@ tests:
 - class: org.elasticsearch.indices.memory.breaker.AccountableQueryCircuitBreakerIT
   method: testRangeQueryMemoryReleased
   issue: https://github.com/elastic/elasticsearch/issues/144906
-- class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackSubqueryIT
-  method: testGiantTextFieldInSubqueryIntermediateResults
-  issue: https://github.com/elastic/elasticsearch/issues/144367
 - class: org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ReorderLimitProjectAndOrderByGoldenTests
   method: testLimitByAndProjectNotSwapped
   issue: https://github.com/elastic/elasticsearch/issues/144978

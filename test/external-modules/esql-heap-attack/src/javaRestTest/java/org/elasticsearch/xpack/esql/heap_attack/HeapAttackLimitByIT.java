@@ -221,6 +221,46 @@ public class HeapAttackLimitByIT extends HeapAttackTestCase {
     }
 
     /**
+     * Grouping by 50 repeated 1MB strings with a preceding sort should succeed.
+     * Same memory model as {@link #testLimitByKeyEncoderDoesNotCircuitBreak} but with
+     * {@code GroupedTopNOperator} rather than {@code GroupedLimitOperator}.
+     */
+    public void testTopNByKeyEncoderDoesNotCircuitBreak() throws IOException {
+        assumeTrue("SORT | LIMIT BY requires snapshot builds", Build.current().isSnapshot());
+        initSingleDocIndex();
+        Map<String, Object> result = topNByManyStrings(50);
+        ListMatcher columns = matchesList().item(matchesMap().entry("name", "a").entry("type", "long"));
+        assertResultMap(result, columns, matchesList().item(List.of(1)));
+    }
+
+    /**
+     * Same circuit-breaking path as {@link #testLimitByKeyEncoderTooMuchMemory} but triggered
+     * inside {@code GroupedTopNOperator}: grouping by many wide strings causes the
+     * {@code GroupKeyEncoder} scratch buffer to accumulate past the circuit-breaker limit.
+     */
+    public void testTopNByKeyEncoderTooMuchMemory() throws IOException {
+        assumeTrue("SORT | LIMIT BY requires snapshot builds", Build.current().isSnapshot());
+        initSingleDocIndex();
+        assertCircuitBreaksVia(attempt -> topNByManyStrings(attempt * 110), GroupedTopNOperator.class, GroupKeyEncoder.class);
+    }
+
+    private Map<String, Object> topNByManyStrings(int count) throws IOException {
+        logger.info("topn by with {} repeated 1MB string group key cols", count);
+        StringBuilder query = startQuery();
+        query.append("FROM single\\n| EVAL s0 = REPEAT(TO_STRING(a), 1000000)");
+        for (int i = 1; i < count; i++) {
+            query.append(", s").append(i).append(" = REPEAT(TO_STRING(a), 1000000)");
+        }
+        query.append("\\n| SORT a\\n");
+        query.append("| LIMIT 1 BY s0");
+        for (int i = 1; i < count; i++) {
+            query.append(", s").append(i);
+        }
+        query.append("\\n| KEEP a\"}");
+        return responseAsMap(query(query.toString(), null));
+    }
+
+    /**
      * This limits 10 rows per group across 100K unique groups, which should succeed.
      */
     public void testTopNByManyGroupsSmallTopCount() throws IOException {

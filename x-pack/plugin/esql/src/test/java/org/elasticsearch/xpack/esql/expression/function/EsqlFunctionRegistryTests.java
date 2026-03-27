@@ -296,6 +296,8 @@ public class EsqlFunctionRegistryTests extends ESTestCase {
                 .item("org.elasticsearch.xpack.esql.expression.function.fulltext.ScoreErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.grouping.BucketErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.grouping.TBucketErrorTests is missing")
+                .item("org.elasticsearch.xpack.esql.expression.function.grouping.TimeSeriesWithoutErrorTests is missing")
+                .item("org.elasticsearch.xpack.esql.expression.function.grouping.TimeSeriesWithoutTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.scalar.ClampErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.scalar.ClampTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.scalar.conditional.ClampMaxErrorTests is missing")
@@ -357,6 +359,9 @@ public class EsqlFunctionRegistryTests extends ESTestCase {
                 continue;
             }
             if (Expression.class.isAssignableFrom(p.getType())) {
+                return true;
+            }
+            if (List.class.isAssignableFrom(p.getType())) {
                 return true;
             }
             throw new IllegalStateException("unknown argument type " + p);

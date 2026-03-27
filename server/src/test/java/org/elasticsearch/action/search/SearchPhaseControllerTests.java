@@ -36,6 +36,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsExecutors.TaskTrackingConfig;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.core.RefCounted;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.lucene.grouping.TopFieldGroups;
 import org.elasticsearch.search.DocValueFormat;
@@ -55,6 +56,7 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.profile.ProfileResult;
 import org.elasticsearch.search.profile.SearchProfileQueryPhaseResult;
+import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.search.profile.aggregation.AggregationProfileShardResult;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.rank.RankDoc;
@@ -350,6 +352,45 @@ public class SearchPhaseControllerTests extends ESTestCase {
             } finally {
                 queryResults.asList().forEach(RefCounted::decRef);
             }
+        }
+    }
+
+    public void testMergePropagatesProfileRequestMetadata() {
+        int nShards = 2;
+        List<CompletionSuggestion> suggestions = new ArrayList<>();
+        SearchSourceBuilder expectedSource = new SearchSourceBuilder().query(QueryBuilders.termQuery("field", "value")).profile(true);
+        String[] expectedIndices = new String[] { "unresolved-*", "alias" };
+        AtomicArray<SearchPhaseResult> queryResults = generateQueryResults(nShards, suggestions, 1, false, true, false);
+        try {
+            SearchPhaseController.ReducedQueryPhase reducedQueryPhase = SearchPhaseController.reducedQueryPhase(
+                queryResults.asList(),
+                InternalAggregations.EMPTY,
+                new ArrayList<>(),
+                new TopDocsStats(SearchContext.TRACK_TOTAL_HITS_ACCURATE),
+                0,
+                true,
+                null,
+                expectedSource,
+                expectedIndices
+            );
+            List<SearchShardTarget> shards = queryResults.asList().stream().map(SearchPhaseResult::getSearchShardTarget).collect(toList());
+            AtomicArray<SearchPhaseResult> fetchResults = generateFetchResults(
+                shards,
+                reducedQueryPhase.sortedTopDocs().scoreDocs(),
+                reducedQueryPhase.suggest(),
+                true
+            );
+            try (SearchResponseSections mergedResponse = SearchPhaseController.merge(false, reducedQueryPhase, fetchResults)) {
+                SearchProfileResults profile = mergedResponse.searchProfileResults();
+                assertNotNull(profile);
+                assertEquals(expectedSource, profile.getOriginalSource());
+                assertArrayEquals(expectedIndices, profile.getRequestIndices());
+                assertThat(mergedResponse.profile().entrySet(), hasSize(nShards));
+            } finally {
+                fetchResults.asList().forEach(RefCounted::decRef);
+            }
+        } finally {
+            queryResults.asList().forEach(RefCounted::decRef);
         }
     }
 

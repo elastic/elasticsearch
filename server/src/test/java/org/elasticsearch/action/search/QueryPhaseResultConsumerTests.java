@@ -20,13 +20,16 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsExecutors.TaskTrackingConfig;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
@@ -39,6 +42,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TestEsExecutors;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.junit.After;
 import org.junit.Before;
 
@@ -51,11 +55,21 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
+import static java.util.Collections.emptyList;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.junit.Assert.assertArrayEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNotSame;
+import static org.junit.Assert.assertNull;
 import static org.mockito.Mockito.mock;
 
 public class QueryPhaseResultConsumerTests extends ESTestCase {
+
+    @Override
+    protected NamedXContentRegistry xContentRegistry() {
+        return new NamedXContentRegistry(new SearchModule(Settings.EMPTY, emptyList()).getNamedXContents());
+    }
 
     private SearchPhaseController searchPhaseController;
     private ThreadPool threadPool;
@@ -101,6 +115,82 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
     public void cleanup() {
         executor.shutdownNow();
         terminate(threadPool);
+    }
+
+    public void testProfileSnapshotAbsentWhenProfilingDisabled() {
+        SearchRequest request = new SearchRequest("idx-*");
+        request.source(new SearchSourceBuilder().query(QueryBuilders.matchAllQuery()).profile(false));
+        try (
+            QueryPhaseResultConsumer consumer = new QueryPhaseResultConsumer(
+                request,
+                executor,
+                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+                searchPhaseController,
+                () -> false,
+                new SearchProgressListener() {},
+                1,
+                e -> fail("unexpected partial merge failure: " + e),
+                xContentRegistry()
+            )
+        ) {
+            assertNull(consumer.getOriginalSearchSource());
+            assertNull(consumer.getOriginalIndices());
+        }
+    }
+
+    /**
+     * Default {@link SearchRequest} exposes an empty {@link SearchSourceBuilder}; profiling is off, so no snapshot is retained.
+     */
+    public void testProfileSnapshotAbsentForDefaultSearchSource() {
+        SearchRequest request = new SearchRequest("idx");
+        assertThat(request.source().profile(), equalTo(false));
+        try (
+            QueryPhaseResultConsumer consumer = new QueryPhaseResultConsumer(
+                request,
+                executor,
+                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+                searchPhaseController,
+                () -> false,
+                new SearchProgressListener() {},
+                1,
+                e -> fail("unexpected partial merge failure: " + e),
+                xContentRegistry()
+            )
+        ) {
+            assertNull(consumer.getOriginalSearchSource());
+            assertNull(consumer.getOriginalIndices());
+        }
+    }
+
+    public void testProfileSnapshotCapturesIndicesAndDeepCopiedSource() {
+        SearchSourceBuilder source = new SearchSourceBuilder().query(QueryBuilders.termQuery("f", "v")).profile(true).size(11);
+        SearchSourceBuilder expectedSnapshot = new SearchSourceBuilder().query(QueryBuilders.termQuery("f", "v")).profile(true).size(11);
+        SearchRequest request = new SearchRequest("wildcard-*", "alias");
+        request.source(source);
+        try (
+            QueryPhaseResultConsumer consumer = new QueryPhaseResultConsumer(
+                request,
+                executor,
+                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+                searchPhaseController,
+                () -> false,
+                new SearchProgressListener() {},
+                1,
+                e -> fail("unexpected partial merge failure: " + e),
+                xContentRegistry()
+            )
+        ) {
+            SearchSourceBuilder snapshot = consumer.getOriginalSearchSource();
+            assertNotNull(snapshot);
+            assertThat(snapshot, equalTo(expectedSnapshot));
+            assertNotSame(source, snapshot);
+            assertArrayEquals(new String[] { "wildcard-*", "alias" }, consumer.getOriginalIndices());
+            source.query(QueryBuilders.matchAllQuery());
+            assertThat(snapshot, equalTo(expectedSnapshot));
+            String[] indices = request.indices();
+            indices[0] = "mutated";
+            assertThat(consumer.getOriginalIndices()[0], equalTo("wildcard-*"));
+        }
     }
 
     public void testProgressListenerExceptionsAreCaught() throws Exception {

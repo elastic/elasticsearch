@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action.search;
 
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.InternalAggregations;
@@ -93,6 +94,16 @@ public class SearchResponseSections implements Releasable {
             return Collections.emptyMap();
         }
         return profileResults.getShardResults();
+    }
+
+    /**
+     * The merged {@link SearchProfileResults} when profiling ran on the coordinator, including optional
+     * {@link SearchProfileResults#getOriginalSource()} / {@link SearchProfileResults#getRequestIndices()} metadata;
+     * otherwise {@code null}.
+     */
+    @Nullable
+    public final SearchProfileResults searchProfileResults() {
+        return profileResults;
     }
 
     @Override

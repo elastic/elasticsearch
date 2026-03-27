@@ -49,7 +49,7 @@ public final class SearchProfileResults implements Writeable, ToXContentFragment
     public static final String SOURCE_FIELD = "source";
     public static final String QUERY_FIELD = "indices";
 
-    public static final TransportVersion originalQueryIndicesInProfileResults = TransportVersion.fromString(
+    public static final TransportVersion originalQueryIndicesInProfileResults = TransportVersion.fromName(
         "include-original-query-indices-in-search-profile-results"
     );
 

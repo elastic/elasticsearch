@@ -2624,6 +2624,8 @@ Tasks are integrated with the ElasticSearch APM infrastructure. They implement t
 [RestDeleteAction]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/rest/action/document/RestDeleteAction.java
 [RestUpdateAction]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/rest/action/document/RestUpdateAction.java
 [TransportBulkAction]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/bulk/TransportBulkAction.java
+[TransportAbstractBulkAction]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/bulk/TransportAbstractBulkAction.java
+[IngestActionForwarder]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/ingest/IngestActionForwarder.java
 [BulkOperation]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/bulk/BulkOperation.java
 [TransportShardBulkAction]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/bulk/TransportShardBulkAction.java
 [TransportIndexAction]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/index/TransportIndexAction.java
@@ -2656,35 +2658,62 @@ The Distributed team also owns select parts of the read path (e.g. real-time `GE
 [translog](#translog)), but broader search capabilities like query execution, scoring, and aggregations fall under 
 the Search team.
 
-This section follows a single document index request end to end in stateful Elasticsearch, using the [RestIndexAction] 
-class as the starting point.
+This section follows a bulk index request end to end in stateful Elasticsearch, using [RestBulkAction]
+as the starting point.
+
+For a higher-level overview of the read and write paths, see
+[Reading and writing documents](https://www.elastic.co/docs/deploy-manage/distributed-architecture/reading-and-writing-documents).
 
 ## The Write Path
 
 ### Coordinator: REST to Transport
 
-A user sends a `PUT` or `POST` to `/{index}/_doc/{id}` (or `POST /{index}/_doc` with no id for auto-generated ids) to
-Elasticsearch. The HTTP stack (described in [HTTP Server](#http-server)) hands the request to `RestIndexAction`, which
-parses path parameters (`index`, optional `id`, optional `routing`, etc.) and the body as the document source.
-It [builds](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/rest/action/document/RestIndexAction.java#L131)
-an [IndexRequest] and [prepares](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/rest/action/document/RestIndexAction.java#L156)
-the next action, `AbstractClient::index`, which will execute [TransportIndexAction] on the receiving node (see the
-[Transport](#transport) section for more details).
+A user sends a `POST` to `/_bulk` with a newline-delimited body of index, update, or delete actions
+(see [documentation](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-bulk)).
+The HTTP stack (described in [HTTP Server](#http-server)) hands the request to [RestBulkAction], which
+[parses](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/rest/action/document/RestBulkAction.java#L120)
+the body into a [BulkRequest] containing one [IndexRequest] (or [UpdateRequest] / [DeleteRequest]) per requested
+operation. It then [executes](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/rest/action/document/RestBulkAction.java#L138)
+a [TransportBulkAction] on the receiving node (see the [Transport](#transport) section for more details).
 
-The node that received the request is the coordinating node for this request. On that node, `TransportIndexAction` wraps
-the `IndexRequest` in a one-item [BulkRequest] and delegates to [TransportBulkAction], which eventually runs
-a [BulkOperation] on the coordinator. `BulkOperation` is the class that resolves each item to a concrete index
-and shard before sending work to primaries.
+Single-document requests (`PUT` or `POST` to `/{index}/_doc/{id}`) follow the same path: [RestIndexAction]
+builds an [IndexRequest] that [TransportIndexAction] wraps in a one-item [BulkRequest] before delegating to
+[TransportBulkAction].
 
-If the client did not supply `_id`, one is
+The node that received the request is the coordinating node for this request. On that node, [TransportBulkAction]
+coordinates the rest of the write path.
+
+Before routing to shards, [TransportAbstractBulkAction] (the parent class of [TransportBulkAction])
+[resolves](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/bulk/TransportAbstractBulkAction.java#L277)
+the ingest pipeline for each item by checking the request's `pipeline` parameter, the index's `default_pipeline`, and
+the `final_pipeline` from the matching index template. If any item has a pipeline, the coordinating node either executes
+the pipelines locally (if it is an ingest node, see the [Node Roles](#node-roles) section) or
+[forwards](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/bulk/TransportAbstractBulkAction.java#L315)
+the entire request to an ingest node via [IngestActionForwarder]. Once ingest finishes, each processed request has
+its `pipeline` and `finalPipeline` fields
+[reset](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/ingest/IngestService.java#L1092)
+to `"_none"` and the request is
+[re-submitted](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/bulk/TransportAbstractBulkAction.java#L364)
+through `TransportAbstractBulkAction#applyPipelinesAndDoInternalExecute`. On this second pass `hasPipeline` is false
+for every item and the ingest path is skipped.
+
+[TransportBulkAction] also
+[checks](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/bulk/TransportBulkAction.java#L327)
+whether the target index or data stream exists, auto-creating missing indices via `AutoCreateAction` and
+[rolling over](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/bulk/TransportBulkAction.java#L410)
+data streams marked for lazy rollover before proceeding.
+
+It then eventually runs a [BulkOperation] on the coordinator. `BulkOperation` is the class that resolves each item to
+a concrete index and shard before sending work to primaries.
+
+If the client did not supply an `_id`, one is
 [generated](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/bulk/BulkOperation.java#L333)
 before routing. The latest applied [ClusterState](#cluster-state) supplies routing for the chosen index (`routingTable`,
 [ShardRouting](#cluster-state)). A routing key is chosen: by default the document `_id`, though the request may
 [set](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-index) `routing` explicitly.
-The routing key is hashed to a shard number within the index by `IndexRouting.hashToShardId`.
-For time series indices, routing is instead derived 
-[from the document's dimension fields](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/routing/IndexRouting.java#L62C13-L62C70),
-and for indices with a `routing_path` configured, from the configured value.
+The routing key is then hashed to a shard number by `IndexRouting.hashToShardId`. For time series indices the key is
+[derived from the document's dimension fields](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/routing/IndexRouting.java#L62C13-L62C70).
+For indices with a `routing_path` configured, it is derived from the configured value.
 
 The coordinator now knows which shard holds the document. It still needs the current primary node for that shard.
 
@@ -2883,7 +2912,7 @@ after relocation, when a copy becomes in-sync, or when cluster state drops track
 During operation replication,
 [replica responses carry](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/support/replication/ReplicationOperation.java#L290)
 local and global checkpoint fields so the primary can [derive](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/seqno/ReplicationTracker.java#L1320)
-peer progress. After a successful write, [TransportWriteAction] will also
+peer progress. After a successful write, [TransportReplicationAction] will also
 [trigger](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/support/replication/TransportReplicationAction.java#L568)
 a [GlobalCheckpointSyncAction] when there are no more operations in-flight (`maxSeqNo == globalCheckpoint`).
 Indeed, the global checkpoint is piggybacked on every replication operation, but once the last operation completes,
@@ -2915,6 +2944,15 @@ Note that the `InternalEngine` also tracks the
 (MSU) for write path optimization purposes. The [Engine](#engine)
 [javadoc](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/engine/Engine.java#L2479)
 goes into details about the `LCP < MSU` versus `MSU <= LCP` cases.
+
+The engine also applies an append-only
+[optimization](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/engine/InternalEngine.java#L1328)
+for auto-generated `_id`s. When a document has an auto-generated ID and the operation is not flagged as a retry,
+the engine will try to
+[assert](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/engine/InternalEngine.java#L1513)
+that no concurrent retry with an equal or higher timestamp has landed on the shard so it can skip the version map
+lookup entirely and call `IndexWriter.addDocument` instead of `updateDocument`. If the check fails, the engine falls
+back to `updateDocument` to guard against creating a duplicate.
 
 # Server Startup
 

@@ -126,36 +126,31 @@ public class OAuth2SettingsTests extends AbstractBWCWireSerializationTestCase<OA
             """, TEST_CLIENT_ID, toJson(TEST_SCOPES, "")))));
     }
 
-    public void testUpdateServiceSettings_EmptyMap_DoesNotChangeSettings() {
-        var originalSettings = new OAuth2Settings(INITIAL_TEST_CLIENT_ID, INITIAL_TEST_SCOPES);
-        var validationException = new ValidationException();
-
-        var updatedSettings = originalSettings.updateServiceSettings(new HashMap<>(), validationException);
-
-        assertThat(updatedSettings, is(originalSettings));
-        assertThat(validationException.validationErrors(), is(empty()));
-    }
-
     public void testUpdateServiceSettings_AllFields_UpdatesSettings() {
-        assertUpdateServiceSettings_WithMissingField_UpdatesSettings(addOAuth2FieldsToMap(new HashMap<>(), TEST_CLIENT_ID, TEST_SCOPES), TEST_CLIENT_ID, TEST_SCOPES);
+        assertUpdateServiceSettings(addOAuth2FieldsToMap(new HashMap<>(), TEST_CLIENT_ID, TEST_SCOPES), TEST_CLIENT_ID, TEST_SCOPES);
     }
 
     public void testUpdateServiceSettings_WithMissingClientId_UpdatesSettings() {
-        assertUpdateServiceSettings_WithMissingField_UpdatesSettings(addOAuth2FieldsToMap(new HashMap<>(), null, TEST_SCOPES), INITIAL_TEST_CLIENT_ID, TEST_SCOPES);
+        assertUpdateServiceSettings(addOAuth2FieldsToMap(new HashMap<>(), null, TEST_SCOPES), INITIAL_TEST_CLIENT_ID, TEST_SCOPES);
     }
 
     public void testUpdateServiceSettings_WithMissingScopes_UpdatesSettings() {
-        assertUpdateServiceSettings_WithMissingField_UpdatesSettings(addOAuth2FieldsToMap(new HashMap<>(), TEST_CLIENT_ID, null), TEST_CLIENT_ID, INITIAL_TEST_SCOPES);
+        assertUpdateServiceSettings(addOAuth2FieldsToMap(new HashMap<>(), TEST_CLIENT_ID, null), TEST_CLIENT_ID, INITIAL_TEST_SCOPES);
     }
 
-    private static void assertUpdateServiceSettings_WithMissingField_UpdatesSettings(Map<String, Object> serviceSettingsMap, @Nullable String clientId, @Nullable List<String> scopes) {
+    public void testUpdateServiceSettings_EmptyMap_DoesNotChangeSettings() {
+        assertUpdateServiceSettings(new HashMap<>(), INITIAL_TEST_CLIENT_ID, INITIAL_TEST_SCOPES);
+    }
+
+    private static void assertUpdateServiceSettings(
+        Map<String, Object> serviceSettingsMap,
+        @Nullable String clientId,
+        @Nullable List<String> scopes
+    ) {
         var originalSettings = new OAuth2Settings(INITIAL_TEST_CLIENT_ID, INITIAL_TEST_SCOPES);
         var validationException = new ValidationException();
 
-        var updatedSettings = originalSettings.updateServiceSettings(
-            serviceSettingsMap,
-            validationException
-        );
+        var updatedSettings = originalSettings.updateServiceSettings(serviceSettingsMap, validationException);
 
         assertThat(updatedSettings, is(new OAuth2Settings(clientId, scopes)));
         assertThat(validationException.validationErrors(), is(empty()));

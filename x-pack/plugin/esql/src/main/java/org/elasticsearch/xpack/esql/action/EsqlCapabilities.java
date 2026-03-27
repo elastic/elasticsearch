@@ -261,7 +261,7 @@ public class EsqlCapabilities {
          * See https://github.com/elastic/elasticsearch/issues/141994
          * </ul>
          */
-        OPTIONAL_FIELDS_V5(Build.current().isSnapshot()),
+        OPTIONAL_FIELDS_V4(Build.current().isSnapshot()),
 
         /**
          * Support specifically for *just* the _index METADATA field. Used by CsvTests, since that is the only metadata field currently

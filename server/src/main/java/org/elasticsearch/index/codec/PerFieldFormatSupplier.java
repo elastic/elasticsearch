@@ -23,7 +23,7 @@ import org.elasticsearch.index.codec.bloomfilter.ES87BloomFilterPostingsFormat;
 import org.elasticsearch.index.codec.bloomfilter.ES94BloomFilterDocValuesFormat;
 import org.elasticsearch.index.codec.postings.ES812PostingsFormat;
 import org.elasticsearch.index.codec.tsdb.TSDBSyntheticIdPostingsFormat;
-import org.elasticsearch.index.codec.tsdb.es819.TSDBDocValuesFormatFactory;
+import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormatFactory;
 import org.elasticsearch.index.codec.vectors.es93.ES93HnswVectorsFormat;
 import org.elasticsearch.index.mapper.CompletionFieldMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
@@ -206,7 +206,7 @@ public class PerFieldFormatSupplier {
             boolean writePartitions = indexSettings.getMode() == IndexMode.TIME_SERIES
                 && TsidBuilder.useSingleBytePrefixLayout(indexCreatedVersion)
                 && indexCreatedVersion.onOrAfter(IndexVersions.WRITE_TSID_PREFIX_PARTITION);
-            return TSDBDocValuesFormatFactory.createDocValuesFormat(
+            return ES819TSDBDocValuesFormatFactory.createDocValuesFormat(
                 indexCreatedVersion,
                 useLargeNumericBlockSize,
                 useLargeBinaryBlockSize,

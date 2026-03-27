@@ -67,7 +67,7 @@ public abstract class QueryLoggerContext extends ActivityLoggerContext {
 
         final String[] indices = getIndices();
         // Request that only asks for system indices is system search
-        isSystemSearch = indices.length > 0 && Arrays.stream(indices).allMatch(systemChecker);
+        isSystemSearch = indices != null && indices.length > 0 && Arrays.stream(indices).allMatch(systemChecker);
         return isSystemSearch;
     }
 

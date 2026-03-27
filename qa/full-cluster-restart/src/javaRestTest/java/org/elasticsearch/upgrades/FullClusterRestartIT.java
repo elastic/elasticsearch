@@ -1968,7 +1968,7 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
     }
 
     /**
-     * {@code GET /_tasks} with {@code wait_for_completion=true} may return the reindex-tasks deprecation and/or a system-index access
+     * {@code GET /_tasks} with {@code wait_for_completion=true} may return the reindex-tasks deprecation
      * warning after reading the completed task from {@code .tasks}. Fail only on unexpected warnings.
      */
     private static boolean warningsShouldFailGetCompletedReindexTask(List<String> warnings, String reindexTaskGetApiDeprecation) {

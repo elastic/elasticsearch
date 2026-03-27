@@ -130,8 +130,8 @@ public class SystemIndicesUpgradeIT extends AbstractRollingUpgradeTestCase {
     }
 
     /**
-     * {@code GET /_tasks} with {@code wait_for_completion=true} may return the reindex-tasks deprecation and/or a system-index access
-     * warning. Fail only on unexpected warnings.
+     * {@code GET /_tasks} with {@code wait_for_completion=true} may return the reindex-tasks deprecation warning.
+     * Fail only on unexpected warnings.
      */
     private static boolean warningsShouldFailGetCompletedReindexTask(List<String> warnings, String reindexTaskGetApiDeprecation) {
         for (String w : warnings) {

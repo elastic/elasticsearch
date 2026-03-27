@@ -246,7 +246,9 @@ public class SearchTransportService {
         SearchTask task,
         final ActionListener<SearchPhaseResult> listener
     ) {
-        final ActionListener<? super SearchPhaseResult> handler = responseWrapper.apply(connection, listener);
+        final ActionListener<? super SearchPhaseResult> handler = responseWrapper != null
+            ? responseWrapper.apply(connection, listener)
+            : null;
         transportService.sendChildRequest(
             connection,
             QUERY_ID_ACTION_NAME,

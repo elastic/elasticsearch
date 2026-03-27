@@ -22,8 +22,11 @@ import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
 import org.apache.parquet.schema.Types;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.LimitedBreaker;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -31,10 +34,10 @@ import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.datasources.CloseableIterator;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
@@ -51,6 +54,9 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicInteger;
+
+import static org.hamcrest.Matchers.greaterThan;
 
 public class ParquetFormatReaderTests extends ESTestCase {
 
@@ -221,6 +227,118 @@ public class ParquetFormatReaderTests extends ESTestCase {
             assertEquals(new BytesRef("Bob"), ((BytesRefBlock) page.getBlock(0)).getBytesRef(1, new BytesRef()));
             assertEquals(87.3, ((DoubleBlock) page.getBlock(1)).getDouble(1), 0.001);
         }
+    }
+
+    public void testCircuitBreaker() throws IOException {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("id")
+            .required(PrimitiveType.PrimitiveTypeName.DOUBLE)
+            .named("score")
+            .named("test_schema");
+
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            var groups = new ArrayList<Group>();
+            for (int i = 0; i < 1000; i++) {
+                Group group = factory.newGroup();
+                group.add("id", (long) i);
+                group.add("score", i * 1.5);
+                groups.add(group);
+            }
+            return groups;
+        });
+
+        StorageObject storageObject = createStorageObject(parquetData);
+
+        {
+            var limitedFactory = new BlockFactory(new LimitedBreaker("test", ByteSizeValue.ofBytes(100)), this.blockFactory.bigArrays());
+            var reader = new ParquetFormatReader(limitedFactory);
+
+            // Read the schema without creating any ESQL block. This is enough to trip the breaker.
+            assertThrows(CircuitBreakingException.class, () -> reader.metadata(storageObject));
+
+            // Sanity check
+            assertEquals(0, limitedFactory.breaker().getUsed());
+        }
+
+        {
+            var limitedFactory = new BlockFactory(new LimitedBreaker("test", ByteSizeValue.ofBytes(1000)), this.blockFactory.bigArrays());
+            var reader = new ParquetFormatReader(limitedFactory);
+
+            // Read the schema is now ok
+            var metadata = reader.metadata(storageObject);
+            assertEquals(0, limitedFactory.breaker().getUsed());
+
+            // Reading a page trips the breaker
+            assertThrows(CircuitBreakingException.class, () -> {
+                try (var iter = reader.read(storageObject, List.of("id", "score"), 1000)) {
+                    iter.next();
+                }
+            });
+            reader.close();
+            assertEquals(0, limitedFactory.breaker().getUsed());
+        }
+    }
+
+    public void testCircuitBreakerTripsOnLargerRowGroup() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("id")
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("payload")
+            .named("test_schema");
+
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+        OutputFile outputFile = createOutputFile(outputStream);
+        SimpleGroupFactory groupFactory = new SimpleGroupFactory(schema);
+
+        // Write rows with increasing payload sizes so that the Parquet writer produces row groups
+        // of increasing byte size when it flushes at the 1 KB row-group threshold.
+        try (
+            ParquetWriter<Group> writer = ExampleParquetWriter.builder(outputFile)
+                .withType(schema)
+                .withCompressionCodec(CompressionCodecName.UNCOMPRESSED)
+                .withRowGroupSize(1024L)
+                .withPageSize(512)
+                .build()
+        ) {
+            for (int i = 0; i < 1000; i++) {
+                Group g = groupFactory.newGroup();
+                g.add("id", (long) i);
+                // Payload grows with the row index so later row groups contain heavier rows
+                g.add("payload", "x".repeat(10 + i));
+                writer.write(g);
+            }
+        }
+        byte[] parquetData = outputStream.toByteArray();
+        assertThat(parquetData.length, greaterThan(2 * 1024)); // sanity: file has multiple row groups
+
+        StorageObject storageObject = createStorageObject(parquetData);
+
+        // Set the breaker limit so that the first (smallest) row groups can be read,
+        // but some later larger one trips the breaker.
+        var limitedBreaker = new LimitedBreaker("test", ByteSizeValue.ofKb(32));
+        var limitedFactory = new BlockFactory(limitedBreaker, this.blockFactory.bigArrays());
+
+        var pageCount = new AtomicInteger(); // mutable int holder
+
+        try (
+            var reader = new ParquetFormatReader(limitedFactory);
+            var iter = reader.read(storageObject, List.of("id", "payload"), 1_000_000)
+        ) {
+            expectThrows(CircuitBreakingException.class, () -> {
+                while (iter.hasNext()) {
+                    var page = iter.next();
+                    page.close();
+                    pageCount.incrementAndGet();
+                }
+            });
+        }
+
+        // Check that we read at least 1 page and that all memory has been released
+        assertThat(pageCount.get(), greaterThan(1));
+        assertEquals(0, limitedBreaker.getUsed());
     }
 
     public void testProjectedColumnMissingFromFileReturnsNullBlock() throws Exception {

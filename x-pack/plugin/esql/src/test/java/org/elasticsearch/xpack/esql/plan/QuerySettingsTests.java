@@ -103,25 +103,25 @@ public class QuerySettingsTests extends ESTestCase {
     public void testValidate_UnmappedFields_techPreview() {
         assumeFalse("Requires no snapshot", Build.current().isSnapshot());
 
-        validateUnmappedFields("FAIL", "NULLIFY");
+        validateUnmappedFields("DEFAULT", "NULLIFY");
         var settingName = QuerySettings.UNMAPPED_FIELDS.name();
         assertInvalid(
             settingName,
             NON_SNAPSHOT_CTX_WITH_CPS_ENABLED,
             of("UNKNOWN"),
-            "Error validating setting [unmapped_fields]: Invalid unmapped_fields resolution [UNKNOWN], must be one of [FAIL, NULLIFY]"
+            "Error validating setting [unmapped_fields]: Invalid unmapped_fields resolution [UNKNOWN], must be one of [DEFAULT, NULLIFY]"
         );
     }
 
     public void testValidate_UnmappedFields_allValues() {
-        assumeTrue("Requires unmapped fields", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V2.isEnabled());
-        validateUnmappedFields("FAIL", "NULLIFY", "LOAD");
+        assumeTrue("Requires unmapped fields", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V3.isEnabled());
+        validateUnmappedFields("DEFAULT", "NULLIFY", "LOAD");
     }
 
     private void validateUnmappedFields(String... values) {
         var setting = QuerySettings.UNMAPPED_FIELDS;
 
-        assertDefault(setting, equalTo(UnmappedResolution.FAIL));
+        assertDefault(setting, equalTo(UnmappedResolution.DEFAULT));
 
         for (String value : values) {
             assertValid(setting, of(randomizeCase(value)), equalTo(UnmappedResolution.valueOf(value)));

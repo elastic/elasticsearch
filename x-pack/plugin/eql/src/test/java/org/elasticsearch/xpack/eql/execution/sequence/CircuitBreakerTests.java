@@ -467,10 +467,11 @@ public class CircuitBreakerTests extends ESTestCase {
                 2,
                 0,
                 0,
-                0,
+                0L,
                 ShardSearchFailure.EMPTY_ARRAY,
                 SearchResponse.Clusters.EMPTY,
                 searchRequest.pointInTimeBuilder().getEncodedId(),
+                null,
                 null
             );
 
@@ -521,10 +522,11 @@ public class CircuitBreakerTests extends ESTestCase {
                         2,
                         0,
                         0,
-                        0,
+                        0L,
                         ShardSearchFailure.EMPTY_ARRAY,
                         SearchResponse.Clusters.EMPTY,
                         searchRequest.pointInTimeBuilder().getEncodedId(),
+                        null,
                         null
                     )
                 );
@@ -560,10 +562,11 @@ public class CircuitBreakerTests extends ESTestCase {
                             2,
                             1,
                             0,
-                            0,
+                            0L,
                             failures,
                             SearchResponse.Clusters.EMPTY,
                             searchRequest.pointInTimeBuilder().getEncodedId(),
+                            null,
                             null
                         )
                     );

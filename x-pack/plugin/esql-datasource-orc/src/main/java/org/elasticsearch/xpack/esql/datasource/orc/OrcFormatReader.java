@@ -643,7 +643,9 @@ public class OrcFormatReader implements FormatReader {
                                     millis = lv.vector[idx] * MILLIS_PER_DAY;
                                 }
                             } else {
-                                millis = 0L;
+                                throw new QlIllegalArgumentException(
+                                    "Unsupported list child type for DATETIME: " + child.getClass().getSimpleName()
+                                );
                             }
                             builder.appendLong(millis);
                         }
@@ -883,7 +885,9 @@ public class OrcFormatReader implements FormatReader {
                                     nanos = lv.vector[idx] * NANOS_PER_DAY;
                                 }
                             } else {
-                                nanos = 0L;
+                                throw new QlIllegalArgumentException(
+                                    "Unsupported list child type for DATE_NANOS: " + child.getClass().getSimpleName()
+                                );
                             }
                             builder.appendLong(nanos);
                         }

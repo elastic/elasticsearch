@@ -173,10 +173,7 @@ public class PassThroughObjectMapper extends ObjectMapper implements PassThrough
 
     @Override
     public Collection<FieldMapper> passThroughSubFields() {
-        return mappers.values().stream()
-            .filter(m -> m instanceof FieldMapper)
-            .map(m -> (FieldMapper) m)
-            .toList();
+        return mappers.values().stream().filter(m -> m instanceof FieldMapper).map(m -> (FieldMapper) m).toList();
     }
 
     public Explicit<Boolean> timeSeriesDimensionSubFields() {

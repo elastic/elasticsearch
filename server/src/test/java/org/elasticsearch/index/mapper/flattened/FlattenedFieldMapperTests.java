@@ -122,20 +122,12 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
             b.startObject("host").field("type", "keyword").endObject();
             b.endObject();
         }, m -> assertNotNull(((FlattenedFieldMapper) m).fieldType().getChildFieldType("host")));
-        checker.registerUpdateCheck(
-            "passthrough",
-            b -> {
-                b.field("passthrough", true);
-                b.field("priority", 5);
-                b.startObject("properties").startObject("status").field("type", "keyword").endObject().endObject();
-            },
-            m -> assertTrue(((FlattenedFieldMapper) m).isPassthrough())
-        );
-        checker.registerUpdateCheck(
-            "priority",
-            b -> b.field("priority", 0),
-            m -> assertEquals(0, ((FlattenedFieldMapper) m).priority())
-        );
+        checker.registerUpdateCheck("passthrough", b -> {
+            b.field("passthrough", true);
+            b.field("priority", 5);
+            b.startObject("properties").startObject("status").field("type", "keyword").endObject().endObject();
+        }, m -> assertTrue(((FlattenedFieldMapper) m).isPassthrough()));
+        checker.registerUpdateCheck("priority", b -> b.field("priority", 0), m -> assertEquals(0, ((FlattenedFieldMapper) m).priority()));
     }
 
     @Override
@@ -2022,28 +2014,22 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
     // ---- passthrough tests ----
 
     public void testPassthroughWithoutPriorityThrows() throws IOException {
-        MapperParsingException e = expectThrows(
-            MapperParsingException.class,
-            () -> createMapperService(fieldMapping(b -> {
-                b.field("type", "flattened");
-                b.field("passthrough", true);
-                b.startObject("properties").startObject("status").field("type", "keyword").endObject().endObject();
-            }))
-        );
+        MapperParsingException e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
+            b.field("type", "flattened");
+            b.field("passthrough", true);
+            b.startObject("properties").startObject("status").field("type", "keyword").endObject().endObject();
+        })));
         assertThat(e.getMessage(), containsString("passthrough=true"));
         assertThat(e.getMessage(), containsString("priority"));
     }
 
     public void testPassthroughWithNegativePriorityThrows() throws IOException {
-        MapperParsingException e = expectThrows(
-            MapperParsingException.class,
-            () -> createMapperService(fieldMapping(b -> {
-                b.field("type", "flattened");
-                b.field("passthrough", true);
-                b.field("priority", -1);
-                b.startObject("properties").startObject("status").field("type", "keyword").endObject().endObject();
-            }))
-        );
+        MapperParsingException e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
+            b.field("type", "flattened");
+            b.field("passthrough", true);
+            b.field("priority", -1);
+            b.startObject("properties").startObject("status").field("type", "keyword").endObject().endObject();
+        })));
         assertThat(e.getMessage(), containsString("passthrough=true"));
         assertThat(e.getMessage(), containsString("priority"));
     }

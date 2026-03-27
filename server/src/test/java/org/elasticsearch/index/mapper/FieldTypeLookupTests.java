@@ -599,12 +599,7 @@ public class FieldTypeLookupTests extends ESTestCase {
         MockFieldMapper rootStatus = new MockFieldMapper("status");
         PassThroughFieldSource source = flattenedPassThrough("labels", 10, Map.of("status", flattenedStatus));
 
-        FieldTypeLookup lookup = new FieldTypeLookup(
-            randomizedList(flattenedStatus, rootStatus),
-            List.of(),
-            List.of(source),
-            List.of()
-        );
+        FieldTypeLookup lookup = new FieldTypeLookup(randomizedList(flattenedStatus, rootStatus), List.of(), List.of(source), List.of());
         assertEquals(rootStatus.fieldType(), lookup.get("status"));
     }
 

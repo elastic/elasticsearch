@@ -64,7 +64,6 @@ import org.elasticsearch.index.mapper.BlockSourceReader;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.DynamicFieldType;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.PassThroughFieldSource;
 import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -74,6 +73,7 @@ import org.elasticsearch.index.mapper.MapperMergeContext;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MappingParser;
 import org.elasticsearch.index.mapper.MappingParserContext;
+import org.elasticsearch.index.mapper.PassThroughFieldSource;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.StringFieldType;
@@ -219,19 +219,10 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
 
         private final Parameter<Map<String, FieldMapper.Builder>> properties;
 
-        private final Parameter<Boolean> passthrough = Parameter.boolParam(
-            "passthrough",
-            true,
-            m -> builder(m).passthrough.get(),
-            false
-        );
+        private final Parameter<Boolean> passthrough = Parameter.boolParam("passthrough", true, m -> builder(m).passthrough.get(), false);
 
-        private final Parameter<Integer> priority = Parameter.intParam(
-            "priority",
-            true,
-            m -> builder(m).priority.get(),
-            -1
-        ).setSerializerCheck((includeDefaults, isConfigured, v) -> v >= 0);
+        private final Parameter<Integer> priority = Parameter.intParam("priority", true, m -> builder(m).priority.get(), -1)
+            .setSerializerCheck((includeDefaults, isConfigured, v) -> v >= 0);
 
         private final IndexMode indexMode;
         private final IndexVersion indexCreatedVersion;

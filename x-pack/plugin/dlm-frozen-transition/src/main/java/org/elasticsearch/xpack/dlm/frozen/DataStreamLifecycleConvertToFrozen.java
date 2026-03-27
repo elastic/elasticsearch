@@ -67,6 +67,8 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.support.master.MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT;
@@ -82,6 +84,7 @@ public class DataStreamLifecycleConvertToFrozen implements DlmFrozenTransitionRu
     public static final String CLONE_INDEX_PREFIX = "dlm-clone-";
     private static final IndicesOptions IGNORE_MISSING_OPTIONS = IndicesOptions.fromOptions(true, true, false, false);
     private static final TimeValue SNAPSHOT_TIMEOUT = TimeValue.timeValueHours(12);
+    private static final TimeValue SNAPSHOT_POLL_INTERVAL = TimeValue.timeValueSeconds(30);
     private static final String SNAPSHOT_NAME_PREFIX = "dlm-frozen-";
 
     private final String indexName;
@@ -89,6 +92,13 @@ public class DataStreamLifecycleConvertToFrozen implements DlmFrozenTransitionRu
     private final ProjectState projectState;
     private final XPackLicenseState licenseState;
     private final Clock clock;
+
+    /**
+     * TODO: remove when https://github.com/elastic/elasticsearch/pull/145061 merges
+     */
+    DataStreamLifecycleConvertToFrozen(String indexName, Client client, ProjectState projectState, XPackLicenseState licenseState) {
+        this(indexName, client, projectState, licenseState, Clock.systemUTC());
+    }
 
     public DataStreamLifecycleConvertToFrozen(
         String indexName,
@@ -259,6 +269,7 @@ public class DataStreamLifecycleConvertToFrozen implements DlmFrozenTransitionRu
      * exists (e.g. failed or partial), deletes it and starts a new one. If no completed snapshot exists, starts a new one.
      */
     void maybeTakeSnapshot(String indexName) {
+        ProjectMetadata projectMetadata = projectState.metadata();
         final String repositoryName = getRepositoryForFrozen(projectMetadata, indexName);
         String snapshotName = snapshotName(indexName);
 
@@ -568,7 +579,7 @@ public class DataStreamLifecycleConvertToFrozen implements DlmFrozenTransitionRu
 
     /**
      * A snapshot for this index is currently running in the cluster. If it has been running longer
-     * than {@link #SNAPSHOT_TIMEOUT}, delete it and start again; otherwise leave it alone.
+     * than {@link #SNAPSHOT_TIMEOUT}, delete it and start again; otherwise wait for it to complete.
      */
     private void handleInProgressSnapshot(String indexName, String repositoryName, String snapshotName, long snapshotStartTime) {
         if ((clock.millis() - snapshotStartTime) > SNAPSHOT_TIMEOUT.millis()) {
@@ -580,7 +591,82 @@ public class DataStreamLifecycleConvertToFrozen implements DlmFrozenTransitionRu
             );
             deleteAndRestartSnapshot(indexName, repositoryName, snapshotName);
         } else {
-            logger.trace("DLM snapshot [{}] for index [{}] is still in progress, skipping", snapshotName, indexName);
+            logger.info(
+                "DLM snapshot [{}] for index [{}] is currently in progress and has been running for [{}], waiting for completion",
+                snapshotName,
+                indexName,
+                TimeValue.timeValueMillis(clock.millis() - snapshotStartTime)
+            );
+            waitForSnapshotCompletion(indexName, repositoryName, snapshotName, snapshotStartTime);
+        }
+    }
+
+    /**
+     * Polls the snapshot status until it completes or the total elapsed time since snapshot start exceeds
+     * {@link #SNAPSHOT_TIMEOUT}. If the snapshot completes successfully, logs and returns. If the snapshot
+     * does not complete successfully for any reason (timeout, disappearance, failure), throws an exception.
+     */
+    private void waitForSnapshotCompletion(String indexName, String repositoryName, String snapshotName, long snapshotStartTime) {
+        ProjectId projectId = projectState.projectId();
+        while (true) {
+            long elapsed = clock.millis() - snapshotStartTime;
+            if (elapsed > SNAPSHOT_TIMEOUT.millis()) {
+                throw new ElasticsearchException(
+                    "DLM snapshot [{}] for index [{}] has exceeded timeout of [{}]",
+                    snapshotName,
+                    indexName,
+                    SNAPSHOT_TIMEOUT
+                );
+            }
+
+            try {
+                Thread.sleep(SNAPSHOT_POLL_INTERVAL.millis());
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new ElasticsearchException(
+                    "DLM interrupted while waiting for snapshot [{}] for index [{}]",
+                    e,
+                    snapshotName,
+                    indexName
+                );
+            }
+
+            GetSnapshotsRequest getRequest = new GetSnapshotsRequest(INFINITE_MASTER_NODE_TIMEOUT, repositoryName);
+            getRequest.snapshots(new String[] { snapshotName });
+            getRequest.ignoreUnavailable(true);
+
+            try {
+                GetSnapshotsResponse response = client.projectClient(projectId).execute(TransportGetSnapshotsAction.TYPE, getRequest).get();
+                List<SnapshotInfo> snapshots = response.getSnapshots();
+                if (snapshots.isEmpty()) {
+                    throw new ElasticsearchException(
+                        "DLM snapshot [{}] for index [{}] disappeared while waiting for completion",
+                        snapshotName,
+                        indexName
+                    );
+                }
+
+                SnapshotInfo snapshotInfo = snapshots.getFirst();
+                if (snapshotInfo.state() == SnapshotState.IN_PROGRESS) {
+                    logger.debug(
+                        "DLM snapshot [{}] for index [{}] is still in progress (elapsed [{}])",
+                        snapshotName,
+                        indexName,
+                        TimeValue.timeValueMillis(elapsed)
+                    );
+                    continue;
+                }
+
+                checkSnapshotInfo(indexName, snapshotName, snapshotInfo);
+                return;
+            } catch (ElasticsearchException e) {
+                throw e;
+            } catch (Exception e) {
+                if (e instanceof InterruptedException || ExceptionsHelper.unwrapCause(e) instanceof InterruptedException) {
+                    Thread.currentThread().interrupt();
+                }
+                throw new ElasticsearchException("DLM failed while waiting for snapshot [{}] for index [{}]", e, snapshotName, indexName);
+            }
         }
     }
 
@@ -602,7 +688,7 @@ public class DataStreamLifecycleConvertToFrozen implements DlmFrozenTransitionRu
             GetSnapshotsResponse response = client.projectClient(projectId).execute(TransportGetSnapshotsAction.TYPE, getRequest).get();
             List<SnapshotInfo> snapshots = response.getSnapshots();
             if (snapshots.isEmpty()) {
-                maybeStartSnapshot(indexName, repositoryName, snapshotName);
+                createSnapshot(indexName, repositoryName, snapshotName);
                 return;
             }
             SnapshotInfo existingSnapshot = snapshots.getFirst();
@@ -620,7 +706,7 @@ public class DataStreamLifecycleConvertToFrozen implements DlmFrozenTransitionRu
                 deleteAndRestartSnapshot(indexName, repositoryName, snapshotName);
             }
         } catch (SnapshotMissingException e) {
-            maybeStartSnapshot(indexName, repositoryName, snapshotName);
+            createSnapshot(indexName, repositoryName, snapshotName);
         } catch (Exception e) {
             if (e instanceof InterruptedException || ExceptionsHelper.unwrapCause(e) instanceof InterruptedException) {
                 Thread.currentThread().interrupt();
@@ -644,10 +730,10 @@ public class DataStreamLifecycleConvertToFrozen implements DlmFrozenTransitionRu
                 );
             } else {
                 logger.info("DLM successfully deleted stale snapshot [{}] for index [{}]", snapshotName, indexName);
-                maybeStartSnapshot(indexName, repositoryName, snapshotName);
+                createSnapshot(indexName, repositoryName, snapshotName);
             }
         } catch (SnapshotMissingException e) {
-            maybeStartSnapshot(indexName, repositoryName, snapshotName);
+            createSnapshot(indexName, repositoryName, snapshotName);
         } catch (Exception e) {
             if (e instanceof InterruptedException || ExceptionsHelper.unwrapCause(e) instanceof InterruptedException) {
                 Thread.currentThread().interrupt();
@@ -658,23 +744,23 @@ public class DataStreamLifecycleConvertToFrozen implements DlmFrozenTransitionRu
         }
     }
 
-    private void maybeStartSnapshot(String indexName, String repositoryName, String snapshotName) {
+    private void createSnapshot(String indexName, String repositoryName, String snapshotName) {
         CreateSnapshotRequest createRequest = buildCreateSnapshotRequest(repositoryName, indexName, snapshotName);
         try {
-            var response = client.projectClient(projectState.projectId()).admin().cluster().createSnapshot(createRequest).get();
-            if (response.getSnapshotInfo() != null && response.getSnapshotInfo().failedShards() == 0) {
-                logger.info("DLM successfully created snapshot [{}] for index [{}]", snapshotName, indexName);
-            } else {
-                int failedShards = response.getSnapshotInfo() != null ? response.getSnapshotInfo().failedShards() : -1;
-                throw new ElasticsearchException(
-                    Strings.format(
-                        "DLM snapshot [%s] for index [%s] finished with [%d] failed shards",
-                        snapshotName,
-                        indexName,
-                        failedShards
-                    )
-                );
-            }
+            var response = client.projectClient(projectState.projectId())
+                .admin()
+                .cluster()
+                .createSnapshot(createRequest)
+                .get(SNAPSHOT_TIMEOUT.hours(), TimeUnit.HOURS);
+            checkSnapshotInfo(indexName, snapshotName, response.getSnapshotInfo());
+        } catch (TimeoutException e) {
+            throw new ElasticsearchException(
+                "DLM timed out after [{}] waiting for snapshot [{}] for index [{}]",
+                e,
+                SNAPSHOT_TIMEOUT,
+                snapshotName,
+                indexName
+            );
         } catch (Exception e) {
             if (e instanceof InterruptedException || ExceptionsHelper.unwrapCause(e) instanceof InterruptedException) {
                 Thread.currentThread().interrupt();
@@ -682,6 +768,17 @@ public class DataStreamLifecycleConvertToFrozen implements DlmFrozenTransitionRu
             throw e instanceof ElasticsearchException
                 ? (ElasticsearchException) e
                 : new ElasticsearchException("DLM failed to start snapshot [{}] for index [{}]", e, snapshotName, indexName);
+        }
+    }
+
+    private static void checkSnapshotInfo(String indexName, String snapshotName, SnapshotInfo snapshotInfo) {
+        if (snapshotInfo != null && snapshotInfo.failedShards() == 0) {
+            logger.info("DLM successfully created snapshot [{}] for index [{}]", snapshotName, indexName);
+        } else {
+            int failedShards = snapshotInfo != null ? snapshotInfo.failedShards() : -1;
+            throw new ElasticsearchException(
+                Strings.format("DLM snapshot [%s] for index [%s] finished with [%d] failed shards", snapshotName, indexName, failedShards)
+            );
         }
     }
 

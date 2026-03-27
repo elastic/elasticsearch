@@ -49,9 +49,9 @@ class DlmFrozenTransitionExecutor implements Closeable {
         ThreadFactory esThreadFactory = EsExecutors.daemonThreadFactory(settings, EXECUTOR_NAME);
         this.executor = EsExecutors.newFixed(EXECUTOR_NAME, maxConcurrency, maxQueueSize, r -> {
             Thread thread = esThreadFactory.newThread(r);
-            if (r instanceof DlmFrozenTransitionRunnable dftr) {
+            if (r instanceof WrappedDlmFrozenTransitionRunnable runnable) {
                 String name = thread.getName();
-                thread.setName(name + "[" + dftr.getIndexName() + "]");
+                thread.setName(name + "[" + runnable.getIndexName() + "]");
             }
             return thread;
         }, new ThreadContext(settings), EsExecutors.TaskTrackingConfig.DEFAULT);
@@ -85,7 +85,23 @@ class DlmFrozenTransitionExecutor implements Closeable {
      * {@link #submittedTransitions} when the thread completes, whether successfully or with an error.
      */
     private Runnable wrapRunnable(DlmFrozenTransitionRunnable task) {
-        return () -> {
+        return new WrappedDlmFrozenTransitionRunnable(task);
+    }
+
+    @Override
+    public void close() {
+        ThreadPool.terminate(executor, 10, TimeUnit.SECONDS);
+    }
+
+    private class WrappedDlmFrozenTransitionRunnable implements Runnable {
+        private final DlmFrozenTransitionRunnable task;
+
+        public WrappedDlmFrozenTransitionRunnable(DlmFrozenTransitionRunnable task) {
+            this.task = task;
+        }
+
+        @Override
+        public void run() {
             final String indexName = task.getIndexName();
             try {
                 logger.debug("Starting transition for index [{}]", indexName);
@@ -97,11 +113,10 @@ class DlmFrozenTransitionExecutor implements Closeable {
             } finally {
                 submittedTransitions.remove(indexName);
             }
-        };
-    }
+        }
 
-    @Override
-    public void close() {
-        ThreadPool.terminate(executor, 10, TimeUnit.SECONDS);
+        private String getIndexName() {
+            return task.getIndexName();
+        }
     }
 }

@@ -140,8 +140,11 @@ public class ClusterInfoSimulator {
     public void simulateAddIndexToNode(String nodeId, Index index) {
         var nodeHeap = estimatedHeapUsages.get(nodeId);
         // Use any shard ID since index stats are the same.
-        var shardAndIndexHeap = estimatedShardHeapUsages.getOrDefault(new ShardId(index, 0), defaultShardHeapUsageForShardsWithoutMetrics);
         if (nodeHeap != null) {
+            var shardAndIndexHeap = estimatedShardHeapUsages.getOrDefault(
+                new ShardId(index, 0),
+                defaultShardHeapUsageForShardsWithoutMetrics
+            );
             estimatedHeapUsages.put(nodeId, nodeHeap.updateEstimatedUsage(shardAndIndexHeap.indexHeapUsageBytes()));
         }
     }
@@ -149,8 +152,11 @@ public class ClusterInfoSimulator {
     public void simulateRemoveIndexFromNode(String nodeId, Index index) {
         var nodeHeap = estimatedHeapUsages.get(nodeId);
         // Use any shard ID since index stats are the same.
-        var shardAndIndexHeap = estimatedShardHeapUsages.getOrDefault(new ShardId(index, 0), defaultShardHeapUsageForShardsWithoutMetrics);
         if (nodeHeap != null) {
+            var shardAndIndexHeap = estimatedShardHeapUsages.getOrDefault(
+                new ShardId(index, 0),
+                defaultShardHeapUsageForShardsWithoutMetrics
+            );
             estimatedHeapUsages.put(nodeId, nodeHeap.updateEstimatedUsage(-1 * shardAndIndexHeap.indexHeapUsageBytes()));
         }
     }

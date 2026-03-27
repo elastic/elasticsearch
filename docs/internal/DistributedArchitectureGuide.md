@@ -2647,9 +2647,10 @@ The Distributed team owns Elasticsearch's write path. A typical write begins as 
 the appropriate primary shard, is applied to the shard's engine and translog, and is finally replicated across replicas
 before an ack is sent back to the client.
 
-Note that in serverless Elasticsearch, durability is instead provided by writing to the translog and uploading to blob 
-storage. There is no replication process. See this 
-[blog post](https://www.elastic.co/search-labs/blog/thin-indexing-shards-elasticsearch-serverless) for more details.
+Note that in serverless Elasticsearch, there is no replication process needed. The same reliability and fault tolerance
+are instead achieved by uploading the translog to a blob store and relying on the store's durability and fault tolerance
+guarantees. See this [blog post](https://www.elastic.co/search-labs/blog/thin-indexing-shards-elasticsearch-serverless)
+for more details.
 
 The Distributed team also owns select parts of the read path (e.g. real-time `GET` requests targeting the
 [translog](#translog)), but broader search capabilities like query execution, scoring, and aggregations fall under 
@@ -2678,9 +2679,12 @@ and shard before sending work to primaries.
 If the client did not supply `_id`, one is
 [generated](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/bulk/BulkOperation.java#L333)
 before routing. The latest applied [ClusterState](#cluster-state) supplies routing for the chosen index (`routingTable`,
-[ShardRouting](#cluster-state)). A routing key is chosen (by default the document `_id` but the request may
-[set](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-index) `routing` explicitly).
+[ShardRouting](#cluster-state)). A routing key is chosen: by default the document `_id`, though the request may
+[set](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-index) `routing` explicitly.
 The routing key is hashed to a shard number within the index by `IndexRouting.hashToShardId`.
+For time series indices, routing is instead derived 
+[from the document's dimension fields](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/routing/IndexRouting.java#L62C13-L62C70),
+and for indices with a `routing_path` configured, from the configured value.
 
 The coordinator now knows which shard holds the document. It still needs the current primary node for that shard.
 
@@ -2746,6 +2750,12 @@ the sequence number for the operation, [updates](https://github.com/elastic/elas
 Lucene via an `IndexWriter`, and then
 [appends](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/engine/InternalEngine.java#L1276)
 the operation to the [Translog](#translog).
+
+Note that the translog write happens after the Lucene update. The translog is primarily a durability and recovery log for
+acknowledged operations, not a write-ahead log in the classic database sense. The translog entry type also depends on 
+the Lucene outcome. A successful Lucene apply writes the full operation, while a failure with an already-assigned seq_no
+[writes a no-op](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/engine/InternalEngine.java#L1278)
+to preserve the sequence number history.
 
 Note that updates and deletes use soft deletes in Lucene (tombstones and retention policies), not physical deletion,
 and are therefore quite similar to writes.
@@ -2821,8 +2831,10 @@ helpers are defined on [SequenceNumbers] (for example `UNASSIGNED_SEQ_NO` on the
 
 The primary term is a monotonically increasing counter per shard, recorded in cluster state metadata (see
 [IndexMetadata#primaryTerm](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/metadata/IndexMetadata.java#L1199)).
-It advances when a primary is (re)selected, e.g. after a full restart or when a replica is promoted. The shard stamps
-all operations with the [current term](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/shard/IndexShard.java#L514).
+It advances when a new primary must take over following a primary failure, e.g. when a replica is promoted to primary
+because the current primary crashed or became unavailable. Note that the primary term is not increased during graceful
+primary relocation. The shard stamps all operations with the
+[current term](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/shard/IndexShard.java#L514).
 
 The sequence number is another monotonically increasing id for mutations on the shard history. It is
 [computed](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/engine/InternalEngine.java#L1163)
@@ -2871,7 +2883,11 @@ after relocation, when a copy becomes in-sync, or when cluster state drops track
 During operation replication,
 [replica responses carry](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/support/replication/ReplicationOperation.java#L290)
 local and global checkpoint fields so the primary can [derive](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/seqno/ReplicationTracker.java#L1320)
-peer progress.
+peer progress. After a successful write, [TransportWriteAction] will also
+[trigger](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/support/replication/TransportReplicationAction.java#L568)
+a [GlobalCheckpointSyncAction] when there are no more operations in-flight (`maxSeqNo == globalCheckpoint`).
+Indeed, the global checkpoint is piggybacked on every replication operation, but once the last operation completes,
+the checkpoint may advance further with no subsequent operation to carry it to the replicas.
 
 The global checkpoint is the replication-group safety line: it is the highest `seq_no` known to be processed
 on every in-sync copy, so it underpins

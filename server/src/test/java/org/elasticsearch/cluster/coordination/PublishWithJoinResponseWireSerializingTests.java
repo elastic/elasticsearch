@@ -29,9 +29,10 @@ public class PublishWithJoinResponseWireSerializingTests extends AbstractWireSer
 
     @Override
     protected PublishWithJoinResponse createTestInstance() {
-        PublishResponse publishResponse = new PublishResponse(randomNonNegativeLong(), randomNonNegativeLong());
-        Optional<Join> optionalJoin = randomBoolean() ? Optional.empty() : Optional.of(randomJoin());
-        return new PublishWithJoinResponse(publishResponse, optionalJoin);
+        return new PublishWithJoinResponse(
+            new PublishResponse(randomNonNegativeLong(), randomNonNegativeLong()),
+            randomBoolean() ? Optional.empty() : Optional.of(randomJoin())
+        );
     }
 
     @Override

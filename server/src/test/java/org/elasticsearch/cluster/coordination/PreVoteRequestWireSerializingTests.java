@@ -29,9 +29,7 @@ public class PreVoteRequestWireSerializingTests extends AbstractWireSerializingT
 
     @Override
     protected PreVoteRequest createTestInstance() {
-        DiscoveryNode sourceNode = DiscoveryNodeUtils.create();
-        long currentTerm = randomNonNegativeLong();
-        return new PreVoteRequest(sourceNode, currentTerm);
+        return new PreVoteRequest(DiscoveryNodeUtils.create(), randomNonNegativeLong());
     }
 
     @Override

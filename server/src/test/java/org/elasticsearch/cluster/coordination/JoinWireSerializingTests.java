@@ -55,11 +55,6 @@ public class JoinWireSerializingTests extends AbstractWireSerializingTestCase<Jo
     }
 
     public static Join randomJoin() {
-        DiscoveryNode votingNode = create();
-        DiscoveryNode masterCandidateNode = create();
-        long term = randomNonNegativeLong();
-        long lastAcceptedTerm = randomNonNegativeLong();
-        long lastAcceptedVersion = randomNonNegativeLong();
-        return new Join(votingNode, masterCandidateNode, term, lastAcceptedTerm, lastAcceptedVersion);
+        return new Join(create(), create(), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong());
     }
 }

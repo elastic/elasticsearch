@@ -31,9 +31,7 @@ public class StartJoinRequestWireSerializingTests extends AbstractWireSerializin
 
     @Override
     protected StartJoinRequest createTestInstance() {
-        DiscoveryNode masterCandidateNode = create();
-        long term = randomNonNegativeLong();
-        return new StartJoinRequest(masterCandidateNode, term);
+        return new StartJoinRequest(create(), randomNonNegativeLong());
     }
 
     @Override

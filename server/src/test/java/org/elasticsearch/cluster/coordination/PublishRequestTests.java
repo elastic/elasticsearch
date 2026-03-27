@@ -29,9 +29,8 @@ public class PublishRequestTests extends ESTestCase {
 
     /** Verifies equals/hashCode contract: copy equals original, mutation does not, and hashCode matches equals. */
     public void testPublishRequestEqualsHashCode() {
-        PublishRequest initialPublishRequest = new PublishRequest(randomClusterState());
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(
-            initialPublishRequest,
+            new PublishRequest(randomClusterState()),
             publishRequest -> new PublishRequest(publishRequest.getAcceptedState()),
             in -> new PublishRequest(randomClusterState())
         );
@@ -96,8 +95,7 @@ public class PublishRequestTests extends ESTestCase {
     /** Verifies that toString includes the class name, term, and version. */
     public void testToString() {
         ClusterState clusterState = randomClusterState();
-        PublishRequest publishRequest = new PublishRequest(clusterState);
-        String string = publishRequest.toString();
+        String string = new PublishRequest(clusterState).toString();
         assertTrue(string.contains("PublishRequest"));
         assertTrue(string.contains("term=" + clusterState.term()));
         assertTrue(string.contains("version=" + clusterState.version()));

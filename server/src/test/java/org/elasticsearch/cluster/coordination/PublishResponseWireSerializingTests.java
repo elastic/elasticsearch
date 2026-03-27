@@ -27,9 +27,7 @@ public class PublishResponseWireSerializingTests extends AbstractWireSerializing
 
     @Override
     protected PublishResponse createTestInstance() {
-        long term = randomNonNegativeLong();
-        long version = randomNonNegativeLong();
-        return new PublishResponse(term, version);
+        return new PublishResponse(randomNonNegativeLong(), randomNonNegativeLong());
     }
 
     @Override

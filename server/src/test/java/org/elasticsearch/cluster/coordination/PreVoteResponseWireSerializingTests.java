@@ -28,9 +28,7 @@ public class PreVoteResponseWireSerializingTests extends AbstractWireSerializing
     @Override
     protected PreVoteResponse createTestInstance() {
         long currentTerm = randomNonNegativeLong();
-        long lastAcceptedTerm = randomLongBetween(1, currentTerm);
-        long lastAcceptedVersion = randomNonNegativeLong();
-        return new PreVoteResponse(currentTerm, lastAcceptedTerm, lastAcceptedVersion);
+        return new PreVoteResponse(currentTerm, randomLongBetween(1, currentTerm), randomNonNegativeLong());
     }
 
     @Override

@@ -37,13 +37,15 @@ public class JoinRequestWireSerializingTests extends AbstractWireSerializingTest
     @Override
     protected JoinRequest createTestInstance() {
         DiscoveryNode sourceNode = create();
-        CompatibilityVersions compatibilityVersions = CompatibilityVersionsUtils.fakeSystemIndicesRandom();
-        Set<String> features = Set.of(generateRandomStringArray(randomInt(10), 10, false));
-        long minimumTerm = randomNonNegativeLong();
-        Optional<Join> optionalJoin = randomBoolean()
-            ? Optional.empty()
-            : Optional.of(new Join(sourceNode, create(), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong()));
-        return new JoinRequest(sourceNode, compatibilityVersions, features, minimumTerm, optionalJoin);
+        return new JoinRequest(
+            sourceNode,
+            CompatibilityVersionsUtils.fakeSystemIndicesRandom(),
+            Set.of(generateRandomStringArray(randomInt(10), 10, false)),
+            randomNonNegativeLong(),
+            randomBoolean()
+                ? Optional.empty()
+                : Optional.of(new Join(sourceNode, create(), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong()))
+        );
     }
 
     @Override

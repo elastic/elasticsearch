@@ -31,10 +31,7 @@ public class ApplyCommitRequestWireSerializingTests extends AbstractWireSerializ
 
     @Override
     protected ApplyCommitRequest createTestInstance() {
-        DiscoveryNode sourceNode = create();
-        long term = randomNonNegativeLong();
-        long version = randomNonNegativeLong();
-        return new ApplyCommitRequest(sourceNode, term, version);
+        return new ApplyCommitRequest(create(), randomNonNegativeLong(), randomNonNegativeLong());
     }
 
     @Override

@@ -1467,6 +1467,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
                 topDocsStats,
                 0,
                 false,
+                null,
                 null
             );
             ScoreDoc[] scoreDocs = reducedQueryPhase.sortedTopDocs().scoreDocs();

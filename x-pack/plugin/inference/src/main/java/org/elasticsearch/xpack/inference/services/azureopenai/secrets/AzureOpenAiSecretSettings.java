@@ -113,6 +113,6 @@ public abstract class AzureOpenAiSecretSettings implements SecretSettings {
 
     @Override
     public SecretSettings newSecretSettings(Map<String, Object> newSecrets) {
-        return AzureOpenAiSecretSettings.fromMap(new HashMap<>(newSecrets));
+        return AzureOpenAiSecretSettings.fromMap(newSecrets);
     }
 }

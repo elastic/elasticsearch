@@ -17,4 +17,9 @@ public class EsqlFeatureFlags {
      * A feature flag to enable ESQL views REST API functionality.
      */
     public static final FeatureFlag ESQL_VIEWS_FEATURE_FLAG = new FeatureFlag("esql_views");
+
+    /**
+     * A feature flag to enable the EXTERNAL command and external data source access in ES|QL.
+     */
+    public static final FeatureFlag ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG = new FeatureFlag("esql_external_datasources");
 }

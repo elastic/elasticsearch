@@ -60,9 +60,6 @@ import org.elasticsearch.datastreams.lifecycle.rest.RestDeleteDataStreamLifecycl
 import org.elasticsearch.datastreams.lifecycle.rest.RestExplainDataStreamLifecycleAction;
 import org.elasticsearch.datastreams.lifecycle.rest.RestGetDataStreamLifecycleAction;
 import org.elasticsearch.datastreams.lifecycle.rest.RestPutDataStreamLifecycleAction;
-import org.elasticsearch.datastreams.lifecycle.transitions.DlmAction;
-import org.elasticsearch.datastreams.lifecycle.transitions.DlmStep;
-import org.elasticsearch.datastreams.lifecycle.transitions.steps.ForceMergeStep;
 import org.elasticsearch.datastreams.lifecycle.transitions.steps.MarkIndexForDLMForceMergeAction;
 import org.elasticsearch.datastreams.lifecycle.transitions.steps.TransportMarkIndexForDLMForceMergeAction;
 import org.elasticsearch.datastreams.options.action.DeleteDataStreamOptionsAction;
@@ -88,6 +85,7 @@ import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.plugins.ActionPlugin;
+import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.HealthPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestHandler;
@@ -103,7 +101,7 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.cluster.metadata.DataStreamLifecycle.DATA_STREAM_LIFECYCLE_ORIGIN;
 
-public class DataStreamsPlugin extends Plugin implements ActionPlugin, HealthPlugin {
+public class DataStreamsPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin, HealthPlugin {
 
     public static final Setting<TimeValue> TIME_SERIES_POLL_INTERVAL = Setting.timeSetting(
         "time_series.poll_interval",
@@ -186,9 +184,6 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, HealthPlu
         pluginSettings.add(DataStreamLifecycleService.DATA_STREAM_MERGE_POLICY_TARGET_FLOOR_SEGMENT_SETTING);
         pluginSettings.add(DataStreamLifecycleService.DATA_STREAM_MERGE_POLICY_TARGET_FACTOR_SETTING);
         pluginSettings.add(DataStreamLifecycleService.DATA_STREAM_SIGNALLING_ERROR_RETRY_INTERVAL_SETTING);
-        if (DataStreamLifecycle.DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled()) {
-            pluginSettings.add(ForceMergeStep.DLM_FORCE_MERGE_COMPLETE_SETTING);
-        }
         return pluginSettings;
     }
 
@@ -217,11 +212,6 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, HealthPlu
             )
         );
 
-        // Register DLM actions here. Order matters - they will be executed in the order they are listed for a given index.
-        List<DlmAction> dlmActions = List.of();
-
-        verifyActions(dlmActions);
-
         dataLifecycleInitialisationService.set(
             new DataStreamLifecycleService(
                 settings,
@@ -233,8 +223,7 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, HealthPlu
                 errorStoreInitialisationService.get(),
                 services.allocationService(),
                 dataStreamLifecycleErrorsPublisher.get(),
-                services.dataStreamGlobalRetentionSettings(),
-                dlmActions
+                services.dataStreamGlobalRetentionSettings()
             )
         );
         dataLifecycleInitialisationService.get().init();
@@ -244,26 +233,6 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, HealthPlu
         components.add(dataLifecycleInitialisationService.get());
         components.add(dataStreamLifecycleErrorsPublisher.get());
         return components;
-    }
-
-    // visible for testing
-    static void verifyActions(List<DlmAction> dlmActions) {
-        for (DlmAction action : dlmActions) {
-            if (action.steps().isEmpty()) {
-                throw new IllegalStateException("DLM action [" + action.name() + "] must have at least one step");
-            }
-            for (DlmStep step : action.steps()) {
-                if (step.possibleOutputIndexNamePatterns("dummy-index").isEmpty()) {
-                    throw new IllegalStateException(
-                        "DLM step ["
-                            + step.stepName()
-                            + "] in action ["
-                            + action.name()
-                            + "] must have at least one possible output index name pattern"
-                    );
-                }
-            }
-        }
     }
 
     @Override

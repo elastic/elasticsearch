@@ -1950,6 +1950,36 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         }
     }
 
+    public void testApproximationColumnMetadata() throws IOException {
+        assumeTrue("approximation support", EsqlCapabilities.Cap.APPROXIMATION_V5.isEnabled());
+        bulkLoadTestData(10);
+
+        String query = "SET approximation=true; " + fromIndex() + " | STATS count=COUNT()";
+        Map<String, Object> result = runEsql(requestObjectBuilder().query(query));
+
+        assertResultMap(
+            result,
+            matchesList().item(matchesMap().entry("name", "count").entry("type", "long"))
+                .item(
+                    matchesMap().entry("name", "_approximation_confidence_interval(count)")
+                        .entry("type", "long")
+                        .entry(
+                            "_meta",
+                            matchesMap().entry("approximation", matchesMap().entry("type", "confidence_interval").entry("column", "count"))
+                        )
+                )
+                .item(
+                    matchesMap().entry("name", "_approximation_certified(count)")
+                        .entry("type", "boolean")
+                        .entry(
+                            "_meta",
+                            matchesMap().entry("approximation", matchesMap().entry("type", "certified").entry("column", "count"))
+                        )
+                ),
+            matchesList().item(matchesList().item(10).item(matchesList().item(10).item(10)).item(true))
+        );
+    }
+
     protected static Request prepareRequestWithOptions(RequestObjectBuilder requestObject, Mode mode) throws IOException {
         requestObject.build();
         Request request = prepareRequest(mode);

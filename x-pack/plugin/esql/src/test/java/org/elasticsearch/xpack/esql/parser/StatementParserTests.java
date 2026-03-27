@@ -62,6 +62,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Les
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.ChangePoint;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -1087,7 +1088,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testLimitBy() {
-        assumeTrue("LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.LIMIT_BY.isEnabled());
+        assumeTrue("LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_LIMIT_BY.isEnabled());
         LogicalPlan plan = query("""
                 FROM foo
                 | SORT @timestamp DESC
@@ -1095,16 +1096,14 @@ public class StatementParserTests extends AbstractStatementParserTests {
             """);
         assertThat(plan, instanceOf(LimitBy.class));
         LimitBy limitBy = (LimitBy) plan;
-        assertThat(limitBy.limit(), instanceOf(Literal.class));
-        assertThat(((Literal) limitBy.limit()).value(), equalTo(10));
+        assertThat(limitBy.limitPerGroup(), instanceOf(Literal.class));
+        assertThat(((Literal) limitBy.limitPerGroup()).value(), equalTo(10));
 
         assertThat(limitBy.groupings().size(), equalTo(2));
         assertThat(limitBy.groupings().get(0), instanceOf(UnresolvedAttribute.class));
         assertThat(((UnresolvedAttribute) limitBy.groupings().get(0)).name(), equalTo("hostname"));
-        assertThat(limitBy.groupings().get(1), instanceOf(Alias.class));
-        Alias divAlias = (Alias) limitBy.groupings().get(1);
-        assertThat(divAlias.child(), instanceOf(Div.class));
-        Div divExpr = (Div) divAlias.child();
+        assertThat(limitBy.groupings().get(1), instanceOf(Div.class));
+        Div divExpr = (Div) limitBy.groupings().get(1);
         assertThat(divExpr.left(), instanceOf(UnresolvedAttribute.class));
         assertThat(((UnresolvedAttribute) divExpr.left()).name(), equalTo("@timestamp"));
         assertThat(divExpr.right(), instanceOf(Literal.class));
@@ -1127,7 +1126,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testLimitByQualifiedName() {
-        assumeTrue("LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.LIMIT_BY.isEnabled());
+        assumeTrue("LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_LIMIT_BY.isEnabled());
         LogicalPlan plan = query("""
                 FROM foo
                 | SORT @timestamp DESC
@@ -1135,8 +1134,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
             """);
         assertThat(plan, instanceOf(LimitBy.class));
         LimitBy limitBy = (LimitBy) plan;
-        assertThat(limitBy.limit(), instanceOf(Literal.class));
-        assertThat(((Literal) limitBy.limit()).value(), equalTo(10));
+        assertThat(limitBy.limitPerGroup(), instanceOf(Literal.class));
+        assertThat(((Literal) limitBy.limitPerGroup()).value(), equalTo(10));
 
         assertThat(limitBy.groupings(), everyItem(instanceOf(UnresolvedAttribute.class)));
         assertThat(limitBy.groupings().size(), equalTo(1));
@@ -1158,6 +1157,36 @@ public class StatementParserTests extends AbstractStatementParserTests {
         LogicalPlan relation = orderBy.child();
         assertThat(relation, instanceOf(UnresolvedRelation.class));
         assertThat(((UnresolvedRelation) relation).indexPattern().indexPattern(), equalTo("foo"));
+    }
+
+    public void testLimitByNegativeValue() {
+        assumeTrue("LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_LIMIT_BY.isEnabled());
+        expectThrows(
+            ParsingException.class,
+            containsString("value of [LIMIT -1 BY languages] must be a non negative integer, found value [-1] type [integer]"),
+            () -> query("""
+                FROM foo
+                | LIMIT -1 BY languages
+                """)
+        );
+    }
+
+    public void testLimitByExpressionForN() {
+        assumeTrue("LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_LIMIT_BY.isEnabled());
+        expectThrows(ParsingException.class, containsString("mismatched input '*'"), () -> query("""
+            FROM foo
+            | LIMIT -1 * 42 BY languages
+            """));
+
+        expectThrows(ParsingException.class, containsString("mismatched input '*'"), () -> query("""
+            FROM foo
+            | LIMIT -1 * -42 BY languages
+            """));
+
+        expectThrows(ParsingException.class, containsString("mismatched input '+'"), () -> query("""
+            FROM foo
+            | LIMIT -1 + 5 BY languages
+            """));
     }
 
     public void testBasicSortCommand() {
@@ -3215,11 +3244,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
         for (Map.Entry<String, String> command : commands.entrySet()) {
             String cmd = command.getKey();
-            String error = command.getValue();
-            expectError(
-                LoggerMessageFormat.format(null, "from test | " + cmd, "fn(f1, {\"option\":null})"),
-                LoggerMessageFormat.format(null, "line 1:{}: {}", error, "Invalid named parameter [\"option\":null], NULL is not supported")
-            );
+            query(LoggerMessageFormat.format(null, "from test | " + cmd, "fn(f1, {\"option\":null})"));
         }
     }
 
@@ -3949,13 +3974,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
         );
     }
 
-    public void testCompletionTaskSettingsNull() {
-        expectError(
-            "FROM foo* | COMPLETION prompt WITH { \"inference_id\": \"inferenceId\", \"task_settings\": null }",
-            "Invalid named parameter [\"task_settings\":null], NULL is not supported"
-        );
-    }
-
     public void testCompletionTaskSettingsNotAMap() {
         expectError(
             "FROM foo* | COMPLETION prompt WITH { \"inference_id\": \"inferenceId\", \"task_settings\": \"not_a_valid_map\" }",
@@ -4121,6 +4139,62 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
     static Alias alias(String name, Expression value) {
         return new Alias(EMPTY, name, value);
+    }
+
+    public void testChangePointAsBeforeOn() {
+        assumeTrue("change_point must be enabled", EsqlCapabilities.Cap.CHANGE_POINT_ARGS_ANY_ORDER.isEnabled());
+        LogicalPlan plan = query("ROW key=1, value=2 | CHANGE_POINT value AS my_type, my_pvalue ON key");
+        ChangePoint cp = as(plan, ChangePoint.class);
+        assertThat(cp.value().name(), equalTo("value"));
+        assertThat(cp.key().name(), equalTo("key"));
+        assertThat(cp.targetType().name(), equalTo("my_type"));
+        assertThat(cp.targetPvalue().name(), equalTo("my_pvalue"));
+    }
+
+    public void testChangePointOnBeforeAs() {
+        assumeTrue("change_point must be enabled", EsqlCapabilities.Cap.CHANGE_POINT.isEnabled());
+        LogicalPlan plan = query("ROW key=1, value=2 | CHANGE_POINT value ON key AS my_type, my_pvalue");
+        ChangePoint cp = as(plan, ChangePoint.class);
+        assertThat(cp.value().name(), equalTo("value"));
+        assertThat(cp.key().name(), equalTo("key"));
+        assertThat(cp.targetType().name(), equalTo("my_type"));
+        assertThat(cp.targetPvalue().name(), equalTo("my_pvalue"));
+    }
+
+    public void testChangePointDuplicateOn() {
+        assumeTrue("change_point must be enabled", EsqlCapabilities.Cap.CHANGE_POINT_ARGS_ANY_ORDER.isEnabled());
+        expectError("ROW key=1, value=2 | CHANGE_POINT value ON key ON key2", "line 1:48: CHANGE_POINT supports only one ON clause");
+    }
+
+    public void testChangePointDuplicateOnWithAsInBetween() {
+        assumeTrue("change_point must be enabled", EsqlCapabilities.Cap.CHANGE_POINT_ARGS_ANY_ORDER.isEnabled());
+        expectError(
+            "ROW key=1, value=2 | CHANGE_POINT value ON key AS x, y ON key2",
+            "line 1:56: CHANGE_POINT supports only one ON clause"
+        );
+    }
+
+    public void testChangePointDuplicateAs() {
+        assumeTrue("change_point must be enabled", EsqlCapabilities.Cap.CHANGE_POINT_ARGS_ANY_ORDER.isEnabled());
+        expectError("ROW key=1, value=2 | CHANGE_POINT value AS a, b AS c, d", "line 1:49: CHANGE_POINT supports only one AS clause");
+    }
+
+    public void testChangePointDuplicateAsWithOnInBetween() {
+        assumeTrue("change_point must be enabled", EsqlCapabilities.Cap.CHANGE_POINT_ARGS_ANY_ORDER.isEnabled());
+        expectError(
+            "ROW key=1, value=2 | CHANGE_POINT count AS type, pvalue ON @timestamp AS type2, pvalue2",
+            "line 1:71: CHANGE_POINT supports only one AS clause"
+        );
+    }
+
+    public void testChangePointMissingFieldAfterOn() {
+        assumeTrue("change_point must be enabled", EsqlCapabilities.Cap.CHANGE_POINT.isEnabled());
+        expectError("ROW key=1, value=2 | CHANGE_POINT count ON", "mismatched input '<EOF>'");
+    }
+
+    public void testChangePointAsWithOnlyOneArgument() {
+        assumeTrue("change_point must be enabled", EsqlCapabilities.Cap.CHANGE_POINT.isEnabled());
+        expectError("ROW key=1, value=2 | CHANGE_POINT count AS type", "line 1:48: mismatched input '<EOF>' expecting {',', '.'}");
     }
 
     public void testValidFuse() {

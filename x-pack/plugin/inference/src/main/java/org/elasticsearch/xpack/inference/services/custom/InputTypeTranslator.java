@@ -50,9 +50,7 @@ public class InputTypeTranslator implements ToXContentFragment, Writeable {
 
         throwIfNotEmptyMap(inputTypeTranslation, INPUT_TYPE_TRANSLATOR, "input_type_translator");
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new InputTypeTranslator(validatedTranslation, defaultValue);
     }

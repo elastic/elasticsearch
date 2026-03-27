@@ -2011,11 +2011,21 @@ s2point1:l | s_mv:l | s_null:l | s_expr:l | s_expr_null:l | rows:l | languages:i
 
 sumOfConst#[skip:-8.13.99,reason:supported in 8.14]
 FROM employees
-| STATS s1 = sum(1), s2point1 = sum(2.1), s_mv = sum([-1, 0, 3]) * 3, s_null = sum(null), s_expr = sum(1+1), s_expr_null = sum(1+null), rows = count(*)
+| STATS s1 = sum(1), s2point1 = sum(2.1), s_mv = sum([-1, 0, 3]) * 3, s_expr = sum(1+1), s_expr_null = sum(1+null), rows = count(*)
 ;
 
-s1:l | s2point1:d | s_mv:l | s_null:d | s_expr:l | s_expr_null:l | rows:l
-100  | 210.0      | 600    | null     | 200      | null          | 100
+s1:l | s2point1:d | s_mv:l | s_expr:l | s_expr_null:l | rows:l
+100  | 210.0      | 600    | 200      | null          | 100
+;
+
+sumOfNullConst
+required_capability: fix_sum_of_null_optimization
+FROM employees
+| STATS s_null = sum(null)
+;
+
+s_null:null
+null
 ;
 
 sumOfConstGrouped#[skip:-8.13.99,reason:supported in 8.14]

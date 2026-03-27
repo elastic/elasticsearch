@@ -35,9 +35,7 @@ public class AzureAiStudioRerankServiceSettings extends AzureAiStudioServiceSett
 
         final var settings = rerankSettingsFromMap(map, validationException, context);
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new AzureAiStudioRerankServiceSettings(settings);
     }

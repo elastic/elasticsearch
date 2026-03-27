@@ -11,7 +11,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.RetryableAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -30,7 +29,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.indices.InvalidAliasNameException;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -38,7 +36,6 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
-import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.GetFiltersAction;
 import org.elasticsearch.xpack.core.ml.annotations.AnnotationIndex;
 import org.elasticsearch.xpack.core.ml.calendars.ScheduledEvent;
@@ -78,6 +75,7 @@ import org.elasticsearch.xpack.ml.job.process.normalizer.ScoresUpdater;
 import org.elasticsearch.xpack.ml.job.process.normalizer.ShortCircuitingRenormalizer;
 import org.elasticsearch.xpack.ml.job.snapshot.upgrader.SnapshotUpgradeTask;
 import org.elasticsearch.xpack.ml.job.task.JobTask;
+import org.elasticsearch.xpack.ml.job.task.UpdateStateRetryableAction;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.elasticsearch.xpack.ml.process.NativeStorageProvider;
 
@@ -664,6 +662,12 @@ public class AutodetectProcessManager implements ClusterStateListener {
                             setJobState(jobTask, JobState.OPENED, null, e -> {
                                 if (e != null) {
                                     logSetJobStateFailure(JobState.OPENED, job.getId(), e);
+                                    auditor.warning(
+                                        job.getId(),
+                                        "Failed to set job state to OPENED. The job may be stuck in the OPENING state. "
+                                            + "It will recover automatically once the cluster master is available. Reason: "
+                                            + e.getMessage()
+                                    );
                                     if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
                                         // Don't leave a process with no persistent task hanging around
                                         processContext.newKillBuilder().setAwaitCompletion(false).setFinish(false).kill();
@@ -686,7 +690,7 @@ public class AutodetectProcessManager implements ClusterStateListener {
             });
         }, e1 -> {
             logger.warn("Failed to gather information required to open job [" + job.getId() + "]", e1);
-            setJobState(jobTask, JobState.FAILED, e1.getMessage(), e2 -> closeHandler.accept(e1, true));
+            closeHandler.accept(e1, true);
         });
     }
 
@@ -1096,48 +1100,4 @@ public class AutodetectProcessManager implements ClusterStateListener {
         return ByteSizeValue.ofBytes(memoryUsedBytes);
     }
 
-    private static class UpdateStateRetryableAction extends RetryableAction<PersistentTasksCustomMetadata.PersistentTask<?>> {
-
-        private static final int MIN_RETRY_SLEEP_MILLIS = 500;
-        private final JobTask jobTask;
-        private final JobTaskState jobTaskState;
-
-        /**
-         * @param logger        The logger (use AutodetectProcessManager.logger)
-         * @param threadPool    The ThreadPool to schedule retries on
-         * @param jobTask       The JobTask whose state we’re updating
-         * @param jobTaskState  The new state to persist
-         */
-        UpdateStateRetryableAction(
-            Logger logger,
-            ThreadPool threadPool,
-            JobTask jobTask,
-            JobTaskState jobTaskState,
-            ActionListener<PersistentTasksCustomMetadata.PersistentTask<?>> delegateListener
-        ) {
-            super(
-                logger,
-                threadPool,
-                TimeValue.timeValueMillis(UpdateStateRetryableAction.MIN_RETRY_SLEEP_MILLIS),
-                MlTasks.PERSISTENT_TASK_MASTER_NODE_TIMEOUT,
-                delegateListener,
-                // executor for retries
-                threadPool.generic()
-            );
-            this.jobTask = Objects.requireNonNull(jobTask);
-            this.jobTaskState = Objects.requireNonNull(jobTaskState);
-        }
-
-        @Override
-        public void tryAction(ActionListener<PersistentTasksCustomMetadata.PersistentTask<?>> listener) {
-            // this will call back either onResponse(...) or onFailure(...)
-            jobTask.updatePersistentTaskState(jobTaskState, listener);
-        }
-
-        @Override
-        public boolean shouldRetry(Exception e) {
-            // retry everything *except* when the task truly no longer exists
-            return (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) == false;
-        }
-    }
 }

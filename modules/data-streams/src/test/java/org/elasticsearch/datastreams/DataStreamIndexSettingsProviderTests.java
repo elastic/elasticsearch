@@ -540,13 +540,19 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
                 }
             }
             """;
+
+        boolean expectedDisabledSequenceNumbers = IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG
+            && indexVersion.onOrAfter(IndexVersions.TIME_SERIES_DISABLE_SEQUENCE_NUMBERS);
         Settings result = generateTsdbSettings(mapping, now);
-        assertThat(result.size(), equalTo(4));
+        assertThat(result.size(), equalTo(expectedDisabledSequenceNumbers ? 5 : 4));
         assertThat(IndexSettings.MODE.get(result), equalTo(IndexMode.TIME_SERIES));
         assertThat(IndexSettings.TIME_SERIES_START_TIME.get(result), equalTo(now.minusMillis(DEFAULT_LOOK_BACK_TIME.getMillis())));
         assertThat(IndexSettings.TIME_SERIES_END_TIME.get(result), equalTo(now.plusMillis(DEFAULT_LOOK_AHEAD_TIME.getMillis())));
         assertThat(IndexMetadata.INDEX_ROUTING_PATH.get(result), containsInAnyOrder("host.id", "prometheus.labels.*"));
         assertThat(IndexMetadata.INDEX_DIMENSIONS.get(result), empty());
+        if (expectedDisabledSequenceNumbers) {
+            assertThat(IndexSettings.DISABLE_SEQUENCE_NUMBERS.get(result), equalTo(true));
+        }
     }
 
     public void testGenerateRoutingPathFromDynamicTemplateWithMultiplePathMatchEntries() throws Exception {

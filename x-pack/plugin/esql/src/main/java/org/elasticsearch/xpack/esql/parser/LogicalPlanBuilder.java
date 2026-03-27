@@ -23,7 +23,6 @@ import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
-import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -180,16 +179,12 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     @Override
     public LogicalPlan visitSingleStatement(EsqlBaseParser.SingleStatementContext ctx) {
-        var plan = plan(ctx.query());
-        telemetryAccounting(plan);
-        return plan;
+        return plan(ctx.query());
     }
 
     @Override
     public QuerySetting visitSetCommand(EsqlBaseParser.SetCommandContext ctx) {
-        var field = visitSetField(ctx.setField());
-        context.telemetry().setting(field.name());
-        return new QuerySetting(source(ctx), field);
+        return new QuerySetting(source(ctx), visitSetField(ctx.setField()));
     }
 
     @Override
@@ -216,19 +211,11 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         }
         try {
             LogicalPlan input = plan(ctx.query());
-            telemetryAccounting(input);
             PlanFactory makePlan = typedParsing(this, ctx.processingCommand(), PlanFactory.class);
             return makePlan.apply(input);
         } finally {
             queryDepth--;
         }
-    }
-
-    private LogicalPlan telemetryAccounting(LogicalPlan node) {
-        if (node instanceof TelemetryAware ma) {
-            this.context.telemetry().command(ma);
-        }
-        return node;
     }
 
     @Override
@@ -402,7 +389,6 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             List<LogicalPlan> mainQueryAndSubqueries = new ArrayList<>(subqueries.size() + 1);
             if (table.indexPattern().isEmpty() == false) {
                 mainQueryAndSubqueries.add(unresolvedRelation);
-                telemetryAccounting(unresolvedRelation);
             }
             mainQueryAndSubqueries.addAll(subqueries);
 
@@ -438,10 +424,8 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         LogicalPlan plan = visitFromCommand(fromCtx);
         List<PlanFactory> processingCommands = visitList(this, ctx.processingCommand(), PlanFactory.class);
         for (PlanFactory processingCommand : processingCommands) {
-            telemetryAccounting(plan);
             plan = processingCommand.apply(plan);
         }
-        telemetryAccounting(plan);
         return plan;
     }
 
@@ -721,32 +705,72 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     public PlanFactory visitChangePointCommand(EsqlBaseParser.ChangePointCommandContext ctx) {
         Source src = source(ctx);
         Attribute value = visitQualifiedName(ctx.value);
-        Attribute key = ctx.key == null ? new UnresolvedAttribute(src, "@timestamp") : visitQualifiedName(ctx.key);
+        Attribute key = visitChangePointOn(ctx.changePointConfiguration(), src);
 
-        UnresolvedAttribute parsedTargetTypeColumn = visitQualifiedName(ctx.targetType);
-        UnresolvedAttribute parsedTargetPvalueColumn = visitQualifiedName(ctx.targetPvalue);
+        Tuple<Attribute, Attribute> asAttributes = visitChangePointAs(ctx.changePointConfiguration(), src);
+        Attribute targetType = asAttributes.v1();
+        Attribute targetPvalue = asAttributes.v2();
 
-        if (parsedTargetTypeColumn != null && parsedTargetTypeColumn.qualifier() != null) {
-            throw qualifiersUnsupportedInFieldDefinitions(parsedTargetTypeColumn.source(), ctx.targetType.getText());
+        return child -> new ChangePoint(src, child, value, key, targetType, targetPvalue);
+    }
+
+    private Attribute visitChangePointOn(List<EsqlBaseParser.ChangePointConfigurationContext> changePointOptionsContexts, Source src) {
+        Attribute key = null;
+        for (EsqlBaseParser.ChangePointConfigurationContext changePointContext : changePointOptionsContexts) {
+            if (changePointContext.key != null) {
+                if (key != null) {
+                    throw new ParsingException(source(changePointContext), "CHANGE_POINT supports only one ON clause");
+                }
+                key = visitQualifiedName(changePointContext.key);
+            }
         }
+        return key == null ? new UnresolvedAttribute(src, "@timestamp") : key;
+    }
 
-        if (parsedTargetPvalueColumn != null && parsedTargetPvalueColumn.qualifier() != null) {
-            throw qualifiersUnsupportedInFieldDefinitions(parsedTargetPvalueColumn.source(), ctx.targetPvalue.getText());
+    private Tuple<Attribute, Attribute> visitChangePointAs(
+        List<EsqlBaseParser.ChangePointConfigurationContext> changePointOptionsContexts,
+        Source src
+    ) {
+        UnresolvedAttribute unresolvedTargetValue = null;
+        UnresolvedAttribute unresolvedTargetPvalue = null;
+        boolean optionResolved = false;
+        for (EsqlBaseParser.ChangePointConfigurationContext changePointContext : changePointOptionsContexts) {
+            if (changePointContext.targetType != null) {
+                if (optionResolved) {
+                    throw new ParsingException(source(changePointContext), "CHANGE_POINT supports only one AS clause");
+                }
+                optionResolved = true;
+
+                unresolvedTargetValue = visitQualifiedName(changePointContext.targetType);
+                unresolvedTargetPvalue = visitQualifiedName(changePointContext.targetPvalue);
+
+                if (unresolvedTargetValue != null && unresolvedTargetValue.qualifier() != null) {
+                    throw qualifiersUnsupportedInFieldDefinitions(unresolvedTargetValue.source(), changePointContext.targetType.getText());
+                }
+                if (unresolvedTargetPvalue != null && unresolvedTargetPvalue.qualifier() != null) {
+                    throw qualifiersUnsupportedInFieldDefinitions(
+                        unresolvedTargetPvalue.source(),
+                        changePointContext.targetPvalue.getText()
+                    );
+                }
+
+            }
         }
 
         Attribute targetType = new ReferenceAttribute(
             src,
             null,
-            parsedTargetTypeColumn == null ? "type" : parsedTargetTypeColumn.name(),
+            unresolvedTargetValue == null ? "type" : unresolvedTargetValue.name(),
             DataType.KEYWORD
         );
         Attribute targetPvalue = new ReferenceAttribute(
             src,
             null,
-            parsedTargetPvalueColumn == null ? "pvalue" : parsedTargetPvalueColumn.name(),
+            unresolvedTargetPvalue == null ? "pvalue" : unresolvedTargetPvalue.name(),
             DataType.DOUBLE
         );
-        return child -> new ChangePoint(src, child, value, key, targetType, targetPvalue);
+
+        return new Tuple<>(targetType, targetPvalue);
     }
 
     private Tuple<Mode, String> parsePolicyName(EsqlBaseParser.EnrichPolicyNameContext ctx) {

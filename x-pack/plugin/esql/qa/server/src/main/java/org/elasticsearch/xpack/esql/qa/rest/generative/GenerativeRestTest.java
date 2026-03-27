@@ -77,7 +77,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         // full-text functions are not allowed to match on fields that come from lookup indices
         "cannot operate on \\[.*\\], supplied by an index \\[.*\\] in non-STANDARD mode \\[lookup\\]",
         "Can only use fuzzy queries on keyword and text fields - not on \\[.*\\] which is of type \\[.*\\]",
-        // multi_match query receiving a non-boolean value for a boolean type field
+        // full-text function receiving a non-boolean value for a boolean type field
         "Can't parse boolean value \\[.*\\], expected \\[true\\] or \\[false\\]",
         // full-text function trying to parse text as date field and failing
         "failed to parse date field \\[.*\\] with format",
@@ -673,7 +673,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
     }
 
     private static final Pattern FULL_TEXT_AFTER_WHERE_PATTERN = Pattern.compile(
-        ".*(?:(?:\\[(?:KQL|QSTR|MATCH|MultiMatch|MatchPhrase)] function)|(?:\\[:\\] operator)) cannot be used after \\(?WHERE.*",
+        ".*(?:(?:\\[(?:KQL|QSTR|MATCH|MatchPhrase)] function)|(?:\\[:\\] operator)) cannot be used after \\(?WHERE.*",
         Pattern.DOTALL
     );
 
@@ -686,9 +686,6 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         return FULL_TEXT_AFTER_WHERE_PATTERN.matcher(errorWithoutLineBreaks).matches();
     }
 
-    private static final Pattern MULTI_MATCH_LENIENT_FALSE_PATTERN = Pattern.compile(
-        "(?i)\\bmulti_match\\s*\\([^)]*\\{[^}]*[\"']lenient[\"']\\s*:\\s*false[^}]*}[^)]*\\)"
-    );
     private static final Pattern MATCH_LENIENT_FALSE_PATTERN = Pattern.compile(
         "(?i)\\bmatch\\s*\\([^)]*\\{[^}]*[\"']lenient[\"']\\s*:\\s*false[^}]*}[^)]*\\)"
     );
@@ -704,9 +701,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         if (errorWithoutLineBreaks.contains("failed to create query: For input string") == false) {
             return false;
         }
-        return MULTI_MATCH_LENIENT_FALSE_PATTERN.matcher(query).find()
-            || MATCH_LENIENT_FALSE_PATTERN.matcher(query).find()
-            || QSTR_LENIENT_FALSE_PATTERN.matcher(query).find();
+        return MATCH_LENIENT_FALSE_PATTERN.matcher(query).find() || QSTR_LENIENT_FALSE_PATTERN.matcher(query).find();
     }
 
     @Override

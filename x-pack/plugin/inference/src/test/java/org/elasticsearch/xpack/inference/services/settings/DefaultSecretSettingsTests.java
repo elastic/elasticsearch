@@ -30,7 +30,7 @@ public class DefaultSecretSettingsTests extends AbstractWireSerializingTestCase<
         DefaultSecretSettings initialSettings = createRandom();
         DefaultSecretSettings newSettings = createRandom();
         DefaultSecretSettings finalSettings = (DefaultSecretSettings) initialSettings.newSecretSettings(
-            Map.of(DefaultSecretSettings.API_KEY, newSettings.apiKey().toString())
+            new HashMap<>(Map.of(DefaultSecretSettings.API_KEY, newSettings.apiKey().toString()))
         );
         assertEquals(newSettings, finalSettings);
     }

@@ -195,6 +195,7 @@ class TSDBSyntheticIdDocValuesHolder {
      * @throws IOException if any I/O exception occurs
      */
     private int findStartDocIDForTsIdOrd(int tsIdOrd) throws IOException {
+        assert tsIdOrd >= 0 : tsIdOrd;
         if (hasTsIdSkipper == false) {
             return 0;
         }

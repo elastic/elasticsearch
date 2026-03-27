@@ -126,7 +126,7 @@ public class TransportClusterHealthActionTests extends ESTestCase {
             routingTable.addShard(TestShardRouting.newShardRouting(shardId, node, relocatingNode, false, state));
         }
 
-        var projects = randomMap(0, 5, () -> {
+        final var projects = randomMap(0, 5, () -> {
             var id = randomUniqueProjectId();
             return Tuple.tuple(id, ProjectMetadata.builder(id).build());
         });

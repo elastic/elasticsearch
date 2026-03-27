@@ -2011,13 +2011,10 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
     public void testPassthroughWithoutPropertiesThrows() throws IOException {
         for (int priority : new int[] { 0, 5, 100 }) {
             final int p = priority;
-            MapperParsingException e = expectThrows(
-                MapperParsingException.class,
-                () -> createMapperService(fieldMapping(b -> {
-                    b.field("type", "flattened");
-                    b.field("passthrough_with_priority", p);
-                }))
-            );
+            MapperParsingException e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
+                b.field("type", "flattened");
+                b.field("passthrough_with_priority", p);
+            })));
             assertThat(e.getMessage(), containsString("passthrough_with_priority"));
             assertThat(e.getMessage(), containsString("properties"));
         }

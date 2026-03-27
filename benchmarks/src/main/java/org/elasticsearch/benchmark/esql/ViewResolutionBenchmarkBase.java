@@ -167,7 +167,7 @@ public abstract class ViewResolutionBenchmarkBase {
             String name = "col" + i;
             mapping.put(name, new EsField(name, KEYWORD, emptyMap(), true, EsField.TimeSeriesFieldType.NONE));
         }
-        EsIndex esIndex = new EsIndex("test", mapping, Map.of("test", IndexMode.STANDARD), Map.of(), Map.of(), Set.of());
+        EsIndex esIndex = new EsIndex("test", mapping, Map.of("test", IndexMode.STANDARD), Map.of(), Map.of(), Map.of());
 
         Configuration config = new Configuration(
             DateUtils.UTC,

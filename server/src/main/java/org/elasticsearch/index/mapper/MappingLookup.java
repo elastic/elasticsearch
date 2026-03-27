@@ -77,16 +77,16 @@ public final class MappingLookup {
         List<ObjectMapper> newObjectMappers = new ArrayList<>();
         List<FieldMapper> newFieldMappers = new ArrayList<>();
         List<FieldAliasMapper> newFieldAliasMappers = new ArrayList<>();
-        List<PassThroughObjectMapper> newPassThroughMappers = new ArrayList<>();
+        List<PassThroughFieldSource> newPassThroughSources = new ArrayList<>();
         for (MetadataFieldMapper metadataMapper : mapping.getSortedMetadataMappers()) {
             if (metadataMapper != null) {
                 newFieldMappers.add(metadataMapper);
             }
         }
         for (Mapper child : mapping.getRoot()) {
-            collect(child, newObjectMappers, newFieldMappers, newFieldAliasMappers, newPassThroughMappers);
+            collect(child, newObjectMappers, newFieldMappers, newFieldAliasMappers, newPassThroughSources);
         }
-        return new MappingLookup(mapping, newFieldMappers, newObjectMappers, newFieldAliasMappers, newPassThroughMappers, indexMode);
+        return new MappingLookup(mapping, newFieldMappers, newObjectMappers, newFieldAliasMappers, newPassThroughSources, indexMode);
     }
 
     private static void collect(
@@ -94,15 +94,18 @@ public final class MappingLookup {
         Collection<ObjectMapper> objectMappers,
         Collection<FieldMapper> fieldMappers,
         Collection<FieldAliasMapper> fieldAliasMappers,
-        Collection<PassThroughObjectMapper> passThroughMappers
+        Collection<PassThroughFieldSource> passThroughSources
     ) {
         if (mapper instanceof PassThroughObjectMapper passThroughObjectMapper) {
-            passThroughMappers.add(passThroughObjectMapper);
+            passThroughSources.add(passThroughObjectMapper);
             objectMappers.add(passThroughObjectMapper);
         } else if (mapper instanceof ObjectMapper objectMapper) {
             objectMappers.add(objectMapper);
         } else if (mapper instanceof FieldMapper fieldMapper) {
             fieldMappers.add(fieldMapper);
+            if (fieldMapper instanceof PassThroughFieldSource pts && pts.passThroughSubFields().isEmpty() == false) {
+                passThroughSources.add(pts);
+            }
         } else if (mapper instanceof FieldAliasMapper fieldAliasMapper) {
             fieldAliasMappers.add(fieldAliasMapper);
         } else {
@@ -110,7 +113,7 @@ public final class MappingLookup {
         }
 
         for (Mapper child : mapper) {
-            collect(child, objectMappers, fieldMappers, fieldAliasMappers, passThroughMappers);
+            collect(child, objectMappers, fieldMappers, fieldAliasMappers, passThroughSources);
         }
     }
 
@@ -126,7 +129,7 @@ public final class MappingLookup {
      * @param mappers the field mappers
      * @param objectMappers the object mappers
      * @param aliasMappers the field alias mappers
-     * @param passThroughMappers the pass-through mappers
+     * @param passThroughSources the pass-through field sources
      * @param indexMode the mode of the index
      * @return the newly created lookup instance
      */
@@ -135,10 +138,10 @@ public final class MappingLookup {
         Collection<FieldMapper> mappers,
         Collection<ObjectMapper> objectMappers,
         Collection<FieldAliasMapper> aliasMappers,
-        Collection<PassThroughObjectMapper> passThroughMappers,
+        Collection<? extends PassThroughFieldSource> passThroughSources,
         IndexMode indexMode
     ) {
-        return new MappingLookup(mapping, mappers, objectMappers, aliasMappers, passThroughMappers, indexMode);
+        return new MappingLookup(mapping, mappers, objectMappers, aliasMappers, passThroughSources, indexMode);
     }
 
     public static MappingLookup fromMappers(
@@ -155,7 +158,7 @@ public final class MappingLookup {
         Collection<FieldMapper> mappers,
         Collection<ObjectMapper> objectMappers,
         Collection<FieldAliasMapper> aliasMappers,
-        Collection<PassThroughObjectMapper> passThroughMappers,
+        Collection<? extends PassThroughFieldSource> passThroughSources,
         IndexMode indexMode
     ) {
         this.totalFieldsCount = mapping.getRoot().getTotalFieldsCount();
@@ -198,9 +201,9 @@ public final class MappingLookup {
             }
         }
 
-        PassThroughObjectMapper.checkForDuplicatePriorities(passThroughMappers);
+        PassThroughObjectMapper.checkForDuplicatePriorities(passThroughSources);
         final Collection<RuntimeField> runtimeFields = mapping.getRoot().runtimeFields();
-        this.fieldTypeLookup = new FieldTypeLookup(mappers, aliasMappers, passThroughMappers, runtimeFields);
+        this.fieldTypeLookup = new FieldTypeLookup(mappers, aliasMappers, passThroughSources, runtimeFields);
 
         Map<String, InferenceFieldMetadata> inferenceFields = new HashMap<>();
         List<String> syntheticVectorFields = new ArrayList<>();
@@ -219,7 +222,7 @@ public final class MappingLookup {
             // without runtime fields this is the same as the field type lookup
             this.indexTimeLookup = fieldTypeLookup;
         } else {
-            this.indexTimeLookup = new FieldTypeLookup(mappers, aliasMappers, passThroughMappers, Collections.emptyList());
+            this.indexTimeLookup = new FieldTypeLookup(mappers, aliasMappers, passThroughSources, Collections.emptyList());
         }
         // make all fields into compact+fast immutable maps
         this.fieldMappers = Map.copyOf(fieldMappers);

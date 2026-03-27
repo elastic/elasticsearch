@@ -64,6 +64,7 @@ import org.elasticsearch.index.mapper.BlockSourceReader;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.DynamicFieldType;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.PassThroughFieldSource;
 import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -136,7 +137,7 @@ import static org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper.Root
  * "key1\0some value" and "key2.key3\0true". Note that \0 is used as a reserved separator
  *  character (see {@link FlattenedFieldParser#SEPARATOR}).
  */
-public final class FlattenedFieldMapper extends FieldMapper {
+public final class FlattenedFieldMapper extends FieldMapper implements PassThroughFieldSource {
 
     public static final String CONTENT_TYPE = "flattened";
     public static final String KEYED_FIELD_SUFFIX = "._keyed";
@@ -144,6 +145,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
     public static final String TIME_SERIES_DIMENSIONS_ARRAY_PARAM = "time_series_dimensions";
 
     public static final NodeFeature FLATTENED_MAPPED_SUBFIELDS_FEATURE = new NodeFeature("mapper.flattened.mapped_subfields");
+    public static final NodeFeature FLATTENED_PASSTHROUGH_FEATURE = new NodeFeature("mapper.flattened.passthrough");
 
     private static class Defaults {
         public static final int DEPTH_LIMIT = 20;
@@ -216,6 +218,20 @@ public final class FlattenedFieldMapper extends FieldMapper {
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         private final Parameter<Map<String, FieldMapper.Builder>> properties;
+
+        private final Parameter<Boolean> passthrough = Parameter.boolParam(
+            "passthrough",
+            true,
+            m -> builder(m).passthrough.get(),
+            false
+        );
+
+        private final Parameter<Integer> priority = Parameter.intParam(
+            "priority",
+            true,
+            m -> builder(m).priority.get(),
+            -1
+        ).setSerializerCheck((includeDefaults, isConfigured, v) -> v >= 0);
 
         private final IndexMode indexMode;
         private final IndexVersion indexCreatedVersion;
@@ -318,7 +334,9 @@ public final class FlattenedFieldMapper extends FieldMapper {
                 splitQueriesOnWhitespace,
                 meta,
                 dimensions,
-                properties };
+                properties,
+                passthrough,
+                priority };
         }
 
         @Override
@@ -334,6 +352,11 @@ public final class FlattenedFieldMapper extends FieldMapper {
             }
             if (copyTo.copyToFields().isEmpty() == false) {
                 throw new IllegalArgumentException(CONTENT_TYPE + " field [" + leafName() + "] does not support [copy_to]");
+            }
+            if (passthrough.getValue() && priority.getValue() < 0) {
+                throw new MapperParsingException(
+                    "Flattened field [" + leafName() + "] with [passthrough=true] requires a non-negative [priority]"
+                );
             }
 
             Map<String, FieldMapper> mappedSubFields = new TreeMap<>();
@@ -1317,6 +1340,8 @@ public final class FlattenedFieldMapper extends FieldMapper {
     private final FlattenedFieldParser fieldParser;
     private final Builder builder;
     private final Map<String, FieldMapper> mappedSubFields;
+    private final boolean passthrough;
+    private final int passthroughPriority;
 
     private FlattenedFieldMapper(
         String leafName,
@@ -1328,6 +1353,8 @@ public final class FlattenedFieldMapper extends FieldMapper {
         super(leafName, mappedFieldType, builderParams);
         this.builder = builder;
         this.mappedSubFields = Collections.unmodifiableSortedMap(new TreeMap<>(mappedSubFields));
+        this.passthrough = builder.passthrough.get();
+        this.passthroughPriority = builder.priority.get();
         this.fieldParser = new FlattenedFieldParser(
             mappedFieldType.name(),
             mappedFieldType.name() + KEYED_FIELD_SUFFIX,
@@ -1354,6 +1381,23 @@ public final class FlattenedFieldMapper extends FieldMapper {
 
     int depthLimit() {
         return builder.depthLimit.get();
+    }
+
+    public boolean isPassthrough() {
+        return passthrough;
+    }
+
+    @Override
+    public int priority() {
+        return passthroughPriority;
+    }
+
+    @Override
+    public Collection<FieldMapper> passThroughSubFields() {
+        if (passthrough == false || mappedSubFields.isEmpty()) {
+            return Collections.emptyList();
+        }
+        return mappedSubFields.values();
     }
 
     @Override

@@ -106,8 +106,8 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat implements B
 
     private BigArrays bigArrays;
     private String bloomFilterFieldName;
-    private final boolean optimizedMergeEnabled;
-    private final int numHashFunctions;
+    private boolean optimizedMergeEnabled;
+    private int numHashFunctions;
 
     // Public constructor SPI use for reads only
     public ES94BloomFilterDocValuesFormat() {
@@ -134,6 +134,8 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat implements B
     public void initialize(BigArrays bigArrays, String bloomFilterFieldName) {
         this.bigArrays = bigArrays;
         this.bloomFilterFieldName = bloomFilterFieldName;
+        this.optimizedMergeEnabled = true;
+        this.numHashFunctions = DEFAULT_NUM_HASH_FUNCTIONS;
     }
 
     @Override

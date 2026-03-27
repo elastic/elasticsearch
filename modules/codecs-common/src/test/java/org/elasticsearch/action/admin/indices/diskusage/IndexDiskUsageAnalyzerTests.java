@@ -61,7 +61,7 @@ public class IndexDiskUsageAnalyzerTests extends AbstractIndexDiskUsageAnalyzerT
                     }
                     return new Lucene90DocValuesFormat();
                 });
-                final IndexDiskUsageStats perFieldStats = collectPerFieldStats(perFieldDir);
+                final IndexDiskUsageStats perFieldStats = collectPerFieldStats(perFieldDir, true);
                 assertStats(stats, perFieldStats);
                 assertStats(IndexDiskUsageAnalyzer.analyze(testShardId(), lastCommit(perFieldDir), () -> {}), perFieldStats);
             }

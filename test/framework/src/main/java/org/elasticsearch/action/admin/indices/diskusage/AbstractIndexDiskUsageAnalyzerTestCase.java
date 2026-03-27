@@ -85,7 +85,8 @@ public class AbstractIndexDiskUsageAnalyzerTestCase extends ESTestCase {
 
     private static final int DEFAULT_VECTOR_DIMENSION = 128;
 
-    protected static void indexRandomly(Directory directory, CodecMode codecMode, int numDocs, Consumer<Document> addFields) throws IOException {
+    protected static void indexRandomly(Directory directory, CodecMode codecMode, int numDocs, Consumer<Document> addFields)
+        throws IOException {
         indexRandomly(directory, new Lucene104Codec(codecMode.mode()), numDocs, addFields);
     }
 
@@ -136,7 +137,12 @@ public class AbstractIndexDiskUsageAnalyzerTestCase extends ESTestCase {
         }
     }
 
-    protected static void rewriteIndexWithPerFieldCodec(Directory source, CodecMode mode, Directory dst, Function<String, DocValuesFormat> getDocValuesFormatForField) throws IOException {
+    protected static void rewriteIndexWithPerFieldCodec(
+        Directory source,
+        CodecMode mode,
+        Directory dst,
+        Function<String, DocValuesFormat> getDocValuesFormatForField
+    ) throws IOException {
         try (DirectoryReader reader = DirectoryReader.open(source)) {
             IndexWriterConfig config = new IndexWriterConfig().setSoftDeletesField(Lucene.SOFT_DELETES_FIELD)
                 .setUseCompoundFile(randomBoolean())
@@ -173,16 +179,20 @@ public class AbstractIndexDiskUsageAnalyzerTestCase extends ESTestCase {
     }
 
     protected static IndexDiskUsageStats collectPerFieldStats(Directory directory) throws IOException {
+        return collectPerFieldStats(directory, false);
+    }
+
+    protected static IndexDiskUsageStats collectPerFieldStats(Directory directory, boolean useEs94BloomFilterFormat) throws IOException {
         try (DirectoryReader reader = DirectoryReader.open(directory)) {
             final IndexDiskUsageStats stats = new IndexDiskUsageStats(IndexDiskUsageAnalyzer.getIndexSize(lastCommit(directory)));
             for (LeafReaderContext leaf : reader.leaves()) {
-                collectPerFieldStats(Lucene.segmentReader(leaf.reader()), stats);
+                collectPerFieldStats(Lucene.segmentReader(leaf.reader()), stats, useEs94BloomFilterFormat);
             }
             return stats;
         }
     }
 
-    protected static void collectPerFieldStats(SegmentReader reader, IndexDiskUsageStats stats) throws IOException {
+    static void collectPerFieldStats(SegmentReader reader, IndexDiskUsageStats stats, boolean useEs94BloomFilterFormat) throws IOException {
         final SegmentInfo sis = reader.getSegmentInfo().info;
         final String[] files;
         final Directory directory;
@@ -193,7 +203,7 @@ public class AbstractIndexDiskUsageAnalyzerTestCase extends ESTestCase {
             directory = reader.directory();
             files = sis.files().toArray(new String[0]);
         }
-        final FieldLookup fieldLookup = new FieldLookup(reader.getFieldInfos());
+        final FieldLookup fieldLookup = new FieldLookup(reader.getFieldInfos(), useEs94BloomFilterFormat);
         try {
             for (String file : files) {
                 final LuceneFilesExtensions ext = LuceneFilesExtensions.fromFile(file);
@@ -480,7 +490,7 @@ public class AbstractIndexDiskUsageAnalyzerTestCase extends ESTestCase {
         private final Map<String, FieldInfo> vectorSuffixes = new HashMap<>();
         private final Map<String, FieldInfo> bloomFilterSuffixes = new HashMap<>();
 
-        FieldLookup(FieldInfos fieldInfos) {
+        FieldLookup(FieldInfos fieldInfos, boolean useEs94BloomFilterFormat) {
             for (FieldInfo field : fieldInfos) {
                 Map<String, String> attributes = field.attributes();
                 if (attributes != null) {
@@ -493,7 +503,7 @@ public class AbstractIndexDiskUsageAnalyzerTestCase extends ESTestCase {
                         // Bloom filters are defined as binary doc values, so we have to check whether or not
                         // the field is a bloom filter
                         String isBloomFilterAttribute = attributes.get(BloomFilterField.IS_BLOOM_FILTER_ATTRIBUTE);
-                        if (isBloomFilterAttribute != null) {
+                        if (useEs94BloomFilterFormat && isBloomFilterAttribute != null) {
                             bloomFilterSuffixes.put(dvSuffix, field);
                         } else {
                             dvSuffixes.put(dvSuffix, field);

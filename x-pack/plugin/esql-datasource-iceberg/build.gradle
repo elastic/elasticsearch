@@ -178,6 +178,10 @@ dependencies {
   testImplementation project(xpackModule('esql-core'))
 }
 
+tasks.named('test').configure {
+  enabled = buildParams.snapshotBuild
+}
+
 // aircompressor provided by esql-datasource-compression-libs parent plugin (excluded from transitives above)
 
 tasks.named("dependencyLicenses").configure {

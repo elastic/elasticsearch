@@ -47,7 +47,7 @@ public class SqlSearchPageTimeoutIT extends AbstractSqlIntegTestCase {
 
         SqlQueryResponse response = new SqlQueryRequestBuilder(client()).query(query)
             .fetchSize(1)
-            .pageTimeout(TimeValue.timeValueMillis(500))
+            .pageTimeout(TimeValue.timeValueMillis(1000))
             .get();
 
         assertTrue(response.hasCursor());

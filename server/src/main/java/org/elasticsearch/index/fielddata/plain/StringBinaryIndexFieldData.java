@@ -9,7 +9,6 @@
 
 package org.elasticsearch.index.fielddata.plain;
 
-import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.SortField;
 import org.elasticsearch.common.util.BigArrays;
@@ -24,9 +23,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
 
-import java.io.IOException;
-
-public class StringBinaryIndexFieldData implements IndexFieldData<StringBinaryDVLeafFieldData> {
+public class StringBinaryIndexFieldData implements IndexFieldData<MultiValuedBinaryDVLeafFieldData> {
 
     protected final String fieldName;
     protected final ValuesSourceType valuesSourceType;
@@ -59,12 +56,8 @@ public class StringBinaryIndexFieldData implements IndexFieldData<StringBinaryDV
     }
 
     @Override
-    public StringBinaryDVLeafFieldData load(LeafReaderContext context) {
-        try {
-            return new StringBinaryDVLeafFieldData(DocValues.getBinary(context.reader(), fieldName), toScriptFieldFactory);
-        } catch (IOException e) {
-            throw new IllegalStateException("Cannot load doc values", e);
-        }
+    public MultiValuedBinaryDVLeafFieldData load(LeafReaderContext context) {
+        return new MultiValuedBinaryDVLeafFieldData(fieldName, context.reader(), toScriptFieldFactory);
     }
 
     @Override
@@ -82,7 +75,7 @@ public class StringBinaryIndexFieldData implements IndexFieldData<StringBinaryDV
     }
 
     @Override
-    public StringBinaryDVLeafFieldData loadDirect(LeafReaderContext context) {
+    public MultiValuedBinaryDVLeafFieldData loadDirect(LeafReaderContext context) {
         return load(context);
     }
 }

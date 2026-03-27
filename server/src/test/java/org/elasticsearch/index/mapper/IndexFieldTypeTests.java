@@ -8,15 +8,15 @@
  */
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.search.MatchAllDocsQuery;
-import org.apache.lucene.search.MatchNoDocsQuery;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.query.SearchExecutionContextHelper;
 
 import java.util.Collections;
 import java.util.function.Predicate;
@@ -28,17 +28,17 @@ public class IndexFieldTypeTests extends ConstantFieldTypeTestCase {
     public void testPrefixQuery() {
         MappedFieldType ft = IndexFieldMapper.IndexFieldType.INSTANCE;
 
-        assertEquals(new MatchAllDocsQuery(), ft.prefixQuery("ind", null, createContext()));
-        assertEquals(new MatchNoDocsQuery(), ft.prefixQuery("other_ind", null, createContext()));
+        assertEquals(Queries.ALL_DOCS_INSTANCE, ft.prefixQuery("ind", null, createContext()));
+        assertEquals(Queries.NO_DOCS_INSTANCE, ft.prefixQuery("other_ind", null, createContext()));
     }
 
     public void testWildcardQuery() {
         MappedFieldType ft = IndexFieldMapper.IndexFieldType.INSTANCE;
 
-        assertEquals(new MatchAllDocsQuery(), ft.wildcardQuery("ind*x", null, createContext()));
-        assertEquals(new MatchAllDocsQuery(), ft.wildcardQuery("iNd*x", null, true, createContext()));
-        assertEquals(new MatchNoDocsQuery(), ft.wildcardQuery("other_ind*x", null, createContext()));
-        assertEquals(new MatchNoDocsQuery(), ft.wildcardQuery("Other_ind*x", null, true, createContext()));
+        assertEquals(Queries.ALL_DOCS_INSTANCE, ft.wildcardQuery("ind*x", null, createContext()));
+        assertEquals(Queries.ALL_DOCS_INSTANCE, ft.wildcardQuery("iNd*x", null, true, createContext()));
+        assertEquals(Queries.NO_DOCS_INSTANCE, ft.wildcardQuery("other_ind*x", null, createContext()));
+        assertEquals(Queries.NO_DOCS_INSTANCE, ft.wildcardQuery("Other_ind*x", null, true, createContext()));
     }
 
     public void testRegexpQuery() {
@@ -46,7 +46,7 @@ public class IndexFieldTypeTests extends ConstantFieldTypeTestCase {
 
         QueryShardException e = expectThrows(
             QueryShardException.class,
-            () -> assertEquals(new MatchAllDocsQuery(), ft.regexpQuery("ind.x", 0, 0, 10, null, createContext()))
+            () -> assertEquals(Queries.ALL_DOCS_INSTANCE, ft.regexpQuery("ind.x", 0, 0, 10, null, createContext()))
         );
         assertThat(e.getMessage(), containsString("Can only use regexp queries on keyword and text fields"));
     }
@@ -85,7 +85,9 @@ public class IndexFieldTypeTests extends ConstantFieldTypeTestCase {
             () -> true,
             null,
             Collections.emptyMap(),
-            MapperMetrics.NOOP
+            null,
+            MapperMetrics.NOOP,
+            SearchExecutionContextHelper.SHARD_SEARCH_STATS
         );
     }
 }

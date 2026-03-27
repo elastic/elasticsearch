@@ -9,6 +9,8 @@
 
 package org.elasticsearch.gradle.internal.test
 
+import groovy.ant.AntBuilder
+
 import org.elasticsearch.gradle.OS
 
 import org.elasticsearch.gradle.internal.AntFixtureStop

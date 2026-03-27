@@ -18,8 +18,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
-import static org.elasticsearch.TransportVersions.V_8_12_0;
-
 public record DesiredBalanceStats(
     long lastConvergedIndex,
     boolean computationActive,
@@ -53,9 +51,9 @@ public record DesiredBalanceStats(
             in.readVLong(),
             in.readVLong(),
             in.readVLong(),
-            in.getTransportVersion().onOrAfter(V_8_12_0) ? in.readVLong() : -1,
-            in.getTransportVersion().onOrAfter(V_8_12_0) ? in.readVLong() : -1,
-            in.getTransportVersion().onOrAfter(V_8_12_0) ? in.readVLong() : -1
+            in.readVLong(),
+            in.readVLong(),
+            in.readVLong()
         );
     }
 

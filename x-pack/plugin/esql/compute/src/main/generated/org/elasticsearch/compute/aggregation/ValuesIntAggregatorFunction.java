@@ -31,16 +31,10 @@ public final class ValuesIntAggregatorFunction implements AggregatorFunction {
 
   private final List<Integer> channels;
 
-  public ValuesIntAggregatorFunction(DriverContext driverContext, List<Integer> channels,
-      ValuesIntAggregator.SingleState state) {
+  ValuesIntAggregatorFunction(DriverContext driverContext, List<Integer> channels) {
     this.driverContext = driverContext;
     this.channels = channels;
-    this.state = state;
-  }
-
-  public static ValuesIntAggregatorFunction create(DriverContext driverContext,
-      List<Integer> channels) {
-    return new ValuesIntAggregatorFunction(driverContext, channels, ValuesIntAggregator.initSingle(driverContext.bigArrays()));
+    this.state = ValuesIntAggregator.initSingle(driverContext.bigArrays());
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -102,11 +96,12 @@ public final class ValuesIntAggregatorFunction implements AggregatorFunction {
 
   private void addRawBlock(IntBlock vBlock) {
     for (int p = 0; p < vBlock.getPositionCount(); p++) {
-      if (vBlock.isNull(p)) {
+      int vValueCount = vBlock.getValueCount(p);
+      if (vValueCount == 0) {
         continue;
       }
       int vStart = vBlock.getFirstValueIndex(p);
-      int vEnd = vStart + vBlock.getValueCount(p);
+      int vEnd = vStart + vValueCount;
       for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
         int vValue = vBlock.getInt(vOffset);
         ValuesIntAggregator.combine(state, vValue);
@@ -119,11 +114,12 @@ public final class ValuesIntAggregatorFunction implements AggregatorFunction {
       if (mask.getBoolean(p) == false) {
         continue;
       }
-      if (vBlock.isNull(p)) {
+      int vValueCount = vBlock.getValueCount(p);
+      if (vValueCount == 0) {
         continue;
       }
       int vStart = vBlock.getFirstValueIndex(p);
-      int vEnd = vStart + vBlock.getValueCount(p);
+      int vEnd = vStart + vValueCount;
       for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
         int vValue = vBlock.getInt(vOffset);
         ValuesIntAggregator.combine(state, vValue);

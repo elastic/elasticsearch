@@ -95,15 +95,15 @@ public class RoutingAllocation {
         this(deciders, null, clusterState, clusterInfo, shardSizeInfo, currentNanoTime);
     }
 
-    /**
-     * Creates a new {@link RoutingAllocation}
-     * @param deciders {@link AllocationDeciders} to used to make decisions for routing allocations
-     * @param routingNodes Routing nodes in the current cluster or {@code null} if using those in the given cluster state
-     * @param clusterState cluster state before rerouting
-     * @param clusterInfo information about node disk usage and shard disk usage
-     * @param shardSizeInfo information about snapshot shard sizes
-     * @param currentNanoTime the nano time to use for all delay allocation calculation (typically {@link System#nanoTime()})
-     */
+    /// Creates a new [RoutingAllocation]
+    ///
+    /// @param deciders [AllocationDeciders] to use to make decisions for routing allocations
+    /// @param routingNodes routing nodes in the current cluster or `null` if using those in the given cluster state
+    /// @param clusterState cluster state before rerouting
+    /// @param clusterInfo information about node disk usage and shard disk usage
+    /// @param shardSizeInfo information about snapshot shard sizes
+    /// @param currentNanoTime the nano time to use for all delay allocation calculation (typically `System#nanoTime()`)
+    ///
     public RoutingAllocation(
         AllocationDeciders deciders,
         @Nullable RoutingNodes routingNodes,
@@ -112,25 +112,29 @@ public class RoutingAllocation {
         SnapshotShardSizeInfo shardSizeInfo,
         long currentNanoTime
     ) {
-        this(deciders, routingNodes, clusterState, clusterInfo, shardSizeInfo, currentNanoTime, false);
+        this(deciders, routingNodes, clusterState, clusterInfo, shardSizeInfo, currentNanoTime, false, RoutingChangesObserver.NOOP);
     }
 
-    /**
-     * Creates a new {@link RoutingAllocation}
-     * @param deciders {@link AllocationDeciders} to used to make decisions for routing allocations
-     * @param routingNodes Routing nodes in the current cluster or {@code null} if using those in the given cluster state
-     * @param clusterState cluster state before rerouting
-     * @param currentNanoTime the nano time to use for all delay allocation calculation (typically {@link System#nanoTime()})
-     * @param isSimulating {@code true} if "transient" deciders should be ignored because we are simulating the final allocation
-     */
-    private RoutingAllocation(
+    /// Creates a new [RoutingAllocation]
+    ///
+    /// @param deciders [AllocationDeciders] to use to make decisions for routing allocations
+    /// @param routingNodes routing nodes in the current cluster or `null` if using those in the given cluster state
+    /// @param clusterState cluster state before rerouting
+    /// @param clusterInfo information about node disk usage and shard disk usage
+    /// @param shardSizeInfo information about snapshot shard sizes
+    /// @param currentNanoTime the nano time to use for all delay allocation calculation (typically `System#nanoTime()`)
+    /// @param isSimulating `true` if "transient" deciders should be ignored because we are simulating the final allocation
+    /// @param shardChangesObserver observer that records shard state transition timing metrics
+    ///
+    public RoutingAllocation(
         AllocationDeciders deciders,
         @Nullable RoutingNodes routingNodes,
         ClusterState clusterState,
         ClusterInfo clusterInfo,
         SnapshotShardSizeInfo shardSizeInfo,
         long currentNanoTime,
-        boolean isSimulating
+        boolean isSimulating,
+        RoutingChangesObserver shardChangesObserver
     ) {
         this.deciders = deciders;
         this.routingNodes = routingNodes;
@@ -154,7 +158,7 @@ public class RoutingAllocation {
                     indexMetadataUpdater,
                     restoreInProgressUpdater,
                     resizeSourceIndexUpdater,
-                    new ShardChangesObserver() }
+                    shardChangesObserver }
         );
     }
 
@@ -370,12 +374,18 @@ public class RoutingAllocation {
     }
 
     /**
-     * Create a routing decision, including the reason if the debug flag is
-     * turned on
-     * @param decision decision whether to allow/deny allocation
-     * @param deciderLabel a human readable label for the AllocationDecider
+     * Create a routing decision, including the reason if the debug flag is turned on. This is useful to avoid constructing a new {@link
+     * Decision} instance directly in the common case on the hot path where the explanation isn't needed and thus it's best to avoid
+     * allocating a new object.
+     *
+     * @param decision decision whether to allow/deny allocation, typically a global constant such as {@link Decision#YES},
+     *                 {@link Decision#NO} etc. to avoid unnecessary allocations.
+     * @param deciderLabel a human-readable label for the AllocationDecider
      * @param reason a format string explanation of the decision
-     * @param params format string parameters
+     * @param params format string parameters. Note that these parameters are all evaluated before this method checks {@link #debugDecision}
+     *               and therefore they must be cheap to compute and ideally involve no extra allocations. To construct an explanation
+     *               message with an expensive-to-compute parameter, check {@link #debugDecision()} yourself first to ensure the computation
+     *               is needed.
      */
     public Decision decision(Decision decision, String deciderLabel, String reason, Object... params) {
         if (debugDecision()) {
@@ -459,7 +469,8 @@ public class RoutingAllocation {
             clusterInfo,
             shardSizeInfo,
             currentNanoTime,
-            true
+            true,
+            RoutingChangesObserver.NOOP
         );
     }
 

@@ -38,17 +38,12 @@ public final class PercentileLongGroupingAggregatorFunction implements GroupingA
 
   private final double percentile;
 
-  public PercentileLongGroupingAggregatorFunction(List<Integer> channels,
-      QuantileStates.GroupingState state, DriverContext driverContext, double percentile) {
-    this.channels = channels;
-    this.state = state;
-    this.driverContext = driverContext;
+  PercentileLongGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext,
+      double percentile) {
     this.percentile = percentile;
-  }
-
-  public static PercentileLongGroupingAggregatorFunction create(List<Integer> channels,
-      DriverContext driverContext, double percentile) {
-    return new PercentileLongGroupingAggregatorFunction(channels, PercentileLongAggregator.initGrouping(driverContext, percentile), driverContext, percentile);
+    this.channels = channels;
+    this.state = PercentileLongAggregator.initGrouping(driverContext, percentile);
+    this.driverContext = driverContext;
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -158,7 +153,7 @@ public final class PercentileLongGroupingAggregatorFunction implements GroupingA
       return;
     }
     BytesRefVector quart = ((BytesRefBlock) quartUncast).asVector();
-    BytesRef scratch = new BytesRef();
+    BytesRef quartScratch = new BytesRef();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
         continue;
@@ -168,7 +163,7 @@ public final class PercentileLongGroupingAggregatorFunction implements GroupingA
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
         int valuesPosition = groupPosition + positionOffset;
-        PercentileLongAggregator.combineIntermediate(state, groupId, quart.getBytesRef(valuesPosition, scratch));
+        PercentileLongAggregator.combineIntermediate(state, groupId, quart.getBytesRef(valuesPosition, quartScratch));
       }
     }
   }
@@ -221,7 +216,7 @@ public final class PercentileLongGroupingAggregatorFunction implements GroupingA
       return;
     }
     BytesRefVector quart = ((BytesRefBlock) quartUncast).asVector();
-    BytesRef scratch = new BytesRef();
+    BytesRef quartScratch = new BytesRef();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
         continue;
@@ -231,7 +226,7 @@ public final class PercentileLongGroupingAggregatorFunction implements GroupingA
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
         int valuesPosition = groupPosition + positionOffset;
-        PercentileLongAggregator.combineIntermediate(state, groupId, quart.getBytesRef(valuesPosition, scratch));
+        PercentileLongAggregator.combineIntermediate(state, groupId, quart.getBytesRef(valuesPosition, quartScratch));
       }
     }
   }
@@ -270,11 +265,11 @@ public final class PercentileLongGroupingAggregatorFunction implements GroupingA
       return;
     }
     BytesRefVector quart = ((BytesRefBlock) quartUncast).asVector();
-    BytesRef scratch = new BytesRef();
+    BytesRef quartScratch = new BytesRef();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int groupId = groups.getInt(groupPosition);
       int valuesPosition = groupPosition + positionOffset;
-      PercentileLongAggregator.combineIntermediate(state, groupId, quart.getBytesRef(valuesPosition, scratch));
+      PercentileLongAggregator.combineIntermediate(state, groupId, quart.getBytesRef(valuesPosition, quartScratch));
     }
   }
 
@@ -290,14 +285,24 @@ public final class PercentileLongGroupingAggregatorFunction implements GroupingA
   }
 
   @Override
-  public void evaluateIntermediate(Block[] blocks, int offset, IntVector selected) {
-    state.toIntermediate(blocks, offset, selected, driverContext);
+  public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateIntermediate(
+      IntVector selected, GroupingAggregatorEvaluationContext ctx) {
+    return this::evaluateIntermediate;
+  }
+
+  private void evaluateIntermediate(Block[] blocks, int offset, IntVector selectedInPage) {
+    state.toIntermediate(blocks, offset, selectedInPage, driverContext);
   }
 
   @Override
-  public void evaluateFinal(Block[] blocks, int offset, IntVector selected,
+  public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateFinal(IntVector selected,
       GroupingAggregatorEvaluationContext ctx) {
-    blocks[offset] = PercentileLongAggregator.evaluateFinal(state, selected, ctx);
+    return (blocks, offset, selectedInPage) -> evaluateFinal(blocks, offset, selectedInPage, ctx);
+  }
+
+  private void evaluateFinal(Block[] blocks, int offset, IntVector selectedInPage,
+      GroupingAggregatorEvaluationContext ctx) {
+    blocks[offset] = PercentileLongAggregator.evaluateFinal(state, selectedInPage, ctx);
   }
 
   @Override

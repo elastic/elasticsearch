@@ -36,16 +36,11 @@ public final class MedianAbsoluteDeviationDoubleGroupingAggregatorFunction imple
 
   private final DriverContext driverContext;
 
-  public MedianAbsoluteDeviationDoubleGroupingAggregatorFunction(List<Integer> channels,
-      QuantileStates.GroupingState state, DriverContext driverContext) {
+  MedianAbsoluteDeviationDoubleGroupingAggregatorFunction(List<Integer> channels,
+      DriverContext driverContext) {
     this.channels = channels;
-    this.state = state;
+    this.state = MedianAbsoluteDeviationDoubleAggregator.initGrouping(driverContext);
     this.driverContext = driverContext;
-  }
-
-  public static MedianAbsoluteDeviationDoubleGroupingAggregatorFunction create(
-      List<Integer> channels, DriverContext driverContext) {
-    return new MedianAbsoluteDeviationDoubleGroupingAggregatorFunction(channels, MedianAbsoluteDeviationDoubleAggregator.initGrouping(driverContext), driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -155,7 +150,7 @@ public final class MedianAbsoluteDeviationDoubleGroupingAggregatorFunction imple
       return;
     }
     BytesRefVector quart = ((BytesRefBlock) quartUncast).asVector();
-    BytesRef scratch = new BytesRef();
+    BytesRef quartScratch = new BytesRef();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
         continue;
@@ -165,7 +160,7 @@ public final class MedianAbsoluteDeviationDoubleGroupingAggregatorFunction imple
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
         int valuesPosition = groupPosition + positionOffset;
-        MedianAbsoluteDeviationDoubleAggregator.combineIntermediate(state, groupId, quart.getBytesRef(valuesPosition, scratch));
+        MedianAbsoluteDeviationDoubleAggregator.combineIntermediate(state, groupId, quart.getBytesRef(valuesPosition, quartScratch));
       }
     }
   }
@@ -218,7 +213,7 @@ public final class MedianAbsoluteDeviationDoubleGroupingAggregatorFunction imple
       return;
     }
     BytesRefVector quart = ((BytesRefBlock) quartUncast).asVector();
-    BytesRef scratch = new BytesRef();
+    BytesRef quartScratch = new BytesRef();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
         continue;
@@ -228,7 +223,7 @@ public final class MedianAbsoluteDeviationDoubleGroupingAggregatorFunction imple
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
         int valuesPosition = groupPosition + positionOffset;
-        MedianAbsoluteDeviationDoubleAggregator.combineIntermediate(state, groupId, quart.getBytesRef(valuesPosition, scratch));
+        MedianAbsoluteDeviationDoubleAggregator.combineIntermediate(state, groupId, quart.getBytesRef(valuesPosition, quartScratch));
       }
     }
   }
@@ -267,11 +262,11 @@ public final class MedianAbsoluteDeviationDoubleGroupingAggregatorFunction imple
       return;
     }
     BytesRefVector quart = ((BytesRefBlock) quartUncast).asVector();
-    BytesRef scratch = new BytesRef();
+    BytesRef quartScratch = new BytesRef();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int groupId = groups.getInt(groupPosition);
       int valuesPosition = groupPosition + positionOffset;
-      MedianAbsoluteDeviationDoubleAggregator.combineIntermediate(state, groupId, quart.getBytesRef(valuesPosition, scratch));
+      MedianAbsoluteDeviationDoubleAggregator.combineIntermediate(state, groupId, quart.getBytesRef(valuesPosition, quartScratch));
     }
   }
 
@@ -287,14 +282,24 @@ public final class MedianAbsoluteDeviationDoubleGroupingAggregatorFunction imple
   }
 
   @Override
-  public void evaluateIntermediate(Block[] blocks, int offset, IntVector selected) {
-    state.toIntermediate(blocks, offset, selected, driverContext);
+  public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateIntermediate(
+      IntVector selected, GroupingAggregatorEvaluationContext ctx) {
+    return this::evaluateIntermediate;
+  }
+
+  private void evaluateIntermediate(Block[] blocks, int offset, IntVector selectedInPage) {
+    state.toIntermediate(blocks, offset, selectedInPage, driverContext);
   }
 
   @Override
-  public void evaluateFinal(Block[] blocks, int offset, IntVector selected,
+  public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateFinal(IntVector selected,
       GroupingAggregatorEvaluationContext ctx) {
-    blocks[offset] = MedianAbsoluteDeviationDoubleAggregator.evaluateFinal(state, selected, ctx);
+    return (blocks, offset, selectedInPage) -> evaluateFinal(blocks, offset, selectedInPage, ctx);
+  }
+
+  private void evaluateFinal(Block[] blocks, int offset, IntVector selectedInPage,
+      GroupingAggregatorEvaluationContext ctx) {
+    blocks[offset] = MedianAbsoluteDeviationDoubleAggregator.evaluateFinal(state, selectedInPage, ctx);
   }
 
   @Override

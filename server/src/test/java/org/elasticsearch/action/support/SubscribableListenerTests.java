@@ -21,6 +21,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TestEsExecutors;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -249,7 +250,7 @@ public class SubscribableListenerTests extends ESTestCase {
             10,
             TimeUnit.SECONDS,
             true,
-            EsExecutors.daemonThreadFactory(executorThreadPrefix),
+            TestEsExecutors.testOnlyDaemonThreadFactory(executorThreadPrefix),
             threadContext
         );
 
@@ -677,6 +678,32 @@ public class SubscribableListenerTests extends ESTestCase {
 
         assertEquals("simulated rejection", expectThrows(EsRejectedExecutionException.class, subscribedListener::rawResult).getMessage());
         assertEquals("simulated rejection", expectThrows(EsRejectedExecutionException.class, andThenListener::rawResult).getMessage());
+    }
+
+    public void testSubscriptionLoop() throws Exception {
+        // the one-shot completion semantics means that it's ok to have a cycle of listeners subscribing to each other, even if the
+        // subscriptions happen concurrently to each other and to the completion
+
+        final var loopLength = between(1, 10);
+        final var listeners = new ArrayList<SubscribableListener<Object>>(loopLength);
+        while (listeners.size() < loopLength) {
+            listeners.add(new SubscribableListener<>());
+        }
+
+        final var result = new Object();
+        runInParallel(loopLength + 1, i -> {
+            if (i == 0) {
+                listeners.getFirst().addListener(listeners.getLast());
+            } else if (i < loopLength) {
+                listeners.get(i).addListener(listeners.get(i - 1));
+            } else {
+                listeners.getFirst().onResponse(result);
+            }
+        });
+
+        for (var listener : listeners) {
+            assertSame(result, listener.rawResult());
+        }
     }
 
     public void testJavaDocExample() {

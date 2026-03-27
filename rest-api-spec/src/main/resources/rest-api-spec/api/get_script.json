@@ -1,34 +1,37 @@
 {
-  "get_script":{
-    "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/modules-scripting.html",
-      "description":"Returns a script."
+  "get_script": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-get-script",
+      "description": "Get a script or search template"
     },
-    "stability":"stable",
-    "visibility":"public",
-    "headers":{
-      "accept": [ "application/json"]
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
     },
-    "url":{
-      "paths":[
+    "url": {
+      "paths": [
         {
-          "path":"/_scripts/{id}",
-          "methods":[
+          "path": "/_scripts/{id}",
+          "methods": [
             "GET"
           ],
-          "parts":{
-            "id":{
-              "type":"string",
-              "description":"Script ID"
+          "parts": {
+            "id": {
+              "type": "string",
+              "description": "Script ID"
             }
           }
         }
       ]
     },
-    "params":{
-      "master_timeout":{
-        "type":"time",
-        "description":"Specify timeout for connection to master"
+    "params": {
+      "master_timeout": {
+        "type": "time",
+        "default": "30s",
+        "description": "Specify timeout for connection to master"
       }
     }
   }

@@ -1,0 +1,190 @@
+// Tests for nested PromQL function patterns.
+// E.g., max(avg by (cluster) (sum by (cluster, pod) (network.cost)))
+
+nested_within_series_sum_avg_over_time
+required_capability: promql_command_v0
+required_capability: promql_nested_aggregates
+PROMQL index=k8s step=1h result=(sum(avg_over_time(network.cost[1h])));
+
+result:double       | step:datetime
+56.32254035241995   | 2024-05-10T00:00:00.000Z
+;
+
+nested_within_series_avg_avg_over_time
+required_capability: promql_command_v0
+required_capability: promql_nested_aggregates
+PROMQL index=k8s step=1h result=(avg(avg_over_time(network.cost[1h])));
+
+result:double       | step:datetime
+6.2580600391577725  | 2024-05-10T00:00:00.000Z
+;
+
+nested_within_series_max_sum_over_time
+required_capability: promql_command_v0
+required_capability: promql_nested_aggregates
+PROMQL index=k8s step=1h result=(max(sum_over_time(network.cost[1h])));
+
+result:double | step:datetime
+210.625       | 2024-05-10T00:00:00.000Z
+;
+
+nested_within_series_min_count_over_time
+required_capability: promql_command_v0
+required_capability: promql_nested_aggregates
+PROMQL index=k8s step=1h result=(min(count_over_time(network.cost[1h])));
+
+result:double | step:datetime
+13.0          | 2024-05-10T00:00:00.000Z
+;
+
+nested_within_series_sum_by_cluster_avg_over_time
+required_capability: promql_command_v0
+required_capability: promql_nested_aggregates
+PROMQL index=k8s step=1h result=(sum by (cluster) (avg_over_time(network.cost[1h])))
+| SORT cluster;
+
+result:double          | step:datetime            | cluster:keyword
+18.032269021739133     | 2024-05-10T00:00:00.000Z | prod
+20.76903735632184      | 2024-05-10T00:00:00.000Z | qa
+17.521233974358974     | 2024-05-10T00:00:00.000Z | staging
+;
+
+
+nested_same_grouping_sum_avg_by_cluster
+required_capability: promql_command_v0
+required_capability: promql_nested_aggregates
+PROMQL index=k8s step=1h result=(sum by (cluster) (avg by (cluster) (network.cost)))
+| SORT cluster;
+
+result:double          | step:datetime            | cluster:keyword
+6.208333333333333      | 2024-05-10T00:00:00.000Z | prod
+8.833333333333334      | 2024-05-10T00:00:00.000Z | qa
+5.291666666666667      | 2024-05-10T00:00:00.000Z | staging
+;
+
+nested_same_grouping_max_min_by_pod
+required_capability: promql_command_v0
+required_capability: promql_nested_aggregates
+PROMQL index=k8s step=1h result=(max by (pod) (min by (pod) (network.cost)))
+| SORT pod;
+
+result:double | step:datetime            | pod:keyword
+4.625         | 2024-05-10T00:00:00.000Z | one
+0.0           | 2024-05-10T00:00:00.000Z | three
+1.75          | 2024-05-10T00:00:00.000Z | two
+;
+
+nested_count_sum_by_cluster
+required_capability: promql_command_v0
+required_capability: promql_nested_aggregates
+PROMQL index=k8s step=1h result=(count(sum by (cluster) (network.cost)));
+
+result:double | step:datetime
+3.0           | 2024-05-10T00:00:00.000Z
+;
+
+nested_count_by_cluster_sum_by_cluster_pod
+required_capability: promql_command_v0
+required_capability: promql_nested_aggregates
+PROMQL index=k8s step=1h result=(count by (cluster) (sum by (cluster, pod) (network.cost)))
+| SORT cluster;
+
+result:double | step:datetime            | cluster:keyword
+3.0           | 2024-05-10T00:00:00.000Z | prod
+3.0           | 2024-05-10T00:00:00.000Z | qa
+3.0           | 2024-05-10T00:00:00.000Z | staging
+;
+
+nested_quantile_avg_by_cluster
+required_capability: promql_command_v0
+required_capability: promql_nested_aggregates
+PROMQL index=k8s step=1h result=(quantile(0.5, avg by (cluster) (network.cost)));
+
+result:double          | step:datetime
+5.300833333333333      | 2024-05-10T00:00:00.000Z
+;
+
+nested_different_grouping_avg_sum_by_cluster
+required_capability: promql_command_v0
+required_capability: promql_nested_aggregates
+PROMQL index=k8s step=1h result=(avg(sum by (cluster) (avg_over_time(network.cost[1h]))));
+
+result:double          | step:datetime
+18.774180117473318     | 2024-05-10T00:00:00.000Z
+;
+
+nested_different_grouping_max_avg_by_cluster
+required_capability: promql_command_v0
+required_capability: promql_nested_aggregates
+PROMQL index=k8s step=1h result=(max(avg by (cluster) (network.cost)));
+
+result:double          | step:datetime
+8.833333333333334      | 2024-05-10T00:00:00.000Z
+;
+
+nested_different_grouping_min_sum_by_pod
+required_capability: promql_command_v0
+required_capability: promql_nested_aggregates
+PROMQL index=k8s step=1h result=(min(sum by (pod) (network.cost)));
+
+result:double | step:datetime
+18.75         | 2024-05-10T00:00:00.000Z
+;
+
+nested_different_grouping_avg_by_cluster_sum_by_cluster_pod
+required_capability: promql_command_v0
+required_capability: promql_nested_aggregates
+PROMQL index=k8s step=1h result=(avg by (cluster) (sum by (cluster, pod) (network.cost)))
+| SORT cluster;
+
+result:double          | step:datetime            | cluster:keyword
+6.208333333333333      | 2024-05-10T00:00:00.000Z | prod
+8.833333333333334      | 2024-05-10T00:00:00.000Z | qa
+5.291666666666667      | 2024-05-10T00:00:00.000Z | staging
+;
+
+nested_three_levels_max_avg_sum
+required_capability: promql_command_v0
+required_capability: promql_nested_aggregates
+PROMQL index=k8s step=1h result=(max(avg by (cluster) (sum by (cluster, pod) (network.cost))));
+
+result:double | step:datetime
+8.833333333333334 | 2024-05-10T00:00:00.000Z
+;
+
+nested_four_levels_max_avg_sum_avg_over_time
+required_capability: promql_command_v0
+required_capability: promql_nested_aggregates
+PROMQL index=k8s step=1h result=(max(avg by (cluster) (sum by (cluster, pod) (avg_over_time(network.cost[1h])))));
+
+result:double    | step:datetime
+6.92301245210728 | 2024-05-10T00:00:00.000Z
+;
+
+nested_three_levels_sum_max_min
+required_capability: promql_command_v0
+required_capability: promql_nested_aggregates
+PROMQL index=k8s step=1h result=(sum(max by (cluster) (min by (pod) (network.cost))));
+
+result:double | step:datetime
+4.625         | 2024-05-10T00:00:00.000Z
+;
+
+nested_aggregate_inside_binary_operator
+required_capability: promql_command_v0
+required_capability: promql_nested_aggregates
+PROMQL index=k8s step=1h start="2024-05-10T00:00:00.000Z" end="2024-05-10T01:00:00.000Z"
+  result=(time() - avg(sum by (cluster) (avg_over_time(network.cost[1h]))));
+
+result:double        | step:datetime
+1.7152991812258198E9 | 2024-05-10T00:00:00.000Z
+;
+
+nested_aggregate_with_transformation_between
+required_capability: promql_command_v0
+required_capability: promql_nested_aggregates
+PROMQL index=k8s step=1h result=(avg(ceil(sum by (cluster) (network.cost))));
+
+result:double      | step:datetime
+20.666666666666668 | 2024-05-10T00:00:00.000Z
+;

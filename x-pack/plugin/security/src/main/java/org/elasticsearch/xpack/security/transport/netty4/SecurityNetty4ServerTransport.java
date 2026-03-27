@@ -13,7 +13,6 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -21,7 +20,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.netty4.SharedGroupFactory;
 import org.elasticsearch.xpack.core.security.transport.netty4.SecurityNetty4Transport;
 import org.elasticsearch.xpack.core.ssl.SSLService;
-import org.elasticsearch.xpack.security.authc.CrossClusterAccessAuthenticationService;
+import org.elasticsearch.xpack.core.ssl.SslProfile;
+import org.elasticsearch.xpack.security.authc.RemoteClusterAuthenticationService;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 
 public class SecurityNetty4ServerTransport extends SecurityNetty4Transport {
@@ -40,7 +40,7 @@ public class SecurityNetty4ServerTransport extends SecurityNetty4Transport {
         @Nullable final IPFilter authenticator,
         final SSLService sslService,
         final SharedGroupFactory sharedGroupFactory,
-        final CrossClusterAccessAuthenticationService crossClusterAccessAuthenticationService
+        final RemoteClusterAuthenticationService remoteClusterAuthenticationService
     ) {
         super(
             settings,
@@ -52,7 +52,7 @@ public class SecurityNetty4ServerTransport extends SecurityNetty4Transport {
             circuitBreakerService,
             sslService,
             sharedGroupFactory,
-            crossClusterAccessAuthenticationService
+            remoteClusterAuthenticationService
         );
         this.authenticator = authenticator;
     }
@@ -71,8 +71,8 @@ public class SecurityNetty4ServerTransport extends SecurityNetty4Transport {
     }
 
     @Override
-    protected ServerChannelInitializer getSslChannelInitializer(final String name, final SslConfiguration configuration) {
-        return new SecurityServerChannelInitializer(name, configuration);
+    protected ServerChannelInitializer getSslChannelInitializer(final String name, final SslProfile profile) {
+        return new SecurityServerChannelInitializer(name, profile);
     }
 
     public class IPFilterServerChannelInitializer extends ServerChannelInitializer {
@@ -90,8 +90,8 @@ public class SecurityNetty4ServerTransport extends SecurityNetty4Transport {
 
     public class SecurityServerChannelInitializer extends SslChannelInitializer {
 
-        SecurityServerChannelInitializer(final String name, final SslConfiguration configuration) {
-            super(name, configuration);
+        SecurityServerChannelInitializer(final String name, final SslProfile profile) {
+            super(name, profile);
         }
 
         @Override

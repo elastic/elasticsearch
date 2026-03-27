@@ -275,7 +275,7 @@ setup:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       indices.delete:
-        index: ".ml-anomalies-shared"
+        index: ".ml-anomalies-shared-000001"
 
   - do:
       headers:

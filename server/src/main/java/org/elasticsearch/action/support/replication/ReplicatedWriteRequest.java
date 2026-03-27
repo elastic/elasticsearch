@@ -13,6 +13,7 @@ import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
@@ -45,6 +46,10 @@ public abstract class ReplicatedWriteRequest<R extends ReplicatedWriteRequest<R>
 
     public ReplicatedWriteRequest(@Nullable ShardId shardId) {
         super(shardId);
+    }
+
+    public ReplicatedWriteRequest(@Nullable ShardId shardId, SplitShardCountSummary reshardSplitShardCountSummary) {
+        super(shardId, reshardSplitShardCountSummary);
     }
 
     @Override

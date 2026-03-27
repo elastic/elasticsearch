@@ -60,7 +60,7 @@ public class NestedObjectMapper extends ObjectMapper {
             Function<Query, BitSetProducer> bitSetProducer,
             IndexSettings indexSettings
         ) {
-            super(name, Optional.empty());
+            super(name, Defaults.SUBOBJECTS);
             this.indexCreatedVersion = indexCreatedVersion;
             this.bitSetProducer = bitSetProducer;
             this.indexSettings = indexSettings;
@@ -74,6 +74,47 @@ public class NestedObjectMapper extends ObjectMapper {
         Builder includeInParent(boolean includeInParent) {
             this.includeInParent = Explicit.explicitBoolean(includeInParent);
             return this;
+        }
+
+        @Override
+        void merge(ObjectMapper.Builder mergeWith, MapperMergeContext objectMergeContext, String fullPath) {
+            if (mergeWith instanceof NestedObjectMapper.Builder nestedMergeWith) {
+                MapperService.MergeReason reason = objectMergeContext.getMapperBuilderContext().getMergeReason();
+                if (reason == MapperService.MergeReason.INDEX_TEMPLATE) {
+                    if (nestedMergeWith.includeInParent.explicit()) {
+                        this.includeInParent = nestedMergeWith.includeInParent;
+                    }
+                    if (nestedMergeWith.includeInRoot.explicit()) {
+                        this.includeInRoot = nestedMergeWith.includeInRoot;
+                    }
+                } else {
+                    if (this.includeInParent.value() != nestedMergeWith.includeInParent.value()) {
+                        throw new MapperException("the [include_in_parent] parameter can't be updated on a nested object mapping");
+                    }
+                    if (this.includeInRoot.value() != nestedMergeWith.includeInRoot.value()) {
+                        throw new MapperException("the [include_in_root] parameter can't be updated on a nested object mapping");
+                    }
+                }
+                super.merge(mergeWith, objectMergeContext, fullPath);
+            } else {
+                MapperErrors.throwNestedMappingConflictError(fullPath);
+            }
+        }
+
+        @Override
+        ObjectMapper.Builder newEmptyBuilder() {
+            NestedObjectMapper.Builder builder = new NestedObjectMapper.Builder(
+                leafName(),
+                indexCreatedVersion,
+                bitSetProducer,
+                indexSettings
+            );
+            builder.enabled = this.enabled;
+            builder.dynamic = this.dynamic;
+            builder.sourceKeepMode = this.sourceKeepMode;
+            builder.includeInRoot = this.includeInRoot;
+            builder.includeInParent = this.includeInParent;
+            return builder;
         }
 
         @Override
@@ -145,7 +186,7 @@ public class NestedObjectMapper extends ObjectMapper {
         @Override
         public Mapper.Builder parse(String name, Map<String, Object> node, MappingParserContext parserContext)
             throws MapperParsingException {
-            if (parseSubobjects(node).isPresent()) {
+            if (parseSubobjects(node).explicit()) {
                 throw new MapperParsingException("Nested type [" + name + "] does not support [subobjects] parameter");
             }
             NestedObjectMapper.Builder builder = new NestedObjectMapper.Builder(
@@ -236,7 +277,7 @@ public class NestedObjectMapper extends ObjectMapper {
         Function<Query, BitSetProducer> bitsetProducer,
         IndexSettings indexSettings
     ) {
-        super(name, fullPath, enabled, Optional.empty(), sourceKeepMode, dynamic, mappers);
+        super(name, fullPath, enabled, Defaults.SUBOBJECTS, sourceKeepMode, dynamic, mappers);
         this.parentTypeFilter = parentTypeFilter;
         this.nestedTypePath = nestedTypePath;
         this.nestedTypeFilter = nestedTypeFilter;
@@ -288,6 +329,7 @@ public class NestedObjectMapper extends ObjectMapper {
         NestedObjectMapper.Builder builder = new NestedObjectMapper.Builder(leafName(), indexVersionCreated, bitsetProducer, indexSettings);
         builder.enabled = enabled;
         builder.dynamic = dynamic;
+        builder.sourceKeepMode = sourceKeepMode;
         builder.includeInRoot = includeInRoot;
         builder.includeInParent = includeInParent;
         return builder;
@@ -336,80 +378,6 @@ public class NestedObjectMapper extends ObjectMapper {
     }
 
     @Override
-    public ObjectMapper merge(Mapper mergeWith, MapperMergeContext parentMergeContext) {
-        if ((mergeWith instanceof NestedObjectMapper) == false) {
-            MapperErrors.throwNestedMappingConflictError(mergeWith.fullPath());
-        }
-        NestedObjectMapper mergeWithObject = (NestedObjectMapper) mergeWith;
-
-        final MapperService.MergeReason reason = parentMergeContext.getMapperBuilderContext().getMergeReason();
-        var mergeResult = MergeResult.build(this, mergeWithObject, parentMergeContext);
-        Explicit<Boolean> incInParent = this.includeInParent;
-        Explicit<Boolean> incInRoot = this.includeInRoot;
-        if (reason == MapperService.MergeReason.INDEX_TEMPLATE) {
-            if (mergeWithObject.includeInParent.explicit()) {
-                incInParent = mergeWithObject.includeInParent;
-            }
-            if (mergeWithObject.includeInRoot.explicit()) {
-                incInRoot = mergeWithObject.includeInRoot;
-            }
-        } else {
-            if (includeInParent.value() != mergeWithObject.includeInParent.value()) {
-                throw new MapperException("the [include_in_parent] parameter can't be updated on a nested object mapping");
-            }
-            if (includeInRoot.value() != mergeWithObject.includeInRoot.value()) {
-                throw new MapperException("the [include_in_root] parameter can't be updated on a nested object mapping");
-            }
-        }
-        MapperBuilderContext parentBuilderContext = parentMergeContext.getMapperBuilderContext();
-        if (parentBuilderContext instanceof NestedMapperBuilderContext nc) {
-            if (nc.parentIncludedInRoot && incInParent.value()) {
-                incInRoot = Explicit.IMPLICIT_FALSE;
-            }
-        } else {
-            if (incInParent.value()) {
-                incInRoot = Explicit.IMPLICIT_FALSE;
-            }
-        }
-        return new NestedObjectMapper(
-            leafName(),
-            fullPath(),
-            mergeResult.mappers(),
-            mergeResult.enabled(),
-            mergeResult.dynamic(),
-            mergeResult.sourceKeepMode(),
-            incInParent,
-            incInRoot,
-            parentTypeFilter,
-            nestedTypePath,
-            nestedTypeFilter,
-            bitsetProducer,
-            indexSettings
-        );
-    }
-
-    @Override
-    protected MapperMergeContext createChildContext(MapperMergeContext mapperMergeContext, String name) {
-        MapperBuilderContext mapperBuilderContext = mapperMergeContext.getMapperBuilderContext();
-        boolean parentIncludedInRoot = this.includeInRoot.value();
-        if (mapperBuilderContext instanceof NestedMapperBuilderContext == false) {
-            parentIncludedInRoot |= this.includeInParent.value();
-        }
-        return mapperMergeContext.createChildContext(
-            new NestedMapperBuilderContext(
-                mapperBuilderContext.buildFullName(name),
-                mapperBuilderContext.isSourceSynthetic(),
-                mapperBuilderContext.isDataStream(),
-                mapperBuilderContext.parentObjectContainsDimensions(),
-                nestedTypeFilter,
-                parentIncludedInRoot,
-                mapperBuilderContext.getDynamic(dynamic),
-                mapperBuilderContext.getMergeReason()
-            )
-        );
-    }
-
-    @Override
     protected SourceLoader.SyntheticVectorsLoader syntheticVectorsLoader(SourceFilter sourceFilter) {
         var patchLoader = super.syntheticVectorsLoader(sourceFilter);
         if (patchLoader == null) {
@@ -448,7 +416,12 @@ public class NestedObjectMapper extends ObjectMapper {
             return SourceLoader.SyntheticFieldLoader.NOTHING;
         }
 
-        SourceLoader sourceLoader = new SourceLoader.Synthetic(filter, () -> super.syntheticFieldLoader(filter, mappers, true), NOOP);
+        SourceLoader sourceLoader = new SourceLoader.Synthetic(
+            filter,
+            () -> super.syntheticFieldLoader(filter, mappers, true),
+            NOOP,
+            IgnoredSourceFieldMapper.ignoredSourceFormat(indexSettings)
+        );
         // Some synthetic source use cases require using _ignored_source field
         var requiredStoredFields = IgnoredSourceFieldMapper.ensureLoaded(sourceLoader.requiredStoredFields(), indexSettings);
         // force sequential access since nested fields are indexed per block

@@ -15,11 +15,11 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
+import org.elasticsearch.xpack.core.ssl.SslProfile;
 import org.elasticsearch.xpack.core.watcher.crypto.CryptoService;
 import org.elasticsearch.xpack.watcher.notification.NotificationService;
 
@@ -281,11 +281,11 @@ public class EmailService extends NotificationService<Account> {
 
     @Nullable
     private SSLSocketFactory getSmtpSslSocketFactory() {
-        final SslConfiguration sslConfiguration = sslService.getSSLConfiguration(EMAIL_NOTIFICATION_SSL_PREFIX);
-        if (sslConfiguration == null || sslConfiguration.explicitlyConfigured() == false) {
+        final SslProfile profile = sslService.profile(EMAIL_NOTIFICATION_SSL_PREFIX);
+        if (profile == null || profile.configuration().explicitlyConfigured() == false) {
             return null;
         }
-        return sslService.sslSocketFactory(sslConfiguration);
+        return profile.socketFactory();
     }
 
     public EmailSent send(Email email, Authentication auth, Profile profile, String accountName) throws MessagingException {

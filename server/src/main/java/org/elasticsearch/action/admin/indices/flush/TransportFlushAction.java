@@ -18,6 +18,7 @@ import org.elasticsearch.action.support.replication.TransportBroadcastReplicatio
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.injection.guice.Inject;
@@ -59,8 +60,8 @@ public class TransportFlushAction extends TransportBroadcastReplicationAction<
     }
 
     @Override
-    protected ShardFlushRequest newShardRequest(FlushRequest request, ShardId shardId) {
-        return new ShardFlushRequest(request, shardId);
+    protected ShardFlushRequest newShardRequest(FlushRequest request, ShardId shardId, SplitShardCountSummary shardCountSummary) {
+        return new ShardFlushRequest(request, shardId, shardCountSummary);
     }
 
     @Override

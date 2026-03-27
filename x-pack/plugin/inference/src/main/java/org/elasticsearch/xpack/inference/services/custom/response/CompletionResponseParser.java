@@ -42,9 +42,7 @@ public class CompletionResponseParser extends BaseCustomResponseParser {
             validationException
         );
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new CompletionResponseParser(path);
     }
@@ -68,6 +66,10 @@ public class CompletionResponseParser extends BaseCustomResponseParser {
         }
         builder.endObject();
         return builder;
+    }
+
+    String getCompletionResultPath() {
+        return completionResultPath;
     }
 
     @Override

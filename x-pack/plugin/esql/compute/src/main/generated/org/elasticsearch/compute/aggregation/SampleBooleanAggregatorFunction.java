@@ -34,17 +34,11 @@ public final class SampleBooleanAggregatorFunction implements AggregatorFunction
 
   private final int limit;
 
-  public SampleBooleanAggregatorFunction(DriverContext driverContext, List<Integer> channels,
-      SampleBooleanAggregator.SingleState state, int limit) {
+  SampleBooleanAggregatorFunction(DriverContext driverContext, List<Integer> channels, int limit) {
+    this.limit = limit;
     this.driverContext = driverContext;
     this.channels = channels;
-    this.state = state;
-    this.limit = limit;
-  }
-
-  public static SampleBooleanAggregatorFunction create(DriverContext driverContext,
-      List<Integer> channels, int limit) {
-    return new SampleBooleanAggregatorFunction(driverContext, channels, SampleBooleanAggregator.initSingle(driverContext.bigArrays(), limit), limit);
+    this.state = SampleBooleanAggregator.initSingle(driverContext.bigArrays(), limit);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -106,11 +100,12 @@ public final class SampleBooleanAggregatorFunction implements AggregatorFunction
 
   private void addRawBlock(BooleanBlock valueBlock) {
     for (int p = 0; p < valueBlock.getPositionCount(); p++) {
-      if (valueBlock.isNull(p)) {
+      int valueValueCount = valueBlock.getValueCount(p);
+      if (valueValueCount == 0) {
         continue;
       }
       int valueStart = valueBlock.getFirstValueIndex(p);
-      int valueEnd = valueStart + valueBlock.getValueCount(p);
+      int valueEnd = valueStart + valueValueCount;
       for (int valueOffset = valueStart; valueOffset < valueEnd; valueOffset++) {
         boolean valueValue = valueBlock.getBoolean(valueOffset);
         SampleBooleanAggregator.combine(state, valueValue);
@@ -123,11 +118,12 @@ public final class SampleBooleanAggregatorFunction implements AggregatorFunction
       if (mask.getBoolean(p) == false) {
         continue;
       }
-      if (valueBlock.isNull(p)) {
+      int valueValueCount = valueBlock.getValueCount(p);
+      if (valueValueCount == 0) {
         continue;
       }
       int valueStart = valueBlock.getFirstValueIndex(p);
-      int valueEnd = valueStart + valueBlock.getValueCount(p);
+      int valueEnd = valueStart + valueValueCount;
       for (int valueOffset = valueStart; valueOffset < valueEnd; valueOffset++) {
         boolean valueValue = valueBlock.getBoolean(valueOffset);
         SampleBooleanAggregator.combine(state, valueValue);
@@ -145,7 +141,7 @@ public final class SampleBooleanAggregatorFunction implements AggregatorFunction
     }
     BytesRefBlock sample = (BytesRefBlock) sampleUncast;
     assert sample.getPositionCount() == 1;
-    BytesRef scratch = new BytesRef();
+    BytesRef sampleScratch = new BytesRef();
     SampleBooleanAggregator.combineIntermediate(state, sample);
   }
 

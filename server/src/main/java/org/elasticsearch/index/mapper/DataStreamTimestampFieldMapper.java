@@ -49,7 +49,7 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
         static final TimestampFieldType INSTANCE = new TimestampFieldType();
 
         private TimestampFieldType() {
-            super(NAME, false, false, false, TextSearchInfo.NONE, Map.of());
+            super(NAME, IndexType.NONE, false, Map.of());
         }
 
         @Override
@@ -87,9 +87,18 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
             super(NAME);
         }
 
+        public boolean isEnabled() {
+            return enabled.getValue();
+        }
+
         @Override
         protected Parameter<?>[] getParameters() {
             return new Parameter<?>[] { enabled };
+        }
+
+        @Override
+        public String contentType() {
+            return NAME;
         }
 
         @Override
@@ -98,7 +107,7 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    public static final TypeParser PARSER = new ConfigurableTypeParser(c -> DISABLED_INSTANCE, c -> new Builder());
+    public static final TypeParser PARSER = new ConfigurableTypeParser(c -> new Builder());
 
     private final boolean enabled;
 
@@ -139,7 +148,8 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
         }
 
         DateFieldMapper dateFieldMapper = (DateFieldMapper) mapper;
-        if (dateFieldMapper.fieldType().isIndexed() == false && dateFieldMapper.fieldType().hasDocValuesSkipper() == false) {
+        IndexType indexType = dateFieldMapper.fieldType().indexType();
+        if (indexType.hasPoints() == false && indexType.hasDocValuesSkipper() == false) {
             throw new IllegalArgumentException("data stream timestamp field [" + DEFAULT_PATH + "] is not indexed");
         }
         if (dateFieldMapper.fieldType().hasDocValues() == false) {

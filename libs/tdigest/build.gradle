@@ -23,6 +23,7 @@ apply plugin: 'elasticsearch.publish'
 
 dependencies {
   api project(':libs:core')
+  api project(':libs:x-content')
   api "org.apache.lucene:lucene-core:${versions.lucene}"
 
   testImplementation(project(":test:framework")) {

@@ -45,7 +45,7 @@ public class ClusterSearchShardsRequestTests extends ESTestCase {
             request.routing(routings);
         }
 
-        TransportVersion version = TransportVersionUtils.randomCompatibleVersion(random());
+        TransportVersion version = TransportVersionUtils.randomCompatibleVersion();
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.setTransportVersion(version);
             request.writeTo(out);

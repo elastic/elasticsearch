@@ -152,5 +152,26 @@ class KqlBaseBaseVisitor<T> extends AbstractParseTreeVisitor<T> implements KqlBa
      * <p>The default implementation returns the result of calling
      * {@link #visitChildren} on {@code ctx}.</p>
      */
+    @Override public T visitFieldQueryValueLiteral(KqlBaseParser.FieldQueryValueLiteralContext ctx) { return visitChildren(ctx); }
+    /**
+     * {@inheritDoc}
+     *
+     * <p>The default implementation returns the result of calling
+     * {@link #visitChildren} on {@code ctx}.</p>
+     */
+    @Override public T visitFieldQueryValueUnquotedLiteral(KqlBaseParser.FieldQueryValueUnquotedLiteralContext ctx) { return visitChildren(ctx); }
+    /**
+     * {@inheritDoc}
+     *
+     * <p>The default implementation returns the result of calling
+     * {@link #visitChildren} on {@code ctx}.</p>
+     */
+    @Override public T visitBooleanFieldQueryValue(KqlBaseParser.BooleanFieldQueryValueContext ctx) { return visitChildren(ctx); }
+    /**
+     * {@inheritDoc}
+     *
+     * <p>The default implementation returns the result of calling
+     * {@link #visitChildren} on {@code ctx}.</p>
+     */
     @Override public T visitFieldName(KqlBaseParser.FieldNameContext ctx) { return visitChildren(ctx); }
 }

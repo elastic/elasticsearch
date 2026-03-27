@@ -1,6 +1,9 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/create-enrollment-token.html
+applies_to:
+  deployment:
+    self: ga
 ---
 
 # elasticsearch-create-enrollment-token [create-enrollment-token]

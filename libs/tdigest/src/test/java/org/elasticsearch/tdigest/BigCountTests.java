@@ -21,10 +21,12 @@
 
 package org.elasticsearch.tdigest;
 
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
+
 public abstract class BigCountTests extends TDigestTestCase {
 
     public void testBigMerge() {
-        try (TDigest digest = createDigest()) {
+        try (TDigest digest = createDigest(100)) {
             for (int i = 0; i < 5; i++) {
                 try (TDigest digestToMerge = getDigest()) {
                     digest.add(digestToMerge);
@@ -35,13 +37,25 @@ public abstract class BigCountTests extends TDigestTestCase {
         }
     }
 
+    /**
+     * Verify that, at a range of compression values, the size of the produced digest is not much larger than 10 times the compression
+     */
+    public void testCompression() {
+        for (int compression : new int[] { 100, 500, 1000, 10000 }) {
+            try (TDigest digest = createDigest(compression)) {
+                addData(digest);
+                assertThat("Compression = " + compression, digest.centroidCount(), lessThanOrEqualTo(compression * 10));
+            }
+        }
+    }
+
     private TDigest getDigest() {
-        TDigest digest = createDigest();
+        TDigest digest = createDigest(100);
         addData(digest);
         return digest;
     }
 
-    public TDigest createDigest() {
+    public TDigest createDigest(int compression) {
         throw new IllegalStateException("Should have over-ridden createDigest");
     }
 

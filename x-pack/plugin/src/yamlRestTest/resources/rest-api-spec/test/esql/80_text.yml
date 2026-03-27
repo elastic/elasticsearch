@@ -616,3 +616,66 @@ setup:
       esql.query:
         body:
           query: 'FROM test | EVAL tag = name::text | KEEP name'
+---
+"like with overly complex pattern":
+  - requires:
+        capabilities:
+          - method: POST
+            path: /_query
+            parameters: [ method, path, parameters, capabilities ]
+            capabilities: [ handle_determinization_complexity ]
+        reason: "determinization errors not yet rethrown"
+  - do:
+      catch: /Pattern was too complex to determinize/
+      esql.query:
+        body:
+          query: 'FROM test | WHERE job LIKE "*a?????????????"'
+
+---
+"rlike with overly complex pattern":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ method, path, parameters, capabilities ]
+          capabilities: [ handle_determinization_complexity ]
+      reason: "determinization errors not yet rethrown"
+  - do:
+      catch: /Pattern was too complex to determinize/
+      esql.query:
+        body:
+          query: 'FROM test | WHERE job RLIKE "(a|b)*a(a|b){13}"'
+
+---
+"like and rlike with parameters":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ capabilities ]
+          capabilities: [ like_parameter_support ]
+      reason: "parameter support for like"
+  - do:
+      esql.query:
+        body:
+          query: 'FROM test | WHERE job LIKE ?like | WHERE job RLIKE ?rlike | KEEP job | LIMIT 2'
+          params: [{"like": "IT*"}, {"rlike": ".*Director"}]
+
+  - length: { values: 1 }
+  - match: { values.0: [ "IT Director" ] }
+
+---
+"like list with an invalid parameter":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ capabilities ]
+          capabilities: [ like_parameter_support ]
+      reason: "parameter support for like"
+  - do:
+      catch: /Invalid pattern parameter type for LIKE ..p2.. expected string, found integer/
+      esql.query:
+        body:
+          query: 'FROM test | WHERE job LIKE ( ?p1, ?p2 ) | KEEP job | LIMIT 2'
+          params: [{"p1": "IT*"}, {"p2": 123}]

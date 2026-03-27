@@ -29,6 +29,8 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.engine.SearchBasedChangesSnapshot;
+import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
+import org.elasticsearch.index.mapper.blockloader.ConstantNull;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.fetch.FetchContext;
@@ -161,6 +163,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
         private final IndexMode indexMode;
         private boolean serializeMode;
+        private Mode fallbackMode;
 
         private final boolean supportsNonDefaultParameterValues;
         private final boolean sourceModeIsNoop;
@@ -206,6 +209,11 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
         private boolean isDefault() {
             return enabled.get().value() && includes.getValue().isEmpty() && excludes.getValue().isEmpty();
+        }
+
+        @Override
+        public String contentType() {
+            return CONTENT_TYPE;
         }
 
         @Override
@@ -269,6 +277,10 @@ public class SourceFieldMapper extends MetadataFieldMapper {
             return sourceFieldMapper;
         }
 
+        public boolean isSynthetic() {
+            return resolveSourceMode() == Mode.SYNTHETIC;
+        }
+
         private Mode resolveSourceMode() {
             // If the `index.mapping.source.mode` exists it takes precedence to determine the source mode for `_source`
             // otherwise the mode is determined according to `_source.mode`.
@@ -279,8 +291,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
             // If `_source.mode` is not set we need to apply a default according to index mode.
             if (mode.get() == null || sourceModeIsNoop) {
                 if (indexMode == null || indexMode == IndexMode.STANDARD) {
-                    // Special case to avoid serializing mode.
-                    return null;
+                    return fallbackMode;
                 }
 
                 return indexMode.defaultSourceMode();
@@ -298,34 +309,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         };
     }
 
-    public static final TypeParser PARSER = new ConfigurableTypeParser(c -> {
-        final IndexMode indexMode = c.getIndexSettings().getMode();
-
-        if (indexMode == IndexMode.TIME_SERIES && c.getIndexSettings().getIndexVersionCreated().before(IndexVersions.V_8_7_0)) {
-            return DEFAULT;
-        }
-
-        final Mode settingSourceMode = IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.get(c.getSettings());
-        // Needed for bwc so that "mode" is not serialized in case of standard index with stored source.
-        if (indexMode == IndexMode.STANDARD && settingSourceMode == Mode.STORED) {
-            return DEFAULT;
-        }
-        SourceFieldMapper sourceFieldMapper;
-        if (onOrAfterDeprecateModeVersion(c.indexVersionCreated())) {
-            sourceFieldMapper = resolveStaticInstance(settingSourceMode);
-        } else {
-            sourceFieldMapper = new SourceFieldMapper(
-                settingSourceMode,
-                Explicit.IMPLICIT_TRUE,
-                Strings.EMPTY_ARRAY,
-                Strings.EMPTY_ARRAY,
-                true,
-                c.indexVersionCreated().onOrAfter(IndexVersions.SOURCE_MAPPER_MODE_ATTRIBUTE_NOOP)
-            );
-        }
-        indexMode.validateSourceFieldMapper(sourceFieldMapper);
-        return sourceFieldMapper;
-    },
+    public static final TypeParser PARSER = new ConfigurableTypeParser(
         c -> new Builder(
             c.getIndexSettings().getMode(),
             c.getSettings(),
@@ -339,7 +323,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         private final boolean enabled;
 
         private SourceFieldType(boolean enabled) {
-            super(NAME, false, enabled, false, TextSearchInfo.NONE, Collections.emptyMap());
+            super(NAME, IndexType.NONE, enabled, Collections.emptyMap());
             this.enabled = enabled;
         }
 
@@ -366,9 +350,13 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
             if (enabled) {
+                var config = blContext.blockLoaderFunctionConfig();
+                if (config instanceof BlockLoaderFunctionConfig.TimeSeriesMetadata tsm) {
+                    return new TimeSeriesMetadataFieldBlockLoader(blContext, tsm.loadMetrics());
+                }
                 return new SourceFieldBlockLoader();
             }
-            return BlockLoader.CONSTANT_NULLS;
+            return ConstantNull.INSTANCE;
         }
     }
 
@@ -550,13 +538,20 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(null, Settings.EMPTY, sourceModeIsNoop, false, serializeMode).init(this);
+        Builder b = new Builder(null, Settings.EMPTY, sourceModeIsNoop, false, serializeMode);
+        b.fallbackMode = this.mode;
+        b.init(this);
+        return b;
     }
 
     public boolean isSynthetic() {
         return mode == Mode.SYNTHETIC;
     }
 
+    /**
+     * Caution: this function is not aware of the legacy "mappings._source.mode" parameter that some legacy indices might use. You should
+     * prefer to get information about synthetic source from {@link MapperBuilderContext}.
+     */
     public static boolean isSynthetic(IndexSettings indexSettings) {
         return IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.get(indexSettings.getSettings()) == SourceFieldMapper.Mode.SYNTHETIC;
     }

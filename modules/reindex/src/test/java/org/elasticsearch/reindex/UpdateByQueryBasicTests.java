@@ -24,7 +24,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.index.IndexSettings.SYNTHETIC_VECTORS;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -158,9 +157,8 @@ public class UpdateByQueryBasicTests extends ReindexTestCase {
     }
 
     public void testUpdateByQueryIncludeVectors() throws Exception {
-        assumeTrue("This test requires synthetic vectors to be enabled", SYNTHETIC_VECTORS);
         var resp1 = prepareCreate("test").setSettings(
-            Settings.builder().put(IndexSettings.INDEX_MAPPING_SOURCE_SYNTHETIC_VECTORS_SETTING.getKey(), true).build()
+            Settings.builder().put(IndexSettings.INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING.getKey(), true).build()
         ).setMapping("foo", "type=dense_vector,similarity=l2_norm", "bar", "type=sparse_vector").get();
         assertAcked(resp1);
 

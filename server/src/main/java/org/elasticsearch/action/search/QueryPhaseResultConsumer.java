@@ -12,7 +12,7 @@ package org.elasticsearch.action.search;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.TopDocs;
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.search.SearchPhaseController.TopDocsStats;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
@@ -25,9 +25,9 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchShardTarget;
@@ -76,6 +76,9 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
     private final boolean hasTopDocs;
     private final boolean hasAggs;
     private final boolean performFinalReduce;
+    private final List<SearchHits> topHitsToRelease;
+    // Set when the list is passed to ReducedQueryPhase so doClose() does not release it
+    private volatile boolean topHitsOwnershipTransferred;
 
     private final Consumer<Exception> onPartialMergeFailure;
 
@@ -95,6 +98,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
     final TopDocsStats topDocsStats;
     private volatile MergeResult mergeResult;
     private volatile boolean hasPartialReduce;
+    // Note: at this time, numReducePhases does not count reductions that occur on the data node as part of batched query execution.
     private volatile int numReducePhases;
 
     /**
@@ -127,6 +131,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
             : source.rankBuilder().buildQueryPhaseCoordinatorContext(size, from);
         this.hasTopDocs = (source == null || size != 0) && queryPhaseRankCoordinatorContext == null;
         this.hasAggs = source != null && source.aggregations() != null;
+        this.topHitsToRelease = hasAggs ? new ArrayList<>() : null;
         this.aggReduceContextBuilder = hasAggs ? controller.getReduceContext(isCanceled, source.aggregations()) : null;
         batchReduceSize = (hasAggs || hasTopDocs) ? Math.min(request.getBatchedReduceSize(), expectedResultSize) : expectedResultSize;
         topDocsStats = new TopDocsStats(request.resolveTrackTotalHitsUpTo());
@@ -136,6 +141,12 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
     protected synchronized void doClose() {
         assert assertFailureAndBreakerConsistent();
         releaseBuffer();
+        if (topHitsToRelease != null && topHitsOwnershipTransferred == false) {
+            for (SearchHits h : topHitsToRelease) {
+                h.decRef();
+            }
+            topHitsToRelease.clear();
+        }
         circuitBreaker.addWithoutBreaking(-circuitBreakerBytes);
         circuitBreakerBytes = 0;
 
@@ -220,47 +231,46 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
             batchedResults = this.batchedResults;
         }
         final int resultSize = buffer.size() + (mergeResult == null ? 0 : 1) + batchedResults.size();
+        final boolean hasBatchedResults = batchedResults.isEmpty() == false;
         final List<TopDocs> topDocsList = hasTopDocs ? new ArrayList<>(resultSize) : null;
-        final Deque<DelayableWriteable<InternalAggregations>> aggsList = hasAggs ? new ArrayDeque<>(resultSize) : null;
-        // consume partial merge result from the un-batched execution path that is used for BwC, shard-level retries, and shard level
-        // execution for shards on the coordinating node itself
-        if (mergeResult != null) {
-            consumePartialMergeResult(mergeResult, topDocsList, aggsList);
-        }
-        Tuple<TopDocsStats, MergeResult> batchedResult;
-        while ((batchedResult = batchedResults.poll()) != null) {
-            topDocsStats.add(batchedResult.v1());
-            consumePartialMergeResult(batchedResult.v2(), topDocsList, aggsList);
-        }
-        for (QuerySearchResult result : buffer) {
-            topDocsStats.add(result.topDocs(), result.searchTimedOut(), result.terminatedEarly());
-            if (topDocsList != null) {
-                TopDocsAndMaxScore topDocs = result.consumeTopDocs();
-                setShardIndex(topDocs.topDocs, result.getShardIndex());
-                topDocsList.add(topDocs.topDocs);
-            }
-        }
+        final Deque<DelayableWriteable<InternalAggregations>> localAggsList = hasAggs
+            ? new ArrayDeque<>(mergeResult != null ? 1 : 0)
+            : null;
+        final Deque<DelayableWriteable<InternalAggregations>> remoteAggsList = hasAggs ? new ArrayDeque<>(batchedResults.size()) : null;
+
         SearchPhaseController.ReducedQueryPhase reducePhase;
         long breakerSize = circuitBreakerBytes;
         final InternalAggregations aggs;
         try {
-            if (aggsList != null) {
+            // consume partial merge result from the un-batched execution path that is used for BwC, shard-level retries, and shard level
+            // execution for shards on the coordinating node itself
+            if (mergeResult != null) {
+                consumePartialMergeResult(mergeResult, topDocsList, localAggsList);
+                breakerSize = addEstimateAndMaybeBreak(mergeResult.estimatedSize);
+            }
+            Tuple<TopDocsStats, MergeResult> batchedResult;
+            while ((batchedResult = batchedResults.poll()) != null) {
+                topDocsStats.add(batchedResult.v1());
+                consumePartialMergeResult(batchedResult.v2(), topDocsList, remoteAggsList);
+                // Add the estimate of the agg size
+                breakerSize = addEstimateAndMaybeBreak(batchedResult.v2().estimatedSize);
+            }
+            for (QuerySearchResult result : buffer) {
+                topDocsStats.add(result.topDocs(), result.searchTimedOut(), result.terminatedEarly());
+                if (topDocsList != null) {
+                    TopDocsAndMaxScore topDocs = result.consumeTopDocs();
+                    setShardIndex(topDocs.topDocs, result.getShardIndex());
+                    topDocsList.add(topDocs.topDocs);
+                }
+            }
+            if (hasAggs) {
                 // Add an estimate of the final reduce size
-                breakerSize = addEstimateAndMaybeBreak(estimateRamBytesUsedForReduce(breakerSize));
-                aggs = aggregate(buffer.iterator(), new Iterator<>() {
-                    @Override
-                    public boolean hasNext() {
-                        return aggsList.isEmpty() == false;
-                    }
-
-                    @Override
-                    public DelayableWriteable<InternalAggregations> next() {
-                        return aggsList.pollFirst();
-                    }
-                },
-                    resultSize,
-                    performFinalReduce ? aggReduceContextBuilder.forFinalReduction() : aggReduceContextBuilder.forPartialReduction()
-                );
+                breakerSize = addEstimateAndMaybeBreak(estimateRamBytesUsedForReduce(circuitBreakerBytes));
+                AggregationReduceContext aggReduceContext = performFinalReduce
+                    ? aggReduceContextBuilder.forFinalReduction(topHitsToRelease)
+                    : aggReduceContextBuilder.forPartialReduction(topHitsToRelease);
+                aggReduceContext.setHasBatchedResult(hasBatchedResults);
+                aggs = aggregate(buffer.iterator(), localAggsList.iterator(), remoteAggsList.iterator(), resultSize, aggReduceContext);
             } else {
                 aggs = null;
             }
@@ -271,11 +281,21 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
                 topDocsStats,
                 numReducePhases,
                 false,
-                queryPhaseRankCoordinatorContext
+                queryPhaseRankCoordinatorContext,
+                topHitsToRelease
             );
+            topHitsOwnershipTransferred = true;
             buffer = null;
         } finally {
-            releaseAggs(buffer);
+            if (buffer != null) {
+                releaseAggs(buffer);
+            }
+            if (localAggsList != null) {
+                Releasables.close(localAggsList);
+            }
+            if (remoteAggsList != null) {
+                Releasables.close(remoteAggsList);
+            }
         }
         if (hasAggs
             // reduced aggregations can be null if all shards failed
@@ -335,7 +355,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         List<QuerySearchResult> toConsume,
         List<SearchShard> processedShards,
         TopDocsStats topDocsStats,
-        MergeResult lastMerge,
+        @Nullable MergeResult lastMerge,
         int numReducePhases
     ) {
         // ensure consistent ordering
@@ -366,12 +386,16 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
             }
             // we have to merge here in the same way we collect on a shard
             newTopDocs = topDocsList == null ? null : mergeTopDocs(topDocsList, topNSize, 0);
+            Iterator<DelayableWriteable<InternalAggregations>> localPartials = (lastMerge != null && lastMerge.reducedAggs != null)
+                ? Iterators.single(lastMerge.reducedAggs)
+                : Collections.emptyIterator();
             newAggs = hasAggs
                 ? aggregate(
                     toConsume.iterator(),
-                    lastMerge == null ? Collections.emptyIterator() : Iterators.single(lastMerge.reducedAggs),
+                    localPartials,
+                    Collections.emptyIterator(),
                     resultSetSize,
-                    aggReduceContextBuilder.forPartialReduction()
+                    aggReduceContextBuilder.forPartialReduction(topHitsToRelease)
                 )
                 : null;
             for (QuerySearchResult querySearchResult : toConsume) {
@@ -380,6 +404,9 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
             toConsume = null;
         } finally {
             releaseAggs(toConsume);
+            if (lastMerge != null && lastMerge.reducedAggs() != null) {
+                Releasables.close(lastMerge.reducedAggs());
+            }
         }
         if (lastMerge != null) {
             processedShards.addAll(lastMerge.processedShards);
@@ -392,31 +419,55 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         return new MergeResult(
             processedShards,
             newTopDocs,
-            newAggs == null ? null : DelayableWriteable.referencing(newAggs),
+            newAggs != null ? DelayableWriteable.referencing(newAggs) : null,
             newAggs != null ? DelayableWriteable.getSerializedSize(newAggs) : 0
         );
     }
 
+    /**
+     * Reduces shard and partial aggregation results.
+     * <p>
+     * <strong>Local partial results</strong> are in-memory merges; we do not add their top_hits to the release list
+     * because those refs are already registered during this same reduce via
+     * {@link org.elasticsearch.search.aggregations.metrics.InternalTopHits} and
+     * {@link AggregationReduceContext#transferTopHitsForRelease}. Adding them again would double-release and
+     * corrupt ref counts.
+     * </p>
+     * <p>
+     * <strong>Remote partial results</strong> are from the wire; their top_hits are added via
+     * {@link AggregationReduceContext#addTopHitsFromAggregationTree} so the coordinator takes ownership for release.
+     * </p>
+     */
     private static InternalAggregations aggregate(
         Iterator<QuerySearchResult> toConsume,
-        Iterator<DelayableWriteable<InternalAggregations>> partialResults,
+        Iterator<DelayableWriteable<InternalAggregations>> localPartialResults,
+        Iterator<DelayableWriteable<InternalAggregations>> remotePartialResults,
         int resultSetSize,
         AggregationReduceContext reduceContext
     ) {
         try {
-            Iterator<InternalAggregations> aggsIter = Iterators.map(toConsume, r -> {
+            Iterator<InternalAggregations> toConsumeMapped = Iterators.map(toConsume, r -> {
                 try (var res = r.consumeAggs()) {
-                    return res.expand();
+                    var serialized = res.isSerialized();
+                    InternalAggregations aggs = res.expand();
+                    if (serialized) {
+                        InternalAggregations.addTopHitsToReleaseList(aggs, r.topHitsToReleaseCollector());
+                    }
+                    reduceContext.addTopHitsFromAggregationTree(aggs, true);
+                    return aggs;
                 }
             });
-            return InternalAggregations.topLevelReduce(partialResults.hasNext() ? Iterators.concat(Iterators.map(partialResults, r -> {
-                try (r) {
-                    return r.expand();
-                }
-            }), aggsIter) : aggsIter, resultSetSize, reduceContext);
+            // Caller (reduce() or partialReduce()) owns and closes local/remote refs; we only expand
+            Iterator<InternalAggregations> localMapped = Iterators.map(localPartialResults, r -> r.expand());
+            Iterator<InternalAggregations> remoteMapped = Iterators.map(remotePartialResults, r -> {
+                InternalAggregations aggs = r.expand();
+                reduceContext.addTopHitsFromAggregationTree(aggs, false);
+                return aggs;
+            });
+            Iterator<InternalAggregations> combined = Iterators.concat(localMapped, remoteMapped, toConsumeMapped);
+            return InternalAggregations.topLevelReduce(combined, resultSetSize, reduceContext);
         } finally {
             toConsume.forEachRemaining(QuerySearchResult::releaseAggs);
-            partialResults.forEachRemaining(Releasable::close);
         }
     }
 
@@ -457,12 +508,13 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
      * Returns an estimation of the size that a reduce of the provided size
      * would take on memory.
      * This size is estimated as roughly 1.5 times the size of the serialized
-     * aggregations that need to be reduced. This estimation can be completely
-     * off for some aggregations but it is corrected with the real size after
-     * the reduce completes.
+     * aggregations that need to be reduced.
+     * This method expects an already accounted size, so only an extra 0.5x is returned.
+     * This estimation can be completely off for some aggregations
+     * but it is corrected with the real size after the reduce completes.
      */
     private static long estimateRamBytesUsedForReduce(long size) {
-        return Math.round(1.5d * size - size);
+        return Math.round(0.5d * size);
     }
 
     private void consume(QuerySearchResult result, Runnable next) {
@@ -639,7 +691,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         });
     }
 
-    private static void releaseAggs(List<QuerySearchResult> toConsume) {
+    private static void releaseAggs(@Nullable List<QuerySearchResult> toConsume) {
         if (toConsume != null) {
             for (QuerySearchResult result : toConsume) {
                 result.releaseAggs();
@@ -654,9 +706,13 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         long estimatedSize
     ) implements Writeable {
 
+        private static final TransportVersion BATCHED_QUERY_EXECUTION_DELAYABLE_WRITEABLE = TransportVersion.fromName(
+            "batched_query_execution_delayable_writeable"
+        );
+
         static MergeResult readFrom(StreamInput in) throws IOException {
             return new MergeResult(List.of(), Lucene.readTopDocsIncludingShardIndex(in), in.readOptionalWriteable(i -> {
-                if (i.getTransportVersion().onOrAfter(TransportVersions.BATCHED_QUERY_EXECUTION_DELAYABLE_WRITABLE)) {
+                if (i.getTransportVersion().supports(BATCHED_QUERY_EXECUTION_DELAYABLE_WRITEABLE)) {
                     return DelayableWriteable.delayed(InternalAggregations::readFrom, i);
                 } else {
                     return DelayableWriteable.referencing(InternalAggregations.readFrom(i));
@@ -670,9 +726,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
             out.writeOptionalWriteable(
                 reducedAggs == null
                     ? null
-                    : (out.getTransportVersion().onOrAfter(TransportVersions.BATCHED_QUERY_EXECUTION_DELAYABLE_WRITABLE)
-                        ? reducedAggs
-                        : reducedAggs.expand())
+                    : (out.getTransportVersion().supports(BATCHED_QUERY_EXECUTION_DELAYABLE_WRITEABLE) ? reducedAggs : reducedAggs.expand())
             );
             out.writeVLong(estimatedSize);
         }

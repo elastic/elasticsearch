@@ -1,6 +1,9 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/node-tool.html
+applies_to:
+  deployment:
+    self: ga
 ---
 
 # elasticsearch-node [node-tool]

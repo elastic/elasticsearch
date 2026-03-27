@@ -28,6 +28,7 @@ import org.elasticsearch.action.datastreams.GetDataStreamAction;
 import org.elasticsearch.action.downsample.DownsampleAction;
 import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
@@ -112,7 +113,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -180,7 +180,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         sourceIndex = randomAlphaOfLength(14).toLowerCase(Locale.ROOT);
         downsampleIndex = "downsample-" + sourceIndex;
         startTime = randomLongBetween(946769284000L, 1607470084000L); // random date between 2000-2020
-        docCount = randomIntBetween(1000, 9000);
+        docCount = randomIntBetween(1000, 7000);
         numOfShards = randomIntBetween(1, 1);
         numOfReplicas = randomIntBetween(0, 0);
 
@@ -241,7 +241,6 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             .field("type", "aggregate_metric_double")
             .field("time_series_metric", "gauge")
             .array("metrics", new String[] { "min", "max", "sum", "value_count" })
-            .field("default_metric", "value_count")
             .endObject();
         mapping.startObject(FIELD_METRIC_LABEL_DOUBLE)
             .field("type", "double") /* numeric label indexed as a metric */
@@ -262,7 +261,6 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         mapping.startObject(FIELD_LABEL_AGG_METRIC)
             .field("type", "aggregate_metric_double")
             .array("metrics", new String[] { "min", "max", "sum", "value_count" })
-            .field("default_metric", "value_count")
             .endObject();
 
         mapping.endObject().endObject().endObject();
@@ -270,7 +268,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
     }
 
     public void testDownsampleIndex() throws Exception {
-        DownsampleConfig config = new DownsampleConfig(randomInterval());
+        DownsampleConfig config = new DownsampleConfig(randomInterval(), randomSamplingMethod());
         SourceSupplier sourceSupplier = () -> {
             String ts = randomDateForInterval(config.getInterval());
             double labelDoubleValue = DATE_FORMATTER.parseMillis(ts);
@@ -329,7 +327,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
     }
 
     public void testDownsampleIndexWithFlattenedAndMultiFieldDimensions() throws Exception {
-        DownsampleConfig config = new DownsampleConfig(randomInterval());
+        DownsampleConfig config = new DownsampleConfig(randomInterval(), randomSamplingMethod());
         SourceSupplier sourceSupplier = () -> {
             String ts = randomDateForInterval(config.getInterval());
             double labelDoubleValue = DATE_FORMATTER.parseMillis(ts);
@@ -366,7 +364,8 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
 
     public void testDownsampleOfDownsample() throws Exception {
         int intervalMinutes = randomIntBetween(10, 120);
-        DownsampleConfig config = new DownsampleConfig(DateHistogramInterval.minutes(intervalMinutes));
+        DownsampleConfig.SamplingMethod samplingMethod = randomSamplingMethod();
+        DownsampleConfig config = new DownsampleConfig(DateHistogramInterval.minutes(intervalMinutes), samplingMethod);
         SourceSupplier sourceSupplier = () -> {
             String ts = randomDateForInterval(config.getInterval());
             double labelDoubleValue = DATE_FORMATTER.parseMillis(ts);
@@ -402,7 +401,10 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
 
         // Downsample the downsample index. The downsampling interval is a multiple of the previous downsampling interval.
         String downsampleIndex2 = downsampleIndex + "-2";
-        DownsampleConfig config2 = new DownsampleConfig(DateHistogramInterval.minutes(intervalMinutes * randomIntBetween(2, 50)));
+        DownsampleConfig config2 = new DownsampleConfig(
+            DateHistogramInterval.minutes(intervalMinutes * randomIntBetween(2, 50)),
+            samplingMethod
+        );
         downsample(downsampleIndex, downsampleIndex2, config2);
         assertDownsampleIndex(downsampleIndex, downsampleIndex2, config2);
     }
@@ -436,7 +438,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         var updateSettingsReq = new UpdateSettingsRequest(settings, sourceIndex);
         assertAcked(indicesAdmin().updateSettings(updateSettingsReq).actionGet());
 
-        DownsampleConfig config = new DownsampleConfig(randomInterval());
+        DownsampleConfig config = new DownsampleConfig(randomInterval(), randomSamplingMethod());
         SourceSupplier sourceSupplier = () -> {
             String ts = randomDateForInterval(config.getInterval());
             return XContentFactory.jsonBuilder()
@@ -453,7 +455,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         GetIndexResponse indexSettingsResp = indicesAdmin().prepareGetIndex(TEST_REQUEST_TIMEOUT)
             .addIndices(sourceIndex, downsampleIndex)
             .get();
-        assertDownsampleIndexSettings(sourceIndex, downsampleIndex, indexSettingsResp);
+        assertDownsampleIndexSettings(sourceIndex, downsampleIndex, config, indexSettingsResp);
         for (String key : settings.keySet()) {
             if (LifecycleSettings.LIFECYCLE_NAME_SETTING.getKey().equals(key)) {
                 assertNull(indexSettingsResp.getSetting(downsampleIndex, key));
@@ -464,7 +466,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
     }
 
     public void testNullSourceIndexName() {
-        DownsampleConfig config = new DownsampleConfig(randomInterval());
+        DownsampleConfig config = new DownsampleConfig(randomInterval(), randomSamplingMethod());
         ActionRequestValidationException exception = expectThrows(
             ActionRequestValidationException.class,
             () -> downsample(null, downsampleIndex, config)
@@ -473,7 +475,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
     }
 
     public void testNullDownsampleIndexName() {
-        DownsampleConfig config = new DownsampleConfig(randomInterval());
+        DownsampleConfig config = new DownsampleConfig(randomInterval(), randomSamplingMethod());
         ActionRequestValidationException exception = expectThrows(
             ActionRequestValidationException.class,
             () -> downsample(sourceIndex, null, config)
@@ -490,7 +492,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
     }
 
     public void testDownsampleSparseMetrics() throws Exception {
-        DownsampleConfig config = new DownsampleConfig(randomInterval());
+        DownsampleConfig config = new DownsampleConfig(randomInterval(), randomSamplingMethod());
         SourceSupplier sourceSupplier = () -> {
             XContentBuilder builder = XContentFactory.jsonBuilder()
                 .startObject()
@@ -511,7 +513,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
     }
 
     public void testCannotDownsampleToExistingIndex() throws Exception {
-        DownsampleConfig config = new DownsampleConfig(randomInterval());
+        DownsampleConfig config = new DownsampleConfig(randomInterval(), randomSamplingMethod());
         prepareSourceIndex(sourceIndex, true);
 
         // Create an empty index with the same name as the downsample index
@@ -524,7 +526,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
     }
 
     public void testDownsampleEmptyIndex() throws Exception {
-        DownsampleConfig config = new DownsampleConfig(randomInterval());
+        DownsampleConfig config = new DownsampleConfig(randomInterval(), randomSamplingMethod());
         // Source index has been created in the setup() method
         prepareSourceIndex(sourceIndex, true);
         downsample(sourceIndex, downsampleIndex, config);
@@ -551,21 +553,21 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             )
             .get();
 
-        DownsampleConfig config = new DownsampleConfig(randomInterval());
+        DownsampleConfig config = new DownsampleConfig(randomInterval(), randomSamplingMethod());
         prepareSourceIndex(sourceIndex, true);
         downsample(sourceIndex, downsampleIndex, config);
         assertDownsampleIndex(sourceIndex, downsampleIndex, config);
     }
 
     public void testCannotDownsampleWriteableIndex() {
-        DownsampleConfig config = new DownsampleConfig(randomInterval());
+        DownsampleConfig config = new DownsampleConfig(randomInterval(), randomSamplingMethod());
         // Source index has been created in the setup() method and is empty and still writable
         Exception exception = expectThrows(ElasticsearchException.class, () -> downsample(sourceIndex, downsampleIndex, config));
         assertThat(exception.getMessage(), containsString("Downsample requires setting [index.blocks.write = true] for index"));
     }
 
     public void testCannotDownsampleMissingIndex() {
-        DownsampleConfig config = new DownsampleConfig(randomInterval());
+        DownsampleConfig config = new DownsampleConfig(randomInterval(), randomSamplingMethod());
         IndexNotFoundException exception = expectThrows(
             IndexNotFoundException.class,
             () -> downsample("missing-index", downsampleIndex, config)
@@ -575,7 +577,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
     }
 
     public void testCannotDownsampleWhileOtherDownsampleInProgress() throws Exception {
-        DownsampleConfig config = new DownsampleConfig(randomInterval());
+        DownsampleConfig config = new DownsampleConfig(randomInterval(), randomSamplingMethod());
         SourceSupplier sourceSupplier = () -> XContentFactory.jsonBuilder()
             .startObject()
             .field(FIELD_TIMESTAMP, randomDateForInterval(config.getInterval()))
@@ -630,7 +632,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
     }
 
     public void testDownsampleDatastream() throws Exception {
-        DownsampleConfig config = new DownsampleConfig(randomInterval());
+        DownsampleConfig config = new DownsampleConfig(randomInterval(), randomSamplingMethod());
         String dataStreamName = createDataStream();
 
         final Instant now = Instant.now();
@@ -666,7 +668,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
 
     public void testCancelDownsampleIndexer() throws IOException {
         // create downsample config and index documents into source index
-        DownsampleConfig config = new DownsampleConfig(randomInterval());
+        DownsampleConfig config = new DownsampleConfig(randomInterval(), randomSamplingMethod());
         SourceSupplier sourceSupplier = () -> XContentFactory.jsonBuilder()
             .startObject()
             .field(FIELD_TIMESTAMP, randomDateForInterval(config.getInterval()))
@@ -709,6 +711,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             new String[] { FIELD_NUMERIC_1, FIELD_NUMERIC_2 },
             new String[] {},
             new String[] { FIELD_DIMENSION_1, FIELD_DIMENSION_2 },
+            Map.of(),
             new DownsampleShardPersistentTaskState(DownsampleShardIndexerStatus.INITIALIZED, null)
         );
 
@@ -718,7 +721,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
 
     public void testDownsampleBulkFailed() throws IOException {
         // create downsample config and index documents into source index
-        DownsampleConfig config = new DownsampleConfig(randomInterval());
+        DownsampleConfig config = new DownsampleConfig(randomInterval(), randomSamplingMethod());
         SourceSupplier sourceSupplier = () -> XContentFactory.jsonBuilder()
             .startObject()
             .field(FIELD_TIMESTAMP, randomDateForInterval(config.getInterval()))
@@ -759,6 +762,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             new String[] { FIELD_NUMERIC_1, FIELD_NUMERIC_2 },
             new String[] {},
             new String[] { FIELD_DIMENSION_1, FIELD_DIMENSION_2 },
+            Map.of(),
             new DownsampleShardPersistentTaskState(DownsampleShardIndexerStatus.INITIALIZED, null)
         );
 
@@ -786,7 +790,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
 
     public void testTooManyBytesInFlight() throws IOException {
         // create downsample config and index documents into source index
-        DownsampleConfig config = new DownsampleConfig(randomInterval());
+        DownsampleConfig config = new DownsampleConfig(randomInterval(), randomSamplingMethod());
         SourceSupplier sourceSupplier = () -> XContentFactory.jsonBuilder()
             .startObject()
             .field(FIELD_TIMESTAMP, randomDateForInterval(config.getInterval()))
@@ -827,6 +831,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             new String[] { FIELD_NUMERIC_1, FIELD_NUMERIC_2 },
             new String[] {},
             new String[] { FIELD_DIMENSION_1, FIELD_DIMENSION_2 },
+            Map.of(),
             new DownsampleShardPersistentTaskState(DownsampleShardIndexerStatus.INITIALIZED, null)
         );
         /*
@@ -840,7 +845,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
 
     public void testDownsampleStats() throws Exception {
         final PersistentTasksService persistentTasksService = mock(PersistentTasksService.class);
-        final DownsampleConfig config = new DownsampleConfig(randomInterval());
+        final DownsampleConfig config = new DownsampleConfig(randomInterval(), randomSamplingMethod());
         final SourceSupplier sourceSupplier = () -> XContentFactory.jsonBuilder()
             .startObject()
             .field(FIELD_TIMESTAMP, randomDateForInterval(config.getInterval()))
@@ -880,6 +885,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
                 new String[] { FIELD_NUMERIC_1, FIELD_NUMERIC_2 },
                 new String[] {},
                 new String[] { FIELD_DIMENSION_1, FIELD_DIMENSION_2 },
+                Map.of(),
                 new DownsampleShardPersistentTaskState(DownsampleShardIndexerStatus.INITIALIZED, null)
             );
 
@@ -897,7 +903,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
 
     public void testResumeDownsample() throws IOException {
         // create downsample config and index documents into source index
-        DownsampleConfig config = new DownsampleConfig(randomInterval());
+        DownsampleConfig config = new DownsampleConfig(randomInterval(), randomSamplingMethod());
         SourceSupplier sourceSupplier = () -> XContentFactory.jsonBuilder()
             .startObject()
             .field(FIELD_TIMESTAMP, randomDateForInterval(config.getInterval()))
@@ -938,6 +944,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             new String[] { FIELD_NUMERIC_1, FIELD_NUMERIC_2 },
             new String[] {},
             new String[] { FIELD_DIMENSION_1, FIELD_DIMENSION_2 },
+            Map.of(),
             new DownsampleShardPersistentTaskState(
                 DownsampleShardIndexerStatus.STARTED,
                 new BytesRef(
@@ -973,7 +980,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
 
     public void testResumeDownsamplePartial() throws IOException {
         // create downsample config and index documents into source index
-        DownsampleConfig config = new DownsampleConfig(randomInterval());
+        DownsampleConfig config = new DownsampleConfig(randomInterval(), randomSamplingMethod());
         SourceSupplier sourceSupplier = () -> XContentFactory.jsonBuilder()
             .startObject()
             .field(FIELD_TIMESTAMP, randomDateForInterval(config.getInterval()))
@@ -1014,6 +1021,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             new String[] { FIELD_NUMERIC_1, FIELD_NUMERIC_2 },
             new String[] {},
             new String[] { FIELD_DIMENSION_1 },
+            Map.of(),
             new DownsampleShardPersistentTaskState(
                 DownsampleShardIndexerStatus.STARTED,
                 // NOTE: there is just one dimension with two possible values, this needs to be one of the two possible tsid values.
@@ -1207,14 +1215,12 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         final MapperService mapperService = indicesService.createIndexMapperServiceForValidation(indexMetadata);
         final CompressedXContent sourceIndexCompressedXContent = new CompressedXContent(sourceIndexMappings);
         mapperService.merge(MapperService.SINGLE_MAPPING_NAME, sourceIndexCompressedXContent, MapperService.MergeReason.INDEX_TEMPLATE);
-        TimeseriesFieldTypeHelper helper = new TimeseriesFieldTypeHelper.Builder(mapperService).build(config.getTimestampField());
-
         Map<String, TimeSeriesParams.MetricType> metricFields = new HashMap<>();
         Map<String, String> labelFields = new HashMap<>();
         MappingVisitor.visitMapping(sourceIndexMappings, (field, fieldMapping) -> {
-            if (helper.isTimeSeriesMetric(field, fieldMapping)) {
+            if (TimeSeriesFields.isTimeSeriesMetric(fieldMapping)) {
                 metricFields.put(field, TimeSeriesParams.MetricType.fromString(fieldMapping.get(TIME_SERIES_METRIC_PARAM).toString()));
-            } else if (helper.isTimeSeriesLabel(field, fieldMapping)) {
+            } else if (TimeSeriesFields.isTimeSeriesLabel(field, mapperService, config.getTimestampField())) {
                 labelFields.put(field, fieldMapping.get("type").toString());
             }
         });
@@ -1224,14 +1230,15 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         GetIndexResponse indexSettingsResp = indicesAdmin().prepareGetIndex(TEST_REQUEST_TIMEOUT)
             .addIndices(sourceIndex, downsampleIndex)
             .get();
-        assertDownsampleIndexSettings(sourceIndex, downsampleIndex, indexSettingsResp);
+        assertDownsampleIndexSettings(sourceIndex, downsampleIndex, config, indexSettingsResp);
 
-        Map<String, Map<String, Object>> mappings = (Map<String, Map<String, Object>>) indexSettingsResp.getMappings()
+        Map<String, Map<String, Object>> targetIndexMappings = (Map<String, Map<String, Object>>) indexSettingsResp.getMappings()
             .get(downsampleIndex)
             .getSourceAsMap()
             .get("properties");
+        Map<String, Map<String, Object>> sourceIndexProperties = (Map<String, Map<String, Object>>) sourceIndexMappings.get("properties");
 
-        assertFieldMappings(config, metricFields, mappings);
+        assertFieldMappings(config, metricFields, sourceIndexProperties, targetIndexMappings);
 
         GetMappingsResponse indexMappings = indicesAdmin().getMappings(
             new GetMappingsRequest(TEST_REQUEST_TIMEOUT).indices(downsampleIndex, sourceIndex)
@@ -1302,137 +1309,154 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         Map<String, String> labelFields
     ) {
         final AggregationBuilder aggregations = buildAggregations(config, metricFields, labelFields, config.getTimestampField());
-        List<InternalAggregation> origList = aggregate(sourceIndex, aggregations).asList();
-        List<InternalAggregation> downsampleList = aggregate(downsampleIndex, aggregations).asList();
-        assertEquals(origList.size(), downsampleList.size());
-        for (int i = 0; i < origList.size(); i++) {
-            assertEquals(origList.get(i).getName(), downsampleList.get(i).getName());
-        }
+        SearchResponse respOrig = client().prepareSearch(sourceIndex).setSize(0).addAggregation(aggregations).get();
+        SearchResponse respDown = client().prepareSearch(downsampleIndex).setSize(0).addAggregation(aggregations).get();
+        try {
+            List<InternalAggregation> origList = respOrig.getAggregations().asList();
+            List<InternalAggregation> downsampleList = respDown.getAggregations().asList();
+            assertEquals(origList.size(), downsampleList.size());
+            for (int i = 0; i < origList.size(); i++) {
+                assertEquals(origList.get(i).getName(), downsampleList.get(i).getName());
+            }
 
-        StringTerms originalTsIdTermsAggregation = (StringTerms) origList.get(0);
-        StringTerms downsampleTsIdTermsAggregation = (StringTerms) downsampleList.get(0);
-        originalTsIdTermsAggregation.getBuckets().forEach(originalBucket -> {
+            StringTerms originalTsIdTermsAggregation = (StringTerms) origList.get(0);
+            StringTerms downsampleTsIdTermsAggregation = (StringTerms) downsampleList.get(0);
+            originalTsIdTermsAggregation.getBuckets().forEach(originalBucket -> {
 
-            StringTerms.Bucket downsampleBucket = downsampleTsIdTermsAggregation.getBucketByKey(originalBucket.getKeyAsString());
-            assertEquals(originalBucket.getAggregations().asList().size(), downsampleBucket.getAggregations().asList().size());
+                StringTerms.Bucket downsampleBucket = downsampleTsIdTermsAggregation.getBucketByKey(originalBucket.getKeyAsString());
+                assertEquals(originalBucket.getAggregations().asList().size(), downsampleBucket.getAggregations().asList().size());
 
-            InternalDateHistogram originalDateHistogram = (InternalDateHistogram) originalBucket.getAggregations().asList().get(0);
-            InternalDateHistogram downsamoleDateHistogram = (InternalDateHistogram) downsampleBucket.getAggregations().asList().get(0);
-            List<InternalDateHistogram.Bucket> originalDateHistogramBuckets = originalDateHistogram.getBuckets();
-            List<InternalDateHistogram.Bucket> downsampleDateHistogramBuckets = downsamoleDateHistogram.getBuckets();
-            assertEquals(originalDateHistogramBuckets.size(), downsampleDateHistogramBuckets.size());
-            assertEquals(
-                originalDateHistogramBuckets.stream().map(InternalDateHistogram.Bucket::getKeyAsString).collect(Collectors.toList()),
-                downsampleDateHistogramBuckets.stream().map(InternalDateHistogram.Bucket::getKeyAsString).collect(Collectors.toList())
-            );
+                InternalDateHistogram originalDateHistogram = (InternalDateHistogram) originalBucket.getAggregations().asList().get(0);
+                InternalDateHistogram downsamoleDateHistogram = (InternalDateHistogram) downsampleBucket.getAggregations().asList().get(0);
+                List<InternalDateHistogram.Bucket> originalDateHistogramBuckets = originalDateHistogram.getBuckets();
+                List<InternalDateHistogram.Bucket> downsampleDateHistogramBuckets = downsamoleDateHistogram.getBuckets();
+                assertEquals(originalDateHistogramBuckets.size(), downsampleDateHistogramBuckets.size());
+                assertEquals(
+                    originalDateHistogramBuckets.stream().map(InternalDateHistogram.Bucket::getKeyAsString).collect(Collectors.toList()),
+                    downsampleDateHistogramBuckets.stream().map(InternalDateHistogram.Bucket::getKeyAsString).collect(Collectors.toList())
+                );
 
-            for (int i = 0; i < originalDateHistogramBuckets.size(); ++i) {
-                InternalDateHistogram.Bucket originalDateHistogramBucket = originalDateHistogramBuckets.get(i);
-                InternalDateHistogram.Bucket downsampleDateHistogramBucket = downsampleDateHistogramBuckets.get(i);
-                assertEquals(originalDateHistogramBucket.getKeyAsString(), downsampleDateHistogramBucket.getKeyAsString());
+                for (int i = 0; i < originalDateHistogramBuckets.size(); ++i) {
+                    InternalDateHistogram.Bucket originalDateHistogramBucket = originalDateHistogramBuckets.get(i);
+                    InternalDateHistogram.Bucket downsampleDateHistogramBucket = downsampleDateHistogramBuckets.get(i);
+                    assertEquals(originalDateHistogramBucket.getKeyAsString(), downsampleDateHistogramBucket.getKeyAsString());
 
-                InternalAggregations originalAggregations = originalDateHistogramBucket.getAggregations();
-                InternalAggregations downsampleAggregations = downsampleDateHistogramBucket.getAggregations();
-                assertEquals(originalAggregations.asList().size(), downsampleAggregations.asList().size());
+                    InternalAggregations originalAggregations = originalDateHistogramBucket.getAggregations();
+                    InternalAggregations downsampleAggregations = downsampleDateHistogramBucket.getAggregations();
+                    assertEquals(originalAggregations.asList().size(), downsampleAggregations.asList().size());
 
-                List<InternalAggregation> nonTopHitsOriginalAggregations = originalAggregations.asList()
-                    .stream()
-                    .filter(agg -> agg.getType().equals("top_hits") == false)
-                    .toList();
-                List<InternalAggregation> nonTopHitsDownsampleAggregations = downsampleAggregations.asList()
-                    .stream()
-                    .filter(agg -> agg.getType().equals("top_hits") == false)
-                    .toList();
-                assertEquals(nonTopHitsOriginalAggregations, nonTopHitsDownsampleAggregations);
+                    List<InternalAggregation> nonTopHitsOriginalAggregations = originalAggregations.asList()
+                        .stream()
+                        .filter(agg -> agg.getType().equals("top_hits") == false)
+                        .toList();
+                    List<InternalAggregation> nonTopHitsDownsampleAggregations = downsampleAggregations.asList()
+                        .stream()
+                        .filter(agg -> agg.getType().equals("top_hits") == false)
+                        .toList();
+                    assertEquals(nonTopHitsOriginalAggregations, nonTopHitsDownsampleAggregations);
 
-                List<InternalAggregation> topHitsOriginalAggregations = originalAggregations.asList()
-                    .stream()
-                    .filter(agg -> agg.getType().equals("top_hits"))
-                    .toList();
-                List<InternalAggregation> topHitsDownsampleAggregations = downsampleAggregations.asList()
-                    .stream()
-                    .filter(agg -> agg.getType().equals("top_hits"))
-                    .toList();
-                assertEquals(topHitsOriginalAggregations.size(), topHitsDownsampleAggregations.size());
+                    List<InternalAggregation> topHitsOriginalAggregations = originalAggregations.asList()
+                        .stream()
+                        .filter(agg -> agg.getType().equals("top_hits"))
+                        .toList();
+                    List<InternalAggregation> topHitsDownsampleAggregations = downsampleAggregations.asList()
+                        .stream()
+                        .filter(agg -> agg.getType().equals("top_hits"))
+                        .toList();
+                    assertEquals(topHitsOriginalAggregations.size(), topHitsDownsampleAggregations.size());
 
-                for (int j = 0; j < topHitsDownsampleAggregations.size(); ++j) {
-                    InternalTopHits originalTopHits = (InternalTopHits) topHitsOriginalAggregations.get(j);
-                    InternalTopHits downsampleTopHits = (InternalTopHits) topHitsDownsampleAggregations.get(j);
-                    SearchHit[] originalHits = originalTopHits.getHits().getHits();
-                    SearchHit[] downsampleHits = downsampleTopHits.getHits().getHits();
-                    assertEquals(originalHits.length, downsampleHits.length);
+                    for (int j = 0; j < topHitsDownsampleAggregations.size(); ++j) {
+                        InternalTopHits originalTopHits = (InternalTopHits) topHitsOriginalAggregations.get(j);
+                        InternalTopHits downsampleTopHits = (InternalTopHits) topHitsDownsampleAggregations.get(j);
+                        SearchHit[] originalHits = originalTopHits.getHits().getHits();
+                        SearchHit[] downsampleHits = downsampleTopHits.getHits().getHits();
+                        assertEquals(originalHits.length, downsampleHits.length);
 
-                    for (int k = 0; k < originalHits.length; ++k) {
-                        SearchHit originalHit = originalHits[k];
-                        SearchHit downsampleHit = downsampleHits[k];
+                        for (int k = 0; k < originalHits.length; ++k) {
+                            SearchHit originalHit = originalHits[k];
+                            SearchHit downsampleHit = downsampleHits[k];
 
-                        Map<String, DocumentField> originalHitDocumentFields = originalHit.getDocumentFields();
-                        Map<String, DocumentField> downsampleHitDocumentFields = downsampleHit.getDocumentFields();
-                        List<DocumentField> originalFields = originalHitDocumentFields.values().stream().toList();
-                        List<DocumentField> downsampleFields = downsampleHitDocumentFields.values().stream().toList();
-                        List<Object> originalFieldsList = originalFields.stream().flatMap(x -> x.getValues().stream()).toList();
-                        List<Object> downsampelFieldsList = downsampleFields.stream().flatMap(x -> x.getValues().stream()).toList();
-                        if (originalFieldsList.isEmpty() == false && downsampelFieldsList.isEmpty() == false) {
-                            // NOTE: here we take advantage of the fact that a label field is indexed also as a metric of type
-                            // `counter`. This way we can actually check that the label value stored in the downsample index
-                            // is the last value (which is what we store for a metric of type counter) by comparing the metric
-                            // field value to the label field value.
-                            originalFieldsList.forEach(
-                                field -> assertTrue(
-                                    "Field [" + field + "] is not included in the downsample fields: " + downsampelFieldsList,
-                                    downsampelFieldsList.contains(field)
-                                )
-                            );
-                            downsampelFieldsList.forEach(
-                                field -> assertTrue(
-                                    "Field [" + field + "] is not included in the source fields: " + originalFieldsList,
-                                    originalFieldsList.contains(field)
-                                )
-                            );
-                            String labelName = originalHit.getDocumentFields().values().stream().findFirst().get().getName();
-                            Object originalLabelValue = originalHit.getDocumentFields().values().stream().findFirst().get().getValue();
-                            Object downsampleLabelValue = downsampleHit.getDocumentFields().values().stream().findFirst().get().getValue();
-                            Optional<InternalAggregation> labelAsMetric = topHitsOriginalAggregations.stream()
-                                .filter(agg -> agg.getName().equals("metric_" + downsampleTopHits.getName()))
-                                .findFirst();
-                            // NOTE: this check is possible only if the label can be indexed as a metric (the label is a numeric field)
-                            if (labelAsMetric.isPresent()) {
-                                double metricValue = ((InternalTopHits) labelAsMetric.get()).getHits().getHits()[0].field(
-                                    "metric_" + labelName
-                                ).getValue();
-                                assertEquals(metricValue, downsampleLabelValue);
-                                assertEquals(metricValue, originalLabelValue);
+                            Map<String, DocumentField> originalHitDocumentFields = originalHit.getDocumentFields();
+                            Map<String, DocumentField> downsampleHitDocumentFields = downsampleHit.getDocumentFields();
+                            List<DocumentField> originalFields = originalHitDocumentFields.values().stream().toList();
+                            List<DocumentField> downsampleFields = downsampleHitDocumentFields.values().stream().toList();
+                            if (originalFields.isEmpty() == false && downsampleFields.isEmpty() == false) {
+                                assertEquals(originalFields.size(), downsampleFields.size());
+                                for (int fieldIndex = 0; fieldIndex < originalFields.size(); fieldIndex++) {
+                                    DocumentField originalField = originalFields.get(fieldIndex);
+                                    DocumentField downsampleField = downsampleFields.get(fieldIndex);
+                                    assertEquals(originalField.getName(), downsampleField.getName());
+                                    originalField.getValues()
+                                        .forEach(
+                                            value -> assertTrue(
+                                                "Field ["
+                                                    + originalField.getName()
+                                                    + "] does not have the value ["
+                                                    + value
+                                                    + "] in the downsample field values: "
+                                                    + downsampleField.getValues(),
+                                                downsampleField.getValues().contains(value)
+                                            )
+                                        );
+                                    downsampleField.getValues()
+                                        .forEach(
+                                            value -> assertTrue(
+                                                "Field ["
+                                                    + downsampleField.getName()
+                                                    + "] does not have the value ["
+                                                    + value
+                                                    + "] in the source field values: "
+                                                    + originalField.getValues(),
+                                                originalField.getValues().contains(value)
+                                            )
+                                        );
+                                }
                             }
                         }
                     }
                 }
-            }
-        });
+            });
+        } finally {
+            respOrig.decRef();
+            respDown.decRef();
+        }
     }
 
     @SuppressWarnings("unchecked")
     private void assertFieldMappings(
         DownsampleConfig config,
         Map<String, TimeSeriesParams.MetricType> metricFields,
-        Map<String, Map<String, Object>> mappings
+        Map<String, Map<String, Object>> sourceIndexMappings,
+        Map<String, Map<String, Object>> targetIndexMappings
     ) {
         // Assert field mappings
-        assertEquals(DateFieldMapper.CONTENT_TYPE, mappings.get(config.getTimestampField()).get("type"));
-        Map<String, Object> dateTimeMeta = (Map<String, Object>) mappings.get(config.getTimestampField()).get("meta");
+        assertEquals(DateFieldMapper.CONTENT_TYPE, targetIndexMappings.get(config.getTimestampField()).get("type"));
+        Map<String, Object> dateTimeMeta = (Map<String, Object>) targetIndexMappings.get(config.getTimestampField()).get("meta");
         assertEquals(config.getTimeZone(), dateTimeMeta.get("time_zone"));
         assertEquals(config.getInterval().toString(), dateTimeMeta.get(config.getIntervalType()));
 
         metricFields.forEach((field, metricType) -> {
             switch (metricType) {
-                case COUNTER -> assertEquals("double", mappings.get(field).get("type"));
-                case GAUGE -> assertEquals("aggregate_metric_double", mappings.get(field).get("type"));
+                case COUNTER -> assertEquals(sourceIndexMappings.get(field).get("type"), targetIndexMappings.get(field).get("type"));
+                case GAUGE -> {
+                    if (config.getSamplingMethodOrDefault() == DownsampleConfig.SamplingMethod.AGGREGATE) {
+                        assertEquals("aggregate_metric_double", targetIndexMappings.get(field).get("type"));
+                    } else {
+                        assertEquals(sourceIndexMappings.get(field).get("type"), targetIndexMappings.get(field).get("type"));
+                    }
+                }
                 default -> fail("Unsupported field type");
             }
-            assertEquals(metricType.toString(), mappings.get(field).get("time_series_metric"));
+            assertEquals(metricType.toString(), targetIndexMappings.get(field).get("time_series_metric"));
         });
     }
 
-    private void assertDownsampleIndexSettings(String sourceIndex, String downsampleIndex, GetIndexResponse indexSettingsResp) {
+    private void assertDownsampleIndexSettings(
+        String sourceIndex,
+        String downsampleIndex,
+        DownsampleConfig config,
+        GetIndexResponse indexSettingsResp
+    ) {
         Settings sourceSettings = indexSettingsResp.settings().get(sourceIndex);
         Settings downsampleSettings = indexSettingsResp.settings().get(downsampleIndex);
 
@@ -1448,10 +1472,18 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
 
         assertEquals(sourceIndex, downsampleSettings.get(IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_NAME_KEY));
         assertEquals(sourceSettings.get(IndexSettings.MODE.getKey()), downsampleSettings.get(IndexSettings.MODE.getKey()));
+        assertEquals(
+            config.getSamplingMethodOrDefault().toString(),
+            downsampleSettings.get(IndexMetadata.INDEX_DOWNSAMPLE_METHOD.getKey())
+        );
 
         if (Strings.hasText(IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_NAME.get(sourceSettings))) {
             // if the source is a downsample index itself, we're in the "downsample of downsample" test case and both indices should have
             // the same ORIGIN configured
+            assertEquals(
+                IndexMetadata.INDEX_DOWNSAMPLE_METHOD.get(sourceSettings),
+                IndexMetadata.INDEX_DOWNSAMPLE_METHOD.get(downsampleSettings)
+            );
             assertEquals(
                 IndexMetadata.INDEX_DOWNSAMPLE_ORIGIN_NAME.get(sourceSettings),
                 IndexMetadata.INDEX_DOWNSAMPLE_ORIGIN_NAME.get(downsampleSettings)
@@ -1533,7 +1565,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         tsidAggregation.subAggregation(dateHistogramAggregation);
 
         metrics.forEach((fieldName, metricType) -> {
-            for (final String supportedAggregation : metricType.supportedAggs()) {
+            for (final String supportedAggregation : supportedAggs(metricType, config.getSamplingMethodOrDefault())) {
                 switch (supportedAggregation) {
                     case "min" -> dateHistogramAggregation.subAggregation(
                         new MinAggregationBuilder(fieldName + "_" + supportedAggregation).field(fieldName)
@@ -1544,6 +1576,11 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
                     case "last_value" -> dateHistogramAggregation.subAggregation(
                         new TopHitsAggregationBuilder(fieldName + "_" + supportedAggregation).sort(
                             SortBuilders.fieldSort(timestampField).order(SortOrder.DESC)
+                        ).size(1).fetchField(fieldName)
+                    );
+                    case "first_value" -> dateHistogramAggregation.subAggregation(
+                        new TopHitsAggregationBuilder(fieldName + "_" + supportedAggregation).sort(
+                            SortBuilders.fieldSort(timestampField).order(SortOrder.ASC)
                         ).size(1).fetchField(fieldName)
                     );
                     case "sum" -> dateHistogramAggregation.subAggregation(
@@ -1566,6 +1603,17 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         });
 
         return tsidAggregation;
+    }
+
+    private String[] supportedAggs(TimeSeriesParams.MetricType metricType, DownsampleConfig.SamplingMethod samplingMethod) {
+        if (samplingMethod == DownsampleConfig.SamplingMethod.LAST_VALUE) {
+            return new String[] { "last_value" };
+        } else {
+            if (metricType == TimeSeriesParams.MetricType.GAUGE) {
+                return metricType.supportedAggs();
+            }
+            return new String[] { "first_value" };
+        }
     }
 
     @FunctionalInterface
@@ -1626,7 +1674,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
     }
 
     public void testConcurrentDownsample() throws Exception {
-        final DownsampleConfig config = new DownsampleConfig(randomInterval());
+        final DownsampleConfig config = new DownsampleConfig(randomInterval(), randomSamplingMethod());
         SourceSupplier sourceSupplier = () -> {
             String ts = randomDateForInterval(config.getInterval());
             double labelDoubleValue = DATE_FORMATTER.parseMillis(ts);
@@ -1705,7 +1753,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
     }
 
     public void testDuplicateDownsampleRequest() throws Exception {
-        final DownsampleConfig config = new DownsampleConfig(randomInterval());
+        final DownsampleConfig config = new DownsampleConfig(randomInterval(), randomSamplingMethod());
         SourceSupplier sourceSupplier = () -> {
             String ts = randomDateForInterval(config.getInterval());
             double labelDoubleValue = DATE_FORMATTER.parseMillis(ts);
@@ -1788,5 +1836,13 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         assertTrue(downsampleComplete.await(30, TimeUnit.SECONDS));
         assertFalse(firstFailed.get() ^ secondFailed.get());
         assertDownsampleIndex(sourceIndex, targetIndex, config);
+    }
+
+    static DownsampleConfig.SamplingMethod randomSamplingMethod() {
+        if (between(0, DownsampleConfig.SamplingMethod.values().length) == 0) {
+            return null;
+        } else {
+            return randomFrom(DownsampleConfig.SamplingMethod.values());
+        }
     }
 }

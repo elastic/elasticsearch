@@ -9,7 +9,7 @@
 
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -214,6 +214,10 @@ public record ClusterBalanceStats(
 
         private static final String UNKNOWN_NODE_ID = "UNKNOWN";
 
+        private static final TransportVersion NODE_WEIGHTS_ADDED_TO_NODE_BALANCE_STATS = TransportVersion.fromName(
+            "node_weights_added_to_node_balance_stats"
+        );
+
         private static NodeBalanceStats createFrom(
             RoutingNode routingNode,
             Metadata metadata,
@@ -272,9 +276,7 @@ public record ClusterBalanceStats(
                 in.readDouble(),
                 in.readLong(),
                 in.readLong(),
-                in.getTransportVersion().onOrAfter(TransportVersions.NODE_WEIGHTS_ADDED_TO_NODE_BALANCE_STATS)
-                    ? in.readOptionalDouble()
-                    : null
+                in.getTransportVersion().supports(NODE_WEIGHTS_ADDED_TO_NODE_BALANCE_STATS) ? in.readOptionalDouble() : null
             );
         }
 
@@ -287,7 +289,7 @@ public record ClusterBalanceStats(
             out.writeDouble(forecastWriteLoad);
             out.writeLong(forecastShardSize);
             out.writeLong(actualShardSize);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.NODE_WEIGHTS_ADDED_TO_NODE_BALANCE_STATS)) {
+            if (out.getTransportVersion().supports(NODE_WEIGHTS_ADDED_TO_NODE_BALANCE_STATS)) {
                 out.writeOptionalDouble(nodeWeight);
             }
         }

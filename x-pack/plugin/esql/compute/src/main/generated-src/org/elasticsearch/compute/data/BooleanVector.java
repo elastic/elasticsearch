@@ -8,7 +8,6 @@
 package org.elasticsearch.compute.data;
 
 // begin generated imports
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -22,20 +21,42 @@ import java.io.IOException;
  * This class is generated. Edit {@code X-Vector.java.st} instead.
  */
 public sealed interface BooleanVector extends Vector permits ConstantBooleanVector, BooleanArrayVector, BooleanBigArrayVector,
-    ConstantNullVector {
+    ConstantNullVector, org.elasticsearch.compute.data.arrow.BooleanArrowBufVector {
     boolean getBoolean(int position);
 
     @Override
     BooleanBlock asBlock();
 
     @Override
-    BooleanVector filter(int... positions);
+    BooleanVector filter(boolean mayContainDuplicates, int... positions);
 
     @Override
     BooleanBlock keepMask(BooleanVector mask);
 
+    /**
+     * Make a deep copy of this {@link Vector} using the provided {@link BlockFactory},
+     * likely copying all data.
+     */
+    @Override
+    default BooleanVector deepCopy(BlockFactory blockFactory) {
+        try (BooleanBlock.Builder builder = blockFactory.newBooleanBlockBuilder(getPositionCount())) {
+            builder.copyFrom(asBlock(), 0, getPositionCount());
+            builder.mvOrdering(Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING);
+            return builder.build().asVector();
+        }
+    }
+
     @Override
     ReleasableIterator<? extends BooleanBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize);
+
+    /**
+     * Return a subset of this vector from {@code beginInclusive} to
+     * {@code endExclusive}. This <strong>may</strong> return the same
+     * instance if the range covers all positions, but if it does it
+     * will {@link #incRef()} it.
+     */
+    @Override
+    BooleanVector slice(int beginInclusive, int endExclusive);
 
     /**
      * Are all values {@code true}? This will scan all values to check and always answer accurately.
@@ -116,10 +137,10 @@ public sealed interface BooleanVector extends Vector permits ConstantBooleanVect
         if (isConstant() && positions > 0) {
             out.writeByte(SERIALIZE_VECTOR_CONSTANT);
             out.writeBoolean(getBoolean(0));
-        } else if (version.onOrAfter(TransportVersions.V_8_14_0) && this instanceof BooleanArrayVector v) {
+        } else if (this instanceof BooleanArrayVector v) {
             out.writeByte(SERIALIZE_VECTOR_ARRAY);
             v.writeArrayVector(positions, out);
-        } else if (version.onOrAfter(TransportVersions.V_8_14_0) && this instanceof BooleanBigArrayVector v) {
+        } else if (this instanceof BooleanBigArrayVector v) {
             out.writeByte(SERIALIZE_VECTOR_BIG_ARRAY);
             v.writeArrayVector(positions, out);
         } else {

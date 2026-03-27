@@ -6,12 +6,13 @@
  */
 package org.elasticsearch.xpack.esql.expression.predicate.nulls;
 
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -55,7 +56,8 @@ public class IsNotNull extends UnaryScalarFunction implements EvaluatorMapper, N
             "unsigned_long",
             "counter_long",
             "counter_integer",
-            "counter_double" },
+            "counter_double",
+            "dense_vector" },
         examples = { @Example(file = "null", tag = "is-not-null") }
     )
     public IsNotNull(
@@ -74,7 +76,8 @@ public class IsNotNull extends UnaryScalarFunction implements EvaluatorMapper, N
                 "unsigned_long",
                 "counter_long",
                 "counter_integer",
-                "counter_double" }
+                "counter_double",
+                "dense_vector", }
         ) Expression field
     ) {
         super(source, field);
@@ -105,7 +108,7 @@ public class IsNotNull extends UnaryScalarFunction implements EvaluatorMapper, N
     }
 
     @Override
-    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         return new IsNotNullEvaluatorFactory(toEvaluator.apply(field()));
 
     }
@@ -135,9 +138,9 @@ public class IsNotNull extends UnaryScalarFunction implements EvaluatorMapper, N
         return new ExistsQuery(source(), handler.nameOf(field()));
     }
 
-    record IsNotNullEvaluatorFactory(EvalOperator.ExpressionEvaluator.Factory field) implements EvalOperator.ExpressionEvaluator.Factory {
+    record IsNotNullEvaluatorFactory(ExpressionEvaluator.Factory field) implements ExpressionEvaluator.Factory {
         @Override
-        public EvalOperator.ExpressionEvaluator get(DriverContext context) {
+        public ExpressionEvaluator get(DriverContext context) {
             return new IsNotNullEvaluator(context, field.get(context));
         }
 
@@ -147,9 +150,9 @@ public class IsNotNull extends UnaryScalarFunction implements EvaluatorMapper, N
         }
     }
 
-    record IsNotNullEvaluator(DriverContext driverContext, EvalOperator.ExpressionEvaluator field)
-        implements
-            EvalOperator.ExpressionEvaluator {
+    record IsNotNullEvaluator(DriverContext driverContext, ExpressionEvaluator field) implements ExpressionEvaluator {
+        private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(IsNotNullEvaluator.class);
+
         @Override
         public Block eval(Page page) {
             try (Block fieldBlock = field.eval(page)) {
@@ -163,6 +166,11 @@ public class IsNotNull extends UnaryScalarFunction implements EvaluatorMapper, N
                     return builder.build().asBlock();
                 }
             }
+        }
+
+        @Override
+        public long baseRamBytesUsed() {
+            return BASE_RAM_BYTES_USED + field.baseRamBytesUsed();
         }
 
         @Override

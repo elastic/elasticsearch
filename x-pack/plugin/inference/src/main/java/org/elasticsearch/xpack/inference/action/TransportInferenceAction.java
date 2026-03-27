@@ -15,7 +15,6 @@ import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceRegistry;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.Model;
-import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.inference.telemetry.InferenceStats;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.license.XPackLicenseState;
@@ -23,8 +22,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.inference.action.task.StreamingTaskManager;
-import org.elasticsearch.xpack.inference.common.InferenceServiceRateLimitCalculator;
-import org.elasticsearch.xpack.inference.registry.ModelRegistry;
+import org.elasticsearch.xpack.inference.registry.InferenceEndpointRegistry;
 
 public class TransportInferenceAction extends BaseTransportInferenceAction<InferenceAction.Request> {
 
@@ -33,11 +31,10 @@ public class TransportInferenceAction extends BaseTransportInferenceAction<Infer
         TransportService transportService,
         ActionFilters actionFilters,
         XPackLicenseState licenseState,
-        ModelRegistry modelRegistry,
+        InferenceEndpointRegistry inferenceEndpointRegistry,
         InferenceServiceRegistry serviceRegistry,
         InferenceStats inferenceStats,
         StreamingTaskManager streamingTaskManager,
-        InferenceServiceRateLimitCalculator inferenceServiceNodeLocalRateLimitCalculator,
         NodeClient nodeClient,
         ThreadPool threadPool
     ) {
@@ -46,24 +43,23 @@ public class TransportInferenceAction extends BaseTransportInferenceAction<Infer
             transportService,
             actionFilters,
             licenseState,
-            modelRegistry,
+            inferenceEndpointRegistry,
             serviceRegistry,
             inferenceStats,
             streamingTaskManager,
             InferenceAction.Request::new,
-            inferenceServiceNodeLocalRateLimitCalculator,
             nodeClient,
             threadPool
         );
     }
 
     @Override
-    protected boolean isInvalidTaskTypeForInferenceEndpoint(InferenceAction.Request request, UnparsedModel unparsedModel) {
+    protected boolean isInvalidTaskTypeForInferenceEndpoint(InferenceAction.Request request, Model model) {
         return false;
     }
 
     @Override
-    protected ElasticsearchStatusException createInvalidTaskTypeException(InferenceAction.Request request, UnparsedModel unparsedModel) {
+    protected ElasticsearchStatusException createInvalidTaskTypeException(InferenceAction.Request request, Model model) {
         return null;
     }
 

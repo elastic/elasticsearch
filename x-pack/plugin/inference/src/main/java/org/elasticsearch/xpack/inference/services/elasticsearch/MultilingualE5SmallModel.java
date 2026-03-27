@@ -7,10 +7,15 @@
 
 package org.elasticsearch.xpack.inference.services.elasticsearch;
 
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.inference.ChunkingSettings;
+import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskType;
 
 public class MultilingualE5SmallModel extends ElasticsearchInternalModel {
+
+    // Ensure that inference endpoints based on E5 small don't go past its window size
+    public static final int E5_SMALL_MAX_WINDOW_SIZE = 300;
 
     public MultilingualE5SmallModel(
         String inferenceEntityId,
@@ -19,7 +24,23 @@ public class MultilingualE5SmallModel extends ElasticsearchInternalModel {
         MultilingualE5SmallInternalServiceSettings serviceSettings,
         ChunkingSettings chunkingSettings
     ) {
-        super(inferenceEntityId, taskType, service, serviceSettings, chunkingSettings);
+        this(new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, chunkingSettings));
+    }
+
+    public MultilingualE5SmallModel(ModelConfigurations modelConfigurations) {
+        super(modelConfigurations);
+        var chunkingSettings = modelConfigurations.getChunkingSettings();
+
+        if (chunkingSettings != null
+            && chunkingSettings.maxChunkSize() != null
+            && chunkingSettings.maxChunkSize() > E5_SMALL_MAX_WINDOW_SIZE) throw new IllegalArgumentException(
+                Strings.format(
+                    "%s does not support chunk sizes larger than %d. Requested chunk size: %d",
+                    internalServiceSettings.modelId(),
+                    E5_SMALL_MAX_WINDOW_SIZE,
+                    chunkingSettings.maxChunkSize()
+                )
+            );
     }
 
     @Override

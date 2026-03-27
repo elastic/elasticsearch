@@ -39,16 +39,11 @@ public final class SpatialExtentCartesianShapeSourceValuesAggregatorFunction imp
 
   private final List<Integer> channels;
 
-  public SpatialExtentCartesianShapeSourceValuesAggregatorFunction(DriverContext driverContext,
-      List<Integer> channels, SpatialExtentState state) {
+  SpatialExtentCartesianShapeSourceValuesAggregatorFunction(DriverContext driverContext,
+      List<Integer> channels) {
     this.driverContext = driverContext;
     this.channels = channels;
-    this.state = state;
-  }
-
-  public static SpatialExtentCartesianShapeSourceValuesAggregatorFunction create(
-      DriverContext driverContext, List<Integer> channels) {
-    return new SpatialExtentCartesianShapeSourceValuesAggregatorFunction(driverContext, channels, SpatialExtentCartesianShapeSourceValuesAggregator.initSingle());
+    this.state = SpatialExtentCartesianShapeSourceValuesAggregator.initSingle();
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -113,11 +108,12 @@ public final class SpatialExtentCartesianShapeSourceValuesAggregatorFunction imp
   private void addRawBlock(BytesRefBlock bytesBlock) {
     BytesRef bytesScratch = new BytesRef();
     for (int p = 0; p < bytesBlock.getPositionCount(); p++) {
-      if (bytesBlock.isNull(p)) {
+      int bytesValueCount = bytesBlock.getValueCount(p);
+      if (bytesValueCount == 0) {
         continue;
       }
       int bytesStart = bytesBlock.getFirstValueIndex(p);
-      int bytesEnd = bytesStart + bytesBlock.getValueCount(p);
+      int bytesEnd = bytesStart + bytesValueCount;
       for (int bytesOffset = bytesStart; bytesOffset < bytesEnd; bytesOffset++) {
         BytesRef bytesValue = bytesBlock.getBytesRef(bytesOffset, bytesScratch);
         SpatialExtentCartesianShapeSourceValuesAggregator.combine(state, bytesValue);
@@ -131,11 +127,12 @@ public final class SpatialExtentCartesianShapeSourceValuesAggregatorFunction imp
       if (mask.getBoolean(p) == false) {
         continue;
       }
-      if (bytesBlock.isNull(p)) {
+      int bytesValueCount = bytesBlock.getValueCount(p);
+      if (bytesValueCount == 0) {
         continue;
       }
       int bytesStart = bytesBlock.getFirstValueIndex(p);
-      int bytesEnd = bytesStart + bytesBlock.getValueCount(p);
+      int bytesEnd = bytesStart + bytesValueCount;
       for (int bytesOffset = bytesStart; bytesOffset < bytesEnd; bytesOffset++) {
         BytesRef bytesValue = bytesBlock.getBytesRef(bytesOffset, bytesScratch);
         SpatialExtentCartesianShapeSourceValuesAggregator.combine(state, bytesValue);

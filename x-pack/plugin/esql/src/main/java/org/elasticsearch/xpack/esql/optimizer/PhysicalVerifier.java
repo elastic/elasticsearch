@@ -12,8 +12,7 @@ import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.optimizer.rules.PlanConsistencyChecker;
-import org.elasticsearch.xpack.esql.plan.logical.Enrich;
-import org.elasticsearch.xpack.esql.plan.physical.EnrichExec;
+import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 
@@ -21,25 +20,15 @@ import static org.elasticsearch.xpack.esql.common.Failure.fail;
 
 /** Physical plan verifier. */
 public final class PhysicalVerifier extends PostOptimizationPhasePlanVerifier<PhysicalPlan> {
+    public static final PhysicalVerifier LOCAL_INSTANCE = new PhysicalVerifier(true);
+    public static final PhysicalVerifier INSTANCE = new PhysicalVerifier(false);
 
-    public static final PhysicalVerifier INSTANCE = new PhysicalVerifier();
-
-    private PhysicalVerifier() {}
-
-    @Override
-    boolean skipVerification(PhysicalPlan optimizedPlan, boolean skipRemoteEnrichVerification) {
-        if (skipRemoteEnrichVerification) {
-            // AwaitsFix https://github.com/elastic/elasticsearch/issues/118531
-            var enriches = optimizedPlan.collectFirstChildren(EnrichExec.class::isInstance);
-            if (enriches.isEmpty() == false && ((EnrichExec) enriches.get(0)).mode() == Enrich.Mode.REMOTE) {
-                return true;
-            }
-        }
-        return false;
+    private PhysicalVerifier(boolean isLocal) {
+        super(isLocal);
     }
 
     @Override
-    void checkPlanConsistency(PhysicalPlan optimizedPlan, Failures failures, Failures depFailures) {
+    protected void checkPlanConsistency(PhysicalPlan optimizedPlan, Failures failures, Failures depFailures) {
         optimizedPlan.forEachDown(p -> {
             if (p instanceof FieldExtractExec fieldExtractExec) {
                 Attribute sourceAttribute = fieldExtractExec.sourceAttribute();
@@ -54,6 +43,19 @@ public final class PhysicalVerifier extends PostOptimizationPhasePlanVerifier<Ph
                     );
                 }
             }
+
+            // This check applies only for coordinator physical plans (isLocal == false)
+            if (isLocal == false && p instanceof ExecutesOn ex && ex.executesOn() == ExecutesOn.ExecuteLocation.REMOTE) {
+                failures.add(
+                    fail(
+                        p,
+                        "Physical plan contains remote executing operation [{}] in local part. "
+                            + "This usually means this command is incompatible with some of the preceding commands.",
+                        p.nodeName()
+                    )
+                );
+            }
+
             PlanConsistencyChecker.checkPlan(p, depFailures);
 
             if (failures.hasFailures() == false) {

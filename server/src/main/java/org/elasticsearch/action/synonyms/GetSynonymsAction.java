@@ -91,5 +91,11 @@ public class GetSynonymsAction extends AbstractSynonymsPagedResultAction<GetSyno
         protected IntFunction<SynonymRule[]> arraySupplier() {
             return SynonymRule[]::new;
         }
+
+        @SuppressWarnings("unchecked")
+        @Override
+        PagedResult<SynonymRule> getResults() {
+            return (PagedResult<SynonymRule>) super.getResults();
+        }
     }
 }

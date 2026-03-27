@@ -38,17 +38,12 @@ public final class CountDistinctDoubleGroupingAggregatorFunction implements Grou
 
   private final int precision;
 
-  public CountDistinctDoubleGroupingAggregatorFunction(List<Integer> channels,
-      HllStates.GroupingState state, DriverContext driverContext, int precision) {
-    this.channels = channels;
-    this.state = state;
-    this.driverContext = driverContext;
+  CountDistinctDoubleGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext,
+      int precision) {
     this.precision = precision;
-  }
-
-  public static CountDistinctDoubleGroupingAggregatorFunction create(List<Integer> channels,
-      DriverContext driverContext, int precision) {
-    return new CountDistinctDoubleGroupingAggregatorFunction(channels, CountDistinctDoubleAggregator.initGrouping(driverContext.bigArrays(), precision), driverContext, precision);
+    this.channels = channels;
+    this.state = CountDistinctDoubleAggregator.initGrouping(driverContext, precision);
+    this.driverContext = driverContext;
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -158,7 +153,7 @@ public final class CountDistinctDoubleGroupingAggregatorFunction implements Grou
       return;
     }
     BytesRefVector hll = ((BytesRefBlock) hllUncast).asVector();
-    BytesRef scratch = new BytesRef();
+    BytesRef hllScratch = new BytesRef();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
         continue;
@@ -168,7 +163,7 @@ public final class CountDistinctDoubleGroupingAggregatorFunction implements Grou
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
         int valuesPosition = groupPosition + positionOffset;
-        CountDistinctDoubleAggregator.combineIntermediate(state, groupId, hll.getBytesRef(valuesPosition, scratch));
+        CountDistinctDoubleAggregator.combineIntermediate(state, groupId, hll.getBytesRef(valuesPosition, hllScratch));
       }
     }
   }
@@ -221,7 +216,7 @@ public final class CountDistinctDoubleGroupingAggregatorFunction implements Grou
       return;
     }
     BytesRefVector hll = ((BytesRefBlock) hllUncast).asVector();
-    BytesRef scratch = new BytesRef();
+    BytesRef hllScratch = new BytesRef();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
         continue;
@@ -231,7 +226,7 @@ public final class CountDistinctDoubleGroupingAggregatorFunction implements Grou
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
         int valuesPosition = groupPosition + positionOffset;
-        CountDistinctDoubleAggregator.combineIntermediate(state, groupId, hll.getBytesRef(valuesPosition, scratch));
+        CountDistinctDoubleAggregator.combineIntermediate(state, groupId, hll.getBytesRef(valuesPosition, hllScratch));
       }
     }
   }
@@ -270,11 +265,11 @@ public final class CountDistinctDoubleGroupingAggregatorFunction implements Grou
       return;
     }
     BytesRefVector hll = ((BytesRefBlock) hllUncast).asVector();
-    BytesRef scratch = new BytesRef();
+    BytesRef hllScratch = new BytesRef();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int groupId = groups.getInt(groupPosition);
       int valuesPosition = groupPosition + positionOffset;
-      CountDistinctDoubleAggregator.combineIntermediate(state, groupId, hll.getBytesRef(valuesPosition, scratch));
+      CountDistinctDoubleAggregator.combineIntermediate(state, groupId, hll.getBytesRef(valuesPosition, hllScratch));
     }
   }
 
@@ -290,14 +285,24 @@ public final class CountDistinctDoubleGroupingAggregatorFunction implements Grou
   }
 
   @Override
-  public void evaluateIntermediate(Block[] blocks, int offset, IntVector selected) {
-    state.toIntermediate(blocks, offset, selected, driverContext);
+  public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateIntermediate(
+      IntVector selected, GroupingAggregatorEvaluationContext ctx) {
+    return this::evaluateIntermediate;
+  }
+
+  private void evaluateIntermediate(Block[] blocks, int offset, IntVector selectedInPage) {
+    state.toIntermediate(blocks, offset, selectedInPage, driverContext);
   }
 
   @Override
-  public void evaluateFinal(Block[] blocks, int offset, IntVector selected,
+  public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateFinal(IntVector selected,
       GroupingAggregatorEvaluationContext ctx) {
-    blocks[offset] = CountDistinctDoubleAggregator.evaluateFinal(state, selected, ctx);
+    return (blocks, offset, selectedInPage) -> evaluateFinal(blocks, offset, selectedInPage, ctx);
+  }
+
+  private void evaluateFinal(Block[] blocks, int offset, IntVector selectedInPage,
+      GroupingAggregatorEvaluationContext ctx) {
+    blocks[offset] = CountDistinctDoubleAggregator.evaluateFinal(state, selectedInPage, ctx);
   }
 
   @Override

@@ -19,13 +19,18 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasSize;
 
 public abstract class MetadataMapperTestCase extends MapperServiceTestCase {
 
@@ -47,6 +52,7 @@ public abstract class MetadataMapperTestCase extends MapperServiceTestCase {
 
         Map<String, ConflictCheck> conflictChecks = new HashMap<>();
         List<UpdateCheck> updateChecks = new ArrayList<>();
+        Set<String> checkedParameters = new HashSet<>();
 
         /**
          * Register a check that a parameter update will cause a conflict, using the minimal mapping as a base
@@ -55,6 +61,7 @@ public abstract class MetadataMapperTestCase extends MapperServiceTestCase {
          * @param update a field builder applied on top of the minimal mapping
          */
         public void registerConflictCheck(String param, CheckedConsumer<XContentBuilder, IOException> update) throws IOException {
+            checkedParameters.add(param);
             conflictChecks.put(param, new ConflictCheck(topMapping(b -> b.startObject(fieldName()).endObject()), topMapping(b -> {
                 b.startObject(fieldName());
                 update.accept(b);
@@ -70,11 +77,40 @@ public abstract class MetadataMapperTestCase extends MapperServiceTestCase {
          * @param update the updated mapping
          */
         public void registerConflictCheck(String param, XContentBuilder init, XContentBuilder update, Consumer<DocumentMapper> check) {
+            checkedParameters.add(param);
             conflictChecks.put(param, new ConflictCheck(init, update, check));
         }
 
-        public void registerUpdateCheck(XContentBuilder init, XContentBuilder update, Consumer<DocumentMapper> check) {
+        /**
+         * Register a check that a parameter can be updated
+         *
+         * @param param  the parameter name
+         * @param init   the initial mapping
+         * @param update the updated mapping
+         * @param check  a check that the updated parameter has been applied to the DocumentMapper
+         */
+        public void registerUpdateCheck(String param, XContentBuilder init, XContentBuilder update, Consumer<DocumentMapper> check) {
+            checkedParameters.add(param);
             updateChecks.add(new UpdateCheck(init, update, check));
+        }
+
+        /**
+         * Register a parameter returned from getParameters() that does not need an update or conflict check,
+         * for example a parameter that is tested separately.
+         * @param param the parameter name
+         */
+        public void registerIgnoredParameter(String param) {
+            checkedParameters.add(param);
+        }
+
+        /**
+         * Asserts that every parameter returned by the given builder's {@link MetadataFieldMapper.Builder#getParameters()}
+         * has been registered with either an update check or a conflict check.
+         */
+        public void ensureAllParametersAreCovered(MetadataFieldMapper.Builder builder) {
+            Set<String> uncovered = Arrays.stream(builder.getParameters()).map(p -> p.name).collect(Collectors.toSet());
+            uncovered.removeAll(checkedParameters);
+            assertTrue("Some parameters are not covered by either an update check or a conflict check: " + uncovered, uncovered.isEmpty());
         }
     }
 
@@ -107,9 +143,25 @@ public abstract class MetadataMapperTestCase extends MapperServiceTestCase {
         }
     }
 
+    public void testAllParametersAreChecked() throws IOException {
+
+        ParameterChecker checker = new ParameterChecker();
+        registerParameters(checker);
+
+        if (isConfigurable() == false) {
+            assertThat(checker.checkedParameters, hasSize(0));
+        }
+
+        MapperService mapperService = createMapperService(topMapping(b -> {}));
+        MetadataFieldMapper mapper = mapperService.documentMapper().mapping().getMetadataMapperByName(fieldName());
+        assumeTrue("mapper not present in default mapping", mapper != null);
+        MetadataFieldMapper.Builder builder = (MetadataFieldMapper.Builder) mapper.getMergeBuilder();
+        checker.ensureAllParametersAreCovered(builder);
+    }
+
     public final void testUnsupportedParametersAreRejected() throws IOException {
         assumeTrue("Metadata field " + fieldName() + " isn't configurable", isConfigurable());
-        IndexVersion version = IndexVersionUtils.randomCompatibleVersion(random());
+        IndexVersion version = IndexVersionUtils.randomCompatibleVersion();
         assumeTrue("Metadata field " + fieldName() + " is not supported on version " + version, isSupportedOn(version));
         MapperService mapperService = createMapperService(version, mapping(xContentBuilder -> {}));
         String mappingAsString = "{\n"
@@ -133,7 +185,7 @@ public abstract class MetadataMapperTestCase extends MapperServiceTestCase {
 
     public final void testFixedMetaFieldsAreNotConfigurable() throws IOException {
         assumeFalse("Metadata field " + fieldName() + " is configurable", isConfigurable());
-        IndexVersion version = IndexVersionUtils.randomCompatibleVersion(random());
+        IndexVersion version = IndexVersionUtils.randomCompatibleVersion();
         assumeTrue("Metadata field " + fieldName() + " is not supported on version " + version, isSupportedOn(version));
         MapperService mapperService = createMapperService(version, mapping(xContentBuilder -> {}));
         String mappingAsString = "{\n" + "    \"_doc\" : {\n" + "      \"" + fieldName() + "\" : {\n" + "      }\n" + "    }\n" + "}";
@@ -148,11 +200,7 @@ public abstract class MetadataMapperTestCase extends MapperServiceTestCase {
         assumeTrue("Metadata field " + fieldName() + " isn't configurable", isConfigurable());
         IndexVersion previousVersion = IndexVersionUtils.getPreviousVersion(IndexVersions.V_8_6_0);
         // we randomly also pick read-only versions to test that we can still parse the parameters for them
-        IndexVersion version = IndexVersionUtils.randomVersionBetween(
-            random(),
-            IndexVersionUtils.getLowestReadCompatibleVersion(),
-            previousVersion
-        );
+        IndexVersion version = IndexVersionUtils.randomVersionBetween(IndexVersionUtils.getLowestReadCompatibleVersion(), previousVersion);
         assumeTrue("Metadata field " + fieldName() + " is not supported on version " + version, isSupportedOn(version));
         MapperService mapperService = createMapperService(version, mapping(b -> {}));
         // these parameters were previously silently ignored, they will still be ignored in existing indices
@@ -176,7 +224,7 @@ public abstract class MetadataMapperTestCase extends MapperServiceTestCase {
     public void testTypeAndFriendsAreDeprecatedFrom_8_6_0_TO_9_0_0() throws IOException {
         assumeTrue("Metadata field " + fieldName() + " isn't configurable", isConfigurable());
         IndexVersion previousVersion = IndexVersionUtils.getPreviousVersion(IndexVersions.UPGRADE_TO_LUCENE_10_0_0);
-        IndexVersion version = IndexVersionUtils.randomVersionBetween(random(), IndexVersions.V_8_6_0, previousVersion);
+        IndexVersion version = IndexVersionUtils.randomVersionBetween(IndexVersions.V_8_6_0, previousVersion);
         assumeTrue("Metadata field " + fieldName() + " is not supported on version " + version, isSupportedOn(version));
         MapperService mapperService = createMapperService(version, mapping(b -> {}));
         // these parameters were deprecated, they now should throw an error in new indices
@@ -200,11 +248,7 @@ public abstract class MetadataMapperTestCase extends MapperServiceTestCase {
 
     public void testTypeAndFriendsThrow_After_9_0_0() throws IOException {
         assumeTrue("Metadata field " + fieldName() + " isn't configurable", isConfigurable());
-        IndexVersion version = IndexVersionUtils.randomVersionBetween(
-            random(),
-            IndexVersions.UPGRADE_TO_LUCENE_10_0_0,
-            IndexVersion.current()
-        );
+        IndexVersion version = IndexVersionUtils.randomVersionBetween(IndexVersions.UPGRADE_TO_LUCENE_10_0_0, IndexVersion.current());
         assumeTrue("Metadata field " + fieldName() + " is not supported on version " + version, isSupportedOn(version));
         MapperService mapperService = createMapperService(version, mapping(b -> {}));
         // these parameters were previously silently ignored, they are now deprecated in new indices

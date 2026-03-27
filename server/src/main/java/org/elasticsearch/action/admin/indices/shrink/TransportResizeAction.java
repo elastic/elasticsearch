@@ -10,6 +10,7 @@
 package org.elasticsearch.action.admin.indices.shrink;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
@@ -48,6 +49,8 @@ import java.util.Locale;
  */
 public class TransportResizeAction extends TransportMasterNodeAction<ResizeRequest, CreateIndexResponse> {
 
+    public static final ActionType<CreateIndexResponse> TYPE = new ActionType<>("indices:admin/resize");
+
     private final MetadataCreateIndexService createIndexService;
     private final ProjectResolver projectResolver;
     private final Client client;
@@ -62,7 +65,7 @@ public class TransportResizeAction extends TransportMasterNodeAction<ResizeReque
         ProjectResolver projectResolver,
         Client client
     ) {
-        this(ResizeAction.NAME, transportService, clusterService, threadPool, createIndexService, actionFilters, projectResolver, client);
+        this(TYPE.name(), transportService, clusterService, threadPool, createIndexService, actionFilters, projectResolver, client);
     }
 
     protected TransportResizeAction(

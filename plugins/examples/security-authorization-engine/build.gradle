@@ -16,7 +16,14 @@ dependencies {
   testImplementation "org.elasticsearch.plugin:x-pack-core:${elasticsearchVersion}"
   javaRestTestImplementation "org.elasticsearch.plugin:x-pack-core:${elasticsearchVersion}"
   javaRestTestImplementation "org.apache.logging.log4j:log4j-core:${log4jVersion}"
-  javaRestTestImplementation "co.elastic.clients:elasticsearch-java:[9.0,10.0)"
+  javaRestTestImplementation("co.elastic.clients:elasticsearch-java:[9.0,10.0)") {
+    // Exclude the old bundled jakarta.json artifact which conflicts with jakarta.json-api
+    // The elasticsearch-rest5-client transitively pulls in org.eclipse.parsson:jakarta.json which
+    // bundles the API classes, while elasticsearch-java also depends on jakarta.json:jakarta.json-api.
+    // Both contain jakarta.json.EmptyArray and other classes, causing JAR hell.
+    // TODO: Remove this exclusion once elasticsearch-java >= 9.3.1 is released (see elastic/elasticsearch-java#1159)
+    exclude group: 'org.eclipse.parsson', module: 'jakarta.json'
+  }
   javaRestTestImplementation "org.elasticsearch.client:elasticsearch-rest-client:${elasticsearchVersion}"
   javaRestTestImplementation 'com.fasterxml.jackson.core:jackson-databind:2.12.3'
   javaRestTestImplementation "org.elasticsearch.test:framework:${elasticsearchVersion}"

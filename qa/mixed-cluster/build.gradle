@@ -89,7 +89,6 @@ buildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
         setting 'health.master_history.no_master_transitions_threshold', '10'
       }
       requiresFeature 'es.index_mode_feature_flag_registered', Version.fromString("8.0.0")
-      requiresFeature 'sub_objects_auto', Version.fromString("8.16.0")
       if (bwcVersion.before(Version.fromString("8.18.0"))) {
         jvmArgs '-da:org.elasticsearch.index.mapper.DocumentMapper'
         jvmArgs '-da:org.elasticsearch.index.mapper.MapperService'

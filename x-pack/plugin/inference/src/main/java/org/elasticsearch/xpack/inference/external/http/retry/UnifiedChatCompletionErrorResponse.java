@@ -8,11 +8,50 @@
 package org.elasticsearch.xpack.inference.external.http.retry;
 
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xpack.inference.external.http.HttpResult;
 
 import java.util.Objects;
+import java.util.Optional;
 
 public class UnifiedChatCompletionErrorResponse extends ErrorResponse {
+
+    // Default for testing
+    static final ConstructingObjectParser<Optional<UnifiedChatCompletionErrorResponse>, Void> ERROR_OBJECT_PARSER =
+        new ConstructingObjectParser<>("streaming_error", true, args -> Optional.ofNullable((UnifiedChatCompletionErrorResponse) args[0]));
+    private static final ConstructingObjectParser<UnifiedChatCompletionErrorResponse, Void> ERROR_BODY_PARSER =
+        new ConstructingObjectParser<>(
+            "streaming_error",
+            true,
+            args -> new UnifiedChatCompletionErrorResponse((String) args[0], (String) args[1], (String) args[2], (String) args[3])
+        );
+
+    static {
+        ERROR_BODY_PARSER.declareString(ConstructingObjectParser.constructorArg(), new ParseField("message"));
+        ERROR_BODY_PARSER.declareString(ConstructingObjectParser.constructorArg(), new ParseField("type"));
+        ERROR_BODY_PARSER.declareStringOrNull(ConstructingObjectParser.optionalConstructorArg(), new ParseField("code"));
+        ERROR_BODY_PARSER.declareStringOrNull(ConstructingObjectParser.optionalConstructorArg(), new ParseField("param"));
+
+        ERROR_OBJECT_PARSER.declareObjectOrNull(
+            ConstructingObjectParser.optionalConstructorArg(),
+            ERROR_BODY_PARSER,
+            null,
+            new ParseField("error")
+        );
+    }
+
+    public static final UnifiedChatCompletionErrorParserContract ERROR_PARSER = UnifiedChatCompletionErrorResponseUtils
+        .createErrorParserWithObjectParser(ERROR_OBJECT_PARSER);
     public static final UnifiedChatCompletionErrorResponse UNDEFINED_ERROR = new UnifiedChatCompletionErrorResponse();
+
+    /**
+     * Standard error response parser.
+     * @param response The error response as an HttpResult
+     */
+    public static UnifiedChatCompletionErrorResponse fromHttpResult(HttpResult response) {
+        return ERROR_PARSER.parse(response);
+    }
 
     @Nullable
     private final String code;

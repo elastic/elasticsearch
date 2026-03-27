@@ -21,6 +21,9 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
@@ -76,9 +79,14 @@ public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyReposi
         }
 
         @Override
-        AzureStorageService createAzureStorageService(Settings settings, AzureClientProvider azureClientProvider) {
+        AzureStorageService createAzureStorageService(
+            Settings settings,
+            AzureClientProvider azureClientProvider,
+            ClusterService clusterService,
+            ProjectResolver projectResolver
+        ) {
             final long blockSize = ByteSizeValue.ofKb(64L).getBytes() * randomIntBetween(1, 15);
-            return new AzureStorageService(settings, azureClientProvider) {
+            return new AzureStorageService(settings, azureClientProvider, clusterService, projectResolver) {
                 @Override
                 long getUploadBlockSize() {
                     return blockSize;
@@ -163,7 +171,7 @@ public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyReposi
         repository.threadPool().generic().execute(ActionRunnable.wrap(future, l -> {
             final AzureBlobStore blobStore = (AzureBlobStore) repository.blobStore();
             final AzureBlobServiceClient azureBlobServiceClient = blobStore.getService()
-                .client("default", LocationMode.PRIMARY_ONLY, randomFrom(OperationPurpose.values()));
+                .client(ProjectId.DEFAULT, "default", LocationMode.PRIMARY_ONLY, randomFrom(OperationPurpose.values()));
             final BlobServiceClient client = azureBlobServiceClient.getSyncClient();
             try {
                 final BlobContainerClient blobContainer = client.getBlobContainerClient(blobStore.toString());

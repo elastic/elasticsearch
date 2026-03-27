@@ -41,7 +41,7 @@ final class ConstantIntVector extends AbstractVector implements IntVector {
     }
 
     @Override
-    public IntVector filter(int... positions) {
+    public IntVector filter(boolean mayContainDuplicates, int... positions) {
         return blockFactory().newConstantIntVector(value, positions.length);
     }
 
@@ -110,6 +110,15 @@ final class ConstantIntVector extends AbstractVector implements IntVector {
     }
 
     @Override
+    public IntVector slice(int beginInclusive, int endExclusive) {
+        if (beginInclusive == 0 && endExclusive == getPositionCount()) {
+            incRef();
+            return this;
+        }
+        return blockFactory().newConstantIntVector(value, endExclusive - beginInclusive);
+    }
+
+    @Override
     public ElementType elementType() {
         return ElementType.INT;
     }
@@ -117,6 +126,11 @@ final class ConstantIntVector extends AbstractVector implements IntVector {
     @Override
     public boolean isConstant() {
         return true;
+    }
+
+    @Override
+    public IntVector deepCopy(BlockFactory blockFactory) {
+        return blockFactory.newConstantIntVector(value, getPositionCount());
     }
 
     @Override

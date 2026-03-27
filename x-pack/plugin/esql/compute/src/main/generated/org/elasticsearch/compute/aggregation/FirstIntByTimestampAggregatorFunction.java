@@ -36,16 +36,10 @@ public final class FirstIntByTimestampAggregatorFunction implements AggregatorFu
 
   private final List<Integer> channels;
 
-  public FirstIntByTimestampAggregatorFunction(DriverContext driverContext, List<Integer> channels,
-      LongIntState state) {
+  FirstIntByTimestampAggregatorFunction(DriverContext driverContext, List<Integer> channels) {
     this.driverContext = driverContext;
     this.channels = channels;
-    this.state = state;
-  }
-
-  public static FirstIntByTimestampAggregatorFunction create(DriverContext driverContext,
-      List<Integer> channels) {
-    return new FirstIntByTimestampAggregatorFunction(driverContext, channels, FirstIntByTimestampAggregator.initSingle(driverContext));
+    this.state = FirstIntByTimestampAggregator.initSingle(driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -148,18 +142,20 @@ public final class FirstIntByTimestampAggregatorFunction implements AggregatorFu
 
   private void addRawBlock(IntBlock valueBlock, LongBlock timestampBlock) {
     for (int p = 0; p < valueBlock.getPositionCount(); p++) {
-      if (valueBlock.isNull(p)) {
+      int valueValueCount = valueBlock.getValueCount(p);
+      if (valueValueCount == 0) {
         continue;
       }
-      if (timestampBlock.isNull(p)) {
+      int timestampValueCount = timestampBlock.getValueCount(p);
+      if (timestampValueCount == 0) {
         continue;
       }
       int valueStart = valueBlock.getFirstValueIndex(p);
-      int valueEnd = valueStart + valueBlock.getValueCount(p);
+      int valueEnd = valueStart + valueValueCount;
       for (int valueOffset = valueStart; valueOffset < valueEnd; valueOffset++) {
         int valueValue = valueBlock.getInt(valueOffset);
         int timestampStart = timestampBlock.getFirstValueIndex(p);
-        int timestampEnd = timestampStart + timestampBlock.getValueCount(p);
+        int timestampEnd = timestampStart + timestampValueCount;
         for (int timestampOffset = timestampStart; timestampOffset < timestampEnd; timestampOffset++) {
           long timestampValue = timestampBlock.getLong(timestampOffset);
           // Check seen in every iteration to save on complexity in the Block path
@@ -179,18 +175,20 @@ public final class FirstIntByTimestampAggregatorFunction implements AggregatorFu
       if (mask.getBoolean(p) == false) {
         continue;
       }
-      if (valueBlock.isNull(p)) {
+      int valueValueCount = valueBlock.getValueCount(p);
+      if (valueValueCount == 0) {
         continue;
       }
-      if (timestampBlock.isNull(p)) {
+      int timestampValueCount = timestampBlock.getValueCount(p);
+      if (timestampValueCount == 0) {
         continue;
       }
       int valueStart = valueBlock.getFirstValueIndex(p);
-      int valueEnd = valueStart + valueBlock.getValueCount(p);
+      int valueEnd = valueStart + valueValueCount;
       for (int valueOffset = valueStart; valueOffset < valueEnd; valueOffset++) {
         int valueValue = valueBlock.getInt(valueOffset);
         int timestampStart = timestampBlock.getFirstValueIndex(p);
-        int timestampEnd = timestampStart + timestampBlock.getValueCount(p);
+        int timestampEnd = timestampStart + timestampValueCount;
         for (int timestampOffset = timestampStart; timestampOffset < timestampEnd; timestampOffset++) {
           long timestampValue = timestampBlock.getLong(timestampOffset);
           // Check seen in every iteration to save on complexity in the Block path

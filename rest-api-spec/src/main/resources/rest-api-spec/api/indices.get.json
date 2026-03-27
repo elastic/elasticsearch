@@ -1,77 +1,84 @@
 {
-  "indices.get":{
-    "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/indices-get-index.html",
-      "description":"Returns information about one or more indices."
+  "indices.get": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-get",
+      "description": "Get index information"
     },
-    "stability":"stable",
-    "visibility":"public",
-    "headers":{
-      "accept": [ "application/json"]
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
     },
-    "url":{
-      "paths":[
+    "url": {
+      "paths": [
         {
-          "path":"/{index}",
-          "methods":[
+          "path": "/{index}",
+          "methods": [
             "GET"
           ],
-          "parts":{
-            "index":{
-              "type":"list",
-              "description":"A comma-separated list of index names"
+          "parts": {
+            "index": {
+              "type": "list",
+              "description": "A comma-separated list of index names"
             }
           }
         }
       ]
     },
-    "params":{
-      "local":{
-        "type":"boolean",
-        "description":"Return local information, do not retrieve the state from master node (default: false)"
+    "params": {
+      "local": {
+        "type": "boolean",
+        "default": false,
+        "description": "Return local information, do not retrieve the state from master node (default: false)"
       },
-      "ignore_unavailable":{
-        "type":"boolean",
-        "description":"Ignore unavailable indexes (default: false)"
+      "ignore_unavailable": {
+        "type": "boolean",
+        "default": false,
+        "description": "Ignore unavailable indexes (default: false)"
       },
-      "allow_no_indices":{
-        "type":"boolean",
-        "description":"Ignore if a wildcard expression resolves to no concrete indices (default: false)"
+      "allow_no_indices": {
+        "type": "boolean",
+        "default": true,
+        "description": "Ignore if a wildcard expression resolves to no concrete indices (default: false)"
       },
-      "expand_wildcards":{
-        "type":"enum",
-        "options":[
+      "expand_wildcards": {
+        "type": "list",
+        "options": [
           "open",
           "closed",
           "hidden",
           "none",
           "all"
         ],
-        "default":"open",
-        "description":"Whether wildcard expressions should get expanded to open or closed indices (default: open)"
+        "default": "open",
+        "description": "Whether wildcard expressions should get expanded to open or closed indices (default: open)"
       },
-      "features":{
-        "type":"enum",
-        "options":[
+      "features": {
+        "type": "list",
+        "options": [
           "aliases",
           "mappings",
           "settings"
         ],
-        "default":"aliases,mappings,settings",
-        "description":"Return only information on specified index features"
+        "default": "['aliases', 'mappings', 'settings']",
+        "description": "Return only information on specified index features"
       },
-      "flat_settings":{
-        "type":"boolean",
-        "description":"Return settings in flat format (default: false)"
+      "flat_settings": {
+        "type": "boolean",
+        "default": false,
+        "description": "Return settings in flat format (default: false)"
       },
-      "include_defaults":{
-        "type":"boolean",
-        "description":"Whether to return all default setting for each of the indices.",
-        "default":false
+      "include_defaults": {
+        "type": "boolean",
+        "description": "Whether to return all default setting for each of the indices.",
+        "default": false
       },
-      "master_timeout":{
-        "type":"time",
-        "description":"Specify timeout for connection to master"
+      "master_timeout": {
+        "type": "time",
+        "default": "30s",
+        "description": "Specify timeout for connection to master"
       }
     }
   }

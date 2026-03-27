@@ -21,6 +21,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -35,13 +36,17 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.hasCapabilities;
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
@@ -78,6 +83,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
         .user("logs_foo_after_2021_alias", "x-pack-test-password", "logs_foo_after_2021_alias", false)
         .user("user_without_monitor_privileges", "x-pack-test-password", "user_without_monitor_privileges", false)
         .user("user_with_monitor_privileges", "x-pack-test-password", "user_with_monitor_privileges", false)
+        .feature(FeatureFlag.ESQL_VIEWS)
         .build();
 
     @Override
@@ -184,6 +190,37 @@ public class EsqlSecurityIT extends ESRestTestCase {
         }
 
         createMultiRoleUsers();
+        createTestViews();
+    }
+
+    private void createTestViews() throws IOException {
+        createView("test-admin", "view-user1", "FROM index | KEEP value, org");
+        createView("test-admin", "view-user2", "FROM index | KEEP value, org");
+        createView("test-admin", "view", "FROM index-user1,index-user2 | KEEP value, org");
+    }
+
+    private void createView(String user, String viewName, String query) throws IOException {
+        Request request = new Request("PUT", "/_query/view/" + viewName);
+        XContentBuilder builder = JsonXContent.contentBuilder();
+        builder.startObject();
+        builder.field("query", query);
+        builder.endObject();
+        request.setJsonEntity(Strings.toString(builder));
+        setUser(request, user);
+        assertOK(client().performRequest(request));
+    }
+
+    private Response getView(String user, String... viewNames) throws IOException {
+        String path = viewNames.length != 0 ? "/_query/view/" + String.join(",", viewNames) : "/_query/view";
+        Request request = new Request("GET", path);
+        setUser(request, user);
+        return client().performRequest(request);
+    }
+
+    private Response deleteView(String user, String viewName) throws IOException {
+        Request request = new Request("DELETE", "/_query/view/" + viewName);
+        setUser(request, user);
+        return client().performRequest(request);
     }
 
     private void createMultiRoleUsers() throws IOException {
@@ -279,6 +316,18 @@ public class EsqlSecurityIT extends ESRestTestCase {
             ).entry("values", List.of(List.of(72.0d, "index-user2")));
             assertMap(responseMap, matcher);
         }
+    }
+
+    public void testViewRewriteDoesNotDropUnauthorizedTargetsWhenMixedWithViews() throws Exception {
+        expectThrows(ResponseException.class, () -> runESQLCommand("user1", "FROM index-user2 | STATS sum=sum(value)"));
+        expectThrows(ResponseException.class, () -> runESQLCommand("user1", "FROM index-user1,index-user2 | STATS sum=sum(value)"));
+        var resp = expectThrows(
+            ResponseException.class,
+            () -> runESQLCommand("user1", "FROM view-user1,index-user2 | STATS sum=sum(value)")
+        );
+        String errorMessage = EntityUtils.toString(resp.getResponse().getEntity());
+        assertThat(errorMessage, containsString("Unknown index [index-user2]"));
+        assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
     }
 
     public void testAliasFilter() throws Exception {
@@ -420,6 +469,110 @@ public class EsqlSecurityIT extends ESRestTestCase {
         assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_FORBIDDEN));
     }
 
+    public void testViewRewriteDoesNotDropUnauthorizedTargets() throws Exception {
+        ResponseException resp = expectThrows(ResponseException.class, () -> runESQLCommand("user1", "FROM view | STATS sum=sum(value)"));
+        String errorMessage = EntityUtils.toString(resp.getResponse().getEntity());
+        assertThat(errorMessage, containsString("unauthorized"));
+        assertThat(errorMessage, containsString("indices [index-user2]"));
+        assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_FORBIDDEN));
+    }
+
+    public void testViewRewriteAllUnauthorizedTargetsFails() throws Exception {
+        createView("test-admin", "other-view-user1", "FROM index-user2 | KEEP value, org");
+
+        ResponseException resp = expectThrows(
+            ResponseException.class,
+            () -> runESQLCommand("user1", "FROM other-view-user1 | STATS sum=sum(value)")
+        );
+        String errorMessage = EntityUtils.toString(resp.getResponse().getEntity());
+        assertThat(errorMessage, containsString("Unknown index [index-user2]"));
+        assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
+    }
+
+    public void testViewRewriteMixedUnauthorizedAndMissingTargetsFails() throws Exception {
+        createView("test-admin", "other-view-user1", "FROM index-user2,missing-view-target | KEEP value, org");
+
+        ResponseException resp = expectThrows(
+            ResponseException.class,
+            () -> runESQLCommand("user1", "FROM other-view-user1 | STATS sum=sum(value)")
+        );
+        String errorMessage = EntityUtils.toString(resp.getResponse().getEntity());
+        assertThat(errorMessage, containsString("Unknown index [index-user2,missing-view-target]"));
+        assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
+    }
+
+    public void testViewQueryAuthorized() throws Exception {
+        Response resp = runESQLCommand("user1", "FROM view-user1 | STATS sum=sum(value)");
+        assertOK(resp);
+        Map<String, Object> respMap = entityAsMap(resp);
+        assertThat(respMap.get("columns"), equalTo(List.of(Map.of("name", "sum", "type", "double"))));
+        assertThat(respMap.get("values"), equalTo(List.of(List.of(30.0d))));
+    }
+
+    public void testViewWildcardFiltersUnauthorized() throws Exception {
+        Response resp = runESQLCommand("user1", "FROM view-user* | STATS sum=sum(value)");
+        assertOK(resp);
+        Map<String, Object> respMap = entityAsMap(resp);
+        assertThat(respMap.get("columns"), equalTo(List.of(Map.of("name", "sum", "type", "double"))));
+        assertThat(respMap.get("values"), equalTo(List.of(List.of(30.0d))));
+    }
+
+    public void testNestedViewResolutionAuthorized() throws Exception {
+        createView("test-admin", "other-view-user1", "FROM view-user1");
+        Response resp = runESQLCommand("user1", "FROM other-view-user1 | STATS sum=sum(value)");
+        assertOK(resp);
+        Map<String, Object> respMap = entityAsMap(resp);
+        assertThat(respMap.get("columns"), equalTo(List.of(Map.of("name", "sum", "type", "double"))));
+        assertThat(respMap.get("values"), equalTo(List.of(List.of(30.0d))));
+    }
+
+    public void testNestedViewInnerViewUnauthorized() throws Exception {
+        createView("test-admin", "other-view-user1", "FROM view-user2");
+        ResponseException resp = expectThrows(
+            ResponseException.class,
+            () -> runESQLCommand("user1", "FROM other-view-user1 | STATS sum=sum(value)")
+        );
+        String errorMessage = EntityUtils.toString(resp.getResponse().getEntity());
+        assertThat(errorMessage, containsString("Unknown index [view-user2]"));
+        assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
+    }
+
+    public void testViewDataSelectorResolvesView() throws Exception {
+        Response resp = runESQLCommand("user1", "FROM view-user1::data | STATS sum=sum(value)");
+        assertOK(resp);
+        Map<String, Object> respMap = entityAsMap(resp);
+        assertThat(respMap.get("columns"), equalTo(List.of(Map.of("name", "sum", "type", "double"))));
+        assertThat(respMap.get("values"), equalTo(List.of(List.of(30.0d))));
+    }
+
+    public void testViewFailureSelectorNotResolved() throws Exception {
+        ResponseException resp = expectThrows(
+            ResponseException.class,
+            () -> runESQLCommand("user1", "FROM view-user1::failures | STATS sum=sum(value)")
+        );
+        assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
+    }
+
+    public void testViewReferencingAliasAuthorized() throws Exception {
+        createView("test-admin", "other-view-user1", "FROM first-alias");
+        Response resp = runESQLCommand("user1", "FROM other-view-user1 | STATS sum=sum(value)");
+        assertOK(resp);
+        Map<String, Object> respMap = entityAsMap(resp);
+        assertThat(respMap.get("columns"), equalTo(List.of(Map.of("name", "sum", "type", "double"))));
+        assertThat(respMap.get("values"), equalTo(List.of(List.of(31.0d))));
+    }
+
+    public void testViewReferencingAliasUnauthorized() throws Exception {
+        createView("test-admin", "other-view-user2", "FROM first-alias");
+        ResponseException resp = expectThrows(
+            ResponseException.class,
+            () -> runESQLCommand("user2", "FROM other-view-user2 | STATS sum=sum(value)")
+        );
+        String errorMessage = EntityUtils.toString(resp.getResponse().getEntity());
+        assertThat(errorMessage, containsString("Unknown index [first-alias]"));
+        assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
+    }
+
     public void testDocumentLevelSecurity() throws Exception {
         Response resp = runESQLCommand("user3", "from index | stats sum=sum(value)");
         assertOK(resp);
@@ -511,6 +664,97 @@ public class EsqlSecurityIT extends ESRestTestCase {
         assertThat(respMap.get("values"), equalTo(List.of(List.of(2, 5))));
     }
 
+    public void testExplain() throws Exception {
+        assumeTrue("EXPLAIN is snapshot only", Build.current().isSnapshot());
+        for (String user : List.of("test-admin", "user1")) {
+            Response resp = runExplainCommand(user, "EXPLAIN (FROM index | WHERE value > 10 | STATS sum=sum(value))");
+            assertOK(resp);
+            Map<String, Object> respMap = entityAsMap(resp);
+            @SuppressWarnings("unchecked")
+            List<Map<String, String>> columns = (List<Map<String, String>>) respMap.get("columns");
+            // Verify we have the expected columns
+            assertThat(columns.size(), equalTo(5));
+            assertThat(columns.get(0).get("name"), equalTo("cluster"));
+            assertThat(columns.get(1).get("name"), equalTo("node"));
+            assertThat(columns.get(2).get("name"), equalTo("role"));
+            assertThat(columns.get(3).get("name"), equalTo("type"));
+            assertThat(columns.get(4).get("name"), equalTo("plan"));
+
+            @SuppressWarnings("unchecked")
+            List<List<Object>> values = (List<List<Object>>) respMap.get("values");
+            // Should have at least coordinator plans
+            assertThat(values.size(), org.hamcrest.Matchers.greaterThanOrEqualTo(3));
+
+            // Check for expected plan types
+            boolean hasParsedPlan = false;
+            boolean hasOptimizedLogicalPlan = false;
+            boolean hasOptimizedPhysicalPlan = false;
+            boolean hasLocalLogicalPlan = false;
+            boolean hasLocalPhysicalPlan = false;
+            for (List<Object> row : values) {
+                String role = (String) row.get(2);
+                String type = (String) row.get(3);
+                String plan = (String) row.get(4);
+
+                if ("coordinator".equals(role) && "parsedPlan".equals(type)) {
+                    hasParsedPlan = true;
+                    assertThat("Parsed plan should contain UnresolvedRelation", plan, containsString("UnresolvedRelation"));
+                }
+                if ("coordinator".equals(role) && "optimizedLogicalPlan".equals(type)) {
+                    hasOptimizedLogicalPlan = true;
+                    assertThat("Optimized logical plan should contain EsRelation", plan, containsString("EsRelation"));
+                }
+                if ("coordinator".equals(role) && "optimizedPhysicalPlan".equals(type)) {
+                    hasOptimizedPhysicalPlan = true;
+                    // Coordinator physical plan should contain FragmentExec (to be sent to data nodes)
+                    assertThat("Coordinator physical plan should contain FragmentExec", plan, containsString("FragmentExec"));
+                }
+                if ("data".equals(role) && "optimizedLocalLogicalPlan".equals(type)) {
+                    hasLocalLogicalPlan = true;
+                    // Optimized local logical plan should contain EsRelation (not LocalRelation) when using real search contexts
+                    assertThat("Optimized local logical plan should contain EsRelation", plan, containsString("EsRelation"));
+                    // Should contain Aggregate based on the query
+                    assertThat("Optimized local logical plan should contain Aggregate", plan, containsString("Aggregate"));
+                }
+                if ("data".equals(role) && "localPhysicalPlan".equals(type)) {
+                    hasLocalPhysicalPlan = true;
+                    // Local physical plan should contain an Elasticsearch execution node
+                    assertThat(
+                        "Local physical plan should contain an Es*Exec node",
+                        plan,
+                        anyOf(containsString("EsQueryExec"), containsString("EsStatsQueryExec"))
+                    );
+                    // Should not contain FragmentExec - that should be mapped to concrete operators
+                    assertThat("Local physical plan should not contain FragmentExec", plan, not(containsString("FragmentExec")));
+                }
+            }
+            assertThat("Should have parsed plan", hasParsedPlan, is(true));
+            assertThat("Should have optimized logical plan", hasOptimizedLogicalPlan, is(true));
+            assertThat("Should have optimized physical plan", hasOptimizedPhysicalPlan, is(true));
+            assertThat("Should have optimized local logical plan from data node", hasLocalLogicalPlan, is(true));
+            assertThat("Should have local physical plan from data node", hasLocalPhysicalPlan, is(true));
+        }
+    }
+
+    /**
+     * Run an EXPLAIN command - does not add LIMIT since EXPLAIN doesn't support downstream commands.
+     */
+    private Response runExplainCommand(String user, String command) throws IOException {
+        XContentBuilder json = JsonXContent.contentBuilder();
+        json.startObject();
+        json.field("query", command);
+        addRandomPragmas(json);
+        json.endObject();
+        Request request = new Request("POST", "_query");
+        request.setJsonEntity(Strings.toString(json));
+        request.addParameter("error_trace", "true");
+        // EXPLAIN queries may trigger a default limit warning, so ignore warnings
+        request.setOptions(
+            RequestOptions.DEFAULT.toBuilder().addHeader("es-security-runas-user", user).setWarningsHandler(warnings -> false)
+        );
+        return client().performRequest(request);
+    }
+
     public void testEnrich() throws Exception {
         createEnrichPolicy();
         try {
@@ -592,15 +836,24 @@ public class EsqlSecurityIT extends ESRestTestCase {
     }
 
     public void testLookupJoinIndexAllowed() throws Exception {
+        testLookupJoinIndexAllowedHelper(false);
+        assumeTrue(
+            "requires LOOKUP JOIN ON boolean expression capability",
+            EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled()
+        );
+        testLookupJoinIndexAllowedHelper(true);
+    }
+
+    private void testLookupJoinIndexAllowedHelper(boolean useExpressionJoin) throws Exception {
         assumeTrue(
             "Requires LOOKUP JOIN capability",
             hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.JOIN_LOOKUP_V12.capabilityName()))
         );
 
-        Response resp = runESQLCommand(
-            "metadata1_read2",
-            "ROW x = 40.0 | EVAL value = x | LOOKUP JOIN lookup-user2 ON value | KEEP x, org"
-        );
+        String query = useExpressionJoin
+            ? "ROW x = 40.0 | EVAL value_left = x | LOOKUP JOIN lookup-user2 ON value_left == value | KEEP x, org"
+            : "ROW x = 40.0 | EVAL value = x | LOOKUP JOIN lookup-user2 ON value | KEEP x, org";
+        Response resp = runESQLCommand("metadata1_read2", query);
         assertOK(resp);
         Map<String, Object> respMap = entityAsMap(resp);
         assertThat(
@@ -610,25 +863,19 @@ public class EsqlSecurityIT extends ESRestTestCase {
         assertThat(respMap.get("values"), equalTo(List.of(List.of(40.0, "sales"))));
 
         // user is not allowed to use the alias (but is allowed to use the index)
-        expectThrows(
-            ResponseException.class,
-            () -> runESQLCommand(
-                "metadata1_read2",
-                "ROW x = 40.0 | EVAL value = x | LOOKUP JOIN lookup-second-alias ON value | KEEP x, org"
-            )
-        );
+        String aliasQuery = useExpressionJoin
+            ? "ROW x = 40.0 | EVAL value_left = x | LOOKUP JOIN lookup-second-alias ON value_left == value | KEEP x, org"
+            : "ROW x = 40.0 | EVAL value = x | LOOKUP JOIN lookup-second-alias ON value | KEEP x, org";
+        expectThrows(ResponseException.class, () -> runESQLCommand("metadata1_read2", aliasQuery));
 
         // user is not allowed to use the index (but is allowed to use the alias)
-        expectThrows(
-            ResponseException.class,
-            () -> runESQLCommand("metadata1_alias_read2", "ROW x = 40.0 | EVAL value = x | LOOKUP JOIN lookup-user2 ON value | KEEP x, org")
-        );
+        String indexQuery = useExpressionJoin
+            ? "ROW x = 40.0 | EVAL value_left = x | LOOKUP JOIN lookup-user2 ON value_left == value | KEEP x, org"
+            : "ROW x = 40.0 | EVAL value = x | LOOKUP JOIN lookup-user2 ON value | KEEP x, org";
+        expectThrows(ResponseException.class, () -> runESQLCommand("metadata1_alias_read2", indexQuery));
 
         // user has permission on the alias, and can read the key
-        resp = runESQLCommand(
-            "metadata1_alias_read2",
-            "ROW x = 40.0 | EVAL value = x | LOOKUP JOIN lookup-second-alias ON value | KEEP x, org"
-        );
+        resp = runESQLCommand("metadata1_alias_read2", aliasQuery);
         assertOK(resp);
         respMap = entityAsMap(resp);
         assertThat(
@@ -638,10 +885,10 @@ public class EsqlSecurityIT extends ESRestTestCase {
         assertThat(respMap.get("values"), equalTo(List.of(List.of(40.0, "sales"))));
 
         // user has permission on the alias, but can't read the key (doc level security at role level)
-        resp = runESQLCommand(
-            "metadata1_alias_read2",
-            "ROW x = 32.0 | EVAL value = x | LOOKUP JOIN lookup-second-alias ON value | KEEP x, org"
-        );
+        String aliasQuery2 = useExpressionJoin
+            ? "ROW x = 32.0 | EVAL value_left = x | LOOKUP JOIN lookup-second-alias ON value_left == value | KEEP x, org"
+            : "ROW x = 32.0 | EVAL value = x | LOOKUP JOIN lookup-second-alias ON value | KEEP x, org";
+        resp = runESQLCommand("metadata1_alias_read2", aliasQuery2);
         assertOK(resp);
         respMap = entityAsMap(resp);
         assertThat(
@@ -656,7 +903,10 @@ public class EsqlSecurityIT extends ESRestTestCase {
         assertThat(row.get(1), is(nullValue()));
 
         // user has permission on the alias, the alias has a filter that doesn't allow to see the value
-        resp = runESQLCommand("alias_user1", "ROW x = 12.0 | EVAL value = x | LOOKUP JOIN lookup-first-alias ON value | KEEP x, org");
+        String aliasQuery3 = useExpressionJoin
+            ? "ROW x = 12.0 | EVAL value_left = x | LOOKUP JOIN lookup-first-alias ON value_left == value | KEEP x, org"
+            : "ROW x = 12.0 | EVAL value = x | LOOKUP JOIN lookup-first-alias ON value | KEEP x, org";
+        resp = runESQLCommand("alias_user1", aliasQuery3);
         assertOK(resp);
         respMap = entityAsMap(resp);
         assertThat(
@@ -671,7 +921,10 @@ public class EsqlSecurityIT extends ESRestTestCase {
         assertThat(row.get(1), is(nullValue()));
 
         // user has permission on the alias, the alias has a filter that allows to see the value
-        resp = runESQLCommand("alias_user1", "ROW x = 31.0 | EVAL value = x | LOOKUP JOIN lookup-first-alias ON value | KEEP x, org");
+        String aliasQuery4 = useExpressionJoin
+            ? "ROW x = 31.0 | EVAL value_left = x | LOOKUP JOIN lookup-first-alias ON value_left == value | KEEP x, org"
+            : "ROW x = 31.0 | EVAL value = x | LOOKUP JOIN lookup-first-alias ON value | KEEP x, org";
+        resp = runESQLCommand("alias_user1", aliasQuery4);
         assertOK(resp);
         respMap = entityAsMap(resp);
         assertThat(
@@ -683,12 +936,23 @@ public class EsqlSecurityIT extends ESRestTestCase {
 
     @SuppressWarnings("unchecked")
     public void testLookupJoinDocLevelSecurity() throws Exception {
+        testLookupJoinDocLevelSecurityHelper(false);
+        assumeTrue(
+            "requires LOOKUP JOIN ON boolean expression capability",
+            EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled()
+        );
+        testLookupJoinDocLevelSecurityHelper(true);
+    }
+
+    private void testLookupJoinDocLevelSecurityHelper(boolean useExpressionJoin) throws Exception {
         assumeTrue(
             "Requires LOOKUP JOIN capability",
             hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.JOIN_LOOKUP_V12.capabilityName()))
         );
-
-        Response resp = runESQLCommand("dls_user", "ROW x = 40.0 | EVAL value = x | LOOKUP JOIN lookup-user2 ON value | KEEP x, org");
+        String query = useExpressionJoin
+            ? "ROW x = 40.0 | EVAL value_left = x | LOOKUP JOIN lookup-user2 ON value_left == value | KEEP x, org"
+            : "ROW x = 40.0 | EVAL value = x | LOOKUP JOIN lookup-user2 ON value | KEEP x, org";
+        Response resp = runESQLCommand("dls_user", query);
         assertOK(resp);
         Map<String, Object> respMap = entityAsMap(resp);
         assertThat(
@@ -698,7 +962,10 @@ public class EsqlSecurityIT extends ESRestTestCase {
 
         assertThat(respMap.get("values"), equalTo(List.of(Arrays.asList(40.0, null))));
 
-        resp = runESQLCommand("dls_user", "ROW x = 32.0 | EVAL value = x | LOOKUP JOIN lookup-user2 ON value | KEEP x, org");
+        query = useExpressionJoin
+            ? "ROW x = 32.0 | EVAL value_left = x | LOOKUP JOIN lookup-user2 ON value_left == value | KEEP x, org"
+            : "ROW x = 32.0 | EVAL value = x | LOOKUP JOIN lookup-user2 ON value | KEEP x, org";
+        resp = runESQLCommand("dls_user", query);
         assertOK(resp);
         respMap = entityAsMap(resp);
         assertThat(
@@ -709,7 +976,10 @@ public class EsqlSecurityIT extends ESRestTestCase {
 
         // same, but with a user that has two dls roles that allow him more visibility
 
-        resp = runESQLCommand("dls_user2", "ROW x = 40.0 | EVAL value = x | LOOKUP JOIN lookup-user2 ON value | KEEP x, org");
+        query = useExpressionJoin
+            ? "ROW x = 40.0 | EVAL value_left = x | LOOKUP JOIN lookup-user2 ON value_left == value | KEEP x, org"
+            : "ROW x = 40.0 | EVAL value = x | LOOKUP JOIN lookup-user2 ON value | KEEP x, org";
+        resp = runESQLCommand("dls_user2", query);
         assertOK(resp);
         respMap = entityAsMap(resp);
         assertThat(
@@ -719,7 +989,10 @@ public class EsqlSecurityIT extends ESRestTestCase {
 
         assertThat(respMap.get("values"), equalTo(List.of(Arrays.asList(40.0, "sales"))));
 
-        resp = runESQLCommand("dls_user2", "ROW x = 32.0 | EVAL value = x | LOOKUP JOIN lookup-user2 ON value | KEEP x, org");
+        query = useExpressionJoin
+            ? "ROW x = 32.0 | EVAL value_left = x | LOOKUP JOIN lookup-user2 ON value_left == value | KEEP x, org"
+            : "ROW x = 32.0 | EVAL value = x | LOOKUP JOIN lookup-user2 ON value | KEEP x, org";
+        resp = runESQLCommand("dls_user2", query);
         assertOK(resp);
         respMap = entityAsMap(resp);
         assertThat(
@@ -732,12 +1005,24 @@ public class EsqlSecurityIT extends ESRestTestCase {
 
     @SuppressWarnings("unchecked")
     public void testLookupJoinFieldLevelSecurity() throws Exception {
+        testLookupJoinFieldLevelSecurityHelper(false);
+        assumeTrue(
+            "requires LOOKUP JOIN ON boolean expression capability",
+            EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled()
+        );
+        testLookupJoinFieldLevelSecurityHelper(true);
+    }
+
+    private void testLookupJoinFieldLevelSecurityHelper(boolean useExpressionJoin) throws Exception {
         assumeTrue(
             "Requires LOOKUP JOIN capability",
             hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.JOIN_LOOKUP_V12.capabilityName()))
         );
 
-        Response resp = runESQLCommand("fls_user2", "ROW x = 40.0 | EVAL value = x | LOOKUP JOIN lookup-user2 ON value");
+        String query = useExpressionJoin
+            ? "ROW x = 40.0 | EVAL value_left = x | LOOKUP JOIN lookup-user2 ON value_left == value | KEEP x, value, org"
+            : "ROW x = 40.0 | EVAL value = x | LOOKUP JOIN lookup-user2 ON value | KEEP x, value, org";
+        Response resp = runESQLCommand("fls_user2", query);
         assertOK(resp);
         Map<String, Object> respMap = entityAsMap(resp);
         assertThat(
@@ -751,7 +1036,10 @@ public class EsqlSecurityIT extends ESRestTestCase {
             )
         );
 
-        resp = runESQLCommand("fls_user3", "ROW x = 40.0 | EVAL value = x | LOOKUP JOIN lookup-user2 ON value");
+        String query2 = useExpressionJoin
+            ? "ROW x = 40.0 | EVAL value_left = x | LOOKUP JOIN lookup-user2 ON value_left == value | KEEP x, value, org, other"
+            : "ROW x = 40.0 | EVAL value = x | LOOKUP JOIN lookup-user2 ON value | KEEP x, value, org, other";
+        resp = runESQLCommand("fls_user3", query2);
         assertOK(resp);
         respMap = entityAsMap(resp);
         assertThat(
@@ -767,7 +1055,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
 
         );
 
-        resp = runESQLCommand("fls_user4", "ROW x = 40.0 | EVAL value = x | LOOKUP JOIN lookup-user2 ON value");
+        resp = runESQLCommand("fls_user4", query);
         assertOK(resp);
         respMap = entityAsMap(resp);
         assertThat(
@@ -781,21 +1069,34 @@ public class EsqlSecurityIT extends ESRestTestCase {
             )
         );
 
-        ResponseException error = expectThrows(
-            ResponseException.class,
-            () -> runESQLCommand("fls_user4_1", "ROW x = 40.0 | EVAL value = x | LOOKUP JOIN lookup-user2 ON value")
-        );
-        assertThat(error.getMessage(), containsString("Unknown column [value] in right side of join"));
+        ResponseException error = expectThrows(ResponseException.class, () -> runESQLCommand("fls_user4_1", query));
         assertThat(error.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
+        if (useExpressionJoin) {
+            assertThat(error.getMessage(), containsString("Unknown column [value], did you mean [value_left]?"));
+        } else {
+            assertThat(error.getMessage(), containsString("Unknown column [value] in right side of join"));
+        }
     }
 
     public void testLookupJoinFieldLevelSecurityOnAlias() throws Exception {
+        testLookupJoinFieldLevelSecurityOnAliasHelper(false);
+        assumeTrue(
+            "requires LOOKUP JOIN ON boolean expression capability",
+            EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled()
+        );
+        testLookupJoinFieldLevelSecurityOnAliasHelper(true);
+    }
+
+    private void testLookupJoinFieldLevelSecurityOnAliasHelper(boolean useExpressionJoin) throws Exception {
         assumeTrue(
             "Requires LOOKUP JOIN capability",
             hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.JOIN_LOOKUP_V12.capabilityName()))
         );
 
-        Response resp = runESQLCommand("fls_user2_alias", "ROW x = 40.0 | EVAL value = x | LOOKUP JOIN lookup-second-alias ON value");
+        String query = useExpressionJoin
+            ? "ROW x = 40.0 | EVAL value_left = x | LOOKUP JOIN lookup-second-alias ON value_left == value | KEEP x, value, org"
+            : "ROW x = 40.0 | EVAL value = x | LOOKUP JOIN lookup-second-alias ON value | KEEP x, value, org";
+        Response resp = runESQLCommand("fls_user2_alias", query);
         assertOK(resp);
         Map<String, Object> respMap = entityAsMap(resp);
         assertThat(
@@ -809,7 +1110,10 @@ public class EsqlSecurityIT extends ESRestTestCase {
             )
         );
 
-        resp = runESQLCommand("fls_user3_alias", "ROW x = 40.0 | EVAL value = x | LOOKUP JOIN lookup-second-alias ON value");
+        String query2 = useExpressionJoin
+            ? "ROW x = 40.0 | EVAL value_left = x | LOOKUP JOIN lookup-second-alias ON value_left == value | KEEP x, value, org, other"
+            : "ROW x = 40.0 | EVAL value = x | LOOKUP JOIN lookup-second-alias ON value | KEEP x, value, org, other";
+        resp = runESQLCommand("fls_user3_alias", query2);
         assertOK(resp);
         respMap = entityAsMap(resp);
         assertThat(
@@ -825,7 +1129,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
 
         );
 
-        resp = runESQLCommand("fls_user4_alias", "ROW x = 40.0 | EVAL value = x | LOOKUP JOIN lookup-second-alias ON value");
+        resp = runESQLCommand("fls_user4_alias", query);
         assertOK(resp);
         respMap = entityAsMap(resp);
         assertThat(
@@ -839,48 +1143,55 @@ public class EsqlSecurityIT extends ESRestTestCase {
             )
         );
 
-        ResponseException error = expectThrows(
-            ResponseException.class,
-            () -> runESQLCommand("fls_user4_1_alias", "ROW x = 40.0 | EVAL value = x | LOOKUP JOIN lookup-second-alias ON value")
-        );
-        assertThat(error.getMessage(), containsString("Unknown column [value] in right side of join"));
+        ResponseException error = expectThrows(ResponseException.class, () -> runESQLCommand("fls_user4_1_alias", query));
         assertThat(error.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
+        if (useExpressionJoin) {
+            assertThat(error.getMessage(), containsString("Unknown column [value], did you mean [value_left]?"));
+        } else {
+            assertThat(error.getMessage(), containsString("Unknown column [value] in right side of join"));
+        }
     }
 
     public void testLookupJoinIndexForbidden() throws Exception {
+        testLookupJoinIndexForbiddenHelper(false);
+        assumeTrue(
+            "requires LOOKUP JOIN ON boolean expression capability",
+            EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled()
+        );
+        testLookupJoinIndexForbiddenHelper(true);
+    }
+
+    private void testLookupJoinIndexForbiddenHelper(boolean useExpressionJoin) throws Exception {
         assumeTrue(
             "Requires LOOKUP JOIN capability",
             hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.JOIN_LOOKUP_V12.capabilityName()))
         );
 
-        var resp = expectThrows(
-            ResponseException.class,
-            () -> runESQLCommand("metadata1_read2", "FROM lookup-user2 | EVAL value = 10.0 | LOOKUP JOIN lookup-user1 ON value | KEEP x")
-        );
+        String query1 = useExpressionJoin
+            ? "FROM lookup-user2 | EVAL value_left = 10.0 | LOOKUP JOIN lookup-user1 ON value_left == value | KEEP x"
+            : "FROM lookup-user2 | EVAL value = 10.0 | LOOKUP JOIN lookup-user1 ON value | KEEP x";
+        var resp = expectThrows(ResponseException.class, () -> runESQLCommand("metadata1_read2", query1));
         assertThat(resp.getMessage(), containsString("Unknown index [lookup-user1]"));
         assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
 
-        resp = expectThrows(
-            ResponseException.class,
-            () -> runESQLCommand(
-                "metadata1_read2",
-                "FROM lookup-user2 | EVAL value = 10.0 | LOOKUP JOIN lookup-first-alias ON value | KEEP x"
-            )
-        );
+        String query2 = useExpressionJoin
+            ? "FROM lookup-user2 | EVAL value_left = 10.0 | LOOKUP JOIN lookup-first-alias ON value_left == value | KEEP x"
+            : "FROM lookup-user2 | EVAL value = 10.0 | LOOKUP JOIN lookup-first-alias ON value | KEEP x";
+        resp = expectThrows(ResponseException.class, () -> runESQLCommand("metadata1_read2", query2));
         assertThat(resp.getMessage(), containsString("Unknown index [lookup-first-alias]"));
         assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
 
-        resp = expectThrows(
-            ResponseException.class,
-            () -> runESQLCommand("metadata1_read2", "ROW x = 10.0 | EVAL value = x | LOOKUP JOIN lookup-user1 ON value | KEEP x")
-        );
+        String query3 = useExpressionJoin
+            ? "ROW x = 10.0 | EVAL value_left = x | LOOKUP JOIN lookup-user1 ON value_left == value | KEEP x"
+            : "ROW x = 10.0 | EVAL value = x | LOOKUP JOIN lookup-user1 ON value | KEEP x";
+        resp = expectThrows(ResponseException.class, () -> runESQLCommand("metadata1_read2", query3));
         assertThat(resp.getMessage(), containsString("Unknown index [lookup-user1]"));
         assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
 
-        resp = expectThrows(
-            ResponseException.class,
-            () -> runESQLCommand("alias_user1", "ROW x = 10.0 | EVAL value = x | LOOKUP JOIN lookup-user1 ON value | KEEP x")
-        );
+        String query4 = useExpressionJoin
+            ? "ROW x = 10.0 | EVAL value_left = x | LOOKUP JOIN lookup-user1 ON value_left == value | KEEP x"
+            : "ROW x = 10.0 | EVAL value = x | LOOKUP JOIN lookup-user1 ON value | KEEP x";
+        resp = expectThrows(ResponseException.class, () -> runESQLCommand("alias_user1", query4));
         assertThat(resp.getMessage(), containsString("Unknown index [lookup-user1]"));
         assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
     }
@@ -926,6 +1237,219 @@ public class EsqlSecurityIT extends ESRestTestCase {
         var resp = expectThrows(ResponseException.class, () -> client().performRequest(GET_QUERY_REQUEST));
         assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(403));
         assertThat(resp.getMessage(), containsString("this action is granted by the cluster privileges [monitor_esql,monitor,manage,all]"));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testGetViewAllowed() throws Exception {
+        {
+            var resp = getView("user1", randomFrom(new String[] { "view-user1", "view" }, new String[] { "*" }, new String[] { "_all" }));
+            assertOK(resp);
+            var respMap = entityAsMap(resp);
+            var views = (List<Map<String, Object>>) respMap.get("views");
+            assertThat(views.size(), equalTo(2));
+            assertThat(views.stream().map(entry -> entry.get("name")).toList(), containsInAnyOrder("view", "view-user1"));
+        }
+        {
+            var resp = getView("user2", randomFrom("view-user2", "*", "_all"));
+            assertOK(resp);
+            var respMap = entityAsMap(resp);
+            var views = (List<Map<String, Object>>) respMap.get("views");
+            assertThat(views.size(), equalTo(1));
+            assertThat(views.getFirst().get("name"), equalTo("view-user2"));
+        }
+        {
+            var resp = getView("test-admin");
+            assertOK(resp);
+            var respMap = entityAsMap(resp);
+            var views = (List<Map<String, Object>>) respMap.get("views");
+            assertThat(views.size(), equalTo(3));
+        }
+    }
+
+    public void testGetViewForbidden() {
+        {
+            var resp = expectThrows(ResponseException.class, () -> getView("user_without_monitor_privileges", "view-user1"));
+            assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+            assertThat(
+                resp.getMessage(),
+                anyOf(containsString("this action is granted by the index privileges [read_view_metadata,manage_view,manage,all]"))
+            );
+        }
+        {
+            var resp = expectThrows(ResponseException.class, () -> getView("user2", "view-user1"));
+            assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+            assertThat(
+                resp.getMessage(),
+                anyOf(containsString("this action is granted by the index privileges [read_view_metadata,manage_view,manage,all]"))
+            );
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testGetViewWildcardNoIndices() throws Exception {
+        var resp = getView("user1", "view-user2*");
+        assertOK(resp);
+        var respMap = entityAsMap(resp);
+        var views = (List<Map<String, Object>>) respMap.get("views");
+        assertThat(views, hasSize(0));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testGetViewWildcardAndConcrete() throws Exception {
+        var resp = getView("user1", "view-user1", "vie*");
+        assertOK(resp);
+        var respMap = entityAsMap(resp);
+        var views = (List<Map<String, Object>>) respMap.get("views");
+        var viewNames = views.stream().map(entry -> entry.get("name")).collect(Collectors.toSet());
+        assertThat(viewNames, hasSize(2));
+        assertThat(viewNames, containsInAnyOrder("view", "view-user1"));
+    }
+
+    public void testCreateViewAllowed() throws Exception {
+        createView("user1", "other-view-user1", "FROM index | KEEP value, org");
+        createView("user2", "other-view-user2", "FROM index | KEEP value, org");
+    }
+
+    public void testCreateViewForbidden() {
+        {
+            var resp = expectThrows(ResponseException.class, () -> createView("user2", "other-view-user1", "FROM index | KEEP value, org"));
+            assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+            assertThat(
+                resp.getMessage(),
+                anyOf(containsString("this action is granted by the index privileges [create_view,manage_view,manage,all]"))
+            );
+        }
+        {
+            var resp = expectThrows(ResponseException.class, () -> createView("user1", "other-view-user2", "FROM index | KEEP value, org"));
+            assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+            assertThat(
+                resp.getMessage(),
+                anyOf(containsString("this action is granted by the index privileges [create_view,manage_view,manage,all]"))
+            );
+        }
+        {
+            var resp = expectThrows(ResponseException.class, () -> createView("user3", "any-name", "FROM index | KEEP value, org"));
+            assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+            assertThat(
+                resp.getMessage(),
+                anyOf(containsString("this action is granted by the index privileges [create_view,manage_view,manage,all]"))
+            );
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testUpdateViewAllowed() throws Exception {
+        {
+            createView("user1", "view-user1", "FROM index | KEEP value | STATS sum=sum(value)");
+            var resp = getView("user1", "view-user1");
+            assertOK(resp);
+            var respMap = entityAsMap(resp);
+            var views = (List<Map<String, Object>>) respMap.get("views");
+            assertThat(views.size(), equalTo(1));
+            assertThat(views.getFirst().get("query"), equalTo("FROM index | KEEP value | STATS sum=sum(value)"));
+        }
+        {
+            createView("user2", "view-user2", "FROM index | STATS count=COUNT(*)");
+            var resp = getView("user2", "view-user2");
+            assertOK(resp);
+            var respMap = entityAsMap(resp);
+            var views = (List<Map<String, Object>>) respMap.get("views");
+            assertThat(views.size(), equalTo(1));
+            assertThat(views.getFirst().get("query"), equalTo("FROM index | STATS count=COUNT(*)"));
+        }
+        {
+            createView("test-admin", "view-user1", "FROM index | LIMIT 10");
+            var resp = getView("test-admin", "view-user1");
+            assertOK(resp);
+            var respMap = entityAsMap(resp);
+            var views = (List<Map<String, Object>>) respMap.get("views");
+            assertThat(views.size(), equalTo(1));
+            assertThat(views.getFirst().get("query"), equalTo("FROM index | LIMIT 10"));
+        }
+    }
+
+    public void testUpdateViewForbidden() {
+        {
+            var resp = expectThrows(ResponseException.class, () -> createView("user2", "view-user1", "FROM index | KEEP value, org"));
+            assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+            assertThat(
+                resp.getMessage(),
+                anyOf(containsString("this action is granted by the index privileges [create_view,manage_view,manage,all]"))
+            );
+        }
+        {
+            var resp = expectThrows(ResponseException.class, () -> createView("user1", "view-user2", "FROM index | KEEP value, org"));
+            assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+            assertThat(
+                resp.getMessage(),
+                anyOf(containsString("this action is granted by the index privileges [create_view,manage_view,manage,all]"))
+            );
+        }
+        {
+            var resp = expectThrows(ResponseException.class, () -> createView("user3", "view-user1", "FROM index | KEEP value, org"));
+            assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+            assertThat(
+                resp.getMessage(),
+                anyOf(containsString("this action is granted by the index privileges [create_view,manage_view,manage,all]"))
+            );
+        }
+    }
+
+    public void testDeleteViewAllowed() throws Exception {
+        createView("user1", "other-view-user1", "FROM index | KEEP value, org");
+        createView("user2", "other-view-user2", "FROM index | KEEP value, org");
+        createView("test-admin", "other-view-admin", "FROM index | KEEP value, org");
+
+        {
+            var resp = deleteView("user1", "other-view-user1");
+            assertOK(resp);
+        }
+        {
+            var resp = deleteView("user2", "other-view-user2");
+            assertOK(resp);
+        }
+        {
+            var resp = deleteView("test-admin", "other-view-admin");
+            assertOK(resp);
+        }
+    }
+
+    public void testDeleteViewForbidden() {
+        {
+            var resp = expectThrows(ResponseException.class, () -> deleteView("user2", "view-user1"));
+            assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+            assertThat(
+                resp.getMessage(),
+                anyOf(containsString("this action is granted by the index privileges [delete_view,manage_view,manage,all]"))
+            );
+        }
+        {
+            var resp = expectThrows(ResponseException.class, () -> deleteView("user1", "view-user2"));
+            assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+            assertThat(
+                resp.getMessage(),
+                anyOf(containsString("this action is granted by the index privileges [delete_view,manage_view,manage,all]"))
+            );
+        }
+        {
+            var resp = expectThrows(ResponseException.class, () -> deleteView("user3", "view-user1"));
+            assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+            assertThat(
+                resp.getMessage(),
+                anyOf(containsString("this action is granted by the index privileges [delete_view,manage_view,manage,all]"))
+            );
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testGetViewWildcard() throws Exception {
+        Response resp = getView("user1", randomFrom("vie*", "*", "*iew*"));
+        assertOK(resp);
+        Map<String, Object> respMap = entityAsMap(resp);
+        List<Map<String, Object>> views = (List<Map<String, Object>>) respMap.get("views");
+        var viewNames = views.stream().map(view -> view.get("name")).collect(Collectors.toSet());
+        assertThat(viewNames, hasSize(2));
+        assertThat(viewNames, containsInAnyOrder("view-user1", "view"));
     }
 
     private static final Request GET_QUERY_REQUEST = new Request(

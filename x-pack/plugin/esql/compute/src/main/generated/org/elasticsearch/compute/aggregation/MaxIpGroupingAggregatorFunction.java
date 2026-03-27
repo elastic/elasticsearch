@@ -37,16 +37,10 @@ public final class MaxIpGroupingAggregatorFunction implements GroupingAggregator
 
   private final DriverContext driverContext;
 
-  public MaxIpGroupingAggregatorFunction(List<Integer> channels,
-      MaxIpAggregator.GroupingState state, DriverContext driverContext) {
+  MaxIpGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext) {
     this.channels = channels;
-    this.state = state;
+    this.state = MaxIpAggregator.initGrouping(driverContext.bigArrays());
     this.driverContext = driverContext;
-  }
-
-  public static MaxIpGroupingAggregatorFunction create(List<Integer> channels,
-      DriverContext driverContext) {
-    return new MaxIpGroupingAggregatorFunction(channels, MaxIpAggregator.initGrouping(driverContext.bigArrays()), driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -164,7 +158,7 @@ public final class MaxIpGroupingAggregatorFunction implements GroupingAggregator
     }
     BooleanVector seen = ((BooleanBlock) seenUncast).asVector();
     assert max.getPositionCount() == seen.getPositionCount();
-    BytesRef scratch = new BytesRef();
+    BytesRef maxScratch = new BytesRef();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
         continue;
@@ -174,7 +168,7 @@ public final class MaxIpGroupingAggregatorFunction implements GroupingAggregator
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
         int valuesPosition = groupPosition + positionOffset;
-        MaxIpAggregator.combineIntermediate(state, groupId, max.getBytesRef(valuesPosition, scratch), seen.getBoolean(valuesPosition));
+        MaxIpAggregator.combineIntermediate(state, groupId, max.getBytesRef(valuesPosition, maxScratch), seen.getBoolean(valuesPosition));
       }
     }
   }
@@ -236,7 +230,7 @@ public final class MaxIpGroupingAggregatorFunction implements GroupingAggregator
     }
     BooleanVector seen = ((BooleanBlock) seenUncast).asVector();
     assert max.getPositionCount() == seen.getPositionCount();
-    BytesRef scratch = new BytesRef();
+    BytesRef maxScratch = new BytesRef();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
         continue;
@@ -246,7 +240,7 @@ public final class MaxIpGroupingAggregatorFunction implements GroupingAggregator
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
         int valuesPosition = groupPosition + positionOffset;
-        MaxIpAggregator.combineIntermediate(state, groupId, max.getBytesRef(valuesPosition, scratch), seen.getBoolean(valuesPosition));
+        MaxIpAggregator.combineIntermediate(state, groupId, max.getBytesRef(valuesPosition, maxScratch), seen.getBoolean(valuesPosition));
       }
     }
   }
@@ -293,11 +287,11 @@ public final class MaxIpGroupingAggregatorFunction implements GroupingAggregator
     }
     BooleanVector seen = ((BooleanBlock) seenUncast).asVector();
     assert max.getPositionCount() == seen.getPositionCount();
-    BytesRef scratch = new BytesRef();
+    BytesRef maxScratch = new BytesRef();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int groupId = groups.getInt(groupPosition);
       int valuesPosition = groupPosition + positionOffset;
-      MaxIpAggregator.combineIntermediate(state, groupId, max.getBytesRef(valuesPosition, scratch), seen.getBoolean(valuesPosition));
+      MaxIpAggregator.combineIntermediate(state, groupId, max.getBytesRef(valuesPosition, maxScratch), seen.getBoolean(valuesPosition));
     }
   }
 
@@ -313,14 +307,24 @@ public final class MaxIpGroupingAggregatorFunction implements GroupingAggregator
   }
 
   @Override
-  public void evaluateIntermediate(Block[] blocks, int offset, IntVector selected) {
-    state.toIntermediate(blocks, offset, selected, driverContext);
+  public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateIntermediate(
+      IntVector selected, GroupingAggregatorEvaluationContext ctx) {
+    return this::evaluateIntermediate;
+  }
+
+  private void evaluateIntermediate(Block[] blocks, int offset, IntVector selectedInPage) {
+    state.toIntermediate(blocks, offset, selectedInPage, driverContext);
   }
 
   @Override
-  public void evaluateFinal(Block[] blocks, int offset, IntVector selected,
+  public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateFinal(IntVector selected,
       GroupingAggregatorEvaluationContext ctx) {
-    blocks[offset] = MaxIpAggregator.evaluateFinal(state, selected, ctx);
+    return (blocks, offset, selectedInPage) -> evaluateFinal(blocks, offset, selectedInPage, ctx);
+  }
+
+  private void evaluateFinal(Block[] blocks, int offset, IntVector selectedInPage,
+      GroupingAggregatorEvaluationContext ctx) {
+    blocks[offset] = MaxIpAggregator.evaluateFinal(state, selectedInPage, ctx);
   }
 
   @Override

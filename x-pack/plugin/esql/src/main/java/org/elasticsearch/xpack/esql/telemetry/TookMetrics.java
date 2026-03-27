@@ -79,7 +79,7 @@ public class TookMetrics {
         counters.inc(prefix + "lt_1m", lessThan1m.count());
         counters.inc(prefix + "lt_10m", lessThan10m.count());
         counters.inc(prefix + "lt_1h", lessThan1h.count());
-        counters.inc(prefix + "lt_10h", lessThan1h.count());
+        counters.inc(prefix + "lt_10h", lessThan10h.count());
         counters.inc(prefix + "lt_1d", lessThan1d.count());
         counters.inc(prefix + "gt_1d", greaterThan1d.count());
     }

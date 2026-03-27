@@ -31,6 +31,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.search.SearchService.DEFAULT_SIZE;
@@ -83,6 +84,7 @@ public abstract class AbstractQueryVectorBuilderTestCase<T extends QueryVectorBu
                 .queryVectorBuilder(createTestInstance())
                 .k(5)
                 .numCandidates(10)
+                .visitPercentage(10f)
                 .similarity(randomBoolean() ? null : randomFloat())
                 .build(DEFAULT_SIZE),
             getToXContentParams(),
@@ -98,6 +100,7 @@ public abstract class AbstractQueryVectorBuilderTestCase<T extends QueryVectorBu
                 createTestInstance(),
                 5,
                 10,
+                10f,
                 randomBoolean() ? null : new RescoreVectorBuilder(randomFloatBetween(1.0f, 10.0f, false)),
                 randomBoolean() ? null : randomFloat()
             );
@@ -122,6 +125,7 @@ public abstract class AbstractQueryVectorBuilderTestCase<T extends QueryVectorBu
                 queryVectorBuilder,
                 5,
                 10,
+                10f,
                 randomBoolean() ? null : new RescoreVectorBuilder(randomFloatBetween(1.0f, 10.0f, false)),
                 randomBoolean() ? null : randomFloat()
             );
@@ -139,6 +143,7 @@ public abstract class AbstractQueryVectorBuilderTestCase<T extends QueryVectorBu
                 KnnSearchBuilder rewritten = future.get();
                 assertThat(rewritten.getQueryVector().asFloatVector(), equalTo(expected));
                 assertThat(rewritten.getQueryVectorBuilder(), nullValue());
+                client.decref();
             }
         }
     }
@@ -151,6 +156,7 @@ public abstract class AbstractQueryVectorBuilderTestCase<T extends QueryVectorBu
             PlainActionFuture<float[]> future = new PlainActionFuture<>();
             queryVectorBuilder.buildVector(client, future);
             assertThat(future.get(), equalTo(expected));
+            client.decref();
         }
     }
 
@@ -169,7 +175,7 @@ public abstract class AbstractQueryVectorBuilderTestCase<T extends QueryVectorBu
      */
     protected abstract ActionResponse createResponse(float[] array, T builder);
 
-    protected static float[] randomVector(int dim) {
+    public static float[] randomVector(int dim) {
         float[] vector = new float[dim];
         for (int i = 0; i < vector.length; i++) {
             vector[i] = randomFloat();
@@ -181,6 +187,7 @@ public abstract class AbstractQueryVectorBuilderTestCase<T extends QueryVectorBu
 
         private final float[] array;
         private final T queryVectorBuilder;
+        private final List<ActionResponse> toDecref = new ArrayList<>();
 
         AssertingClient(ThreadPool threadPool, float[] array, T queryVectorBuilder) {
             super(threadPool);
@@ -196,7 +203,16 @@ public abstract class AbstractQueryVectorBuilderTestCase<T extends QueryVectorBu
             ActionListener<Response> listener
         ) {
             doAssertClientRequest(request, queryVectorBuilder);
-            listener.onResponse((Response) createResponse(array, queryVectorBuilder));
+            ActionResponse response = createResponse(array, queryVectorBuilder);
+            toDecref.add(response);
+            listener.onResponse((Response) response);
+        }
+
+        public void decref() {
+            for (ActionResponse response : toDecref) {
+                response.decRef();
+            }
+            toDecref.clear();
         }
     }
 }

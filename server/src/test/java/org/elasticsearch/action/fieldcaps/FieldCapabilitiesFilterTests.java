@@ -11,6 +11,7 @@ package org.elasticsearch.action.fieldcaps;
 
 import org.apache.lucene.index.FieldInfos;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -94,6 +95,54 @@ public class FieldCapabilitiesFilterTests extends MapperServiceTestCase {
             );
             assertNull(response.get("_index"));
             assertNotNull(response.get("field1"));
+        }
+    }
+
+    public void testDimensionFilters() throws IOException {
+        MapperService mapperService = createMapperService(
+            Settings.builder().put("index.mode", "time_series").put("index.routing_path", "dim.*").build(),
+            """
+                { "_doc" : {
+                  "properties" : {
+                    "metric" : { "type" : "long" },
+                    "dimension_1" : { "type" : "keyword", "time_series_dimension" : "true" },
+                    "dimension_2" : { "type" : "long", "time_series_dimension" : "true" }
+                  }
+                } }
+                """
+        );
+        SearchExecutionContext sec = createSearchExecutionContext(mapperService);
+
+        {
+            // First, test without the filter
+            Map<String, IndexFieldCapabilities> response = FieldCapabilitiesFetcher.retrieveFieldCaps(
+                sec,
+                s -> s.equals("metric"),
+                Strings.EMPTY_ARRAY,
+                Strings.EMPTY_ARRAY,
+                FieldPredicate.ACCEPT_ALL,
+                getMockIndexShard(),
+                true
+            );
+            assertNotNull(response.get("metric"));
+            assertNull(response.get("dimension_1"));
+            assertNull(response.get("dimension_2"));
+        }
+
+        {
+            // then, test with the filter
+            Map<String, IndexFieldCapabilities> response = FieldCapabilitiesFetcher.retrieveFieldCaps(
+                sec,
+                s -> s.equals("metric"),
+                new String[] { "+dimension" },
+                Strings.EMPTY_ARRAY,
+                FieldPredicate.ACCEPT_ALL,
+                getMockIndexShard(),
+                true
+            );
+            assertNotNull(response.get("dimension_1"));
+            assertNotNull(response.get("dimension_2"));
+            assertNotNull(response.get("metric"));
         }
     }
 
@@ -247,6 +296,47 @@ public class FieldCapabilitiesFilterTests extends MapperServiceTestCase {
         assertNull(response.get("field2"));
         assertNotNull(response.get("field3"));
         assertNull(response.get("_index"));
+    }
+
+    public void testPassthroughFieldDoesNotAddIntermediateParentAsObject() throws IOException {
+        // Reproduce the scenario from https://github.com/elastic/elasticsearch/issues/144179:
+        // A passthrough field (subobjects: false) with a sub-field whose name contains a dot,
+        // e.g. "attributes.foo.bar". The intermediate segment "attributes.foo" must NOT be
+        // synthesized as an implicit "object" field in the field capabilities response.
+        MapperService mapperService = createMapperService("""
+            { "_doc" : {
+              "properties" : {
+                "attributes" : {
+                  "type" : "passthrough",
+                  "priority" : 0,
+                  "properties" : {
+                    "foo.bar" : { "type" : "keyword" }
+                  }
+                }
+              }
+            } }
+            """);
+        SearchExecutionContext sec = createSearchExecutionContext(mapperService);
+
+        Map<String, IndexFieldCapabilities> response = FieldCapabilitiesFetcher.retrieveFieldCaps(
+            sec,
+            s -> true,
+            Strings.EMPTY_ARRAY,
+            Strings.EMPTY_ARRAY,
+            FieldPredicate.ACCEPT_ALL,
+            getMockIndexShard(),
+            true
+        );
+
+        // The leaf field should be present as keyword
+        assertNotNull(response.get("attributes.foo.bar"));
+        assertEquals("keyword", response.get("attributes.foo.bar").type());
+        // The intermediate segment "attributes.foo" must NOT appear as an implicit object,
+        // because the passthrough mapper enforces subobjects:false
+        assertNull(
+            "attributes.foo must not be synthesized as an implicit object under a subobjects:false passthrough mapper",
+            response.get("attributes.foo")
+        );
     }
 
     private IndexShard getMockIndexShard() {

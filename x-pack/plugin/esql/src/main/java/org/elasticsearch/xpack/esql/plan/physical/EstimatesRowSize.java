@@ -31,7 +31,6 @@ public interface EstimatesRowSize {
     /**
      * Estimate the number of bytes that'll be loaded per position before
      * the stream of pages is consumed.
-     * @return
      */
     PhysicalPlan estimateRowSize(State state);
 
@@ -106,6 +105,6 @@ public interface EstimatesRowSize {
         if (elementType == ElementType.UNKNOWN) {
             throw new EsqlIllegalArgumentException("[unknown] can't be the result of field extraction");
         }
-        return dataType.estimatedSize().orElse(50);
+        return dataType.estimatedSize();
     }
 }

@@ -17,6 +17,8 @@ public abstract class AbstractFleetIT extends ESRestTestCase {
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .module("x-pack-fleet")
         .module("x-pack-ilm")
+        .module("mapper-version")
+        .module("x-pack-inference")
         .module("data-streams")
         .setting("xpack.security.enabled", "true")
         .setting("xpack.security.autoconfiguration.enabled", "false")

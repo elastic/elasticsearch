@@ -30,8 +30,8 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.ShardId;
@@ -134,14 +134,8 @@ public class SliceBuilderTests extends ESTestCase {
         String fieldName,
         DocValuesType dvType
     ) {
-        MappedFieldType fieldType = new MappedFieldType(
-            fieldName,
-            true,
-            false,
-            dvType != null,
-            TextSearchInfo.NONE,
-            Collections.emptyMap()
-        ) {
+        IndexType indexType = IndexType.terms(false, dvType != null);
+        MappedFieldType fieldType = new MappedFieldType(fieldName, indexType, false, Collections.emptyMap()) {
 
             @Override
             public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
@@ -258,6 +252,64 @@ public class SliceBuilderTests extends ESTestCase {
                 when(context.getIndexReader()).thenReturn(newReader);
                 assertThat(builder.toFilter(createScrollRequest(0, 1), context), equalTo(query));
             }
+        }
+    }
+
+    /**
+     * Verifies that slicing on the {@code _id} field with a point-in-time request produces a {@link TermsSliceQuery}.
+     */
+    public void testToFilterWithIdFieldAndPointInTime() throws IOException {
+        Directory dir = new ByteBuffersDirectory();
+        try (IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig(new MockAnalyzer(random())))) {
+            writer.commit();
+        }
+        try (IndexReader reader = DirectoryReader.open(dir)) {
+            SearchExecutionContext context = createShardContext(IndexVersion.current(), reader, "_id", null);
+            SliceBuilder builder = new SliceBuilder("_id", 5, 10);
+            // Force toFilter to take the numShards == 1 path
+            Query query = builder.toFilter(createPointInTimeRequest(0, 1), context);
+
+            assertThat(query, instanceOf(TermsSliceQuery.class));
+            assertThat(builder.toFilter(createPointInTimeRequest(0, 1), context), equalTo(query));
+        }
+    }
+
+    /**
+     * Verifies that slicing on the {@code _id} field with a scroll request produces a {@link TermsSliceQuery}.
+     */
+    public void testToFilterWithIdFieldAndScroll() throws IOException {
+        Directory dir = new ByteBuffersDirectory();
+        try (IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig(new MockAnalyzer(random())))) {
+            writer.commit();
+        }
+        try (IndexReader reader = DirectoryReader.open(dir)) {
+            SearchExecutionContext context = createShardContext(IndexVersion.current(), reader, "_id", null);
+            SliceBuilder builder = new SliceBuilder("_id", 5, 10);
+            // Force toFilter to take the numShards == 1 path
+            Query query = builder.toFilter(createScrollRequest(0, 1), context);
+
+            assertThat(query, instanceOf(TermsSliceQuery.class));
+            assertThat(builder.toFilter(createScrollRequest(0, 1), context), equalTo(query));
+        }
+    }
+
+    /**
+     * Verifies that slicing on the {@code _id} field with a point-in-time request produces a {@link TermsSliceQuery}
+     * when {@code max > numShards}, exercising the multi-shard path in {@link SliceBuilder#toFilter}.
+     */
+    public void testToFilterWithIdFieldAndPointInTimeWithMultipleShards() throws IOException {
+        Directory dir = new ByteBuffersDirectory();
+        try (IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig(new MockAnalyzer(random())))) {
+            writer.commit();
+        }
+        try (IndexReader reader = DirectoryReader.open(dir)) {
+            SearchExecutionContext context = createShardContext(IndexVersion.current(), reader, "_id", null);
+            SliceBuilder builder = new SliceBuilder("_id", 0, 4);
+            // Force toFilter to take the max > numShards path
+            Query query = builder.toFilter(createPointInTimeRequest(0, 2), context);
+
+            assertThat(query, instanceOf(TermsSliceQuery.class));
+            assertThat(builder.toFilter(createPointInTimeRequest(0, 2), context), equalTo(query));
         }
     }
 

@@ -31,16 +31,10 @@ public final class ValuesDoubleAggregatorFunction implements AggregatorFunction 
 
   private final List<Integer> channels;
 
-  public ValuesDoubleAggregatorFunction(DriverContext driverContext, List<Integer> channels,
-      ValuesDoubleAggregator.SingleState state) {
+  ValuesDoubleAggregatorFunction(DriverContext driverContext, List<Integer> channels) {
     this.driverContext = driverContext;
     this.channels = channels;
-    this.state = state;
-  }
-
-  public static ValuesDoubleAggregatorFunction create(DriverContext driverContext,
-      List<Integer> channels) {
-    return new ValuesDoubleAggregatorFunction(driverContext, channels, ValuesDoubleAggregator.initSingle(driverContext.bigArrays()));
+    this.state = ValuesDoubleAggregator.initSingle(driverContext.bigArrays());
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -102,11 +96,12 @@ public final class ValuesDoubleAggregatorFunction implements AggregatorFunction 
 
   private void addRawBlock(DoubleBlock vBlock) {
     for (int p = 0; p < vBlock.getPositionCount(); p++) {
-      if (vBlock.isNull(p)) {
+      int vValueCount = vBlock.getValueCount(p);
+      if (vValueCount == 0) {
         continue;
       }
       int vStart = vBlock.getFirstValueIndex(p);
-      int vEnd = vStart + vBlock.getValueCount(p);
+      int vEnd = vStart + vValueCount;
       for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
         double vValue = vBlock.getDouble(vOffset);
         ValuesDoubleAggregator.combine(state, vValue);
@@ -119,11 +114,12 @@ public final class ValuesDoubleAggregatorFunction implements AggregatorFunction 
       if (mask.getBoolean(p) == false) {
         continue;
       }
-      if (vBlock.isNull(p)) {
+      int vValueCount = vBlock.getValueCount(p);
+      if (vValueCount == 0) {
         continue;
       }
       int vStart = vBlock.getFirstValueIndex(p);
-      int vEnd = vStart + vBlock.getValueCount(p);
+      int vEnd = vStart + vValueCount;
       for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
         double vValue = vBlock.getDouble(vOffset);
         ValuesDoubleAggregator.combine(state, vValue);

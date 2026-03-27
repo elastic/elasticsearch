@@ -67,6 +67,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 import static org.elasticsearch.xpack.ml.MachineLearning.DELAYED_DATA_CHECK_FREQ;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -134,7 +135,9 @@ public class DatafeedJobTests extends ESTestCase {
         when(dataExtractor.hasNext()).thenReturn(true).thenReturn(false);
         byte[] contentBytes = "content".getBytes(StandardCharsets.UTF_8);
         InputStream inputStream = new ByteArrayInputStream(contentBytes);
-        when(dataExtractor.next()).thenReturn(new DataExtractor.Result(new SearchInterval(1000L, 2000L), Optional.of(inputStream)));
+        when(dataExtractor.next()).thenReturn(
+            new DataExtractor.Result(new SearchInterval(1000L, 2000L), Optional.of(inputStream), List.of())
+        );
         DataCounts dataCounts = new DataCounts(
             jobId,
             1,
@@ -297,7 +300,9 @@ public class DatafeedJobTests extends ESTestCase {
         byte[] contentBytes = "content".getBytes(StandardCharsets.UTF_8);
         InputStream inputStream = new ByteArrayInputStream(contentBytes);
         when(dataExtractor.hasNext()).thenReturn(true).thenReturn(false);
-        when(dataExtractor.next()).thenReturn(new DataExtractor.Result(new SearchInterval(1000L, 2000L), Optional.of(inputStream)));
+        when(dataExtractor.next()).thenReturn(
+            new DataExtractor.Result(new SearchInterval(1000L, 2000L), Optional.of(inputStream), List.of())
+        );
         when(dataExtractorFactory.newExtractor(anyLong(), anyLong())).thenReturn(dataExtractor);
         datafeedJob.runRealtime();
 
@@ -306,7 +311,9 @@ public class DatafeedJobTests extends ESTestCase {
         currentTime = currentTime + DELAYED_DATA_FREQ_HALF;
         inputStream = new ByteArrayInputStream(contentBytes);
         when(dataExtractor.hasNext()).thenReturn(true).thenReturn(false);
-        when(dataExtractor.next()).thenReturn(new DataExtractor.Result(new SearchInterval(1000L, 2000L), Optional.of(inputStream)));
+        when(dataExtractor.next()).thenReturn(
+            new DataExtractor.Result(new SearchInterval(1000L, 2000L), Optional.of(inputStream), List.of())
+        );
         when(dataExtractorFactory.newExtractor(anyLong(), anyLong())).thenReturn(dataExtractor);
         datafeedJob.runRealtime();
 
@@ -355,7 +362,9 @@ public class DatafeedJobTests extends ESTestCase {
         currentTime = currentTime + DELAYED_DATA_WINDOW + 1;
         inputStream = new ByteArrayInputStream(contentBytes);
         when(dataExtractor.hasNext()).thenReturn(true).thenReturn(false);
-        when(dataExtractor.next()).thenReturn(new DataExtractor.Result(new SearchInterval(1000L, 2000L), Optional.of(inputStream)));
+        when(dataExtractor.next()).thenReturn(
+            new DataExtractor.Result(new SearchInterval(1000L, 2000L), Optional.of(inputStream), List.of())
+        );
         when(dataExtractorFactory.newExtractor(anyLong(), anyLong())).thenReturn(dataExtractor);
         datafeedJob.runRealtime();
 
@@ -389,7 +398,7 @@ public class DatafeedJobTests extends ESTestCase {
             IndexRequest indexRequest = (IndexRequest) bulkRequest.requests().get(0);
             assertThat(indexRequest.index(), equalTo(AnnotationIndex.WRITE_ALIAS_NAME));
             assertThat(indexRequest.id(), equalTo(annotationDocId));
-            assertThat(indexRequest.source(), equalTo(expectedSource));
+            assertThat(indexRequest.source(), equalBytes(expectedSource));
             assertThat(indexRequest.opType(), equalTo(DocWriteRequest.OpType.INDEX));
         }
 
@@ -397,7 +406,9 @@ public class DatafeedJobTests extends ESTestCase {
         currentTime = currentTime + DELAYED_DATA_WINDOW + 1;
         inputStream = new ByteArrayInputStream(contentBytes);
         when(dataExtractor.hasNext()).thenReturn(true).thenReturn(false);
-        when(dataExtractor.next()).thenReturn(new DataExtractor.Result(new SearchInterval(1000L, 2000L), Optional.of(inputStream)));
+        when(dataExtractor.next()).thenReturn(
+            new DataExtractor.Result(new SearchInterval(1000L, 2000L), Optional.of(inputStream), List.of())
+        );
         when(dataExtractorFactory.newExtractor(anyLong(), anyLong())).thenReturn(dataExtractor);
         datafeedJob.runRealtime();
 

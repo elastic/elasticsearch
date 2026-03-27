@@ -13,11 +13,15 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
+import org.elasticsearch.compute.ann.Position;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.geometry.LinearRing;
 import org.elasticsearch.geometry.Point;
+import org.elasticsearch.geometry.Polygon;
+import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileBoundedPredicate;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -25,6 +29,7 @@ import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
@@ -36,7 +41,7 @@ import java.io.IOException;
 
 import static org.elasticsearch.compute.ann.Fixed.Scope.THREAD_LOCAL;
 import static org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils.checkPrecisionRange;
-import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataType.GEOTILE;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 
 /**
@@ -105,16 +110,23 @@ public class StGeotile extends SpatialGridFunction implements EvaluatorMapper {
     );
 
     @FunctionInfo(
-        returnType = "long",
+        returnType = "geotile",
         preview = true,
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW) },
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0") },
         description = """
             Calculates the `geotile` of the supplied geo_point at the specified precision.
-            The result is long encoded. Use [ST_GEOTILE_TO_STRING](#esql-st_geotile_to_string) to convert the result to a string.
+            The result is long encoded.
+            Use [`TO_STRING`](/reference/query-languages/esql/functions-operators/type-conversion-functions/to_string.md)
+            to convert the result to a string,
+            [`TO_LONG`](/reference/query-languages/esql/functions-operators/type-conversion-functions/to_long.md)
+            to convert it to a `long`, or
+            [`TO_GEOSHAPE`](/reference/query-languages/esql/functions-operators/type-conversion-functions/to_geoshape.md)
+            to calculate the `geo_shape` bounding geometry.
 
             These functions are related to the [`geo_grid` query](/reference/query-languages/query-dsl/query-dsl-geo-grid-query.md)
             and the [`geotile_grid` aggregation](/reference/aggregations/search-aggregations-bucket-geotilegrid-aggregation.md).""",
-        examples = @Example(file = "spatial-grid", tag = "st_geotile-grid")
+        examples = @Example(file = "spatial-grid", tag = "st_geotile-grid"),
+        depthOffset = 1  // So this appears as a subsection of spatial grid functions
     )
     public StGeotile(
         Source source,
@@ -127,8 +139,9 @@ public class StGeotile extends SpatialGridFunction implements EvaluatorMapper {
             Expression of type `integer`. If `null`, the function returns `null`.
             Valid values are between [0 and 29](https://wiki.openstreetmap.org/wiki/Zoom_levels).""") Expression precision,
         @Param(name = "bounds", type = { "geo_shape" }, description = """
-            Optional bounds to filter the grid tiles, a `geo_shape` of type `BBOX`.
-            Use [`ST_ENVELOPE`](#esql-st_envelope) if the `geo_shape` is of any other type.""", optional = true) Expression bounds
+            Optional bounds to filter the grid tiles, a `geo_shape` of type `BBOX`. Use
+            [`ST_ENVELOPE`](/reference/query-languages/esql/functions-operators/spatial-functions/st_envelope.md)
+            if the `geo_shape` is of any other type.""", optional = true) Expression bounds
     ) {
         this(source, field, precision, bounds, false);
     }
@@ -144,7 +157,7 @@ public class StGeotile extends SpatialGridFunction implements EvaluatorMapper {
     @Override
     public SpatialGridFunction withDocValues(boolean useDocValues) {
         // Only update the docValues flags if the field is found in the attributes
-        boolean docValues = this.spatialDocsValues || useDocValues;
+        boolean docValues = this.spatialDocValues || useDocValues;
         return new StGeotile(source(), spatialField, parameter, bounds, docValues);
     }
 
@@ -155,7 +168,7 @@ public class StGeotile extends SpatialGridFunction implements EvaluatorMapper {
 
     @Override
     public DataType dataType() {
-        return LONG;
+        return GEOTILE;
     }
 
     @Override
@@ -169,7 +182,7 @@ public class StGeotile extends SpatialGridFunction implements EvaluatorMapper {
     }
 
     @Override
-    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         if (parameter().foldable() == false) {
             throw new IllegalArgumentException("precision must be foldable");
         }
@@ -180,7 +193,7 @@ public class StGeotile extends SpatialGridFunction implements EvaluatorMapper {
             GeoBoundingBox bbox = asGeoBoundingBox(bounds.fold(toEvaluator.foldCtx()));
             int precision = (int) parameter.fold(toEvaluator.foldCtx());
             GeoTileBoundedGrid.Factory bounds = new GeoTileBoundedGrid.Factory(precision, bbox);
-            return spatialDocsValues
+            return spatialDocValues
                 ? new StGeotileFromFieldDocValuesAndLiteralAndLiteralEvaluator.Factory(
                     source(),
                     toEvaluator.apply(spatialField()),
@@ -189,7 +202,7 @@ public class StGeotile extends SpatialGridFunction implements EvaluatorMapper {
                 : new StGeotileFromFieldAndLiteralAndLiteralEvaluator.Factory(source(), toEvaluator.apply(spatialField), bounds::get);
         } else {
             int precision = checkPrecisionRange((int) parameter.fold(toEvaluator.foldCtx()));
-            return spatialDocsValues
+            return spatialDocValues
                 ? new StGeotileFromFieldDocValuesAndLiteralEvaluator.Factory(source(), toEvaluator.apply(spatialField()), precision)
                 : new StGeotileFromFieldAndLiteralEvaluator.Factory(source(), toEvaluator.apply(spatialField), precision);
         }
@@ -210,19 +223,19 @@ public class StGeotile extends SpatialGridFunction implements EvaluatorMapper {
     }
 
     @Evaluator(extraName = "FromFieldAndLiteral", warnExceptions = { IllegalArgumentException.class })
-    static void fromFieldAndLiteral(LongBlock.Builder results, int p, BytesRefBlock wkbBlock, @Fixed int precision) {
+    static void fromFieldAndLiteral(LongBlock.Builder results, @Position int p, BytesRefBlock wkbBlock, @Fixed int precision) {
         fromWKB(results, p, wkbBlock, precision, unboundedGrid);
     }
 
     @Evaluator(extraName = "FromFieldDocValuesAndLiteral", warnExceptions = { IllegalArgumentException.class })
-    static void fromFieldDocValuesAndLiteral(LongBlock.Builder results, int p, LongBlock encoded, @Fixed int precision) {
+    static void fromFieldDocValuesAndLiteral(LongBlock.Builder results, @Position int p, LongBlock encoded, @Fixed int precision) {
         fromEncodedLong(results, p, encoded, precision, unboundedGrid);
     }
 
     @Evaluator(extraName = "FromFieldAndLiteralAndLiteral", warnExceptions = { IllegalArgumentException.class })
     static void fromFieldAndLiteralAndLiteral(
         LongBlock.Builder results,
-        int p,
+        @Position int p,
         BytesRefBlock in,
         @Fixed(includeInToString = false, scope = THREAD_LOCAL) GeoTileBoundedGrid bounds
     ) {
@@ -232,10 +245,22 @@ public class StGeotile extends SpatialGridFunction implements EvaluatorMapper {
     @Evaluator(extraName = "FromFieldDocValuesAndLiteralAndLiteral", warnExceptions = { IllegalArgumentException.class })
     static void fromFieldDocValuesAndLiteralAndLiteral(
         LongBlock.Builder results,
-        int p,
+        @Position int p,
         LongBlock encoded,
         @Fixed(includeInToString = false, scope = THREAD_LOCAL) GeoTileBoundedGrid bounds
     ) {
         fromEncodedLong(results, p, encoded, bounds);
+    }
+
+    public static BytesRef toBounds(long gridId) {
+        return fromRectangle(GeoTileUtils.toBoundingBox(gridId));
+    }
+
+    static BytesRef fromRectangle(Rectangle bbox) {
+        double[] x = new double[] { bbox.getMinX(), bbox.getMaxX(), bbox.getMaxX(), bbox.getMinX(), bbox.getMinX() };
+        double[] y = new double[] { bbox.getMinY(), bbox.getMinY(), bbox.getMaxY(), bbox.getMaxY(), bbox.getMinY() };
+        LinearRing ring = new LinearRing(x, y);
+        Polygon polygon = new Polygon(ring);
+        return SpatialCoordinateTypes.GEO.asWkb(polygon);
     }
 }

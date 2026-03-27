@@ -22,9 +22,9 @@ import static org.hamcrest.Matchers.containsString;
 public class VoyageAIRerankTaskSettingsTests extends AbstractWireSerializingTestCase<VoyageAIRerankTaskSettings> {
 
     public static VoyageAIRerankTaskSettings createRandom() {
-        var returnDocuments = randomBoolean() ? randomBoolean() : null;
+        var returnDocuments = randomOptionalBoolean();
         var topNDocsOnly = randomBoolean() ? randomIntBetween(1, 10) : null;
-        var truncation = randomBoolean() ? randomBoolean() : null;
+        var truncation = randomOptionalBoolean();
 
         return new VoyageAIRerankTaskSettings(topNDocsOnly, returnDocuments, truncation);
     }
@@ -91,13 +91,13 @@ public class VoyageAIRerankTaskSettingsTests extends AbstractWireSerializingTest
 
     public void testUpdatedTaskSettings_WithEmptyMap_ReturnsSameSettings() {
         var initialSettings = new VoyageAIRerankTaskSettings(5, true, true);
-        VoyageAIRerankTaskSettings updatedSettings = (VoyageAIRerankTaskSettings) initialSettings.updatedTaskSettings(Map.of());
+        VoyageAIRerankTaskSettings updatedSettings = (VoyageAIRerankTaskSettings) initialSettings.updatedTaskSettings(new HashMap<>());
         assertEquals(initialSettings, updatedSettings);
     }
 
     public void testUpdatedTaskSettings_WithNewReturnDocuments_ReturnsUpdatedSettings() {
         var initialSettings = new VoyageAIRerankTaskSettings(5, true, true);
-        Map<String, Object> newSettings = Map.of(VoyageAIRerankTaskSettings.RETURN_DOCUMENTS, false);
+        var newSettings = new HashMap<String, Object>(Map.of(VoyageAIRerankTaskSettings.RETURN_DOCUMENTS, false));
         VoyageAIRerankTaskSettings updatedSettings = (VoyageAIRerankTaskSettings) initialSettings.updatedTaskSettings(newSettings);
         assertFalse(updatedSettings.getReturnDocuments());
         assertTrue(updatedSettings.getTruncation());
@@ -106,7 +106,7 @@ public class VoyageAIRerankTaskSettingsTests extends AbstractWireSerializingTest
 
     public void testUpdatedTaskSettings_WithNewTopNDocsOnly_ReturnsUpdatedSettings() {
         var initialSettings = new VoyageAIRerankTaskSettings(5, true, true);
-        Map<String, Object> newSettings = Map.of(VoyageAIRerankTaskSettings.TOP_K_DOCS_ONLY, 7);
+        var newSettings = new HashMap<String, Object>(Map.of(VoyageAIRerankTaskSettings.TOP_K_DOCS_ONLY, 7));
         VoyageAIRerankTaskSettings updatedSettings = (VoyageAIRerankTaskSettings) initialSettings.updatedTaskSettings(newSettings);
         assertTrue(updatedSettings.getTruncation());
         assertEquals(7, updatedSettings.getTopKDocumentsOnly().intValue());
@@ -115,11 +115,8 @@ public class VoyageAIRerankTaskSettingsTests extends AbstractWireSerializingTest
 
     public void testUpdatedTaskSettings_WithMultipleNewValues_ReturnsUpdatedSettings() {
         var initialSettings = new VoyageAIRerankTaskSettings(5, true, true);
-        Map<String, Object> newSettings = Map.of(
-            VoyageAIRerankTaskSettings.RETURN_DOCUMENTS,
-            false,
-            VoyageAIRerankTaskSettings.TOP_K_DOCS_ONLY,
-            7
+        var newSettings = new HashMap<String, Object>(
+            Map.of(VoyageAIRerankTaskSettings.RETURN_DOCUMENTS, false, VoyageAIRerankTaskSettings.TOP_K_DOCS_ONLY, 7)
         );
         VoyageAIRerankTaskSettings updatedSettings = (VoyageAIRerankTaskSettings) initialSettings.updatedTaskSettings(newSettings);
         assertTrue(updatedSettings.getTruncation());
@@ -139,7 +136,17 @@ public class VoyageAIRerankTaskSettingsTests extends AbstractWireSerializingTest
 
     @Override
     protected VoyageAIRerankTaskSettings mutateInstance(VoyageAIRerankTaskSettings instance) throws IOException {
-        return randomValueOtherThan(instance, VoyageAIRerankTaskSettingsTests::createRandom);
+        var topKDocumentsOnly = instance.getTopKDocumentsOnly();
+        var doReturnDocuments = instance.getReturnDocuments();
+        var truncation = instance.getTruncation();
+        switch (randomInt(2)) {
+            case 0 -> topKDocumentsOnly = randomValueOtherThan(topKDocumentsOnly, () -> randomFrom(randomIntBetween(1, 10), null));
+            case 1 -> doReturnDocuments = doReturnDocuments == null ? randomBoolean() : doReturnDocuments == false;
+            case 2 -> truncation = truncation == null ? randomBoolean() : truncation == false;
+            default -> throw new AssertionError("Illegal randomisation branch");
+        }
+
+        return new VoyageAIRerankTaskSettings(topKDocumentsOnly, doReturnDocuments, truncation);
     }
 
     public static Map<String, Object> getTaskSettingsMapEmpty() {

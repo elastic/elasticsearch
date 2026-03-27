@@ -13,7 +13,6 @@ import org.apache.lucene.queries.spans.SpanContainingQuery;
 import org.apache.lucene.queries.spans.SpanQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -29,7 +28,7 @@ import static org.elasticsearch.index.query.SpanQueryBuilder.SpanQueryBuilderUti
 /**
  * Builder for {@link org.apache.lucene.queries.spans.SpanContainingQuery}.
  */
-public class SpanContainingQueryBuilder extends AbstractQueryBuilder<SpanContainingQueryBuilder> implements SpanQueryBuilder {
+public class SpanContainingQueryBuilder extends LeafQueryBuilder<SpanContainingQueryBuilder> implements SpanQueryBuilder {
     public static final String NAME = "span_containing";
 
     private static final ParseField BIG_FIELD = new ParseField("big");
@@ -168,6 +167,6 @@ public class SpanContainingQueryBuilder extends AbstractQueryBuilder<SpanContain
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ZERO;
+        return TransportVersion.zero();
     }
 }

@@ -79,4 +79,8 @@ public class DynamicAwsCredentials {
             t -> ConcurrentCollections.newConcurrentSet()
         ).add(Objects.requireNonNull(accessKey, "accessKey"));
     }
+
+    public void clearValidCredentials() {
+        validCredentialsMap.clear();
+    }
 }

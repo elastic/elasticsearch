@@ -114,6 +114,11 @@ public final class CCSTelemetrySnapshot implements Writeable, ToXContentFragment
         tookMrtFalse = new LongMetricValue();
     }
 
+    public CCSTelemetrySnapshot(boolean useMRT) {
+        this();
+        this.useMRT = useMRT;
+    }
+
     public CCSTelemetrySnapshot(StreamInput in) throws IOException {
         this.totalCount = in.readVLong();
         this.successCount = in.readVLong();
@@ -300,7 +305,11 @@ public final class CCSTelemetrySnapshot implements Writeable, ToXContentFragment
         successCount += stats.successCount;
         skippedRemotes += stats.skippedRemotes;
         stats.failureReasons.forEach((k, v) -> failureReasons.merge(k, v, Long::sum));
-        stats.featureCounts.forEach((k, v) -> featureCounts.merge(k, v, Long::sum));
+        stats.featureCounts.forEach((k, v) -> {
+            if (useMRT || k.equals(CCSUsageTelemetry.MRT_FEATURE) == false) {
+                featureCounts.merge(k, v, Long::sum);
+            }
+        });
         stats.clientCounts.forEach((k, v) -> clientCounts.merge(k, v, Long::sum));
         took.add(stats.took);
         if (useMRT) {

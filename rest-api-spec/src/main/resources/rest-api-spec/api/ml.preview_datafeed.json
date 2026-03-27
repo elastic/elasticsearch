@@ -1,54 +1,56 @@
 {
-  "ml.preview_datafeed":{
-    "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-preview-datafeed.html",
-      "description":"Previews a datafeed."
+  "ml.preview_datafeed": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ml-preview-datafeed",
+      "description": "Preview a datafeed"
     },
-    "stability":"stable",
-    "visibility":"public",
-    "headers":{
-      "accept": [ "application/json"],
-      "content_type": ["application/json"]
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
     },
-    "url":{
-      "paths":[
+    "url": {
+      "paths": [
         {
-          "path":"/_ml/datafeeds/{datafeed_id}/_preview",
-          "methods":[
+          "path": "/_ml/datafeeds/{datafeed_id}/_preview",
+          "methods": [
             "GET",
             "POST"
           ],
-          "parts":{
-            "datafeed_id":{
-              "type":"string",
-              "description":"The ID of the datafeed to preview"
+          "parts": {
+            "datafeed_id": {
+              "type": "string",
+              "description": "The ID of the datafeed to preview"
             }
           }
         },
         {
-          "path":"/_ml/datafeeds/_preview",
-          "methods":[
+          "path": "/_ml/datafeeds/_preview",
+          "methods": [
             "GET",
             "POST"
           ]
         }
       ]
     },
-    "params":{
-      "start":{
-        "type":"string",
-        "required":false,
-        "description":"The start time from where the datafeed preview should begin"
+    "params": {
+      "start": {
+        "type": "date",
+        "description": "The start time from where the datafeed preview should begin"
       },
-      "end":{
-        "type":"string",
-        "required":false,
-        "description":"The end time when the datafeed preview should stop"
+      "end": {
+        "type": "date",
+        "description": "The end time when the datafeed preview should stop"
       }
     },
-    "body":{
-      "description":"The datafeed config and job config with which to execute the preview",
-      "required":false
+    "body": {
+      "description": "The datafeed config and job config with which to execute the preview",
+      "required": false
     }
   }
 }

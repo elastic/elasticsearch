@@ -12,7 +12,8 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.core.IOUtils;
-import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.XmlUtils;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.security.support.RestorableContextClassLoader;
 import org.opensaml.core.config.InitializationService;
 import org.opensaml.core.xml.XMLObject;
@@ -30,8 +31,6 @@ import org.w3c.dom.bootstrap.DOMImplementationRegistry;
 import org.w3c.dom.ls.DOMImplementationLS;
 import org.w3c.dom.ls.LSInput;
 import org.w3c.dom.ls.LSResourceResolver;
-import org.xml.sax.SAXException;
-import org.xml.sax.SAXParseException;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -44,20 +43,17 @@ import java.security.PrivilegedExceptionAction;
 import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import javax.xml.XMLConstants;
 import javax.xml.namespace.QName;
 import javax.xml.parsers.DocumentBuilder;
-import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
 import javax.xml.transform.OutputKeys;
 import javax.xml.transform.Transformer;
-import javax.xml.transform.TransformerConfigurationException;
 import javax.xml.transform.TransformerException;
-import javax.xml.transform.TransformerFactory;
 import javax.xml.transform.dom.DOMSource;
 import javax.xml.transform.stream.StreamResult;
 import javax.xml.transform.stream.StreamSource;
@@ -68,6 +64,7 @@ import javax.xml.validation.Validator;
 public class SamlUtils {
 
     private static final String SAML_EXCEPTION_KEY = "es.security.saml";
+    private static final String SAML_UNSOLICITED_RESPONSE_KEY = "es.security.saml.unsolicited_in_response_to";
     private static final String SAML_MARSHALLING_ERROR_STRING = "_unserializable_";
 
     private static final AtomicBoolean INITIALISED = new AtomicBoolean(false);
@@ -107,7 +104,7 @@ public class SamlUtils {
      * simple authentication failure (with a clear cause)
      */
     public static ElasticsearchSecurityException samlException(String msg, Object... args) {
-        final ElasticsearchSecurityException exception = new ElasticsearchSecurityException(msg, args);
+        final ElasticsearchSecurityException exception = new ElasticsearchSecurityException(msg, RestStatus.UNAUTHORIZED, args);
         exception.addMetadata(SAML_EXCEPTION_KEY);
         return exception;
     }
@@ -116,8 +113,29 @@ public class SamlUtils {
      * @see #samlException(String, Object...)
      */
     public static ElasticsearchSecurityException samlException(String msg, Exception cause, Object... args) {
-        final ElasticsearchSecurityException exception = new ElasticsearchSecurityException(msg, cause, args);
+        final ElasticsearchSecurityException exception = new ElasticsearchSecurityException(msg, RestStatus.UNAUTHORIZED, cause, args);
         exception.addMetadata(SAML_EXCEPTION_KEY);
+        return exception;
+    }
+
+    /**
+     * Constructs exception for a specific case where the in-response-to value in the SAML content does not match any of the values
+     * provided by the client. One example situation when this can happen is when user spent too much time on the IdP site, and meanwhile
+     * the cookie storing the initial request id has expired (the default timeout is 2 minutes; this is the time in which browsers by
+     * default allow sending cookies on requests originating from a different domain, which in this case means callback from IdP). In that
+     * case the IdP would send a SAML response which content includes an in-response-to value matching the initial request id, however that
+     * initial request id is now gone, so the client sends an empty in-response-to parameter causing a mismatch between the two.
+     */
+    static ElasticsearchSecurityException samlUnsolicitedInResponseToException(
+        String samlContentInResponseTo,
+        Collection<String> expectedInResponseTos
+    ) {
+        final ElasticsearchSecurityException exception = samlException(
+            "SAML content is in-response-to [{}] but expected one of {} ",
+            samlContentInResponseTo,
+            expectedInResponseTos
+        );
+        exception.addMetadata(SAML_UNSOLICITED_RESPONSE_KEY, samlContentInResponseTo);
         return exception;
     }
 
@@ -161,7 +179,7 @@ public class SamlUtils {
     }
 
     static void print(Element element, Writer writer, boolean pretty) throws TransformerException {
-        final Transformer serializer = getHardenedXMLTransformer();
+        final Transformer serializer = XmlUtils.getHardenedXMLTransformer();
         if (pretty) {
             serializer.setOutputProperty(OutputKeys.INDENT, "yes");
         }
@@ -211,26 +229,12 @@ public class SamlUtils {
         return getXmlContent(object, true);
     }
 
-    @SuppressForbidden(reason = "This is the only allowed way to construct a Transformer")
-    public static Transformer getHardenedXMLTransformer() throws TransformerConfigurationException {
-        final TransformerFactory tfactory = TransformerFactory.newInstance();
-        tfactory.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true);
-        tfactory.setAttribute(XMLConstants.ACCESS_EXTERNAL_DTD, "");
-        tfactory.setAttribute(XMLConstants.ACCESS_EXTERNAL_STYLESHEET, "");
-        tfactory.setAttribute("indent-number", 2);
-        Transformer transformer = tfactory.newTransformer();
-        transformer.setErrorListener(new ErrorListener());
-        return transformer;
-    }
-
     static void validate(InputStream xml, String xsdName) throws Exception {
-        SchemaFactory schemaFactory = SchemaFactory.newInstance(XMLConstants.W3C_XML_SCHEMA_NS_URI);
+        SchemaFactory schemaFactory = XmlUtils.getHardenedSchemaFactory();
         try (InputStream xsdStream = loadSchema(xsdName); ResourceResolver resolver = new ResourceResolver()) {
             schemaFactory.setResourceResolver(resolver);
             Schema schema = schemaFactory.newSchema(new StreamSource(xsdStream));
-            Validator validator = schema.newValidator();
-            validator.setProperty(XMLConstants.ACCESS_EXTERNAL_DTD, "");
-            validator.setProperty(XMLConstants.ACCESS_EXTERNAL_SCHEMA, "");
+            Validator validator = XmlUtils.getHardenedValidator(schema);
             validator.validate(new StreamSource(xml));
         }
     }
@@ -277,40 +281,8 @@ public class SamlUtils {
      *
      * @throws ParserConfigurationException if one of the features can't be set on the DocumentBuilderFactory
      */
-    @SuppressForbidden(reason = "This is the only allowed way to construct a DocumentBuilder")
     public static DocumentBuilder getHardenedBuilder(String[] schemaFiles) throws ParserConfigurationException {
-        final DocumentBuilderFactory dbf = DocumentBuilderFactory.newInstance();
-        dbf.setNamespaceAware(true);
-        // Ensure that Schema Validation is enabled for the factory
-        dbf.setValidating(true);
-        // Disallow internal and external entity expansion
-        dbf.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
-        dbf.setFeature("http://xml.org/sax/features/external-general-entities", false);
-        dbf.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
-        dbf.setFeature("http://apache.org/xml/features/nonvalidating/load-external-dtd", false);
-        dbf.setFeature("http://xml.org/sax/features/validation", true);
-        dbf.setFeature("http://apache.org/xml/features/nonvalidating/load-dtd-grammar", false);
-        dbf.setIgnoringComments(true);
-        // This is required, otherwise schema validation causes signature invalidation
-        dbf.setFeature("http://apache.org/xml/features/validation/schema/normalized-value", false);
-        // Make sure that URL schema namespaces are not resolved/downloaded from URLs we do not control
-        dbf.setAttribute(XMLConstants.ACCESS_EXTERNAL_DTD, "file,jar");
-        dbf.setAttribute(XMLConstants.ACCESS_EXTERNAL_SCHEMA, "file,jar");
-        dbf.setFeature("http://apache.org/xml/features/honour-all-schemaLocations", true);
-        // Ensure we do not resolve XIncludes. Defaults to false, but set it explicitly to be future-proof
-        dbf.setXIncludeAware(false);
-        // Ensure we do not expand entity reference nodes
-        dbf.setExpandEntityReferences(false);
-        // Further limit danger from denial of service attacks
-        dbf.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true);
-        dbf.setAttribute("http://apache.org/xml/features/validation/schema", true);
-        dbf.setAttribute("http://apache.org/xml/features/validation/schema-full-checking", true);
-        dbf.setAttribute("http://java.sun.com/xml/jaxp/properties/schemaLanguage", XMLConstants.W3C_XML_SCHEMA_NS_URI);
-        // We ship our own xsd files for schema validation since we do not trust anyone else.
-        dbf.setAttribute("http://java.sun.com/xml/jaxp/properties/schemaSource", resolveSchemaFilePaths(schemaFiles));
-        DocumentBuilder documentBuilder = dbf.newDocumentBuilder();
-        documentBuilder.setErrorHandler(new ErrorHandler());
-        return documentBuilder;
+        return XmlUtils.getHardenedBuilder(resolveSchemaFilePaths(schemaFiles));
     }
 
     private static String[] resolveSchemaFilePaths(String[] relativePaths) {
@@ -323,53 +295,5 @@ public class SamlUtils {
                 return null;
             }
         }).filter(Objects::nonNull).toArray(String[]::new);
-    }
-
-    private static class ErrorListener implements javax.xml.transform.ErrorListener {
-
-        @Override
-        public void warning(TransformerException e) throws TransformerException {
-            LOGGER.debug("XML transformation error", e);
-            throw e;
-        }
-
-        @Override
-        public void error(TransformerException e) throws TransformerException {
-            LOGGER.debug("XML transformation error", e);
-            throw e;
-        }
-
-        @Override
-        public void fatalError(TransformerException e) throws TransformerException {
-            LOGGER.debug("XML transformation error", e);
-            throw e;
-        }
-    }
-
-    private static class ErrorHandler implements org.xml.sax.ErrorHandler {
-        /**
-         * Enabling schema validation with `setValidating(true)` in our
-         * DocumentBuilderFactory requires that we provide our own
-         * ErrorHandler implementation
-         *
-         * @throws SAXException If the document we attempt to parse is not valid according to the specified schema.
-         */
-        @Override
-        public void warning(SAXParseException e) throws SAXException {
-            LOGGER.debug("XML Parser error ", e);
-            throw e;
-        }
-
-        @Override
-        public void error(SAXParseException e) throws SAXException {
-            LOGGER.debug("XML Parser error ", e);
-            throw e;
-        }
-
-        @Override
-        public void fatalError(SAXParseException e) throws SAXException {
-            LOGGER.debug("XML Parser error ", e);
-            throw e;
-        }
     }
 }

@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.esql.expression.function.grouping;
 
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -16,7 +16,9 @@ import org.elasticsearch.compute.aggregation.blockhash.BlockHash.CategorizeDef.O
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.esql.LicenseAware;
 import org.elasticsearch.xpack.esql.SupportsObservabilityTier;
+import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
@@ -33,6 +35,9 @@ import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Options;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.io.IOException;
@@ -41,11 +46,13 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.function.BiConsumer;
 
 import static java.util.Map.entry;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.compute.aggregation.blockhash.BlockHash.CategorizeDef.OutputFormat.REGEX;
 import static org.elasticsearch.xpack.esql.SupportsObservabilityTier.ObservabilityTier.COMPLETE;
+import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
@@ -68,6 +75,7 @@ public class Categorize extends GroupingFunction.NonEvaluatableGroupingFunction 
         "Categorize",
         Categorize::new
     );
+    private static final TransportVersion ESQL_CATEGORIZE_OPTIONS = TransportVersion.fromName("esql_categorize_options");
 
     private static final String ANALYZER = "analyzer";
     private static final String OUTPUT_FORMAT = "output_format";
@@ -141,9 +149,7 @@ public class Categorize extends GroupingFunction.NonEvaluatableGroupingFunction 
         this(
             Source.readFrom((PlanStreamInput) in),
             in.readNamedWriteable(Expression.class),
-            in.getTransportVersion().onOrAfter(TransportVersions.ESQL_CATEGORIZE_OPTIONS)
-                ? in.readOptionalNamedWriteable(Expression.class)
-                : null
+            in.getTransportVersion().supports(ESQL_CATEGORIZE_OPTIONS) ? in.readOptionalNamedWriteable(Expression.class) : null
         );
     }
 
@@ -151,7 +157,7 @@ public class Categorize extends GroupingFunction.NonEvaluatableGroupingFunction 
     public void writeTo(StreamOutput out) throws IOException {
         source().writeTo(out);
         out.writeNamedWriteable(field);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_CATEGORIZE_OPTIONS)) {
+        if (out.getTransportVersion().supports(ESQL_CATEGORIZE_OPTIONS)) {
             out.writeOptionalNamedWriteable(options);
         }
     }
@@ -247,5 +253,27 @@ public class Categorize extends GroupingFunction.NonEvaluatableGroupingFunction 
     @Override
     public boolean licenseCheck(XPackLicenseState state) {
         return MachineLearning.CATEGORIZE_TEXT_AGG_FEATURE.check(state);
+    }
+
+    @Override
+    public BiConsumer<LogicalPlan, Failures> postAnalysisPlanVerification() {
+        return (p, failures) -> {
+            super.postAnalysisPlanVerification().accept(p, failures);
+
+            if (p instanceof InlineStats inlineStats && inlineStats.child() instanceof Aggregate aggregate) {
+                aggregate.groupings().forEach(grp -> {
+                    if (grp instanceof Alias alias && alias.child() instanceof Categorize categorize) {
+                        failures.add(
+                            fail(
+                                categorize,
+                                "CATEGORIZE [{}] is not yet supported with INLINE STATS [{}]",
+                                categorize.sourceText(),
+                                inlineStats.sourceText()
+                            )
+                        );
+                    }
+                });
+            }
+        };
     }
 }

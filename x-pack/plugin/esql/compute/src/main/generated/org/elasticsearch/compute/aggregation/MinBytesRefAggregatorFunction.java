@@ -34,16 +34,10 @@ public final class MinBytesRefAggregatorFunction implements AggregatorFunction {
 
   private final List<Integer> channels;
 
-  public MinBytesRefAggregatorFunction(DriverContext driverContext, List<Integer> channels,
-      MinBytesRefAggregator.SingleState state) {
+  MinBytesRefAggregatorFunction(DriverContext driverContext, List<Integer> channels) {
     this.driverContext = driverContext;
     this.channels = channels;
-    this.state = state;
-  }
-
-  public static MinBytesRefAggregatorFunction create(DriverContext driverContext,
-      List<Integer> channels) {
-    return new MinBytesRefAggregatorFunction(driverContext, channels, MinBytesRefAggregator.initSingle(driverContext));
+    this.state = MinBytesRefAggregator.initSingle(driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -108,11 +102,12 @@ public final class MinBytesRefAggregatorFunction implements AggregatorFunction {
   private void addRawBlock(BytesRefBlock valueBlock) {
     BytesRef valueScratch = new BytesRef();
     for (int p = 0; p < valueBlock.getPositionCount(); p++) {
-      if (valueBlock.isNull(p)) {
+      int valueValueCount = valueBlock.getValueCount(p);
+      if (valueValueCount == 0) {
         continue;
       }
       int valueStart = valueBlock.getFirstValueIndex(p);
-      int valueEnd = valueStart + valueBlock.getValueCount(p);
+      int valueEnd = valueStart + valueValueCount;
       for (int valueOffset = valueStart; valueOffset < valueEnd; valueOffset++) {
         BytesRef valueValue = valueBlock.getBytesRef(valueOffset, valueScratch);
         MinBytesRefAggregator.combine(state, valueValue);
@@ -126,11 +121,12 @@ public final class MinBytesRefAggregatorFunction implements AggregatorFunction {
       if (mask.getBoolean(p) == false) {
         continue;
       }
-      if (valueBlock.isNull(p)) {
+      int valueValueCount = valueBlock.getValueCount(p);
+      if (valueValueCount == 0) {
         continue;
       }
       int valueStart = valueBlock.getFirstValueIndex(p);
-      int valueEnd = valueStart + valueBlock.getValueCount(p);
+      int valueEnd = valueStart + valueValueCount;
       for (int valueOffset = valueStart; valueOffset < valueEnd; valueOffset++) {
         BytesRef valueValue = valueBlock.getBytesRef(valueOffset, valueScratch);
         MinBytesRefAggregator.combine(state, valueValue);
@@ -154,8 +150,8 @@ public final class MinBytesRefAggregatorFunction implements AggregatorFunction {
     }
     BooleanVector seen = ((BooleanBlock) seenUncast).asVector();
     assert seen.getPositionCount() == 1;
-    BytesRef scratch = new BytesRef();
-    MinBytesRefAggregator.combineIntermediate(state, min.getBytesRef(0, scratch), seen.getBoolean(0));
+    BytesRef minScratch = new BytesRef();
+    MinBytesRefAggregator.combineIntermediate(state, min.getBytesRef(0, minScratch), seen.getBoolean(0));
   }
 
   @Override

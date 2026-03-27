@@ -15,15 +15,14 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
+import org.elasticsearch.compute.ann.Position;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.lucene.spatial.CartesianShapeIndexer;
 import org.elasticsearch.lucene.spatial.CoordinateEncoder;
-import org.elasticsearch.lucene.spatial.GeometryDocValueReader;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -38,10 +37,11 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_SHAPE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.GEOHASH;
+import static org.elasticsearch.xpack.esql.core.type.DataType.GEOHEX;
+import static org.elasticsearch.xpack.esql.core.type.DataType.GEOTILE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_SHAPE;
-import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesUtils.asGeometryDocValueReader;
-import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesUtils.asLuceneComponent2D;
 
 /**
  * This is the primary class for supporting the function ST_DISJOINT.
@@ -77,28 +77,39 @@ public class SpatialDisjoint extends SpatialRelatesFunction {
             Returns whether the two geometries or geometry columns are disjoint.
             This is the inverse of the <<esql-st_intersects,ST_INTERSECTS>> function.
             In mathematical terms: ST_Disjoint(A, B) ⇔ A ⋂ B = ∅""",
-        examples = @Example(file = "spatial_shapes", tag = "st_disjoint-airport_city_boundaries")
+        examples = @Example(file = "spatial_shapes", tag = "st_disjoint-airport_city_boundaries"),
+        depthOffset = 1  // So this appears as a subsection of geospatial predicates
     )
     public SpatialDisjoint(
         Source source,
-        @Param(name = "geomA", type = { "geo_point", "cartesian_point", "geo_shape", "cartesian_shape" }, description = """
-            Expression of type `geo_point`, `cartesian_point`, `geo_shape` or `cartesian_shape`.
-            If `null`, the function returns `null`.""") Expression left,
-        @Param(name = "geomB", type = { "geo_point", "cartesian_point", "geo_shape", "cartesian_shape" }, description = """
-            Expression of type `geo_point`, `cartesian_point`, `geo_shape` or `cartesian_shape`.
-            If `null`, the function returns `null`.
-            The second parameter must also have the same coordinate system as the first.
-            This means it is not possible to combine `geo_*` and `cartesian_*` parameters.""") Expression right
+        @Param(
+            name = "geomA",
+            type = { "geo_point", "cartesian_point", "geo_shape", "cartesian_shape", "geohash", "geotile", "geohex" },
+            description = """
+                Expression that is either a geometry (`geo_point`, `cartesian_point`, `geo_shape` or `cartesian_shape`)
+                or a geo-grid value (`geohash`, `geotile`, `geohex`).
+                If `null`, the function returns `null`."""
+        ) Expression left,
+        @Param(
+            name = "geomB",
+            type = { "geo_point", "cartesian_point", "geo_shape", "cartesian_shape", "geohash", "geotile", "geohex" },
+            description = """
+                Expression that is either a geometry (`geo_point`, `cartesian_point`, `geo_shape` or `cartesian_shape`)
+                or a geo-grid value (`geohash`, `geotile`, `geohex`).
+                If `null`, the function returns `null`.
+                The second parameter must also have the same coordinate system as the first.
+                This means it is not possible to combine `geo_*` and `cartesian_*` parameters."""
+        ) Expression right
     ) {
         this(source, left, right, false, false);
     }
 
     private SpatialDisjoint(Source source, Expression left, Expression right, boolean leftDocValues, boolean rightDocValues) {
-        super(source, left, right, leftDocValues, rightDocValues);
+        super(source, left, right, leftDocValues, rightDocValues, true);
     }
 
     private SpatialDisjoint(StreamInput in) throws IOException {
-        super(in, false, false);
+        super(in, false, false, true);
     }
 
     @Override
@@ -130,16 +141,8 @@ public class SpatialDisjoint extends SpatialRelatesFunction {
     }
 
     @Override
-    public Object fold(FoldContext ctx) {
-        try {
-            GeometryDocValueReader docValueReader = asGeometryDocValueReader(ctx, crsType(), left());
-            Component2D component2D = asLuceneComponent2D(ctx, crsType(), right());
-            return (crsType() == SpatialCrsType.GEO)
-                ? GEO.geometryRelatesGeometry(docValueReader, component2D)
-                : CARTESIAN.geometryRelatesGeometry(docValueReader, component2D);
-        } catch (IOException e) {
-            throw new IllegalArgumentException("Failed to fold constant fields: " + e.getMessage(), e);
-        }
+    protected SpatialRelations getSpatialRelations() {
+        return crsType() == SpatialCrsType.GEO ? GEO : CARTESIAN;
     }
 
     @Override
@@ -211,51 +214,132 @@ public class SpatialDisjoint extends SpatialRelatesFunction {
                 }
             }
         }
+
+        // Support geo_point and geo-grid types
+        for (DataType gridType : new DataType[] { GEOHASH, GEOTILE, GEOHEX }) {
+            evaluatorMap.put(
+                SpatialEvaluatorFactory.SpatialEvaluatorKey.fromSourceAndConstant(GEO_POINT, gridType),
+                new SpatialEvaluatorFactory.SpatialEvaluatorWithConstantGridFactory(
+                    (s, w, g) -> new SpatialDisjointGeoSourceAndConstantGridEvaluator.Factory(s, w, g, gridType)
+                )
+            );
+            evaluatorMap.put(
+                SpatialEvaluatorFactory.SpatialEvaluatorKey.fromSourceAndConstant(GEO_POINT, gridType).withLeftDocValues(),
+                new SpatialEvaluatorFactory.SpatialEvaluatorWithConstantGridFactory(
+                    (s, w, g) -> new SpatialDisjointGeoPointDocValuesAndConstantGridEvaluator.Factory(s, w, g, gridType)
+                )
+            );
+            evaluatorMap.put(
+                SpatialEvaluatorFactory.SpatialEvaluatorKey.fromSources(GEO_POINT, gridType),
+                new SpatialEvaluatorFactory.SpatialEvaluatorFactoryWithFields(
+                    (s, w, g) -> new SpatialDisjointGeoSourceAndSourceGridEvaluator.Factory(s, w, g, gridType)
+                )
+            );
+            evaluatorMap.put(
+                SpatialEvaluatorFactory.SpatialEvaluatorKey.fromSources(GEO_POINT, gridType).withLeftDocValues(),
+                new SpatialEvaluatorFactory.SpatialEvaluatorFactoryWithFields(
+                    (s, w, g) -> new SpatialDisjointGeoPointDocValuesAndSourceGridEvaluator.Factory(s, w, g, gridType)
+                )
+            );
+        }
+    }
+
+    @Evaluator(extraName = "GeoSourceAndConstantGrid", warnExceptions = { IllegalArgumentException.class, IOException.class })
+    static void processGeoSourceAndConstantGrid(
+        BooleanBlock.Builder results,
+        @Position int p,
+        BytesRefBlock wkb,
+        @Fixed long gridId,
+        @Fixed DataType gridType
+    ) throws IOException {
+        GEO.processSourceAndConstantGrid(results, p, wkb, gridId, gridType);
+    }
+
+    @Evaluator(extraName = "GeoPointDocValuesAndConstantGrid", warnExceptions = { IllegalArgumentException.class, IOException.class })
+    static void processGeoPointDocValuesAndConstantGrid(
+        BooleanBlock.Builder results,
+        @Position int p,
+        LongBlock encodedPoints,
+        @Fixed long gridId,
+        @Fixed DataType gridType
+    ) throws IOException {
+        GEO.processGeoPointDocValuesAndConstantGrid(results, p, encodedPoints, gridId, gridType);
+    }
+
+    @Evaluator(extraName = "GeoSourceAndSourceGrid", warnExceptions = { IllegalArgumentException.class, IOException.class })
+    static void processGeoSourceAndSourceGrid(
+        BooleanBlock.Builder results,
+        @Position int p,
+        BytesRefBlock wkb,
+        LongBlock gridId,
+        @Fixed DataType gridType
+    ) throws IOException {
+        GEO.processSourceAndSourceGrid(results, p, wkb, gridId, gridType);
+    }
+
+    @Evaluator(extraName = "GeoPointDocValuesAndSourceGrid", warnExceptions = { IllegalArgumentException.class, IOException.class })
+    static void processGeoPointDocValuesAndSourceGrid(
+        BooleanBlock.Builder results,
+        @Position int p,
+        LongBlock encodedPoints,
+        LongBlock gridIds,
+        @Fixed DataType gridType
+    ) throws IOException {
+        GEO.processGeoPointDocValuesAndSourceGrid(results, p, encodedPoints, gridIds, gridType);
     }
 
     @Evaluator(extraName = "GeoSourceAndConstant", warnExceptions = { IllegalArgumentException.class, IOException.class })
-    static void processGeoSourceAndConstant(BooleanBlock.Builder results, int p, BytesRefBlock left, @Fixed Component2D right)
+    static void processGeoSourceAndConstant(BooleanBlock.Builder results, @Position int p, BytesRefBlock left, @Fixed Component2D right)
         throws IOException {
         GEO.processSourceAndConstant(results, p, left, right);
     }
 
     @Evaluator(extraName = "GeoSourceAndSource", warnExceptions = { IllegalArgumentException.class, IOException.class })
-    static void processGeoSourceAndSource(BooleanBlock.Builder builder, int p, BytesRefBlock left, BytesRefBlock right) throws IOException {
+    static void processGeoSourceAndSource(BooleanBlock.Builder builder, @Position int p, BytesRefBlock left, BytesRefBlock right)
+        throws IOException {
         GEO.processSourceAndSource(builder, p, left, right);
     }
 
     @Evaluator(extraName = "GeoPointDocValuesAndConstant", warnExceptions = { IllegalArgumentException.class, IOException.class })
-    static void processGeoPointDocValuesAndConstant(BooleanBlock.Builder builder, int p, LongBlock left, @Fixed Component2D right)
+    static void processGeoPointDocValuesAndConstant(BooleanBlock.Builder builder, @Position int p, LongBlock left, @Fixed Component2D right)
         throws IOException {
         GEO.processPointDocValuesAndConstant(builder, p, left, right);
     }
 
     @Evaluator(extraName = "GeoPointDocValuesAndSource", warnExceptions = { IllegalArgumentException.class, IOException.class })
-    static void processGeoPointDocValuesAndSource(BooleanBlock.Builder builder, int p, LongBlock left, BytesRefBlock right)
+    static void processGeoPointDocValuesAndSource(BooleanBlock.Builder builder, @Position int p, LongBlock left, BytesRefBlock right)
         throws IOException {
         GEO.processPointDocValuesAndSource(builder, p, left, right);
     }
 
     @Evaluator(extraName = "CartesianSourceAndConstant", warnExceptions = { IllegalArgumentException.class, IOException.class })
-    static void processCartesianSourceAndConstant(BooleanBlock.Builder builder, int p, BytesRefBlock left, @Fixed Component2D right)
-        throws IOException {
+    static void processCartesianSourceAndConstant(
+        BooleanBlock.Builder builder,
+        @Position int p,
+        BytesRefBlock left,
+        @Fixed Component2D right
+    ) throws IOException {
         CARTESIAN.processSourceAndConstant(builder, p, left, right);
     }
 
     @Evaluator(extraName = "CartesianSourceAndSource", warnExceptions = { IllegalArgumentException.class, IOException.class })
-    static void processCartesianSourceAndSource(BooleanBlock.Builder builder, int p, BytesRefBlock left, BytesRefBlock right)
+    static void processCartesianSourceAndSource(BooleanBlock.Builder builder, @Position int p, BytesRefBlock left, BytesRefBlock right)
         throws IOException {
         CARTESIAN.processSourceAndSource(builder, p, left, right);
     }
 
     @Evaluator(extraName = "CartesianPointDocValuesAndConstant", warnExceptions = { IllegalArgumentException.class, IOException.class })
-    static void processCartesianPointDocValuesAndConstant(BooleanBlock.Builder builder, int p, LongBlock left, @Fixed Component2D right)
-        throws IOException {
+    static void processCartesianPointDocValuesAndConstant(
+        BooleanBlock.Builder builder,
+        @Position int p,
+        LongBlock left,
+        @Fixed Component2D right
+    ) throws IOException {
         CARTESIAN.processPointDocValuesAndConstant(builder, p, left, right);
     }
 
     @Evaluator(extraName = "CartesianPointDocValuesAndSource", warnExceptions = { IllegalArgumentException.class, IOException.class })
-    static void processCartesianPointDocValuesAndSource(BooleanBlock.Builder builder, int p, LongBlock left, BytesRefBlock right)
+    static void processCartesianPointDocValuesAndSource(BooleanBlock.Builder builder, @Position int p, LongBlock left, BytesRefBlock right)
         throws IOException {
         CARTESIAN.processPointDocValuesAndSource(builder, p, left, right);
     }

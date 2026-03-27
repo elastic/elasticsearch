@@ -41,16 +41,11 @@ public final class SpatialExtentGeoShapeSourceValuesAggregatorFunction implement
 
   private final List<Integer> channels;
 
-  public SpatialExtentGeoShapeSourceValuesAggregatorFunction(DriverContext driverContext,
-      List<Integer> channels, SpatialExtentStateWrappedLongitudeState state) {
+  SpatialExtentGeoShapeSourceValuesAggregatorFunction(DriverContext driverContext,
+      List<Integer> channels) {
     this.driverContext = driverContext;
     this.channels = channels;
-    this.state = state;
-  }
-
-  public static SpatialExtentGeoShapeSourceValuesAggregatorFunction create(
-      DriverContext driverContext, List<Integer> channels) {
-    return new SpatialExtentGeoShapeSourceValuesAggregatorFunction(driverContext, channels, SpatialExtentGeoShapeSourceValuesAggregator.initSingle());
+    this.state = SpatialExtentGeoShapeSourceValuesAggregator.initSingle();
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -115,11 +110,12 @@ public final class SpatialExtentGeoShapeSourceValuesAggregatorFunction implement
   private void addRawBlock(BytesRefBlock bytesBlock) {
     BytesRef bytesScratch = new BytesRef();
     for (int p = 0; p < bytesBlock.getPositionCount(); p++) {
-      if (bytesBlock.isNull(p)) {
+      int bytesValueCount = bytesBlock.getValueCount(p);
+      if (bytesValueCount == 0) {
         continue;
       }
       int bytesStart = bytesBlock.getFirstValueIndex(p);
-      int bytesEnd = bytesStart + bytesBlock.getValueCount(p);
+      int bytesEnd = bytesStart + bytesValueCount;
       for (int bytesOffset = bytesStart; bytesOffset < bytesEnd; bytesOffset++) {
         BytesRef bytesValue = bytesBlock.getBytesRef(bytesOffset, bytesScratch);
         SpatialExtentGeoShapeSourceValuesAggregator.combine(state, bytesValue);
@@ -133,11 +129,12 @@ public final class SpatialExtentGeoShapeSourceValuesAggregatorFunction implement
       if (mask.getBoolean(p) == false) {
         continue;
       }
-      if (bytesBlock.isNull(p)) {
+      int bytesValueCount = bytesBlock.getValueCount(p);
+      if (bytesValueCount == 0) {
         continue;
       }
       int bytesStart = bytesBlock.getFirstValueIndex(p);
-      int bytesEnd = bytesStart + bytesBlock.getValueCount(p);
+      int bytesEnd = bytesStart + bytesValueCount;
       for (int bytesOffset = bytesStart; bytesOffset < bytesEnd; bytesOffset++) {
         BytesRef bytesValue = bytesBlock.getBytesRef(bytesOffset, bytesScratch);
         SpatialExtentGeoShapeSourceValuesAggregator.combine(state, bytesValue);

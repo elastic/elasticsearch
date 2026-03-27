@@ -10,8 +10,10 @@ package org.elasticsearch.xpack.kql.parser;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
 
 import java.util.List;
+import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
@@ -77,7 +79,10 @@ public class KqlParserFieldQueryTests extends AbstractKqlParserTestCase {
         // Leading operators (AND, OR) are terms of the match query
         assertTermQueryBuilder(parseKqlQuery(kqlFieldQuery(KEYWORD_FIELD_NAME, "AND bar")), KEYWORD_FIELD_NAME, "AND bar");
         assertTermQueryBuilder(parseKqlQuery(kqlFieldQuery(KEYWORD_FIELD_NAME, "OR bar")), KEYWORD_FIELD_NAME, "OR bar");
-        assertTermQueryBuilder(parseKqlQuery(kqlFieldQuery(KEYWORD_FIELD_NAME, "NOT bar")), KEYWORD_FIELD_NAME, "NOT bar");
+        assertMustNotQueryBuilder(
+            parseKqlQuery(kqlFieldQuery(KEYWORD_FIELD_NAME, "NOT bar")),
+            (subQuery) -> assertTermQueryBuilder(subQuery, KEYWORD_FIELD_NAME, "bar")
+        );
 
         // Lonely operators (AND, NOT, OR)
         assertTermQueryBuilder(parseKqlQuery(kqlFieldQuery(KEYWORD_FIELD_NAME, "AND AND")), KEYWORD_FIELD_NAME, "AND AND");
@@ -88,8 +93,15 @@ public class KqlParserFieldQueryTests extends AbstractKqlParserTestCase {
         assertTermQueryBuilder(parseKqlQuery(kqlFieldQuery(KEYWORD_FIELD_NAME, "OR OR")), KEYWORD_FIELD_NAME, "OR OR");
         assertTermQueryBuilder(parseKqlQuery(kqlFieldQuery(KEYWORD_FIELD_NAME, "OR NOT")), KEYWORD_FIELD_NAME, "OR NOT");
         assertTermQueryBuilder(parseKqlQuery(kqlFieldQuery(KEYWORD_FIELD_NAME, "NOT")), KEYWORD_FIELD_NAME, "NOT");
-        assertTermQueryBuilder(parseKqlQuery(kqlFieldQuery(KEYWORD_FIELD_NAME, "NOT AND")), KEYWORD_FIELD_NAME, "NOT AND");
-        assertTermQueryBuilder(parseKqlQuery(kqlFieldQuery(KEYWORD_FIELD_NAME, "NOT OR")), KEYWORD_FIELD_NAME, "NOT OR");
+
+        assertMustNotQueryBuilder(
+            parseKqlQuery(kqlFieldQuery(KEYWORD_FIELD_NAME, "NOT AND")),
+            subQuery -> assertTermQueryBuilder(subQuery, KEYWORD_FIELD_NAME, "AND")
+        );
+        assertMustNotQueryBuilder(
+            parseKqlQuery(kqlFieldQuery(KEYWORD_FIELD_NAME, "NOT OR")),
+            subQuery -> assertTermQueryBuilder(subQuery, KEYWORD_FIELD_NAME, "OR")
+        );
 
         // Check we can use quoted field name as well
         assertThat(
@@ -124,6 +136,7 @@ public class KqlParserFieldQueryTests extends AbstractKqlParserTestCase {
 
             // Multiple words
             assertMatchQueryBuilder(parseKqlQuery(kqlFieldQuery(fieldName, "foo bar")), fieldName, "foo bar");
+            assertMatchQueryBuilder(parseKqlQuery(kqlFieldQuery(fieldName, "(foo bar)")), fieldName, "foo bar");
 
             // Escaped keywords
             assertMatchQueryBuilder(parseKqlQuery(kqlFieldQuery(fieldName, "foo \\and bar")), fieldName, "foo and bar");
@@ -151,7 +164,10 @@ public class KqlParserFieldQueryTests extends AbstractKqlParserTestCase {
             // Leading operators (AND, OR) are terms of the match query
             assertMatchQueryBuilder(parseKqlQuery(kqlFieldQuery(fieldName, "AND bar")), fieldName, "AND bar");
             assertMatchQueryBuilder(parseKqlQuery(kqlFieldQuery(fieldName, "OR bar")), fieldName, "OR bar");
-            assertMatchQueryBuilder(parseKqlQuery(kqlFieldQuery(fieldName, "NOT bar")), fieldName, "NOT bar");
+            assertMustNotQueryBuilder(
+                parseKqlQuery(kqlFieldQuery(fieldName, "NOT bar")),
+                (subQuery) -> assertMatchQueryBuilder(subQuery, fieldName, "bar")
+            );
 
             // Lonely operators (AND, NOT, OR)
             assertMatchQueryBuilder(parseKqlQuery(kqlFieldQuery(fieldName, "AND")), fieldName, "AND");
@@ -163,14 +179,86 @@ public class KqlParserFieldQueryTests extends AbstractKqlParserTestCase {
             assertMatchQueryBuilder(parseKqlQuery(kqlFieldQuery(fieldName, "OR OR")), fieldName, "OR OR");
             assertMatchQueryBuilder(parseKqlQuery(kqlFieldQuery(fieldName, "OR NOT")), fieldName, "OR NOT");
             assertMatchQueryBuilder(parseKqlQuery(kqlFieldQuery(fieldName, "NOT")), fieldName, "NOT");
-            assertMatchQueryBuilder(parseKqlQuery(kqlFieldQuery(fieldName, "NOT AND")), fieldName, "NOT AND");
-            assertMatchQueryBuilder(parseKqlQuery(kqlFieldQuery(fieldName, "NOT OR")), fieldName, "NOT OR");
-
+            assertMustNotQueryBuilder(
+                parseKqlQuery(kqlFieldQuery(fieldName, "NOT AND")),
+                subQuery -> assertMatchQueryBuilder(subQuery, fieldName, "AND")
+            );
+            assertMustNotQueryBuilder(
+                parseKqlQuery(kqlFieldQuery(fieldName, "NOT OR")),
+                subQuery -> assertMatchQueryBuilder(subQuery, fieldName, "OR")
+            );
+            assertMatchQueryBuilder(parseKqlQuery(kqlFieldQuery(fieldName, "ballon d or")), fieldName, "ballon d or");
+            assertMatchQueryBuilder(parseKqlQuery(kqlFieldQuery(fieldName, "and just like that")), fieldName, "and just like that");
+            assertMatchQueryBuilder(
+                parseKqlQuery(kqlFieldQuery(fieldName, "whatever people say i am that s what i m not")),
+                fieldName,
+                "whatever people say i am that s what i m not"
+            );
             // Check we can use quoted field name as well
             assertThat(
                 parseKqlQuery(kqlFieldQuery(fieldName, "foo")),
                 equalTo(parseKqlQuery(kqlFieldQuery(quoteString(fieldName), "foo")))
             );
+        }
+    }
+
+    private void assertMustNotQueryBuilder(QueryBuilder queryBuilder, Consumer<QueryBuilder> clauseVerifier) {
+        BoolQueryBuilder boolQuery = asInstanceOf(BoolQueryBuilder.class, queryBuilder);
+        assertThat(boolQuery.must(), empty());
+        assertThat(boolQuery.should(), empty());
+        assertThat(boolQuery.filter(), empty());
+        assertThat(boolQuery.mustNot(), hasSize(1));
+
+        clauseVerifier.accept(boolQuery.mustNot().get(0));
+    }
+
+    public void testBooleanFieldQueries() {
+        assertShouldQueryBuilder(
+            parseKqlQuery(kqlFieldQuery(KEYWORD_FIELD_NAME, "(foo OR bar)")),
+            (clause) -> assertTermQueryBuilder(clause, KEYWORD_FIELD_NAME, "foo"),
+            (clause) -> assertTermQueryBuilder(clause, KEYWORD_FIELD_NAME, "bar")
+        );
+
+        assertMustQueryBuilder(
+            parseKqlQuery(kqlFieldQuery(KEYWORD_FIELD_NAME, "(foo AND bar)")),
+            (clause) -> assertTermQueryBuilder(clause, KEYWORD_FIELD_NAME, "foo"),
+            (clause) -> assertTermQueryBuilder(clause, KEYWORD_FIELD_NAME, "bar")
+        );
+
+        assertMustQueryBuilder(
+            parseKqlQuery(kqlFieldQuery(KEYWORD_FIELD_NAME, "(foo or bar and baz)")),
+            (clause) -> assertShouldQueryBuilder(
+                clause,
+                (subClause) -> assertTermQueryBuilder(subClause, KEYWORD_FIELD_NAME, "foo"),
+                (subClause) -> assertTermQueryBuilder(subClause, KEYWORD_FIELD_NAME, "bar")
+            ),
+            (clause) -> assertTermQueryBuilder(clause, KEYWORD_FIELD_NAME, "baz")
+        );
+    }
+
+    @SafeVarargs
+    private final void assertShouldQueryBuilder(QueryBuilder queryBuilder, Consumer<QueryBuilder>... clauseVerifiers) {
+        BoolQueryBuilder boolQuery = asInstanceOf(BoolQueryBuilder.class, queryBuilder);
+        assertThat(boolQuery.must(), empty());
+        assertThat(boolQuery.filter(), empty());
+        assertThat(boolQuery.mustNot(), empty());
+        assertThat(boolQuery.should(), hasSize(clauseVerifiers.length));
+
+        for (int i = 0; i < clauseVerifiers.length; i++) {
+            clauseVerifiers[i].accept(boolQuery.should().get(i));
+        }
+    }
+
+    @SafeVarargs
+    private final void assertMustQueryBuilder(QueryBuilder queryBuilder, Consumer<QueryBuilder>... clauseVerifiers) {
+        BoolQueryBuilder boolQuery = asInstanceOf(BoolQueryBuilder.class, queryBuilder);
+        assertThat(boolQuery.should(), empty());
+        assertThat(boolQuery.filter(), empty());
+        assertThat(boolQuery.mustNot(), empty());
+        assertThat(boolQuery.must(), hasSize(clauseVerifiers.length));
+
+        for (int i = 0; i < clauseVerifiers.length; i++) {
+            clauseVerifiers[i].accept(boolQuery.must().get(i));
         }
     }
 
@@ -278,7 +366,10 @@ public class KqlParserFieldQueryTests extends AbstractKqlParserTestCase {
         // Leading operators (AND, OR) are terms of the match query
         assertWildcardQueryBuilder(parseKqlQuery(kqlFieldQuery(KEYWORD_FIELD_NAME, "AND fo*")), KEYWORD_FIELD_NAME, "AND fo*");
         assertWildcardQueryBuilder(parseKqlQuery(kqlFieldQuery(KEYWORD_FIELD_NAME, "OR fo*")), KEYWORD_FIELD_NAME, "OR fo*");
-        assertWildcardQueryBuilder(parseKqlQuery(kqlFieldQuery(KEYWORD_FIELD_NAME, "NOT fo*")), KEYWORD_FIELD_NAME, "NOT fo*");
+        assertMustNotQueryBuilder(
+            parseKqlQuery(kqlFieldQuery(KEYWORD_FIELD_NAME, "NOT fo*")),
+            (subQuery) -> assertWildcardQueryBuilder(subQuery, KEYWORD_FIELD_NAME, "fo*")
+        );
     }
 
     public void testFieldWildcardFieldQueries() {
@@ -291,7 +382,6 @@ public class KqlParserFieldQueryTests extends AbstractKqlParserTestCase {
                 assertThat(parsedQuery.mustNot(), empty());
                 assertThat(parsedQuery.must(), empty());
                 assertThat(parsedQuery.filter(), empty());
-                assertThat(parsedQuery.minimumShouldMatch(), equalTo("1"));
                 assertThat(parsedQuery.should(), hasSize(searchableFields.size()));
 
                 assertThat(

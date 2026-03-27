@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.cluster.routing.allocation;
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplanationUtils;
 import org.elasticsearch.action.admin.cluster.desirednodes.UpdateDesiredNodesAction;
 import org.elasticsearch.action.admin.cluster.desirednodes.UpdateDesiredNodesRequest;
+import org.elasticsearch.action.admin.indices.ResizeIndexTestUtils;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
@@ -324,12 +325,7 @@ public class DataTierAllocationDeciderIT extends ESIntegTestCase {
             .get();
 
         indicesAdmin().prepareAddBlock(IndexMetadata.APIBlock.READ_ONLY, index).get();
-        indicesAdmin().prepareResizeIndex(index, index + "-shrunk")
-            .setResizeType(ResizeType.SHRINK)
-            .setSettings(
-                Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
-            )
-            .get();
+        ResizeIndexTestUtils.executeResize(ResizeType.SHRINK, index, index + "-shrunk", indexSettings(1, 0)).actionGet();
 
         ensureGreen(index + "-shrunk");
 

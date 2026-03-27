@@ -69,6 +69,11 @@ public class DownsampleShardPersistentTaskExecutor extends PersistentTasksExecut
     }
 
     @Override
+    public boolean automaticReassignmentOnShutdown() {
+        return false;
+    }
+
+    @Override
     protected void nodeOperation(
         final AllocatedPersistentTask task,
         final DownsampleShardTaskParams params,
@@ -234,6 +239,7 @@ public class DownsampleShardPersistentTaskExecutor extends PersistentTasksExecut
                         params.metrics(),
                         params.labels(),
                         params.dimensions(),
+                        params.multiFieldSources() == null ? Map.of() : params.multiFieldSources(),
                         initialState
                     );
                     downsampleShardIndexer.execute();

@@ -23,7 +23,6 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
@@ -46,8 +45,8 @@ import org.elasticsearch.index.warmer.WarmerStats;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.client.NoOpClient;
+import org.elasticsearch.test.transport.StubLinkedProjectConfigService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ActionNotFoundTransportException;
@@ -59,6 +58,7 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointingI
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfigTests;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerPosition;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerPositionTests;
+import org.elasticsearch.xpack.core.transform.transforms.TransformParsingContext;
 import org.elasticsearch.xpack.core.transform.transforms.TransformProgress;
 import org.elasticsearch.xpack.core.transform.transforms.TransformProgressTests;
 import org.elasticsearch.xpack.transform.TransformSingleNodeTestCase;
@@ -169,7 +169,8 @@ public class TransformCheckpointServiceNodeTests extends TransformSingleNodeTest
             clusterService,
             TestIndexNameExpressionResolver.newInstance(),
             client(),
-            xContentRegistry()
+            xContentRegistry(),
+            new TransformParsingContext(false)
         );
 
         // use a mock for the checkpoint service
@@ -177,12 +178,7 @@ public class TransformCheckpointServiceNodeTests extends TransformSingleNodeTest
         transformCheckpointService = new TransformCheckpointService(
             Clock.systemUTC(),
             Settings.EMPTY,
-            new ClusterService(
-                Settings.EMPTY,
-                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                threadPool,
-                mock(TaskManager.class)
-            ),
+            StubLinkedProjectConfigService.INSTANCE,
             transformsConfigManager,
             mockAuditor
         );

@@ -1,4 +1,7 @@
 ---
+applies_to:
+  stack:
+  serverless:
 navigation_title: "Flattened"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/flattened.html
@@ -50,6 +53,7 @@ POST bug_reports/_doc/1
   }
 }
 ```
+% TESTSETUP
 
 During indexing, tokens are created for each leaf value in the JSON object. The values are indexed as string keywords, without analysis or special handling for numbers or dates.
 
@@ -154,6 +158,9 @@ POST my-index-000001/_search
   }
 }
 ```
+% TESTRESPONSE[s/"took": 2/"took": $body.took/]
+% TESTRESPONSE[s/"max_score" : 1.0/"max_score" : $body.hits.max_score/]
+% TESTRESPONSE[s/"_score" : 1.0/"_score" : $body.hits.hits.0._score/]
 
 You can also use a [Painless script](docs-content://explore-analyze/scripting/modules-scripting-painless.md) to retrieve values from sub-fields of flattened fields. Instead of including `doc['<field_name>'].value` in your Painless script, use `doc['<field_name>.<sub-field_name>'].value`. For example, if you have a flattened field called `label` with a `release` sub-field, your Painless script would be `doc['labels.release'].value`.
 
@@ -186,6 +193,7 @@ POST /my-index-000001/_bulk?refresh
 {"index":{}}
 {"title":"Not urgent","labels":{"priority":"low","release":["v1.2.0"],"timestamp":{"created":1541458026,"closed":1541457010}}}
 ```
+% TEST[continued]
 
 Because `labels` is a `flattened` field type, the entire object is mapped as a single field. To retrieve values from this sub-field in a Painless script, use the `doc['<field_name>.<sub-field_name>'].value` format.
 
@@ -198,6 +206,53 @@ Because `labels` is a `flattened` field type, the entire object is mapped as a s
   """
 ```
 
+
+## Mapped sub-fields [flattened-properties]
+
+By default, all keys in a flattened field are indexed as untyped keyword values. The `properties` parameter allows specific keys to be mapped as their own typed fields, such as `keyword`, `ip`, `long`, `date`, or any other leaf field type. Mapped keys are indexed exclusively through their sub-field and are excluded from the flattened field's representation.
+
+This is useful when certain keys within the flattened object need functionality that plain flattened indexing does not support, such as index sorting, field aliases, or typed queries (for example, IP range queries on an `ip` field).
+
+```console
+PUT events
+{
+  "mappings": {
+    "properties": {
+      "attributes": {
+        "type": "flattened",
+        "properties": {
+          "host.name": { "type": "keyword" },
+          "host.ip": { "type": "ip" }
+        }
+      }
+    }
+  }
+}
+
+POST events/_doc/1
+{
+  "attributes": {
+    "host.name": "web-1",
+    "host.ip": "192.168.1.10",
+    "region": "us-east-1"
+  }
+}
+```
+
+In this example, `attributes.host.name` is a keyword field and `attributes.host.ip` is an IP field, both with their full typed capabilities. The key `region` is not mapped, so it is indexed through the normal flattened mechanism. Searching on `attributes.host.ip` uses IP-aware queries:
+
+```console
+POST events/_search
+{
+  "query": {
+    "term": { "attributes.host.ip": "192.168.1.10" }
+  }
+}
+```
+
+Only leaf field types are allowed as sub-field types.
+Object, nested, and flattened types cannot be used as properties of a flattened field.
+Sub-fields may not use `copy_to` or `fields` (multi-fields) parameters.
 
 ## Parameters for flattened object fields [flattened-params]
 
@@ -223,6 +278,9 @@ The following mapping parameters are accepted:
 
 [`null_value`](/reference/elasticsearch/mapping-reference/null-value.md)
 :   A string value which is substituted for any explicit `null` values within the flattened object field. Defaults to `null`, which means null fields are treated as if they were missing.
+
+`properties`
+:   (Optional, object) A map of key names to field mappings. Allows specific keys within the flattened object to be mapped as typed sub-fields. Each entry maps a key (using dot notation for nested keys) to a leaf field type definition. See [Mapped sub-fields](#flattened-properties).
 
 [`similarity`](/reference/elasticsearch/mapping-reference/similarity.md)
 :   Which scoring algorithm or *similarity* should be used. Defaults to `BM25`.
@@ -267,6 +325,7 @@ PUT idx/_doc/1
   }
 }
 ```
+% TEST[s/$/\nGET idx\/_doc\/1?filter_path=_source\n/]
 
 Will become:
 
@@ -277,6 +336,7 @@ Will become:
   }
 }
 ```
+% TEST[s/^/{"_source":/ s/\n$/}/]
 
 Synthetic source always uses nested objects instead of array of objects. For example:
 
@@ -311,6 +371,7 @@ PUT idx/_doc/1
   }
 }
 ```
+% TEST[s/$/\nGET idx\/_doc\/1?filter_path=_source\n/]
 
 Will become (note the nested objects instead of the "flattened" array):
 
@@ -324,6 +385,7 @@ Will become (note the nested objects instead of the "flattened" array):
     }
 }
 ```
+% TEST[s/^/{"_source":/ s/\n$/}/]
 
 Synthetic source always uses single-valued fields for one-element arrays. For example:
 
@@ -354,6 +416,7 @@ PUT idx/_doc/1
   }
 }
 ```
+% TEST[s/$/\nGET idx\/_doc\/1?filter_path=_source\n/]
 
 Will become (note the nested objects instead of the "flattened" array):
 
@@ -364,6 +427,7 @@ Will become (note the nested objects instead of the "flattened" array):
   }
 }
 ```
+% TEST[s/^/{"_source":/ s/\n$/}/]
 
 Flattened fields allow for a key to contain both an object and a scalar value.
 For example, consider the following flattened field `flattened`:
@@ -380,6 +444,7 @@ For example, consider the following flattened field `flattened`:
   }
 }
 ```
+% TEST[skip:backporting-from-new-docs]
 
 Because `"foo.bar": "10"` is implicitly equivalent to `"foo": { "bar": "10" }`,
 `"bar"` has both a scalar value `"10"`, and an object value of `{ "baz": "20" }`.
@@ -397,3 +462,4 @@ For example, if the field is defined in an index configured with synthetic sourc
   }
 }
 ```
+% TEST[skip:backporting-from-new-docs]

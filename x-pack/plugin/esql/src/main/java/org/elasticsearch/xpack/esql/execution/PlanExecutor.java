@@ -7,41 +7,46 @@
 
 package org.elasticsearch.xpack.esql.execution;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.IndicesExpressionGrouper;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
+import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
 import org.elasticsearch.xpack.esql.analysis.PreAnalyzer;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
-import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.common.Failures;
+import org.elasticsearch.xpack.esql.datasources.DataSourceModule;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
-import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
-import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
-import org.elasticsearch.xpack.esql.optimizer.LogicalPlanPreOptimizer;
-import org.elasticsearch.xpack.esql.optimizer.LogicalPreOptimizerContext;
+import org.elasticsearch.xpack.esql.parser.EsqlParser;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
 import org.elasticsearch.xpack.esql.plugin.TransportActionServices;
 import org.elasticsearch.xpack.esql.querylog.EsqlQueryLog;
-import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.EsqlSession;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
 import org.elasticsearch.xpack.esql.session.Result;
+import org.elasticsearch.xpack.esql.session.Versioned;
 import org.elasticsearch.xpack.esql.telemetry.Metrics;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetryManager;
 import org.elasticsearch.xpack.esql.telemetry.QueryMetric;
+import org.elasticsearch.xpack.esql.view.ViewResolver;
 
 import java.util.List;
+import java.util.function.BiConsumer;
 
 import static org.elasticsearch.action.ActionListener.wrap;
 
 public class PlanExecutor {
 
     private final IndexResolver indexResolver;
+    private final EsqlParser parser;
     private final PreAnalyzer preAnalyzer;
     private final EsqlFunctionRegistry functionRegistry;
     private final Mapper mapper;
@@ -49,58 +54,76 @@ public class PlanExecutor {
     private final Verifier verifier;
     private final PlanTelemetryManager planTelemetryManager;
     private final EsqlQueryLog queryLog;
+    private final DataSourceModule dataSourceModule;
 
     public PlanExecutor(
         IndexResolver indexResolver,
         MeterRegistry meterRegistry,
         XPackLicenseState licenseState,
         EsqlQueryLog queryLog,
-        List<Verifier.ExtraCheckers> extraCheckers,
-        Settings settings
+        List<BiConsumer<LogicalPlan, Failures>> extraCheckers,
+        CrossProjectModeDecider crossProjectModeDecider,
+        DataSourceModule dataSourceModule,
+        EsqlFunctionRegistry functionRegistry,
+        EsqlParser parser
     ) {
         this.indexResolver = indexResolver;
+        this.parser = parser;
         this.preAnalyzer = new PreAnalyzer();
-        this.functionRegistry = new EsqlFunctionRegistry();
+        this.functionRegistry = functionRegistry;
         this.mapper = new Mapper();
-        this.metrics = new Metrics(functionRegistry);
-        this.verifier = new Verifier(metrics, licenseState, extraCheckers, settings);
+        this.metrics = new Metrics(functionRegistry, crossProjectModeDecider.crossProjectEnabled());
+        this.verifier = new Verifier(metrics, licenseState, extraCheckers);
         this.planTelemetryManager = new PlanTelemetryManager(meterRegistry);
         this.queryLog = queryLog;
+        this.dataSourceModule = dataSourceModule;
     }
 
     public void esql(
         EsqlQueryRequest request,
         String sessionId,
-        Configuration cfg,
-        FoldContext foldContext,
+        TransportVersion localClusterMinimumVersion,
+        AnalyzerSettings analyzerSettings,
         EnrichPolicyResolver enrichPolicyResolver,
+        ViewResolver viewResolver,
         EsqlExecutionInfo executionInfo,
         IndicesExpressionGrouper indicesExpressionGrouper,
         EsqlSession.PlanRunner planRunner,
         TransportActionServices services,
-        ActionListener<Result> listener
+        ActionListener<Versioned<Result>> listener
     ) {
         final PlanTelemetry planTelemetry = new PlanTelemetry(functionRegistry);
+        // Create ExternalSourceResolver for Iceberg/Parquet resolution
+        // Use the same executor as for searches to avoid blocking
+        final ExternalSourceResolver externalSourceResolver = new ExternalSourceResolver(
+            services.transportService().getThreadPool().executor(org.elasticsearch.threadpool.ThreadPool.Names.SEARCH),
+            dataSourceModule
+        );
         final var session = new EsqlSession(
             sessionId,
-            cfg,
+            localClusterMinimumVersion,
+            analyzerSettings,
             indexResolver,
             enrichPolicyResolver,
+            viewResolver,
+            externalSourceResolver,
+            parser,
             preAnalyzer,
-            new LogicalPlanPreOptimizer(new LogicalPreOptimizerContext(foldContext)),
             functionRegistry,
-            new LogicalPlanOptimizer(new LogicalOptimizerContext(cfg, foldContext)),
             mapper,
             verifier,
+            metrics,
             planTelemetry,
             indicesExpressionGrouper,
+            services.projectResolver().getProjectMetadata(services.clusterService().state()),
+            services.plannerSettings().get(),
             services
         );
         QueryMetric clientId = QueryMetric.fromString("rest");
         metrics.total(clientId);
 
         var begin = System.nanoTime();
-        ActionListener<Result> executeListener = wrap(
+        ActionListener<Versioned<Result>> executeListener = wrap(
             x -> onQuerySuccess(request, listener, x, planTelemetry),
             ex -> onQueryFailure(request, listener, ex, clientId, planTelemetry, begin)
         );
@@ -109,15 +132,20 @@ public class PlanExecutor {
         ActionListener.run(executeListener, l -> session.execute(request, executionInfo, planRunner, l));
     }
 
-    private void onQuerySuccess(EsqlQueryRequest request, ActionListener<Result> listener, Result x, PlanTelemetry planTelemetry) {
+    private void onQuerySuccess(
+        EsqlQueryRequest request,
+        ActionListener<Versioned<Result>> listener,
+        Versioned<Result> x,
+        PlanTelemetry planTelemetry
+    ) {
         planTelemetryManager.publish(planTelemetry, true);
-        queryLog.onQueryPhase(x, request.query());
+        queryLog.onQueryPhase(x, request.queryDescription());
         listener.onResponse(x);
     }
 
     private void onQueryFailure(
         EsqlQueryRequest request,
-        ActionListener<Result> listener,
+        ActionListener<Versioned<Result>> listener,
         Exception ex,
         QueryMetric clientId,
         PlanTelemetry planTelemetry,
@@ -126,7 +154,7 @@ public class PlanExecutor {
         // TODO when we decide if we will differentiate Kibana from REST, this String value will likely come from the request
         metrics.failed(clientId);
         planTelemetryManager.publish(planTelemetry, false);
-        queryLog.onQueryFailure(request.query(), ex, System.nanoTime() - begin);
+        queryLog.onQueryFailure(request.queryDescription(), ex, System.nanoTime() - begin);
         listener.onFailure(ex);
     }
 
@@ -136,5 +164,9 @@ public class PlanExecutor {
 
     public Metrics metrics() {
         return this.metrics;
+    }
+
+    public DataSourceModule dataSourceModule() {
+        return dataSourceModule;
     }
 }

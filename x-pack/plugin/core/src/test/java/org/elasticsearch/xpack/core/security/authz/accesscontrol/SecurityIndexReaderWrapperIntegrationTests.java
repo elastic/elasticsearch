@@ -17,7 +17,6 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TotalHitCountCollectorManager;
@@ -31,6 +30,7 @@ import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper.KeywordFieldType;
@@ -43,6 +43,7 @@ import org.elasticsearch.index.mapper.MockFieldMapper;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.query.SearchExecutionContextHelper;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.license.MockLicenseState;
@@ -66,7 +67,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.security.SecurityField.DOCUMENT_LEVEL_SECURITY_FEATURE;
@@ -113,10 +113,12 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
             () -> true,
             null,
             Map.of(),
-            MapperMetrics.NOOP
+            null,
+            MapperMetrics.NOOP,
+            SearchExecutionContextHelper.SHARD_SEARCH_STATS
         );
         SearchExecutionContext searchExecutionContext = spy(realSearchExecutionContext);
-        DocumentSubsetBitsetCache bitsetCache = new DocumentSubsetBitsetCache(Settings.EMPTY, Executors.newSingleThreadExecutor());
+        DocumentSubsetBitsetCache bitsetCache = new DocumentSubsetBitsetCache(Settings.EMPTY);
         final MockLicenseState licenseState = mock(MockLicenseState.class);
         when(licenseState.isAllowed(DOCUMENT_LEVEL_SECURITY_FEATURE)).thenReturn(true);
 
@@ -200,7 +202,10 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
             int expectedHitCount = valuesHitCount[i];
             logger.info("Going to verify hit count with query [{}] with expected total hits [{}]", parsedQuery.query(), expectedHitCount);
 
-            Integer totalHits = indexSearcher.search(new MatchAllDocsQuery(), new TotalHitCountCollectorManager(indexSearcher.getSlices()));
+            Integer totalHits = indexSearcher.search(
+                Queries.ALL_DOCS_INSTANCE,
+                new TotalHitCountCollectorManager(indexSearcher.getSlices())
+            );
             assertThat(totalHits, equalTo(expectedHitCount));
             assertThat(wrappedDirectoryReader.numDocs(), equalTo(expectedHitCount));
         }
@@ -269,10 +274,12 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
             () -> true,
             null,
             Map.of(),
-            MapperMetrics.NOOP
+            null,
+            MapperMetrics.NOOP,
+            SearchExecutionContextHelper.SHARD_SEARCH_STATS
         );
         SearchExecutionContext searchExecutionContext = spy(realSearchExecutionContext);
-        DocumentSubsetBitsetCache bitsetCache = new DocumentSubsetBitsetCache(Settings.EMPTY, Executors.newSingleThreadExecutor());
+        DocumentSubsetBitsetCache bitsetCache = new DocumentSubsetBitsetCache(Settings.EMPTY);
 
         final MockLicenseState licenseState = mock(MockLicenseState.class);
         when(licenseState.isAllowed(DOCUMENT_LEVEL_SECURITY_FEATURE)).thenReturn(true);
@@ -326,7 +333,7 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
             true
         );
 
-        ScoreDoc[] hits = indexSearcher.search(new MatchAllDocsQuery(), 1000).scoreDocs;
+        ScoreDoc[] hits = indexSearcher.search(Queries.ALL_DOCS_INSTANCE, 1000).scoreDocs;
         Set<Integer> actualDocIds = new HashSet<>();
         for (ScoreDoc doc : hits) {
             actualDocIds.add(doc.doc);
@@ -474,7 +481,7 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
             DocumentPermissions.filteredBy(queries)
         );
 
-        DocumentSubsetBitsetCache bitsetCache = new DocumentSubsetBitsetCache(Settings.EMPTY, Executors.newSingleThreadExecutor());
+        DocumentSubsetBitsetCache bitsetCache = new DocumentSubsetBitsetCache(Settings.EMPTY);
 
         final MockLicenseState licenseState = mock(MockLicenseState.class);
         when(licenseState.isAllowed(DOCUMENT_LEVEL_SECURITY_FEATURE)).thenReturn(true);
@@ -502,7 +509,7 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
             true
         );
 
-        ScoreDoc[] hits = indexSearcher.search(new MatchAllDocsQuery(), 1000).scoreDocs;
+        ScoreDoc[] hits = indexSearcher.search(Queries.ALL_DOCS_INSTANCE, 1000).scoreDocs;
         assertThat(Arrays.stream(hits).map(h -> h.doc).collect(Collectors.toSet()), containsInAnyOrder(4, 5, 6, 7, 11, 12, 13));
 
         hits = indexSearcher.search(Queries.newNonNestedFilter(context.indexVersionCreated()), 1000).scoreDocs;
@@ -515,6 +522,6 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
 
     private static MappingLookup createMappingLookup(List<MappedFieldType> concreteFields) {
         List<FieldMapper> mappers = concreteFields.stream().map(MockFieldMapper::new).collect(Collectors.toList());
-        return MappingLookup.fromMappers(Mapping.EMPTY, mappers, List.of());
+        return MappingLookup.fromMappers(Mapping.EMPTY, mappers, List.of(), randomFrom(IndexMode.values()));
     }
 }

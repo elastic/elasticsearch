@@ -20,6 +20,7 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 
+import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 import static org.elasticsearch.ingest.IngestPipelineTestUtils.putJsonPipelineRequest;
 
 public class PutPipelineRequestTests extends ESTestCase {
@@ -61,6 +62,6 @@ public class PutPipelineRequestTests extends ESTestCase {
         );
         XContentBuilder requestBuilder = XContentBuilder.builder(xContentType.xContent());
         BytesReference actualRequestBody = BytesReference.bytes(request.toXContent(requestBuilder, ToXContent.EMPTY_PARAMS));
-        assertEquals(BytesReference.bytes(pipelineBuilder), actualRequestBody);
+        assertThat(actualRequestBody, equalBytes(BytesReference.bytes(pipelineBuilder)));
     }
 }

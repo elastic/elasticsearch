@@ -9,12 +9,8 @@
 
 package org.elasticsearch.index.codec.vectors.cluster;
 
-import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.util.FixedBitSet;
-import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.hnsw.IntToIntFunction;
-import org.elasticsearch.index.codec.vectors.SampleReader;
-import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -25,21 +21,39 @@ import java.util.Random;
  * with finalizing nearby pre-established clusters and generate
  * <a href="https://research.google/blog/soar-new-algorithms-for-even-faster-vector-search-with-scann/">SOAR</a> assignments
  */
-class KMeansLocal {
+abstract class KMeansLocal {
 
-    // the minimum distance that is considered to be "far enough" to a centroid in order to compute the soar distance.
-    // For vectors that are closer than this distance to the centroid don't get spilled because they are well represented
-    // by the centroid itself. In many cases, it indicates a degenerated distribution, e.g the cluster is composed of the
-    // many equal vectors.
-    private static final float SOAR_MIN_DISTANCE = 1e-16f;
-
-    final int sampleSize;
-    final int maxIterations;
+    private final int sampleSize;
+    private final int maxIterations;
 
     KMeansLocal(int sampleSize, int maxIterations) {
         this.sampleSize = sampleSize;
         this.maxIterations = maxIterations;
     }
+
+    /** Number of workers to use for parallelism **/
+    protected abstract int numWorkers();
+
+    /** assign to each vector the closest centroid **/
+    protected abstract boolean stepLloyd(
+        ClusteringFloatVectorValues vectors,
+        IntToIntFunction translateOrd,
+        float[][] centroids,
+        FixedBitSet[] centroidChangedSlices,
+        int[] assignments,
+        NeighborHood[] neighborHoods
+    ) throws IOException;
+
+    /** assign to each vector the soar assignment **/
+    protected abstract void assignSpilled(
+        ClusteringFloatVectorValues vectors,
+        KMeansIntermediate kmeansIntermediate,
+        NeighborHood[] neighborhoods,
+        float soarLambda
+    ) throws IOException;
+
+    /** compute the neighborhoods for the given centroids and clustersPerNeighborhood */
+    protected abstract NeighborHood[] computeNeighborhoods(float[][] centroids, int clustersPerNeighborhood) throws IOException;
 
     /**
      * uses a Reservoir Sampling approach to picking the initial centroids which are subsequently expected
@@ -50,7 +64,7 @@ class KMeansLocal {
      * @return randomly selected centroids that are the min of centroidCount and sampleSize
      * @throws IOException is thrown if vectors is inaccessible
      */
-    static float[][] pickInitialCentroids(FloatVectorValues vectors, int centroidCount) throws IOException {
+    static float[][] pickInitialCentroids(ClusteringFloatVectorValues vectors, int centroidCount) throws IOException {
         Random random = new Random(42L);
         int centroidsSize = Math.min(vectors.size(), centroidCount);
         float[][] centroids = new float[centroidsSize][vectors.dimension()];
@@ -68,208 +82,42 @@ class KMeansLocal {
         return centroids;
     }
 
-    private static boolean stepLloyd(
-        FloatVectorValues vectors,
-        IntToIntFunction translateOrd,
+    /** Assign vectors from {@code startOrd} to {@code endOrd} to the closest centroid. */
+    protected static boolean stepLloydSlice(
+        ClusteringFloatVectorValues vectors,
+        IntToIntFunction ordTranslator,
         float[][] centroids,
         FixedBitSet centroidChanged,
-        int[] centroidCounts,
         int[] assignments,
-        NeighborHood[] neighborhoods
+        NeighborHood[] neighborhoods,
+        int startOrd,
+        int endOrd
     ) throws IOException {
-        boolean changed = false;
-        int dim = vectors.dimension();
         centroidChanged.clear();
-        final float[] distances = new float[4];
-        for (int idx = 0; idx < vectors.size(); idx++) {
-            float[] vector = vectors.vectorValue(idx);
-            int vectorOrd = translateOrd.apply(idx);
-            final int assignment = assignments[vectorOrd];
-            final int bestCentroidOffset;
-            if (neighborhoods != null) {
-                bestCentroidOffset = getBestCentroidFromNeighbours(centroids, vector, assignment, neighborhoods[assignment], distances);
-            } else {
-                bestCentroidOffset = getBestCentroid(centroids, vector, distances);
-            }
-            if (assignment != bestCentroidOffset) {
-                if (assignment != -1) {
-                    centroidChanged.set(assignment);
-                }
-                centroidChanged.set(bestCentroidOffset);
-                assignments[vectorOrd] = bestCentroidOffset;
-                changed = true;
-            }
-        }
-        if (changed) {
-            Arrays.fill(centroidCounts, 0);
-            for (int idx = 0; idx < vectors.size(); idx++) {
-                final int assignment = assignments[translateOrd.apply(idx)];
-                if (centroidChanged.get(assignment)) {
-                    float[] centroid = centroids[assignment];
-                    if (centroidCounts[assignment]++ == 0) {
-                        Arrays.fill(centroid, 0.0f);
-                    }
-                    float[] vector = vectors.vectorValue(idx);
-                    for (int d = 0; d < dim; d++) {
-                        centroid[d] += vector[d];
-                    }
-                }
-            }
-
-            for (int clusterIdx = 0; clusterIdx < centroids.length; clusterIdx++) {
-                if (centroidChanged.get(clusterIdx)) {
-                    float count = (float) centroidCounts[clusterIdx];
-                    if (count > 0) {
-                        float[] centroid = centroids[clusterIdx];
-                        for (int d = 0; d < dim; d++) {
-                            centroid[d] /= count;
-                        }
-                    }
-                }
-            }
-        }
-
-        return changed;
-    }
-
-    private static int getBestCentroidFromNeighbours(
-        float[][] centroids,
-        float[] vector,
-        int centroidIdx,
-        NeighborHood neighborhood,
-        float[] distances
-    ) {
-        final int limit = neighborhood.neighbors.length - 3;
-        int bestCentroidOffset = centroidIdx;
-        assert centroidIdx >= 0 && centroidIdx < centroids.length;
-        float minDsq = VectorUtil.squareDistance(vector, centroids[centroidIdx]);
-        int i = 0;
-        for (; i < limit; i += 4) {
-            if (minDsq < neighborhood.maxIntraDistance) {
-                // if the distance found is smaller than the maximum intra-cluster distance
-                // we don't consider it for further re-assignment
-                return bestCentroidOffset;
-            }
-            ESVectorUtil.squareDistanceBulk(
-                vector,
-                centroids[neighborhood.neighbors[i]],
-                centroids[neighborhood.neighbors[i + 1]],
-                centroids[neighborhood.neighbors[i + 2]],
-                centroids[neighborhood.neighbors[i + 3]],
-                distances
+        if (neighborhoods != null) {
+            return vectors.bestCentroidsFromNeighbours(
+                startOrd,
+                endOrd,
+                centroids,
+                ordTranslator,
+                centroidChanged,
+                neighborhoods,
+                assignments
             );
-            for (int j = 0; j < distances.length; j++) {
-                float dsq = distances[j];
-                if (dsq < minDsq) {
-                    minDsq = dsq;
-                    bestCentroidOffset = neighborhood.neighbors[i + j];
-                }
-            }
+        } else {
+            return vectors.bestCentroids(startOrd, endOrd, centroids, ordTranslator, centroidChanged, assignments);
         }
-        for (; i < neighborhood.neighbors.length; i++) {
-            if (minDsq < neighborhood.maxIntraDistance) {
-                // if the distance found is smaller than the maximum intra-cluster distance
-                // we don't consider it for further re-assignment
-                return bestCentroidOffset;
-            }
-            int offset = neighborhood.neighbors[i];
-            // float score = neighborhood.scores[i];
-            assert offset >= 0 && offset < centroids.length : "Invalid neighbor offset: " + offset;
-            // compute the distance to the centroid
-            float dsq = VectorUtil.squareDistance(vector, centroids[offset]);
-            if (dsq < minDsq) {
-                minDsq = dsq;
-                bestCentroidOffset = offset;
-            }
-        }
-        return bestCentroidOffset;
     }
 
-    private static int getBestCentroid(float[][] centroids, float[] vector, float[] distances) {
-        final int limit = centroids.length - 3;
-        int bestCentroidOffset = 0;
-        float minDsq = Float.MAX_VALUE;
-        int i = 0;
-        for (; i < limit; i += 4) {
-            ESVectorUtil.squareDistanceBulk(vector, centroids[i], centroids[i + 1], centroids[i + 2], centroids[i + 3], distances);
-            for (int j = 0; j < distances.length; j++) {
-                float dsq = distances[j];
-                if (dsq < minDsq) {
-                    minDsq = dsq;
-                    bestCentroidOffset = i + j;
-                }
-            }
-        }
-        for (; i < centroids.length; i++) {
-            float dsq = VectorUtil.squareDistance(vector, centroids[i]);
-            if (dsq < minDsq) {
-                minDsq = dsq;
-                bestCentroidOffset = i;
-            }
-        }
-        return bestCentroidOffset;
-    }
-
-    private NeighborHood[] computeNeighborhoods(float[][] centers, int clustersPerNeighborhood) {
-        int k = centers.length;
-        assert k > clustersPerNeighborhood;
-        NeighborQueue[] neighborQueues = new NeighborQueue[k];
-        for (int i = 0; i < k; i++) {
-            neighborQueues[i] = new NeighborQueue(clustersPerNeighborhood, true);
-        }
-        final float[] scores = new float[4];
-        final int limit = k - 3;
-        for (int i = 0; i < k - 1; i++) {
-            float[] center = centers[i];
-            int j = i + 1;
-            for (; j < limit; j += 4) {
-                ESVectorUtil.squareDistanceBulk(center, centers[j], centers[j + 1], centers[j + 2], centers[j + 3], scores);
-                for (int h = 0; h < 4; h++) {
-                    neighborQueues[j + h].insertWithOverflow(i, scores[h]);
-                    neighborQueues[i].insertWithOverflow(j + h, scores[h]);
-                }
-            }
-            for (; j < k; j++) {
-                float dsq = VectorUtil.squareDistance(center, centers[j]);
-                neighborQueues[j].insertWithOverflow(i, dsq);
-                neighborQueues[i].insertWithOverflow(j, dsq);
-            }
-        }
-
-        NeighborHood[] neighborhoods = new NeighborHood[k];
-        for (int i = 0; i < k; i++) {
-            NeighborQueue queue = neighborQueues[i];
-            if (queue.size() == 0) {
-                // no neighbors, skip
-                neighborhoods[i] = NeighborHood.EMPTY;
-                continue;
-            }
-            // consume the queue into the neighbors array and get the maximum intra-cluster distance
-            int[] neighbors = new int[queue.size()];
-            float maxIntraDistance = queue.topScore();
-            int iter = 0;
-            while (queue.size() > 0) {
-                neighbors[neighbors.length - ++iter] = queue.pop();
-            }
-            neighborhoods[i] = new NeighborHood(neighbors, maxIntraDistance);
-        }
-        return neighborhoods;
-    }
-
-    private void assignSpilled(
-        FloatVectorValues vectors,
+    /** Assign vectors from {@code startOrd} to {@code endOrd} to the SOAR centroid. */
+    protected static void assignSpilledSlice(
+        ClusteringFloatVectorValues vectors,
         KMeansIntermediate kmeansIntermediate,
         NeighborHood[] neighborhoods,
-        float soarLambda
+        float soarLambda,
+        int startOrd,
+        int endOrd
     ) throws IOException {
-        // SOAR uses an adjusted distance for assigning spilled documents which is
-        // given by:
-        //
-        // soar(x, c) = ||x - c||^2 + lambda * ((x - c_1)^t (x - c))^2 / ||x - c_1||^2
-        //
-        // Here, x is the document, c is the nearest centroid, and c_1 is the first
-        // centroid the document was assigned to. The document is assigned to the
-        // cluster with the smallest soar(x, c).
         int[] assignments = kmeansIntermediate.assignments();
         assert assignments != null;
         assert assignments.length == vectors.size();
@@ -277,75 +125,7 @@ class KMeansLocal {
         assert spilledAssignments != null;
         assert spilledAssignments.length == vectors.size();
         float[][] centroids = kmeansIntermediate.centroids();
-
-        float[] diffs = new float[vectors.dimension()];
-        final float[] distances = new float[4];
-        for (int i = 0; i < vectors.size(); i++) {
-            float[] vector = vectors.vectorValue(i);
-            int currAssignment = assignments[i];
-            float[] currentCentroid = centroids[currAssignment];
-            // TODO: cache these?
-            float vectorCentroidDist = VectorUtil.squareDistance(vector, currentCentroid);
-            if (vectorCentroidDist <= SOAR_MIN_DISTANCE) {
-                spilledAssignments[i] = -1; // no SOAR assignment
-                continue;
-            }
-
-            for (int j = 0; j < vectors.dimension(); j++) {
-                diffs[j] = vector[j] - currentCentroid[j];
-            }
-            final int centroidCount;
-            final IntToIntFunction centroidOrds;
-            if (neighborhoods != null) {
-                assert neighborhoods[currAssignment] != null;
-                NeighborHood neighborhood = neighborhoods[currAssignment];
-                centroidCount = neighborhood.neighbors.length;
-                centroidOrds = c -> neighborhood.neighbors[c];
-            } else {
-                centroidCount = centroids.length - 1;
-                centroidOrds = c -> c < currAssignment ? c : c + 1; // skip the current centroid
-            }
-            final int limit = centroidCount - 3;
-            int bestAssignment = -1;
-            float minSoar = Float.MAX_VALUE;
-            int j = 0;
-            for (; j < limit; j += 4) {
-                ESVectorUtil.soarDistanceBulk(
-                    vector,
-                    centroids[centroidOrds.apply(j)],
-                    centroids[centroidOrds.apply(j + 1)],
-                    centroids[centroidOrds.apply(j + 2)],
-                    centroids[centroidOrds.apply(j + 3)],
-                    diffs,
-                    soarLambda,
-                    vectorCentroidDist,
-                    distances
-                );
-                for (int k = 0; k < distances.length; k++) {
-                    float soar = distances[k];
-                    if (soar < minSoar) {
-                        minSoar = soar;
-                        bestAssignment = centroidOrds.apply(j + k);
-                    }
-                }
-            }
-
-            for (; j < centroidCount; j++) {
-                int centroidOrd = centroidOrds.apply(j);
-                float soar = ESVectorUtil.soarDistance(vector, centroids[centroidOrd], diffs, soarLambda, vectorCentroidDist);
-                if (soar < minSoar) {
-                    minSoar = soar;
-                    bestAssignment = centroidOrd;
-                }
-            }
-
-            assert bestAssignment != -1 : "Failed to assign soar vector to centroid";
-            spilledAssignments[i] = bestAssignment;
-        }
-    }
-
-    record NeighborHood(int[] neighbors, float maxIntraDistance) {
-        static final NeighborHood EMPTY = new NeighborHood(new int[0], Float.POSITIVE_INFINITY);
+        vectors.assignSpilled(startOrd, endOrd, centroids, neighborhoods, soarLambda, assignments, spilledAssignments);
     }
 
     /**
@@ -357,7 +137,7 @@ class KMeansLocal {
      *                     passing in a valid output object with a centroids array that is the size of centroids expected
      * @throws IOException is thrown if vectors is inaccessible
      */
-    void cluster(FloatVectorValues vectors, KMeansIntermediate kMeansIntermediate) throws IOException {
+    final void cluster(ClusteringFloatVectorValues vectors, KMeansIntermediate kMeansIntermediate) throws IOException {
         doCluster(vectors, kMeansIntermediate, -1, -1);
     }
 
@@ -375,16 +155,24 @@ class KMeansLocal {
      *
      * @throws IOException is thrown if vectors is inaccessible or if the clustersPerNeighborhood is less than 2
      */
-    void cluster(FloatVectorValues vectors, KMeansIntermediate kMeansIntermediate, int clustersPerNeighborhood, float soarLambda)
-        throws IOException {
+    final void cluster(
+        ClusteringFloatVectorValues vectors,
+        KMeansIntermediate kMeansIntermediate,
+        int clustersPerNeighborhood,
+        float soarLambda
+    ) throws IOException {
         if (clustersPerNeighborhood < 2) {
             throw new IllegalArgumentException("clustersPerNeighborhood must be at least 2, got [" + clustersPerNeighborhood + "]");
         }
         doCluster(vectors, kMeansIntermediate, clustersPerNeighborhood, soarLambda);
     }
 
-    private void doCluster(FloatVectorValues vectors, KMeansIntermediate kMeansIntermediate, int clustersPerNeighborhood, float soarLambda)
-        throws IOException {
+    private void doCluster(
+        ClusteringFloatVectorValues vectors,
+        KMeansIntermediate kMeansIntermediate,
+        int clustersPerNeighborhood,
+        float soarLambda
+    ) throws IOException {
         float[][] centroids = kMeansIntermediate.centroids();
         boolean neighborAware = clustersPerNeighborhood != -1 && centroids.length > 1;
         NeighborHood[] neighborhoods = null;
@@ -400,7 +188,7 @@ class KMeansLocal {
         }
     }
 
-    private void cluster(FloatVectorValues vectors, KMeansIntermediate kMeansIntermediate, NeighborHood[] neighborhoods)
+    private void cluster(ClusteringFloatVectorValues vectors, KMeansIntermediate kMeansIntermediate, NeighborHood[] neighborhoods)
         throws IOException {
         float[][] centroids = kMeansIntermediate.centroids();
         int k = centroids.length;
@@ -411,31 +199,38 @@ class KMeansLocal {
             Arrays.fill(assignments, 0);
             return;
         }
-        IntToIntFunction translateOrd = i -> i;
-        FloatVectorValues sampledVectors = vectors;
+        IntToIntFunction ordTranslator = i -> i;
+        ClusteringFloatVectorValues sampledVectors = vectors;
         if (sampleSize < n) {
-            sampledVectors = SampleReader.createSampleReader(vectors, sampleSize, 42L);
-            translateOrd = sampledVectors::ordToDoc;
+            sampledVectors = ClusteringFloatVectorValuesSlice.createRandomSlice(vectors, sampleSize, 42L);
+            ordTranslator = sampledVectors::ordToDoc;
         }
 
         assert assignments.length == n;
-        FixedBitSet centroidChanged = new FixedBitSet(centroids.length);
+        FixedBitSet[] centroidChangedSlices = new FixedBitSet[numWorkers()];
+        for (int i = 0; i < numWorkers(); i++) {
+            centroidChangedSlices[i] = new FixedBitSet(centroids.length);
+        }
         int[] centroidCounts = new int[centroids.length];
         for (int i = 0; i < maxIterations; i++) {
             // This is potentially sampled, so we need to translate ordinals
-            if (stepLloyd(sampledVectors, translateOrd, centroids, centroidChanged, centroidCounts, assignments, neighborhoods) == false) {
+            if (stepLloyd(sampledVectors, ordTranslator, centroids, centroidChangedSlices, assignments, neighborhoods)) {
+                sampledVectors.updateCentroids(centroids, ordTranslator, centroidChangedSlices, centroidCounts, assignments);
+            } else {
                 break;
             }
         }
         // If we were sampled, do a once over the full set of vectors to finalize the centroids
         if (sampleSize < n || maxIterations == 0) {
             // No ordinal translation needed here, we are using the full set of vectors
-            stepLloyd(vectors, i -> i, centroids, centroidChanged, centroidCounts, assignments, neighborhoods);
+            if (stepLloyd(vectors, i -> i, centroids, centroidChangedSlices, assignments, neighborhoods)) {
+                sampledVectors.updateCentroids(centroids, ordTranslator, centroidChangedSlices, centroidCounts, assignments);
+            }
         }
     }
 
     /**
-     * helper that calls {@link KMeansLocal#cluster(FloatVectorValues, KMeansIntermediate)} given a set of initialized centroids,
+     * helper that calls {@link KMeansLocal#cluster(ClusteringFloatVectorValues, KMeansIntermediate)} given a set of initialized centroids,
      * this call is not neighbor aware
      *
      * @param vectors the vectors to cluster
@@ -443,10 +238,10 @@ class KMeansLocal {
      * @param sampleSize the subset of vectors to use when shifting centroids
      * @param maxIterations the max iterations to shift centroids
      */
-    public static void cluster(FloatVectorValues vectors, float[][] centroids, int sampleSize, int maxIterations) throws IOException {
+    public static void cluster(ClusteringFloatVectorValues vectors, float[][] centroids, int sampleSize, int maxIterations)
+        throws IOException {
         KMeansIntermediate kMeansIntermediate = new KMeansIntermediate(centroids, new int[vectors.size()], vectors::ordToDoc);
-        KMeansLocal kMeans = new KMeansLocal(sampleSize, maxIterations);
+        KMeansLocal kMeans = new KMeansLocalSerial(sampleSize, maxIterations);
         kMeans.cluster(vectors, kMeansIntermediate);
     }
-
 }

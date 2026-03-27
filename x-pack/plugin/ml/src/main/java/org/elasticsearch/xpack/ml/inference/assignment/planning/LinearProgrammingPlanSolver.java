@@ -81,7 +81,7 @@ class LinearProgrammingPlanSolver {
         long maxNodeMemory = nodes.stream().map(Node::availableMemoryBytes).max(Long::compareTo).orElse(0L);
         this.deployments = deployments.stream()
             // Filter out models that are not already assigned and do not fit on any node
-            .filter(m -> m.currentAllocationsByNodeId().isEmpty() == false || m.memoryBytes() <= maxNodeMemory)
+            .filter(m -> m.currentAllocationsByNodeId().isEmpty() == false || m.minimumMemoryRequiredBytes() <= maxNodeMemory)
             // Also filter out models whose threads per allocation are more than the max node cores
             .filter(m -> m.threadsPerAllocation() <= maxNodeCores)
             .toList();

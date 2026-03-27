@@ -9,6 +9,7 @@
 
 package org.elasticsearch.benchmark.exponentialhistogram;
 
+import org.elasticsearch.exponentialhistogram.ExponentialHistogramCircuitBreaker;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramGenerator;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -59,7 +60,7 @@ public class ExponentialHistogramGenerationBench {
     @Setup
     public void setUp() {
         random = ThreadLocalRandom.current();
-        histoGenerator = new ExponentialHistogramGenerator(bucketCount);
+        histoGenerator = ExponentialHistogramGenerator.create(bucketCount, ExponentialHistogramCircuitBreaker.noop());
 
         DoubleSupplier nextRandom = () -> distribution.equals("GAUSSIAN") ? random.nextGaussian() : random.nextDouble();
 

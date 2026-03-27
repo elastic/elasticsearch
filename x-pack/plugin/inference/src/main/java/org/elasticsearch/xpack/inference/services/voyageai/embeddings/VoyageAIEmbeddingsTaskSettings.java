@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.voyageai.embeddings;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -19,7 +18,6 @@ import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
@@ -41,6 +39,7 @@ public class VoyageAIEmbeddingsTaskSettings implements TaskSettings {
     public static final String NAME = "voyageai_embeddings_task_settings";
     public static final VoyageAIEmbeddingsTaskSettings EMPTY_SETTINGS = new VoyageAIEmbeddingsTaskSettings(null, null);
     static final String INPUT_TYPE = "input_type";
+    private static final TransportVersion VOYAGE_AI_INTEGRATION_ADDED = TransportVersion.fromName("voyage_ai_integration_added");
 
     public static VoyageAIEmbeddingsTaskSettings fromMap(Map<String, Object> map) {
         if (map == null || map.isEmpty()) {
@@ -59,9 +58,7 @@ public class VoyageAIEmbeddingsTaskSettings implements TaskSettings {
         );
         Boolean truncation = extractOptionalBoolean(map, TRUNCATION, validationException);
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new VoyageAIEmbeddingsTaskSettings(inputType, truncation);
     }
@@ -163,13 +160,12 @@ public class VoyageAIEmbeddingsTaskSettings implements TaskSettings {
     @Override
     public TransportVersion getMinimalSupportedVersion() {
         assert false : "should never be called when supportsVersion is used";
-        return TransportVersions.VOYAGE_AI_INTEGRATION_ADDED;
+        return VOYAGE_AI_INTEGRATION_ADDED;
     }
 
     @Override
     public boolean supportsVersion(TransportVersion version) {
-        return version.onOrAfter(TransportVersions.VOYAGE_AI_INTEGRATION_ADDED)
-            || version.isPatchFrom(TransportVersions.VOYAGE_AI_INTEGRATION_ADDED_BACKPORT_8_X);
+        return version.supports(VOYAGE_AI_INTEGRATION_ADDED);
     }
 
     @Override
@@ -193,7 +189,7 @@ public class VoyageAIEmbeddingsTaskSettings implements TaskSettings {
 
     @Override
     public TaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
-        VoyageAIEmbeddingsTaskSettings updatedSettings = VoyageAIEmbeddingsTaskSettings.fromMap(new HashMap<>(newSettings));
+        VoyageAIEmbeddingsTaskSettings updatedSettings = VoyageAIEmbeddingsTaskSettings.fromMap(newSettings);
         return of(this, updatedSettings);
     }
 }

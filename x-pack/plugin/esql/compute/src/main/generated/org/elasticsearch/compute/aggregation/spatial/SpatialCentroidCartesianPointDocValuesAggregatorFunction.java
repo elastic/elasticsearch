@@ -20,6 +20,7 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.lucene.spatial.CoordinateEncoder;
 
 /**
  * {@link AggregatorFunction} implementation for {@link SpatialCentroidCartesianPointDocValuesAggregator}.
@@ -39,16 +40,14 @@ public final class SpatialCentroidCartesianPointDocValuesAggregatorFunction impl
 
   private final List<Integer> channels;
 
-  public SpatialCentroidCartesianPointDocValuesAggregatorFunction(DriverContext driverContext,
-      List<Integer> channels, CentroidPointAggregator.CentroidState state) {
+  private final CoordinateEncoder encoder;
+
+  SpatialCentroidCartesianPointDocValuesAggregatorFunction(DriverContext driverContext,
+      List<Integer> channels, CoordinateEncoder encoder) {
+    this.encoder = encoder;
     this.driverContext = driverContext;
     this.channels = channels;
-    this.state = state;
-  }
-
-  public static SpatialCentroidCartesianPointDocValuesAggregatorFunction create(
-      DriverContext driverContext, List<Integer> channels) {
-    return new SpatialCentroidCartesianPointDocValuesAggregatorFunction(driverContext, channels, SpatialCentroidCartesianPointDocValuesAggregator.initSingle());
+    this.state = SpatialCentroidCartesianPointDocValuesAggregator.initSingle(encoder);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -110,11 +109,12 @@ public final class SpatialCentroidCartesianPointDocValuesAggregatorFunction impl
 
   private void addRawBlock(LongBlock vBlock) {
     for (int p = 0; p < vBlock.getPositionCount(); p++) {
-      if (vBlock.isNull(p)) {
+      int vValueCount = vBlock.getValueCount(p);
+      if (vValueCount == 0) {
         continue;
       }
       int vStart = vBlock.getFirstValueIndex(p);
-      int vEnd = vStart + vBlock.getValueCount(p);
+      int vEnd = vStart + vValueCount;
       for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
         long vValue = vBlock.getLong(vOffset);
         SpatialCentroidCartesianPointDocValuesAggregator.combine(state, vValue);
@@ -127,11 +127,12 @@ public final class SpatialCentroidCartesianPointDocValuesAggregatorFunction impl
       if (mask.getBoolean(p) == false) {
         continue;
       }
-      if (vBlock.isNull(p)) {
+      int vValueCount = vBlock.getValueCount(p);
+      if (vValueCount == 0) {
         continue;
       }
       int vStart = vBlock.getFirstValueIndex(p);
-      int vEnd = vStart + vBlock.getValueCount(p);
+      int vEnd = vStart + vValueCount;
       for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
         long vValue = vBlock.getLong(vOffset);
         SpatialCentroidCartesianPointDocValuesAggregator.combine(state, vValue);

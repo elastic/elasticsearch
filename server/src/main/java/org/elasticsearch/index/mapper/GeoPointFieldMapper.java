@@ -35,11 +35,13 @@ import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.index.IndexMode;
-import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.SourceValueFetcherMultiGeoPointIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.LatLonPointIndexFieldData;
+import org.elasticsearch.index.mapper.blockloader.docvalues.GeoBytesRefFromLongsBlockLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.LongsBlockLoader;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.GeoPointFieldScript;
 import org.elasticsearch.script.Script;
@@ -62,6 +64,7 @@ import org.elasticsearch.xcontent.XContentString;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -70,6 +73,7 @@ import java.util.Set;
 import java.util.function.Function;
 
 import static org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference.DOC_VALUES;
+import static org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference.NONE;
 
 /**
  * Field Mapper for geo_point types.
@@ -102,22 +106,18 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
             script
         );
         final Parameter<Map<String, String>> meta = Parameter.metaParam();
-
-        private final ScriptCompiler scriptCompiler;
-        private final IndexVersion indexCreatedVersion;
         private final Parameter<TimeSeriesParams.MetricType> metric;  // either null, or POSITION if this is a time series metric
         private final Parameter<Boolean> dimension; // can only support time_series_dimension: false
-        private final IndexMode indexMode;  // either STANDARD or TIME_SERIES
 
-        public Builder(
-            String name,
-            ScriptCompiler scriptCompiler,
-            boolean ignoreMalformedByDefault,
-            IndexVersion indexCreatedVersion,
-            IndexMode mode
-        ) {
+        private final ScriptCompiler scriptCompiler;
+        private final IndexSettings indexSettings;
+
+        public Builder(String name, ScriptCompiler scriptCompiler, IndexSettings indexSettings) {
             super(name);
-            this.ignoreMalformed = ignoreMalformedParam(m -> builder(m).ignoreMalformed.get(), ignoreMalformedByDefault);
+            this.ignoreMalformed = ignoreMalformedParam(
+                m -> builder(m).ignoreMalformed.get(),
+                IGNORE_MALFORMED_SETTING.get(indexSettings.getSettings())
+            );
             this.nullValue = nullValueParam(
                 m -> builder(m).nullValue.get(),
                 (n, c, o) -> parseNullValue(o, ignoreZValue.get().value(), ignoreMalformed.get().value()),
@@ -125,12 +125,11 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
                 XContentBuilder::field
             ).acceptsNull();
             this.scriptCompiler = Objects.requireNonNull(scriptCompiler);
-            this.indexCreatedVersion = Objects.requireNonNull(indexCreatedVersion);
+            this.indexSettings = Objects.requireNonNull(indexSettings);
             this.script.precludesParameters(nullValue, ignoreMalformed, ignoreZValue);
-            this.indexMode = mode;
             this.indexed = Parameter.indexParam(
                 m -> toType(m).indexed,
-                () -> indexMode != IndexMode.TIME_SERIES || getMetric().getValue() != TimeSeriesParams.MetricType.POSITION
+                () -> indexSettings.getMode() != IndexMode.TIME_SERIES || getMetric().getValue() != TimeSeriesParams.MetricType.POSITION
             );
             addScriptValidation(script, indexed, hasDocValues);
 
@@ -142,7 +141,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
                 }
             });
             // We allow `time_series_dimension` parameter to be parsed, but only allow it to be `false`
-            this.dimension = TimeSeriesParams.dimensionParam(m -> false).addValidator(v -> {
+            this.dimension = TimeSeriesParams.dimensionParam(m -> false, () -> true).addValidator(v -> {
                 if (v) {
                     throw new IllegalArgumentException(
                         "Parameter [" + TimeSeriesParams.TIME_SERIES_DIMENSION_PARAM + "] cannot be set to geo_point"
@@ -173,6 +172,11 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
 
         public Builder docValues(boolean hasDocValues) {
             this.hasDocValues.setValue(hasDocValues);
+            return this;
+        }
+
+        public Builder ignoreMalformed(boolean ignoreMalformed) {
+            this.ignoreMalformed.setValue(new Explicit<>(ignoreMalformed, true));
             return this;
         }
 
@@ -207,6 +211,11 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
         }
 
         @Override
+        public String contentType() {
+            return CONTENT_TYPE;
+        }
+
+        @Override
         public FieldMapper build(MapperBuilderContext context) {
             boolean ignoreMalformedEnabled = ignoreMalformed.get().value();
             Parser<GeoPoint> geoParser = new GeoPointParser(
@@ -218,17 +227,19 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
                 metric.get() != TimeSeriesParams.MetricType.POSITION,
                 context.isSourceSynthetic() && ignoreMalformedEnabled
             );
+            IndexType indexType = indexSettings.getIndexVersionCreated().isLegacyIndexVersion()
+                ? IndexType.archivedPoints()
+                : IndexType.points(indexed.get(), hasDocValues.get());
             GeoPointFieldType ft = new GeoPointFieldType(
                 context.buildFullName(leafName()),
-                indexed.get() && indexCreatedVersion.isLegacyIndexVersion() == false,
+                indexType,
                 stored.get(),
-                hasDocValues.get(),
                 geoParser,
                 nullValue.get(),
                 scriptValues(),
                 meta.get(),
                 metric.get(),
-                indexMode,
+                indexSettings.getMode(),
                 context.isSourceSynthetic()
             );
             hasScript = script.get() != null;
@@ -239,21 +250,15 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
     }
 
     public static final TypeParser PARSER = createTypeParserWithLegacySupport(
-        (n, c) -> new Builder(
-            n,
-            c.scriptCompiler(),
-            IGNORE_MALFORMED_SETTING.get(c.getSettings()),
-            c.indexVersionCreated(),
-            c.getIndexSettings().getMode()
-        )
+        (n, c) -> new Builder(n, c.scriptCompiler(), c.getIndexSettings())
     );
 
+    // TODO would be nicer not to hold onto the Builder here as it's a pretty big object
     private final Builder builder;
     private final FieldValues<GeoPoint> scriptValues;
-    private final IndexVersion indexCreatedVersion;
     private final TimeSeriesParams.MetricType metricType;
-    private final IndexMode indexMode;
     private final boolean indexed;
+    private final IndexSettings indexSettings;
 
     public GeoPointFieldMapper(
         String simpleName,
@@ -273,26 +278,19 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
         );
         this.builder = builder;
         this.scriptValues = builder.scriptValues();
-        this.indexCreatedVersion = builder.indexCreatedVersion;
         this.metricType = builder.metric.get();
-        this.indexMode = builder.indexMode;
         this.indexed = builder.indexed.get();
+        this.indexSettings = builder.indexSettings;
     }
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(
-            leafName(),
-            builder.scriptCompiler,
-            builder.ignoreMalformed.getDefaultValue().value(),
-            indexCreatedVersion,
-            indexMode
-        ).init(this);
+        return new Builder(leafName(), builder.scriptCompiler, indexSettings).init(this);
     }
 
     @Override
     protected void index(DocumentParserContext context, GeoPoint geometry) throws IOException {
-        final boolean indexed = fieldType().isIndexed();
+        final boolean indexed = fieldType().indexType.hasPoints();
         final boolean hasDocValues = fieldType().hasDocValues();
         final boolean store = fieldType().isStored();
         if (indexed && hasDocValues) {
@@ -387,11 +385,10 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
         private final IndexMode indexMode;
         private final boolean isSyntheticSource;
 
-        private GeoPointFieldType(
+        GeoPointFieldType(
             String name,
-            boolean indexed,
+            IndexType indexType,
             boolean stored,
-            boolean hasDocValues,
             Parser<GeoPoint> parser,
             GeoPoint nullValue,
             FieldValues<GeoPoint> scriptValues,
@@ -400,7 +397,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
             IndexMode indexMode,
             boolean isSyntheticSource
         ) {
-            super(name, indexed, stored, hasDocValues, parser, nullValue, meta);
+            super(name, indexType, stored, parser, nullValue, meta);
             this.scriptValues = scriptValues;
             this.metricType = metricType;
             this.indexMode = indexMode;
@@ -409,7 +406,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
 
         // only used in test
         public GeoPointFieldType(String name, TimeSeriesParams.MetricType metricType, IndexMode indexMode) {
-            this(name, true, false, true, null, null, null, Collections.emptyMap(), metricType, indexMode, false);
+            this(name, IndexType.points(true, true), false, null, null, null, Collections.emptyMap(), metricType, indexMode, false);
         }
 
         // only used in test
@@ -424,7 +421,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
 
         @Override
         public boolean isSearchable() {
-            return isIndexed() || hasDocValues();
+            return indexType.hasPoints() || hasDocValues();
         }
 
         @Override
@@ -454,7 +451,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
                 luceneRelation = relation.getLuceneRelation();
             }
             Query query;
-            if (isIndexed()) {
+            if (indexType.hasPoints()) {
                 query = LatLonPoint.newGeometryQuery(fieldName, luceneRelation, geometries);
                 if (hasDocValues()) {
                     Query dvQuery = LatLonDocValuesField.newSlowGeometryQuery(fieldName, luceneRelation, geometries);
@@ -493,7 +490,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
                 return new SourceValueFetcherMultiGeoPointIndexFieldData.Builder(
                     name(),
                     valuesSourceType,
-                    valueFetcher(sourcePaths, null, null),
+                    valueFetcher(sourcePaths, null, null, fieldDataContext.indexSettings()),
                     searchLookup,
                     GeoPointDocValuesField::new
                 );
@@ -519,7 +516,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
                 );
             }
             double pivotDouble = DistanceUnit.DEFAULT.parse(pivot, DistanceUnit.DEFAULT);
-            if (isIndexed()) {
+            if (indexType.hasPoints()) {
                 // As we already apply boost in AbstractQueryBuilder::toQuery, we always passing a boost of 1.0 to distanceFeatureQuery
                 return LatLonPoint.newDistanceFeatureQuery(name(), 1.0f, originGeoPoint.lat(), originGeoPoint.lon(), pivotDouble);
             } else {
@@ -545,30 +542,29 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
 
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
-            if (blContext.fieldExtractPreference() == DOC_VALUES && hasDocValues()) {
-                return new BlockDocValuesReader.LongsBlockLoader(name());
+            // load from doc values
+            if (hasDocValues()) {
+                if (blContext.fieldExtractPreference() == DOC_VALUES) {
+                    return new LongsBlockLoader(name());
+                } else if (blContext.fieldExtractPreference() == NONE && isSyntheticSource) {
+                    // when the preference is not explicitly set to DOC_VALUES, we expect a BytesRef -> see PlannerUtils.toElementType()
+                    return new GeoBytesRefFromLongsBlockLoader(name());
+                }
+                // if we got here, then either synthetic source is not enabled or the preference prohibits us from using doc_values
             }
 
-            // There are two scenarios possible once we arrive here:
-            //
-            // * Stored source - we'll just use blockLoaderFromSource
-            // * Synthetic source. However, because of the fieldExtractPreference() check above it is still possible that doc_values are
-            // present here.
-            // So we have two subcases:
-            // - doc_values are enabled - _ignored_source field does not exist since we have doc_values. We will use
-            // blockLoaderFromSource which reads "native" synthetic source.
-            // - doc_values are disabled - we know that _ignored_source field is present and use a special block loader unless it's a multi
-            // field.
+            // doc_values are disabled, fallback to ignored_source, except for multi fields since then don't have fallback synthetic source
             if (isSyntheticSource && hasDocValues() == false && blContext.parentField(name()) == null) {
                 return blockLoaderFromFallbackSyntheticSource(blContext);
             }
 
+            // otherwise, load from _source (synthetic or otherwise) - very slow
             return blockLoaderFromSource(blContext);
         }
     }
 
     /** GeoPoint parser implementation */
-    private static class GeoPointParser extends PointParser<GeoPoint> {
+    static class GeoPointParser extends PointParser<GeoPoint> {
         private final boolean storeMalformedDataForSyntheticSource;
 
         GeoPointParser(
@@ -653,24 +649,25 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
         throws IOException {
         super.onMalformedValue(context, malformedDataForSyntheticSource, cause);
         if (malformedDataForSyntheticSource != null) {
-            context.doc().add(IgnoreMalformedStoredValues.storedField(fullPath(), malformedDataForSyntheticSource));
+            IgnoreMalformedStoredValues.storeMalformedValueForSyntheticSource(context, fullPath(), malformedDataForSyntheticSource);
         }
     }
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport() {
         if (fieldType().hasDocValues()) {
-            return new SyntheticSourceSupport.Native(
-                () -> new SortedNumericDocValuesSyntheticFieldLoader(fullPath(), leafName(), ignoreMalformed()) {
-                    final GeoPoint point = new GeoPoint();
-
-                    @Override
-                    protected void writeValue(XContentBuilder b, long value) throws IOException {
-                        point.reset(GeoEncodingUtils.decodeLatitude((int) (value >>> 32)), GeoEncodingUtils.decodeLongitude((int) value));
-                        point.toXContent(b, ToXContent.EMPTY_PARAMS);
-                    }
+            return new SyntheticSourceSupport.Native(() -> {
+                final GeoPoint point = new GeoPoint();
+                var layers = new ArrayList<CompositeSyntheticFieldLoader.Layer>(2);
+                layers.add(new SortedNumericDocValuesSyntheticFieldLoaderLayer(fullPath(), (b, value) -> {
+                    point.reset(GeoEncodingUtils.decodeLatitude((int) (value >>> 32)), GeoEncodingUtils.decodeLongitude((int) value));
+                    point.toXContent(b, ToXContent.EMPTY_PARAMS);
+                }));
+                if (ignoreMalformed()) {
+                    layers.add(CompositeSyntheticFieldLoader.malformedValuesLayer(fullPath(), indexSettings.getIndexVersionCreated()));
                 }
-            );
+                return new CompositeSyntheticFieldLoader(leafName(), fullPath(), layers);
+            });
         }
 
         return super.syntheticSourceSupport();

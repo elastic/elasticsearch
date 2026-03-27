@@ -19,19 +19,23 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkInferenceInput;
+import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
+import org.elasticsearch.inference.ModelSecrets;
+import org.elasticsearch.inference.RerankingInferenceService;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.inference.chunking.WordBoundaryChunkingSettings;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceError;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResultsTests;
+import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResultsTests;
 import org.elasticsearch.xpack.inference.InferencePlugin;
-import org.elasticsearch.xpack.inference.chunking.WordBoundaryChunkingSettings;
 import org.elasticsearch.xpack.inference.common.amazon.AwsSecretSettings;
+import org.elasticsearch.xpack.inference.services.InferenceServiceTestCase;
 import org.elasticsearch.xpack.inference.services.sagemaker.model.SageMakerModel;
 import org.elasticsearch.xpack.inference.services.sagemaker.model.SageMakerModelBuilder;
 import org.elasticsearch.xpack.inference.services.sagemaker.schema.SageMakerSchema;
@@ -40,6 +44,7 @@ import org.elasticsearch.xpack.inference.services.sagemaker.schema.SageMakerStre
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -53,9 +58,11 @@ import static org.elasticsearch.action.ActionListener.assertOnce;
 import static org.elasticsearch.action.support.ActionTestUtils.assertNoFailureListener;
 import static org.elasticsearch.action.support.ActionTestUtils.assertNoSuccessListener;
 import static org.elasticsearch.core.TimeValue.THIRTY_SECONDS;
+import static org.elasticsearch.xpack.core.inference.action.UnifiedCompletionRequestTests.randomTextInputOnlyUnifiedCompletionRequest;
 import static org.elasticsearch.xpack.core.inference.action.UnifiedCompletionRequestTests.randomUnifiedCompletionRequest;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterService;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
+import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -65,16 +72,18 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.assertArg;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.only;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
-public class SageMakerServiceTests extends ESTestCase {
+public class SageMakerServiceTests extends InferenceServiceTestCase {
 
     private static final String QUERY = "query";
     private static final List<String> INPUT = List.of("input");
@@ -113,13 +122,21 @@ public class SageMakerServiceTests extends ESTestCase {
         }));
     }
 
-    public void testParsePersistedConfigWithSecrets() {
-        sageMakerService.parsePersistedConfigWithSecrets("modelId", TaskType.ANY, Map.of(), Map.of());
-        verify(modelBuilder, only()).fromStorage(eq("modelId"), eq(TaskType.ANY), eq(SageMakerService.NAME), eq(Map.of()), eq(Map.of()));
+    public void testParsePersistedConfig_WithSecrets() {
+        sageMakerService.parsePersistedConfig(
+            new UnparsedModel("modelId", TaskType.ANY, SageMakerService.NAME, Map.of(), Map.of("key", "value"))
+        );
+        verify(modelBuilder, only()).fromStorage(
+            eq("modelId"),
+            eq(TaskType.ANY),
+            eq(SageMakerService.NAME),
+            eq(Map.of()),
+            eq(Map.of("key", "value"))
+        );
     }
 
-    public void testParsePersistedConfig() {
-        sageMakerService.parsePersistedConfig("modelId", TaskType.ANY, Map.of());
+    public void testParsePersistedConfig_WithoutSecrets() {
+        sageMakerService.parsePersistedConfig(new UnparsedModel("modelId", TaskType.ANY, SageMakerService.NAME, Map.of(), null));
         verify(modelBuilder, only()).fromStorage(eq("modelId"), eq(TaskType.ANY), eq(SageMakerService.NAME), eq(Map.of()), eq(null));
     }
 
@@ -368,7 +385,7 @@ public class SageMakerServiceTests extends ESTestCase {
 
         sageMakerService.unifiedCompletionInfer(
             model,
-            randomUnifiedCompletionRequest(),
+            randomTextInputOnlyUnifiedCompletionRequest(),
             THIRTY_SECONDS,
             assertNoFailureListener(ignored -> {
                 verify(schemas, only()).streamSchemaFor(eq(model));
@@ -390,7 +407,7 @@ public class SageMakerServiceTests extends ESTestCase {
 
         sageMakerService.unifiedCompletionInfer(
             model,
-            randomUnifiedCompletionRequest(),
+            randomTextInputOnlyUnifiedCompletionRequest(),
             THIRTY_SECONDS,
             assertNoSuccessListener(ignored -> {
                 verify(schemas, only()).streamSchemaFor(eq(model));
@@ -418,13 +435,18 @@ public class SageMakerServiceTests extends ESTestCase {
         when(schemas.streamSchemaFor(model)).thenReturn(schema);
         doThrow(new IllegalArgumentException("wow, rude")).when(client).invokeStream(any(), any(), any(), any());
 
-        sageMakerService.unifiedCompletionInfer(model, randomUnifiedCompletionRequest(), THIRTY_SECONDS, assertNoSuccessListener(e -> {
-            verify(schemas, only()).streamSchemaFor(eq(model));
-            verify(schema, times(1)).chatCompletionStreamRequest(eq(model), any());
-            assertThat(e, isA(ElasticsearchStatusException.class));
-            assertThat(((ElasticsearchStatusException) e).status(), equalTo(RestStatus.INTERNAL_SERVER_ERROR));
-            assertThat(e.getMessage(), equalTo("Failed to call SageMaker for inference id [some id]."));
-        }));
+        sageMakerService.unifiedCompletionInfer(
+            model,
+            randomTextInputOnlyUnifiedCompletionRequest(),
+            THIRTY_SECONDS,
+            assertNoSuccessListener(e -> {
+                verify(schemas, only()).streamSchemaFor(eq(model));
+                verify(schema, times(1)).chatCompletionStreamRequest(eq(model), any());
+                assertThat(e, isA(ElasticsearchStatusException.class));
+                assertThat(((ElasticsearchStatusException) e).status(), equalTo(RestStatus.INTERNAL_SERVER_ERROR));
+                assertThat(e.getMessage(), equalTo("Failed to call SageMaker for inference id [some id]."));
+            })
+        );
         verify(client, only()).invokeStream(any(), any(), any(), any());
         verifyNoMoreInteractions(client, schemas, schema);
     }
@@ -445,7 +467,7 @@ public class SageMakerServiceTests extends ESTestCase {
         var model = mockModelForChunking();
 
         SageMakerSchema schema = mock();
-        when(schema.response(any(), any(), any())).thenReturn(TextEmbeddingFloatResultsTests.createRandomResults());
+        when(schema.response(any(), any(), any())).thenReturn(DenseEmbeddingFloatResultsTests.createRandomResults());
         when(schemas.schemaFor(model)).thenReturn(schema);
         mockInvoke();
 
@@ -465,6 +487,30 @@ public class SageMakerServiceTests extends ESTestCase {
             }))
         );
         verify(client, times(2)).invoke(any(), any(), any(), any());
+        verifyNoMoreInteractions(client, schemas, schema);
+    }
+
+    public void testChunkedInfer_noInputs() throws Exception {
+        var model = mockModelForChunking();
+
+        SageMakerSchema schema = mock();
+        when(schemas.schemaFor(model)).thenReturn(schema);
+        mockInvoke();
+
+        sageMakerService.chunkedInfer(
+            model,
+            QUERY,
+            List.of(),
+            null,
+            INPUT_TYPE,
+            THIRTY_SECONDS,
+            assertOnce(assertNoFailureListener(chunkedInferences -> {
+                verify(schemas, never()).schemaFor(any());
+                verify(schema, never()).request(any(), any());
+                verify(schema, never()).response(any(), any(), any());
+            }))
+        );
+        verify(client, never()).invoke(any(), any(), any(), any());
         verifyNoMoreInteractions(client, schemas, schema);
     }
 
@@ -524,4 +570,24 @@ public class SageMakerServiceTests extends ESTestCase {
         verify(client, only()).close();
     }
 
+    @Override
+    public InferenceService createInferenceService() {
+        when(schemas.supportedTaskTypes()).thenReturn(EnumSet.of(TaskType.RERANK, TaskType.TEXT_EMBEDDING, TaskType.COMPLETION));
+        return sageMakerService;
+    }
+
+    @Override
+    protected void assertRerankerWindowSize(RerankingInferenceService rerankingInferenceService) {
+        assertThat(
+            rerankingInferenceService.rerankerWindowSize("any model"),
+            is(RerankingInferenceService.CONSERVATIVE_DEFAULT_WINDOW_SIZE)
+        );
+    }
+
+    public void testBuildModelFromConfigAndSecrets() {
+        var modelConfigurations = mock(ModelConfigurations.class);
+        var modelSecrets = mock(ModelSecrets.class);
+        sageMakerService.buildModelFromConfigAndSecrets(modelConfigurations, modelSecrets);
+        verify(modelBuilder, only()).fromStorage(same(modelConfigurations), same(modelSecrets));
+    }
 }

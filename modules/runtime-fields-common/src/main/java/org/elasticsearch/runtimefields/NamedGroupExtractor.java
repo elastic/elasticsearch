@@ -69,12 +69,7 @@ public interface NamedGroupExtractor {
                 if (threadPool == null) {
                     throw new IllegalStateException("missing call to finishInitializing");
                 }
-                return MatcherWatchdog.newInstance(
-                    interval.millis(),
-                    maxExecutionTime.millis(),
-                    threadPool.relativeTimeInMillisSupplier(),
-                    (delay, command) -> threadPool.schedule(command, TimeValue.timeValueMillis(delay), threadPool.generic())
-                );
+                return MatcherWatchdog.newInstance(maxExecutionTime.millis());
             })::getOrCompute;
         }
 

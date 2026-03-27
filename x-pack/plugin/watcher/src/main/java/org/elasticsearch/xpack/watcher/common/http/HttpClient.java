@@ -48,7 +48,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Streams;
@@ -56,7 +55,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.common.socket.SocketAccess;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.core.watcher.crypto.CryptoService;
 
@@ -75,8 +73,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
-
-import javax.net.ssl.HostnameVerifier;
 
 public class HttpClient implements Closeable {
 
@@ -117,9 +113,7 @@ public class HttpClient implements Closeable {
         HttpClientBuilder clientBuilder = HttpClientBuilder.create();
 
         // ssl setup
-        SslConfiguration sslConfiguration = sslService.getSSLConfiguration(SETTINGS_SSL_PREFIX);
-        HostnameVerifier verifier = SSLService.getHostnameVerifier(sslConfiguration);
-        SSLConnectionSocketFactory factory = new SSLConnectionSocketFactory(sslService.sslSocketFactory(sslConfiguration), verifier);
+        SSLConnectionSocketFactory factory = sslService.profile(SETTINGS_SSL_PREFIX).connectionSocketFactory();
         clientBuilder.setSSLSocketFactory(factory);
 
         final SocketConfig.Builder socketConfigBuilder = SocketConfig.custom();
@@ -270,7 +264,7 @@ public class HttpClient implements Closeable {
 
         internalRequest.setConfig(config.build());
 
-        try (CloseableHttpResponse response = SocketAccess.doPrivileged(() -> client.execute(httpHost, internalRequest, localContext))) {
+        try (CloseableHttpResponse response = client.execute(httpHost, internalRequest, localContext)) {
             // headers
             Header[] headers = response.getAllHeaders();
             Map<String, String[]> responseHeaders = Maps.newMapWithExpectedSize(headers.length);

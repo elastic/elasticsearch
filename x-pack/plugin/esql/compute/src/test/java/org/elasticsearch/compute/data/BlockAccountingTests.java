@@ -9,23 +9,29 @@ package org.elasticsearch.compute.data;
 
 import org.apache.lucene.tests.util.RamUsageTester;
 import org.apache.lucene.tests.util.RamUsageTester.Accumulator;
+import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArray;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.compute.test.ComputeTestCase;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.Tuple;
 import org.hamcrest.Matcher;
 
 import java.lang.reflect.Field;
 import java.util.BitSet;
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.stream.IntStream;
 
 import static org.apache.lucene.util.RamUsageEstimator.alignObjectSize;
 import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
@@ -53,7 +59,7 @@ public class BlockAccountingTests extends ComputeTestCase {
         Vector emptyPlusSome = blockFactory.newBooleanArrayVector(randomData, randomData.length);
         assertThat(emptyPlusSome.ramBytesUsed(), is(alignObjectSize(empty.ramBytesUsed() + randomData.length)));
 
-        Vector filterVector = emptyPlusSome.filter(1);
+        Vector filterVector = emptyPlusSome.filter(false, 1);
         assertThat(filterVector.ramBytesUsed(), lessThan(emptyPlusSome.ramBytesUsed()));
         Releasables.close(empty, emptyPlusOne, emptyPlusSome, filterVector);
     }
@@ -72,7 +78,7 @@ public class BlockAccountingTests extends ComputeTestCase {
         Vector emptyPlusSome = blockFactory.newIntArrayVector(randomData, randomData.length);
         assertThat(emptyPlusSome.ramBytesUsed(), is(alignObjectSize(empty.ramBytesUsed() + (long) Integer.BYTES * randomData.length)));
 
-        Vector filterVector = emptyPlusSome.filter(1);
+        Vector filterVector = emptyPlusSome.filter(false, 1);
         assertThat(filterVector.ramBytesUsed(), lessThan(emptyPlusSome.ramBytesUsed()));
         Releasables.close(empty, emptyPlusOne, emptyPlusSome, filterVector);
     }
@@ -91,7 +97,7 @@ public class BlockAccountingTests extends ComputeTestCase {
         Vector emptyPlusSome = blockFactory.newLongArrayVector(randomData, randomData.length);
         assertThat(emptyPlusSome.ramBytesUsed(), is(empty.ramBytesUsed() + (long) Long.BYTES * randomData.length));
 
-        Vector filterVector = emptyPlusSome.filter(1);
+        Vector filterVector = emptyPlusSome.filter(false, 1);
         assertThat(filterVector.ramBytesUsed(), lessThan(emptyPlusSome.ramBytesUsed()));
 
         Releasables.close(empty, emptyPlusOne, emptyPlusSome, filterVector);
@@ -112,7 +118,7 @@ public class BlockAccountingTests extends ComputeTestCase {
         assertThat(emptyPlusSome.ramBytesUsed(), is(empty.ramBytesUsed() + (long) Double.BYTES * randomData.length));
 
         // a filter becomes responsible for it's enclosing data, both in terms of accountancy and releasability
-        Vector filterVector = emptyPlusSome.filter(1);
+        Vector filterVector = emptyPlusSome.filter(false, 1);
         assertThat(filterVector.ramBytesUsed(), lessThan(emptyPlusSome.ramBytesUsed()));
 
         Releasables.close(empty, emptyPlusOne, emptyPlusSome, filterVector);
@@ -132,7 +138,7 @@ public class BlockAccountingTests extends ComputeTestCase {
         Vector emptyPlusOne = blockFactory.newBytesRefArrayVector(arrayWithOne, 1);
         assertThat(emptyPlusOne.ramBytesUsed(), between(emptyVector.ramBytesUsed() + bytesRef.length, UPPER_BOUND));
 
-        Vector filterVector = emptyPlusOne.filter(0);
+        Vector filterVector = emptyPlusOne.filter(false, 0);
         assertThat(filterVector.ramBytesUsed(), lessThan(emptyPlusOne.ramBytesUsed()));
         Releasables.close(emptyVector, emptyPlusOne, filterVector);
     }
@@ -174,7 +180,7 @@ public class BlockAccountingTests extends ComputeTestCase {
         );
         assertThat(emptyPlusSome.ramBytesUsed(), is(expected));
 
-        Block filterBlock = emptyPlusSome.filter(1);
+        Block filterBlock = emptyPlusSome.filter(false, 1);
         assertThat(filterBlock.ramBytesUsed(), lessThan(emptyPlusOne.ramBytesUsed()));
         Releasables.close(filterBlock);
     }
@@ -226,7 +232,7 @@ public class BlockAccountingTests extends ComputeTestCase {
         );
         assertThat(emptyPlusSome.ramBytesUsed(), is(expected));
 
-        Block filterBlock = emptyPlusSome.filter(1);
+        Block filterBlock = emptyPlusSome.filter(false, 1);
         assertThat(filterBlock.ramBytesUsed(), lessThan(emptyPlusOne.ramBytesUsed()));
         Releasables.close(filterBlock);
     }
@@ -275,7 +281,7 @@ public class BlockAccountingTests extends ComputeTestCase {
         );
         assertThat(emptyPlusSome.ramBytesUsed(), is(expected));
 
-        Block filterBlock = emptyPlusSome.filter(1);
+        Block filterBlock = emptyPlusSome.filter(false, 1);
         assertThat(filterBlock.ramBytesUsed(), lessThan(emptyPlusOne.ramBytesUsed()));
         Releasables.close(filterBlock);
     }
@@ -330,7 +336,7 @@ public class BlockAccountingTests extends ComputeTestCase {
         );
         assertThat(emptyPlusSome.ramBytesUsed(), is(expected));
 
-        Block filterBlock = emptyPlusSome.filter(1);
+        Block filterBlock = emptyPlusSome.filter(false, 1);
         assertThat(filterBlock.ramBytesUsed(), lessThan(emptyPlusOne.ramBytesUsed()));
         Releasables.close(filterBlock);
     }
@@ -347,6 +353,65 @@ public class BlockAccountingTests extends ComputeTestCase {
         long expectedEmptyUsed = Block.PAGE_MEM_OVERHEAD_PER_BLOCK + RamUsageTester.ramUsed(empty, RAM_USAGE_ACCUMULATOR)
             + RamUsageEstimator.shallowSizeOfInstance(DoubleVectorBlock.class);
         assertThat(empty.ramBytesUsed(), is(expectedEmptyUsed));
+    }
+
+    /**
+     * Ideally we would test a real Block builder, but that would require a large heap which is not possible in unit tests.
+     * Instead, a simulated builder tracks memory usage without allocating the backing array.
+     */
+    public void testHugeBlockBuilder() {
+        class NoopBlockBuilder extends AbstractBlockBuilder {
+            private int size = 0;
+
+            NoopBlockBuilder(BlockFactory blockFactory) {
+                super(blockFactory);
+            }
+
+            @Override
+            protected int valuesLength() {
+                return size;
+            }
+
+            @Override
+            protected void growValuesArray(int newSize) {
+                size = newSize;
+            }
+
+            @Override
+            protected int elementSize() {
+                return Long.BYTES;
+            }
+
+            @Override
+            public Block.Builder copyFrom(Block block, int beginInclusive, int endExclusive) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public Block.Builder mvOrdering(Block.MvOrdering mvOrdering) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public Block build() {
+                throw new UnsupportedOperationException();
+            }
+
+            void appendUntilBreaking() {
+                int maxArrayLength = ArrayUtil.MAX_ARRAY_LENGTH;
+                for (long i = 0; i < maxArrayLength; i++) {
+                    ensureCapacity();
+                    valueCount++;
+                }
+            }
+        }
+        ByteSizeValue largeHeap = ByteSizeValue.ofMb(between(4 * 1024, 8 * 1024));
+        BlockFactory blockFactory = blockFactory(largeHeap);
+        try (var builder = new NoopBlockBuilder(blockFactory)) {
+            expectThrows(CircuitBreakingException.class, builder::appendUntilBreaking);
+        } finally {
+            assertThat(blockFactory.breaker().getUsed(), equalTo(0L));
+        }
     }
 
     static Matcher<Long> between(long minInclusive, long maxInclusive) {
@@ -409,5 +474,178 @@ public class BlockAccountingTests extends ComputeTestCase {
 
     static long ramBytesForDoubleArray(int length) {
         return alignObjectSize((long) Long.BYTES * length);
+    }
+
+    public void testBytesRefArrayVectorRamOverestimate() {
+        BlockFactory blockFactory = blockFactory();
+        int positionCount = 5;
+        for (Integer valueLength : List.of(5, Math.toIntExact(ByteSizeValue.ofMb(2).getBytes()))) {
+            // value length of 5 does not trigger the overestimate, value length of 2Mb triggers the overestimation.
+            BytesRefArray input = bytesRefArray(positionCount, valueLength, blockFactory.bigArrays());
+            BytesRefVector vector = blockFactory.newBytesRefArrayVector(input, positionCount);
+            long valueSize = RamUsageEstimator.sizeOf(input);
+            long base = BytesRefArrayVector.BASE_RAM_BYTES_USED;
+            long avgValueSize = valueSize / positionCount;
+            long expectedSize = (avgValueSize <= blockFactory().bytesRefRamOverestimateThreshold()
+                ? valueSize
+                : Math.round(valueSize * blockFactory().bytesRefRamOverestimateFactor())) + base;
+            assertEquals(expectedSize, vector.ramBytesUsed());
+            assertEquals(expectedSize, vector.blockFactory().breaker().getUsed());
+            Releasables.close(vector);
+        }
+    }
+
+    public void testConstantBytesRefVectorRamOverestimate() {
+        BlockFactory blockFactory = blockFactory();
+        for (Integer valueLength : List.of(5, Math.toIntExact(ByteSizeValue.ofMb(2).getBytes()))) {
+            // value length of 5 does not trigger the overestimate, value length of 2Mb triggers the overestimation.
+            BytesRef input = new BytesRef(randomAlphaOfLength(valueLength));
+            BytesRefVector vector = blockFactory.newConstantBytesRefVector(input, 1);
+            long valueSize = RamUsageEstimator.alignObjectSize(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + input.length);
+            long base = ConstantBytesRefVector.BASE_RAM_BYTES_USED;
+            long expectedSize = (input.length <= blockFactory().bytesRefRamOverestimateThreshold()
+                ? valueSize
+                : Math.round(valueSize * blockFactory().bytesRefRamOverestimateFactor())) + base;
+            assertEquals(expectedSize, vector.ramBytesUsed());
+            assertEquals(expectedSize, vector.blockFactory().breaker().getUsed());
+            Releasables.close(vector);
+        }
+    }
+
+    public void testBytesRefArrayBlockRamOverestimate() {
+        BlockFactory blockFactory = blockFactory();
+        int positionCount = 5;
+        for (Integer valueLength : List.of(5, Math.toIntExact(ByteSizeValue.ofMb(2).getBytes()))) {
+            // value length of 5 does not trigger the overestimate, value length of 2Mb triggers the overestimation.
+            BytesRefArray input = bytesRefArray(positionCount, valueLength, blockFactory.bigArrays());
+            BytesRefBlock block = blockFactory.newBytesRefArrayBlock(
+                input,
+                positionCount,
+                null,
+                new BitSet(),
+                randomFrom(Block.MvOrdering.values())
+            );
+            long valueSize = RamUsageEstimator.sizeOf(input);
+            long avgValueSize = valueSize / positionCount;
+            long base = BytesRefArrayBlock.BASE_RAM_BYTES_USED + BytesRefArrayVector.BASE_RAM_BYTES_USED;
+            long expectedSize = (avgValueSize <= blockFactory().bytesRefRamOverestimateThreshold()
+                ? valueSize
+                : Math.round(valueSize * blockFactory().bytesRefRamOverestimateFactor())) + base;
+            assertEquals(expectedSize, block.ramBytesUsed());
+            assertEquals(expectedSize, block.blockFactory().breaker().getUsed());
+            Releasables.close(block);
+        }
+    }
+
+    public void testBytesRefVectorBuilderRamOverestimate() {
+        for (Integer valueLength : List.of(5, Math.toIntExact(ByteSizeValue.ofMb(2).getBytes()))) {
+            // value length of 5 does not trigger the overestimate, value length of 2Mb triggers the overestimation.
+            int positionCount = 5;
+            Tuple<BytesRefVector, Long> vectorAndSize = bytesRefVectorBuilder(positionCount, valueLength);
+            BytesRefVector vector = vectorAndSize.v1();
+            long valueSize = vectorAndSize.v2();
+            long base = BytesRefArrayVector.BASE_RAM_BYTES_USED;
+            long avgValueSize = valueSize / positionCount;
+            long expectedSize = (avgValueSize <= blockFactory().bytesRefRamOverestimateThreshold()
+                ? valueSize
+                : Math.round(valueSize * blockFactory().bytesRefRamOverestimateFactor())) + base;
+            assertEquals(expectedSize, vector.ramBytesUsed());
+            assertEquals(expectedSize, vector.blockFactory().breaker().getUsed());
+            Releasables.close(vector);
+        }
+
+        for (Integer valueLength : List.of(5, Math.toIntExact(ByteSizeValue.ofMb(2).getBytes()))) {
+            // value length of 5 does not trigger the overestimate, value length of 2Mb triggers the overestimation.
+            Tuple<BytesRefVector, Long> vectorAndSize = bytesRefVectorBuilder(1, valueLength);
+            BytesRefVector vector = vectorAndSize.v1();
+            long valueSize = vectorAndSize.v2();
+            long base = ConstantBytesRefVector.BASE_RAM_BYTES_USED;
+            long expectedSize = (valueLength <= blockFactory().bytesRefRamOverestimateThreshold()
+                ? valueSize
+                : Math.round(valueSize * blockFactory().bytesRefRamOverestimateFactor())) + base;
+            assertEquals(expectedSize, vector.ramBytesUsed());
+            assertEquals(expectedSize, vector.blockFactory().breaker().getUsed());
+            Releasables.close(vector);
+        }
+    }
+
+    private Tuple<BytesRefVector, Long> bytesRefVectorBuilder(int positionCount, int valueLength) {
+        BlockFactory blockFactory = blockFactory();
+        BytesRefArray input = bytesRefArray(positionCount, valueLength, blockFactory.bigArrays());
+        try (BytesRefVector.Builder builder = blockFactory.newBytesRefVectorBuilder(positionCount)) {
+            for (int p = 0; p < positionCount; p++) {
+                BytesRef scratch = new BytesRef();
+                input.get(p, scratch);
+                builder.appendBytesRef(scratch);
+            }
+            return Tuple.tuple(
+                builder.build(),
+                (positionCount > 1
+                    ? RamUsageEstimator.sizeOf(input)
+                    : RamUsageEstimator.alignObjectSize(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + valueLength))
+            );
+        } finally {
+            Releasables.close(input);
+        }
+    }
+
+    public void testBytesRefBlockBuilderRamOverestimate() {
+        for (Integer valueLength : List.of(5, Math.toIntExact(ByteSizeValue.ofMb(2).getBytes()))) {
+            // value length of 5 does not trigger the overestimate, value length of 2Mb triggers the overestimation.
+            int positionCount = 5;
+            Tuple<BytesRefBlock, Long> vectorAndSize = bytesRefBlockBuilder(positionCount, valueLength);
+            BytesRefBlock block = vectorAndSize.v1();
+            long valueSize = vectorAndSize.v2();
+            long base = BytesRefArrayVector.BASE_RAM_BYTES_USED;
+            long avgValueSize = valueSize / positionCount;
+            long expectedSize = (avgValueSize <= blockFactory().bytesRefRamOverestimateThreshold()
+                ? valueSize
+                : Math.round(valueSize * blockFactory().bytesRefRamOverestimateFactor())) + base;
+            assertEquals(expectedSize, block.ramBytesUsed());
+            assertEquals(expectedSize, block.blockFactory().breaker().getUsed());
+            Releasables.close(block);
+        }
+
+        for (Integer valueLength : List.of(5, Math.toIntExact(ByteSizeValue.ofMb(2).getBytes()))) {
+            // value length of 5 does not trigger the overestimate, value length of 2Mb triggers the overestimation.
+            Tuple<BytesRefBlock, Long> vectorAndSize = bytesRefBlockBuilder(1, valueLength);
+            BytesRefBlock block = vectorAndSize.v1();
+            long valueSize = vectorAndSize.v2();
+            long base = ConstantBytesRefVector.BASE_RAM_BYTES_USED;
+            long expectedSize = (valueLength <= blockFactory().bytesRefRamOverestimateThreshold()
+                ? valueSize
+                : Math.round(valueSize * blockFactory().bytesRefRamOverestimateFactor())) + base;
+            assertEquals(expectedSize, block.ramBytesUsed());
+            assertEquals(expectedSize, block.blockFactory().breaker().getUsed());
+            Releasables.close(block);
+        }
+    }
+
+    private Tuple<BytesRefBlock, Long> bytesRefBlockBuilder(int positionCount, int valueLength) {
+        BlockFactory blockFactory = blockFactory();
+        BytesRefArray input = bytesRefArray(positionCount, valueLength, blockFactory.bigArrays());
+        try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(positionCount)) {
+            for (int p = 0; p < positionCount; p++) {
+                BytesRef scratch = new BytesRef();
+                input.get(p, scratch);
+                builder.appendBytesRef(scratch);
+            }
+            return Tuple.tuple(
+                builder.build(),
+                (positionCount > 1
+                    ? RamUsageEstimator.sizeOf(input)
+                    : RamUsageEstimator.alignObjectSize(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + valueLength))
+            );
+        } finally {
+            Releasables.close(input);
+        }
+    }
+
+    private static BytesRefArray bytesRefArray(int positionCount, int valueLength, BigArrays bigArrays) {
+        var array = new BytesRefArray(Math.max(positionCount, 2), bigArrays);
+        for (int i = 0; i < positionCount; i++) {
+            array.append(new BytesRef(randomAlphaOfLength(valueLength)));
+        }
+        return array;
     }
 }

@@ -36,16 +36,10 @@ public final class LastDoubleByTimestampAggregatorFunction implements Aggregator
 
   private final List<Integer> channels;
 
-  public LastDoubleByTimestampAggregatorFunction(DriverContext driverContext,
-      List<Integer> channels, LongDoubleState state) {
+  LastDoubleByTimestampAggregatorFunction(DriverContext driverContext, List<Integer> channels) {
     this.driverContext = driverContext;
     this.channels = channels;
-    this.state = state;
-  }
-
-  public static LastDoubleByTimestampAggregatorFunction create(DriverContext driverContext,
-      List<Integer> channels) {
-    return new LastDoubleByTimestampAggregatorFunction(driverContext, channels, LastDoubleByTimestampAggregator.initSingle(driverContext));
+    this.state = LastDoubleByTimestampAggregator.initSingle(driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -149,18 +143,20 @@ public final class LastDoubleByTimestampAggregatorFunction implements Aggregator
 
   private void addRawBlock(DoubleBlock valueBlock, LongBlock timestampBlock) {
     for (int p = 0; p < valueBlock.getPositionCount(); p++) {
-      if (valueBlock.isNull(p)) {
+      int valueValueCount = valueBlock.getValueCount(p);
+      if (valueValueCount == 0) {
         continue;
       }
-      if (timestampBlock.isNull(p)) {
+      int timestampValueCount = timestampBlock.getValueCount(p);
+      if (timestampValueCount == 0) {
         continue;
       }
       int valueStart = valueBlock.getFirstValueIndex(p);
-      int valueEnd = valueStart + valueBlock.getValueCount(p);
+      int valueEnd = valueStart + valueValueCount;
       for (int valueOffset = valueStart; valueOffset < valueEnd; valueOffset++) {
         double valueValue = valueBlock.getDouble(valueOffset);
         int timestampStart = timestampBlock.getFirstValueIndex(p);
-        int timestampEnd = timestampStart + timestampBlock.getValueCount(p);
+        int timestampEnd = timestampStart + timestampValueCount;
         for (int timestampOffset = timestampStart; timestampOffset < timestampEnd; timestampOffset++) {
           long timestampValue = timestampBlock.getLong(timestampOffset);
           // Check seen in every iteration to save on complexity in the Block path
@@ -180,18 +176,20 @@ public final class LastDoubleByTimestampAggregatorFunction implements Aggregator
       if (mask.getBoolean(p) == false) {
         continue;
       }
-      if (valueBlock.isNull(p)) {
+      int valueValueCount = valueBlock.getValueCount(p);
+      if (valueValueCount == 0) {
         continue;
       }
-      if (timestampBlock.isNull(p)) {
+      int timestampValueCount = timestampBlock.getValueCount(p);
+      if (timestampValueCount == 0) {
         continue;
       }
       int valueStart = valueBlock.getFirstValueIndex(p);
-      int valueEnd = valueStart + valueBlock.getValueCount(p);
+      int valueEnd = valueStart + valueValueCount;
       for (int valueOffset = valueStart; valueOffset < valueEnd; valueOffset++) {
         double valueValue = valueBlock.getDouble(valueOffset);
         int timestampStart = timestampBlock.getFirstValueIndex(p);
-        int timestampEnd = timestampStart + timestampBlock.getValueCount(p);
+        int timestampEnd = timestampStart + timestampValueCount;
         for (int timestampOffset = timestampStart; timestampOffset < timestampEnd; timestampOffset++) {
           long timestampValue = timestampBlock.getLong(timestampOffset);
           // Check seen in every iteration to save on complexity in the Block path

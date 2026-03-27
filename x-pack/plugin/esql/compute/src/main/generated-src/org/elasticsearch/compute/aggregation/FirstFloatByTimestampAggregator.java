@@ -8,6 +8,10 @@
 package org.elasticsearch.compute.aggregation;
 
 // begin generated imports
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.util.ObjectArray;
+import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.FloatArray;
 import org.elasticsearch.common.util.LongArray;
@@ -156,7 +160,6 @@ public class FirstFloatByTimestampAggregator {
             Releasables.close(timestamps, values, super::close);
         }
 
-        @Override
         public void toIntermediate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {
             try (
                 var timestampsBuilder = driverContext.blockFactory().newLongBlockBuilder(selected.getPositionCount());

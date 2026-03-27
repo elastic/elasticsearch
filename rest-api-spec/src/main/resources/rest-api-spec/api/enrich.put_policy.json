@@ -1,24 +1,30 @@
 {
   "enrich.put_policy": {
     "documentation": {
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/put-enrich-policy-api.html",
-      "description": "Creates a new enrich policy."
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-enrich-put-policy",
+      "description": "Create an enrich policy"
     },
-    "stability" : "stable",
-    "visibility":"public",
-    "headers":{
-      "accept": [ "application/json"],
-      "content_type": ["application/json"]
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
     },
     "url": {
       "paths": [
         {
           "path": "/_enrich/policy/{name}",
-          "methods": [ "PUT" ],
+          "methods": [
+            "PUT"
+          ],
           "parts": {
             "name": {
-              "type" : "string",
-              "description" : "The name of the enrich policy"
+              "type": "string",
+              "description": "The name of the enrich policy"
             }
           }
         }
@@ -29,9 +35,10 @@
       "required": true
     },
     "params": {
-      "master_timeout":{
-        "type":"time",
-        "description":"Timeout for processing on master node"
+      "master_timeout": {
+        "type": "time",
+        "default": "30s",
+        "description": "Timeout for processing on master node"
       }
     }
   }

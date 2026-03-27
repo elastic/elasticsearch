@@ -7,35 +7,38 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.FloatVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link CopySign}.
+ * {@link ExpressionEvaluator} implementation for {@link CopySign}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class CopySignFloatEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class CopySignFloatEvaluator implements ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(CopySignFloatEvaluator.class);
+
   private final Source source;
 
-  private final EvalOperator.ExpressionEvaluator magnitude;
+  private final ExpressionEvaluator magnitude;
 
-  private final EvalOperator.ExpressionEvaluator sign;
+  private final ExpressionEvaluator sign;
 
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
-  public CopySignFloatEvaluator(Source source, EvalOperator.ExpressionEvaluator magnitude,
-      EvalOperator.ExpressionEvaluator sign, DriverContext driverContext) {
+  public CopySignFloatEvaluator(Source source, ExpressionEvaluator magnitude,
+      ExpressionEvaluator sign, DriverContext driverContext) {
     this.source = source;
     this.magnitude = magnitude;
     this.sign = sign;
@@ -59,32 +62,42 @@ public final class CopySignFloatEvaluator implements EvalOperator.ExpressionEval
     }
   }
 
+  @Override
+  public long baseRamBytesUsed() {
+    long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+    baseRamBytesUsed += magnitude.baseRamBytesUsed();
+    baseRamBytesUsed += sign.baseRamBytesUsed();
+    return baseRamBytesUsed;
+  }
+
   public FloatBlock eval(int positionCount, FloatBlock magnitudeBlock, DoubleBlock signBlock) {
     try(FloatBlock.Builder result = driverContext.blockFactory().newFloatBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        if (magnitudeBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
+        switch (magnitudeBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
-        if (magnitudeBlock.getValueCount(p) != 1) {
-          if (magnitudeBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
+        switch (signBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
-        if (signBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
-        }
-        if (signBlock.getValueCount(p) != 1) {
-          if (signBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
-        }
-        result.appendFloat(CopySign.processFloat(magnitudeBlock.getFloat(magnitudeBlock.getFirstValueIndex(p)), signBlock.getDouble(signBlock.getFirstValueIndex(p))));
+        float magnitude = magnitudeBlock.getFloat(magnitudeBlock.getFirstValueIndex(p));
+        double sign = signBlock.getDouble(signBlock.getFirstValueIndex(p));
+        result.appendFloat(CopySign.processFloat(magnitude, sign));
       }
       return result.build();
     }
@@ -93,7 +106,9 @@ public final class CopySignFloatEvaluator implements EvalOperator.ExpressionEval
   public FloatVector eval(int positionCount, FloatVector magnitudeVector, DoubleVector signVector) {
     try(FloatVector.FixedBuilder result = driverContext.blockFactory().newFloatVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendFloat(p, CopySign.processFloat(magnitudeVector.getFloat(p), signVector.getDouble(p)));
+        float magnitude = magnitudeVector.getFloat(p);
+        double sign = signVector.getDouble(p);
+        result.appendFloat(p, CopySign.processFloat(magnitude, sign));
       }
       return result.build();
     }
@@ -111,25 +126,20 @@ public final class CopySignFloatEvaluator implements EvalOperator.ExpressionEval
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(
-              driverContext.warningsMode(),
-              source.source().getLineNumber(),
-              source.source().getColumnNumber(),
-              source.text()
-          );
+      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
     }
     return warnings;
   }
 
-  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory magnitude;
+    private final ExpressionEvaluator.Factory magnitude;
 
-    private final EvalOperator.ExpressionEvaluator.Factory sign;
+    private final ExpressionEvaluator.Factory sign;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory magnitude,
-        EvalOperator.ExpressionEvaluator.Factory sign) {
+    public Factory(Source source, ExpressionEvaluator.Factory magnitude,
+        ExpressionEvaluator.Factory sign) {
       this.source = source;
       this.magnitude = magnitude;
       this.sign = sign;

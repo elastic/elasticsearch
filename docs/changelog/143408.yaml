@@ -1,0 +1,7 @@
+area: SQL
+issues:
+ - 143018
+ - 143019
+pr: 143408
+summary: Fix SQL client parsing of array header values
+type: bug

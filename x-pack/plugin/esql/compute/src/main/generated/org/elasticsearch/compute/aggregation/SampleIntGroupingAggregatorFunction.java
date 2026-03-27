@@ -36,17 +36,12 @@ public final class SampleIntGroupingAggregatorFunction implements GroupingAggreg
 
   private final int limit;
 
-  public SampleIntGroupingAggregatorFunction(List<Integer> channels,
-      SampleIntAggregator.GroupingState state, DriverContext driverContext, int limit) {
-    this.channels = channels;
-    this.state = state;
-    this.driverContext = driverContext;
+  SampleIntGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext,
+      int limit) {
     this.limit = limit;
-  }
-
-  public static SampleIntGroupingAggregatorFunction create(List<Integer> channels,
-      DriverContext driverContext, int limit) {
-    return new SampleIntGroupingAggregatorFunction(channels, SampleIntAggregator.initGrouping(driverContext.bigArrays(), limit), driverContext, limit);
+    this.channels = channels;
+    this.state = SampleIntAggregator.initGrouping(driverContext.bigArrays(), limit);
+    this.driverContext = driverContext;
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -156,7 +151,7 @@ public final class SampleIntGroupingAggregatorFunction implements GroupingAggreg
       return;
     }
     BytesRefBlock sample = (BytesRefBlock) sampleUncast;
-    BytesRef scratch = new BytesRef();
+    BytesRef sampleScratch = new BytesRef();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
         continue;
@@ -219,7 +214,7 @@ public final class SampleIntGroupingAggregatorFunction implements GroupingAggreg
       return;
     }
     BytesRefBlock sample = (BytesRefBlock) sampleUncast;
-    BytesRef scratch = new BytesRef();
+    BytesRef sampleScratch = new BytesRef();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
         continue;
@@ -268,7 +263,7 @@ public final class SampleIntGroupingAggregatorFunction implements GroupingAggreg
       return;
     }
     BytesRefBlock sample = (BytesRefBlock) sampleUncast;
-    BytesRef scratch = new BytesRef();
+    BytesRef sampleScratch = new BytesRef();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int groupId = groups.getInt(groupPosition);
       int valuesPosition = groupPosition + positionOffset;
@@ -288,14 +283,24 @@ public final class SampleIntGroupingAggregatorFunction implements GroupingAggreg
   }
 
   @Override
-  public void evaluateIntermediate(Block[] blocks, int offset, IntVector selected) {
-    state.toIntermediate(blocks, offset, selected, driverContext);
+  public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateIntermediate(
+      IntVector selected, GroupingAggregatorEvaluationContext ctx) {
+    return this::evaluateIntermediate;
+  }
+
+  private void evaluateIntermediate(Block[] blocks, int offset, IntVector selectedInPage) {
+    state.toIntermediate(blocks, offset, selectedInPage, driverContext);
   }
 
   @Override
-  public void evaluateFinal(Block[] blocks, int offset, IntVector selected,
+  public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateFinal(IntVector selected,
       GroupingAggregatorEvaluationContext ctx) {
-    blocks[offset] = SampleIntAggregator.evaluateFinal(state, selected, ctx);
+    return (blocks, offset, selectedInPage) -> evaluateFinal(blocks, offset, selectedInPage, ctx);
+  }
+
+  private void evaluateFinal(Block[] blocks, int offset, IntVector selectedInPage,
+      GroupingAggregatorEvaluationContext ctx) {
+    blocks[offset] = SampleIntAggregator.evaluateFinal(state, selectedInPage, ctx);
   }
 
   @Override

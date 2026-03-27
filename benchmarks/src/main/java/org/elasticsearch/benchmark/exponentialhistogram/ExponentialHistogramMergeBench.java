@@ -9,8 +9,12 @@
 
 package org.elasticsearch.benchmark.exponentialhistogram;
 
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.exponentialhistogram.BucketIterator;
+import org.elasticsearch.exponentialhistogram.CompressedExponentialHistogram;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogramCircuitBreaker;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramGenerator;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramMerger;
 import org.openjdk.jmh.annotations.Benchmark;
@@ -26,6 +30,7 @@ import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Threads;
 import org.openjdk.jmh.annotations.Warmup;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Random;
 import java.util.concurrent.ThreadLocalRandom;
@@ -46,6 +51,9 @@ public class ExponentialHistogramMergeBench {
     @Param({ "0.01", "0.1", "0.25", "0.5", "1.0", "2.0" })
     double mergedHistoSizeFactor;
 
+    @Param({ "array-backed", "compressed" })
+    String histoImplementation;
+
     Random random;
     ExponentialHistogramMerger histoMerger;
 
@@ -56,13 +64,14 @@ public class ExponentialHistogramMergeBench {
     @Setup
     public void setUp() {
         random = ThreadLocalRandom.current();
-        histoMerger = new ExponentialHistogramMerger(bucketCount);
+        ExponentialHistogramCircuitBreaker breaker = ExponentialHistogramCircuitBreaker.noop();
+        histoMerger = ExponentialHistogramMerger.create(bucketCount, breaker);
 
-        ExponentialHistogramGenerator initial = new ExponentialHistogramGenerator(bucketCount);
+        ExponentialHistogramGenerator initialGenerator = ExponentialHistogramGenerator.create(bucketCount, breaker);
         for (int j = 0; j < bucketCount; j++) {
-            initial.add(Math.pow(1.001, j));
+            initialGenerator.add(Math.pow(1.001, j));
         }
-        ExponentialHistogram initialHisto = initial.get();
+        ExponentialHistogram initialHisto = initialGenerator.getAndClear();
         int cnt = getBucketCount(initialHisto);
         if (cnt < bucketCount) {
             throw new IllegalArgumentException("Expected bucket count to be " + bucketCount + ", but was " + cnt);
@@ -72,21 +81,55 @@ public class ExponentialHistogramMergeBench {
         int dataPointSize = (int) Math.round(bucketCount * mergedHistoSizeFactor);
 
         for (int i = 0; i < toMerge.length; i++) {
-            ExponentialHistogramGenerator generator = new ExponentialHistogramGenerator(dataPointSize);
+            ExponentialHistogramGenerator generator = ExponentialHistogramGenerator.create(dataPointSize, breaker);
 
             int bucketIndex = 0;
             for (int j = 0; j < dataPointSize; j++) {
                 bucketIndex += 1 + random.nextInt(bucketCount) % (Math.max(1, bucketCount / dataPointSize));
                 generator.add(Math.pow(1.001, bucketIndex));
             }
-            toMerge[i] = generator.get();
-            cnt = getBucketCount(toMerge[i]);
+            ExponentialHistogram histogram = generator.getAndClear();
+            cnt = getBucketCount(histogram);
             if (cnt < dataPointSize) {
-                throw new IllegalArgumentException("Expected bucket count to be " + dataPointSize + ", but was " + cnt);
+                throw new IllegalStateException("Expected bucket count to be " + dataPointSize + ", but was " + cnt);
+            }
+
+            if ("array-backed".equals(histoImplementation)) {
+                toMerge[i] = histogram;
+            } else if ("compressed".equals(histoImplementation)) {
+                toMerge[i] = asCompressedHistogram(histogram);
+            } else {
+                throw new IllegalArgumentException("Unknown implementation: " + histoImplementation);
             }
         }
 
         index = 0;
+    }
+
+    private ExponentialHistogram asCompressedHistogram(ExponentialHistogram histogram) {
+        BytesStreamOutput histoBytes = new BytesStreamOutput();
+        try {
+            CompressedExponentialHistogram.writeHistogramBytes(
+                histoBytes,
+                histogram.scale(),
+                histogram.negativeBuckets().iterator(),
+                histogram.positiveBuckets().iterator()
+            );
+            CompressedExponentialHistogram result = new CompressedExponentialHistogram();
+            BytesRef data = histoBytes.bytes().toBytesRef();
+            result.reset(
+                histogram.zeroBucket().zeroThreshold(),
+                histogram.valueCount(),
+                histogram.sum(),
+                histogram.min(),
+                histogram.max(),
+                data
+            );
+            return result;
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+
     }
 
     private static int getBucketCount(ExponentialHistogram histo) {

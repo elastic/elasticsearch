@@ -45,9 +45,7 @@ public class SparseEmbeddingResponseParser extends BaseCustomResponseParser {
 
         var weightPath = extractRequiredString(responseParserMap, SPARSE_EMBEDDING_WEIGHT_PATH, fullScope, validationException);
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new SparseEmbeddingResponseParser(tokenPath, weightPath);
     }
@@ -75,6 +73,14 @@ public class SparseEmbeddingResponseParser extends BaseCustomResponseParser {
         }
         builder.endObject();
         return builder;
+    }
+
+    String getTokenPath() {
+        return tokenPath;
+    }
+
+    String getWeightPath() {
+        return weightPath;
     }
 
     @Override

@@ -1,0 +1,108 @@
+---
+setup:
+  - requires:
+      cluster_features: [ "mapper.patterned_text" ]
+      reason: "pattern_text mappings are used in this test"
+
+  - do:
+      indices.create:
+        index:  test
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              message:
+                type: pattern_text
+                # defaults to index_options: docs
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - { "index": { "_id": "1" } }
+          - { "@timestamp": "2025-07-17T00:00:01Z" }
+          - { "index": { "_id": "2" } }
+          - { "message": "Found 5 errors for service [cheddar1]", "@timestamp": "2025-07-17T00:00:02Z" }
+          # template_id: mOVsnxlxdac
+          - { "index": { "_id": "3"  } }
+          - { "message": "[2020-08-18T00:58:56] Found 123 errors for service [cheddar1]", "@timestamp": "2025-07-17T00:00:03Z"  }
+          # template_id: 1l_PtCLQ5xY
+          - { "index": { "_id": "4" } }
+          - { "message": "Found some errors for cheddar data service", "@timestamp": "2025-07-17T00:00:04Z"}
+          # template_id: k-2qtjujOCw
+          - { "index": { "_id": "5" } }
+          - { "message": "Found 123 errors for service [gorgonzola-24]",  "@timestamp": "2025-07-17T00:00:05Z" }
+          # template_id: mOVsnxlxdac
+
+---
+teardown:
+  - do:
+      indices.delete:
+        index: test
+
+---
+"Simple from":
+  - do:
+      esql.query:
+        body:
+          query: 'FROM test | SORT @timestamp | KEEP message, message.template_id | LIMIT 10'
+
+  - match: {columns.0.name: "message"}
+  - match: {columns.0.type: "text"}
+  - match: {columns.1.name: "message.template_id"}
+  - match: {columns.1.type: "keyword"}
+
+  - length: {values: 5}
+  - match: {values.0.0: null }
+  - match: {values.0.1: null }
+  - match: {values.1.0: "Found 5 errors for service [cheddar1]" }
+  - match: {values.1.1: "mOVsnxlxdac" }
+  - match: {values.2.0: "[2020-08-18T00:58:56] Found 123 errors for service [cheddar1]" }
+  - match: {values.2.1: "1l_PtCLQ5xY" }
+  - match: {values.3.0: "Found some errors for cheddar data service" }
+  - match: {values.3.1: "k-2qtjujOCw" }
+  - match: {values.4.0: "Found 123 errors for service [gorgonzola-24]" }
+  - match: {values.4.1: "mOVsnxlxdac" }
+
+---
+"match query":
+  - do:
+      esql.query:
+        body:
+          query: 'FROM test | WHERE MATCH(message, "gorgonzola-24") | KEEP message | LIMIT 10'
+
+  - length: {values: 1}
+  - match: {values.0.0: "Found 123 errors for service [gorgonzola-24]" }
+
+---
+"match phrase query":
+  - do:
+      esql.query:
+        body:
+          query: 'FROM test | WHERE MATCH_PHRASE(message, "123 errors") | SORT @timestamp | KEEP message | LIMIT 10'
+
+  - length: {values: 2}
+  - match: {values.0.0: "[2020-08-18T00:58:56] Found 123 errors for service [cheddar1]" }
+  - match: {values.1.0: "Found 123 errors for service [gorgonzola-24]" }
+
+---
+"template_id stats":
+  - do:
+      esql.query:
+        body:
+          query: 'FROM test | STATS count(*) BY message.template_id | SORT message.template_id | LIMIT 10'
+
+  - length: {values: 4}
+  - match: {values.0.0: 1 }
+  - match: {values.0.1: "1l_PtCLQ5xY" }
+  - match: {values.1.0: 1 }
+  - match: {values.1.1: "k-2qtjujOCw" }
+  - match: {values.2.0: 2 }
+  - match: {values.2.1: "mOVsnxlxdac" }
+  - match: {values.3.0: 1 }
+  - match: {values.3.1: null }

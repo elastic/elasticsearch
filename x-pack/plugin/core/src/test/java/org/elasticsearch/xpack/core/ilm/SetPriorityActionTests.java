@@ -69,8 +69,8 @@ public class SetPriorityActionTests extends AbstractActionTestCase<SetPriorityAc
         UpdateSettingsStep firstStep = (UpdateSettingsStep) steps.get(0);
         assertThat(firstStep.getKey(), equalTo(expectedFirstStepKey));
         assertThat(firstStep.getNextStepKey(), equalTo(nextStepKey));
-        assertThat(firstStep.getSettings().size(), equalTo(1));
-        assertEquals(priority, (long) IndexMetadata.INDEX_PRIORITY_SETTING.get(firstStep.getSettings()));
+        assertThat(firstStep.getSettingsSupplier().apply(null).size(), equalTo(1));
+        assertEquals(priority, (long) IndexMetadata.INDEX_PRIORITY_SETTING.get(firstStep.getSettingsSupplier().apply(null)));
     }
 
     public void testNullPriorityStep() {
@@ -88,10 +88,10 @@ public class SetPriorityActionTests extends AbstractActionTestCase<SetPriorityAc
         UpdateSettingsStep firstStep = (UpdateSettingsStep) steps.get(0);
         assertThat(firstStep.getKey(), equalTo(expectedFirstStepKey));
         assertThat(firstStep.getNextStepKey(), equalTo(nextStepKey));
-        assertThat(firstStep.getSettings().size(), equalTo(1));
+        assertThat(firstStep.getSettingsSupplier().apply(null).size(), equalTo(1));
         assertThat(
-            IndexMetadata.INDEX_PRIORITY_SETTING.get(firstStep.getSettings()),
-            equalTo(IndexMetadata.INDEX_PRIORITY_SETTING.getDefault(firstStep.getSettings()))
+            IndexMetadata.INDEX_PRIORITY_SETTING.get(firstStep.getSettingsSupplier().apply(null)),
+            equalTo(IndexMetadata.INDEX_PRIORITY_SETTING.getDefault(firstStep.getSettingsSupplier().apply(null)))
         );
     }
 

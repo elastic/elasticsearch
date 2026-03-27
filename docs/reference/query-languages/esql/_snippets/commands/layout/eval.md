@@ -1,15 +1,18 @@
-## `EVAL` [esql-eval]
+```yaml {applies_to}
+serverless: ga
+stack: ga
+```
 
 The `EVAL` processing command enables you to append new columns with calculated
 values.
 
-**Syntax**
+## Syntax
 
 ```esql
 EVAL [column1 =] value1[, ..., [columnN =] valueN]
 ```
 
-**Parameters**
+## Parameters
 
 `columnX`
 :   The column name.
@@ -21,16 +24,22 @@ EVAL [column1 =] value1[, ..., [columnN =] valueN]
     [function](/reference/query-languages/esql/esql-functions-operators.md#esql-functions).
     Can use columns defined left of this one.
 
-**Description**
+## Description
 
 The `EVAL` processing command enables you to append new columns with calculated
 values. `EVAL` supports various functions for calculating values. Refer to
 [Functions](/reference/query-languages/esql/esql-functions-operators.md#esql-functions) for more information.
 
-**Examples**
+## Examples
+
+The following examples show common `EVAL` patterns.
+
+### Append a calculated column
 
 :::{include} ../examples/eval.csv-spec/eval.md
 :::
+
+### Overwrite an existing column
 
 If the specified column already exists, the existing column will be dropped, and
 the new column will be appended to the table:
@@ -38,12 +47,16 @@ the new column will be appended to the table:
 :::{include} ../examples/eval.csv-spec/evalReplace.md
 :::
 
+### Use an expression as the column name
+
 Specifying the output column name is optional. If not specified, the new column
 name is equal to the expression. The following query adds a column named
 `height*3.281`:
 
 :::{include} ../examples/eval.csv-spec/evalUnnamedColumn.md
 :::
+
+### Reference an auto-named column in a subsequent command
 
 Because this name contains special characters,
 [it needs to be quoted](/reference/query-languages/esql/esql-syntax.md#esql-identifiers)

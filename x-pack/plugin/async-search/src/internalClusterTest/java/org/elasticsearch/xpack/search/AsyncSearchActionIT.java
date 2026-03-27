@@ -11,7 +11,6 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
@@ -26,9 +25,12 @@ import org.elasticsearch.search.aggregations.metrics.Max;
 import org.elasticsearch.search.aggregations.metrics.Min;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.query.ThrowingQueryBuilder;
+import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.ESIntegTestCase.SuiteScopeTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.core.XPackPlugin;
+import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
 import org.elasticsearch.xpack.core.search.action.AsyncStatusResponse;
 import org.elasticsearch.xpack.core.search.action.SubmitAsyncSearchRequest;
@@ -52,6 +54,10 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
+@TestLogging(
+    reason = "testing debug log output to identify race condition",
+    value = "org.elasticsearch.xpack.search.MutableSearchResponse:DEBUG,org.elasticsearch.xpack.search.AsyncSearchTask:DEBUG"
+)
 @SuiteScopeTestCase
 public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
     private static String indexName;
@@ -413,6 +419,7 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
                 assertThat(response.getSearchResponse().getFailedShards(), equalTo(0));
                 assertThat(response.getExpirationTime(), greaterThan(now));
                 expirationTime = response.getExpirationTime();
+                assertThat(getRunningAsyncSearchTask(responseId).toString(), containsString("\"keep_alive\" : \"5d\""));
             } finally {
                 response.decRef();
             }
@@ -441,6 +448,7 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
             assertThat(response.getSearchResponse().getTotalShards(), equalTo(numShards));
             assertThat(response.getSearchResponse().getSuccessfulShards(), equalTo(0));
             assertThat(response.getSearchResponse().getFailedShards(), equalTo(0));
+            assertThat(getRunningAsyncSearchTask(response.getId()).toString(), containsString("\"keep_alive\" : \"10d\""));
 
             AsyncStatusResponse statusResponse = getAsyncStatus(response.getId(), TimeValue.timeValueDays(10));
             assertTrue(statusResponse.isRunning());
@@ -485,6 +493,22 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
             ensureTaskNotRunning(response.getId());
             ensureTaskRemoval(response.getId());
         }
+    }
+
+    private TaskInfo getRunningAsyncSearchTask(String asyncSearchId) throws Exception {
+        var targetTaskId = AsyncExecutionId.decode(asyncSearchId).getTaskId();
+        TaskInfo found = client().admin()
+            .cluster()
+            .prepareListTasks()
+            .setDetailed(true)
+            .get()
+            .getTasks()
+            .stream()
+            .filter(taskInfo -> taskInfo.taskId().equals(targetTaskId))
+            .findAny()
+            .orElse(null);
+        assertNotNull(found);
+        return found;
     }
 
     public void testUpdateStoreKeepAlive() throws Exception {
@@ -679,7 +703,7 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
         SubmitAsyncSearchRequest request = new SubmitAsyncSearchRequest(new SearchSourceBuilder().query(new DummyQueryBuilder() {
             @Override
             public TransportVersion getMinimalSupportedVersion() {
-                return TransportVersionUtils.getNextVersion(TransportVersions.MINIMUM_CCS_VERSION, true);
+                return TransportVersionUtils.getNextVersion(TransportVersion.minimumCCSVersion(), true);
             }
         }), indexName);
 

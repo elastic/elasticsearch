@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.elasticsearch;
 
+import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskType;
 
 public class CustomElandRerankModel extends CustomElandModel {
@@ -18,7 +19,11 @@ public class CustomElandRerankModel extends CustomElandModel {
         CustomElandInternalServiceSettings serviceSettings,
         RerankTaskSettings taskSettings
     ) {
-        super(inferenceEntityId, taskType, service, serviceSettings, taskSettings);
+        this(new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings));
+    }
+
+    public CustomElandRerankModel(ModelConfigurations modelConfigurations) {
+        super(modelConfigurations);
     }
 
     @Override

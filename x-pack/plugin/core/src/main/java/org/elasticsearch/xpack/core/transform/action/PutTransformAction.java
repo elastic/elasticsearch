@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.core.common.validation.SourceDestValidator;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
+import org.elasticsearch.xpack.core.transform.transforms.TransformParsingContext;
 import org.elasticsearch.xpack.core.transform.utils.TransformStrings;
 
 import java.io.IOException;
@@ -76,9 +77,10 @@ public class PutTransformAction extends ActionType<AcknowledgedResponse> {
             final XContentParser parser,
             final String id,
             final boolean deferValidation,
-            final TimeValue timeout
+            final TimeValue timeout,
+            TransformParsingContext transformParsingContext
         ) {
-            return new Request(TransformConfig.fromXContent(parser, id, false), deferValidation, timeout);
+            return new Request(TransformConfig.fromXContent(parser, id, false, transformParsingContext), deferValidation, timeout);
         }
 
         /**
@@ -164,5 +166,4 @@ public class PutTransformAction extends ActionType<AcknowledgedResponse> {
             return new CancellableTask(id, type, action, getDescription(), parentTaskId, headers);
         }
     }
-
 }

@@ -134,7 +134,7 @@ public class MatchOperatorIT extends AbstractEsqlIntegTestCase {
 
         QueryBuilder filter = boolQuery().must(matchQuery("content", "brown"));
 
-        try (var resp = run(syncEsqlQueryRequest().query(query).pragmas(randomPragmas()).filter(filter))) {
+        try (var resp = run(syncEsqlQueryRequest(query).pragmas(randomPragmas()).filter(filter))) {
             assertColumnNames(resp.columns(), List.of("content", "_score"));
             assertColumnTypes(resp.columns(), List.of("text", "double"));
             assertValues(
@@ -157,7 +157,7 @@ public class MatchOperatorIT extends AbstractEsqlIntegTestCase {
 
         QueryBuilder filter = boolQuery().filter(matchQuery("content", "brown"));
 
-        try (var resp = run(syncEsqlQueryRequest().query(query).pragmas(randomPragmas()).filter(filter))) {
+        try (var resp = run(syncEsqlQueryRequest(query).pragmas(randomPragmas()).filter(filter))) {
             assertColumnNames(resp.columns(), List.of("content", "_score"));
             assertColumnTypes(resp.columns(), List.of("text", "double"));
             assertValues(
@@ -180,7 +180,7 @@ public class MatchOperatorIT extends AbstractEsqlIntegTestCase {
 
         QueryBuilder filter = QueryBuilders.matchAllQuery();
 
-        try (var resp = run(syncEsqlQueryRequest().query(query).pragmas(randomPragmas()).filter(filter))) {
+        try (var resp = run(syncEsqlQueryRequest(query).pragmas(randomPragmas()).filter(filter))) {
             assertColumnNames(resp.columns(), List.of("content", "_score"));
             assertColumnTypes(resp.columns(), List.of("text", "double"));
             assertValues(
@@ -202,7 +202,7 @@ public class MatchOperatorIT extends AbstractEsqlIntegTestCase {
 
         QueryBuilder filter = boolQuery().must(matchQuery("content", "fox"));
 
-        try (var resp = run(syncEsqlQueryRequest().query(query).pragmas(randomPragmas()).filter(filter))) {
+        try (var resp = run(syncEsqlQueryRequest(query).pragmas(randomPragmas()).filter(filter))) {
             assertColumnNames(resp.columns(), List.of("content", "_score"));
             assertColumnTypes(resp.columns(), List.of("text", "double"));
             assertValues(
@@ -224,7 +224,7 @@ public class MatchOperatorIT extends AbstractEsqlIntegTestCase {
 
         QueryBuilder filter = boolQuery().filter(matchQuery("content", "fox"));
 
-        try (var resp = run(syncEsqlQueryRequest().query(query).pragmas(randomPragmas()).filter(filter))) {
+        try (var resp = run(syncEsqlQueryRequest(query).pragmas(randomPragmas()).filter(filter))) {
             assertColumnNames(resp.columns(), List.of("content", "_score"));
             assertColumnTypes(resp.columns(), List.of("text", "double"));
             assertValues(
@@ -366,6 +366,48 @@ public class MatchOperatorIT extends AbstractEsqlIntegTestCase {
             assertColumnTypes(resp.columns(), List.of("integer"));
             assertValues(resp.values(), List.of(List.of(3)));
         }
+    }
+
+    public void testMatchOperatorAfterMvExpand() {
+        var query = """
+            FROM test
+            | MV_EXPAND content
+            | WHERE content : "fox"
+            """;
+
+        var error = expectThrows(VerificationException.class, () -> run(query));
+        assertThat(error.getMessage(), containsString("[:] operator cannot be used after MV_EXPAND"));
+    }
+
+    public void testMatchOperatorAfterMvExpandWithIntermediateCommands() {
+        var error = expectThrows(VerificationException.class, () -> run("""
+            FROM test
+            | MV_EXPAND content
+            | EVAL upper_content = to_upper(content)
+            | WHERE content : "fox"
+            """));
+        assertThat(error.getMessage(), containsString("[:] operator cannot be used after MV_EXPAND"));
+
+        error = expectThrows(VerificationException.class, () -> run("""
+            FROM test
+            | MV_EXPAND content
+            | SORT id
+            | KEEP id, content
+            | WHERE content : "fox"
+            """));
+        assertThat(error.getMessage(), containsString("[:] operator cannot be used after MV_EXPAND"));
+    }
+
+    public void testWhereFalseBeforeInlineStatsWithMatchOperator() {
+        var query = """
+            FROM test
+            | WHERE false
+            | INLINE STATS max_id = MAX(id)
+            | WHERE content:"fox"
+            """;
+
+        var error = expectThrows(VerificationException.class, () -> run(query));
+        assertThat(error.getMessage(), containsString("[:] operator cannot be used after INLINE"));
     }
 
     public void testMatchOperatorWithLookupJoin() {

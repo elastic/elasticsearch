@@ -12,9 +12,11 @@ package org.elasticsearch.search.aggregations;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 import org.elasticsearch.tasks.TaskCancelledException;
 
+import java.util.Collection;
 import java.util.function.IntConsumer;
 import java.util.function.Supplier;
 
@@ -29,12 +31,28 @@ public abstract sealed class AggregationReduceContext permits AggregationReduceC
         /**
          * Build an {@linkplain AggregationReduceContext} to perform a partial reduction.
          */
-        AggregationReduceContext forPartialReduction();
+        default AggregationReduceContext forPartialReduction() {
+            return forPartialReduction(null);
+        }
 
         /**
          * Build an {@linkplain AggregationReduceContext} to perform the final reduction.
          */
-        AggregationReduceContext forFinalReduction();
+        default AggregationReduceContext forFinalReduction() {
+            return forFinalReduction(null);
+        }
+
+        /**
+         * Build an {@linkplain AggregationReduceContext} to perform a partial reduction.
+         * @param topHitsToRelease optional collection to collect SearchHits from top_hits aggs for release by SearchResponse
+         */
+        AggregationReduceContext forPartialReduction(@Nullable Collection<SearchHits> topHitsToRelease);
+
+        /**
+         * Build an {@linkplain AggregationReduceContext} to perform the final reduction.
+         * @param topHitsToRelease optional collection to collect SearchHits from top_hits aggs for release by SearchResponse
+         */
+        AggregationReduceContext forFinalReduction(@Nullable Collection<SearchHits> topHitsToRelease);
     }
 
     private final BigArrays bigArrays;
@@ -47,31 +65,67 @@ public abstract sealed class AggregationReduceContext permits AggregationReduceC
     @Nullable
     private final AggregationBuilder builder;
     private final AggregatorFactories.Builder subBuilders;
+    @Nullable
+    protected final Collection<SearchHits> topHitsToRelease;
+    private boolean hasBatchedResult;
 
     private AggregationReduceContext(
         BigArrays bigArrays,
         ScriptService scriptService,
         Supplier<Boolean> isCanceled,
-        AggregatorFactories.Builder subBuilders
+        AggregatorFactories.Builder subBuilders,
+        @Nullable Collection<SearchHits> topHitsToRelease
     ) {
         this.bigArrays = bigArrays;
         this.scriptService = scriptService;
         this.isCanceled = isCanceled;
         this.builder = null;
         this.subBuilders = subBuilders;
+        this.topHitsToRelease = topHitsToRelease;
     }
 
     private AggregationReduceContext(
         BigArrays bigArrays,
         ScriptService scriptService,
         Supplier<Boolean> isCanceled,
-        AggregationBuilder builder
+        AggregationBuilder builder,
+        @Nullable Collection<SearchHits> topHitsToRelease
     ) {
         this.bigArrays = bigArrays;
         this.scriptService = scriptService;
         this.isCanceled = isCanceled;
         this.builder = builder;
         this.subBuilders = builder.factoriesBuilder;
+        this.topHitsToRelease = topHitsToRelease;
+    }
+
+    /**
+     * Transfer SearchHits from a top_hits aggregation into this context's release list so they are
+     * released when the reduce result is consumed (e.g. by SearchResponse). The caller (e.g.
+     * {@link org.elasticsearch.search.aggregations.metrics.InternalTopHits} during reduce) already
+     * holds a reference; this method does not {@link SearchHits#incRef() incRef}. The list owner
+     * will decRef when releasing.
+     * <p>
+     * Use this in the aggregation reduce path. For the other path, where hits are registered on
+     * {@link org.elasticsearch.search.query.QuerySearchResult#registerTopHitsForRelease} during
+     * the fetch phase, that method takes a new reference because release timings of SearchContext
+     * and SearchResponse are not correlated—both paths that touch the hits must keep a ref count.
+     */
+    public final void transferTopHitsForRelease(SearchHits searchHits) {
+        if (topHitsToRelease != null) {
+            topHitsToRelease.add(searchHits);
+        }
+    }
+
+    /**
+     * Append SearchHits from all top_hits aggregations in the given tree to this context's release list.
+     * Takes a reference for each so the list owner can decRef on release.
+     * Use when the tree was deserialized from stream (e.g. expanded from a MergeResult) so those hits are released.
+     */
+    public final void addTopHitsFromAggregationTree(InternalAggregations aggs, boolean takeRef) {
+        if (topHitsToRelease != null && aggs != null) {
+            InternalAggregations.addTopHitsToReleaseList(aggs, topHitsToRelease, takeRef);
+        }
     }
 
     /**
@@ -136,6 +190,14 @@ public abstract sealed class AggregationReduceContext permits AggregationReduceC
 
     protected abstract AggregationReduceContext forSubAgg(AggregationBuilder sub);
 
+    public boolean hasBatchedResult() {
+        return hasBatchedResult;
+    }
+
+    public void setHasBatchedResult(boolean hasBatchedResult) {
+        this.hasBatchedResult = hasBatchedResult;
+    }
+
     /**
      * A {@linkplain AggregationReduceContext} to perform a partial reduction.
      */
@@ -147,9 +209,10 @@ public abstract sealed class AggregationReduceContext permits AggregationReduceC
             ScriptService scriptService,
             Supplier<Boolean> isCanceled,
             AggregatorFactories.Builder builders,
-            IntConsumer multiBucketConsumer
+            IntConsumer multiBucketConsumer,
+            @Nullable Collection<SearchHits> topHitsToRelease
         ) {
-            super(bigArrays, scriptService, isCanceled, builders);
+            super(bigArrays, scriptService, isCanceled, builders, topHitsToRelease);
             this.multiBucketConsumer = multiBucketConsumer;
         }
 
@@ -158,9 +221,10 @@ public abstract sealed class AggregationReduceContext permits AggregationReduceC
             ScriptService scriptService,
             Supplier<Boolean> isCanceled,
             AggregationBuilder builder,
-            IntConsumer multiBucketConsumer
+            IntConsumer multiBucketConsumer,
+            @Nullable Collection<SearchHits> topHitsToRelease
         ) {
-            super(bigArrays, scriptService, isCanceled, builder);
+            super(bigArrays, scriptService, isCanceled, builder, topHitsToRelease);
             this.multiBucketConsumer = multiBucketConsumer;
         }
 
@@ -181,7 +245,7 @@ public abstract sealed class AggregationReduceContext permits AggregationReduceC
 
         @Override
         protected AggregationReduceContext forSubAgg(AggregationBuilder sub) {
-            return new ForPartial(bigArrays(), scriptService(), isCanceled(), sub, multiBucketConsumer);
+            return new ForPartial(bigArrays(), scriptService(), isCanceled(), sub, multiBucketConsumer, topHitsToRelease);
         }
     }
 
@@ -197,9 +261,10 @@ public abstract sealed class AggregationReduceContext permits AggregationReduceC
             ScriptService scriptService,
             Supplier<Boolean> isCanceled,
             AggregatorFactories.Builder builders,
-            IntConsumer multiBucketConsumer
+            IntConsumer multiBucketConsumer,
+            @Nullable Collection<SearchHits> topHitsToRelease
         ) {
-            super(bigArrays, scriptService, isCanceled, builders);
+            super(bigArrays, scriptService, isCanceled, builders, topHitsToRelease);
             this.multiBucketConsumer = multiBucketConsumer;
             this.pipelineTreeRoot = builders == null ? null : builders.buildPipelineTree();
         }
@@ -210,9 +275,10 @@ public abstract sealed class AggregationReduceContext permits AggregationReduceC
             Supplier<Boolean> isCanceled,
             AggregationBuilder builder,
             IntConsumer multiBucketConsumer,
-            PipelineTree pipelineTreeRoot
+            PipelineTree pipelineTreeRoot,
+            @Nullable Collection<SearchHits> topHitsToRelease
         ) {
-            super(bigArrays, scriptService, isCanceled, builder);
+            super(bigArrays, scriptService, isCanceled, builder, topHitsToRelease);
             this.multiBucketConsumer = multiBucketConsumer;
             this.pipelineTreeRoot = pipelineTreeRoot;
         }
@@ -234,7 +300,17 @@ public abstract sealed class AggregationReduceContext permits AggregationReduceC
 
         @Override
         protected AggregationReduceContext forSubAgg(AggregationBuilder sub) {
-            return new ForFinal(bigArrays(), scriptService(), isCanceled(), sub, multiBucketConsumer, pipelineTreeRoot);
+            ForFinal subContext = new ForFinal(
+                bigArrays(),
+                scriptService(),
+                isCanceled(),
+                sub,
+                multiBucketConsumer,
+                pipelineTreeRoot,
+                topHitsToRelease
+            );
+            subContext.setHasBatchedResult(hasBatchedResult());
+            return subContext;
         }
     }
 }

@@ -286,14 +286,13 @@ median_duration:double | bucket:date
 
 bucketByTimeDuration#[skip:-8.13.99, reason:BUCKET extended in 8.14]
 FROM sample_data
-| STATS min = MAX(@timestamp), max = MAX(@timestamp) BY bucket = BUCKET(@timestamp, 30 minutes)
+| STATS min = MIN(@timestamp), max = MAX(@timestamp) BY bucket = BUCKET(@timestamp, 30 minutes)
 | SORT min
 ;
 
-          min:date      |          max:date      |         bucket:date
-2023-10-23T12:27:28.948Z|2023-10-23T12:27:28.948Z|2023-10-23T12:00:00.000Z
-2023-10-23T13:55:01.543Z|2023-10-23T13:55:01.543Z|2023-10-23T13:30:00.000Z
-
+min:datetime             | max:datetime             | bucket:datetime
+2023-10-23T12:15:03.360Z | 2023-10-23T12:27:28.948Z | 2023-10-23T12:00:00.000Z
+2023-10-23T13:33:34.937Z | 2023-10-23T13:55:01.543Z | 2023-10-23T13:30:00.000Z
 ;
 
 aggByTimeDuratinBucket#[skip:-8.13.99, reason:BUCKET extended in 8.14]
@@ -638,11 +637,12 @@ ROW long = TO_LONG(100), double = 99., int = 100
 
 
 zeroBucketsRow#[skip:-8.13.99, reason:BUCKET renamed in 8.14]
+required_capability: fix_div_error_message
 ROW a = 1
 | STATS max = max(a) BY b = BUCKET(a, 0, 0, 0)
 ;
 warningRegex:evaluation of \[BUCKET\(a, 0, 0, 0\)\] failed, treating result as null. Only first 20 failures recorded
-warningRegex:java.lang.ArithmeticException: / by zero
+warningRegex:java.lang.ArithmeticException: not a finite double number: NaN
 
 max:integer | b:double
 1          | null
@@ -650,11 +650,12 @@ max:integer | b:double
 
 
 zeroBuckets#[skip:-8.13.99, reason:BUCKET renamed in 8.14]
+required_capability: fix_div_error_message
 FROM employees
 | STATS max = max(salary) BY b = BUCKET(salary, 0, 0, 0)
 ;
 warningRegex:evaluation of \[BUCKET\(salary, 0, 0, 0\)\] failed, treating result as null. Only first 20 failures recorded
-warningRegex:java.lang.ArithmeticException: / by zero
+warningRegex:java.lang.ArithmeticException: not a finite double number: NaN
 
 max:integer | b:double
 74999       | null
@@ -988,4 +989,23 @@ COUNT(*):long | bucket:datetime
 1             | 1986-05-13T00:00:00.000Z
 1             | 1986-07-09T00:00:00.000Z
 1             | 1986-09-17T00:00:00.000Z
+;
+
+bucketWithTimezone
+required_capability: date_trunc_timezone_support
+
+SET time_zone = "+05:00"\;
+FROM employees
+| WHERE hire_date >= "1980-01-01T00:00:00Z"
+| STATS by hire_date, bucketHours = BUCKET(hire_date, 3 hours), bucketDay = BUCKET(hire_date, 1 day)
+| SORT hire_date
+| LIMIT 5
+;
+
+hire_date:date           | bucketHours:date         | bucketDay:date
+1985-02-18T00:00:00.000Z | 1985-02-17T22:00:00.000Z | 1985-02-17T19:00:00.000Z
+1985-02-24T00:00:00.000Z | 1985-02-23T22:00:00.000Z | 1985-02-23T19:00:00.000Z
+1985-05-13T00:00:00.000Z | 1985-05-12T22:00:00.000Z | 1985-05-12T19:00:00.000Z
+1985-07-09T00:00:00.000Z | 1985-07-08T22:00:00.000Z | 1985-07-08T19:00:00.000Z
+1985-09-17T00:00:00.000Z | 1985-09-16T22:00:00.000Z | 1985-09-16T19:00:00.000Z
 ;

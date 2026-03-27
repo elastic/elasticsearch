@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.azureaistudio.completion;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -20,7 +19,6 @@ import org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioCon
 import org.elasticsearch.xpack.inference.services.azureopenai.embeddings.AzureOpenAiEmbeddingsTaskSettings;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
@@ -63,9 +61,7 @@ public class AzureAiStudioChatCompletionTaskSettings implements TaskSettings {
             validationException
         );
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new AzureAiStudioChatCompletionTaskSettings(temperature, topP, doSample, maxNewTokens);
     }
@@ -73,8 +69,9 @@ public class AzureAiStudioChatCompletionTaskSettings implements TaskSettings {
     /**
      * Creates a new {@link AzureOpenAiEmbeddingsTaskSettings} object by overriding the values in originalSettings with the ones
      * passed in via requestSettings if the fields are not null.
+     *
      * @param originalSettings the original {@link AzureOpenAiEmbeddingsTaskSettings} from the inference entity configuration from storage
-     * @param requestSettings the {@link AzureOpenAiEmbeddingsTaskSettings} from the request
+     * @param requestSettings  the {@link AzureOpenAiEmbeddingsTaskSettings} from the request
      * @return a new {@link AzureOpenAiEmbeddingsTaskSettings}
      */
     public static AzureAiStudioChatCompletionTaskSettings of(
@@ -142,7 +139,7 @@ public class AzureAiStudioChatCompletionTaskSettings implements TaskSettings {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_14_0;
+        return TransportVersion.minimumCompatible();
     }
 
     @Override
@@ -212,7 +209,7 @@ public class AzureAiStudioChatCompletionTaskSettings implements TaskSettings {
     @Override
     public TaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
         AzureAiStudioChatCompletionRequestTaskSettings requestSettings = AzureAiStudioChatCompletionRequestTaskSettings.fromMap(
-            new HashMap<>(newSettings)
+            newSettings
         );
         return of(this, requestSettings);
     }

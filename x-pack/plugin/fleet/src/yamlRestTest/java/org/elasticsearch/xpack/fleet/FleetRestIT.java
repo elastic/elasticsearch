@@ -28,6 +28,8 @@ public class FleetRestIT extends ESClientYamlSuiteTestCase {
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .module("x-pack-fleet")
         .module("x-pack-ilm")
+        .module("mapper-version")
+        .module("x-pack-inference")
         .module("data-streams")
         .setting("xpack.license.self_generated.type", "basic")
         .setting("xpack.security.enabled", "true")

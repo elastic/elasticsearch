@@ -12,9 +12,9 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -46,7 +46,7 @@ import java.util.TreeMap;
  * (using {@link #field(String)}), will run the parsed query against the provided fields, and combine
  * them using Dismax.
  */
-public final class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQueryBuilder> {
+public final class QueryStringQueryBuilder extends LeafQueryBuilder<QueryStringQueryBuilder> {
 
     public static final String NAME = "query_string";
 
@@ -959,7 +959,7 @@ public final class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStr
             query = boostQuery.getQuery();
         }
 
-        query = Queries.fixNegativeQueryIfNeeded(query);
+        query = Queries.fixNegativeQueryIfNeeded(query, QueryVisitor.EMPTY_VISITOR);
         query = Queries.maybeApplyMinimumShouldMatch(query, this.minimumShouldMatch);
 
         // restore the previous BoostQuery wrapping
@@ -972,6 +972,6 @@ public final class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStr
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ZERO;
+        return TransportVersion.zero();
     }
 }

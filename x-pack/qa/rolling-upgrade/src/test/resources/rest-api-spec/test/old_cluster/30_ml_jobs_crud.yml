@@ -1,7 +1,7 @@
 setup:
   - do:
       index:
-        index: .ml-state
+        index: .ml-state-000001
         id: "dummy-document-to-make-index-creation-idempotent"
         body: >
           {
@@ -9,7 +9,7 @@ setup:
 
   - do:
       cluster.health:
-        index: [".ml-state"]
+        index: [".ml-state-000001"]
         wait_for_status: green
 
 ---
@@ -72,7 +72,7 @@ setup:
 # killing the node
   - do:
      cluster.health:
-       index: [".ml-state", ".ml-anomalies-shared"]
+       index: [".ml-state-000001", ".ml-anomalies*"]
        wait_for_status: green
 
 ---
@@ -136,7 +136,7 @@ setup:
 # killing the node
   - do:
      cluster.health:
-       index: [".ml-state", ".ml-anomalies-shared"]
+       index: [".ml-state-000001", ".ml-anomalies*"]
        wait_for_status: green
 
 ---
@@ -196,7 +196,7 @@ setup:
 # killing the node
   - do:
      cluster.health:
-       index: [".ml-state", ".ml-anomalies-shared"]
+       index: [".ml-state-000001", ".ml-anomalies*"]
        wait_for_status: green
 
 ---
@@ -259,7 +259,7 @@ setup:
   # killing the node
   - do:
       cluster.health:
-        index: [".ml-state", ".ml-anomalies-shared"]
+        index: [".ml-state-000001", ".ml-anomalies*"]
         wait_for_status: green
 
 ---

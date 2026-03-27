@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.mistral.embeddings;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -68,9 +67,7 @@ public class MistralEmbeddingsServiceSettings extends FilteredXContentObject imp
         );
         Integer dims = extractOptionalPositiveInteger(map, DIMENSIONS, ModelConfigurations.SERVICE_SETTINGS, validationException);
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new MistralEmbeddingsServiceSettings(model, dims, maxInputTokens, similarity, rateLimitSettings);
     }
@@ -104,7 +101,7 @@ public class MistralEmbeddingsServiceSettings extends FilteredXContentObject imp
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_15_0;
+        return TransportVersion.minimumCompatible();
     }
 
     @Override
@@ -139,7 +136,7 @@ public class MistralEmbeddingsServiceSettings extends FilteredXContentObject imp
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(model);
         out.writeOptionalVInt(dimensions);
-        out.writeOptionalEnum(SimilarityMeasure.translateSimilarity(similarity, out.getTransportVersion()));
+        out.writeOptionalEnum(similarity);
         out.writeOptionalVInt(maxInputTokens);
         rateLimitSettings.writeTo(out);
     }

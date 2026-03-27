@@ -36,17 +36,12 @@ public final class PercentileFloatAggregatorFunction implements AggregatorFuncti
 
   private final double percentile;
 
-  public PercentileFloatAggregatorFunction(DriverContext driverContext, List<Integer> channels,
-      QuantileStates.SingleState state, double percentile) {
+  PercentileFloatAggregatorFunction(DriverContext driverContext, List<Integer> channels,
+      double percentile) {
+    this.percentile = percentile;
     this.driverContext = driverContext;
     this.channels = channels;
-    this.state = state;
-    this.percentile = percentile;
-  }
-
-  public static PercentileFloatAggregatorFunction create(DriverContext driverContext,
-      List<Integer> channels, double percentile) {
-    return new PercentileFloatAggregatorFunction(driverContext, channels, PercentileFloatAggregator.initSingle(driverContext, percentile), percentile);
+    this.state = PercentileFloatAggregator.initSingle(driverContext, percentile);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -108,11 +103,12 @@ public final class PercentileFloatAggregatorFunction implements AggregatorFuncti
 
   private void addRawBlock(FloatBlock vBlock) {
     for (int p = 0; p < vBlock.getPositionCount(); p++) {
-      if (vBlock.isNull(p)) {
+      int vValueCount = vBlock.getValueCount(p);
+      if (vValueCount == 0) {
         continue;
       }
       int vStart = vBlock.getFirstValueIndex(p);
-      int vEnd = vStart + vBlock.getValueCount(p);
+      int vEnd = vStart + vValueCount;
       for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
         float vValue = vBlock.getFloat(vOffset);
         PercentileFloatAggregator.combine(state, vValue);
@@ -125,11 +121,12 @@ public final class PercentileFloatAggregatorFunction implements AggregatorFuncti
       if (mask.getBoolean(p) == false) {
         continue;
       }
-      if (vBlock.isNull(p)) {
+      int vValueCount = vBlock.getValueCount(p);
+      if (vValueCount == 0) {
         continue;
       }
       int vStart = vBlock.getFirstValueIndex(p);
-      int vEnd = vStart + vBlock.getValueCount(p);
+      int vEnd = vStart + vValueCount;
       for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
         float vValue = vBlock.getFloat(vOffset);
         PercentileFloatAggregator.combine(state, vValue);
@@ -147,8 +144,8 @@ public final class PercentileFloatAggregatorFunction implements AggregatorFuncti
     }
     BytesRefVector quart = ((BytesRefBlock) quartUncast).asVector();
     assert quart.getPositionCount() == 1;
-    BytesRef scratch = new BytesRef();
-    PercentileFloatAggregator.combineIntermediate(state, quart.getBytesRef(0, scratch));
+    BytesRef quartScratch = new BytesRef();
+    PercentileFloatAggregator.combineIntermediate(state, quart.getBytesRef(0, quartScratch));
   }
 
   @Override

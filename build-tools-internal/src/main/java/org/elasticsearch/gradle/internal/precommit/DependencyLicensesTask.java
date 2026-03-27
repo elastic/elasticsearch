@@ -8,10 +8,9 @@
  */
 package org.elasticsearch.gradle.internal.precommit;
 
+import org.elasticsearch.gradle.internal.AbstractDependenciesTask;
 import org.elasticsearch.gradle.internal.precommit.LicenseAnalyzer.LicenseInfo;
-import org.gradle.api.DefaultTask;
 import org.gradle.api.GradleException;
-import org.gradle.api.InvalidUserDataException;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.component.ComponentIdentifier;
 import org.gradle.api.file.Directory;
@@ -39,7 +38,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -94,7 +92,7 @@ import static org.elasticsearch.gradle.internal.util.DependenciesUtils.createFil
  * comply with the license terms.
  */
 @CacheableTask
-public abstract class DependencyLicensesTask extends DefaultTask {
+public abstract class DependencyLicensesTask extends AbstractDependenciesTask {
 
     private final Pattern regex = Pattern.compile("-v?\\d+.*");
 
@@ -113,11 +111,6 @@ public abstract class DependencyLicensesTask extends DefaultTask {
     private final DirectoryProperty licensesDir;
 
     /**
-     * A map of patterns to prefix, used to find the LICENSE and NOTICE file.
-     */
-    private Map<String, String> mappings = new LinkedHashMap<>();
-
-    /**
      * Names of dependencies whose shas should not exist.
      */
     private Set<String> ignoreShas = new HashSet<>();
@@ -127,25 +120,6 @@ public abstract class DependencyLicensesTask extends DefaultTask {
      */
     private LinkedHashSet<String> ignoreFiles = new LinkedHashSet<>();
     private ProjectLayout projectLayout;
-
-    /**
-     * Add a mapping from a regex pattern for the jar name, to a prefix to find
-     * the LICENSE and NOTICE file for that jar.
-     */
-    public void mapping(Map<String, String> props) {
-        String from = props.get("from");
-        if (from == null) {
-            throw new InvalidUserDataException("Missing \"from\" setting for license name mapping");
-        }
-        String to = props.get("to");
-        if (to == null) {
-            throw new InvalidUserDataException("Missing \"to\" setting for license name mapping");
-        }
-        if (props.size() > 2) {
-            throw new InvalidUserDataException("Unknown properties for mapping on dependencyLicenses: " + props.keySet());
-        }
-        mappings.put(from, to);
-    }
 
     @Inject
     public DependencyLicensesTask(ObjectFactory objects, ProjectLayout projectLayout) {
@@ -267,7 +241,7 @@ public abstract class DependencyLicensesTask extends DefaultTask {
         for (File dependency : dependencies) {
             String jarName = dependency.getName();
             String depName = regex.matcher(jarName).replaceFirst("");
-            String dependencyName = getDependencyName(mappings, depName);
+            String dependencyName = getDependencyName(getMappings().get(), depName);
             logger.info("mapped dependency name {} to {} for license/notice check", depName, dependencyName);
             checkFile(dependencyName, jarName, licenses, "LICENSE");
             checkFile(dependencyName, jarName, notices, "NOTICE");
@@ -319,11 +293,6 @@ public abstract class DependencyLicensesTask extends DefaultTask {
     @Optional
     public LinkedHashSet<String> getIgnoreFiles() {
         return new LinkedHashSet<>(ignoreFiles);
-    }
-
-    @Input
-    public LinkedHashMap<String, String> getMappings() {
-        return new LinkedHashMap<>(mappings);
     }
 
     /**

@@ -41,7 +41,7 @@ final class ConstantBooleanVector extends AbstractVector implements BooleanVecto
     }
 
     @Override
-    public BooleanVector filter(int... positions) {
+    public BooleanVector filter(boolean mayContainDuplicates, int... positions) {
         return blockFactory().newConstantBooleanVector(value, positions.length);
     }
 
@@ -110,6 +110,15 @@ final class ConstantBooleanVector extends AbstractVector implements BooleanVecto
     }
 
     @Override
+    public BooleanVector slice(int beginInclusive, int endExclusive) {
+        if (beginInclusive == 0 && endExclusive == getPositionCount()) {
+            incRef();
+            return this;
+        }
+        return blockFactory().newConstantBooleanVector(value, endExclusive - beginInclusive);
+    }
+
+    @Override
     public ElementType elementType() {
         return ElementType.BOOLEAN;
     }
@@ -117,6 +126,11 @@ final class ConstantBooleanVector extends AbstractVector implements BooleanVecto
     @Override
     public boolean isConstant() {
         return true;
+    }
+
+    @Override
+    public BooleanVector deepCopy(BlockFactory blockFactory) {
+        return blockFactory.newConstantBooleanVector(value, getPositionCount());
     }
 
     @Override

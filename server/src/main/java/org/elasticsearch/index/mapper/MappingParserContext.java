@@ -12,15 +12,18 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
+import org.elasticsearch.index.mapper.vectors.VectorsFormatProvider;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.script.ScriptCompiler;
 
+import java.util.List;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -43,6 +46,9 @@ public class MappingParserContext {
     private final Function<Query, BitSetProducer> bitSetProducer;
     private final long mappingObjectDepthLimit;
     private long mappingObjectDepth = 0;
+    private final List<VectorsFormatProvider> vectorsFormatProviders;
+    private final RootObjectMapperNamespaceValidator namespaceValidator;
+    private final Supplier<ProjectMetadata> projectMetadataSupplier;
 
     public MappingParserContext(
         Function<String, SimilarityProvider> similarityLookupService,
@@ -55,7 +61,10 @@ public class MappingParserContext {
         IndexAnalyzers indexAnalyzers,
         IndexSettings indexSettings,
         IdFieldMapper idFieldMapper,
-        Function<Query, BitSetProducer> bitSetProducer
+        Function<Query, BitSetProducer> bitSetProducer,
+        List<VectorsFormatProvider> vectorsFormatProviders,
+        RootObjectMapperNamespaceValidator namespaceValidator,
+        Supplier<ProjectMetadata> projectMetadataSupplier
     ) {
         this.similarityLookupService = similarityLookupService;
         this.typeParsers = typeParsers;
@@ -69,6 +78,45 @@ public class MappingParserContext {
         this.idFieldMapper = idFieldMapper;
         this.mappingObjectDepthLimit = indexSettings.getMappingDepthLimit();
         this.bitSetProducer = bitSetProducer;
+        this.vectorsFormatProviders = vectorsFormatProviders;
+        this.namespaceValidator = namespaceValidator;
+        this.projectMetadataSupplier = projectMetadataSupplier;
+    }
+
+    public MappingParserContext(
+        Function<String, SimilarityProvider> similarityLookupService,
+        Function<String, Mapper.TypeParser> typeParsers,
+        Function<String, RuntimeField.Parser> runtimeFieldParsers,
+        IndexVersion indexVersionCreated,
+        Supplier<TransportVersion> clusterTransportVersion,
+        Supplier<SearchExecutionContext> searchExecutionContextSupplier,
+        ScriptCompiler scriptCompiler,
+        IndexAnalyzers indexAnalyzers,
+        IndexSettings indexSettings,
+        IdFieldMapper idFieldMapper,
+        Function<Query, BitSetProducer> bitSetProducer,
+        List<VectorsFormatProvider> vectorsFormatProviders
+    ) {
+        this(
+            similarityLookupService,
+            typeParsers,
+            runtimeFieldParsers,
+            indexVersionCreated,
+            clusterTransportVersion,
+            searchExecutionContextSupplier,
+            scriptCompiler,
+            indexAnalyzers,
+            indexSettings,
+            idFieldMapper,
+            bitSetProducer,
+            vectorsFormatProviders,
+            null,
+            null
+        );
+    }
+
+    public RootObjectMapperNamespaceValidator getNamespaceValidator() {
+        return namespaceValidator;
     }
 
     public IndexAnalyzers getIndexAnalyzers() {
@@ -142,6 +190,10 @@ public class MappingParserContext {
         return bitSetProducer.apply(query);
     }
 
+    public List<VectorsFormatProvider> getVectorsFormatProviders() {
+        return vectorsFormatProviders;
+    }
+
     void incrementMappingObjectDepth() throws MapperParsingException {
         mappingObjectDepth++;
         if (mappingObjectDepth > mappingObjectDepthLimit) {
@@ -157,6 +209,10 @@ public class MappingParserContext {
         return new MultiFieldParserContext(this);
     }
 
+    public Supplier<ProjectMetadata> getProjectMetadata() {
+        return projectMetadataSupplier;
+    }
+
     private static class MultiFieldParserContext extends MappingParserContext {
         MultiFieldParserContext(MappingParserContext in) {
             super(
@@ -170,7 +226,10 @@ public class MappingParserContext {
                 in.indexAnalyzers,
                 in.indexSettings,
                 in.idFieldMapper,
-                in.bitSetProducer
+                in.bitSetProducer,
+                in.vectorsFormatProviders,
+                in.namespaceValidator,
+                null
             );
         }
 
@@ -200,7 +259,10 @@ public class MappingParserContext {
                 in.indexAnalyzers,
                 in.indexSettings,
                 in.idFieldMapper,
-                in.bitSetProducer
+                in.bitSetProducer,
+                in.vectorsFormatProviders,
+                in.namespaceValidator,
+                null
             );
             this.dateFormatter = dateFormatter;
         }

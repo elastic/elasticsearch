@@ -11,6 +11,7 @@ package org.elasticsearch.repositories;
 
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.telemetry.metric.DoubleHistogram;
 import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.LongWithAttributes;
@@ -27,6 +28,7 @@ public record SnapshotMetrics(
     LongCounter shardsStartedCounter,
     LongCounter shardsCompletedCounter,
     DoubleHistogram shardsDurationHistogram,
+    DoubleHistogram shardsQueueTimeHistogram,
     LongCounter blobsUploadedCounter,
     LongCounter bytesUploadedCounter,
     LongCounter uploadDurationCounter,
@@ -47,6 +49,7 @@ public record SnapshotMetrics(
     public static final String SNAPSHOT_SHARDS_IN_PROGRESS = "es.repositories.snapshots.shards.current";
     public static final String SNAPSHOT_SHARDS_BY_STATE = "es.repositories.snapshots.shards.by_state.current";
     public static final String SNAPSHOT_SHARDS_DURATION = "es.repositories.snapshots.shards.duration.histogram";
+    public static final String SNAPSHOT_SHARDS_QUEUE_TIME = "es.repositories.snapshots.shards.queue_time.histogram";
     public static final String SNAPSHOT_BLOBS_UPLOADED = "es.repositories.snapshots.blobs.uploaded.total";
     public static final String SNAPSHOT_BYTES_UPLOADED = "es.repositories.snapshots.upload.bytes.total";
     public static final String SNAPSHOT_UPLOAD_DURATION = "es.repositories.snapshots.upload.upload_time.total";
@@ -66,12 +69,13 @@ public record SnapshotMetrics(
             // We use seconds rather than milliseconds due to the limitations of the default bucket boundaries
             // see https://www.elastic.co/docs/reference/apm/agents/java/config-metrics#config-custom-metrics-histogram-boundaries
             meterRegistry.registerDoubleHistogram(SNAPSHOT_SHARDS_DURATION, "shard snapshots duration", "s"),
+            meterRegistry.registerDoubleHistogram(SNAPSHOT_SHARDS_QUEUE_TIME, "shard snapshots queue time", "s"),
             meterRegistry.registerLongCounter(SNAPSHOT_BLOBS_UPLOADED, "snapshot blobs uploaded", "unit"),
             meterRegistry.registerLongCounter(SNAPSHOT_BYTES_UPLOADED, "snapshot bytes uploaded", "bytes"),
             meterRegistry.registerLongCounter(SNAPSHOT_UPLOAD_DURATION, "snapshot upload duration", "ms"),
             meterRegistry.registerLongCounter(SNAPSHOT_UPLOAD_READ_DURATION, "time spent in read() calls when snapshotting", "ms"),
-            meterRegistry.registerLongCounter(SNAPSHOT_CREATE_THROTTLE_DURATION, "time throttled in snapshot create", "bytes"),
-            meterRegistry.registerLongCounter(SNAPSHOT_RESTORE_THROTTLE_DURATION, "time throttled in snapshot restore", "bytes"),
+            meterRegistry.registerLongCounter(SNAPSHOT_CREATE_THROTTLE_DURATION, "time throttled in snapshot create", "ns"),
+            meterRegistry.registerLongCounter(SNAPSHOT_RESTORE_THROTTLE_DURATION, "time throttled in snapshot restore", "ns"),
             meterRegistry
         );
     }
@@ -93,8 +97,8 @@ public record SnapshotMetrics(
         meterRegistry.registerLongsGauge(SNAPSHOTS_BY_STATE, "snapshots by state", "unit", snapshotsByStatusObserver);
     }
 
+    @FixForMultiProject(description = "When multi-project arrives we should add project ID to the labels")
     public static Map<String, Object> createAttributesMap(ProjectId projectId, RepositoryMetadata meta) {
-        assert projectId != null : "Project ID should always be set";
-        return Map.of("project_id", projectId.id(), "repo_type", meta.type(), "repo_name", meta.name());
+        return Map.of("repo_type", meta.type(), "repo_name", meta.name());
     }
 }

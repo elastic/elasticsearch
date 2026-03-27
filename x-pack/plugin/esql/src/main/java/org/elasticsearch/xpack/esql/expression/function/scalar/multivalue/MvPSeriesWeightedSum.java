@@ -12,8 +12,10 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
+import org.elasticsearch.compute.ann.Position;
 import org.elasticsearch.compute.data.DoubleBlock;
-import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.expression.ConstantEvaluators;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -61,7 +63,11 @@ public class MvPSeriesWeightedSum extends EsqlScalarFunction implements Evaluato
     )
     public MvPSeriesWeightedSum(
         Source source,
-        @Param(name = "number", type = { "double" }, description = "Multivalue expression.") Expression field,
+        @Param(
+            name = "number",
+            type = { "double" },
+            description = "Expression that can be null, a single value, or multiple values."
+        ) Expression field,
         @Param(
             name = "p",
             type = { "double" },
@@ -109,7 +115,7 @@ public class MvPSeriesWeightedSum extends EsqlScalarFunction implements Evaluato
     }
 
     @Override
-    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         return switch (PlannerUtils.toElementType(field.dataType())) {
             case DOUBLE -> new MvPSeriesWeightedSumDoubleEvaluator.Factory(
                 source(),
@@ -117,7 +123,7 @@ public class MvPSeriesWeightedSum extends EsqlScalarFunction implements Evaluato
                 ctx -> new CompensatedSum(),
                 (Double) p.fold(toEvaluator.foldCtx())
             );
-            case NULL -> EvalOperator.CONSTANT_NULL_FACTORY;
+            case NULL -> ConstantEvaluators.CONSTANT_NULL_FACTORY;
             default -> throw EsqlIllegalArgumentException.illegalDataType(field.dataType());
         };
     }
@@ -143,7 +149,7 @@ public class MvPSeriesWeightedSum extends EsqlScalarFunction implements Evaluato
     @Evaluator(extraName = "Double", warnExceptions = ArithmeticException.class)
     static void process(
         DoubleBlock.Builder builder,
-        int position,
+        @Position int position,
         DoubleBlock block,
         @Fixed(includeInToString = false, scope = THREAD_LOCAL) CompensatedSum sum,
         @Fixed double p

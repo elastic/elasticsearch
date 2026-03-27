@@ -161,7 +161,7 @@ public class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory 
                     if (valuesSourceConfig.getValuesSource() instanceof final ValuesSource.Bytes.WithOrdinals source) {
                         if (executionMode.useGlobalOrdinals(context, source, precision)) {
                             final String field;
-                            if (valuesSourceConfig.alignesWithSearchIndex()) {
+                            if (valuesSourceConfig.alignsWithSearchIndex()) {
                                 field = valuesSourceConfig.fieldType().name();
                             } else {
                                 field = null;

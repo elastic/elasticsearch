@@ -9,7 +9,8 @@
 
 package org.elasticsearch.gradle.internal
 
-import spock.lang.Ignore
+
+import spock.lang.Unroll
 
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream
@@ -17,7 +18,6 @@ import org.apache.commons.compress.compressors.bzip2.BZip2CompressorInputStream
 import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream
 import org.elasticsearch.gradle.fixtures.AbstractGradleFuncTest
 import org.gradle.api.GradleException
-import spock.lang.Unroll
 
 import java.nio.file.Files
 import java.nio.file.Path
@@ -66,8 +66,12 @@ tasks.register("buildBZip2Tar", SymbolicLinkPreservingTar) { SymbolicLinkPreserv
   from fileTree("archiveRoot")
 
   into('config') {
-    dirMode 0750
-    fileMode 0660
+    dirPermissions {
+        unix(0750)
+    }
+    filePermissions {
+        unix(0660)
+    }
     from "real-folder2"
   }
 }
@@ -118,8 +122,10 @@ tasks.register("buildTar", SymbolicLinkPreservingTar) { SymbolicLinkPreservingTa
         preserverTimestamp << [true, false]
     }
 
-    private boolean assertTar(final File archive, final Function<? super FileInputStream, ? extends InputStream> wrapper, boolean preserveFileTimestamps)
-            throws IOException {
+    private boolean assertTar(final File archive,
+                              final Function<? super FileInputStream, ? extends InputStream> wrapper,
+                              boolean preserveFileTimestamps)
+        throws IOException {
         try (TarArchiveInputStream tar = new TarArchiveInputStream(wrapper.apply(new FileInputStream(archive)))) {
             TarArchiveEntry entry = tar.getNextTarEntry();
             boolean realFolderEntry = false;
@@ -132,7 +138,7 @@ tasks.register("buildTar", SymbolicLinkPreservingTar) { SymbolicLinkPreservingTa
                 if (entry.getName().equals("real-folder/")) {
                     assert entry.isDirectory()
                     realFolderEntry = true
-                }  else if (entry.getName().equals("real-folder/file")) {
+                } else if (entry.getName().equals("real-folder/file")) {
                     assert entry.isFile()
                     fileEntry = true
                 } else if (entry.getName().equals("real-folder/link-to-file")) {
@@ -145,7 +151,7 @@ tasks.register("buildTar", SymbolicLinkPreservingTar) { SymbolicLinkPreservingTa
                 } else if (entry.getName().equals("config/sub/")) {
                     assert entry.isDirectory()
                     assert entry.getMode() == 16872
-                }else if (entry.getName().equals("link-in-folder/")) {
+                } else if (entry.getName().equals("link-in-folder/")) {
                     assert entry.isDirectory()
                     linkInFolderEntry = true
                 } else if (entry.getName().equals("link-in-folder/link-to-file")) {

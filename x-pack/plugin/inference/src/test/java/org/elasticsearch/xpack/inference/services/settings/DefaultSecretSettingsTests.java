@@ -30,7 +30,7 @@ public class DefaultSecretSettingsTests extends AbstractWireSerializingTestCase<
         DefaultSecretSettings initialSettings = createRandom();
         DefaultSecretSettings newSettings = createRandom();
         DefaultSecretSettings finalSettings = (DefaultSecretSettings) initialSettings.newSecretSettings(
-            Map.of(DefaultSecretSettings.API_KEY, newSettings.apiKey().toString())
+            new HashMap<>(Map.of(DefaultSecretSettings.API_KEY, newSettings.apiKey().toString()))
         );
         assertEquals(newSettings, finalSettings);
     }
@@ -84,7 +84,8 @@ public class DefaultSecretSettingsTests extends AbstractWireSerializingTestCase<
 
     @Override
     protected DefaultSecretSettings mutateInstance(DefaultSecretSettings instance) throws IOException {
-        return randomValueOtherThan(instance, DefaultSecretSettingsTests::createRandom);
+        SecureString apiKey = randomValueOtherThan(instance.apiKey(), () -> new SecureString(randomAlphaOfLength(15).toCharArray()));
+        return new DefaultSecretSettings(apiKey);
     }
 
     public static Map<String, Object> getSecretSettingsMap(String apiKey) {

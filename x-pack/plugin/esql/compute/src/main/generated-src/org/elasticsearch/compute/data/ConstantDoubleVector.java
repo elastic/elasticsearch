@@ -41,7 +41,7 @@ final class ConstantDoubleVector extends AbstractVector implements DoubleVector 
     }
 
     @Override
-    public DoubleVector filter(int... positions) {
+    public DoubleVector filter(boolean mayContainDuplicates, int... positions) {
         return blockFactory().newConstantDoubleVector(value, positions.length);
     }
 
@@ -94,6 +94,15 @@ final class ConstantDoubleVector extends AbstractVector implements DoubleVector 
     }
 
     @Override
+    public DoubleVector slice(int beginInclusive, int endExclusive) {
+        if (beginInclusive == 0 && endExclusive == getPositionCount()) {
+            incRef();
+            return this;
+        }
+        return blockFactory().newConstantDoubleVector(value, endExclusive - beginInclusive);
+    }
+
+    @Override
     public ElementType elementType() {
         return ElementType.DOUBLE;
     }
@@ -101,6 +110,11 @@ final class ConstantDoubleVector extends AbstractVector implements DoubleVector 
     @Override
     public boolean isConstant() {
         return true;
+    }
+
+    @Override
+    public DoubleVector deepCopy(BlockFactory blockFactory) {
+        return blockFactory.newConstantDoubleVector(value, getPositionCount());
     }
 
     @Override

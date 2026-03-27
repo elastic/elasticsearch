@@ -11,6 +11,7 @@ package org.elasticsearch.transport;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 
@@ -28,5 +29,16 @@ public class ReceiveTimeoutTransportException extends ActionTransportException {
     public synchronized Throwable fillInStackTrace() {
         // stack trace is uninformative
         return this;
+    }
+
+    @Override
+    public RestStatus status() {
+        // closest thing to "your request took longer than you asked for"
+        return RestStatus.TOO_MANY_REQUESTS;
+    }
+
+    @Override
+    public boolean isTimeout() {
+        return true;
     }
 }

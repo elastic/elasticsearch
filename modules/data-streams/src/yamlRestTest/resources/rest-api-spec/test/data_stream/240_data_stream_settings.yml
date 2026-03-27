@@ -495,3 +495,98 @@ setup:
         index: my-component-only-data-stream-1
   - match: { .$idx0name.settings.index.lifecycle.name: "my-policy" }
   - match: { .$idx0name.settings.index.lifecycle.prefer_ilm: null }
+
+---
+"Test write index only setting":
+  - requires:
+      cluster_features: [ "logs_stream" ]
+      reason: requires setting 'logs_stream' to get or set data stream settings
+  - do:
+      allowed_warnings:
+        - "index template [my-template] has index patterns [my-data-stream-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-template
+        body:
+          index_patterns: [ my-data-stream-* ]
+          data_stream: { }
+          template:
+            settings:
+              number_of_replicas: 0
+              lifecycle.name: my-policy
+
+  - do:
+      indices.create_data_stream:
+        name: my-data-stream-1
+
+  - do:
+      cluster.health:
+        index: "my-data-stream-1"
+        wait_for_status: green
+
+  - do:
+      indices.get_data_stream_settings:
+        name: my-data-stream-1
+  - match: { data_streams.0.name: my-data-stream-1 }
+  - match: { data_streams.0.settings: {} }
+  - match: { data_streams.0.effective_settings.index.number_of_shards: null }
+  - match: { data_streams.0.effective_settings.index.number_of_replicas: "0" }
+
+  - do:
+      indices.rollover:
+        alias: "my-data-stream-1"
+
+  - do:
+      cluster.health:
+        index: "my-data-stream-1"
+        wait_for_status: green
+
+  - do:
+      indices.put_data_stream_settings:
+        name: my-data-stream-1
+        body:
+          index:
+            number_of_replicas: 1
+  - match: { data_streams.0.name: my-data-stream-1 }
+  - match: { data_streams.0.applied_to_data_stream: true }
+  - match: { data_streams.0.index_settings_results.applied_to_data_stream_only: []}
+  - match: { data_streams.0.index_settings_results.applied_to_data_stream_and_backing_indices: []}
+  - length: { data_streams.0.index_settings_results.applied_to_data_stream_and_write_indices: 1  }
+  - match: { data_streams.0.effective_settings.index.number_of_replicas: "1" }
+
+  - do:
+      indices.rollover:
+        alias: "my-data-stream-1"
+
+  - do:
+      cluster.health:
+        index: "my-data-stream-1"
+        wait_for_status: yellow
+
+  - do:
+      indices.get_data_stream_settings:
+        name: my-data-stream-1
+  - match: { data_streams.0.name: my-data-stream-1 }
+  - match: { data_streams.0.effective_settings.index.number_of_replicas: "1" }
+
+  - do:
+      indices.get_data_stream:
+        name: my-data-stream-1
+  - match: { data_streams.0.name: my-data-stream-1 }
+  - match: { data_streams.0.settings.index.number_of_replicas: "1" }
+  - match: { data_streams.0.effective_settings: null }
+
+  - do:
+      indices.get_data_stream:
+        name: my-data-stream-1
+  - set: { data_streams.0.indices.0.index_name: idx0name }
+  - set: { data_streams.0.indices.1.index_name: idx1name }
+  - set: { data_streams.0.indices.2.index_name: idx2name }
+
+  # We expect that index.number_of_replicas only gets updated on the current write index and any future indices. We have
+  # done one rollover since setting the setting, so it ought to be updated in the two most recent indices only:
+  - do:
+      indices.get_settings:
+        index: my-data-stream-1
+  - match: { .$idx0name.settings.index.number_of_replicas: "0" }
+  - match: { .$idx1name.settings.index.number_of_replicas: "1" }
+  - match: { .$idx2name.settings.index.number_of_replicas: "1" }

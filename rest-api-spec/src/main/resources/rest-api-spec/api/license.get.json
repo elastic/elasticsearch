@@ -1,33 +1,40 @@
 {
-  "license.get":{
-    "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/get-license.html",
-      "description":"Retrieves licensing information for the cluster"
+  "license.get": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-license-get",
+      "description": "Get license information"
     },
-    "stability":"stable",
-    "visibility":"public",
-    "headers":{
-      "accept": [ "application/json"]
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
     },
-    "url":{
-      "paths":[
+    "url": {
+      "paths": [
         {
-          "path":"/_license",
-          "methods":[
+          "path": "/_license",
+          "methods": [
             "GET"
           ]
         }
       ]
     },
-    "params":{
-      "local":{
-        "type":"boolean",
-        "description":"Return local information, do not retrieve the state from master node (default: false)"
+    "params": {
+      "local": {
+        "type": "boolean",
+        "default": true,
+        "description": "Return local information, do not retrieve the state from master node (default: false)"
       },
-      "accept_enterprise":{
-        "type":"boolean",
-        "description":"Supported for backwards compatibility with 7.x. If this param is used it must be set to true",
-        "deprecated":true
+      "accept_enterprise": {
+        "type": "boolean",
+        "deprecated": {
+          "version": "7.6.0",
+          "description": "This parameter no longer has any effect"
+        },
+        "default": true,
+        "description": "Supported for backwards compatibility with 7.x. If this param is used it must be set to true"
       }
     }
   }

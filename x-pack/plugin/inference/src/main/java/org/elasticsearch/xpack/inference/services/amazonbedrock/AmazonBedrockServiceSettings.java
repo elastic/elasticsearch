@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.amazonbedrock;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -47,14 +46,14 @@ public abstract class AmazonBedrockServiceSettings extends FilteredXContentObjec
     // the table above if using a model that might have a lesser limit (e.g. Anthropic Claude 3.5)
     protected static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(240);
 
-    protected static AmazonBedrockServiceSettings.BaseAmazonBedrockCommonSettings fromMap(
+    protected static AmazonBedrockCommonSettings fromMap(
         Map<String, Object> map,
         ValidationException validationException,
         ConfigurationParseContext context
     ) {
-        String model = extractRequiredString(map, MODEL_FIELD, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        String region = extractRequiredString(map, REGION_FIELD, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        AmazonBedrockProvider provider = extractRequiredEnum(
+        var model = extractRequiredString(map, MODEL_FIELD, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        var region = extractRequiredString(map, REGION_FIELD, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        var provider = extractRequiredEnum(
             map,
             PROVIDER_FIELD,
             ModelConfigurations.SERVICE_SETTINGS,
@@ -62,7 +61,7 @@ public abstract class AmazonBedrockServiceSettings extends FilteredXContentObjec
             EnumSet.allOf(AmazonBedrockProvider.class),
             validationException
         );
-        RateLimitSettings rateLimitSettings = RateLimitSettings.of(
+        var rateLimitSettings = RateLimitSettings.of(
             map,
             DEFAULT_RATE_LIMIT_SETTINGS,
             validationException,
@@ -70,10 +69,25 @@ public abstract class AmazonBedrockServiceSettings extends FilteredXContentObjec
             context
         );
 
-        return new BaseAmazonBedrockCommonSettings(region, model, provider, rateLimitSettings);
+        return new AmazonBedrockCommonSettings(region, model, provider, rateLimitSettings);
     }
 
-    protected record BaseAmazonBedrockCommonSettings(
+    protected AmazonBedrockCommonSettings updateCommonSettings(
+        Map<String, Object> serviceSettings,
+        ValidationException validationException
+    ) {
+        var extractedRateLimitSettings = RateLimitSettings.of(
+            serviceSettings,
+            this.rateLimitSettings,
+            validationException,
+            AMAZON_BEDROCK_BASE_NAME,
+            ConfigurationParseContext.REQUEST
+        );
+
+        return new AmazonBedrockCommonSettings(this.region, this.model, this.provider, extractedRateLimitSettings);
+    }
+
+    protected record AmazonBedrockCommonSettings(
         String region,
         String model,
         AmazonBedrockProvider provider,
@@ -101,7 +115,7 @@ public abstract class AmazonBedrockServiceSettings extends FilteredXContentObjec
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_15_0;
+        return TransportVersion.minimumCompatible();
     }
 
     public String region() {

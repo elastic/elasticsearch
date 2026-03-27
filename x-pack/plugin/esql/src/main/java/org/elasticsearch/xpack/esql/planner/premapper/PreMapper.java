@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.QueryBuilderResolver;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plugin.TransportActionServices;
+import org.elasticsearch.xpack.esql.session.Versioned;
 
 /**
  * The class is responsible for invoking any premapping steps that need to be applied to the logical plan,
@@ -27,8 +28,8 @@ public class PreMapper {
     /**
      * Invokes any premapping steps that need to be applied to the logical plan, before this is being mapped to a physical one.
      */
-    public void preMapper(LogicalPlan plan, ActionListener<LogicalPlan> listener) {
-        queryRewrite(plan, listener.delegateFailureAndWrap((l, p) -> {
+    public void preMapper(Versioned<LogicalPlan> plan, ActionListener<LogicalPlan> listener) {
+        queryRewrite(plan.inner(), listener.delegateFailureAndWrap((l, p) -> {
             p.setOptimized();
             l.onResponse(p);
         }));

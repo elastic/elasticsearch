@@ -13,7 +13,6 @@ import org.apache.lucene.queries.spans.SpanOrQuery;
 import org.apache.lucene.queries.spans.SpanQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -32,7 +31,7 @@ import static org.elasticsearch.index.query.SpanQueryBuilder.SpanQueryBuilderUti
 /**
  * Span query that matches the union of its clauses. Maps to {@link SpanOrQuery}.
  */
-public class SpanOrQueryBuilder extends AbstractQueryBuilder<SpanOrQueryBuilder> implements SpanQueryBuilder {
+public class SpanOrQueryBuilder extends LeafQueryBuilder<SpanOrQueryBuilder> implements SpanQueryBuilder {
     public static final String NAME = "span_or";
 
     private static final ParseField CLAUSES_FIELD = new ParseField("clauses");
@@ -168,6 +167,6 @@ public class SpanOrQueryBuilder extends AbstractQueryBuilder<SpanOrQueryBuilder>
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ZERO;
+        return TransportVersion.zero();
     }
 }

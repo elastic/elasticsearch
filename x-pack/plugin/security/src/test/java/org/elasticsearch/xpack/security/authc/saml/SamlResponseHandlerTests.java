@@ -12,6 +12,7 @@ import org.apache.xml.security.Init;
 import org.apache.xml.security.encryption.XMLCipher;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.core.XmlUtils;
 import org.elasticsearch.xpack.core.watcher.watch.ClockMock;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -151,7 +152,7 @@ public class SamlResponseHandlerTests extends SamlTestCase {
     }
 
     protected Document parseDocument(String xml) throws ParserConfigurationException, SAXException, IOException {
-        final DocumentBuilderFactory dbf = DocumentBuilderFactory.newInstance();
+        final DocumentBuilderFactory dbf = XmlUtils.getHardenedBuilderFactory();
         dbf.setNamespaceAware(true);
         final DocumentBuilder documentBuilder = dbf.newDocumentBuilder();
         return documentBuilder.parse(new InputSource(new StringReader(xml)));

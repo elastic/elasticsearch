@@ -38,19 +38,13 @@ public final class TopIpGroupingAggregatorFunction implements GroupingAggregator
 
   private final boolean ascending;
 
-  public TopIpGroupingAggregatorFunction(List<Integer> channels,
-      TopIpAggregator.GroupingState state, DriverContext driverContext, int limit,
+  TopIpGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext, int limit,
       boolean ascending) {
-    this.channels = channels;
-    this.state = state;
-    this.driverContext = driverContext;
     this.limit = limit;
     this.ascending = ascending;
-  }
-
-  public static TopIpGroupingAggregatorFunction create(List<Integer> channels,
-      DriverContext driverContext, int limit, boolean ascending) {
-    return new TopIpGroupingAggregatorFunction(channels, TopIpAggregator.initGrouping(driverContext.bigArrays(), limit, ascending), driverContext, limit, ascending);
+    this.channels = channels;
+    this.state = TopIpAggregator.initGrouping(driverContext.bigArrays(), limit, ascending);
+    this.driverContext = driverContext;
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -162,7 +156,7 @@ public final class TopIpGroupingAggregatorFunction implements GroupingAggregator
       return;
     }
     BytesRefBlock top = (BytesRefBlock) topUncast;
-    BytesRef scratch = new BytesRef();
+    BytesRef topScratch = new BytesRef();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
         continue;
@@ -227,7 +221,7 @@ public final class TopIpGroupingAggregatorFunction implements GroupingAggregator
       return;
     }
     BytesRefBlock top = (BytesRefBlock) topUncast;
-    BytesRef scratch = new BytesRef();
+    BytesRef topScratch = new BytesRef();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
         continue;
@@ -278,7 +272,7 @@ public final class TopIpGroupingAggregatorFunction implements GroupingAggregator
       return;
     }
     BytesRefBlock top = (BytesRefBlock) topUncast;
-    BytesRef scratch = new BytesRef();
+    BytesRef topScratch = new BytesRef();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int groupId = groups.getInt(groupPosition);
       int valuesPosition = groupPosition + positionOffset;
@@ -298,14 +292,24 @@ public final class TopIpGroupingAggregatorFunction implements GroupingAggregator
   }
 
   @Override
-  public void evaluateIntermediate(Block[] blocks, int offset, IntVector selected) {
-    state.toIntermediate(blocks, offset, selected, driverContext);
+  public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateIntermediate(
+      IntVector selected, GroupingAggregatorEvaluationContext ctx) {
+    return this::evaluateIntermediate;
+  }
+
+  private void evaluateIntermediate(Block[] blocks, int offset, IntVector selectedInPage) {
+    state.toIntermediate(blocks, offset, selectedInPage, driverContext);
   }
 
   @Override
-  public void evaluateFinal(Block[] blocks, int offset, IntVector selected,
+  public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateFinal(IntVector selected,
       GroupingAggregatorEvaluationContext ctx) {
-    blocks[offset] = TopIpAggregator.evaluateFinal(state, selected, ctx);
+    return (blocks, offset, selectedInPage) -> evaluateFinal(blocks, offset, selectedInPage, ctx);
+  }
+
+  private void evaluateFinal(Block[] blocks, int offset, IntVector selectedInPage,
+      GroupingAggregatorEvaluationContext ctx) {
+    blocks[offset] = TopIpAggregator.evaluateFinal(state, selectedInPage, ctx);
   }
 
   @Override

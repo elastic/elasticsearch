@@ -1979,10 +1979,10 @@ public class EsqlCapabilities {
         PROMQL_WITHOUT_GROUPING,
 
         /**
-         * Support for {@code TIME_SERIES_WITHOUT_GROUPING} capability for the
-         * grouping function that excludes specific dimensions from time-series grouping.
+         * Support for`WITHOUT` grouping function
+         * that excludes specific dimensions from time-series grouping.
          */
-        TIME_SERIES_WITHOUT_GROUPING,
+        ESQL_WITHOUT_GROUPING,
 
         /**
          * KNN function adds support for k and visit_percentage options
@@ -2234,12 +2234,12 @@ public class EsqlCapabilities {
         /**
          * Support for the EXTERNAL command (datasource access).
          */
-        EXTERNAL_COMMAND(Build.current().isSnapshot()),
+        EXTERNAL_COMMAND(EsqlFeatureFlags.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
 
         /**
          * Support for the EXTERNAL command (datasource access).
          */
-        EXTERNAL_CSV_IP_SUPPORT(Build.current().isSnapshot()),
+        EXTERNAL_CSV_IP_SUPPORT(EsqlFeatureFlags.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
 
         /**
          * https://github.com/elastic/elasticsearch/issues/142219

@@ -120,7 +120,7 @@ setup:
 
   - match: { error.type: verification_exception }
   - contains: { error.reason: 'Found 1 problem' }
-  - contains: { error.reason: 'line 1:56: Cannot use field [foo.bar] due to ambiguities being mapped as [2] incompatible types: [keyword] enforced by INSIST command, and [unsupported] in index mappings' }
+  - contains: { error.reason: 'line 1:56: Cannot use field [foo.bar] due to ambiguities being mapped as [2] incompatible types: [keyword] enforced by INSIST command, [unsupported] in [index4]' }
 
 ---
 'loading from two indices with different mappings 3':

@@ -278,6 +278,8 @@ public class SearchPhaseControllerTests extends ESTestCase {
                     new TopDocsStats(trackTotalHits),
                     0,
                     true,
+                    null,
+                    null,
                     null
                 );
                 List<SearchShardTarget> shards = queryResults.asList()
@@ -392,7 +394,9 @@ public class SearchPhaseControllerTests extends ESTestCase {
                             topDocStats.fetchHits = topResults.length;
                             return topResults;
                         }
-                    }
+                    },
+                    null,
+                    null
                 );
                 List<SearchShardTarget> shards = queryResults.asList()
                     .stream()

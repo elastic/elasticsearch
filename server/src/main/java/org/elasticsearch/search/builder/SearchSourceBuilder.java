@@ -55,12 +55,15 @@ import org.elasticsearch.search.suggest.SuggestBuilder;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.usage.SearchUsage;
 import org.elasticsearch.usage.SearchUsageHolder;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
@@ -2221,6 +2224,20 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             throw new ElasticsearchException(e);
         }
     }
+
+    /**
+     * Returns a deep copy by serializing this builder to JSON and parsing it back with the given named XContent registry.
+     */
+    public static SearchSourceBuilder copySearchSourceViaXContent(SearchSourceBuilder source, NamedXContentRegistry namedXContentRegistry)
+        throws IOException {
+        var bytes = XContentHelper.toXContent(source, XContentType.JSON, ToXContent.EMPTY_PARAMS, true);
+        XContentParserConfiguration config = XContentParserConfiguration.EMPTY.withRegistry(namedXContentRegistry);
+        try (XContentParser parser = XContentType.JSON.xContent().createParser(config, bytes.streamInput())) {
+            return new SearchSourceBuilder().parseXContent(parser, true, COPY_PARSE_ALL_FEATURES_SUPPORTED);
+        }
+    }
+
+    private static final Predicate<NodeFeature> COPY_PARSE_ALL_FEATURES_SUPPORTED = f -> true;
 
     public boolean supportsParallelCollection(ToLongFunction<String> fieldCardinality) {
         if (profile) return false;

@@ -36,10 +36,13 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.rank.context.QueryPhaseRankCoordinatorContext;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
@@ -98,6 +101,12 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
     // Note: at this time, numReducePhases does not count reductions that occur on the data node as part of batched query execution.
     private volatile int numReducePhases;
 
+    @Nullable
+    private final SearchSourceBuilder originalSearchSource;
+
+    @Nullable
+    private final String[] originalIndices;
+
     /**
      * Creates a {@link QueryPhaseResultConsumer} that incrementally reduces aggregation results
      * as shard results are consumed.
@@ -110,7 +119,8 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         Supplier<Boolean> isCanceled,
         SearchProgressListener progressListener,
         int expectedResultSize,
-        Consumer<Exception> onPartialMergeFailure
+        Consumer<Exception> onPartialMergeFailure,
+        NamedXContentRegistry namedXContentRegistry
     ) {
         super(expectedResultSize);
         this.executor = executor;
@@ -131,6 +141,36 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         this.aggReduceContextBuilder = hasAggs ? controller.getReduceContext(isCanceled, source.aggregations()) : null;
         batchReduceSize = (hasAggs || hasTopDocs) ? Math.min(request.getBatchedReduceSize(), expectedResultSize) : expectedResultSize;
         topDocsStats = new TopDocsStats(request.resolveTrackTotalHitsUpTo());
+
+        if (source != null && source.profile()) {
+            try {
+                this.originalSearchSource = SearchSourceBuilder.copySearchSourceViaXContent(source, namedXContentRegistry);
+            } catch (IOException e) {
+                throw new UncheckedIOException("failed to deep copy search source for profiling", e);
+            }
+            String[] indices = request.indices();
+            this.originalIndices = indices == null ? null : Arrays.copyOf(indices, indices.length);
+        } else {
+            this.originalSearchSource = null;
+            this.originalIndices = null;
+        }
+    }
+
+    /**
+     * Deep copy of {@link SearchRequest#source()} when {@link SearchSourceBuilder#profile()} was {@code true} at construction; otherwise
+     * {@code null}.
+     */
+    @Nullable
+    public SearchSourceBuilder getOriginalSearchSource() {
+        return originalSearchSource;
+    }
+
+    /**
+     * Copy of {@link SearchRequest#indices()} when profiling was enabled at construction; otherwise {@code null}.
+     */
+    @Nullable
+    public String[] getOriginalIndices() {
+        return originalIndices;
     }
 
     @Override
@@ -278,7 +318,9 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
                 topDocsStats,
                 numReducePhases,
                 false,
-                queryPhaseRankCoordinatorContext
+                queryPhaseRankCoordinatorContext,
+                originalSearchSource,
+                originalIndices
             );
             buffer = null;
         } finally {

@@ -52,6 +52,7 @@ import org.elasticsearch.search.sort.SortFieldValidation;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.Suggest.Suggestion;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -77,10 +78,27 @@ public final class SearchPhaseController {
         AggregatorFactories.Builder,
         AggregationReduceContext.Builder> requestToAggReduceContextBuilder;
 
+    private final NamedXContentRegistry namedXContentRegistry;
+
     public SearchPhaseController(
         BiFunction<Supplier<Boolean>, AggregatorFactories.Builder, AggregationReduceContext.Builder> requestToAggReduceContextBuilder
     ) {
+        this(requestToAggReduceContextBuilder, NamedXContentRegistry.EMPTY);
+    }
+
+    public SearchPhaseController(
+        BiFunction<Supplier<Boolean>, AggregatorFactories.Builder, AggregationReduceContext.Builder> requestToAggReduceContextBuilder,
+        NamedXContentRegistry namedXContentRegistry
+    ) {
         this.requestToAggReduceContextBuilder = requestToAggReduceContextBuilder;
+        this.namedXContentRegistry = namedXContentRegistry;
+    }
+
+    /**
+     * XContent registry used when coordinator-side logic must parse search source (e.g. deep copy for profile metadata).
+     */
+    public NamedXContentRegistry namedXContentRegistry() {
+        return namedXContentRegistry;
     }
 
     /**
@@ -355,10 +373,13 @@ public final class SearchPhaseController {
 
     /**
      * Reduces the given query results and consumes all aggregations and profile results.
-     * @param queryResults a list of non-null query shard results
-     * @param reducedAggs already reduced aggregations
-     * @param bufferedTopDocs a list of pre-collected top docs.
-     * @param numReducePhases the number of non-final reduce phases applied to the query results.
+     *
+     * @param queryResults         a list of non-null query shard results
+     * @param reducedAggs          already reduced aggregations
+     * @param bufferedTopDocs      a list of pre-collected top docs.
+     * @param numReducePhases      the number of non-final reduce phases applied to the query results.
+     * @param originalSearchSource
+     * @param originalIndices
      * @see QuerySearchResult#getAggs()
      * @see QuerySearchResult#consumeProfileResult()
      */
@@ -369,7 +390,9 @@ public final class SearchPhaseController {
         TopDocsStats topDocsStats,
         int numReducePhases,
         boolean isScrollRequest,
-        QueryPhaseRankCoordinatorContext queryPhaseRankCoordinatorContext
+        QueryPhaseRankCoordinatorContext queryPhaseRankCoordinatorContext,
+        SearchSourceBuilder originalSearchSource,
+        String[] originalIndices
     ) {
         assert numReducePhases >= 0 : "num reduce phases must be >= 0 but was: " + numReducePhases;
         numReducePhases++; // increment for this phase
@@ -390,7 +413,9 @@ public final class SearchPhaseController {
                 0,
                 0,
                 true,
-                null
+                null,
+                originalSearchSource,
+                originalIndices
             );
         }
         final List<QuerySearchResult> nonNullResults = new ArrayList<>();
@@ -486,7 +511,9 @@ public final class SearchPhaseController {
             topDocsStats.terminatedEarly,
             reducedSuggest,
             reducedAggs,
-            profileShardResults.isEmpty() ? null : new SearchProfileResultsBuilder(profileShardResults),
+            profileShardResults.isEmpty()
+                ? null
+                : new SearchProfileResultsBuilder(profileShardResults, originalSearchSource, originalIndices),
             sortedTopDocs,
             sortValueFormats,
             queryPhaseRankCoordinatorContext,
@@ -494,7 +521,9 @@ public final class SearchPhaseController {
             size,
             from,
             false,
-            timeRangeFilterFromMillis
+            timeRangeFilterFromMillis,
+            originalSearchSource,
+            originalIndices
         );
     }
 
@@ -578,7 +607,9 @@ public final class SearchPhaseController {
         int from,
         // <code>true</code> iff the query phase had no results. Otherwise <code>false</code>
         boolean isEmptyResult,
-        Long timeRangeFilterFromMillis
+        Long timeRangeFilterFromMillis,
+        SearchSourceBuilder originalSearchSource,
+        String[] originalIndices
     ) {
 
         public ReducedQueryPhase {
@@ -652,7 +683,8 @@ public final class SearchPhaseController {
             isCanceled,
             listener,
             numShards,
-            onPartialMergeFailure
+            onPartialMergeFailure,
+            namedXContentRegistry
         );
     }
 

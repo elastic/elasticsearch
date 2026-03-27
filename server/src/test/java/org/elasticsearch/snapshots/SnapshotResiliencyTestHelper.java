@@ -926,7 +926,10 @@ public class SnapshotResiliencyTestHelper {
                     )
                 );
 
-                SearchPhaseController searchPhaseController = new SearchPhaseController(searchService::aggReduceContextBuilder);
+                SearchPhaseController searchPhaseController = new SearchPhaseController(
+                    searchService::aggReduceContextBuilder,
+                    namedXContentRegistry
+                );
                 actions.put(
                     TransportSearchAction.TYPE,
                     new TransportSearchAction(

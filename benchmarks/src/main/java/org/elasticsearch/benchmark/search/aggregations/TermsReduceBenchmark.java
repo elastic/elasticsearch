@@ -34,6 +34,7 @@ import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilde
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.query.QuerySearchResult;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -194,7 +195,8 @@ public class TermsReduceBenchmark {
             isCanceled::get,
             SearchProgressListener.NOOP,
             shards.size(),
-            exc -> {}
+            exc -> {},
+            NamedXContentRegistry.EMPTY
         );
         CountDownLatch latch = new CountDownLatch(shards.size());
         for (int i = 0; i < shards.size(); i++) {

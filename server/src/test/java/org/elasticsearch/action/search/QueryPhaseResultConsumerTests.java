@@ -134,7 +134,8 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
                 e -> onPartialMergeFailure.accumulateAndGet(e, (prev, curr) -> {
                     curr.addSuppressed(prev);
                     return curr;
-                })
+                }),
+                xContentRegistry()
             )
         ) {
 
@@ -182,7 +183,8 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
                 () -> false,
                 new SearchProgressListener() {},
                 10,
-                e -> {}
+                e -> {},
+                xContentRegistry()
             )
         ) {
             for (int i = 0; i < aggCount; i++) {
@@ -230,7 +232,8 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
                 () -> false,
                 new SearchProgressListener() {},
                 10,
-                e -> {}
+                e -> {},
+                xContentRegistry()
             )
         ) {
             for (int i = 0; i < aggCount; i++) {

@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.node.ResponseCollectorService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.test.ESIntegTestCase;
 
@@ -28,6 +29,8 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class BatchedQueryPhaseIT extends ESIntegTestCase {
 
@@ -71,6 +74,69 @@ public class BatchedQueryPhaseIT extends ESIntegTestCase {
                 assertThat(response.getNumReducePhases(), equalTo(expectedNumReducePhases));
             }
         );
+    }
+
+    public void testAdaptiveReplicaSelectionStatsWithBatchedQueryPhase() {
+        assumeTrue(
+            "test skipped because batched query execution disabled by feature flag",
+            SearchService.BATCHED_QUERY_PHASE_FEATURE_FLAG.isEnabled()
+        );
+        internalCluster().ensureAtLeastNumDataNodes(3);
+
+        String indexName = "test-ars-stats";
+        int numDataNodes = internalCluster().numDataNodes();
+        int numShards = numDataNodes * 4;
+        assertAcked(
+            prepareCreate(indexName).setMapping("title", "type=keyword")
+                .setSettings(
+                    Settings.builder()
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                )
+        );
+        for (int i = 0; i < 100; i++) {
+            prepareIndex(indexName).setId(Integer.toString(i)).setSource("title", "testing" + i).get();
+        }
+        refresh();
+        ensureGreen(indexName);
+
+        String coordinatorNode = internalCluster().getRandomNodeName();
+        String coordinatorNodeId = getNodeId(coordinatorNode);
+
+        for (int i = 0; i < 20; i++) {
+            assertNoFailuresAndResponse(client(coordinatorNode).prepareSearch(indexName).setSearchType(QUERY_THEN_FETCH), response -> {});
+        }
+
+        ResponseCollectorService responseCollectorService = internalCluster().getInstance(ResponseCollectorService.class, coordinatorNode);
+        Map<String, ResponseCollectorService.ComputedNodeStats> allStats = responseCollectorService.getAllNodeStatistics();
+        Map<String, Integer> shardsPerNode = getNodeToShardCountMap(indexName);
+
+        long batchedRemoteNodes = shardsPerNode.entrySet()
+            .stream()
+            .filter(e -> e.getKey().equals(coordinatorNodeId) == false && e.getValue() >= 2)
+            .count();
+        assertThat(
+            "Expected at least one remote node with 2+ shards to exercise the batched query path",
+            batchedRemoteNodes,
+            greaterThanOrEqualTo(1L)
+        );
+
+        for (Map.Entry<String, Integer> entry : shardsPerNode.entrySet()) {
+            String nodeId = entry.getKey();
+            if (nodeId.equals(coordinatorNodeId)) {
+                continue;
+            }
+            assertThat(
+                "Expected adaptive replica selection stats for remote node ["
+                    + nodeId
+                    + "] with ["
+                    + entry.getValue()
+                    + "] shards, but found none. Stats were only collected for nodes: "
+                    + allStats.keySet(),
+                allStats.get(nodeId),
+                notNullValue()
+            );
+        }
     }
 
     private Map<String, Integer> getNodeToShardCountMap(String indexName) {

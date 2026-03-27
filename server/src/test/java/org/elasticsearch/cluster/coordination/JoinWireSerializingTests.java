@@ -42,13 +42,13 @@ public class JoinWireSerializingTests extends AbstractWireSerializingTestCase<Jo
         long lastAcceptedTerm = instance.lastAcceptedTerm();
         long lastAcceptedVersion = instance.lastAcceptedVersion();
 
-        int field = between(0, 4);
-        switch (field) {
+        switch (between(0, 4)) {
             case 0 -> votingNode = randomValueOtherThan(votingNode, DiscoveryNodeUtils::create);
             case 1 -> masterCandidateNode = randomValueOtherThan(masterCandidateNode, DiscoveryNodeUtils::create);
             case 2 -> term = randomValueOtherThan(term, ESTestCase::randomNonNegativeLong);
             case 3 -> lastAcceptedTerm = randomValueOtherThan(lastAcceptedTerm, ESTestCase::randomNonNegativeLong);
-            default -> lastAcceptedVersion = randomValueOtherThan(lastAcceptedVersion, ESTestCase::randomNonNegativeLong);
+            case 4 -> lastAcceptedVersion = randomValueOtherThan(lastAcceptedVersion, ESTestCase::randomNonNegativeLong);
+            default -> throw new AssertionError();
         }
 
         return new Join(votingNode, masterCandidateNode, term, lastAcceptedTerm, lastAcceptedVersion);

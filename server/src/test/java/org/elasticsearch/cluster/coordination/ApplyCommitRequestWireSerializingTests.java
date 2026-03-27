@@ -40,11 +40,11 @@ public class ApplyCommitRequestWireSerializingTests extends AbstractWireSerializ
         long term = instance.getTerm();
         long version = instance.getVersion();
 
-        int field = between(0, 2);
-        switch (field) {
+        switch (between(0, 2)) {
             case 0 -> sourceNode = randomValueOtherThan(sourceNode, DiscoveryNodeUtils::create);
             case 1 -> term = randomValueOtherThan(term, ESTestCase::randomNonNegativeLong);
-            default -> version = randomValueOtherThan(version, ESTestCase::randomNonNegativeLong);
+            case 2 -> version = randomValueOtherThan(version, ESTestCase::randomNonNegativeLong);
+            default -> throw new AssertionError();
         }
 
         return new ApplyCommitRequest(sourceNode, term, version);

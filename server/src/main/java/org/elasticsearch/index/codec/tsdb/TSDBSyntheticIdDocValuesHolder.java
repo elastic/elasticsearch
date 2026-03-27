@@ -303,13 +303,8 @@ class TSDBSyntheticIdDocValuesHolder {
     }
 
     BytesRef docSyntheticId(int docID, int docTsIdOrd, long docTimestamp, @Nullable BytesRefBuilder scratch) throws IOException {
-        return docSyntheticId(lookupTsIdOrd(docTsIdOrd), docTimestamp, docRoutingHash(docID), scratch);
-    }
-
-    private static BytesRef docSyntheticId(BytesRef tsId, long timestamp, BytesRef routingHashBytes, @Nullable BytesRefBuilder scratch) {
-        assert tsId != null;
-        assert timestamp > 0L;
-        assert routingHashBytes != null;
+        final var tsId = lookupTsIdOrd(docTsIdOrd);
+        final var routingHashBytes = docRoutingHash(docID);
 
         final boolean needsEscape = Byte.toUnsignedInt(tsId.bytes[tsId.offset]) >= Uid.BASE64_ESCAPE;
         final int offset = needsEscape ? 1 : 0;
@@ -320,7 +315,7 @@ class TSDBSyntheticIdDocValuesHolder {
             if (needsEscape) {
                 scratch.setByteAt(0, (byte) Uid.BASE64_ESCAPE);
             }
-            TsidExtractingIdFieldMapper.writeSyntheticId(tsId, timestamp, routingHashBytes, scratch.bytes(), offset);
+            TsidExtractingIdFieldMapper.writeSyntheticId(tsId, docTimestamp, routingHashBytes, scratch.bytes(), offset);
             scratch.setLength(length);
             return scratch.get();
         }
@@ -330,7 +325,7 @@ class TSDBSyntheticIdDocValuesHolder {
         if (needsEscape) {
             bytes[0] = (byte) Uid.BASE64_ESCAPE;
         }
-        TsidExtractingIdFieldMapper.writeSyntheticId(tsId, timestamp, routingHashBytes, bytes, offset);
+        TsidExtractingIdFieldMapper.writeSyntheticId(tsId, docTimestamp, routingHashBytes, bytes, offset);
         return new BytesRef(bytes);
     }
 }

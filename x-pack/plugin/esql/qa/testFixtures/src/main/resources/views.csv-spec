@@ -459,7 +459,7 @@ total:long | country:keyword
 ;
 
 unmappedFields_Load_with_Count
-required_capability: optional_fields_v3
+required_capability: optional_fields_v4
 required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
 
@@ -475,7 +475,7 @@ rehired_count:long
 ;
 
 unmappedFields_Load_with_WithNonExistentField
-required_capability: optional_fields_v3
+required_capability: optional_fields_v4
 required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
 
@@ -491,7 +491,7 @@ rehired_count:long | null_count:long
 ;
 
 unmappedFields_Load_with_EvalOnNonExistentField
-required_capability: optional_fields_v3
+required_capability: optional_fields_v4
 required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
 
@@ -509,7 +509,7 @@ c:long
 ;
 
 unmappedFields_Load_with_WhereOnNonExistentField
-required_capability: optional_fields_v3
+required_capability: optional_fields_v4
 required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
 
@@ -526,7 +526,7 @@ c:long
 ;
 
 unmappedFields_Load_with_StatsByNonExistentField
-required_capability: optional_fields_v3
+required_capability: optional_fields_v4
 required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
 
@@ -542,7 +542,7 @@ c:long | nonexistent_field:keyword
 ;
 
 unmappedFields_Load_with_SortByNonExistentField
-required_capability: optional_fields_v3
+required_capability: optional_fields_v4
 required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
 

@@ -11,7 +11,6 @@
 
 #include <stddef.h>
 #include <stdint.h>
-#include <math.h>
 #include <algorithm>
 #include "vec.h"
 #include "vec_common.h"

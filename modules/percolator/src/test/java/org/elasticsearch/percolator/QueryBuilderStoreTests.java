@@ -47,7 +47,6 @@ import org.elasticsearch.index.query.RegexpQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.WildcardQueryBuilder;
-import org.elasticsearch.script.field.BinaryDocValuesField;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.test.ESTestCase;
@@ -210,7 +209,7 @@ public class QueryBuilderStoreTests extends ESTestCase {
                 Settings.EMPTY
             );
 
-            KeywordFieldMapper keywordMapper = new KeywordFieldMapper.Builder(fieldName, indexSettings).build(
+            KeywordFieldMapper keywordMapper = new KeywordFieldMapper.Builder(fieldName, indexSettings.getIndexVersionCreated()).build(
                 MapperBuilderContext.root(false, false)
             );
             MappingLookup mappingLookup = MappingLookup.fromMappers(
@@ -222,8 +221,7 @@ public class QueryBuilderStoreTests extends ESTestCase {
 
             BytesBinaryIndexFieldData fieldData = new BytesBinaryIndexFieldData(
                 fieldMapper.fullPath(),
-                CoreValuesSourceType.KEYWORD,
-                BinaryDocValuesField::new
+                CoreValuesSourceType.KEYWORD
             );
             BiFunction<MappedFieldType, FieldDataContext, IndexFieldData<?>> indexFieldDataLookup = (mft, fdc) -> fieldData;
 

@@ -1243,8 +1243,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             protected void doRun() throws Exception {
                 final long startTime;
                 final SearchOperationListener opsListener;
+                final Supplier<DirectoryMetrics> metricsDelta = directoryMetricsDeltaOrNull();
 
                 this.searchContext = createContext(readerContext, rewritten, task, ResultsType.FETCH, false);
+                setupWorkerBytesTracking(searchContext.searcher());
                 startTime = System.nanoTime();
                 opsListener = searchContext.indexShard().getSearchOperationListener();
                 opsListener.onPreFetchPhase(searchContext);
@@ -1264,7 +1266,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                         fetchPhaseMaxInFlightChunks,
                         fetchPhaseTargetChunkBytes,
                         searchExecutor,
-                        newFetchBuildListener(opsListener, searchContext, startTime, closeOnce),
+                        newFetchBuildListener(opsListener, searchContext, startTime, metricsDelta, fetchResult, closeOnce),
                         newFetchCompletionListener(listener, fetchResult)
                     );
                 } catch (Exception e) {
@@ -1295,22 +1297,21 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     /**
-     * Creates a listener that records fetch phase timing/failure stats and releases the SearchContext and shard resources
-     * once the fetch build completes (hits assembled or failed).
+     * Creates a listener that records fetch phase timing/failure stats, resolves directory metrics,
+     * and releases the SearchContext and shard resources once the fetch build completes (hits assembled or failed).
      */
-    private static ActionListener<Void> newFetchBuildListener(
+    private ActionListener<Void> newFetchBuildListener(
         SearchOperationListener opsListener,
         SearchContext searchContext,
         long startTime,
+        Supplier<DirectoryMetrics> metricsDelta,
+        FetchSearchResult fetchResult,
         Releasable closeOnce
     ) {
-        return ActionListener.runAfter(
-            ActionListener.wrap(
-                ignored -> opsListener.onFetchPhase(searchContext, System.nanoTime() - startTime),
-                e -> opsListener.onFailedFetchPhase(searchContext)
-            ),
-            closeOnce::close
-        );
+        return ActionListener.runAfter(ActionListener.wrap(ignored -> {
+            fetchResult.setDirectoryMetrics(resolveDirectoryMetrics(metricsDelta, searchContext.searcher()));
+            opsListener.onFetchPhase(searchContext, System.nanoTime() - startTime);
+        }, e -> opsListener.onFailedFetchPhase(searchContext)), closeOnce::close);
     }
 
     /**

@@ -14,7 +14,6 @@ import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.services.elasticsearch.ElserModels.ELSER_V2_MODEL;
@@ -66,7 +65,6 @@ public class ElserInternalServiceSettings extends ElasticsearchInternalServiceSe
 
     @Override
     public ServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
-        serviceSettings = new HashMap<>(serviceSettings);
         ServiceSettings updated = super.updateServiceSettings(serviceSettings);
         if (updated instanceof ElasticsearchInternalServiceSettings esSettings) {
             return new ElserInternalServiceSettings(esSettings);

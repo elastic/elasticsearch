@@ -1056,7 +1056,7 @@ ACC            | null            | null
 ;
 
 limitByWithGrok
-required_capability: esql_limit_by
+required_capability: esql_topn_by
 
 FROM employees
 | SORT emp_no
@@ -1080,7 +1080,7 @@ Duangkaew          | D                    | 10010
 ;
 
 limitByWithUriParts
-required_capability: esql_limit_by
+required_capability: esql_topn_by
 
 FROM web_logs
 | SORT uri
@@ -1100,7 +1100,7 @@ https            | www.iana.org       | /domains/reserved        | null
 ;
 
 limitByWithRerank
-required_capability: esql_limit_by
+required_capability: esql_topn_by
 required_capability: rerank
 required_capability: match_operator_colon
 

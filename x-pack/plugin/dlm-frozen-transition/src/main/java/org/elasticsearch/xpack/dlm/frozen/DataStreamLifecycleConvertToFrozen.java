@@ -50,7 +50,10 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.datastreams.DataStreamsPlugin;
+import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
@@ -257,7 +260,7 @@ public class DataStreamLifecycleConvertToFrozen implements DlmFrozenTransitionRu
      * exists (e.g. failed or partial), deletes it and starts a new one. If no completed snapshot exists, starts a new one.
      */
     void maybeTakeSnapshot(String indexName) {
-        String repositoryName = resolveRepositoryName(projectState);
+        final String repositoryName = getRepositoryForFrozen(projectMetadata, indexName);
         String snapshotName = snapshotName(indexName);
 
         SnapshotsInProgress snapshotsInProgress = SnapshotsInProgress.get(projectState.cluster());
@@ -337,7 +340,7 @@ public class DataStreamLifecycleConvertToFrozen implements DlmFrozenTransitionRu
             return false;
         }
 
-        String repositoryName = resolveRepositoryName(projectState);
+        final String repositoryName = getRepositoryForFrozen(projectMetadata, indexName);
         if (Strings.hasText(repositoryName) == false) {
             logger.debug("Default repository not configured, skipping convert-to-frozen steps for index [{}]", indexName);
             throw new ElasticsearchException(
@@ -365,10 +368,14 @@ public class DataStreamLifecycleConvertToFrozen implements DlmFrozenTransitionRu
     }
 
     /**
-     * Resolves the repository name to use for the snapshot and searchable snapshot steps.
+     * Return the repository name to use for converting this index to a searchable snapshot, or else null if it is not set.
      */
-    private static String resolveRepositoryName(ProjectState projectState) {
-        return RepositoriesService.DEFAULT_REPOSITORY_SETTING.get(projectState.cluster().metadata().settings());
+    @Nullable
+    private static String getRepositoryForFrozen(ProjectMetadata projectMetadata, String indexName) {
+        return Optional.ofNullable(projectMetadata.index(indexName))
+            .map(im -> im.getCustomData(DataStreamsPlugin.LIFECYCLE_CUSTOM_INDEX_METADATA_KEY))
+            .map(custom -> custom.get(DataStreamLifecycleService.FROZEN_CANDIDATE_REPOSITORY_METADATA_KEY))
+            .orElse(null);
     }
 
     private ResizeRequest getCloneRequest() {

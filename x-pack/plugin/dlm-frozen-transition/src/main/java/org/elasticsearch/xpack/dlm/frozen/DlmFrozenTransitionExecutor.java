@@ -96,7 +96,7 @@ class DlmFrozenTransitionExecutor implements Closeable {
     private class WrappedDlmFrozenTransitionRunnable implements Runnable {
         private final DlmFrozenTransitionRunnable task;
 
-        public WrappedDlmFrozenTransitionRunnable(DlmFrozenTransitionRunnable task) {
+        private WrappedDlmFrozenTransitionRunnable(DlmFrozenTransitionRunnable task) {
             this.task = task;
         }
 

@@ -149,8 +149,9 @@ public class ChangePointOperator extends CompleteInputCollectorOperator {
             }
         }
 
-        // flush last (or only) group
-        if (values.isEmpty() == false) {
+        // flush last (or only) group; for the flat (no-group) case this is unconditional so that
+        // an all-null input still runs the detector and produces an "indeterminable" warning.
+        if (values.isEmpty() == false || groupChannel == null) {
             var changeType = flush(values, bucketIndexes);
             var changePointIndex = changeType.changePoint();
             if (changePointIndex >= 0) {

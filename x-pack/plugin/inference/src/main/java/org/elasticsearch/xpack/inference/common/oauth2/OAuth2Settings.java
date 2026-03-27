@@ -124,19 +124,13 @@ public class OAuth2Settings implements ToXContentFragment, Writeable {
     }
 
     /**
-     * Updates the current settings with OAuth2 fields present in the provided map.
-     * Any OAuth2 fields absent from the map fall back to the values already held by this instance,
-     * so partial updates are accepted. The result is always a successful {@link ValidationResult}
-     * as long as the existing instance is valid.
-     *
-     * @param serviceSettingsMap the map containing potential updates to the service settings; may or may not contain OAuth2 fields
+     * Updates the current settings with any new values provided in the map.
+     * If a field is not present in the map, the existing value is retained.
+     * @param serviceSettingsMap the map containing the new settings values
      * @param validationException the exception to which any validation errors should be added
-     * @return a {@link ValidationResult} containing the updated {@link OAuth2Settings}
+     * @return a new {@link OAuth2Settings} object with the updated values, or the existing values if not updated
      */
-    public ValidationResult<OAuth2Settings> updateServiceSettings(
-        Map<String, Object> serviceSettingsMap,
-        ValidationException validationException
-    ) {
+    public OAuth2Settings updateServiceSettings(Map<String, Object> serviceSettingsMap, ValidationException validationException) {
         var extractedClientId = extractOptionalString(
             serviceSettingsMap,
             CLIENT_ID_FIELD,
@@ -149,11 +143,9 @@ public class OAuth2Settings implements ToXContentFragment, Writeable {
             ModelConfigurations.SERVICE_SETTINGS,
             validationException
         );
-
-        return validateFields(
+        return new OAuth2Settings(
             extractedClientId != null ? extractedClientId : this.clientId,
-            extractedScopes != null ? extractedScopes : this.scopes,
-            validationException
+            extractedScopes != null ? extractedScopes : this.scopes
         );
     }
 

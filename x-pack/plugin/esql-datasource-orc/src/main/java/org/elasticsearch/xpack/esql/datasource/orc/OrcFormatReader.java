@@ -29,6 +29,7 @@ import org.apache.orc.TypeDescription;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -36,7 +37,7 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Check;
-import org.elasticsearch.xpack.esql.datasources.CloseableIterator;
+import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnBlockConversions;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
@@ -288,6 +289,11 @@ public class OrcFormatReader implements FormatReader {
                 includeColumnForType(include, child);
             }
         }
+    }
+
+    @Override
+    public AggregatePushdownSupport aggregatePushdownSupport() {
+        return new OrcAggregatePushdownSupport();
     }
 
     @Override
@@ -776,11 +782,13 @@ public class OrcFormatReader implements FormatReader {
             Page page = delegate.next();
             int rows = page.getPositionCount();
             if (rows > remaining) {
-                int[] positions = new int[remaining];
-                for (int i = 0; i < remaining; i++) {
-                    positions[i] = i;
+                Page truncated;
+                try {
+                    truncated = page.slice(0, remaining);
+                } finally {
+                    page.releaseBlocks();
                 }
-                page = page.filter(false, positions);
+                page = truncated;
                 remaining = 0;
                 try {
                     delegate.close();

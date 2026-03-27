@@ -48,6 +48,10 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.startsWith;
 
+/**
+ * Note: this test does not verify the entire plan, it only looks for the specific changes this rule is meant to apply.
+ * For full plan verification, see the golden tests in {@link PushExpressionToFieldLoadGoldenTests}
+ */
 public class PushExpressionsToFieldLoadTests extends AbstractLocalPhysicalPlanOptimizerTests {
     private TestPlannerOptimizer allTypesPlannerOptimizer;
     private TestPlannerOptimizer tsPlannerOptimizer;

@@ -1,0 +1,8 @@
+ProjectExec[[text{f}#0, score{r}#1]]
+\_TopNExec[[Order[integer{f}#2,DESC,FIRST]],10[INTEGER],null]
+  \_ExchangeExec[[integer{f}#2, text{f}#0, score{r}#1],false]
+    \_ProjectExec[[integer{f}#2, text{f}#0, score{r}#1]]
+      \_FieldExtractExec[integer{f}#2, text{f}#0]<[],[],[]>
+        \_EvalExec[[$$dense_vector$V_DOT_PRODUCT$774749952{f$}#3 AS score#1]]
+          \_FieldExtractExec[$$dense_vector$V_DOT_PRODUCT$774749952{f$}#3]<[],[],[]>
+            \_EsQueryExec[all_types], indexMode[standard], [_doc{f}#4], limit[10], sort[[FieldSort[field=integer{f}#2, direction=DESC, nulls=FIRST]]] estimatedRowSize[1060] queryBuilderAndTags [[QueryBuilderAndTags[query=null, tags=[]]]]

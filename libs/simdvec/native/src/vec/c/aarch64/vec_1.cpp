@@ -407,29 +407,35 @@ static inline int32x4x2_t sqri8_vector_acc(const int32x4x2_t acc, const int16x8_
 }
 
 static inline int32_t sqri8_inner(const int8_t* a, const int8_t* b, const int32_t dims) {
-    int32x4x2_t acc0 = { .val = { vdupq_n_s32(0), vdupq_n_s32(0) } };
-    int32x4x2_t acc1 = { .val = { vdupq_n_s32(0), vdupq_n_s32(0) } };
+    // Use vabdq_s8 to compute |a-b| as unsigned bytes, then vdotq_u32 to compute
+    // sum(|a-b|^2) — this matches dot product throughput by processing 32 bytes/iteration
+    // with the dedicated dot product instruction, instead of the slower widen-subtract-multiply path.
+    uint32x4_t acc0 = vdupq_n_u32(0);
+    uint32x4_t acc1 = vdupq_n_u32(0);
 
-    constexpr int stride = sizeof(int8x16_t);
+    constexpr int stride = sizeof(int8x16x2_t);  // 32 bytes
     for (int i = 0; i < dims; i += stride) {
-        int8x16_t va = vld1q_s8(a + i);
-        int8x16_t vb = vld1q_s8(b + i);
+        int8x16x2_t va = vld1q_s8_x2(a + i);
+        int8x16x2_t vb = vld1q_s8_x2(b + i);
 
-        int16x8x2_t diff = create_pair<vsubl_s8>(va, vb);
+        // |a - b| as unsigned bytes (result fits in u8 since max |(-128)-127| = 255)
+        uint8x16_t abd0 = vreinterpretq_u8_s8(vabdq_s8(va.val[0], vb.val[0]));
+        uint8x16_t abd1 = vreinterpretq_u8_s8(vabdq_s8(va.val[1], vb.val[1]));
 
-        acc0 = sqri8_vector_acc(acc0, diff.val[0]);
-        acc1 = sqri8_vector_acc(acc1, diff.val[1]);
+        // sum(abd * abd) using unsigned dot product: 4x(u8*u8)->u32 per lane
+        acc0 = vdotq_u32(acc0, abd0, abd0);
+        acc1 = vdotq_u32(acc1, abd1, abd1);
     }
 
     // reduce
-    return vaddvq_s32(vaddq_s32(combine<vaddq_s32>(acc0), combine<vaddq_s32>(acc1)));
+    return (int32_t)vaddvq_u32(vaddq_u32(acc0, acc1));
 }
 
 static inline int32_t sqri8_common(const int8_t* a, const int8_t* b, const int32_t dims) {
     int32_t res = 0;
     int i = 0;
-    if (dims > sizeof(int8x16_t)) {
-        i += dims & ~(sizeof(int8x16_t) - 1);
+    if (dims > sizeof(int8x16x2_t)) {
+        i += dims & ~(sizeof(int8x16x2_t) - 1);
         res = sqri8_inner(a, b, i);
     }
     for (; i < dims; i++) {

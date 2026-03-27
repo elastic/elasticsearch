@@ -312,9 +312,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {csv-spec:spatial_shapes.convertFromStringParseError}
   issue: https://github.com/elastic/elasticsearch/issues/144672
-- class: org.elasticsearch.repositories.gcs.GoogleCloudStorageBlobStoreRepositoryTests
-  method: testCopy
-  issue: https://github.com/elastic/elasticsearch/issues/144692
 - class: org.elasticsearch.index.store.StoreDirectoryMetricsIT
   method: testDirectoryMetrics
   issue: https://github.com/elastic/elasticsearch/issues/144702

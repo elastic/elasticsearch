@@ -9,7 +9,6 @@
 
 #include <stddef.h>
 #include <stdint.h>
-#include <math.h>
 #include "vec.h"
 #include "vec_common.h"
 #include "amd64/amd64_vec_common.h"

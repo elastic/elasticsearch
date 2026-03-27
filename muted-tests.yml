@@ -273,6 +273,9 @@ tests:
 - class: org.elasticsearch.test.apmintegration.MetricsApmIT
   method: testApmIntegration {withOTel=false}
   issue: https://github.com/elastic/elasticsearch/issues/144282
+- class: org.elasticsearch.reindex.management.ReindexGetRelocationIT
+  method: testGetReindexFollowsRelocation
+  issue: https://github.com/elastic/elasticsearch/issues/144364
 - class: org.elasticsearch.server.cli.APMJvmOptionsTests
   method: testAPMAgentMetricsDisabledWhenOtelMetricsEnabled
   issue: https://github.com/elastic/elasticsearch/issues/144357
@@ -312,18 +315,6 @@ tests:
 - class: org.elasticsearch.repositories.gcs.GoogleCloudStorageBlobStoreRepositoryTests
   method: testCopy
   issue: https://github.com/elastic/elasticsearch/issues/144692
-- class: org.elasticsearch.xpack.esql.analysis.AnalyzerTests
-  method: testLookupMatchTypeWrong
-  issue: https://github.com/elastic/elasticsearch/issues/144694
-- class: org.elasticsearch.xpack.esql.analysis.AnalyzerTests
-  method: testLookupMissingTable
-  issue: https://github.com/elastic/elasticsearch/issues/144695
-- class: org.elasticsearch.xpack.esql.analysis.AnalyzerTests
-  method: testLookup
-  issue: https://github.com/elastic/elasticsearch/issues/144696
-- class: org.elasticsearch.xpack.esql.analysis.AnalyzerTests
-  method: testLookupMissingField
-  issue: https://github.com/elastic/elasticsearch/issues/144697
 - class: org.elasticsearch.index.store.StoreDirectoryMetricsIT
   method: testDirectoryMetrics
   issue: https://github.com/elastic/elasticsearch/issues/144702
@@ -360,12 +351,18 @@ tests:
 - class: org.elasticsearch.xpack.sql.qa.jdbc.single_node.SingleNodeJdbcResultSetIT
   method: testGettingValidDoubleWithCasting
   issue: https://github.com/elastic/elasticsearch/issues/145050
+- class: org.elasticsearch.xpack.security.authc.ApiKeyIntegTests
+  method: testDynamicDeletionInterval
+  issue: https://github.com/elastic/elasticsearch/issues/145022
 - class: org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormatTests
   method: testIndexSortOnFlush
   issue: https://github.com/elastic/elasticsearch/issues/145071
 - class: org.elasticsearch.index.codec.vectors.diskbbq.es94.ES940DiskBBQVectorsFormatTests
   method: testIndexSortOnFlush
   issue: https://github.com/elastic/elasticsearch/issues/145072
+- class: org.elasticsearch.xpack.ml.integration.AdJobRetryResilienceIT
+  method: testJobReopensAfterIndexUnavailabilityDuringReassignment
+  issue: https://github.com/elastic/elasticsearch/issues/144968
 
 # Examples:
 #

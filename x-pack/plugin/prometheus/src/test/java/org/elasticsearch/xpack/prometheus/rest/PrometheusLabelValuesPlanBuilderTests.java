@@ -32,20 +32,22 @@ public class PrometheusLabelValuesPlanBuilderTests extends ESTestCase {
     private static final Instant START = Instant.ofEpochSecond(1_700_000_000L);
     private static final Instant END = Instant.ofEpochSecond(1_700_003_600L);
 
-    public void testNameLabelPlanTopIsOrderByWhenNoLimit() {
+    public void testNameLabelPlanZeroLimitTopIsLimit() {
         LogicalPlan plan = PrometheusLabelValuesPlanBuilder.buildPlan("__name__", "*", List.of(), START, END, 0);
-        assertThat(plan, instanceOf(OrderBy.class));
+        assertThat(plan, instanceOf(Limit.class));
+        assertThat(((Limit) plan).child(), instanceOf(OrderBy.class));
+    }
+
+    public void testNameLabelPlanZeroLimitUsesIntMaxValue() {
+        LogicalPlan plan = PrometheusLabelValuesPlanBuilder.buildPlan("__name__", "*", List.of(), START, END, 0);
+        Limit limit = (Limit) plan;
+        assertThat(limit.limit().toString(), containsString(String.valueOf(Integer.MAX_VALUE)));
     }
 
     public void testNameLabelPlanTopIsLimitWhenLimitSet() {
         LogicalPlan plan = PrometheusLabelValuesPlanBuilder.buildPlan("__name__", "*", List.of(), START, END, 10);
         assertThat(plan, instanceOf(Limit.class));
         assertThat(((Limit) plan).child(), instanceOf(OrderBy.class));
-    }
-
-    public void testNameLabelPlanZeroLimitOmitsLimitNode() {
-        LogicalPlan plan = PrometheusLabelValuesPlanBuilder.buildPlan("__name__", "*", List.of(), START, END, 0);
-        assertThat(plan, instanceOf(OrderBy.class));
     }
 
     public void testNameLabelPlanLimitSentinelIsLimitPlusOne() {
@@ -57,25 +59,26 @@ public class PrometheusLabelValuesPlanBuilderTests extends ESTestCase {
 
     public void testNameLabelPlanContainsAggregateUnderOrderBy() {
         LogicalPlan plan = PrometheusLabelValuesPlanBuilder.buildPlan("__name__", "*", List.of(), START, END, 0);
-        assertThat(((OrderBy) plan).child(), instanceOf(Aggregate.class));
+        OrderBy orderBy = (OrderBy) ((Limit) plan).child();
+        assertThat(orderBy.child(), instanceOf(Aggregate.class));
     }
 
     public void testNameLabelPlanContainsMetricsInfoUnderAggregate() {
         LogicalPlan plan = PrometheusLabelValuesPlanBuilder.buildPlan("__name__", "*", List.of(), START, END, 0);
-        Aggregate agg = (Aggregate) ((OrderBy) plan).child();
+        Aggregate agg = (Aggregate) ((OrderBy) ((Limit) plan).child()).child();
         assertThat(agg.child(), instanceOf(MetricsInfo.class));
     }
 
     public void testNameLabelPlanContainsFilterUnderMetricsInfo() {
         LogicalPlan plan = PrometheusLabelValuesPlanBuilder.buildPlan("__name__", "*", List.of(), START, END, 0);
-        Aggregate agg = (Aggregate) ((OrderBy) plan).child();
+        Aggregate agg = (Aggregate) ((OrderBy) ((Limit) plan).child()).child();
         MetricsInfo metricsInfo = (MetricsInfo) agg.child();
         assertThat(metricsInfo.child(), instanceOf(Filter.class));
     }
 
     public void testNameLabelPlanSourceIsUnresolvedRelation() {
         LogicalPlan plan = PrometheusLabelValuesPlanBuilder.buildPlan("__name__", "*", List.of(), START, END, 0);
-        Aggregate agg = (Aggregate) ((OrderBy) plan).child();
+        Aggregate agg = (Aggregate) ((OrderBy) ((Limit) plan).child()).child();
         MetricsInfo metricsInfo = (MetricsInfo) agg.child();
         Filter filter = (Filter) metricsInfo.child();
         assertThat(filter.child(), instanceOf(UnresolvedRelation.class));
@@ -83,27 +86,29 @@ public class PrometheusLabelValuesPlanBuilderTests extends ESTestCase {
 
     public void testNameLabelPlanFilterConditionIsNotNull() {
         LogicalPlan plan = PrometheusLabelValuesPlanBuilder.buildPlan("__name__", "*", List.of(), START, END, 0);
-        Aggregate agg = (Aggregate) ((OrderBy) plan).child();
+        Aggregate agg = (Aggregate) ((OrderBy) ((Limit) plan).child()).child();
         MetricsInfo metricsInfo = (MetricsInfo) agg.child();
         Filter filter = (Filter) metricsInfo.child();
         // Just verify the filter condition is present (non-null) — structural checks above cover the plan shape
         assertThat(filter.condition(), instanceOf(Expression.class));
     }
 
-    public void testRegularLabelPlanTopIsOrderByWhenNoLimit() {
+    public void testRegularLabelPlanZeroLimitTopIsLimit() {
         LogicalPlan plan = PrometheusLabelValuesPlanBuilder.buildPlan("job", "*", List.of(), START, END, 0);
-        assertThat(plan, instanceOf(OrderBy.class));
+        assertThat(plan, instanceOf(Limit.class));
+        assertThat(((Limit) plan).child(), instanceOf(OrderBy.class));
+    }
+
+    public void testRegularLabelPlanZeroLimitUsesIntMaxValue() {
+        LogicalPlan plan = PrometheusLabelValuesPlanBuilder.buildPlan("job", "*", List.of(), START, END, 0);
+        Limit limit = (Limit) plan;
+        assertThat(limit.limit().toString(), containsString(String.valueOf(Integer.MAX_VALUE)));
     }
 
     public void testRegularLabelPlanTopIsLimitWhenLimitSet() {
         LogicalPlan plan = PrometheusLabelValuesPlanBuilder.buildPlan("job", "*", List.of(), START, END, 10);
         assertThat(plan, instanceOf(Limit.class));
         assertThat(((Limit) plan).child(), instanceOf(OrderBy.class));
-    }
-
-    public void testRegularLabelPlanZeroLimitOmitsLimitNode() {
-        LogicalPlan plan = PrometheusLabelValuesPlanBuilder.buildPlan("job", "*", List.of(), START, END, 0);
-        assertThat(plan, instanceOf(OrderBy.class));
     }
 
     public void testRegularLabelPlanLimitSentinelIsLimitPlusOne() {
@@ -114,19 +119,20 @@ public class PrometheusLabelValuesPlanBuilderTests extends ESTestCase {
 
     public void testRegularLabelPlanContainsAggregateUnderOrderBy() {
         LogicalPlan plan = PrometheusLabelValuesPlanBuilder.buildPlan("job", "*", List.of(), START, END, 0);
-        assertThat(((OrderBy) plan).child(), instanceOf(Aggregate.class));
+        OrderBy orderBy = (OrderBy) ((Limit) plan).child();
+        assertThat(orderBy.child(), instanceOf(Aggregate.class));
     }
 
     public void testRegularLabelPlanHasNoMetricsInfo() {
         LogicalPlan plan = PrometheusLabelValuesPlanBuilder.buildPlan("job", "*", List.of(), START, END, 0);
-        Aggregate agg = (Aggregate) ((OrderBy) plan).child();
+        Aggregate agg = (Aggregate) ((OrderBy) ((Limit) plan).child()).child();
         // The child of Aggregate must be Filter (not MetricsInfo)
         assertThat(agg.child(), instanceOf(Filter.class));
     }
 
     public void testRegularLabelPlanFilterContainsIsNotNull() {
         LogicalPlan plan = PrometheusLabelValuesPlanBuilder.buildPlan("job", "*", List.of(), START, END, 0);
-        Aggregate agg = (Aggregate) ((OrderBy) plan).child();
+        Aggregate agg = (Aggregate) ((OrderBy) ((Limit) plan).child()).child();
         Filter filter = (Filter) agg.child();
         assertThat("Filter condition must contain an IsNotNull node", containsIsNotNull(filter.condition()), is(true));
     }
@@ -152,7 +158,7 @@ public class PrometheusLabelValuesPlanBuilderTests extends ESTestCase {
 
     public void testRegularLabelPlanSourceIsUnresolvedRelation() {
         LogicalPlan plan = PrometheusLabelValuesPlanBuilder.buildPlan("job", "*", List.of(), START, END, 0);
-        Aggregate agg = (Aggregate) ((OrderBy) plan).child();
+        Aggregate agg = (Aggregate) ((OrderBy) ((Limit) plan).child()).child();
         Filter filter = (Filter) agg.child();
         assertThat(filter.child(), instanceOf(UnresolvedRelation.class));
     }

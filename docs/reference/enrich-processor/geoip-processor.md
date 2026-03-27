@@ -245,10 +245,10 @@ You can create a service that mimics the Elastic GeoIP endpoint. You can then ge
     docker run -p <host port>:80 -v my/source/dir:/usr/share/nginx/html:ro nginx
     ```
 
-:::{notes}
-- You can bind any host port to nginx default port (http 80) for public access. Nginx must [autoindex](https://nginx.org/en/docs/http/ngx_http_autoindex_module.html) files in its root folder to serve them.
+:::{note}
+- You can bind any host port to the nginx default port (http 80) for public access. Nginx must [autoindex](https://nginx.org/en/docs/http/ngx_http_autoindex_module.html) files in its root folder to serve them.
 
-- Alternatively to Nginx, you can use a S3 bucket for this too. The files generated on item 3 above must be placed inside a prefix in the bucket. The ACL policy for the bucket should allow `s3:GetObject` on the bucket prefix
+- Alternatively, you can use a S3 bucket instead of nginx. The files generated in step 3 above must be placed inside a prefix in the bucket. The ACL policy for the bucket should allow `s3:GetObject` on the bucket prefix.
 ::: 
 
 5. Specify the service’s endpoint URL in the [`ingest.geoip.downloader.endpoint`](#ingest-geoip-downloader-endpoint) setting of each node’s `elasticsearch.yml` file.

@@ -44,7 +44,7 @@ public class PrometheusLabelsRestAction extends BaseRestHandler {
     private static final String LIMIT_PARAM = "limit";
     private static final String INDEX_PARAM = "index";
 
-    private static final int DEFAULT_LIMIT = 10_000;
+    private static final int DEFAULT_LIMIT = 0; // 0 = no limit, matching Prometheus semantics
     private static final long DEFAULT_LOOKBACK_HOURS = 24;
 
     @Override
@@ -70,7 +70,7 @@ public class PrometheusLabelsRestAction extends BaseRestHandler {
             ? PromqlParserUtils.parseDate(Source.EMPTY, startParam)
             : end.minus(DEFAULT_LOOKBACK_HOURS, HOURS);
 
-        // Optional limit; default to DEFAULT_LIMIT to avoid unbounded ESQL scans
+        // Optional limit; 0 (default) means unlimited per Prometheus semantics
         int limit = request.paramAsInt(LIMIT_PARAM, DEFAULT_LIMIT);
 
         String index = request.param(INDEX_PARAM, "*");

@@ -254,9 +254,18 @@ view_dls_user:
   indices:
     - names: [ 'view-user1' ]
       privileges: [ 'read' ]
-      query: '{"match": {"org": "devs"}}'
+      query: '{"match": {"org": "sales"}}'
     - names: [ 'view-user2' ]
       privileges: [ 'read' ]
+
+view_index_dls_user:
+  cluster: []
+  indices:
+    - names: [ 'view-user1' ]
+      privileges: [ 'read' ]
+    - names: [ 'index' ]
+      privileges: [ 'read' ]
+      query: '{"match": {"org": "sales"}}'
 
 view_dls_nested_view_user:
   cluster: []
@@ -265,7 +274,7 @@ view_dls_nested_view_user:
       privileges: [ 'read' ]
     - names: [ 'nested-dls-view-dls' ]
       privileges: [ 'read' ]
-      query: '{"match": {"org": "devs"}}'
+      query: '{"match": {"org": "sales"}}'
 
 view_fls_user:
   cluster: []

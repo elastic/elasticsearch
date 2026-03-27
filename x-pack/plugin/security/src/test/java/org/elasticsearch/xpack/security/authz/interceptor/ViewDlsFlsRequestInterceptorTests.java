@@ -8,7 +8,8 @@
 package org.elasticsearch.xpack.security.authz.interceptor;
 
 import org.elasticsearch.ElasticsearchSecurityException;
-import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -16,6 +17,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
@@ -26,11 +28,13 @@ import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition;
 import org.elasticsearch.xpack.core.security.user.User;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -57,14 +61,12 @@ public class ViewDlsFlsRequestInterceptorTests extends ESTestCase {
         DocumentPermissions docPerms = DocumentPermissions.filteredBy(Set.of(new BytesArray("{\"terms\" : { \"tk1\" : [\"tv1\"] } }")));
         setAccessControl(Map.of(viewName, new IndicesAccessControl.IndexAccessControl(FieldPermissions.DEFAULT, docPerms)));
 
-        RequestInfo requestInfo = new RequestInfo(authentication, new SearchRequest(viewName), "indices:data/read/esql", null);
+        RequestInfo requestInfo = new RequestInfo(authentication, buildIndicesRequest(viewName), "indices:data/read/esql", null);
         PlainActionFuture<Void> future = new PlainActionFuture<>();
         interceptor.intercept(requestInfo, null, null).addListener(future);
         ElasticsearchSecurityException ex = expectThrows(ElasticsearchSecurityException.class, future::actionGet);
 
-        assertThat(ex.status(), equalTo(RestStatus.FORBIDDEN));
-        assertThat(ex.getMessage(), containsString("DLS/FLS restrictions applied"));
-        assertThat(ex.getMetadata("es.views_with_dls_or_fls").toString(), containsString(viewName));
+        validateException(ex, viewName);
     }
 
     public void testRejectsViewWithFls() {
@@ -75,14 +77,12 @@ public class ViewDlsFlsRequestInterceptorTests extends ESTestCase {
         FieldPermissions fieldPerms = new FieldPermissions(new FieldPermissionsDefinition(new String[] { "value" }, null));
         setAccessControl(Map.of(viewName, new IndicesAccessControl.IndexAccessControl(fieldPerms, DocumentPermissions.allowAll())));
 
-        RequestInfo requestInfo = new RequestInfo(authentication, new SearchRequest(viewName), "indices:data/read/esql", null);
+        RequestInfo requestInfo = new RequestInfo(authentication, buildIndicesRequest(viewName), "indices:data/read/esql", null);
         PlainActionFuture<Void> future = new PlainActionFuture<>();
         interceptor.intercept(requestInfo, null, null).addListener(future);
         ElasticsearchSecurityException ex = expectThrows(ElasticsearchSecurityException.class, future::actionGet);
 
-        assertThat(ex.status(), equalTo(RestStatus.FORBIDDEN));
-        assertThat(ex.getMessage(), containsString("DLS/FLS restrictions applied"));
-        assertThat(ex.getMetadata("es.views_with_dls_or_fls").toString(), containsString(viewName));
+        validateException(ex, viewName);
     }
 
     public void testRejectsViewWithBothDlsAndFls() {
@@ -94,12 +94,12 @@ public class ViewDlsFlsRequestInterceptorTests extends ESTestCase {
         DocumentPermissions docPerms = DocumentPermissions.filteredBy(Set.of(new BytesArray("{\"terms\" : { \"tk1\" : [\"tv1\"] } }")));
         setAccessControl(Map.of(viewName, new IndicesAccessControl.IndexAccessControl(fieldPerms, docPerms)));
 
-        RequestInfo requestInfo = new RequestInfo(authentication, new SearchRequest(viewName), "indices:data/read/esql", null);
+        RequestInfo requestInfo = new RequestInfo(authentication, buildIndicesRequest(viewName), "indices:data/read/esql", null);
         PlainActionFuture<Void> future = new PlainActionFuture<>();
         interceptor.intercept(requestInfo, null, null).addListener(future);
         ElasticsearchSecurityException ex = expectThrows(ElasticsearchSecurityException.class, future::actionGet);
 
-        assertThat(ex.status(), equalTo(RestStatus.FORBIDDEN));
+        validateException(ex, viewName);
     }
 
     public void testAllowsViewWithoutDlsOrFls() {
@@ -111,10 +111,7 @@ public class ViewDlsFlsRequestInterceptorTests extends ESTestCase {
             Map.of(viewName, new IndicesAccessControl.IndexAccessControl(FieldPermissions.DEFAULT, DocumentPermissions.allowAll()))
         );
 
-        RequestInfo requestInfo = new RequestInfo(authentication, new SearchRequest(viewName), "indices:data/read/esql", null);
-        PlainActionFuture<Void> future = new PlainActionFuture<>();
-        interceptor.intercept(requestInfo, null, null).addListener(future);
-        future.actionGet();
+        validateNoException(interceptor, buildIndicesRequest(viewName));
     }
 
     public void testAllowsNonViewIndexWithDls() {
@@ -125,10 +122,34 @@ public class ViewDlsFlsRequestInterceptorTests extends ESTestCase {
         DocumentPermissions docPerms = DocumentPermissions.filteredBy(Set.of(new BytesArray("{\"terms\" : { \"tk1\" : [\"tv1\"] } }")));
         setAccessControl(Map.of(indexName, new IndicesAccessControl.IndexAccessControl(FieldPermissions.DEFAULT, docPerms)));
 
-        RequestInfo requestInfo = new RequestInfo(authentication, new SearchRequest(indexName), "indices:data/read/esql", null);
-        PlainActionFuture<Void> future = new PlainActionFuture<>();
-        interceptor.intercept(requestInfo, null, null).addListener(future);
-        future.actionGet();
+        validateNoException(interceptor, buildIndicesRequest(indexName));
+    }
+
+    public void testIgnoresNonIndexRequest() {
+        String viewName = "test-view";
+        ProjectMetadata projectMetadata = mockProjectMetadata(viewName);
+        ViewDlsFlsRequestInterceptor interceptor = new ViewDlsFlsRequestInterceptor(threadContext, () -> projectMetadata);
+
+        DocumentPermissions docPerms = DocumentPermissions.filteredBy(Set.of(new BytesArray("{\"terms\" : { \"tk1\" : [\"tv1\"] } }")));
+        setAccessControl(Map.of(viewName, new IndicesAccessControl.IndexAccessControl(FieldPermissions.DEFAULT, docPerms)));
+        TransportRequest request = mock(TransportRequest.class);
+
+        validateNoException(interceptor, request);
+    }
+
+    public void testIgnoresRequestWithNoResolveViews() {
+        String viewName = "test-view";
+        ProjectMetadata projectMetadata = mockProjectMetadata(viewName);
+        ViewDlsFlsRequestInterceptor interceptor = new ViewDlsFlsRequestInterceptor(threadContext, () -> projectMetadata);
+
+        DocumentPermissions docPerms = DocumentPermissions.filteredBy(Set.of(new BytesArray("{\"terms\" : { \"tk1\" : [\"tv1\"] } }")));
+        setAccessControl(Map.of(viewName, new IndicesAccessControl.IndexAccessControl(FieldPermissions.DEFAULT, docPerms)));
+        TestIndicesRequest request = buildIndicesRequest(viewName);
+
+        // override the indices options to disable resolve views, which should cause the interceptor to skip the DLS/FLS checks
+        doReturn(IndicesOptions.builder().build()).when(request).indicesOptions();
+
+        validateNoException(interceptor, request);
     }
 
     public void testMetadataContainsMultipleViewNames() {
@@ -149,15 +170,11 @@ public class ViewDlsFlsRequestInterceptorTests extends ESTestCase {
             )
         );
 
-        SearchRequest searchRequest = new SearchRequest(view1, view2);
-        RequestInfo requestInfo = new RequestInfo(authentication, searchRequest, "indices:data/read/esql", null);
+        RequestInfo requestInfo = new RequestInfo(authentication, buildIndicesRequest(view1, view2), "indices:data/read/esql", null);
         PlainActionFuture<Void> future = new PlainActionFuture<>();
         interceptor.intercept(requestInfo, null, null).addListener(future);
         ElasticsearchSecurityException ex = expectThrows(ElasticsearchSecurityException.class, future::actionGet);
-        String metadata = ex.getMetadata("es.views_with_dls_or_fls").toString();
-
-        assertThat(metadata, containsString(view1));
-        assertThat(metadata, containsString(view2));
+        validateException(ex, view1, view2);
     }
 
     public void testMixedViewsAndIndicesOnlyReportsViews() {
@@ -178,14 +195,44 @@ public class ViewDlsFlsRequestInterceptorTests extends ESTestCase {
             )
         );
 
-        SearchRequest searchRequest = new SearchRequest(viewName, indexName);
-        RequestInfo requestInfo = new RequestInfo(authentication, searchRequest, "indices:data/read/esql", null);
+        RequestInfo requestInfo = new RequestInfo(authentication, buildIndicesRequest(viewName, indexName), "indices:data/read/esql", null);
         PlainActionFuture<Void> future = new PlainActionFuture<>();
         interceptor.intercept(requestInfo, null, null).addListener(future);
         ElasticsearchSecurityException ex = expectThrows(ElasticsearchSecurityException.class, future::actionGet);
-        String metadata = ex.getMetadata("es.views_with_dls_or_fls").toString();
+        validateException(ex, viewName);
+    }
 
-        assertThat(metadata, containsString(viewName));
+    private interface TestIndicesRequest extends IndicesRequest, TransportRequest {}
+
+    private TestIndicesRequest buildIndicesRequest(String... indices) {
+        TestIndicesRequest request = mock(TestIndicesRequest.class);
+        when(request.indices()).thenReturn(indices);
+        when(request.indicesOptions()).thenReturn(
+            IndicesOptions.builder()
+                .indexAbstractionOptions(IndicesOptions.IndexAbstractionOptions.builder().resolveViews(true).build())
+                .build()
+        );
+        return request;
+    }
+
+    private void validateNoException(ViewDlsFlsRequestInterceptor interceptor, TransportRequest request) {
+        RequestInfo requestInfo = new RequestInfo(authentication, request, "indices:data/read/esql", null);
+        PlainActionFuture<Void> future = new PlainActionFuture<>();
+        interceptor.intercept(requestInfo, null, null).addListener(future);
+        future.actionGet();
+    }
+
+    private void validateException(ElasticsearchSecurityException ex, String... expectedViewNames) {
+        assertThat(ex.status(), equalTo(RestStatus.FORBIDDEN));
+        assertThat(
+            ex.getMessage(),
+            equalTo(
+                "Views with document or field level security restrictions are not supported."
+                    + " Remove DLS/FLS restrictions from the affected views in the role definition, or exclude the views from the request."
+            )
+        );
+        List<String> metadata = ex.getMetadata("es.views_with_dls_or_fls");
+        assertThat(metadata, containsInAnyOrder(expectedViewNames));
     }
 
     private void setAccessControl(Map<String, IndicesAccessControl.IndexAccessControl> indexPermissions) {

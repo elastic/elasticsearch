@@ -542,7 +542,12 @@ public final class IndicesPermission {
             }
         }
 
-        public Collection<String> resolveConcreteIndices(List<Index> failureIndices) {
+        /**
+         * Returns the collection of concrete indices that this IndexResource resolves to, including failure indices if the selector is FAILURES.
+         * In case when the IndexResource is a view, it returns the view name only.
+         * The returned collection is the one that DLS or FLS permissions need to be checked for.
+         */
+        public Collection<String> resolveConcreteIndicesAndViews(List<Index> failureIndices) {
             if (indexAbstraction == null) {
                 return List.of();
             } else if (indexAbstraction.getType() == IndexAbstraction.Type.CONCRETE_INDEX) {
@@ -566,7 +571,9 @@ public final class IndicesPermission {
         }
 
         public boolean canHaveBackingIndices() {
-            return indexAbstraction != null && indexAbstraction.getType() != IndexAbstraction.Type.CONCRETE_INDEX;
+            return indexAbstraction != null
+                && indexAbstraction.getType() != IndexAbstraction.Type.CONCRETE_INDEX
+                && indexAbstraction.getType() != IndexAbstraction.Type.VIEW;
         }
 
         public String nameWithSelector() {
@@ -648,7 +655,7 @@ public final class IndicesPermission {
             boolean granted = false;
             final String resourceName = resourceEntry.getKey();
             final IndexResource resource = resourceEntry.getValue();
-            final Collection<String> concreteIndices = resource.resolveConcreteIndices(
+            final Collection<String> concreteIndicesAndViews = resource.resolveConcreteIndicesAndViews(
                 failureIndicesByIndexResource.get(resourceEntry.getKey())
             );
             for (Group group : groups) {
@@ -660,8 +667,8 @@ public final class IndicesPermission {
                             && false == resource.isPartOfDataStream()
                             && containsPrivilegeThatGrantsMappingUpdatesForBwc(group))) {
                         granted = true;
-                        // propagate DLS and FLS permissions over the concrete indices
-                        for (String index : concreteIndices) {
+                        // propagate DLS and FLS permissions over the concrete indices and views
+                        for (String index : concreteIndicesAndViews) {
                             final Set<FieldPermissions> fieldPermissions = fieldPermissionsByIndex.compute(index, (k, existingSet) -> {
                                 if (existingSet == null) {
                                     // Most indices rely on the default (empty) field permissions object, so we optimize for that case
@@ -709,7 +716,7 @@ public final class IndicesPermission {
                 grantedResources.add(resourceName);
 
                 if (resource.canHaveBackingIndices()) {
-                    for (String concreteIndex : concreteIndices) {
+                    for (String concreteIndex : concreteIndicesAndViews) {
                         // If the name appears directly as part of the requested indices, it takes precedence over implicit access
                         if (false == requestedResources.containsKey(concreteIndex)) {
                             grantedResources.add(concreteIndex);

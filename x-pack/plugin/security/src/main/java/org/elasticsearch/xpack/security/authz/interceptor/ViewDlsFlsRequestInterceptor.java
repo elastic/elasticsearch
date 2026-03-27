@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.security.authz.interceptor;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.SubscribableListener;
@@ -18,11 +20,8 @@ import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 
 import java.util.Arrays;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.INDICES_PERMISSIONS_VALUE;
 
@@ -31,6 +30,8 @@ import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceFi
  * If so, then the request is rejected, because Views are not compatible with DLS or FLS.
  */
 public class ViewDlsFlsRequestInterceptor implements RequestInterceptor {
+    private static final Logger logger = LogManager.getLogger(ViewDlsFlsRequestInterceptor.class);
+
     private final ThreadContext threadContext;
     private final Supplier<ProjectMetadata> projectMetadataSupplier;
 
@@ -45,34 +46,49 @@ public class ViewDlsFlsRequestInterceptor implements RequestInterceptor {
         AuthorizationEngine authorizationEngine,
         AuthorizationEngine.AuthorizationInfo authorizationInfo
     ) {
-        if (requestInfo.getRequest() instanceof IndicesRequest.Replaceable indicesRequest
-            && indicesRequest.indicesOptions().indexAbstractionOptions().resolveViews()
-            && TransportActionProxy.isProxyAction(requestInfo.getAction()) == false
-            && indicesRequest.indices() != null
-            && indicesRequest.indices().length > 0) {
+        if (requestInfo.getRequest() instanceof IndicesRequest indicesRequest
+            && isInterceptorApplicable(indicesRequest, requestInfo.getAction())) {
 
             final ProjectMetadata projectMetadata = projectMetadataSupplier.get();
             List<String> requestedViews = Arrays.stream(indicesRequest.indices()).filter(projectMetadata::hasView).toList();
 
             if (requestedViews.isEmpty() == false) {
                 final IndicesAccessControl indicesAccessControl = INDICES_PERMISSIONS_VALUE.get(threadContext);
-                Set<String> indicesWithDlsOrFls = new HashSet<>(indicesAccessControl.getIndicesWithFieldOrDocumentLevelSecurity());
-                String viewsWithDlsOrFls = requestedViews.stream().filter(indicesWithDlsOrFls::contains).collect(Collectors.joining(","));
+                if (indicesAccessControl != null) {
+                    List<String> viewsWithDlsOrFls = requestedViews.stream().filter(view -> {
+                        var indexAccessControl = indicesAccessControl.getIndexPermissions(view);
+                        return indexAccessControl != null
+                            && (indexAccessControl.getFieldPermissions().hasFieldLevelSecurity()
+                                || indexAccessControl.getDocumentPermissions().hasDocumentLevelPermissions());
+                    }).toList();
 
-                if (viewsWithDlsOrFls.isEmpty() == false) {
-                    ElasticsearchSecurityException dlsFlsException = getDlsFlsException(viewsWithDlsOrFls);
-                    return SubscribableListener.newFailed(dlsFlsException);
+                    if (viewsWithDlsOrFls.isEmpty() == false) {
+                        logger.debug(
+                            "User [{}] requested views with DLS or FLS: [{}]",
+                            requestInfo.getAuthentication(),
+                            String.join(",", viewsWithDlsOrFls)
+                        );
+                        ElasticsearchSecurityException dlsFlsException = getDlsFlsException(viewsWithDlsOrFls);
+                        return SubscribableListener.newFailed(dlsFlsException);
+                    }
                 }
             }
         }
         return SubscribableListener.nullSuccess();
     }
 
-    private static ElasticsearchSecurityException getDlsFlsException(String viewsWithDlsOrFls) {
+    private boolean isInterceptorApplicable(IndicesRequest indicesRequest, String action) {
+        return indicesRequest.indicesOptions().indexAbstractionOptions().resolveViews()
+            && TransportActionProxy.isProxyAction(action) == false
+            && indicesRequest.indices() != null
+            && InterceptorUtils.mayCurrentRoleHaveDlsOrFls(threadContext);
+    }
+
+    private static ElasticsearchSecurityException getDlsFlsException(List<String> viewsWithDlsOrFls) {
         ElasticsearchSecurityException dlsFlsException = new ElasticsearchSecurityException(
-            "The request contains views on which the querying user's role has DLS/FLS restrictions applied."
-                + " Neither DLS nor FLS may be applied to views. Fix the permissions not to include the views,"
-                + " or change the query, so that it doesn't include the affected views.",
+            "Views with document or field level security restrictions are not supported."
+                + " Remove DLS/FLS restrictions from the affected views in the role definition,"
+                + " or exclude the views from the request.",
             RestStatus.FORBIDDEN
         );
         dlsFlsException.addMetadata("es.views_with_dls_or_fls", viewsWithDlsOrFls);

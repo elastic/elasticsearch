@@ -560,3 +560,77 @@ emp_no:integer | nonexistent_field:keyword
 10021          | null
 10029          | null
 ;
+
+###############################################
+# View compaction: simple alias views
+# employees_all is defined as just "FROM employees" (a simple alias).
+# The ViewResolver compacts this into the original index pattern,
+# so "FROM employees_all" should behave identically to "FROM employees".
+# But "FROM employees_all, employees" should produce duplicated results.
+###############################################
+
+compactedViewSameAsIndex
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+
+// A simple alias view should return the same document count as the underlying index
+FROM employees_all
+| STATS count=COUNT(emp_no)
+;
+
+count:long
+100
+;
+
+compactedViewWithIndexGivesTwoCopies
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+
+// FROM index, view where view is a simple alias to the same index should give two copies
+FROM employees, employees_all
+| STATS count=COUNT(emp_no)
+;
+
+count:long
+200
+;
+
+compactedViewWithViewGivesTwoCopies
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+
+// FROM view, view should only give one copy (normal Elasticsearch behaviour is to de-duplicate repeating index names)
+FROM employees_all, employees_all
+| STATS count=COUNT(emp_no)
+;
+
+count:long
+100
+;
+
+compactedNestedViewWithIndexGivesTripleCopies
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+
+// employees_extra is "FROM employees, employees_all" (200 docs after compaction).
+// FROM employees, employees_extra should give 100 + 200 = 300.
+FROM employees, employees_extra
+| STATS count=COUNT(emp_no)
+;
+
+count:long
+300
+;
+
+compactedNestedViewWithViewGivesQuadrupleCopies
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+
+// FROM employees_extra, employees_extra: each copy resolves to 200 docs, but de-duplication of same index name gives 200.
+FROM employees_extra, employees_extra
+| STATS count=COUNT(emp_no)
+;
+
+count:long
+200
+;

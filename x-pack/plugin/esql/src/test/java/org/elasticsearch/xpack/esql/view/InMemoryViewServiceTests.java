@@ -21,6 +21,8 @@ import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.NameId;
+import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Abs;
@@ -53,6 +55,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -270,7 +273,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         addView("view2", "FROM emp2");
         addIndex("view3");
         LogicalPlan plan = query("FROM view*::data");
-        assertThat(replaceViews(plan), matchesPlan(query("FROM emp1,emp2,view*::data")));
+        assertThat(replaceViews(plan), matchesPlan(query("FROM view*::data,emp1,emp2")));
     }
 
     public void testConcreteDataSelector() {
@@ -289,7 +292,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         addIndex("remote:view1");
         addView("view1", "FROM emp1");
         LogicalPlan plan = query("FROM remote:view1, view1");
-        assertThat(replaceViews(plan), matchesPlan(query("FROM emp1,remote:view1")));
+        assertThat(replaceViews(plan), matchesPlan(query("FROM remote:view1,emp1")));
     }
 
     public void testCCSWildcardNotResolvedAsView() {
@@ -320,18 +323,11 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         addView("view3", "FROM emp3 | WHERE emp.salary > 50000");
         LogicalPlan plan = query("FROM view1, view2, view3");
         LogicalPlan rewritten = replaceViews(plan);
-        // We cannot express the expected plan easily, so we check its structure instead
-        assertThat(rewritten, instanceOf(ViewUnionAll.class));
-        List<LogicalPlan> subqueries = rewritten.children();
-        assertThat(subqueries.size(), equalTo(3));
-        assertThat(
-            subqueries,
-            containsInAnyOrder(
-                matchesPlan(query("FROM emp1 | WHERE emp.age > 30")),
-                matchesPlan(query("FROM emp2 | WHERE emp.age < 40")),
-                matchesPlan(query("FROM emp3 | WHERE emp.salary > 50000"))
-            )
-        );
+        assertThat(rewritten, matchesPlan(query("""
+            FROM
+            (FROM emp1 | WHERE emp.age > 30),
+            (FROM emp2 | WHERE emp.age < 40),
+            (FROM emp3 | WHERE emp.salary > 50000)""")));
     }
 
     public void testReplaceViewsInForkMultipleBranches() {
@@ -444,7 +440,27 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         addView("view_1_2", "FROM view_1, view_2");
         addView("view_1_3", "FROM view_1, view_3");
         LogicalPlan plan = query("FROM view_1_*");
-        assertThat(replaceViews(plan), matchesPlan(query("FROM emp1,emp3,emp1,emp2")));
+        // Should rewrite in steps:
+        // FROM view_1_*
+        // FROM view_1_3, view_1_2
+        // FROM (FROM emp1,emp3), (FROM emp1,emp2)
+        assertThat(replaceViews(plan), matchesPlan(query("FROM (FROM emp1,emp3),(FROM emp1,emp2)")));
+    }
+
+    public void testReplaceViewsNestedWildcardNonOverlapping() {
+        addView("view_1", "FROM emp1");
+        addView("view_2", "FROM emp2");
+        addView("view_3", "FROM emp3");
+        addView("view_4", "FROM emp4");
+        addView("view_x1", "FROM view_1, view_2");
+        addView("view_x2", "FROM view_3, view_4");
+        LogicalPlan plan = query("FROM view_x*");
+        // Should rewrite in steps:
+        // FROM view_x*
+        // FROM view_x1, view_x2
+        // FROM (FROM emp1,emp2), (FROM emp3,emp4)
+        // FROM emp1,emp2,emp3,emp4
+        assertThat(replaceViews(plan), matchesPlan(query("FROM emp1,emp2,emp3,emp4")));
     }
 
     public void testReplaceViewsNestedWildcardWithIndex() {
@@ -455,7 +471,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         addView("view_1_2", "FROM view_1, view_2");
         addView("view_1_3", "FROM view_1, view_3");
         LogicalPlan plan = query("FROM view_1_*");
-        assertThat(replaceViews(plan), matchesPlan(query("FROM emp1,emp3,emp1,emp2,view_1_*")));
+        assertThat(replaceViews(plan), matchesPlan(query("FROM (FROM emp1,emp3,view_1_*),(FROM emp1,emp2)")));
     }
 
     public void testReplaceViewsNestedWildcards() {
@@ -469,7 +485,10 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         addView("view_3_1", "FROM view_3, view_1");
         addView("view_3_2", "FROM view_3, view_2");
         LogicalPlan plan = query("FROM view_1_*, view_2_*, view_3_*");
-        assertThat(replaceViews(plan), matchesPlan(query("FROM emp1,emp3,emp1,emp2,emp2,emp1,emp2,emp3,emp3,emp1,emp3,emp2")));
+        assertThat(replaceViews(plan), matchesPlan(query("""
+            FROM
+            (FROM emp1,emp2), (FROM emp1,emp3), (FROM emp2,emp1),
+            (FROM emp2,emp3), (FROM emp3,emp1), (FROM emp3,emp2)""")));
     }
 
     public void testReplaceViewsNestedWildcardsWithIndex() {
@@ -484,7 +503,15 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         addView("view_3_1", "FROM view_3, view_1");
         addView("view_3_2", "FROM view_3, view_2");
         LogicalPlan plan = query("FROM view_1_*, view_2_*, view_3_*");
-        assertThat(replaceViews(plan), matchesPlan(query("FROM emp1,emp3,emp1,emp2,emp2,emp1,emp2,emp3,emp3,emp1,emp3,emp2,view_2_*")));
+        LogicalPlan rewritten = replaceViews(plan);
+        assertThat(rewritten, matchesPlan(query("""
+            FROM
+            (FROM emp1,emp3,view_2_*),
+            (FROM emp1,emp2),
+            (FROM emp2,emp1),
+            (FROM emp2,emp3),
+            (FROM emp3,emp1),
+            (FROM emp3,emp2)""")));
     }
 
     public void testReplaceViewsNestedWildcardsWithIndexes() {
@@ -502,10 +529,14 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         addView("view_3_2", "FROM view_3, view_2");
         LogicalPlan plan = query("FROM view_1_*, view_2_*, view_3_*");
         LogicalPlan rewritten = replaceViews(plan);
-        assertThat(
-            rewritten,
-            matchesPlan(query("FROM emp1,emp3,emp1,emp2,emp2,emp1,emp2,emp3,emp3,emp1,emp3,emp2,view_1_*,view_2_*,view_3_*"))
-        );
+        assertThat(rewritten, matchesPlan(query("""
+            FROM
+            (FROM emp1,emp3,view_1_*,view_2_*,view_3_*),
+            (FROM emp1,emp2),
+            (FROM emp2,emp1),
+            (FROM emp2,emp3),
+            (FROM emp3,emp1),
+            (FROM emp3,emp2)""")));
     }
 
     public void testReplaceViewsNestedPlansWildcard() {
@@ -550,8 +581,8 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         assertThat(rewritten, instanceOf(ViewUnionAll.class));
         List<LogicalPlan> subqueries = rewritten.children();
         assertThat(subqueries.size(), equalTo(3));
-        assertThat(subqueries.getFirst(), matchesPlan(query("FROM view_1_*")));
-        for (LogicalPlan child : subqueries.subList(1, 3)) {
+        assertThat(subqueries.getLast(), matchesPlan(query("FROM view_1_*")));
+        for (LogicalPlan child : subqueries.subList(0, 2)) {
             child = (child instanceof Subquery subquery) ? subquery.child() : child;
             assertThat(child, instanceOf(ViewUnionAll.class));
             List<LogicalPlan> subchildren = child.children();
@@ -663,12 +694,15 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
     }
 
     public void testNonCircularViewInMultiSource() {
+        assumeTrue("Requires views with branching support", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
         addView("view_a", "FROM emp");
         addView("view_b", "FROM view_c");
         addView("view_c", "FROM view_a");
         // view_b -> view_c -> view_a -> emp is a valid chain, not circular.
         // view_a appearing as both a direct source and a transitive dependency of view_b is fine.
-        assertThat(replaceViews(query("FROM view_a, view_b")), matchesPlan(query("FROM emp,emp")));
+        // Both resolve to UR("emp") but are kept as separate branches (not merged into "emp,emp")
+        // because IndexResolution would deduplicate a single "emp,emp" relation, losing the duplicate.
+        assertThat(replaceViews(query("FROM view_a, view_b")), matchesPlan(query("FROM (FROM emp),(FROM emp)")));
     }
 
     public void testCircularViewWithPipes() {
@@ -730,7 +764,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         addView("wired_otel_query", "FROM wired_otel");
 
         LogicalPlan plan = query("FROM wired_otel_*");
-        assertThat(replaceViews(plan), matchesPlan(query("FROM idx_otel_linux,idx_otel_linux,idx_otel")));
+        assertThat(replaceViews(plan), matchesPlan(query("FROM (FROM idx_otel_linux),(FROM idx_otel,idx_otel_linux)")));
     }
 
     public void testModifiedViewDepth() {
@@ -859,7 +893,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         addView("view1", "FROM emp");
         try {
             LogicalPlan plan = query("FROM <logs-{now/d{yyyy.MM.dd}}>, view1");
-            assertThat(replaceViews(plan), matchesPlan(query("FROM emp,<logs-{now/d{yyyy.MM.dd}}>")));
+            assertThat(replaceViews(plan), matchesPlan(query("FROM <logs-{now/d{yyyy.MM.dd}}>,emp")));
         } catch (AssertionError e) {
             assumeTrue("Date must stay the same during the test", Objects.equals(date, LocalDate.ofInstant(Instant.now(), ZoneOffset.UTC)));
             throw e;
@@ -874,7 +908,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         addView("view2", "FROM emp2");
         try {
             LogicalPlan plan = query("FROM <logs-{now/d{yyyy.MM.dd}}>, view*");
-            assertThat(replaceViews(plan), matchesPlan(query("FROM emp1,emp2,<logs-{now/d{yyyy.MM.dd}}>")));
+            assertThat(replaceViews(plan), matchesPlan(query("FROM <logs-{now/d{yyyy.MM.dd}}>,emp1,emp2")));
         } catch (AssertionError e) {
             assumeTrue("Date must stay the same during the test", Objects.equals(date, LocalDate.ofInstant(Instant.now(), ZoneOffset.UTC)));
             throw e;
@@ -1055,7 +1089,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         // The names should match the correct sub-plans
         ViewUnionAll namedUnionAll = (ViewUnionAll) rewritten;
         for (Map.Entry<String, LogicalPlan> entry : namedUnionAll.namedSubqueries().entrySet()) {
-            if (entry.getKey() == null) {
+            if (entry.getKey() == null || entry.getKey().equals("main")) {
                 assertThat(entry.getValue(), matchesPlan(query("FROM emp5, emp4, emp3, emp2")));
             } else if (entry.getKey().equals("my_view1")) {
                 assertThat(entry.getValue(), matchesPlan(query("FROM emp1 | WHERE emp.age > 30")));
@@ -1063,6 +1097,64 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
                 fail("Unexpected named sub-plan: " + entry);
             }
         }
+    }
+
+    public void testCompactionWithRepeatingView() {
+        assumeTrue("Requires views with branching support", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
+        addView("view1", "FROM emp1");
+        addView("view2", "FROM emp1, emp1");
+        addIndex("emp1");
+        // Tests with view containing single index
+        assertThat(replaceViews(query("FROM view1")), matchesPlan(query("FROM emp1")));
+        assertThat(replaceViews(query("FROM view1,view1")), matchesPlan(query("FROM emp1")));
+        assertThat(replaceViews(query("FROM view1, view1, view1, view1")), matchesPlan(query("FROM emp1")));
+        assertThat(replaceViews(query("FROM emp1,view1")), matchesPlan(query("FROM emp1, (FROM emp1)")));
+        assertThat(replaceViews(query("FROM view1, emp1")), matchesPlan(query("FROM (FROM emp1), emp1")));
+        assertThat(replaceViews(query("FROM emp1, view1, emp1")), matchesPlan(query("FROM emp1, (FROM emp1), emp1")));
+        assertThat(replaceViews(query("FROM emp1, view1, emp1, emp1")), matchesPlan(query("FROM emp1, (FROM emp1), emp1, emp1")));
+        // Tests with view containing repeating index
+        assertThat(replaceViews(query("FROM view2")), matchesPlan(query("FROM emp1,emp1")));
+        assertThat(replaceViews(query("FROM view2,view2")), matchesPlan(query("FROM emp1,emp1")));
+        assertThat(replaceViews(query("FROM view2, view2, view2, view2")), matchesPlan(query("FROM emp1,emp1")));
+        assertThat(replaceViews(query("FROM emp1,view2")), matchesPlan(query("FROM emp1, (FROM emp1,emp1)")));
+        assertThat(replaceViews(query("FROM view2, emp1")), matchesPlan(query("FROM (FROM emp1,emp1), emp1")));
+        assertThat(replaceViews(query("FROM emp1, view2, emp1")), matchesPlan(query("FROM emp1, (FROM emp1, emp1), emp1")));
+        assertThat(replaceViews(query("FROM emp1, view2, emp1, emp1")), matchesPlan(query("FROM emp1, (FROM emp1, emp1), emp1, emp1")));
+    }
+
+    // Test designed to mimic the test csv-spec:views.compactedNestedViewWithIndexGivesTripleCopies
+    public void testCompactedNestedRepeating() {
+        assumeTrue("Requires views with branching support", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
+        addView("employees_all", "FROM employees");
+        addView("employees_extra", "FROM employees, employees_all");
+        addIndex("employees");
+        assertThat(replaceViews(query("FROM employees_all")), matchesPlan(query("FROM employees")));
+        assertThat(
+            replaceViews(query("FROM employees_all | STATS count=COUNT()")),
+            matchesPlan(query("FROM employees | STATS count=COUNT()"))
+        );
+        assertThat(
+            replaceViews(query("FROM employees, employees_all | STATS count=COUNT()")),
+            matchesPlan(query("FROM employees, (FROM employees) | STATS count=COUNT()"))
+        );
+        assertThat(
+            replaceViews(query("FROM employees_all, employees_all | STATS count=COUNT()")),
+            matchesPlan(query("FROM employees | STATS count=COUNT()"))
+        );
+        assertThat(
+            replaceViews(query("FROM employees_extra | STATS count=COUNT()")),
+            matchesPlan(query("FROM employees, (FROM employees) | STATS count=COUNT()"))
+        );
+        // Nested ViewUnionAlls that only contain UnresolvedRelations are flattened into the parent,
+        // so the nested structure is eliminated and each UR becomes a separate branch.
+        assertThat(
+            replaceViews(query("FROM employees, employees_extra | STATS count=COUNT()")),
+            matchesPlan(query("FROM employees, (FROM employees), (FROM employees) | STATS count=COUNT()"))
+        );
+        assertThat(
+            replaceViews(query("FROM employees_extra | STATS count=COUNT()")),
+            matchesPlan(query("FROM employees, (FROM employees) | STATS count=COUNT()"))
+        );
     }
 
     /**
@@ -1420,33 +1512,73 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
             .plan();
     }
 
+    /**
+     * Matcher that finds equivalence between views-based plans and sub-query based plans.
+     * It currently ignores superfluous Subquery nodes and matches ViewUnionAll and UnionAll based
+     * on sorting children.
+     * If we fixed subquery parsing we could skip the sorting of children, and assert on child order too.
+     */
     private static Matcher<LogicalPlan> matchesPlan(LogicalPlan plan) {
         return new TestLogicalPlanEqualTo(plan);
     }
 
     private static class TestLogicalPlanEqualTo extends BaseMatcher<LogicalPlan> {
 
-        private final LogicalPlan plan;
+        private final LogicalPlan expected;
 
-        private TestLogicalPlanEqualTo(LogicalPlan plan) {
-            this.plan = (plan instanceof Subquery subquery) ? subquery.child() : plan;
+        private TestLogicalPlanEqualTo(LogicalPlan expected) {
+            this.expected = normalize(expected);
+        }
+
+        /**
+         * Normalize view-based and sub-query based plans to the same structure, for easier comparison.
+         * If Subqueries did not sort concrete indexes first and did not add superfluous Subquery nodes
+         * we could simplify this a lot.
+         * We also rewrite Alias name-ids to 0 because some queries will have different ids due to differences
+         * in the way subqueries and views are processed.
+         */
+        private static LogicalPlan normalize(LogicalPlan plan) {
+            // Transform up, to remove Subquery from children before sorting them
+            return plan.transformUp(LogicalPlan.class, p -> switch (p) {
+                // UnionAll here covers also ViewUnionAll, because we need to sort children of both
+                case UnionAll v -> new UnionAll(v.source(), sortedChildren(v.children()), v.output());
+                case Subquery s -> s.child(); // TODO: Remove Subquery node from subquery parsing
+                default -> p.transformExpressionsDown(Alias.class, a -> a.withId(new NameId(0)));
+            });
+        }
+
+        /**
+         * Unfortunately the sub-query parser at LogicalPlanBuilder.visitRelation sorts indexes before subqueries,
+         * so we need to make child sorting common here too.
+         * TODO: Preferably change the subquery parsing to not sort like this.
+         */
+        private static List<LogicalPlan> sortedChildren(List<LogicalPlan> children) {
+            return children.stream().sorted(Comparator.comparing(Node::toString)).toList();
         }
 
         @Override
         public boolean matches(Object o) {
             if (o instanceof LogicalPlan other) {
-                LogicalPlan otherPlan = (other instanceof Subquery subquery) ? subquery.child() : other;
-                return plan.toString().equals(otherPlan.toString());
+                return expected.toString().equals(normalize(other).toString());
             }
             return false;
         }
 
         @Override
         public void describeTo(Description description) {
-            if (plan != null) {
-                description.appendText(plan.toString());
+            if (expected != null) {
+                description.appendText(expected.toString());
             } else {
                 description.appendText("null");
+            }
+        }
+
+        @Override
+        public void describeMismatch(Object item, Description description) {
+            if (item instanceof LogicalPlan other) {
+                description.appendText("was ").appendValue(normalize(other));
+            } else {
+                description.appendText("was ").appendValue(item);
             }
         }
     }

@@ -35,12 +35,14 @@ import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.BiFunction;
 import java.util.function.Predicate;
 
@@ -123,10 +125,17 @@ public class ViewResolver {
             return;
         }
         replaceViews(plan, parser, new LinkedHashSet<>(), viewQueries, 0, listener.delegateFailureAndWrap((l, rewritten) -> {
-            LogicalPlan postProcessed = rewriteUnionAllsWithNamedSubqueries(rewritten);
-            postProcessed = compactNestedViewUnionAlls(postProcessed);
-            postProcessed = postProcessed.transformDown(NamedSubquery.class, UnaryPlan::child);
-            listener.onResponse(new ViewResolutionResult(postProcessed, viewQueries));
+            try {
+                LogicalPlan postProcessed = rewriteUnionAllsWithNamedSubqueries(rewritten);
+                postProcessed = compactNestedViewUnionAlls(postProcessed);
+                postProcessed = postProcessed.transformDown(NamedSubquery.class, UnaryPlan::child);
+                listener.onResponse(new ViewResolutionResult(postProcessed, viewQueries));
+            } catch (Error e) {
+                // The ActionListener framework only catches Exception, not Error. An uncaught Error
+                // (e.g. AssertionError) inside a listener callback kills the thread without notifying
+                // the listener, causing callers to hang indefinitely. Wrap and forward as a failure.
+                listener.onFailure(new IllegalStateException("View post-processing failed", e));
+            }
         }));
     }
 
@@ -240,7 +249,7 @@ public class ViewResolver {
                 return;
             }
 
-            final List<ViewPlan> subqueries = new ArrayList<>();
+            final HashMap<String, ViewPlan> resolvedViews = new HashMap<>();
             final LinkedHashSet<String> ancestorViews = new LinkedHashSet<>(seenViews);
             SubscribableListener<Void> chain = SubscribableListener.newForked(l2 -> l2.onResponse(null));
             for (var view : response.views()) {
@@ -256,25 +265,62 @@ public class ViewResolver {
                         viewQueries,
                         depth + 1,
                         l2.delegateFailureAndWrap((l3, fullyResolved) -> {
-                            subqueries.add(new ViewPlan(view.name(), fullyResolved));
+                            ViewPlan viewPlan = new ViewPlan(view.name(), fullyResolved);
+                            resolvedViews.put(view.name(), viewPlan);
                             l3.onResponse(null);
                         })
                     );
                 });
             }
             chain.andThenApply(ignored -> {
-                var unresolvedPatterns = buildUnresolvedPatterns(response, seenViews, patterns);
-                if (unresolvedPatterns.isEmpty() && subqueries.size() == 1) {
-                    // Only one view resolved with no remaining index patterns - return its plan directly.
-                    return subqueries.getFirst().plan();
+                try {
+                    var unresolvedPatterns = buildUnresolvedPatterns(response, seenViews, patterns);
+                    if (unresolvedPatterns.isEmpty() && resolvedViews.size() == 1) {
+                        // Only one view resolved with no remaining index patterns - return its plan directly.
+                        return resolvedViews.values().iterator().next().plan();
+                    }
+                    // We try to keep the order of indexes and sub-queries as close to the original order as possible
+                    List<ViewPlan> subqueries = buildOrderedSubqueries(unresolvedRelation, patterns, unresolvedPatterns, resolvedViews);
+                    return buildPlanFromBranches(unresolvedRelation, subqueries, depth);
+                } catch (Error e) {
+                    // andThenApply only catches Exception; an uncaught Error kills the thread silently.
+                    throw new IllegalStateException("View branch construction failed", e);
                 }
-                if (unresolvedPatterns.isEmpty() == false) {
-                    // We have non-view indexes, so we need an UnresolvedRelation for them too
-                    subqueries.add(createUnresolvedRelationPlan(unresolvedRelation, unresolvedPatterns));
-                }
-                return buildPlanFromBranches(unresolvedRelation, subqueries, depth);
             }).addListener(listener);
         }));
+    }
+
+    private List<ViewPlan> buildOrderedSubqueries(
+        UnresolvedRelation unresolvedRelation,
+        String[] patterns,
+        List<String> unresolvedPatterns,
+        HashMap<String, ViewPlan> resolvedViews
+    ) {
+        // We try to keep the order if indexes and sub-queries as close to the original order as possible
+        LinkedHashMap<String, ViewPlan> orderedPlans = new LinkedHashMap<>();
+        for (String pattern : patterns) {
+            if (Regex.isSimpleMatchPattern(pattern)) {
+                // If a view was resolved from a wildcard, position it before that wildcard in the subquery order
+                for (Map.Entry<String, ViewPlan> entry : resolvedViews.entrySet()) {
+                    if (Regex.simpleMatch(pattern, entry.getKey())) {
+                        orderedPlans.put(entry.getKey(), entry.getValue());
+                    }
+                }
+            }
+            orderedPlans.put(pattern, resolvedViews.get(pattern));
+        }
+        for (Map.Entry<String, ViewPlan> entry : resolvedViews.entrySet()) {
+            // Any remaining review resolutions are added to the end
+            orderedPlans.put(entry.getKey(), entry.getValue());
+        }
+        if (unresolvedPatterns.isEmpty() == false) {
+            // We have non-view indexes, so we need an UnresolvedRelation for them too
+            orderedPlans.put(
+                unresolvedPatterns.getFirst(),  // Position them at the position of the first pattern
+                createUnresolvedRelationPlan(unresolvedRelation, unresolvedPatterns)
+            );
+        }
+        return orderedPlans.values().stream().filter(Objects::nonNull).toList();
     }
 
     private void validateViewReferenceAndMarkSeen(String viewName, LinkedHashSet<String> seenViews) {
@@ -389,41 +435,74 @@ public class ViewResolver {
     record ViewPlan(String name, LogicalPlan plan) {}
 
     private LogicalPlan buildPlanFromBranches(UnresolvedRelation ur, List<ViewPlan> subqueries, int depth) {
-        List<UnresolvedRelation> unresolvedRelations = new ArrayList<>();
         LinkedHashMap<String, LogicalPlan> otherPlans = new LinkedHashMap<>();
+        String firstUnresolved = null;
         for (ViewPlan lp : subqueries) {
+            // We need unique keys to handle repeated plans
+            String name = makeUniqueKey(otherPlans, lp.name);
             if (lp.plan instanceof UnresolvedRelation urp && urp.indexMode() == IndexMode.STANDARD) {
-                unresolvedRelations.add(urp);
+                if (firstUnresolved == null) {
+                    firstUnresolved = name;
+                    otherPlans.put(name, urp);
+                } else {
+                    // try to merge the current unresolved with the first one we found
+                    UnresolvedRelation merged = mergeIfPossible((UnresolvedRelation) otherPlans.get(firstUnresolved), urp);
+                    if (merged != null) {
+                        // If merge succeeded, replace
+                        otherPlans.put(firstUnresolved, merged);
+                    } else {
+                        // Otherwise add as a new named subplan
+                        otherPlans.put(name, new NamedSubquery(urp.source(), urp, name));
+                    }
+                }
             } else if (lp.plan instanceof NamedSubquery namedSubquery) {
                 assert namedSubquery.name().equals(lp.name);
                 assert otherPlans.containsKey(lp.name) == false;
-                otherPlans.put(lp.name, lp.plan);
+                otherPlans.put(lp.name, namedSubquery);
             } else {
                 assert otherPlans.containsKey(lp.name) == false;
                 otherPlans.put(lp.name, new NamedSubquery(ur.source(), lp.plan, lp.name));
             }
-        }
-        if (unresolvedRelations.isEmpty() == false) {
-            List<String> mergedIndexes = new ArrayList<>();
-            for (UnresolvedRelation r : unresolvedRelations) {
-                mergedIndexes.add(r.indexPattern().indexPattern());
-            }
-            UnresolvedRelation mergedUnresolved = new UnresolvedRelation(
-                ur.source(),
-                new IndexPattern(ur.indexPattern().source(), String.join(",", mergedIndexes)),
-                ur.frozen(),
-                ur.metadataFields(),
-                ur.indexMode(),
-                ur.unresolvedMessage()
-            );
-            assert otherPlans.containsKey(null) == false;
-            otherPlans.putFirst(null, mergedUnresolved);
         }
         if (otherPlans.size() == 1) {
             return otherPlans.values().stream().findFirst().get();
         }
         traceUnionAllBranches(depth, otherPlans);
         return new ViewUnionAll(ur.source(), otherPlans, List.of());
+    }
+
+    private String makeUniqueKey(LinkedHashMap<String, LogicalPlan> otherPlans, String key) {
+        if (key == null) {
+            key = "main";
+        }
+        String original = key;
+        int counter = 2;
+        while (otherPlans.containsKey(key)) {
+            key = original + "(" + counter++ + ")";
+        }
+        return key;
+    }
+
+    /** Merge the unresolved relation unless the index patterns are the same */
+    private UnresolvedRelation mergeIfPossible(UnresolvedRelation main, UnresolvedRelation other) {
+        boolean duplicate = false;
+        for (String mainPattern : main.indexPattern().indexPattern().split("\\s*,\\s*")) {
+            for (String otherPattern : other.indexPattern().indexPattern().split("\\s*,\\s*")) {
+                duplicate = duplicate || mainPattern.equals(otherPattern);
+            }
+        }
+        if (duplicate) {
+            // Could not be merged, fail this attempt (will cause the UnresolvedRelation to remain inside a subquery).
+            return null;
+        }
+        return new UnresolvedRelation(
+            main.source(),
+            new IndexPattern(main.indexPattern().source(), main.indexPattern().indexPattern() + "," + other.indexPattern().indexPattern()),
+            main.frozen(),
+            main.metadataFields(),
+            main.indexMode(),
+            main.unresolvedMessage()
+        );
     }
 
     /**
@@ -445,15 +524,17 @@ public class ViewResolver {
             if (unionAll instanceof ViewUnionAll) {
                 return unionAll;
             }
+            // Only convert if this UnionAll contains at least one NamedSubquery child
+            boolean hasNamedSubqueries = unionAll.children().stream().anyMatch(c -> c instanceof NamedSubquery);
+            if (hasNamedSubqueries == false) {
+                return unionAll;
+            }
             LinkedHashMap<String, LogicalPlan> subPlans = new LinkedHashMap<>();
-            boolean hasNamedSubqueries = false;
             for (LogicalPlan child : unionAll.children()) {
                 if (child instanceof NamedSubquery named) {
                     assert subPlans.containsKey(named.name()) == false;
                     subPlans.put(named.name(), named.child());
-                    hasNamedSubqueries = true;
                 } else if (child instanceof Subquery unnamed) {
-                    // This named subquery is only maintained if it exists together with a named subquery
                     String name = "unnamed_view_" + Integer.toHexString(unnamed.toString().hashCode());
                     assert subPlans.containsKey(name) == false;
                     subPlans.put(name, unnamed.child());
@@ -462,10 +543,7 @@ public class ViewResolver {
                     subPlans.put(null, child);
                 }
             }
-            if (hasNamedSubqueries) {
-                unionAll = new ViewUnionAll(unionAll.source(), subPlans, unionAll.output());
-            }
-            return unionAll;
+            return new ViewUnionAll(unionAll.source(), subPlans, unionAll.output());
         });
         return plan;
     }
@@ -499,31 +577,37 @@ public class ViewResolver {
     }
 
     private static LogicalPlan tryFlattenViewUnionAll(ViewUnionAll vua) {
-        // Trial pass: collect all entries from full flattening and check for conflicts
+        // Trial pass: collect all entries from full flattening and check for conflicts.
+        // Inner ViewUnionAlls that only contain UnresolvedRelations are lifted into the parent,
+        // eliminating nesting that the runtime doesn't yet support.
         LinkedHashMap<String, LogicalPlan> flat = new LinkedHashMap<>();
-        List<UnresolvedRelation> indexPatternURs = new ArrayList<>();
         boolean hasInnerVua = false;
 
         for (Map.Entry<String, LogicalPlan> entry : vua.namedSubqueries().entrySet()) {
             String key = entry.getKey();
             LogicalPlan value = entry.getValue();
 
+            // Identify bare UnresolvedRelation entries by value type, not by null key,
+            // because makeUniqueKey may have assigned them a synthetic key like "main".
             LogicalPlan inner = (value instanceof NamedSubquery ns) ? ns.child() : value;
-            if (key != null && inner instanceof ViewUnionAll innerVua) {
+            if (inner instanceof ViewUnionAll innerVua) {
                 hasInnerVua = true;
                 for (Map.Entry<String, LogicalPlan> innerEntry : innerVua.namedSubqueries().entrySet()) {
-                    if (innerEntry.getKey() == null && innerEntry.getValue() instanceof UnresolvedRelation innerUr) {
-                        indexPatternURs.add(innerUr);
-                    } else if (innerEntry.getKey() != null && flat.containsKey(innerEntry.getKey())) {
+                    String innerKey = makeUniqueFlatKey(flat, innerEntry.getKey());
+                    if (innerEntry.getValue() instanceof UnresolvedRelation) {
+                        // Lift bare URs from the inner VUA into the parent — keeps them as separate
+                        // branches so IndexResolution resolves each independently (preserving duplicates).
+                        flat.put(innerKey, innerEntry.getValue());
+                    } else if (flat.containsKey(innerEntry.getKey())) {
                         return vua; // conflict: duplicate named entry across siblings, abort
                     } else {
                         flat.put(innerEntry.getKey(), innerEntry.getValue());
                     }
                 }
-            } else if (key == null && value instanceof UnresolvedRelation ur) {
-                indexPatternURs.add(ur);
+            } else if (value instanceof UnresolvedRelation) {
+                flat.put(makeUniqueFlatKey(flat, key), value);
             } else {
-                if (key != null && flat.containsKey(key)) {
+                if (flat.containsKey(key)) {
                     return vua; // conflict
                 }
                 flat.put(key, value);
@@ -534,9 +618,8 @@ public class ViewResolver {
             return vua;
         }
 
-        if (indexPatternURs.isEmpty() == false) {
-            flat.putFirst(null, mergeUnresolvedRelations(indexPatternURs));
-        }
+        // Try to merge all UR entries into a single one, unless there are duplicates
+        mergeUnresolvedRelationEntries(flat);
 
         if (flat.size() == 1) {
             return flat.values().iterator().next();
@@ -544,8 +627,70 @@ public class ViewResolver {
         return new ViewUnionAll(vua.source(), flat, vua.output());
     }
 
-    private static UnresolvedRelation mergeUnresolvedRelations(List<UnresolvedRelation> unresolvedRelations) {
-        UnresolvedRelation template = unresolvedRelations.getFirst();
+    /**
+     * Generate a unique key for the flat map, avoiding collisions with existing entries.
+     */
+    private static String makeUniqueFlatKey(LinkedHashMap<String, LogicalPlan> flat, String key) {
+        if (key == null) {
+            key = "main";
+        }
+        if (flat.containsKey(key) == false) {
+            return key;
+        }
+        String original = key;
+        int counter = 2;
+        while (flat.containsKey(key)) {
+            key = original + "(" + counter++ + ")";
+        }
+        return key;
+    }
+
+    /**
+     * Merge all bare UnresolvedRelation entries in the map into a single entry, unless doing so
+     * would create duplicate index patterns (which IndexResolution would deduplicate, losing data).
+     * When duplicates exist, the URs are kept as separate entries.
+     */
+    private static void mergeUnresolvedRelationEntries(LinkedHashMap<String, LogicalPlan> flat) {
+        List<String> urKeys = new ArrayList<>();
+        List<UnresolvedRelation> urs = new ArrayList<>();
+        for (Map.Entry<String, LogicalPlan> entry : flat.entrySet()) {
+            if (entry.getValue() instanceof UnresolvedRelation ur) {
+                urKeys.add(entry.getKey());
+                urs.add(ur);
+            }
+        }
+        if (urs.size() <= 1 || hasPatternDuplicates(urs)) {
+            return; // nothing to merge, or merging would lose duplicates
+        }
+        // Remove individual UR entries and replace with a single merged one
+        for (String key : urKeys) {
+            flat.remove(key);
+        }
+        flat.putFirst("main", mergeUnresolvedRelations(urs));
+    }
+
+    /**
+     * Checks whether the list of UnresolvedRelations contains any whose complete index pattern
+     * is a duplicate of another's. Individual index names within different patterns may overlap
+     * (e.g. "emp1,emp2" and "emp1,emp3" share "emp1") — that is fine because each UR is resolved
+     * independently. We only prevent merging when the entire pattern string repeats, because
+     * IndexResolution would deduplicate "employees,employees" into a single "employees".
+     */
+    private static boolean hasPatternDuplicates(Collection<UnresolvedRelation> unresolvedRelations) {
+        HashSet<String> seen = new HashSet<>();
+        for (UnresolvedRelation ur : unresolvedRelations) {
+            if (seen.add(ur.indexPattern().indexPattern()) == false) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static UnresolvedRelation mergeUnresolvedRelations(Collection<UnresolvedRelation> unresolvedRelations) {
+        UnresolvedRelation template = unresolvedRelations.iterator().next();
+        if (unresolvedRelations.size() == 1) {
+            return template;
+        }
         List<String> patterns = new ArrayList<>();
         for (UnresolvedRelation ur : unresolvedRelations) {
             patterns.add(ur.indexPattern().indexPattern());

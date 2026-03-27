@@ -52,6 +52,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 
+import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -76,19 +77,21 @@ public class DataStreamLifecycleConvertToFrozen implements DlmFrozenTransitionRu
     private final Client client;
     private final ClusterService clusterService;
     private final XPackLicenseState licenseState;
+    private final Clock clock;
 
     public DataStreamLifecycleConvertToFrozen(
         String indexName,
-        ProjectId projectId,
-        Client client,
+       ProjectId projectId, Client client,
         ClusterService clusterService,
-        XPackLicenseState licenseState
+        XPackLicenseState licenseState,
+        Clock clock
     ) {
         this.indexName = indexName;
         this.projectId = projectId;
         this.client = client;
         this.clusterService = clusterService;
         this.licenseState = licenseState;
+        this.clock = clock;
     }
 
     /**
@@ -117,6 +120,8 @@ public class DataStreamLifecycleConvertToFrozen implements DlmFrozenTransitionRu
      * exception or an unacknowledged response from the cluster.
      */
     public void maybeMarkIndexReadOnly() {
+        checkIfThreadInterrupted();
+        isEligibleForConvertToFrozen();
         if (isIndexReadOnly()) {
             logger.debug("Index [{}] is already marked as read-only, skipping to clone step", indexName);
             return;
@@ -146,6 +151,8 @@ public class DataStreamLifecycleConvertToFrozen implements DlmFrozenTransitionRu
      * the original index (if it has 0 replicas), or a newly created clone.
      */
     String maybeCloneIndex() {
+        checkIfThreadInterrupted();
+        isEligibleForConvertToFrozen();
         if (isCloneNeeded() == false) {
             return getIndexForForceMerge();
         }
@@ -241,7 +248,8 @@ public class DataStreamLifecycleConvertToFrozen implements DlmFrozenTransitionRu
     }
 
     public void maybeMountSearchableSnapshot() {
-
+        checkIfThreadInterrupted();
+        isEligibleForConvertToFrozen();
     }
 
     private boolean isIndexReadOnly() {
@@ -290,9 +298,10 @@ public class DataStreamLifecycleConvertToFrozen implements DlmFrozenTransitionRu
     /**
      * Public for testing only.
      * Checks whether the necessary conditions are met to proceed with the convert-to-frozen steps.
-     * Throws an exception if the license does not allow searchable snapshots,
-     * and returns false if the index or repository are no longer present in the project metadata.
-     * @return true if the convert-to-frozen steps can proceed, false if they should be skipped due to missing index or repository
+     * Throws an exception if the license does not allow searchable snapshots.
+     * Throws a {@link DlmUnrecoverableException} if the repository is not configured or no longer registered.
+     * @return true if the convert-to-frozen steps can proceed, false if they should be skipped due to a missing index
+     * @throws DlmUnrecoverableException if the snapshot repository is not configured or no longer registered
      * @throws org.elasticsearch.ElasticsearchSecurityException if the license does not allow searchable snapshots
      */
     boolean isEligibleForConvertToFrozen() {
@@ -304,9 +313,9 @@ public class DataStreamLifecycleConvertToFrozen implements DlmFrozenTransitionRu
 
         final String repositoryName = getRepositoryForFrozen(projectMetadata, indexName);
         if (Strings.hasText(repositoryName) == false) {
-            logger.debug("Default repository not configured, skipping convert-to-frozen steps for index [{}]", indexName);
-            throw new ElasticsearchException(
-                "Default repository is required for convert-to-frozen steps but is not configured for index " + indexName
+            throw new DlmUnrecoverableException(
+                "Default repository is required for convert-to-frozen steps but is not configured for index [{}]",
+                indexName
             );
         }
         boolean repoIsRegistered = RepositoriesMetadata.get(getProjectState().metadata())
@@ -314,12 +323,11 @@ public class DataStreamLifecycleConvertToFrozen implements DlmFrozenTransitionRu
             .stream()
             .anyMatch(repositoryMetadata -> repositoryMetadata.name().equals(repositoryName));
         if (repoIsRegistered == false) {
-            logger.debug(
-                "Repository [{}] required for convert-to-frozen steps is not registered in project [{}], skipping convert-to-frozen steps",
+            throw new DlmUnrecoverableException(
+                "Repository [{}] required for convert-to-frozen steps is no longer registered in project [{}]",
                 repositoryName,
                 projectId
             );
-            return false;
         }
 
         if (SEARCHABLE_SNAPSHOT_FEATURE.checkWithoutTracking(licenseState) == false) {
@@ -529,12 +537,21 @@ public class DataStreamLifecycleConvertToFrozen implements DlmFrozenTransitionRu
         return indexName;
     }
 
+    private ProjectState getProjectState() {
+        return clusterService.state().projectState(projectId);
+    }
+
+    /**
+     * Checks if the current thread has been interrupted and, if so, throws an {@link ElasticsearchException}
+     * wrapping an {@link InterruptedException}. This allows long-running multi-step operations to detect
+     * interrupts quickly at the beginning of each step rather than waiting for a blocking call to fail.
+     */
+    private static void checkIfThreadInterrupted() {
+        if (Thread.currentThread().isInterrupted()) {
+            throw new ElasticsearchException("DLM operation interrupted", new InterruptedException("Thread was interrupted"));
+        }
     @Override
     public ProjectId getProjectId() {
         return projectId;
-    }
-
-    private ProjectState getProjectState() {
-        return clusterService.state().projectState(projectId);
     }
 }

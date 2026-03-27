@@ -359,7 +359,7 @@ public class DataStreamLifecycleConvertToFrozenMarkReadOnlyTests extends ESTestC
         assertThat(converter.isEligibleForConvertToFrozen(), is(false));
     }
 
-    public void testIsEligibleReturnsFalseWhenRepositoryIsNotRegistered() {
+    public void testIsEligibleThrowsWhenRepositoryIsNotRegistered() {
         // Create project state with the index but without the repository registered
         String repoName = "my-repo";
         createProjectStateWithRepo(repoName, false);
@@ -372,7 +372,11 @@ public class DataStreamLifecycleConvertToFrozenMarkReadOnlyTests extends ESTestC
             licenseState
         );
 
-        assertThat(converter.isEligibleForConvertToFrozen(), is(false));
+        DlmUnrecoverableException exception = expectThrows(
+            DlmUnrecoverableException.class,
+            converter::isEligibleForConvertToFrozen
+        );
+        assertThat(exception.getMessage(), containsString(repoName));
     }
 
     public void testIsEligibleThrowsWhenLicenseDoesNotAllowSearchableSnapshots() {

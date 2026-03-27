@@ -1185,7 +1185,7 @@ public class EsqlSession {
                 Map.of(indexName, IndexMode.LOOKUP),
                 Map.of(),
                 Map.of(),
-                Set.of()
+                Map.of()
             );
             return IndexResolution.valid(newIndex, newIndex.concreteQualifiedIndices(), lookupIndexResolution.failures());
         }

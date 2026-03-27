@@ -35,11 +35,13 @@ import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -67,7 +69,11 @@ import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
+import org.elasticsearch.index.mapper.MapperMergeContext;
+import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.MappingParser;
 import org.elasticsearch.index.mapper.MappingParserContext;
+import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.StringFieldType;
 import org.elasticsearch.index.mapper.TextParams;
@@ -84,21 +90,26 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.function.Function;
 
 import static org.elasticsearch.index.IndexSettings.IGNORE_ABOVE_SETTING;
+import static org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper.RootFlattenedFieldType.toSubFieldLoaders;
 
 /**
  * A field mapper that accepts a JSON object and flattens it into a single field. This data type
@@ -131,6 +142,8 @@ public final class FlattenedFieldMapper extends FieldMapper {
     public static final String KEYED_FIELD_SUFFIX = "._keyed";
     public static final String KEYED_IGNORED_VALUES_FIELD_SUFFIX = "._keyed._ignored";
     public static final String TIME_SERIES_DIMENSIONS_ARRAY_PARAM = "time_series_dimensions";
+
+    public static final NodeFeature FLATTENED_MAPPED_SUBFIELDS_FEATURE = new NodeFeature("mapper.flattened.mapped_subfields");
 
     private static class Defaults {
         public static final int DEPTH_LIMIT = 20;
@@ -202,6 +215,8 @@ public final class FlattenedFieldMapper extends FieldMapper {
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
+        private final Parameter<Map<String, FieldMapper.Builder>> properties;
+
         private final IndexMode indexMode;
         private final IndexVersion indexCreatedVersion;
         private final boolean usesBinaryDocValues;
@@ -210,6 +225,24 @@ public final class FlattenedFieldMapper extends FieldMapper {
 
         public static FieldMapper.Parameter<List<String>> dimensionsParam(Function<FieldMapper, List<String>> initializer) {
             return FieldMapper.Parameter.stringArrayParam(TIME_SERIES_DIMENSIONS_ARRAY_PARAM, false, initializer);
+        }
+
+        private static Parameter<Map<String, FieldMapper.Builder>> propertiesParam(
+            Function<FieldMapper, Map<String, FieldMapper.Builder>> initializer
+        ) {
+            var parameter = new Parameter<>(
+                "properties",
+                true,
+                TreeMap::new,
+                FlattenedFieldMapper.Builder::parseProperties,
+                initializer,
+                (b, n, v) -> {},
+                Objects::toString
+            );
+
+            // Serialization of properties is handled by doXContentBody using the built FieldMapper objects.
+            parameter.neverSerialize();
+            return parameter;
         }
 
         private static boolean usesBinaryDocValues(IndexSettings indexSettings) {
@@ -268,6 +301,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
             this.usesBinaryDocValues = usesBinaryDocValues;
             this.isLegacyIndexWithRootValues = isLegacyIndexWithRootValues;
             this.forceStoreRootDocValues = forceStoreRootDocValues;
+            this.properties = propertiesParam(m -> builder(m).properties.getValue());
         }
 
         @Override
@@ -283,7 +317,8 @@ public final class FlattenedFieldMapper extends FieldMapper {
                 similarity,
                 splitQueriesOnWhitespace,
                 meta,
-                dimensions };
+                dimensions,
+                properties };
         }
 
         @Override
@@ -300,6 +335,16 @@ public final class FlattenedFieldMapper extends FieldMapper {
             if (copyTo.copyToFields().isEmpty() == false) {
                 throw new IllegalArgumentException(CONTENT_TYPE + " field [" + leafName() + "] does not support [copy_to]");
             }
+
+            Map<String, FieldMapper> mappedSubFields = new TreeMap<>();
+            Map<String, FieldMapper.Builder> propertyBuilders = properties.getValue();
+            if (propertyBuilders.isEmpty() == false) {
+                MapperBuilderContext childContext = context.createChildContext(leafName(), null);
+                for (Map.Entry<String, FieldMapper.Builder> entry : propertyBuilders.entrySet()) {
+                    mappedSubFields.put(entry.getKey(), entry.getValue().build(childContext));
+                }
+            }
+
             boolean hasRootDocValues = hasRootDocValues();
             MappedFieldType ft = new RootFlattenedFieldType(
                 context.buildFullName(leafName()),
@@ -312,13 +357,115 @@ public final class FlattenedFieldMapper extends FieldMapper {
                 usesBinaryDocValues,
                 hasRootDocValues,
                 nullValue.get(),
-                context.isSourceSynthetic()
+                context.isSourceSynthetic(),
+                mappedSubFields
             );
-            return new FlattenedFieldMapper(leafName(), ft, builderParams(this, context), this);
+            return new FlattenedFieldMapper(leafName(), ft, builderParams(this, context), this, mappedSubFields);
+        }
+
+        @Override
+        protected void mergeFromBuilder(FieldMapper.Builder incoming, Conflicts conflicts, MapperMergeContext mergeContext) {
+            Map<String, FieldMapper.Builder> currentProperties = new TreeMap<>(properties.getValue());
+            super.mergeFromBuilder(incoming, conflicts, mergeContext);
+            MapperMergeContext childContext = MapperMergeContext.from(mergeContext.getMapperBuilderContext(), Long.MAX_VALUE);
+            for (Map.Entry<String, FieldMapper.Builder> entry : ((Builder) incoming).properties.getValue().entrySet()) {
+                currentProperties.merge(
+                    entry.getKey(),
+                    entry.getValue(),
+                    (existing, inc) -> (FieldMapper.Builder) existing.mergeWith(inc, childContext)
+                );
+            }
+            properties.setValue(currentProperties);
+        }
+
+        /**
+         * Parses sub-field properties for flattened fields. Unlike {@code ObjectMapper.Builder.parseProperties},
+         * flattened sub-fields are restricted to an explicit allow list of types, disallow copy_to/multi-fields,
+         * and are built into a flat map keyed by dotted path rather than a recursive object tree.
+         */
+        @SuppressWarnings("unchecked")
+        private static Map<String, FieldMapper.Builder> parseProperties(
+            String flattenedName,
+            MappingParserContext parserContext,
+            Object propertiesNode
+        ) {
+            Map<String, FieldMapper.Builder> propertyBuilders = new TreeMap<>();
+            if (propertiesNode instanceof Collection<?> c && c.isEmpty()) {
+                return propertyBuilders;
+            }
+            if (propertiesNode instanceof Map == false) {
+                throw new MapperParsingException("[properties] on flattened field [" + flattenedName + "] must be a map");
+            }
+            Map<String, Object> propsMap = (Map<String, Object>) propertiesNode;
+            for (Map.Entry<String, Object> entry : propsMap.entrySet()) {
+                String propertyName = entry.getKey();
+                if (entry.getValue() instanceof Map == false) {
+                    throw new MapperParsingException(
+                        "Expected map for property [" + propertyName + "] in flattened field [" + flattenedName + "]"
+                    );
+                }
+                Map<String, Object> propNode = (Map<String, Object>) entry.getValue();
+                Object typeNode = propNode.get("type");
+                if (typeNode == null) {
+                    throw new MapperParsingException(
+                        "No type specified for property [" + propertyName + "] in flattened field [" + flattenedName + "]"
+                    );
+                }
+                String type = typeNode.toString();
+                if (ALLOWED_SUB_FIELD_TYPES.contains(type) == false) {
+                    throw new MapperParsingException(
+                        "Type ["
+                            + type
+                            + "] is not supported as a mapped sub-field of flattened field ["
+                            + flattenedName
+                            + "]. Supported types: "
+                            + ALLOWED_SUB_FIELD_TYPES
+                    );
+                }
+                if (propNode.containsKey("copy_to")) {
+                    throw new MapperParsingException("[copy_to] is not supported on properties of flattened field [" + flattenedName + "]");
+                }
+                if (propNode.containsKey("fields")) {
+                    throw new MapperParsingException(
+                        "[fields] (multi-fields) is not supported on properties of flattened field [" + flattenedName + "]"
+                    );
+                }
+                Mapper.TypeParser typeParser = parserContext.typeParser(type);
+                if (typeParser == null) {
+                    throw new MapperParsingException("No handler for type [" + type + "] declared on property [" + propertyName + "]");
+                }
+                Mapper.Builder fieldBuilder = typeParser.parse(propertyName, propNode, parserContext);
+                assert fieldBuilder instanceof FieldMapper.Builder
+                    : "allowed sub-field type [" + type + "] produced a non-FieldMapper builder";
+                propertyBuilders.put(propertyName, (FieldMapper.Builder) fieldBuilder);
+                propNode.remove("type");
+                MappingParser.checkNoRemainingFields(propertyName, propNode);
+            }
+            return propertyBuilders;
         }
     }
 
-    public static final TypeParser PARSER = createTypeParserWithLegacySupport(FlattenedFieldMapper.Builder::new);
+    private static final Set<String> ALLOWED_SUB_FIELD_TYPES = Set.of(
+        "keyword",
+        "constant_keyword",
+        "wildcard",
+        "text",
+        "long",
+        "integer",
+        "short",
+        "byte",
+        "double",
+        "float",
+        "half_float",
+        "scaled_float",
+        "unsigned_long",
+        "date",
+        "date_nanos",
+        "boolean",
+        "ip"
+    );
+
+    public static final FieldMapper.TypeParser PARSER = FieldMapper.createTypeParserWithLegacySupport(Builder::new);
 
     abstract static class BaseFlattenedFieldType extends StringFieldType {
         protected final IgnoreAbove ignoreAbove;
@@ -917,6 +1064,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
         private final List<String> dimensions;
         private final boolean isDimension;
         private final boolean isSyntheticSourceEnabled;
+        private final Map<String, FieldMapper> mappedSubFields;
 
         RootFlattenedFieldType(
             String name,
@@ -941,7 +1089,8 @@ public final class FlattenedFieldMapper extends FieldMapper {
                 usesBinaryDocValues,
                 hasRootDocValues,
                 nullValue,
-                isSyntheticSourceEnabled
+                isSyntheticSourceEnabled,
+                Collections.emptyMap()
             );
         }
 
@@ -956,7 +1105,8 @@ public final class FlattenedFieldMapper extends FieldMapper {
             boolean usesBinaryDocValues,
             boolean hasRootDocValues,
             String nullValue,
-            boolean isSyntheticSourceEnabled
+            boolean isSyntheticSourceEnabled,
+            Map<String, FieldMapper> mappedSubFields
         ) {
             super(
                 name,
@@ -974,6 +1124,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
             this.dimensions = dimensions;
             this.isDimension = dimensions.isEmpty() == false;
             this.isSyntheticSourceEnabled = isSyntheticSourceEnabled;
+            this.mappedSubFields = mappedSubFields;
         }
 
         @Override
@@ -989,10 +1140,18 @@ public final class FlattenedFieldMapper extends FieldMapper {
             return super.existsQuery(context);
         }
 
+        static List<SourceLoader.SyntheticFieldLoader> toSubFieldLoaders(Map<String, FieldMapper> mappedSubFields) {
+            return mappedSubFields.values()
+                .stream()
+                .map(FieldMapper::syntheticFieldLoader)
+                .filter(l -> l != SourceLoader.SyntheticFieldLoader.NOTHING)
+                .toList();
+        }
+
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
             if (hasDocValues() && (ignoreAbove.valuesPotentiallyIgnored() == false || isSyntheticSourceEnabled)) {
-                return new RootFlattenedDocValuesBlockLoader(name(), ignoreAbove, usesBinaryDocValues);
+                return new RootFlattenedDocValuesBlockLoader(name(), ignoreAbove, usesBinaryDocValues, toSubFieldLoaders(mappedSubFields));
             }
 
             SourceValueFetcher fetcher = new SourceValueFetcher(
@@ -1120,6 +1279,10 @@ public final class FlattenedFieldMapper extends FieldMapper {
 
         @Override
         public MappedFieldType getChildFieldType(String childPath) {
+            FieldMapper mappedSubField = mappedSubFields.get(childPath);
+            if (mappedSubField != null) {
+                return mappedSubField.fieldType();
+            }
             return new KeyedFlattenedFieldType(name(), childPath, this, ignoreAbove, usesBinaryDocValues, nullValue);
         }
 
@@ -1153,10 +1316,18 @@ public final class FlattenedFieldMapper extends FieldMapper {
 
     private final FlattenedFieldParser fieldParser;
     private final Builder builder;
+    private final Map<String, FieldMapper> mappedSubFields;
 
-    private FlattenedFieldMapper(String leafName, MappedFieldType mappedFieldType, BuilderParams builderParams, Builder builder) {
+    private FlattenedFieldMapper(
+        String leafName,
+        MappedFieldType mappedFieldType,
+        BuilderParams builderParams,
+        Builder builder,
+        Map<String, FieldMapper> mappedSubFields
+    ) {
         super(leafName, mappedFieldType, builderParams);
         this.builder = builder;
+        this.mappedSubFields = Collections.unmodifiableSortedMap(new TreeMap<>(mappedSubFields));
         this.fieldParser = new FlattenedFieldParser(
             mappedFieldType.name(),
             mappedFieldType.name() + KEYED_FIELD_SUFFIX,
@@ -1166,7 +1337,8 @@ public final class FlattenedFieldMapper extends FieldMapper {
             builder.ignoreAbove.get(),
             builder.nullValue.get(),
             builder.usesBinaryDocValues,
-            builder.hasRootDocValues()
+            builder.hasRootDocValues(),
+            mappedSubFields
         );
     }
 
@@ -1195,6 +1367,23 @@ public final class FlattenedFieldMapper extends FieldMapper {
     }
 
     @Override
+    public Iterator<Mapper> iterator() {
+        if (mappedSubFields.isEmpty()) {
+            return super.iterator();
+        }
+        return Iterators.concat(super.iterator(), mappedSubFields.values().stream().map(m -> (Mapper) m).iterator());
+    }
+
+    @Override
+    public int getTotalFieldsCount() {
+        int count = super.getTotalFieldsCount();
+        for (FieldMapper mapper : mappedSubFields.values()) {
+            count += mapper.getTotalFieldsCount();
+        }
+        return count;
+    }
+
+    @Override
     protected void parseCreateField(DocumentParserContext context) throws IOException {
         if (context.parser().currentToken() == XContentParser.Token.VALUE_NULL) {
             return;
@@ -1219,8 +1408,20 @@ public final class FlattenedFieldMapper extends FieldMapper {
     }
 
     @Override
+    protected void doXContentBody(XContentBuilder xContentBuilder, Params params) throws IOException {
+        super.doXContentBody(xContentBuilder, params);
+        if (mappedSubFields.isEmpty() == false) {
+            xContentBuilder.startObject("properties");
+            for (Map.Entry<String, FieldMapper> entry : mappedSubFields.entrySet()) {
+                entry.getValue().toXContent(xContentBuilder, params);
+            }
+            xContentBuilder.endObject();
+        }
+    }
+
+    @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(
+        Builder b = new Builder(
             leafName(),
             builder.ignoreAboveDefault,
             builder.indexMode,
@@ -1228,7 +1429,17 @@ public final class FlattenedFieldMapper extends FieldMapper {
             builder.usesBinaryDocValues,
             builder.isLegacyIndexWithRootValues,
             builder.forceStoreRootDocValues
-        ).init(this);
+        );
+        b.init(this);
+        Map<String, FieldMapper.Builder> propBuilders = new TreeMap<>();
+        for (Map.Entry<String, FieldMapper> entry : mappedSubFields.entrySet()) {
+            FieldMapper.Builder propMergeBuilder = entry.getValue().getMergeBuilder();
+            if (propMergeBuilder != null) {
+                propBuilders.put(entry.getKey(), propMergeBuilder);
+            }
+        }
+        b.properties.setValue(propBuilders);
+        return b;
     }
 
     @Override
@@ -1240,7 +1451,8 @@ public final class FlattenedFieldMapper extends FieldMapper {
                     fullPath() + KEYED_FIELD_SUFFIX,
                     fieldType().ignoreAbove.valuesPotentiallyIgnored() ? fullPath() + KEYED_IGNORED_VALUES_FIELD_SUFFIX : null,
                     leafName(),
-                    builder.usesBinaryDocValues
+                    builder.usesBinaryDocValues,
+                    toSubFieldLoaders(mappedSubFields)
                 )
             );
         }

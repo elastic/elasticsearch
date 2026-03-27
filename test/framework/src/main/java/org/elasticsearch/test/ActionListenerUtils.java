@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionListener;
 
 import java.util.Collection;
 
+import static org.junit.Assert.fail;
 import static org.mockito.ArgumentMatchers.any;
 
 /**
@@ -39,4 +40,20 @@ public abstract class ActionListenerUtils {
     public static <T> Collection<T> anyCollection() {
         return any(Collection.class);
     }
+
+    /** Create a listener that throws a {@link AssertionError} if it's ever called */
+    public static <T> ActionListener<T> neverCalledListener() {
+        return new ActionListener<>() {
+            @Override
+            public void onResponse(T t) {
+                fail("listener onResponse should never be called but called with: " + t);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                fail("listener onFailure should never be called but called with: " + e);
+            }
+        };
+    }
+
 }

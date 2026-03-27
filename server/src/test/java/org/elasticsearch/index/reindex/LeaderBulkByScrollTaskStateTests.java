@@ -24,6 +24,7 @@ import java.util.Optional;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
+import static org.elasticsearch.test.ActionListenerUtils.neverCalledListener;
 import static org.mockito.Mockito.atMost;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -110,7 +111,7 @@ public class LeaderBulkByScrollTaskStateTests extends ESTestCase {
             sliceStatuses.set(slice, new BulkByScrollTask.StatusOrException(sliceStatus));
 
             @SuppressWarnings("unchecked")
-            ActionListener<BulkByScrollResponse> listener = slice < slices - 1 ? neverCalled() : mock(ActionListener.class);
+            ActionListener<BulkByScrollResponse> listener = slice < slices - 1 ? neverCalledListener() : mock(ActionListener.class);
             taskState.onSliceResponse(
                 listener,
                 slice,
@@ -153,7 +154,7 @@ public class LeaderBulkByScrollTaskStateTests extends ESTestCase {
         final PlainActionFuture<BulkByScrollResponse> future = new PlainActionFuture<>();
         for (int i = 0; i < sliceCount; i++) {
             sliceResponses[i] = resumeSliceResponse(i);
-            final ActionListener<BulkByScrollResponse> listener = i < sliceCount - 1 ? neverCalled() : future;
+            final ActionListener<BulkByScrollResponse> listener = i < sliceCount - 1 ? neverCalledListener() : future;
             leaderState.onSliceResponse(listener, i, sliceResponses[i]);
         }
 
@@ -182,10 +183,10 @@ public class LeaderBulkByScrollTaskStateTests extends ESTestCase {
         final BulkByScrollResponse completedResponse = completedSliceResponse(0);
         final BulkByScrollResponse[] resumeResponses = new BulkByScrollResponse[sliceCount - 1];
         final PlainActionFuture<BulkByScrollResponse> future = new PlainActionFuture<>();
-        leaderState.onSliceResponse(neverCalled(), 0, completedResponse);
+        leaderState.onSliceResponse(neverCalledListener(), 0, completedResponse);
         for (int i = 1; i < sliceCount; i++) {
             resumeResponses[i - 1] = resumeSliceResponse(i);
-            final ActionListener<BulkByScrollResponse> listener = i < sliceCount - 1 ? neverCalled() : future;
+            final ActionListener<BulkByScrollResponse> listener = i < sliceCount - 1 ? neverCalledListener() : future;
             leaderState.onSliceResponse(listener, i, resumeResponses[i - 1]);
         }
 
@@ -218,7 +219,7 @@ public class LeaderBulkByScrollTaskStateTests extends ESTestCase {
         // all slices complete normally — relocation should be skipped even though requested
         final PlainActionFuture<BulkByScrollResponse> future = new PlainActionFuture<>();
         for (int i = 0; i < sliceCount; i++) {
-            final ActionListener<BulkByScrollResponse> listener = i < sliceCount - 1 ? neverCalled() : future;
+            final ActionListener<BulkByScrollResponse> listener = i < sliceCount - 1 ? neverCalledListener() : future;
             leaderState.onSliceResponse(listener, i, completedSliceResponse(i));
         }
 
@@ -237,10 +238,10 @@ public class LeaderBulkByScrollTaskStateTests extends ESTestCase {
         final RuntimeException sliceFailure = new RuntimeException("slice 0 failed");
         final BulkByScrollResponse[] resumeResponses = new BulkByScrollResponse[sliceCount - 1];
         final PlainActionFuture<BulkByScrollResponse> future = new PlainActionFuture<>();
-        leaderState.onSliceFailure(neverCalled(), 0, sliceFailure);
+        leaderState.onSliceFailure(neverCalledListener(), 0, sliceFailure);
         for (int i = 1; i < sliceCount; i++) {
             resumeResponses[i - 1] = resumeSliceResponse(i);
-            final ActionListener<BulkByScrollResponse> listener = i < sliceCount - 1 ? neverCalled() : future;
+            final ActionListener<BulkByScrollResponse> listener = i < sliceCount - 1 ? neverCalledListener() : future;
             leaderState.onSliceResponse(listener, i, resumeResponses[i - 1]);
         }
 
@@ -330,20 +331,6 @@ public class LeaderBulkByScrollTaskStateTests extends ESTestCase {
             randomBoolean() ? TaskId.EMPTY_TASK_ID : new TaskId(randomAlphaOfLength(10), randomNonNegativeLong()),
             randomNonNegativeLong()
         );
-    }
-
-    private <T> ActionListener<T> neverCalled() {
-        return new ActionListener<T>() {
-            @Override
-            public void onResponse(T response) {
-                throw new RuntimeException("Expected no interactions but got [" + response + "]");
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                throw new RuntimeException("Expected no interations but was received a failure", e);
-            }
-        };
     }
 
     private <T> T captureResponse(Class<T> responseClass, ActionListener<T> listener) {

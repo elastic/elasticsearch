@@ -237,7 +237,7 @@ public class ReindexRelocationIT extends ESIntegTestCase {
         // trigger reindex relocation
         internalCluster().getInstance(ShutdownPrepareService.class, nodeName).prepareForShutdown();
 
-        assertNoReindexMetricsOnNode(nodeName);
+        assertOnlyRelocationReindexMetricsOnNode(nodeName);
 
         // Wait for .tasks and replica to be created before stopping nodeB, otherwise the replica
         // on nodeA is stale and can't be promoted to primary when nodeB leaves
@@ -578,11 +578,19 @@ public class ReindexRelocationIT extends ESIntegTestCase {
             .orElseThrow();
     }
 
-    private void assertNoReindexMetricsOnNode(final String nodeName) {
+    private void assertOnlyRelocationReindexMetricsOnNode(final String nodeName) {
         final TestTelemetryPlugin plugin = getTelemetryPlugin(nodeName);
         plugin.collect();
         assertThat(plugin.getLongCounterMeasurement(ReindexMetrics.REINDEX_COMPLETION_COUNTER), is(empty()));
         assertThat(plugin.getLongHistogramMeasurement(ReindexMetrics.REINDEX_TIME_HISTOGRAM), is(empty()));
+        final var relocationCounter = plugin.getLongCounterMeasurement(ReindexMetrics.REINDEX_RELOCATION_COUNTER);
+        assertThat("relocation metric updated", relocationCounter.size(), equalTo(1));
+        assertThat("relocation metric updated", relocationCounter.getFirst().getLong(), equalTo(1L));
+        assertThat(
+            "relocation metric was successful",
+            relocationCounter.getFirst().attributes().get(ReindexMetrics.ATTRIBUTE_NAME_ERROR_TYPE),
+            is(nullValue())
+        );
     }
 
     private void assertReindexSuccessMetricsOnNode(final String nodeName, final boolean isRemote, final int slices) {
@@ -615,6 +623,11 @@ public class ReindexRelocationIT extends ESIntegTestCase {
         assertThat(
             duration.attributes().get(ReindexMetrics.ATTRIBUTE_NAME_SLICING_MODE),
             equalTo(slicingMode.name().toLowerCase(Locale.ROOT))
+        );
+        assertThat(
+            "no relocation metric",
+            plugin.getLongHistogramMeasurement(ReindexMetrics.REINDEX_RELOCATION_COUNTER).size(),
+            equalTo(0)
         );
     }
 

@@ -93,8 +93,10 @@ import static org.elasticsearch.common.util.concurrent.EsExecutors.DIRECT_EXECUT
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
 import static org.elasticsearch.rest.RestStatus.INTERNAL_SERVER_ERROR;
 import static org.elasticsearch.rest.RestStatus.TOO_MANY_REQUESTS;
+import static org.elasticsearch.test.ActionListenerUtils.neverCalledListener;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -288,7 +290,12 @@ public class ReindexerTests extends ESTestCase {
         task.setWorker(Float.POSITIVE_INFINITY, null);
 
         final ActionListener<BulkByScrollResponse> original = spy(ActionListener.noop());
-        final ActionListener<BulkByScrollResponse> wrapped = reindexer.listenerWithRelocations(task, reindexRequest(), original);
+        final ActionListener<BulkByScrollResponse> wrapped = reindexer.listenerWithRelocations(
+            task,
+            reindexRequest(),
+            neverCalledListener(),
+            original
+        );
 
         assertSame(original, wrapped);
         verifyNoMoreInteractions(original);
@@ -303,7 +310,12 @@ public class ReindexerTests extends ESTestCase {
         // do NOT call task.requestRelocation()
 
         final ActionListener<BulkByScrollResponse> original = spy(ActionListener.noop());
-        final ActionListener<BulkByScrollResponse> wrapped = reindexer.listenerWithRelocations(task, reindexRequest(), original);
+        final ActionListener<BulkByScrollResponse> wrapped = reindexer.listenerWithRelocations(
+            task,
+            reindexRequest(),
+            neverCalledListener(),
+            original
+        );
 
         final BulkByScrollResponse response = reindexResponseWithBulkAndSearchFailures(null, null);
         wrapped.onResponse(response);
@@ -322,7 +334,12 @@ public class ReindexerTests extends ESTestCase {
         task.requestRelocation();
 
         final ActionListener<BulkByScrollResponse> original = spy(ActionListener.noop());
-        final ActionListener<BulkByScrollResponse> wrapped = reindexer.listenerWithRelocations(task, reindexRequest(), original);
+        final ActionListener<BulkByScrollResponse> wrapped = reindexer.listenerWithRelocations(
+            task,
+            reindexRequest(),
+            neverCalledListener(),
+            original
+        );
 
         // response without ResumeInfo
         final BulkByScrollResponse response = reindexResponseWithBulkAndSearchFailures(null, null);
@@ -359,17 +376,65 @@ public class ReindexerTests extends ESTestCase {
         task.requestRelocation();
 
         final PlainActionFuture<BulkByScrollResponse> future = new PlainActionFuture<>();
-        final ActionListener<BulkByScrollResponse> wrapped = reindexer.listenerWithRelocations(task, reindexRequest(), future);
+        final ActionListener<ResumeBulkByScrollResponse> relocationListener = spy(ActionListener.noop());
+        final ActionListener<BulkByScrollResponse> wrapped = reindexer.listenerWithRelocations(
+            task,
+            reindexRequest(),
+            relocationListener,
+            future
+        );
 
         final BulkByScrollResponse response = reindexResponseWithResumeInfo();
         wrapped.onResponse(response);
 
         assertTrue(future.isDone());
+        verify(relocationListener).onResponse(any());
+        verifyNoMoreInteractions(relocationListener);
         TaskRelocatedException exception = expectThrows(TaskRelocatedException.class, future::actionGet);
         assertThat(exception.getMessage(), equalTo("Task was relocated"));
         assertThat(exception.getMetadataKeys(), equalTo(Set.of("es.original_task_id", "es.relocated_task_id")));
         assertThat(exception.getMetadata("es.original_task_id"), equalTo(List.of("source-node:987")));
         assertThat(exception.getMetadata("es.relocated_task_id"), equalTo(List.of("target-node:123")));
+    }
+
+    public void testRelocationListenerIsNoopWithoutMetrics() {
+        final var listener = Reindexer.relocationResponseListenerWithMetrics(null);
+        assertThat(listener.toString(), is(equalTo("NoopActionListener")));
+    }
+
+    public void testRelocationListenerRecordsSuccessMetric() {
+        final ReindexMetrics metrics = mock(ReindexMetrics.class);
+        final ActionListener<ResumeBulkByScrollResponse> listener = Reindexer.relocationResponseListenerWithMetrics(metrics);
+        final ResumeBulkByScrollResponse response = new ResumeBulkByScrollResponse(new TaskId("target-node:123"));
+        listener.onResponse(response);
+        verify(metrics).recordRelocationSuccess();
+        verifyNoMoreInteractions(metrics);
+    }
+
+    public void testRelocationListenerRecordsFailureMetric() {
+        final ReindexMetrics metrics = mock(ReindexMetrics.class);
+        final ActionListener<ResumeBulkByScrollResponse> listener = Reindexer.relocationResponseListenerWithMetrics(metrics);
+        final Exception e = new IllegalStateException(randomAlphaOfLength(5));
+        listener.onFailure(e);
+        verify(metrics).recordRelocationFailure(e);
+        verifyNoMoreInteractions(metrics);
+    }
+
+    public void testRelocationListenerCalledForBothSuccessAndFailureFails() {
+        final ReindexMetrics metrics = mock(ReindexMetrics.class);
+        final ActionListener<ResumeBulkByScrollResponse> listener = Reindexer.relocationResponseListenerWithMetrics(metrics);
+        final ResumeBulkByScrollResponse response = new ResumeBulkByScrollResponse(new TaskId("target-node:123"));
+        final Exception e = new IllegalStateException(randomAlphaOfLength(5));
+        if (randomBoolean()) {
+            listener.onResponse(response);
+            assertThrows(AssertionError.class, () -> listener.onFailure(e));
+            verify(metrics).recordRelocationSuccess();
+        } else {
+            listener.onFailure(e);
+            assertThrows(AssertionError.class, () -> listener.onResponse(response));
+            verify(metrics).recordRelocationFailure(e);
+        }
+        verifyNoMoreInteractions(metrics);
     }
 
     /**

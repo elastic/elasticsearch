@@ -16,14 +16,22 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
+import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockRequest;
 import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockResponse;
 import org.elasticsearch.action.admin.indices.readonly.TransportAddIndexBlockAction;
+import org.elasticsearch.action.admin.indices.segments.IndexSegments;
+import org.elasticsearch.action.admin.indices.segments.IndexShardSegments;
+import org.elasticsearch.action.admin.indices.segments.IndicesSegmentResponse;
+import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsRequest;
+import org.elasticsearch.action.admin.indices.segments.ShardSegments;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.admin.indices.shrink.TransportResizeAction;
 import org.elasticsearch.action.support.ActiveShardCount;
+import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
@@ -47,6 +55,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.support.master.MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.APIBlock.WRITE;
@@ -84,7 +93,7 @@ public class DataStreamLifecycleConvertToFrozen implements DlmFrozenTransitionRu
         // Todo: WIP - steps will be implemented in follow-up PRs
         maybeMarkIndexReadOnly();
         String indexForForceMerge = maybeCloneIndex();
-        maybeForceMergeIndex();
+        maybeForceMergeIndex(indexForForceMerge);
         maybeTakeSnapshot();
         maybeMountSearchableSnapshot();
     }
@@ -116,7 +125,7 @@ public class DataStreamLifecycleConvertToFrozen implements DlmFrozenTransitionRu
             validateAddIndexBlockResponse(addIndexBlockRequest, resp);
             logger.debug("DLM successfully marked index [{}] as read-only", indexName);
         } catch (Exception e) {
-            if (e instanceof InterruptedException) {
+            if (e instanceof InterruptedException || ExceptionsHelper.unwrapCause(e) instanceof InterruptedException) {
                 Thread.currentThread().interrupt();
             }
             throw new ElasticsearchException("DLM unable to mark index [{}] with read only block", e, indexName);
@@ -167,8 +176,56 @@ public class DataStreamLifecycleConvertToFrozen implements DlmFrozenTransitionRu
         }
     }
 
-    public void maybeForceMergeIndex() {
+    public void maybeForceMergeIndex(String indexForForceMerge) {
+        boolean indexMissing = Optional.ofNullable(projectState)
+            .map(ProjectState::metadata)
+            .map(metadata -> metadata.index(indexForForceMerge))
+            .isEmpty();
+        if (indexMissing) {
+            logger.warn("Index [{}] not found in project metadata, skipping force merge step", indexForForceMerge);
+            return;
+        }
+        if (isForceMergeComplete()) {
+            logger.debug("Index [{}] has already been force merged by DLM, skipping force merge step", indexForForceMerge);
+            return;
+        }
 
+        ForceMergeRequest req = new ForceMergeRequest(indexForForceMerge);
+        req.maxNumSegments(1);
+        req.timeout(TimeValue.MAX_VALUE);
+        logger.info("DLM is issuing a request to force merge index [{}] to a single segment", indexForForceMerge);
+        try {
+            BroadcastResponse forceMergeResponse = client.projectClient(projectState.projectId()).admin().indices().forceMerge(req).get();
+            if (forceMergeResponse.getFailedShards() > 0) {
+                DefaultShardOperationFailedException[] failures = forceMergeResponse.getShardFailures();
+                String message = Strings.format(
+                    "DLM failed to force merge %d shards for index [%s] due to failures [%s]",
+                    forceMergeResponse.getFailedShards(),
+                    indexForForceMerge,
+                    failures == null
+                        ? "unknown"
+                        : Arrays.stream(failures).map(DefaultShardOperationFailedException::toString).collect(Collectors.joining(","))
+                );
+                throw new ElasticsearchException(message);
+            } else if (forceMergeResponse.getUnavailableShards() > 0) {
+                String message = Strings.format(
+                    "DLM could not complete force merge for index [%s] because [%d] shards were unavailable."
+                        + " This will be retried in the next cycle.",
+                    indexForForceMerge,
+                    forceMergeResponse.getUnavailableShards()
+                );
+                throw new ElasticsearchException(message);
+            } else {
+                logger.info("DLM successfully force merged index [{}]", indexForForceMerge);
+            }
+        } catch (Exception e) {
+            if (e instanceof InterruptedException || ExceptionsHelper.unwrapCause(e) instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw e instanceof ElasticsearchException
+                ? (ElasticsearchException) e
+                : new ElasticsearchException("DLM failed to force merge index [{}]", e, indexForForceMerge);
+        }
     }
 
     public void maybeTakeSnapshot() {
@@ -181,6 +238,46 @@ public class DataStreamLifecycleConvertToFrozen implements DlmFrozenTransitionRu
 
     private boolean isIndexReadOnly() {
         return projectState.blocks().hasIndexBlock(projectState.projectId(), indexName, WRITE.getBlock());
+    }
+
+    /**
+     * Determines if force merge is complete based on if the index has been successfully
+     * force merged down to a single segment.
+     */
+    private boolean isForceMergeComplete() {
+        ProjectId projectId = projectState.projectId();
+        try {
+            IndicesSegmentResponse response = client.projectClient(projectId)
+                .admin()
+                .indices()
+                .segments(new IndicesSegmentsRequest(indexName))
+                .get();
+            IndexSegments indexSegments = response.getIndices().get(indexName);
+            if (indexSegments == null || indexSegments.getShards().isEmpty()) {
+                logger.debug("No segment information found for index [{}], DLM force merge is not complete", indexName);
+                return false;
+            }
+            for (IndexShardSegments indexShardSegments : indexSegments) {
+                for (ShardSegments shardSegments : indexShardSegments) {
+                    if (shardSegments.getShardRouting().primary() && shardSegments.getSegments().size() > 1) {
+                        logger.debug(
+                            "Shard [{}] of index [{}] has [{}] segments, DLM force merge is not complete",
+                            shardSegments.getShardRouting().shardId(),
+                            indexName,
+                            shardSegments.getSegments().size()
+                        );
+                        return false;
+                    }
+                }
+            }
+            logger.debug("All primary shards of index [{}] have been force merged to a single segment", indexName);
+            return true;
+        } catch (Exception e) {
+            if (e instanceof InterruptedException || ExceptionsHelper.unwrapCause(e) instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new ElasticsearchException("DLM unable to check segment count for index [{}]", e, indexName);
+        }
     }
 
     /**
@@ -332,7 +429,7 @@ public class DataStreamLifecycleConvertToFrozen implements DlmFrozenTransitionRu
             } catch (Exception deleteException) {
                 e.addSuppressed(deleteException);
             }
-            if (e instanceof InterruptedException) {
+            if (e instanceof InterruptedException || ExceptionsHelper.unwrapCause(e) instanceof InterruptedException) {
                 Thread.currentThread().interrupt();
             }
             throw e instanceof ElasticsearchException
@@ -369,7 +466,7 @@ public class DataStreamLifecycleConvertToFrozen implements DlmFrozenTransitionRu
             logger.debug("Index [{}] was not found during DLM delete attempt, it may have already been deleted", indexToDelete);
         } catch (Exception e) {
             logger.warn(Strings.format("DLM failed to delete index [%s]", indexToDelete), e);
-            if (e instanceof InterruptedException) {
+            if (e instanceof InterruptedException || ExceptionsHelper.unwrapCause(e) instanceof InterruptedException) {
                 Thread.currentThread().interrupt();
             }
             throw new ElasticsearchException("DLM unable to delete index [{}]", e, indexToDelete);

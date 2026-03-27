@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnBlockConversions;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
@@ -266,6 +267,11 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
         MessageType projectedSchema = buildProjectedSchema(parquetSchema, projectedAttributes);
         String createdBy = fileMetaData.getCreatedBy();
         return new ParquetColumnIterator(reader, projectedSchema, projectedAttributes, batchSize, blockFactory, rowLimit, createdBy);
+    }
+
+    @Override
+    public AggregatePushdownSupport aggregatePushdownSupport() {
+        return new ParquetAggregatePushdownSupport();
     }
 
     @Override

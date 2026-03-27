@@ -284,8 +284,7 @@ public class HeapAttackLimitByIT extends HeapAttackTestCase {
                     && classNames.stream().allMatch(stackTrace::contains)) {
                     assertMap(
                         map,
-                        matchesMap().entry("status", 429)
-                            .entry("error", matchesMap().extraOk().entry("type", "circuit_breaking_exception"))
+                        matchesMap().entry("status", 429).entry("error", matchesMap().extraOk().entry("type", "circuit_breaking_exception"))
                     );
                     return;
                 }

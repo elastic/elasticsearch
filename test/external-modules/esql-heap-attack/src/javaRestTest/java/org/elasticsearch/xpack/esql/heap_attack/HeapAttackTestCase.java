@@ -347,11 +347,7 @@ public abstract class HeapAttackTestCase extends ESRestTestCase {
                             if (flush % 10_000 == 0) {
                                 bulk("manylongs", bulk.toString());
                                 bulk.setLength(0);
-                                logger.info(
-                                    "flushing {}/{} to manylongs",
-                                    flush,
-                                    numLongs
-                                );
+                                logger.info("flushing {}/{} to manylongs", flush, numLongs);
                             }
                         }
                     }

@@ -270,6 +270,7 @@ public class HeapAttackIT extends HeapAttackTestCase {
         query.append("\\n| STATS MAX(a)\"}");
         return query(query.toString(), null);
     }
+
     public void testSmallConcat() throws IOException {
         initSingleDocIndex();
         Response resp = concat(2);
@@ -676,6 +677,7 @@ public class HeapAttackIT extends HeapAttackTestCase {
         String queryStr = query.toString().replace("\n", "\\n");
         return responseAsMap(query(queryStr, null));
     }
+
     void initManyBigFieldsIndex(int docs, String type, boolean random, int fields) throws IOException {
         logger.info("loading many documents with many big fields");
         int docsPerBulk = 5;

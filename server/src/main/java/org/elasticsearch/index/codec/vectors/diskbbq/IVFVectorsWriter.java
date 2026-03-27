@@ -14,6 +14,7 @@ import org.apache.lucene.codecs.KnnFieldVectorsWriter;
 import org.apache.lucene.codecs.KnnVectorsWriter;
 import org.apache.lucene.codecs.hnsw.FlatFieldVectorsWriter;
 import org.apache.lucene.codecs.hnsw.FlatVectorsWriter;
+import org.apache.lucene.index.DocsWithFieldSet;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexFileNames;
@@ -37,6 +38,7 @@ import org.elasticsearch.index.codec.vectors.cluster.KmeansFloatVectorValues;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.util.AbstractList;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -248,14 +250,38 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
         List<float[]> vectors = fieldVectorsWriter.getVectors();
         if (vectors.size() == maxDoc && sortMap == null) {
             return KmeansFloatVectorValues.build(vectors, null, fieldInfo.getVectorDimension());
+        } else if (sortMap == null) {
+            final DocIdSetIterator iterator = fieldVectorsWriter.getDocsWithFieldSet().iterator();
+            final int[] docIds = new int[vectors.size()];
+            for (int i = 0; i < docIds.length; i++) {
+                docIds[i] = iterator.nextDoc();
+            }
+            assert iterator.nextDoc() == NO_MORE_DOCS;
+            return KmeansFloatVectorValues.build(vectors, docIds, fieldInfo.getVectorDimension());
+        } else {
+            DocsWithFieldSet newDocsWithField = new DocsWithFieldSet();
+            final int[] ordMap = new int[fieldVectorsWriter.getDocsWithFieldSet().cardinality()]; // new ord to old ord
+            KnnVectorsWriter.mapOldOrdToNewOrd(fieldVectorsWriter.getDocsWithFieldSet(), sortMap, null, ordMap, newDocsWithField);
+            final DocIdSetIterator iterator = newDocsWithField.iterator();
+            final int[] docIds = new int[vectors.size()];
+            for (int i = 0; i < docIds.length; i++) {
+                docIds[i] = iterator.nextDoc();
+            }
+            assert iterator.nextDoc() == NO_MORE_DOCS;
+            List<float[]> orderedVectors = new AbstractList<>() {
+
+                @Override
+                public int size() {
+                    return vectors.size();
+                }
+
+                @Override
+                public float[] get(int index) {
+                    return vectors.get(ordMap[index]);
+                }
+            };
+            return KmeansFloatVectorValues.build(orderedVectors, docIds, fieldInfo.getVectorDimension());
         }
-        final DocIdSetIterator iterator = fieldVectorsWriter.getDocsWithFieldSet().iterator();
-        final int[] docIds = new int[vectors.size()];
-        for (int i = 0; i < docIds.length; i++) {
-            docIds[i] = sortMap == null ? iterator.nextDoc() : sortMap.oldToNew(iterator.nextDoc());
-        }
-        assert iterator.nextDoc() == NO_MORE_DOCS;
-        return KmeansFloatVectorValues.build(vectors, docIds, fieldInfo.getVectorDimension());
     }
 
     @Override

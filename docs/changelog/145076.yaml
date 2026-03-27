@@ -1,0 +1,5 @@
+area: Vector Search
+issues: []
+pr: 145076
+summary: "[DiskBBQ] Fix index sorting on flush (2nd attempt)"
+type: bug

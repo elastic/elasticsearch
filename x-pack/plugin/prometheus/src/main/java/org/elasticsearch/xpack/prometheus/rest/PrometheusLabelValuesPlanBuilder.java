@@ -34,7 +34,7 @@ import static org.elasticsearch.xpack.esql.expression.predicate.Predicates.combi
  *
  * <p><b>For {@code __name__}:</b>
  * <pre>
- * [Limit(limit+1)]
+ * Limit(limit==0 ? MAX_VALUE : limit+1)
  *   └── OrderBy([metric_name ASC NULLS LAST])
  *         └── Aggregate(groupings=[metric_name])
  *               └── MetricsInfo
@@ -44,16 +44,19 @@ import static org.elasticsearch.xpack.esql.expression.predicate.Predicates.combi
  *
  * <p><b>For regular labels (e.g. {@code job}):</b>
  * <pre>
- * [Limit(limit+1)]
+ * Limit(limit==0 ? MAX_VALUE : limit+1)
  *   └── OrderBy([job ASC NULLS LAST])
  *         └── Aggregate(groupings=[job])
  *               └── Filter(timeCond AND IS_NOT_NULL(job) [AND OR(selectorConds...)])
  *                     └── UnresolvedRelation("*", TS)
  * </pre>
  *
- * <p>The Limit node uses {@code limit + 1} as a sentinel: if the result contains {@code limit + 1}
- * rows the response listener will truncate to {@code limit} and emit a warning. When {@code limit == 0}
- * the Limit node is omitted entirely.
+ * <p>A Limit node is always emitted. When {@code limit == 0} (Prometheus "disabled" semantics) the
+ * value {@link Integer#MAX_VALUE} is used so that ESQL silently caps results to its own
+ * {@code esql.query.result_truncation_max_size} setting without emitting a "No limit defined"
+ * warning. When {@code limit > 0} the value {@code limit + 1} is used as a sentinel: if the result
+ * contains exactly {@code limit + 1} rows the response listener truncates to {@code limit} and emits
+ * a warning.
  */
 final class PrometheusLabelValuesPlanBuilder {
 
@@ -73,7 +76,7 @@ final class PrometheusLabelValuesPlanBuilder {
      * @param matchSelectors list of {@code match[]} selector strings (may be empty)
      * @param start          start of the time range (inclusive)
      * @param end            end of the time range (inclusive)
-     * @param limit          maximum number of values to return (0 = disabled)
+     * @param limit          maximum number of values to return (0 = disabled, defers to ESQL max)
      * @return the logical plan
      * @throws IllegalArgumentException if a selector is not a valid instant vector selector
      */
@@ -97,9 +100,7 @@ final class PrometheusLabelValuesPlanBuilder {
             plan,
             List.of(new Order(Source.EMPTY, metricNameField, Order.OrderDirection.ASC, Order.NullsPosition.LAST))
         );
-        if (limit > 0) {
-            plan = new Limit(Source.EMPTY, Literal.integer(Source.EMPTY, limit + 1), plan);
-        }
+        plan = new Limit(Source.EMPTY, Literal.integer(Source.EMPTY, limit == 0 ? Integer.MAX_VALUE : limit + 1), plan);
         return plan;
     }
 
@@ -135,9 +136,7 @@ final class PrometheusLabelValuesPlanBuilder {
             plan,
             List.of(new Order(Source.EMPTY, labelField, Order.OrderDirection.ASC, Order.NullsPosition.LAST))
         );
-        if (limit > 0) {
-            plan = new Limit(Source.EMPTY, Literal.integer(Source.EMPTY, limit + 1), plan);
-        }
+        plan = new Limit(Source.EMPTY, Literal.integer(Source.EMPTY, limit == 0 ? Integer.MAX_VALUE : limit + 1), plan);
         return plan;
     }
 }

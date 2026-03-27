@@ -226,7 +226,7 @@ public class EsqlCapabilities {
 
         /**
          * Support for optional fields (might or might not be present in the mappings) using DEFAULT/NULLIFY only.
-         * Compared to {@link #OPTIONAL_FIELDS_V2}, this does not enable support for LOAD.
+         * Compared to {@link #OPTIONAL_FIELDS_V3}, this does not enable support for LOAD.
          */
         OPTIONAL_FIELDS_NULLIFY_TECH_PREVIEW,
 
@@ -249,9 +249,10 @@ public class EsqlCapabilities {
 
         /**
          * Support for optional fields (might or might not be present in the mappings) using DEFAULT/NULLIFY/LOAD.
-         * V2:  prevent pushing down filters and sorts to Lucene of potentially unmapped fields.
+         * V2:  Prevent pushing down filters and sorts to Lucene of potentially unmapped fields.
+         * V3:  Fix synthetic _source numeric load bug (#143916)
          */
-        OPTIONAL_FIELDS_V2(Build.current().isSnapshot()),
+        OPTIONAL_FIELDS_V3(Build.current().isSnapshot()),
 
         /**
          * Support specifically for *just* the _index METADATA field. Used by CsvTests, since that is the only metadata field currently
@@ -2369,7 +2370,7 @@ public class EsqlCapabilities {
          * Reject loading sub-fields of flattened fields when {@code unmapped_fields="load"}
          * See https://github.com/elastic/elasticsearch/issues/143494
          */
-        REJECT_LOADING_FLATTENED_SUBFIELDS(OPTIONAL_FIELDS_V2.isEnabled()),
+        REJECT_LOADING_FLATTENED_SUBFIELDS(OPTIONAL_FIELDS_V3.isEnabled()),
 
         FIX_DIV_ERROR_MESSAGE,
 
@@ -2383,6 +2384,12 @@ public class EsqlCapabilities {
          * See https://github.com/elastic/elasticsearch/issues/144833
          */
         UNMAPPED_FIELDS_DEFAULT_SETTING_RENAME,
+
+        /**
+         * Fix for {@code SUM(null)} producing a type mismatch after surrogate expansion.
+         * See https://github.com/elastic/elasticsearch/issues/144914
+         */
+        FIX_SUM_OF_NULL_OPTIMIZATION,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

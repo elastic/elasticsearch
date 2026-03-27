@@ -908,13 +908,7 @@ public abstract class DocumentParserContext {
      * @param fieldName   the name of the field to be flattened
      */
     public final DocumentParserContext createFlattenContext(String fieldName) {
-        XContentParser flatteningParser = new FlatteningXContentParser(parser(), fieldName);
-        return new Wrapper(this.parent(), this) {
-            @Override
-            public XContentParser parser() {
-                return flatteningParser;
-            }
-        };
+        return switchParser(new FlatteningXContentParser(parser(), fieldName));
     }
 
     /**

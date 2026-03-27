@@ -2870,7 +2870,7 @@ The sequence number is another monotonically increasing id for mutations on the 
 by the primary's [InternalEngine] before it applies an operation locally. Replicas apply the same `seq_no` supplied
 by the primary. Their engine
 [records](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/engine/InternalEngine.java#L1256)
-that sequence number as "seen" before indexing. After the operation, the local checkpoint also gets updated (see the following [Checkpoints](#checkpoints-gaps-and-out-of-order-replication) subsection).
+that sequence number as "seen" before indexing. After the operation, the local checkpoint also gets updated (see the following [Checkpoints](#checkpoints--gaps) subsection).
 
 Both values are stored in Lucene for each live document. [SeqNoFieldMapper] indexes `_seq_no` as a numeric field (for
 search and sort) and stores the primary term in doc values. If two copies

@@ -96,7 +96,7 @@ public class TransportClusterHealthActionTests extends ESTestCase {
             Randomness.shuffle(shardRoutingStates);
 
             // primary must be active, otherwise replicas can't in initializing or relocating state.
-            shardRoutingStates.add(0, randomFrom(ShardRoutingState.STARTED, ShardRoutingState.RELOCATING));
+            shardRoutingStates.addFirst(randomFrom(ShardRoutingState.STARTED, ShardRoutingState.RELOCATING));
         }
 
         final int numberOfReplicas = shardRoutingStates.size() - 1;
@@ -112,7 +112,7 @@ public class TransportClusterHealthActionTests extends ESTestCase {
 
         // Primary
         {
-            ShardRoutingState state = shardRoutingStates.remove(0);
+            ShardRoutingState state = shardRoutingStates.removeFirst();
             String node = "node";
             String relocatingNode = state == ShardRoutingState.RELOCATING ? "relocating" : null;
             routingTable.addShard(TestShardRouting.newShardRouting(shardId, node, relocatingNode, true, state));

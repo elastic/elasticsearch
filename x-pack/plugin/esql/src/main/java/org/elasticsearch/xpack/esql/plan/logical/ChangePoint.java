@@ -25,7 +25,6 @@ import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 

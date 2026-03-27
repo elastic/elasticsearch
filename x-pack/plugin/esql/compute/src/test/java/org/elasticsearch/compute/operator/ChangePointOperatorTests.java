@@ -22,6 +22,8 @@ import org.hamcrest.Matcher;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.function.IntFunction;
+import java.util.function.LongUnaryOperator;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -98,99 +100,163 @@ public class ChangePointOperatorTests extends OperatorTestCase {
         // Change point cannot work with empty input, so skip this test
     }
 
-    /**
-     * Two groups of 30 rows each, spread across three pages of 20 rows.
-     * The A/B group boundary falls in the middle of page 1, testing that the operator
-     * correctly detects independent change points per group and annotates the right rows
-     * even when a page contains rows from more than one group.
-     * <p>
-     * Layout:
-     * <ul>
-     *   <li>Page 0 (rows  0-19): group A — values 0L×15, 1L×5  → change point at position 15</li>
-     *   <li>Page 1 (rows 20-39): group A×10 (all 1L), group B×10 (all 0L) — no change points</li>
-     *   <li>Page 2 (rows 40-59): group B — values 0L×5, 1L×15  → change point at position 5</li>
-     * </ul>
-     * Column layout per page: block 0 = group key (BytesRef), block 1 = value (Long).
-     * Output appends block 2 = change type (BytesRef), block 3 = p-value (Double).
-     */
-    public void testGroupedTwoGroupsThreePages() {
+    public void testChangepointPerGroupPerPage() {
         DriverContext ctx = driverContext();
         BlockFactory blockFactory = ctx.blockFactory();
-        BytesRef groupA = new BytesRef("A");
-        BytesRef groupB = new BytesRef("B");
 
-        Page page0, page1, page2;
-        try (
-            BytesRefBlock.Builder g = blockFactory.newBytesRefBlockBuilder(20);
-            LongBlock.Builder v = blockFactory.newLongBlockBuilder(20)
-        ) {
-            for (int i = 0; i < 20; i++) {
-                g.appendBytesRef(groupA);
-                v.appendLong(i < 15 ? 0L : 1L);
-            }
-            page0 = new Page(g.build(), v.build());
-        }
-        try (
-            BytesRefBlock.Builder g = blockFactory.newBytesRefBlockBuilder(20);
-            LongBlock.Builder v = blockFactory.newLongBlockBuilder(20)
-        ) {
-            for (int i = 0; i < 10; i++) {
-                g.appendBytesRef(groupA);
-                v.appendLong(1L);
-            }
-            for (int i = 0; i < 10; i++) {
-                g.appendBytesRef(groupB);
-                v.appendLong(0L);
-            }
-            page1 = new Page(g.build(), v.build());
-        }
-        try (
-            BytesRefBlock.Builder g = blockFactory.newBytesRefBlockBuilder(20);
-            LongBlock.Builder v = blockFactory.newLongBlockBuilder(20)
-        ) {
-            for (int i = 0; i < 20; i++) {
-                g.appendBytesRef(groupB);
-                v.appendLong(i < 5 ? 0L : 1L);
-            }
-            page2 = new Page(g.build(), v.build());
+        Page page0 = buildPage(blockFactory, 30, i -> "A", i -> i < 15 ? 0L : 1L);
+        Page page1 = buildPage(blockFactory, 30, i -> "B", i -> i < 15 ? 1L : 0L);
+        Page page2 = buildPage(blockFactory, 30, i -> "C", i -> i < 15  ? 0L : 1L);
+
+        var pages = List.of(page0, page1, page2);
+
+        List<Page> outputPages = invokeChangePoint(ctx, pages);
+        try {
+            assertChangePointAt(outputPages.get(0), 15);
+            assertChangePointAt(outputPages.get(1), 15);
+            assertChangePointAt(outputPages.get(2), 15);
+        } finally {
+            outputPages.forEach(Page::releaseBlocks);
         }
 
-        // group key is block 0, value is block 1; groupChannels[0] = 0 (hardcoded in operator)
-        List<Page> outputPages = new ArrayList<>();
+    }
+
+    public void testChangePointInGroupSplitByPageOnFirstPage() {
+        DriverContext ctx = driverContext();
+        BlockFactory blockFactory = ctx.blockFactory();
+
+        Page page0 = buildPage(blockFactory, 30, i -> "A",i -> i < 15 ? 0L : 1L);
+        Page page1 = buildPage(blockFactory, 30, i -> "B",i -> i < 15 ? 0L : 1L);
+
+        var pages = List.of(page0, page1);
+
+        List<Page> outputPages = invokeChangePoint(ctx, pages);
+        try {
+            assertChangePointAt(outputPages.get(0), 15);
+            assertChangePointAt(outputPages.get(1), 15);
+        } finally {
+            outputPages.forEach(Page::releaseBlocks);
+        }
+
+    }
+
+    public void testChangePointInGroupSplitByPageOnMiddlePage() {
+        DriverContext ctx = driverContext();
+        BlockFactory blockFactory = ctx.blockFactory();
+
+        Page page0 = buildPage(blockFactory, 20, i -> "A", i -> i < 15 ? 0L : 1L);
+        Page page1 = buildPage(blockFactory, 20, i -> i < 10 ? "A" : "B", i -> i < 10 ? 1L : 0L);
+        Page page2 = buildPage(blockFactory, 20, i -> "B", i -> i < 5  ? 0L : 1L);
+
+        var pages = List.of(page0, page1, page2);
+
+        List<Page> outputPages = invokeChangePoint(ctx, pages);
+        try {
+            assertChangePointAt(outputPages.get(0), 15);
+            assertNoChangePoints(outputPages.get(1));
+            assertChangePointAt(outputPages.get(2), 5);
+        } finally {
+            outputPages.forEach(Page::releaseBlocks);
+        }
+    }
+
+    public void testChangePointInGroupSplitByPageOnLastPage() {
+        DriverContext ctx = driverContext();
+        BlockFactory blockFactory = ctx.blockFactory();
+
+        Page page0 = buildPage(blockFactory, 40, i -> i < 35 ? "A" : "B", i -> i < 15 ? 0L : 1L);
+        Page page1 = buildPage(blockFactory, 40, i -> "B", i -> 1L);
+        Page page2 = buildPage(blockFactory, 40, i -> "B", i -> 1L);
+
+        var pages = List.of(page0, page1, page2);
+
+        List<Page> outputPages = invokeChangePoint(ctx, pages);
+        try {
+            assertChangePointAt(outputPages.get(0), 15);  // group A change point
+            assertNoChangePoints(outputPages.get(1));
+            assertNoChangePoints(outputPages.get(2));
+        } finally {
+            outputPages.forEach(Page::releaseBlocks);
+        }
+
+    }
+
+    /**
+     * ---- PAGE 1 ----
+     * 0: | "A" | 1 |
+     * ...
+     * 39: | "A" | 1 |
+     * ---- PAGE 2 ----
+     * 0: | "A" | 1 |
+     * ...
+     * 39: | "A" | 1 |
+     * ---- PAGE 3 ----
+     * 0: | "A" | 1 |
+     * ...
+     * 4: | "A" | 1 |
+     * 5: | "B" | 0 |
+     * ...
+     * 24: | "B" | 0 |
+     * 25: | "A" | 1 |
+     * ...
+     * 39: | "A" | 1 |
+     */
+    public void testGroupedChangePointOnLastPage() {
+        DriverContext ctx = driverContext();
+        BlockFactory blockFactory = ctx.blockFactory();
+
+        Page page0 = buildPage(blockFactory, 40, i -> "A", i -> 1L);
+        Page page1 = buildPage(blockFactory, 40, i -> "A", i -> 1L);
+        Page page2 = buildPage(blockFactory, 40, i -> i < 5 ? "A" : "B", i -> i < 5 ? 1L : (i < 25 ? 0L : 1L));
+
+        var pages = List.of(page0, page1, page2);
+
+        List<Page> outputPages = invokeChangePoint(ctx, pages);
+        try {
+            assertNoChangePoints(outputPages.get(0));
+            assertNoChangePoints(outputPages.get(1));
+            assertChangePointAt(outputPages.get(2), 25);
+        } finally {
+            outputPages.forEach(Page::releaseBlocks);
+        }
+
+    }
+
+    private static Page buildPage(BlockFactory blockFactory, int size, IntFunction<String> group, LongUnaryOperator value) {
+        try (
+            BytesRefBlock.Builder g = blockFactory.newBytesRefBlockBuilder(size);
+            LongBlock.Builder v = blockFactory.newLongBlockBuilder(size)
+        ) {
+            for (int i = 0; i < size; i++) {
+                g.appendBytesRef(new BytesRef(group.apply(i)));
+                v.appendLong(value.applyAsLong(i));
+            }
+            return new Page(g.build(), v.build());
+        }
+    }
+
+    private List<Page> invokeChangePoint(DriverContext ctx, List<Page> inputPages) {
         try (ChangePointOperator op = new ChangePointOperator(ctx, 1, 0, new TestWarningsSource(null))) {
-            op.addInput(page0);
-            op.addInput(page1);
-            op.addInput(page2);
+            for (Page page : inputPages) {
+                op.addInput(page);
+            }
             op.finish();
             Page out;
+            List<Page> outputPages = new ArrayList<>();
             while ((out = op.getOutput()) != null) {
                 outputPages.add(out);
             }
-        }
-
-        try {
-            assertThat(outputPages, hasSize(3));
-            assertChangePointAt(outputPages.get(0), 15);   // group A change point on page 0
-            assertNoChangePoints(outputPages.get(1));       // boundary page: no change points
-            assertChangePointAt(outputPages.get(2), 5);    // group B change point on page 2
-        } finally {
-            outputPages.forEach(Page::releaseBlocks);
+            return outputPages;
         }
     }
 
     private void assertChangePointAt(Page page, int position) {
         BytesRefBlock typeBlock = page.getBlock(2);
         DoubleBlock pvalueBlock = page.getBlock(3);
-        for (int j = 0; j < page.getPositionCount(); j++) {
-            if (j == position) {
-                assertThat("expected change type at " + j, typeBlock.isNull(j), equalTo(false));
-                assertThat("expected pvalue at " + j, pvalueBlock.isNull(j), equalTo(false));
-                assertThat(typeBlock.getBytesRef(j, new BytesRef()).utf8ToString(), equalTo("step_change"));
-            } else {
-                assertThat("unexpected change type at " + j, typeBlock.isNull(j), equalTo(true));
-                assertThat("unexpected pvalue at " + j, pvalueBlock.isNull(j), equalTo(true));
-            }
-        }
+
+        assertThat("expected change type at " + position, typeBlock.isNull(position), equalTo(false));
+        assertThat("expected pvalue at " + position, pvalueBlock.isNull(position), equalTo(false));
+        assertThat(typeBlock.getBytesRef(position, new BytesRef()).utf8ToString(), equalTo("step_change"));
     }
 
     private void assertNoChangePoints(Page page) {

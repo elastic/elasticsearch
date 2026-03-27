@@ -11,6 +11,7 @@ package org.elasticsearch.rest;
 
 import org.elasticsearch.test.ESTestCase;
 
+import java.net.URI;
 import java.util.List;
 import java.util.Map;
 
@@ -131,9 +132,12 @@ public class RequestParamsTests extends ESTestCase {
 
     public void testEntrySetValuesAreLastValues() {
         var map = RequestParams.of(Map.of("k", List.of("first", "last")));
-        var entry = map.entrySet().iterator().next();
+        var iterator = map.entrySet().iterator();
+        assertThat(iterator.hasNext(), is(true));
+        var entry = iterator.next();
         assertThat(entry.getKey(), equalTo("k"));
         assertThat(entry.getValue(), equalTo("last"));
+        assertThat(iterator.hasNext(), is(false));
     }
 
     public void testEntrySetIteratorRemove() {
@@ -142,5 +146,36 @@ public class RequestParamsTests extends ESTestCase {
         it.next();
         it.remove();
         assertThat(map.size(), equalTo(1));
+    }
+
+    public void testEntrySetClear() {
+        var map = RequestParams.of(Map.of("a", List.of("1"), "b", List.of("2")));
+        map.entrySet().clear();
+        assertThat(map.isEmpty(), is(true));
+    }
+
+    public void testAddValue() {
+        var map = RequestParams.empty();
+        map.addValue("k", "first");
+        assertThat(map.getAll("k"), equalTo(List.of("first")));
+        map.addValue("k", "second");
+        assertThat(map.getAll("k"), equalTo(List.of("first", "second")));
+        assertThat(map.get("k"), equalTo("second"));
+    }
+
+    public void testFromUri() {
+        var map = RequestParams.fromUri("something?a=1&b=2");
+        assertThat(map.size(), equalTo(2));
+        assertThat(map.get("a"), equalTo("1"));
+        assertThat(map.get("b"), equalTo("2"));
+        assertThat(RequestParams.fromUri("something").isEmpty(), is(true));
+    }
+
+    public void testFrom() throws Exception {
+        var map = RequestParams.from(new URI("http://example.com/path?a=1&b=2"));
+        assertThat(map.size(), equalTo(2));
+        assertThat(map.get("a"), equalTo("1"));
+        assertThat(map.get("b"), equalTo("2"));
+        assertThat(RequestParams.from(new URI("http://example.com/path")).isEmpty(), is(true));
     }
 }

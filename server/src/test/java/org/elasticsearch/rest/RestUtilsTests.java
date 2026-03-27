@@ -96,6 +96,12 @@ public class RestUtilsTests extends ESTestCase {
         assertThat(params.getAll("start"), equalTo(List.of("1609746000")));
     }
 
+    public void testDecodeQueryStringMultipleValuesUnadorned() {
+        var params = RequestParams.fromQueryString("match=up&match=http_requests_total&start=1609746000");
+        assertThat(params.getAll("match"), equalTo(List.of("up", "http_requests_total")));
+        assertThat(params.getAll("start"), equalTo(List.of("1609746000")));
+    }
+
     public void testDecodeQueryStringDelimiters() {
         var params = RequestParams.fromQueryString(Strings.format("a=1%cb=2", randomDelimiter()));
         assertThat(params.getAll("a"), equalTo(List.of("1")));

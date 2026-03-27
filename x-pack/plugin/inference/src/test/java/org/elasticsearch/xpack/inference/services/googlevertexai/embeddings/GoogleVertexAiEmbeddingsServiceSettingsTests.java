@@ -187,7 +187,7 @@ public class GoogleVertexAiEmbeddingsServiceSettingsTests extends AbstractBWCWir
 
         var updatedMaxBatchSize = randomValueOtherThan(initialMaxBatchSize, () -> randomIntBetween(1, EMBEDDING_MAX_BATCH_SIZE));
         var actualUpdatedSettings = initialSettings.updateServiceSettings(
-            Map.of(GoogleVertexAiServiceFields.MAX_BATCH_SIZE, updatedMaxBatchSize)
+            new HashMap<>(Map.of(GoogleVertexAiServiceFields.MAX_BATCH_SIZE, updatedMaxBatchSize))
         );
 
         var expectedUpdatedSettings = new GoogleVertexAiEmbeddingsServiceSettings(
@@ -220,7 +220,7 @@ public class GoogleVertexAiEmbeddingsServiceSettingsTests extends AbstractBWCWir
 
         var invalidMaxBatchSize = EMBEDDING_MAX_BATCH_SIZE + 1;
         var exception = expectThrows(ValidationException.class, () -> {
-            initialSettings.updateServiceSettings(Map.of(GoogleVertexAiServiceFields.MAX_BATCH_SIZE, invalidMaxBatchSize));
+            initialSettings.updateServiceSettings(new HashMap<>(Map.of(GoogleVertexAiServiceFields.MAX_BATCH_SIZE, invalidMaxBatchSize)));
         });
 
         assertThat(exception.getMessage(), containsString("[max_batch_size] must be less than or equal to [250.0]"));

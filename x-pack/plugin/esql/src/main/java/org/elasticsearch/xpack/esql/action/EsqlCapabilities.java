@@ -261,7 +261,7 @@ public class EsqlCapabilities {
          * See https://github.com/elastic/elasticsearch/issues/141994
          * </ul>
          */
-        OPTIONAL_FIELDS_V4(Build.current().isSnapshot()),
+        OPTIONAL_FIELDS_V5(Build.current().isSnapshot()),
 
         /**
          * Support specifically for *just* the _index METADATA field. Used by CsvTests, since that is the only metadata field currently
@@ -1984,7 +1984,7 @@ public class EsqlCapabilities {
         /**
          * Support for PromQL {@code without} grouping.
          */
-        PROMQL_WITHOUT_GROUPING(false),
+        PROMQL_WITHOUT_GROUPING,
 
         /**
          * Support for {@code TIME_SERIES_WITHOUT_GROUPING} capability for the
@@ -2242,12 +2242,12 @@ public class EsqlCapabilities {
         /**
          * Support for the EXTERNAL command (datasource access).
          */
-        EXTERNAL_COMMAND(Build.current().isSnapshot()),
+        EXTERNAL_COMMAND(EsqlFeatureFlags.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
 
         /**
          * Support for the EXTERNAL command (datasource access).
          */
-        EXTERNAL_CSV_IP_SUPPORT(Build.current().isSnapshot()),
+        EXTERNAL_CSV_IP_SUPPORT(EsqlFeatureFlags.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
 
         /**
          * https://github.com/elastic/elasticsearch/issues/142219
@@ -2360,6 +2360,11 @@ public class EsqlCapabilities {
         ESQL_TOPN_BY(Build.current().isSnapshot()),
 
         /**
+         * Corrects a bug with ENRICH when a shard does not contain an index field and we use LIMIT BY on top
+         */
+        LIMIT_BY_ENRICH_FIX(ESQL_LIMIT_BY.isEnabled()),
+
+        /**
          * Fix window validation in time-series aggregations when TBUCKET uses a numeric target bucket count.
          */
         FIX_TBUCKET_TARGET_COUNT_WINDOW_VALIDATION,
@@ -2374,6 +2379,12 @@ public class EsqlCapabilities {
          * Support CHANGE_POINT arguments in any order
          */
         CHANGE_POINT_ARGS_ANY_ORDER,
+
+        /**
+         * Reject loading sub-fields of flattened fields when {@code unmapped_fields="load"}
+         * See https://github.com/elastic/elasticsearch/issues/143494
+         */
+        REJECT_LOADING_FLATTENED_SUBFIELDS(OPTIONAL_FIELDS_V4.isEnabled()),
 
         FIX_DIV_ERROR_MESSAGE,
 
@@ -2393,6 +2404,8 @@ public class EsqlCapabilities {
          * See https://github.com/elastic/elasticsearch/issues/144914
          */
         FIX_SUM_OF_NULL_OPTIMIZATION,
+
+        PROPAGATE_EMPTY_RELATION_PAST_JOINS,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

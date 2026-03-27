@@ -35,6 +35,7 @@ You can learn how to:
 - [Reindex with custom routing](#docs-reindex-routing)
 - [Reindex with an ingest pipeline](#reindex-with-an-ingest-pipeline)
 - [Reindex from remote](#reindex-from-remote)
+- [Reindex in {{cps}}](#reindex-cps)
 
 **Troubleshooting**
 - [Monitor reindex tasks](#monitor-reindex-tasks)
@@ -618,11 +619,6 @@ POST _reindex
   }
 }
 ```
-% TEST[setup:host]
-% TEST[s/^/PUT my-index-000001\n/]
-% TEST[s/"host": [^}]*,/"host": "http:\/\/\${host}",/]
-% TEST[s/"username": "user",/"username": "test_admin",/]
-% TEST[s/"password": "pass"/"password": "x-pack-test-password"/]
 
 The `host` parameter must contain a scheme, host, port (for example, `https://<OTHER_HOST_URL>:9200`), and optional path (for example, `https://<OTHER_HOST_URL>:9200/proxy`).
 
@@ -710,7 +706,7 @@ The remote hosts that you can use depend on whether you're using the versioned {
 
   The list of allowed hosts must be configured on any node that will coordinate the reindex.
 
-* In {{serverless-full}}, only remote hosts in Elastic Cloud Hosted are allowed. {applies_to}`serverless: preview`
+* In {{serverless-full}}, all remote hosts in any {{ecloud}} region are allowed, including {{ech}} deployments and {{serverless-short}} projects. {applies_to}`serverless: preview`
 
 ### Compatibility [reindex-remote-compatibility]
 
@@ -793,6 +789,93 @@ Reindex from remote supports configurable SSL settings.
 These must be specified in the `elasticsearch.yml` file, with the exception of the secure settings, which you add in the {{es}} keystore.
 It is not possible to configure SSL in the body of the reindex API request.
 Refer to [Reindex settings](/reference/elasticsearch/configuration-reference/index-management-settings.md#reindex-settings).
+
+## Reindex in {{cps}} [reindex-cps]
+```{applies_to}
+serverless: preview
+```
+
+When [{{cps}}](docs-content://explore-analyze/cross-project-search.md) is enabled, the [Reindex API](https://www.elastic.co/docs/api/doc/elasticsearch/v9/operation/operation-reindex) can pull documents from indices across linked {{serverless-short}} projects.
+The `source.index` field resolves across the origin project and all of its linked projects.
+You can narrow the scope of the source using [project routing](docs-content://explore-analyze/cross-project-search/cross-project-search-project-routing.md) or [qualified index expressions](docs-content://explore-analyze/cross-project-search/cross-project-search-search.md#search-expressions).
+Documents are always written to the destination index on the origin project.
+
+There are two ways to use reindex to move data between {{serverless-short}} projects in {{cps-init}}:
+
+* [**Reindex across linked projects**](#reindex-cps-linked): reindex from the origin project and its [linked projects](docs-content://explore-analyze/cross-project-search/cross-project-search-link-projects.md).
+* [**Reindex from a remote project**](#reindex-cps-remote): reindex from another {{serverless-short}} project or an {{ech}} deployment by connecting over HTTP with `source.remote.host`.
+
+### Reindex across linked projects [reindex-cps-linked]
+
+When not using [`source.remote`](#reindex-cps-remote), the Reindex API pulls documents from the origin project and its linked projects:
+
+* Only the origin project and projects [linked](docs-content://explore-analyze/cross-project-search/cross-project-search-link-projects.md) to it can be targeted.
+* The `source.index` field resolves across the origin project and all linked projects.
+* You can use `project_routing` in the `source` section to limit which projects are included.
+* Qualified index expressions (for example, `project1:logs`) are supported.
+
+The following request reindexes documents from the `logs` index, limiting the source to the linked project with alias `project1`:
+
+```console
+POST _reindex
+{
+  "source": {
+    "project_routing": "_alias:project1",
+    "index": "logs"
+  },
+  "dest": {
+    "index": "new_index"
+  }
+}
+```
+
+### Reindex from a remote project [reindex-cps-remote]
+
+When using `source.remote.host`, you can reindex from another {{serverless-short}} project or an {{ech}} deployment over HTTP.
+By default, the reindex operation pulls documents only from the specified remote target.
+
+If the remote target is a {{cps}}-enabled {{serverless-short}} project, the `source.index` field can also resolve across the remote project and all of its linked projects. For this to work, the request must authenticate with an [{{ecloud}} API key](docs-content://deploy-manage/api-keys/elastic-cloud-api-keys.md) that has **Cloud, Elasticsearch, and Kibana API** access. An [{{es}} API key](docs-content://deploy-manage/api-keys/elasticsearch-api-keys.md) only provides access to the remote project itself, not its linked projects.
+
+The following request reindexes documents from the `logs` index on a remote project. The source targets the `logs` index on the remote project and any of its linked projects, but not the `logs` index on the origin project (the project you sent the reindex request to):
+
+```console
+POST _reindex
+{
+  "source": {
+    "remote": {
+      "host": "https://my-remote-project.es.us-east-1.aws.elastic.cloud:443",
+      "api_key": "<API_KEY>"
+    },
+    "index": "logs"
+  },
+  "dest": {
+    "index": "new_index"
+  }
+}
+```
+
+You can add `project_routing` to the `source` section to limit which of the remote project's linked projects are included. The following request limits the reindex source to the remote project's origin project only:
+
+```console
+POST _reindex
+{
+  "source": {
+    "remote": {
+      "host": "https://my-remote-project.es.us-east-1.aws.elastic.cloud:443",
+      "api_key": "<API_KEY>"
+    },
+    "project_routing": "_alias:_origin",
+    "index": "logs"
+  },
+  "dest": {
+    "index": "new_index"
+  }
+}
+```
+
+::::{note}
+`project_routing` is only supported when the remote target is a {{serverless-short}} project. If you include `project_routing` in a request targeting a non-{{serverless-short}} deployment, the request returns an error.
+::::
 
 ## Monitor reindex tasks [monitor-reindex-tasks]
 

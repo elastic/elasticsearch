@@ -38,11 +38,13 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneColumns;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneEmptyAggregates;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneEmptyForkBranches;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneFilters;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneLiteralsInLimitBy;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneLiteralsInOrderBy;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneRedundantOrderBy;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneRedundantSortClauses;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneUnusedIndexMode;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownAndCombineFilters;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownAndCombineLimitBy;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownAndCombineLimits;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownAndCombineOrderBy;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownAndCombineSample;
@@ -57,10 +59,12 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownLimitAndOrde
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownRegexExtract;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushLimitToKnn;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.RemoveStatsOverride;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReorderLimitProjectAndOrderBy;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceAggregateAggExpressionWithEval;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceAggregateNestedExpressionWithEval;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceAliasingEvalWithProject;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceLimitAndSortAsTopN;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceLimitByExpressionWithEval;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceOrderByExpressionWithEval;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceRegexMatch;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceRowAsLocalRelation;
@@ -183,6 +187,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             // check for a trivial conversion introduced by a surrogate
             new ReplaceTrivialTypeConversions(),
             new ReplaceOrderByExpressionWithEval(),
+            new ReplaceLimitByExpressionWithEval(),
             // new NormalizeAggregate(), - waits on https://github.com/elastic/elasticsearch/issues/100634
             new SubstituteApproximationPlan()
         );
@@ -226,7 +231,9 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new PruneFilters(),
             new PruneColumns(),
             new PruneLiteralsInOrderBy(),
+            new PruneLiteralsInLimitBy(),
             new PushDownAndCombineLimits(),
+            new PushDownAndCombineLimitBy(),
             new PushLimitToKnn(),
             new PushDownAndCombineFilters(),
             new PushDownConjunctionsToKnnPrefilters(),
@@ -257,7 +264,8 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new HoistRemoteEnrichTopN(),
             new ReplaceRowAsLocalRelation(),
             new PropgateUnmappedFields(),
-            new CombineLimitTopN()
+            new CombineLimitTopN(),
+            new ReorderLimitProjectAndOrderBy()
         );
     }
 

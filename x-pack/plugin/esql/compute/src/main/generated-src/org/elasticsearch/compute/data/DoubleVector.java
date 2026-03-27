@@ -21,7 +21,7 @@ import java.io.IOException;
  * This class is generated. Edit {@code X-Vector.java.st} instead.
  */
 public sealed interface DoubleVector extends Vector permits ConstantDoubleVector, DoubleArrayVector, DoubleBigArrayVector,
-    ConstantNullVector {
+    ConstantNullVector, org.elasticsearch.compute.data.arrow.DoubleArrowBufVector {
     double getDouble(int position);
 
     @Override
@@ -48,6 +48,15 @@ public sealed interface DoubleVector extends Vector permits ConstantDoubleVector
 
     @Override
     ReleasableIterator<? extends DoubleBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize);
+
+    /**
+     * Return a subset of this vector from {@code beginInclusive} to
+     * {@code endExclusive}. This <strong>may</strong> return the same
+     * instance if the range covers all positions, but if it does it
+     * will {@link #incRef()} it.
+     */
+    @Override
+    DoubleVector slice(int beginInclusive, int endExclusive);
 
     /**
      * Compares the given object with this vector for equality. Returns {@code true} if and only if the

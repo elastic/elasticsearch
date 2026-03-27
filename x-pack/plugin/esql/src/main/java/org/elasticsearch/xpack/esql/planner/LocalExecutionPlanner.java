@@ -38,6 +38,7 @@ import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator.EvalOperatorFactory;
 import org.elasticsearch.compute.operator.FilterOperator.FilterOperatorFactory;
+import org.elasticsearch.compute.operator.GroupedLimitOperator;
 import org.elasticsearch.compute.operator.LimitOperator;
 import org.elasticsearch.compute.operator.LocalSourceOperator;
 import org.elasticsearch.compute.operator.LocalSourceOperator.LocalSourceFactory;
@@ -66,7 +67,7 @@ import org.elasticsearch.compute.operator.fuse.LinearConfig;
 import org.elasticsearch.compute.operator.fuse.LinearScoreEvalOperator;
 import org.elasticsearch.compute.operator.fuse.RrfConfig;
 import org.elasticsearch.compute.operator.fuse.RrfScoreEvalOperator;
-import org.elasticsearch.compute.operator.topn.DocVectorEncoder;
+import org.elasticsearch.compute.operator.topn.GroupedTopNOperator;
 import org.elasticsearch.compute.operator.topn.TopNEncoder;
 import org.elasticsearch.compute.operator.topn.TopNOperator;
 import org.elasticsearch.compute.operator.topn.TopNOperator.TopNOperatorFactory;
@@ -145,6 +146,7 @@ import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.FuseScoreEvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.GrokExec;
 import org.elasticsearch.xpack.esql.plan.physical.HashJoinExec;
+import org.elasticsearch.xpack.esql.plan.physical.LimitByExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
@@ -157,6 +159,7 @@ import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.SampleExec;
 import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
 import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
+import org.elasticsearch.xpack.esql.plan.physical.TopNByExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plan.physical.TsInfoExec;
 import org.elasticsearch.xpack.esql.plan.physical.inference.CompletionExec;
@@ -301,6 +304,8 @@ public class LocalExecutionPlanner {
             return planExchange(exchangeExec, context);
         } else if (node instanceof TopNExec topNExec) {
             return planTopN(topNExec, context);
+        } else if (node instanceof TopNByExec topNByExec) {
+            return planTopNBy(topNByExec, context);
         } else if (node instanceof EvalExec eval) {
             return planEval(eval, context);
         } else if (node instanceof DissectExec dissect) {
@@ -311,6 +316,8 @@ public class LocalExecutionPlanner {
             return planProject(project, context);
         } else if (node instanceof FilterExec filter) {
             return planFilter(filter, context);
+        } else if (node instanceof LimitByExec limitBy) {
+            return planLimitBy(limitBy, context);
         } else if (node instanceof LimitExec limit) {
             return planLimit(limit, context);
         } else if (node instanceof MvExpandExec mvExpand) {
@@ -544,57 +551,14 @@ public class LocalExecutionPlanner {
 
     private PhysicalOperation planTopN(TopNExec topNExec, LocalExecutionPlannerContext context) {
         final Integer rowSize = topNExec.estimatedRowSize();
-        assert rowSize != null && rowSize > 0 : "estimated row size [" + rowSize + "] wasn't set";
         PhysicalOperation source = plan(topNExec.child(), context);
-
-        ElementType[] elementTypes = new ElementType[source.layout.numberOfChannels()];
-        TopNEncoder[] encoders = new TopNEncoder[source.layout.numberOfChannels()];
-        List<Layout.ChannelSet> inverse = source.layout.inverse();
-        for (int channel = 0; channel < inverse.size(); channel++) {
-            var fieldExtractPreference = fieldExtractPreference(topNExec, inverse.get(channel).nameIds());
-            elementTypes[channel] = PlannerUtils.toElementType(inverse.get(channel).type(), fieldExtractPreference);
-            encoders[channel] = switch (inverse.get(channel).type()) {
-                case IP -> TopNEncoder.IP;
-                case TEXT, KEYWORD -> TopNEncoder.UTF8;
-                case VERSION -> TopNEncoder.VERSION;
-                case DOC_DATA_TYPE -> new DocVectorEncoder(context.shardContexts);
-                case BOOLEAN, NULL, BYTE, SHORT, INTEGER, LONG, DOUBLE, FLOAT, HALF_FLOAT, DATETIME, DATE_NANOS, DATE_PERIOD, TIME_DURATION,
-                    OBJECT, SCALED_FLOAT, UNSIGNED_LONG -> TopNEncoder.DEFAULT_SORTABLE;
-                case GEO_POINT, CARTESIAN_POINT, GEO_SHAPE, CARTESIAN_SHAPE, COUNTER_LONG, COUNTER_INTEGER, COUNTER_DOUBLE, SOURCE,
-                    AGGREGATE_METRIC_DOUBLE, DENSE_VECTOR, GEOHASH, GEOTILE, GEOHEX, EXPONENTIAL_HISTOGRAM, TDIGEST, HISTOGRAM,
-                    TSID_DATA_TYPE, DATE_RANGE -> TopNEncoder.DEFAULT_UNSORTABLE;
-                // unsupported fields are encoded as BytesRef, we'll use the same encoder; all values should be null at this point
-                case UNSUPPORTED -> TopNEncoder.UNSUPPORTED;
-            };
-        }
-        List<TopNOperator.SortOrder> orders = topNExec.order().stream().map(order -> {
-            int sortByChannel;
-            if (order.child() instanceof Attribute a) {
-                sortByChannel = source.layout.get(a.id()).channel();
-            } else {
-                throw new EsqlIllegalArgumentException("order by expression must be an attribute");
-            }
-
-            return new TopNOperator.SortOrder(
-                sortByChannel,
-                order.direction().equals(Order.OrderDirection.ASC),
-                order.nullsPosition().equals(Order.NullsPosition.FIRST)
-            );
-        }).toList();
-
-        int limit;
-        if (topNExec.limit() instanceof Literal literal) {
-            Object val = literal.value() instanceof BytesRef br ? BytesRefs.toString(br) : literal.value();
-            limit = stringToInt(val.toString());
-        } else {
-            throw new EsqlIllegalArgumentException("limit only supported with literal values");
-        }
+        var common = topNCommon(rowSize, topNExec.order(), topNExec.limit(), topNExec.docValuesAttributes(), source, context);
         return source.with(
             new TopNOperatorFactory(
-                limit,
-                asList(elementTypes),
-                asList(encoders),
-                orders,
+                common.limit,
+                asList(common.elementTypes),
+                asList(common.encoders),
+                common.orders,
                 context.pageSize(topNExec, rowSize),
                 context.plannerSettings.valuesLoadingJumboSize().getBytes(),
                 topNExec.inputOrdering(),
@@ -604,18 +568,88 @@ public class LocalExecutionPlanner {
         );
     }
 
-    private static MappedFieldType.FieldExtractPreference fieldExtractPreference(TopNExec topNExec, Set<NameId> nameIds) {
-        MappedFieldType.FieldExtractPreference fieldExtractPreference = MappedFieldType.FieldExtractPreference.NONE;
+    private PhysicalOperation planTopNBy(TopNByExec topNByExec, LocalExecutionPlannerContext context) {
+        final Integer rowSize = topNByExec.estimatedRowSize();
+        PhysicalOperation source = plan(topNByExec.child(), context);
+        var common = topNCommon(rowSize, topNByExec.order(), topNByExec.limitPerGroup(), topNByExec.docValuesAttributes(), source, context);
+        List<Integer> groupKeys = topNByExec.groupings()
+            .stream()
+            .map(grouping -> getAttributeChannel(grouping, source.layout, "LIMIT BY expression must be an attribute"))
+            .toList();
+        if (groupKeys.isEmpty()) {
+            throw new EsqlIllegalArgumentException("TopNBy groupings cannot be empty at runtime");
+        }
+        return source.with(
+            new GroupedTopNOperator.GroupedTopNOperatorFactory(
+                common.limit,
+                asList(common.elementTypes),
+                asList(common.encoders),
+                common.orders,
+                groupKeys,
+                context.pageSize(topNByExec, rowSize),
+                context.plannerSettings.valuesLoadingJumboSize().getBytes()
+            ),
+            source.layout
+        );
+    }
+
+    private record TopNCommon(ElementType[] elementTypes, TopNEncoder[] encoders, List<TopNOperator.SortOrder> orders, int limit) {}
+
+    private TopNCommon topNCommon(
+        Integer rowSize,
+        List<Order> order,
+        Expression limitExpr,
+        Set<Attribute> docValuesAttributes,
+        PhysicalOperation source,
+        LocalExecutionPlannerContext context
+    ) {
+        assert rowSize != null && rowSize > 0 : "estimated row size [" + rowSize + "] wasn't set";
+
+        ElementType[] elementTypes = new ElementType[source.layout.numberOfChannels()];
+        TopNEncoder[] encoders = new TopNEncoder[source.layout.numberOfChannels()];
+        List<Layout.ChannelSet> inverse = source.layout.inverse();
+        for (int channel = 0; channel < inverse.size(); channel++) {
+            var fieldExtractPreference = fieldExtractPreference(docValuesAttributes, inverse.get(channel).nameIds());
+            elementTypes[channel] = PlannerUtils.toElementType(inverse.get(channel).type(), fieldExtractPreference);
+            encoders[channel] = TopNExec.encoder(inverse.get(channel).type(), context.shardContexts);
+        }
+        List<TopNOperator.SortOrder> orders = order.stream().map(o -> {
+            int sortByChannel = getAttributeChannel(o.child(), source.layout, "order by expression must be an attribute");
+            return new TopNOperator.SortOrder(
+                sortByChannel,
+                o.direction().equals(Order.OrderDirection.ASC),
+                o.nullsPosition().equals(Order.NullsPosition.FIRST)
+            );
+        }).toList();
+
+        int limit;
+        if (limitExpr instanceof Literal literal) {
+            Object val = literal.value() instanceof BytesRef br ? BytesRefs.toString(br) : literal.value();
+            limit = stringToInt(val.toString());
+        } else {
+            throw new EsqlIllegalArgumentException("limit only supported with literal values");
+        }
+        return new TopNCommon(elementTypes, encoders, orders, limit);
+    }
+
+    private static int getAttributeChannel(Expression expression, Layout layout, String errMessage) {
+        if (expression instanceof Attribute a) {
+            return layout.get(a.id()).channel();
+        } else {
+            throw new EsqlIllegalArgumentException(errMessage);
+        }
+    }
+
+    private static MappedFieldType.FieldExtractPreference fieldExtractPreference(Set<Attribute> docValuesAttributes, Set<NameId> nameIds) {
         // See if any of the NameIds is marked as having been loaded with doc-values preferences, which will affect the ElementType chosen.
         for (NameId nameId : nameIds) {
-            for (Attribute withDocValues : topNExec.docValuesAttributes()) {
+            for (Attribute withDocValues : docValuesAttributes) {
                 if (nameId.equals(withDocValues.id())) {
-                    fieldExtractPreference = MappedFieldType.FieldExtractPreference.DOC_VALUES;
-                    break;
+                    return MappedFieldType.FieldExtractPreference.DOC_VALUES;
                 }
             }
         }
-        return fieldExtractPreference;
+        return MappedFieldType.FieldExtractPreference.NONE;
     }
 
     private PhysicalOperation planEval(EvalExec eval, LocalExecutionPlannerContext context) {
@@ -1255,12 +1289,22 @@ public class LocalExecutionPlanner {
             effectiveBufferSize = Math.min(10, (pushedLimit + pageSize - 1) / pageSize + 1);
         }
 
+        FileSet fileSet = externalSource.fileSet();
         int splitCount = externalSource.splits().size();
         ExternalSliceQueue sliceQueue = null;
         int instanceCount = 1;
 
-        if (splitCount > 1) {
+        /*
+         * Data nodes don't have a resolved FileSet (it isn't serialized), so they must rely on explicit splits.
+         * If we received a single coalesced split, we still need to route execution through the slice queue so
+         * the operator can expand it into its leaf FileSplits. Otherwise we'd fall back to opening the original
+         * (potentially globbed) source path as a single object.
+         */
+        boolean useSliceQueue = splitCount > 0 && (splitCount > 1 || fileSet == null || fileSet.isResolved() == false);
+        if (useSliceQueue) {
             sliceQueue = new ExternalSliceQueue(externalSource.splits());
+        }
+        if (splitCount > 1) {
             int maxParallelism = context.queryPragmas().taskConcurrency();
             if (pushedLimit != FormatReader.NO_LIMIT && pushedLimit <= pageSize) {
                 instanceCount = 1;
@@ -1271,8 +1315,6 @@ public class LocalExecutionPlanner {
                 instanceCount = Math.min(splitCount, maxParallelism);
             }
         }
-
-        FileSet fileSet = externalSource.fileSet();
         Set<String> partitionColumnNames = Set.of();
         if (fileSet != null) {
             PartitionMetadata pm = fileSet.partitionMetadata();
@@ -1409,6 +1451,22 @@ public class LocalExecutionPlanner {
     private PhysicalOperation planLimit(LimitExec limit, LocalExecutionPlannerContext context) {
         PhysicalOperation source = plan(limit.child(), context);
         return source.with(new LimitOperator.Factory((Integer) limit.limit().fold(context.foldCtx)), source.layout);
+    }
+
+    private PhysicalOperation planLimitBy(LimitByExec limitBy, LocalExecutionPlannerContext context) {
+        PhysicalOperation source = plan(limitBy.child(), context);
+        int limitValue = (Integer) limitBy.limitPerGroup().fold(context.foldCtx);
+        Layout layout = source.layout;
+        List<Integer> groupKeys = limitBy.groupings()
+            .stream()
+            .map(g -> getAttributeChannel(g, layout, "LIMIT BY expression must be an attribute"))
+            .toList();
+        List<Layout.ChannelSet> inverse = layout.inverse();
+        List<ElementType> elementTypes = new ArrayList<>(layout.numberOfChannels());
+        for (int channel = 0; channel < inverse.size(); channel++) {
+            elementTypes.add(PlannerUtils.toElementType(inverse.get(channel).type()));
+        }
+        return source.with(new GroupedLimitOperator.Factory(limitValue, groupKeys, elementTypes), source.layout);
     }
 
     private PhysicalOperation planMvExpand(MvExpandExec mvExpandExec, LocalExecutionPlannerContext context) {

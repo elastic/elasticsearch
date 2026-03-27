@@ -1720,7 +1720,7 @@ e:i   | languages + emp_no:i
 10018 | 10007
 ;
 
-nestedAggsOverGroupingExpressionWithAlias#[skip:-8.13.99,reason:supported in 8.14]
+nestedAggsOverGroupingExpressionWithAliasMultipleAggs#[skip:-8.13.99,reason:supported in 8.14]
 FROM employees
 | STATS e = max(a), f = min(a), g = count(a) + 1 by a = languages + emp_no
 | SORT a
@@ -1748,7 +1748,7 @@ vals: l| x:i
 17     | 3
 ;
 
-nestedAggsOverGroupingWithAlias#[skip:-8.13.99,reason:supported in 8.14]
+nestedAggsOverGroupingWithAliasMultipleAggs#[skip:-8.13.99,reason:supported in 8.14]
 FROM employees
 | STATS e = length(f) + 1, count(*) by f = first_name
 | SORT f
@@ -2011,11 +2011,21 @@ s2point1:l | s_mv:l | s_null:l | s_expr:l | s_expr_null:l | rows:l | languages:i
 
 sumOfConst#[skip:-8.13.99,reason:supported in 8.14]
 FROM employees
-| STATS s1 = sum(1), s2point1 = sum(2.1), s_mv = sum([-1, 0, 3]) * 3, s_null = sum(null), s_expr = sum(1+1), s_expr_null = sum(1+null), rows = count(*)
+| STATS s1 = sum(1), s2point1 = sum(2.1), s_mv = sum([-1, 0, 3]) * 3, s_expr = sum(1+1), s_expr_null = sum(1+null), rows = count(*)
 ;
 
-s1:l | s2point1:d | s_mv:l | s_null:d | s_expr:l | s_expr_null:l | rows:l
-100  | 210.0      | 600    | null     | 200      | null          | 100
+s1:l | s2point1:d | s_mv:l | s_expr:l | s_expr_null:l | rows:l
+100  | 210.0      | 600    | 200      | null          | 100
+;
+
+sumOfNullConst
+required_capability: fix_sum_of_null_optimization
+FROM employees
+| STATS s_null = sum(null)
+;
+
+s_null:null
+null
 ;
 
 sumOfConstGrouped#[skip:-8.13.99,reason:supported in 8.14]
@@ -3859,4 +3869,129 @@ SUM(salary_change):double   | salary_change:double
 -1.0100000000000002         | 1.19           
 14.69                       | 1.92           
 6.000000000000001           | 1.98           
+;
+
+multiStatsAfterFalseFilter_ByComputedValues
+from employees
+| where false
+| stats c = count(*), s = avg(salary)
+| stats max(c), min(s) by s, c
+;
+
+  max(c):l     |    min(s):d   |       s:d     |       c:l
+0              |null           |null           |0              
+;
+
+multiStatsAfterFalseFilter_ByLiteralValue
+from employees
+| where false
+| stats c = count(*), s = avg(salary)
+| stats max(c), min(s) by x = "abc"
+;
+
+    max(c):l   |    min(s):d   |       x:keyword       
+0              |null           |abc            
+;
+
+multiStatsAfterFalseFilter_ByField
+from employees
+| where false
+| stats c = count(gender), s = avg(salary) by gender
+| stats max(c), min(c), min(s), avg(s)
+;
+
+    max(c):l   |    min(c):l   |    min(s):d   |    avg(s):d
+null           |null           |null           |null           
+;
+
+whereNullBeforeStats
+from employees
+| where null
+| stats c = count(*)
+;
+
+c:long
+0
+;
+
+whereNullBeforeMixedStats
+from employees
+| where null
+| stats c = count(*), s = sum(salary), a = avg(salary)
+;
+
+c:long | s:long | a:double
+0      | null   | null
+;
+
+evalNullFilterBeforeStats
+from employees
+| eval x = null
+| where x::int > 0
+| stats c = count(*)
+;
+
+c:long
+0
+;
+
+nullArithmeticFilterBeforeStats
+from employees
+| where 1 + null > 0
+| stats c = count(*), mn = min(salary), mx = max(salary)
+;
+
+c:long | mn:integer | mx:integer
+0      | null       | null
+;
+
+whereNullConjunctionBeforeStats
+from employees
+| where null and salary > 0
+| stats c = count(*)
+;
+
+c:long
+0
+;
+
+whereNullBeforeGroupedStats
+from employees
+| where null
+| stats c = count(*) by gender
+;
+
+c:long | gender:keyword
+;
+
+evalNullFilterBeforeGroupedStats
+from employees
+| eval x = null
+| where x::int > 0
+| stats c = count(*), s = avg(salary) by gender
+;
+
+c:long | s:double | gender:keyword
+;
+
+multiStatsAfterNullFilter_ByComputedValues
+from employees
+| where null
+| stats c = count(*), s = avg(salary)
+| stats max(c), min(s) by s, c
+;
+
+ max(c):l | min(s):d | s:d | c:l
+0         |null      |null |0
+;
+
+multiStatsAfterNullFilter_ByField
+from employees
+| where null
+| stats c = count(gender), s = avg(salary) by gender
+| stats max(c), min(c), min(s), avg(s)
+;
+
+    max(c):l   |    min(c):l   |    min(s):d   |    avg(s):d
+null           |null           |null           |null           
 ;

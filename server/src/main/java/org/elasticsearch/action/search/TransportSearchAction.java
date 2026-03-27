@@ -523,6 +523,19 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             }
 
             if (resolvedIndices.getRemoteClusterIndices().isEmpty()) {
+                if (resolvesCrossProject && rewritten.getResolvedIndexExpressions() != null) {
+                    ElasticsearchException ex = CrossProjectIndexResolutionValidator.validate(
+                        original.indicesOptions(),
+                        rewritten.getProjectRouting(),
+                        rewritten.getResolvedIndexExpressions(),
+                        Map.of(),
+                        Map.of()
+                    );
+                    if (ex != null) {
+                        searchResponseActionListener.onFailure(ex);
+                        return;
+                    }
+                }
                 executeLocalSearch(
                     task,
                     timeProvider,

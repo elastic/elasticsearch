@@ -70,7 +70,7 @@ public class ApproximationTests extends ApproximationTestCase {
     public void testVerify_exactlyOneStats() {
         assertError(
             "FROM test | EVAL x = 1 | SORT emp_no | LIMIT 100 | MV_EXPAND x",
-            equalTo("line 1:1: approximation not supported: query without [STATS] cannot be approximated")
+            equalTo("line 1:1: approximation not supported: query must have [STATS] with aggregation function(s) that can be approximated")
         );
         assertError(
             "FROM test | STATS COUNT() BY emp_no | STATS COUNT()",

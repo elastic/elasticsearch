@@ -506,9 +506,7 @@ FROM many_numbers
 | STATS s_null = sum(null)
 ;
 
-// This error message isn't great, because the original query does have a STATS.
-// TODO: fix this
-warning:line 3:3: approximation not supported: query without [STATS] cannot be approximated
+warning:line 3:3: approximation not supported: query must have [STATS] with aggregation function(s) that can be approximated
 
 s_null:null
 null
@@ -588,7 +586,7 @@ SET approximation=true\;
 FROM many_numbers | KEEP mv | MV_EXPAND mv | SORT mv | LIMIT 5
 ;
 
-warning:line 2:1: approximation not supported: query without [STATS] cannot be approximated
+warning:line 2:1: approximation not supported: query must have [STATS] with aggregation function(s) that can be approximated
 
 mv:integer
 1

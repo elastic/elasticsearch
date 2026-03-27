@@ -361,7 +361,7 @@ public class Approximation {
         if (logicalPlan.anyMatch(plan -> plan instanceof Aggregate) == false) {
             Location location = logicalPlan.collectLeaves().getFirst().source().source();
             throw new VerificationException(
-                "line {}:{}: approximation not supported: query without [STATS] cannot be approximated",
+                "line {}:{}: approximation not supported: query must have [STATS] with aggregation function(s) that can be approximated",
                 location.getLineNumber(),
                 location.getColumnNumber()
             );

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.core.datastreams;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockRequest;
 import org.elasticsearch.action.index.IndexRequest;
@@ -30,8 +29,6 @@ import java.time.Clock;
 import java.util.List;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.APIBlock.WRITE;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -70,10 +67,7 @@ public class DataStreamLifecycleConvertToFrozenSnapshotIT extends AbstractSnapsh
         flushAndRefresh(indexName);
 
         // Add write block to make the index read-only (as required before snapshot)
-        AcknowledgedResponse blockResp = client().admin()
-            .indices()
-            .addBlock(new AddIndexBlockRequest(WRITE, indexName))
-            .actionGet();
+        AcknowledgedResponse blockResp = client().admin().indices().addBlock(new AddIndexBlockRequest(WRITE, indexName)).actionGet();
         assertTrue(blockResp.isAcknowledged());
 
         ProjectState projectState = getProjectState();
@@ -112,10 +106,7 @@ public class DataStreamLifecycleConvertToFrozenSnapshotIT extends AbstractSnapsh
         indexDoc(indexName);
         flushAndRefresh(indexName);
 
-        AcknowledgedResponse blockResp = client().admin()
-            .indices()
-            .addBlock(new AddIndexBlockRequest(WRITE, indexName))
-            .actionGet();
+        AcknowledgedResponse blockResp = client().admin().indices().addBlock(new AddIndexBlockRequest(WRITE, indexName)).actionGet();
         assertTrue(blockResp.isAcknowledged());
 
         // First call — creates the snapshot
@@ -189,10 +180,7 @@ public class DataStreamLifecycleConvertToFrozenSnapshotIT extends AbstractSnapsh
         indexDoc(indexName);
         flushAndRefresh(indexName);
 
-        AcknowledgedResponse blockResp = client().admin()
-            .indices()
-            .addBlock(new AddIndexBlockRequest(WRITE, indexName))
-            .actionGet();
+        AcknowledgedResponse blockResp = client().admin().indices().addBlock(new AddIndexBlockRequest(WRITE, indexName)).actionGet();
         assertTrue(blockResp.isAcknowledged());
 
         ProjectState projectState = getProjectState();
@@ -227,4 +215,3 @@ public class DataStreamLifecycleConvertToFrozenSnapshotIT extends AbstractSnapsh
         client().index(new IndexRequest(indexName).source("{\"field\": \"value\"}", XContentType.JSON)).actionGet();
     }
 }
-

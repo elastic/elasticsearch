@@ -562,4 +562,3 @@ public class DataStreamLifecycleConvertToFrozenSnapshotTests extends ESTestCase 
         return clusterState.projectState(projectId);
     }
 }
-

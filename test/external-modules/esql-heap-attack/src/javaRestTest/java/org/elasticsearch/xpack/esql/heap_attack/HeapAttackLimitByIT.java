@@ -12,6 +12,8 @@ import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 import org.apache.lucene.tests.util.TimeUnits;
 import org.elasticsearch.Build;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.common.util.BytesRefHash;
+import org.elasticsearch.compute.aggregation.blockhash.HashImplFactory;
 import org.elasticsearch.compute.operator.GroupKeyEncoder;
 import org.elasticsearch.compute.operator.GroupedLimitOperator;
 import org.elasticsearch.compute.operator.topn.GroupedTopNOperator;
@@ -64,7 +66,7 @@ public class HeapAttackLimitByIT extends HeapAttackTestCase {
     public void testLimitByTooMuchMemory() throws IOException {
         assumeTrue("LIMIT BY requires snapshot builds", Build.current().isSnapshot());
         initManyLongs(10);
-        assertCircuitBreaksVia(attempt -> limitByManyLongs(attempt * 1000), GroupedLimitOperator.class, BytesRefSwissHash.class);
+        assertCircuitBreaksVia(attempt -> limitByManyLongs(attempt * 1000), GroupedLimitOperator.class, bytesRefHashClass());
     }
 
     private Map<String, Object> limitByManyLongs(int count) throws IOException {
@@ -202,7 +204,7 @@ public class HeapAttackLimitByIT extends HeapAttackTestCase {
     public void testTopNByWideGroupKeyTooMuchMemory() throws IOException {
         assumeTrue("SORT | LIMIT BY requires snapshot builds", Build.current().isSnapshot());
         initManyLongs(10);
-        assertCircuitBreaksVia(attempt -> topNByWideGroupKey(attempt * 1000), GroupedTopNOperator.class, BytesRefSwissHash.class);
+        assertCircuitBreaksVia(attempt -> topNByWideGroupKey(attempt * 1000), GroupedTopNOperator.class, bytesRefHashClass());
     }
 
     private Map<String, Object> topNByWideGroupKey(int count) throws IOException {
@@ -296,6 +298,15 @@ public class HeapAttackLimitByIT extends HeapAttackTestCase {
         query.append("| LIMIT ").append(topCount).append(" BY a, b, c, d, e\\n");
         query.append("| KEEP a, b\"}");
         return responseAsMap(query(query.toString(), null));
+    }
+
+    /**
+     * Returns the concrete {@link BytesRefSwissHash} class when swiss-table hashing is enabled,
+     * or {@link BytesRefHash} otherwise. Use this when asserting circuit breaks that originate
+     * from the group-key hash table.
+     */
+    private static Class<?> bytesRefHashClass() {
+        return HashImplFactory.SWISS_TABLES_HASHING.isEnabled() ? BytesRefSwissHash.class : BytesRefHash.class;
     }
 
     /**

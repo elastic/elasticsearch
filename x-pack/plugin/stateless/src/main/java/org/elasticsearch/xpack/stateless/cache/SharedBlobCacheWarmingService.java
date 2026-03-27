@@ -209,7 +209,7 @@ public class SharedBlobCacheWarmingService {
 
     public static final Setting<Boolean> PREWARM_INDEX_SHARD_FOR_ID_LOOKUPS_SETTING = Setting.boolSetting(
         "stateless.blob_cache_warming.prewarm_index_shard_for_id_lookups",
-        false,
+        true,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );

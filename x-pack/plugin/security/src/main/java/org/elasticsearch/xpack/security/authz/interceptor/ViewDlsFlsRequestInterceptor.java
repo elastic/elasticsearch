@@ -63,11 +63,7 @@ public class ViewDlsFlsRequestInterceptor implements RequestInterceptor {
                     }).toList();
 
                     if (viewsWithDlsOrFls.isEmpty() == false) {
-                        logger.debug(
-                            "User [{}] requested views with DLS or FLS: [{}]",
-                            requestInfo.getAuthentication(),
-                            String.join(",", viewsWithDlsOrFls)
-                        );
+                        logger.debug("User [{}] requested views with DLS or FLS: {}", requestInfo.getAuthentication(), viewsWithDlsOrFls);
                         ElasticsearchSecurityException dlsFlsException = getDlsFlsException(viewsWithDlsOrFls);
                         return SubscribableListener.newFailed(dlsFlsException);
                     }
@@ -81,7 +77,9 @@ public class ViewDlsFlsRequestInterceptor implements RequestInterceptor {
         return indicesRequest.indicesOptions().indexAbstractionOptions().resolveViews()
             && TransportActionProxy.isProxyAction(action) == false
             && indicesRequest.indices() != null
-            && InterceptorUtils.mayCurrentRoleHaveDlsOrFls(threadContext);
+            // Checking whether role has FLS or DLS first before checking indicesAccessControl for efficiency
+            // because indicesAccessControl can contain a long list of indices
+            && DlsFlsInterceptorUtils.mayCurrentRoleHaveDlsOrFls(threadContext);
     }
 
     private static ElasticsearchSecurityException getDlsFlsException(List<String> viewsWithDlsOrFls) {

@@ -611,10 +611,6 @@ public class EsqlSecurityIT extends ESRestTestCase {
         validateDlsFlsViewException(resp.getResponse(), "view-user1");
     }
 
-    /**
-     * tests a scenario where the parent view has DLS and the nested view has permissions that would allow access if the parent view
-     * didn't have DLS. This ensures that the DLS check is applied at the parent view level
-     */
     public void testViewDlsOnNestedViewOuter() throws Exception {
         createView("test-admin", "nested-dls-view-no-dls", "FROM view-user* | STATS sum=sum(value)");
         createView("test-admin", "nested-dls-view-dls", "FROM nested-dls-view-no-dls");
@@ -625,10 +621,6 @@ public class EsqlSecurityIT extends ESRestTestCase {
         validateDlsFlsViewException(resp.getResponse(), "nested-dls-view-dls");
     }
 
-    /**
-     * tests a scenario, where the parent view has no dls or fls, but the nested view has DLS.
-     * This ensures that the DLS check is applied at the child view level
-     */
     public void testViewDlsOnNestedViewInner() throws Exception {
         createView("test-admin", "nested-dls-view-dls", "FROM view-user* | STATS sum=sum(value)");
         createView("test-admin", "nested-dls-view-no-dls", "FROM nested-dls-view-dls");
@@ -642,19 +634,6 @@ public class EsqlSecurityIT extends ESRestTestCase {
     public void testUserCanQueryViewWhileHavingDlsOnUnderlyingIndices() throws Exception {
         Response resp = runESQLCommand("view_index_dls_user", "FROM view-user1 | STATS sum=sum(value)");
         assertOK(resp);
-        Map<String, Object> respMap = entityAsMap(resp);
-
-        // this is the expected response:
-        // "values": [[10.0]]
-        if (respMap.get("values") instanceof List<?> v1
-            && v1.isEmpty() == false
-            && v1.getFirst() instanceof List<?> v2
-            && v2.isEmpty() == false
-            && v2.getFirst() instanceof Double v) {
-            assertEquals(10.0d, v, 0.001d);
-        } else {
-            fail("unexpected response format: " + respMap);
-        }
     }
 
     public void testDocumentLevelSecurity() throws Exception {

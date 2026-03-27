@@ -13,12 +13,10 @@ import org.elasticsearch.xpack.security.authz.RBACEngine;
 
 import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.AUTHORIZATION_INFO_VALUE;
 
-class InterceptorUtils {
+class DlsFlsInterceptorUtils {
     public static boolean mayCurrentRoleHaveDlsOrFls(ThreadContext threadContext) {
         final Role role = RBACEngine.maybeGetRBACEngineRole(AUTHORIZATION_INFO_VALUE.get(threadContext));
-        // Checking whether role has FLS or DLS first before checking indicesAccessControl for efficiency because indicesAccessControl
-        // can contain a long list of indices
-        // But if role is null, it means a custom authorization engine is in use and we have to directly go check indicesAccessControl
+        // if role is null, it means a custom authorization engine is in use, and we have to directly go check indicesAccessControl
         return role == null || role.hasFieldOrDocumentLevelSecurity();
     }
 }

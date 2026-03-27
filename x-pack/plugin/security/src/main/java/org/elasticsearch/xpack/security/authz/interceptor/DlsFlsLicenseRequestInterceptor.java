@@ -42,9 +42,10 @@ public class DlsFlsLicenseRequestInterceptor implements RequestInterceptor {
         AuthorizationEngine authorizationEngine,
         AuthorizationInfo authorizationInfo
     ) {
-        if (requestInfo.getRequest() instanceof IndicesRequest
-            && false == TransportActionProxy.isProxyAction(requestInfo.getAction())
-            && InterceptorUtils.mayCurrentRoleHaveDlsOrFls(threadContext)) {
+        if (requestInfo.getRequest() instanceof IndicesRequest && false == TransportActionProxy.isProxyAction(requestInfo.getAction())
+        // Checking whether role has FLS or DLS first before checking indicesAccessControl for efficiency
+        // because indicesAccessControl can contain a long list of indices
+            && DlsFlsInterceptorUtils.mayCurrentRoleHaveDlsOrFls(threadContext)) {
 
             logger.trace("Role has DLS or FLS. Checking for whether the request touches any indices that have DLS or FLS configured");
             final IndicesAccessControl indicesAccessControl = INDICES_PERMISSIONS_VALUE.get(threadContext);

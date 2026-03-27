@@ -273,6 +273,9 @@ tests:
 - class: org.elasticsearch.test.apmintegration.MetricsApmIT
   method: testApmIntegration {withOTel=false}
   issue: https://github.com/elastic/elasticsearch/issues/144282
+- class: org.elasticsearch.reindex.management.ReindexGetRelocationIT
+  method: testGetReindexFollowsRelocation
+  issue: https://github.com/elastic/elasticsearch/issues/144364
 - class: org.elasticsearch.server.cli.APMJvmOptionsTests
   method: testAPMAgentMetricsDisabledWhenOtelMetricsEnabled
   issue: https://github.com/elastic/elasticsearch/issues/144357

@@ -979,6 +979,80 @@ public class ReindexerTests extends ESTestCase {
     }
 
     /**
+     * Cross-project reindex: project routing must be applied when opening the PIT, then cleared on the search request
+     * so PIT searches validate (see {@link org.elasticsearch.action.search.SearchRequest#validate()}).
+     */
+    public void testLocalOpenPitCopiesProjectRoutingAndClearsSearchRequest() {
+        assumeTrue("PIT search must be enabled", ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED);
+
+        final OpenPitCapturingClient client = new OpenPitCapturingClient(getTestName());
+        try {
+            final TestThreadPool threadPool = new TestThreadPool(getTestName()) {
+                @Override
+                public ExecutorService executor(String name) {
+                    return DIRECT_EXECUTOR_SERVICE;
+                }
+            };
+            try {
+                final ClusterService clusterService = mock(ClusterService.class);
+                final DiscoveryNode localNode = DiscoveryNodeUtils.builder("local-node").build();
+                when(clusterService.state()).thenReturn(ClusterState.EMPTY_STATE);
+                when(clusterService.localNode()).thenReturn(localNode);
+
+                final ProjectResolver projectResolver = mock(ProjectResolver.class);
+                when(projectResolver.getProjectState(any())).thenReturn(ClusterState.EMPTY_STATE.projectState(Metadata.DEFAULT_PROJECT_ID));
+
+                FeatureService featureService = mock(FeatureService.class);
+                when(featureService.clusterHasFeature(any(), eq(ReindexPlugin.REINDEX_PIT_SEARCH_FEATURE))).thenReturn(true);
+
+                final Reindexer reindexer = new Reindexer(
+                    clusterService,
+                    projectResolver,
+                    client,
+                    threadPool,
+                    mock(ScriptService.class),
+                    mock(ReindexSslConfig.class),
+                    null,
+                    mock(TransportService.class),
+                    mock(ReindexRelocationNodePicker.class),
+                    featureService
+                );
+
+                final String projectRouting = "_alias:linked";
+                final ReindexRequest request = new ReindexRequest();
+                request.setSourceIndices("source");
+                request.setDestIndex("dest");
+                request.setSlices(1);
+                request.getSearchRequest().setProjectRouting(projectRouting);
+
+                final BulkByScrollTask task = new BulkByScrollTask(
+                    randomTaskId(),
+                    "reindex",
+                    "reindex",
+                    "test",
+                    TaskId.EMPTY_TASK_ID,
+                    Collections.emptyMap(),
+                    false,
+                    randomOrigin()
+                );
+
+                final PlainActionFuture<BulkByScrollResponse> initFuture = new PlainActionFuture<>();
+                reindexer.initTask(task, request, initFuture.delegateFailure((l, v) -> reindexer.execute(task, request, client, l)));
+                initFuture.actionGet();
+
+                OpenPointInTimeRequest pitRequest = client.getCapturedPitRequest();
+                assertNotNull(pitRequest);
+                assertEquals(projectRouting, pitRequest.getProjectRouting());
+                assertNull(request.getSearchRequest().getProjectRouting());
+            } finally {
+                terminate(threadPool);
+            }
+        } finally {
+            client.shutdown();
+        }
+    }
+
+    /**
      * When a worker receives a sliced request from the leader, the request already has PIT set.
      * The worker must skip openPitAndExecute and go straight to executePaginatedSearch.
      * Verifies that no OpenPointInTimeRequest is sent in this case.

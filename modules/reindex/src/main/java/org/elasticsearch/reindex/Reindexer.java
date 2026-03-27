@@ -292,6 +292,9 @@ public class Reindexer {
         OpenPointInTimeRequest pitRequest = new OpenPointInTimeRequest(indices).indicesOptions(searchRequest.indicesOptions())
             .keepAlive(pitKeepAlive(request))
             .allowPartialSearchResults(false);
+        if (searchRequest.getProjectRouting() != null) {
+            pitRequest.projectRouting(searchRequest.getProjectRouting());
+        }
 
         // NB this is a local request, so we call the TransportAction rather than issuing a REST call
         client.execute(TransportOpenPointInTimeAction.TYPE, pitRequest, listener.delegateFailureAndWrap((l, pitResponse) -> {
@@ -303,6 +306,8 @@ public class Reindexer {
             // Preserve source indices for task description (toString) since searchRequest.indices() will be empty.
             request.setSourceIndicesForDescription(indices);
             searchRequest.indices(Strings.EMPTY_ARRAY);
+            // Project routing is fixed at open-PIT time; it must not remain on the SearchRequest with PIT
+            searchRequest.clearProjectRouting();
             ActionListener<BulkByScrollResponse> listenerWithClosePit = wrapListenerWithClosePit(
                 pitId,
                 l,
@@ -505,6 +510,8 @@ public class Reindexer {
             // Preserve source indices for task description (toString) since searchRequest.indices() will be empty.
             request.setSourceIndicesForDescription(indices);
             searchRequest.indices(Strings.EMPTY_ARRAY);
+            // Project routing is fixed at open-PIT time; it must not remain on the SearchRequest with PIT
+            searchRequest.clearProjectRouting();
             ActionListener<BulkByScrollResponse> listenerWithClosePit = wrapListenerWithClosePit(
                 pitId,
                 listenerWithRelocations,

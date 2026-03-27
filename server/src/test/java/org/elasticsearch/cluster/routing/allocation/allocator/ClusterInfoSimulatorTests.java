@@ -9,6 +9,7 @@
 
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
+import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterInfo.NodeAndPath;
 import org.elasticsearch.cluster.ClusterInfo.ReservedSpace;
@@ -17,12 +18,17 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.DiskUsage;
 import org.elasticsearch.cluster.ESAllocationTestCase;
+import org.elasticsearch.cluster.EstimatedHeapUsage;
+import org.elasticsearch.cluster.ShardAndIndexHeapUsage;
 import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
+import org.elasticsearch.cluster.routing.RoutingChangesObserver;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -56,6 +62,7 @@ import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.cluster.routing.TestShardRouting.newShardRouting;
 import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
+import static org.elasticsearch.cluster.routing.UnassignedInfo.Reason.NODE_LEFT;
 import static org.elasticsearch.cluster.routing.UnassignedInfo.Reason.REINITIALIZED;
 import static org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider.SETTING_IGNORE_DISK_WATERMARKS;
 import static org.elasticsearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
@@ -64,6 +71,7 @@ import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SNAPSHOT_P
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doCallRealMethod;
+import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
@@ -71,12 +79,14 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
 
     public void testInitializeNewPrimary() {
 
-        var newPrimary = shardRoutingBuilder(new ShardId("my-index", "_na_", 0), "node-0", true, ShardRoutingState.INITIALIZING)
+        var nodeId = "node-0";
+
+        var newPrimary = shardRoutingBuilder(new ShardId("my-index", "_na_", 0), nodeId, true, ShardRoutingState.INITIALIZING)
             .withRecoverySource(RecoverySource.EmptyStoreRecoverySource.INSTANCE)
             .build();
 
         var initialClusterInfo = new ClusterInfoTestBuilder() //
-            .withNode("node-0", new DiskUsageBuilder(1000, 1000))
+            .withNode(nodeId, new DiskUsageBuilder(1000, 1000))
             .build();
 
         final IndexMetadata index = IndexMetadata.builder("my-index").settings(indexSettings(IndexVersion.current(), 1, 0)).build();
@@ -86,6 +96,7 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
         var state = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(Metadata.builder().put(index, false))
             .routingTable(projectRoutingTable)
+            .nodes(DiscoveryNodes.builder().add(DiscoveryNodeUtils.create(nodeId)).build())
             .build();
         var allocation = createRoutingAllocation(state, initialClusterInfo, SnapshotShardSizeInfo.EMPTY);
         var simulator = new ClusterInfoSimulator(allocation);
@@ -95,7 +106,7 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
             simulator.getClusterInfo(),
             equalTo(
                 new ClusterInfoTestBuilder() //
-                    .withNode("node-0", new DiskUsageBuilder(1000, 1000))
+                    .withNode(nodeId, new DiskUsageBuilder(1000, 1000))
                     .build()
             )
         );
@@ -103,12 +114,14 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
 
     public void testInitializePreviouslyExistingPrimary() {
 
-        var existingPrimary = shardRoutingBuilder(new ShardId("my-index", "_na_", 0), "node-0", true, ShardRoutingState.INITIALIZING)
+        var nodeId = "node-0";
+
+        var existingPrimary = shardRoutingBuilder(new ShardId("my-index", "_na_", 0), nodeId, true, ShardRoutingState.INITIALIZING)
             .withRecoverySource(RecoverySource.ExistingStoreRecoverySource.INSTANCE)
             .build();
 
         var initialClusterInfo = new ClusterInfoTestBuilder() //
-            .withNode("node-0", new DiskUsageBuilder(1000, 900))
+            .withNode(nodeId, new DiskUsageBuilder(1000, 900))
             .withShard(existingPrimary, 100)
             .build();
 
@@ -119,6 +132,7 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
         var state = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(Metadata.builder().put(index, false))
             .routingTable(projectRoutingTable)
+            .nodes(DiscoveryNodes.builder().add(DiscoveryNodeUtils.create(nodeId)).build())
             .build();
         var allocation = createRoutingAllocation(state, initialClusterInfo, SnapshotShardSizeInfo.EMPTY);
         var simulator = new ClusterInfoSimulator(allocation);
@@ -128,7 +142,7 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
             simulator.getClusterInfo(),
             equalTo(
                 new ClusterInfoTestBuilder() //
-                    .withNode("node-0", new DiskUsageBuilder(1000, 900))
+                    .withNode(nodeId, new DiskUsageBuilder(1000, 900))
                     .withShard(existingPrimary, 100)
                     .build()
             )
@@ -137,14 +151,17 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
 
     public void testInitializeNewReplica() {
 
-        var existingPrimary = newShardRouting(new ShardId("my-index", "_na_", 0), "node-0", true, STARTED);
-        var newReplica = shardRoutingBuilder(new ShardId("my-index", "_na_", 0), "node-1", false, INITIALIZING).withRecoverySource(
+        var nodeId0 = "node-0";
+        var nodeId1 = "node-1";
+
+        var existingPrimary = newShardRouting(new ShardId("my-index", "_na_", 0), nodeId0, true, STARTED);
+        var newReplica = shardRoutingBuilder(new ShardId("my-index", "_na_", 0), nodeId1, false, INITIALIZING).withRecoverySource(
             RecoverySource.PeerRecoverySource.INSTANCE
         ).build();
 
         var initialClusterInfo = new ClusterInfoTestBuilder() //
-            .withNode("node-0", new DiskUsageBuilder(1000, 900))
-            .withNode("node-1", new DiskUsageBuilder(1000, 1000))
+            .withNode(nodeId0, new DiskUsageBuilder(1000, 900))
+            .withNode(nodeId1, new DiskUsageBuilder(1000, 1000))
             .withShard(existingPrimary, 100)
             .build();
 
@@ -155,6 +172,7 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
         var state = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(Metadata.builder().put(index, false))
             .routingTable(projectRoutingTable)
+            .nodes(DiscoveryNodes.builder().add(DiscoveryNodeUtils.create(nodeId0)).add(DiscoveryNodeUtils.create(nodeId1)).build())
             .build();
         var allocation = createRoutingAllocation(state, initialClusterInfo, SnapshotShardSizeInfo.EMPTY);
         var simulator = new ClusterInfoSimulator(allocation);
@@ -164,8 +182,8 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
             simulator.getClusterInfo(),
             equalTo(
                 new ClusterInfoTestBuilder() //
-                    .withNode("node-0", new DiskUsageBuilder(1000, 900))
-                    .withNode("node-1", new DiskUsageBuilder(1000, 900))
+                    .withNode(nodeId0, new DiskUsageBuilder(1000, 900))
+                    .withNode(nodeId1, new DiskUsageBuilder(1000, 900))
                     .withShard(existingPrimary, 100)
                     .withShard(newReplica, 100)
                     .build()
@@ -175,22 +193,25 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
 
     public void testInitializeNewReplicaWithReservedSpace() {
 
+        var nodeId0 = "node-0";
+        var nodeId1 = "node-1";
+
         var recoveredSize = 70;
         var remainingSize = 30;
         var totalShardSize = recoveredSize + remainingSize;
 
         var indexMetadata = IndexMetadata.builder("my-index").settings(indexSettings(IndexVersion.current(), 1, 1)).build();
-        var existingPrimary = newShardRouting(new ShardId(indexMetadata.getIndex(), 0), "node-0", true, STARTED);
+        var existingPrimary = newShardRouting(new ShardId(indexMetadata.getIndex(), 0), nodeId0, true, STARTED);
         ShardId shardId = new ShardId(indexMetadata.getIndex(), 0);
-        var newReplica = shardRoutingBuilder(shardId, "node-1", false, INITIALIZING).withRecoverySource(
+        var newReplica = shardRoutingBuilder(shardId, nodeId1, false, INITIALIZING).withRecoverySource(
             RecoverySource.PeerRecoverySource.INSTANCE
         ).build();
 
         var initialClusterInfo = new ClusterInfoTestBuilder() //
-            .withNode("node-0", new DiskUsageBuilder("/data", 1000, 1000 - totalShardSize))
-            .withNode("node-1", new DiskUsageBuilder("/data", 1000, 1000 - recoveredSize))
+            .withNode(nodeId0, new DiskUsageBuilder("/data", 1000, 1000 - totalShardSize))
+            .withNode(nodeId1, new DiskUsageBuilder("/data", 1000, 1000 - recoveredSize))
             .withShard(existingPrimary, totalShardSize)
-            .withReservedSpace("node-1", "/data", remainingSize, newReplica.shardId())
+            .withReservedSpace(nodeId1, "/data", remainingSize, newReplica.shardId())
             .build();
 
         var state = ClusterState.builder(ClusterName.DEFAULT)
@@ -199,6 +220,7 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
                 RoutingTable.builder()
                     .add(IndexRoutingTable.builder(indexMetadata.getIndex()).addShard(existingPrimary).addShard(newReplica))
             )
+            .nodes(DiscoveryNodes.builder().add(DiscoveryNodeUtils.create(nodeId0)).add(DiscoveryNodeUtils.create(nodeId1)).build())
             .build();
         var allocation = createRoutingAllocation(state, initialClusterInfo, SnapshotShardSizeInfo.EMPTY);
         var simulator = new ClusterInfoSimulator(allocation);
@@ -208,8 +230,8 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
             simulator.getClusterInfo(),
             equalTo(
                 new ClusterInfoTestBuilder() //
-                    .withNode("node-0", new DiskUsageBuilder("/data", 1000, 1000 - totalShardSize))
-                    .withNode("node-1", new DiskUsageBuilder("/data", 1000, 1000 - totalShardSize))
+                    .withNode(nodeId0, new DiskUsageBuilder("/data", 1000, 1000 - totalShardSize))
+                    .withNode(nodeId1, new DiskUsageBuilder("/data", 1000, 1000 - totalShardSize))
                     .withShard(existingPrimary, totalShardSize)
                     .withShard(newReplica, totalShardSize)
                     .build()
@@ -239,6 +261,7 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
         var state = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(Metadata.builder().put(index, false))
             .routingTable(projectRoutingTable)
+            .nodes(DiscoveryNodes.builder().add(DiscoveryNodeUtils.create(fromNodeId)).add(DiscoveryNodeUtils.create(toNodeId)).build())
             .build();
         var allocation = createRoutingAllocation(state, initialClusterInfo, SnapshotShardSizeInfo.EMPTY);
         var simulator = new ClusterInfoSimulator(allocation);
@@ -278,6 +301,7 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
         var state = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(Metadata.builder().put(index, false))
             .routingTable(projectRoutingTable)
+            .nodes(DiscoveryNodes.builder().add(DiscoveryNodeUtils.create(fromNodeId)).add(DiscoveryNodeUtils.create(toNodeId)).build())
             .build();
         var allocation = createRoutingAllocation(state, initialClusterInfo, SnapshotShardSizeInfo.EMPTY);
         var simulator = new ClusterInfoSimulator(allocation);
@@ -297,6 +321,9 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
 
     public void testInitializeShardFromSnapshot() {
 
+        var nodeId0 = "node-0";
+        var nodeId1 = "node-1";
+
         var shardSize = 100;
         var indexSettings = indexSettings(IndexVersion.current(), 1, 0);
         if (randomBoolean()) {
@@ -310,20 +337,21 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
         var state = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(Metadata.builder().put(index, false))
             .routingTable(projectRoutingTable)
+            .nodes(DiscoveryNodes.builder().add(DiscoveryNodeUtils.create(nodeId0)).add(DiscoveryNodeUtils.create(nodeId1)).build())
             .build();
 
         var snapshot = new Snapshot("repository", new SnapshotId("snapshot-1", "na"));
         var indexId = new IndexId("my-index", "_na_");
         var shard = shardRoutingBuilder(
             new ShardId(state.metadata().getProject().index("my-index").getIndex(), 0),
-            "node-0",
+            nodeId0,
             true,
             ShardRoutingState.INITIALIZING
         ).withRecoverySource(new RecoverySource.SnapshotRecoverySource(randomUUID(), snapshot, IndexVersion.current(), indexId)).build();
 
         var initialClusterInfo = new ClusterInfoTestBuilder() //
-            .withNode("node-0", new DiskUsageBuilder(1000, 1000))
-            .withNode("node-1", new DiskUsageBuilder(1000, 1000))
+            .withNode(nodeId0, new DiskUsageBuilder(1000, 1000))
+            .withNode(nodeId1, new DiskUsageBuilder(1000, 1000))
             .build();
         var snapshotShardSizeInfo = new SnapshotShardSizeInfoTestBuilder() //
             .withShard(snapshot, indexId, shard.shardId(), shardSize)
@@ -337,8 +365,8 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
             simulator.getClusterInfo(),
             equalTo(
                 new ClusterInfoTestBuilder() //
-                    .withNode("node-0", new DiskUsageBuilder(1000, 1000 - shardSize))
-                    .withNode("node-1", new DiskUsageBuilder(1000, 1000))
+                    .withNode(nodeId0, new DiskUsageBuilder(1000, 1000 - shardSize))
+                    .withNode(nodeId1, new DiskUsageBuilder(1000, 1000))
                     .withShard(shard, shardSize)
                     .build()
             )
@@ -346,6 +374,9 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
     }
 
     public void testInitializeShardFromPartialSearchableSnapshot() {
+
+        var nodeId0 = "node-0";
+        var nodeId1 = "node-1";
 
         var shardSize = 100;
         var indexSettings = indexSettings(IndexVersion.current(), 1, 0) //
@@ -360,20 +391,21 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
         var state = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(Metadata.builder().put(index, false))
             .routingTable(projectRoutingTable)
+            .nodes(DiscoveryNodes.builder().add(DiscoveryNodeUtils.create(nodeId0)).add(DiscoveryNodeUtils.create(nodeId1)).build())
             .build();
 
         var snapshot = new Snapshot("repository", new SnapshotId("snapshot-1", "na"));
         var indexId = new IndexId("my-index", "_na_");
         var shard = shardRoutingBuilder(
             new ShardId(state.metadata().getProject().index("my-index").getIndex(), 0),
-            "node-0",
+            nodeId0,
             true,
             ShardRoutingState.INITIALIZING
         ).withRecoverySource(new RecoverySource.SnapshotRecoverySource(randomUUID(), snapshot, IndexVersion.current(), indexId)).build();
 
         var initialClusterInfo = new ClusterInfoTestBuilder() //
-            .withNode("node-0", new DiskUsageBuilder(1000, 1000))
-            .withNode("node-1", new DiskUsageBuilder(1000, 1000))
+            .withNode(nodeId0, new DiskUsageBuilder(1000, 1000))
+            .withNode(nodeId1, new DiskUsageBuilder(1000, 1000))
             .build();
         var snapshotShardSizeInfo = new SnapshotShardSizeInfoTestBuilder() //
             .withShard(snapshot, indexId, shard.shardId(), shardSize)
@@ -397,6 +429,9 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
 
     public void testRelocatePartialSearchableSnapshotShard() {
 
+        var fromNodeId = "node-0";
+        var toNodeId = "node-1";
+
         var shardSize = 100;
         var indexSettings = indexSettings(IndexVersion.current(), 1, 0) //
             .put(INDEX_STORE_TYPE_SETTING.getKey(), SEARCHABLE_SNAPSHOT_STORE_TYPE)
@@ -410,13 +445,11 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
         var state = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(Metadata.builder().put(index, false))
             .routingTable(projectRoutingTable)
+            .nodes(DiscoveryNodes.builder().add(DiscoveryNodeUtils.create(fromNodeId)).add(DiscoveryNodeUtils.create(toNodeId)).build())
             .build();
 
         var snapshot = new Snapshot("repository", new SnapshotId("snapshot-1", "na"));
         var indexId = new IndexId("my-index", "_na_");
-
-        var fromNodeId = "node-0";
-        var toNodeId = "node-1";
 
         var shard = shardRoutingBuilder(new ShardId("my-index", "_na_", 0), toNodeId, true, INITIALIZING).withRelocatingNodeId(fromNodeId)
             .withRecoverySource(RecoverySource.PeerRecoverySource.INSTANCE)
@@ -449,6 +482,8 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
 
     public void testInitializeShardFromClone() {
 
+        var nodeId0 = "node-0";
+
         var sourceShardSize = randomLongBetween(100, 1000);
         var source = newShardRouting(new ShardId("source", "_na_", 0), randomIdentifier(), true, ShardRoutingState.STARTED);
         var target = shardRoutingBuilder(new ShardId("target", "_na_", 0), randomIdentifier(), true, ShardRoutingState.INITIALIZING)
@@ -463,7 +498,7 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
                         IndexMetadata.builder("target")
                             .settings(
                                 indexSettings(IndexVersion.current(), 1, 0) //
-                                    .put(INDEX_RESIZE_SOURCE_NAME_KEY, "source") //
+                                    .put(INDEX_RESIZE_SOURCE_NAME_KEY, "source")
                                     .put(INDEX_RESIZE_SOURCE_UUID_KEY, "_na_")
                             )
                     )
@@ -473,9 +508,11 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
                     .add(IndexRoutingTable.builder(source.index()).addShard(source))
                     .add(IndexRoutingTable.builder(target.index()).addShard(target))
             )
+            .nodes(DiscoveryNodes.builder().add(DiscoveryNodeUtils.create(nodeId0)).build())
             .build();
 
-        var initialClusterInfo = new ClusterInfoTestBuilder().withNode("node-0", new DiskUsageBuilder(1000, 1000 - sourceShardSize))
+        var initialClusterInfo = new ClusterInfoTestBuilder() //
+            .withNode(nodeId0, new DiskUsageBuilder(1000, 1000 - sourceShardSize))
             .withShard(source, sourceShardSize)
             .build();
 
@@ -487,7 +524,7 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
             simulator.getClusterInfo(),
             equalTo(
                 new ClusterInfoTestBuilder() //
-                    .withNode("node-0", new DiskUsageBuilder(1000, 1000 - sourceShardSize))
+                    .withNode(nodeId0, new DiskUsageBuilder(1000, 1000 - sourceShardSize))
                     .withShard(source, sourceShardSize)
                     .withShard(target, sourceShardSize)
                     .build()
@@ -655,7 +692,7 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
         {
             final ArgumentCaptor<ShardRouting> shardCaptor = ArgumentCaptor.forClass(ShardRouting.class);
             clusterInfoSimulator.simulateAlreadyStartedShard(startedShard, null);
-            verify(clusterInfoSimulator).simulateShardStarted(shardCaptor.capture());
+            verify(clusterInfoSimulator).simulateShardStarted(shardCaptor.capture(), eq(false));
             final var captureShard = shardCaptor.getValue();
             assertTrue(captureShard.initializing());
             assertNull(captureShard.relocatingNodeId());
@@ -670,7 +707,7 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
             final ArgumentCaptor<ShardRouting> shardCaptor = ArgumentCaptor.forClass(ShardRouting.class);
             final String sourceNodeId = randomIdentifier();
             clusterInfoSimulator.simulateAlreadyStartedShard(startedShard, sourceNodeId);
-            verify(clusterInfoSimulator).simulateShardStarted(shardCaptor.capture());
+            verify(clusterInfoSimulator).simulateShardStarted(shardCaptor.capture(), eq(false));
             final var captureShard = shardCaptor.getValue();
             assertTrue(captureShard.initializing());
             assertThat(captureShard.relocatingNodeId(), equalTo(sourceNodeId));
@@ -679,6 +716,575 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
             assertThat(captureShard.getExpectedShardSize(), equalTo(startedShard.getExpectedShardSize()));
         }
 
+    }
+
+    /**
+     * Tests relocating and initializing shards with heap usage estimates.
+     *
+     * Runs either the {@link ClusterInfoSimulator#simulateShardStarted} path or the
+     * {@link ClusterInfoSimulator#simulateAlreadyStartedShard} path, based on a random boolean: both paths should result in the same total
+     * node heap usage estimates.
+     */
+    public void testHeapUsageSimulationWithEstimates() {
+        var useAlreadyStartedPath = randomBoolean();
+        logger.info(
+            "---> Running test with useAlreadyStartedPath: "
+                + useAlreadyStartedPath
+                + "; if true, use shard already started path, instead of simulating planning as it progresses"
+        );
+
+        var harness = setupHeapUsageTestHarness();
+        var shardRouting1 = harness.shardRouting1; // Need to update these reference, harness doesn't allow modification as a record type.
+        var shardRouting2 = harness.shardRouting2;
+
+        /** Set up ClusterInfo */
+
+        final long totalBytes = 500;
+        final long estimatedBytesUsed = 250;
+        final long shardHeapUsage = 50;
+        final long indexHeapUsage = 10;
+
+        final Map<String, EstimatedHeapUsage> estimatedHeapUsages = new HashMap<>();
+        estimatedHeapUsages.put(harness.nodeId1, new EstimatedHeapUsage(harness.nodeId1, totalBytes, estimatedBytesUsed));
+        estimatedHeapUsages.put(harness.nodeId2, new EstimatedHeapUsage(harness.nodeId2, totalBytes, estimatedBytesUsed));
+        final Map<ShardId, ShardAndIndexHeapUsage> estimatedShardHeapUsages = new HashMap<>();
+        estimatedShardHeapUsages.put(shardRouting1.shardId(), new ShardAndIndexHeapUsage(shardHeapUsage, indexHeapUsage));
+        estimatedShardHeapUsages.put(shardRouting2.shardId(), new ShardAndIndexHeapUsage(shardHeapUsage, indexHeapUsage));
+
+        ClusterInfo clusterInfo = ClusterInfo.builder()
+            .estimatedHeapUsages(estimatedHeapUsages)
+            .estimatedShardHeapUsages(estimatedShardHeapUsages)
+            .build();
+
+        /** Set up the Simulator */
+
+        final var allocation = new RoutingAllocation(
+            new AllocationDeciders(List.of()),
+            harness.clusterState,
+            clusterInfo,
+            SnapshotShardSizeInfo.EMPTY,
+            System.nanoTime()
+        ).mutableCloneForSimulation();
+
+        final var simulator = new ClusterInfoSimulator(allocation);
+
+        /** Initially, the estimated heap usage should be what was initialized in the ClusterInfo above. */
+
+        var nodeHeapUsages = simulator.getEstimatedHeapUsages();
+        assertThat(nodeHeapUsages.get(harness.nodeId1).estimatedUsageBytes(), equalTo(estimatedBytesUsed));
+        assertThat(nodeHeapUsages.get(harness.nodeId2).estimatedUsageBytes(), equalTo(estimatedBytesUsed));
+
+        var sourceNodeId = shardRouting1.currentNodeId();
+        var targetNodeId = sourceNodeId == harness.nodeId1 ? harness.nodeId2 : harness.nodeId1;
+
+        /** Relocate a shard, check that the source loses and the target gains heap usage. */
+        {
+            var relocationShards = allocation.routingNodes()
+                .relocateShard(
+                    shardRouting1,
+                    targetNodeId,
+                    allocation.clusterInfo().getShardSize(shardRouting1, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE),
+                    "relocating shard in test",
+                    allocation.changes()
+                );
+            boolean indexRemovedFromSource = allocation.routingNodes()
+                .node(relocationShards.v1().currentNodeId())
+                .numberOfOwningShardsForIndex(shardRouting1.index()) == 0;
+            boolean indexAddedToTarget = allocation.routingNodes()
+                .node(relocationShards.v2().currentNodeId())
+                .numberOfOwningShardsForIndex(shardRouting1.index()) == 1;
+            assertThat(
+                "Expected all shards to be assigned to one of the two nodes, since there are no replicas",
+                indexRemovedFromSource,
+                equalTo(false)
+            );
+            assertThat(
+                "Expected one of the nodes to have no shards, since all primary shards are assigned to a single node",
+                indexAddedToTarget,
+                equalTo(true)
+            );
+
+            if (useAlreadyStartedPath) {
+                final var startedRelocatingShard = allocation.routingNodes()
+                    .startShard(
+                        relocationShards.v2(), // ShardRouting for the target node
+                        allocation.changes(),
+                        randomLongBetween(100, 999)
+                    );
+                simulator.simulateAlreadyStartedShard(startedRelocatingShard, relocationShards.v1().currentNodeId());
+                if (indexRemovedFromSource) {
+                    simulator.simulateRemoveIndexFromNode(relocationShards.v1().currentNodeId(), relocationShards.v1().index());
+                }
+                if (indexAddedToTarget) {
+                    simulator.simulateAddIndexToNode(startedRelocatingShard.currentNodeId(), startedRelocatingShard.index());
+                }
+                shardRouting1 = startedRelocatingShard;
+            } else {
+                simulator.simulateShardStarted(relocationShards.v2());
+                // Finish the relocation by starting the shard, after the simulation call that expects an initializing state.
+                shardRouting1 = allocation.routingNodes()
+                    .startShard(relocationShards.v2(), allocation.changes(), randomLongBetween(100, 999));
+            }
+
+            assertThat(
+                "Expected the original node heap usage, "
+                    + estimatedBytesUsed
+                    + ", for node "
+                    + sourceNodeId
+                    + ", to have decreased by the shard's heap usage, "
+                    + shardHeapUsage
+                    + ", and though not by its index heap usage, "
+                    + indexHeapUsage
+                    + "; new node heap usage: "
+                    + nodeHeapUsages.get(sourceNodeId).estimatedUsageBytes(),
+                nodeHeapUsages.get(sourceNodeId).estimatedUsageBytes(),
+                equalTo(estimatedBytesUsed - shardHeapUsage)
+            );
+            assertThat(
+                "Expected the original node heap usage, "
+                    + estimatedBytesUsed
+                    + ", for node "
+                    + targetNodeId
+                    + ", to have increased by the shard's heap usage, "
+                    + shardHeapUsage
+                    + ", and its index heap usage, "
+                    + indexHeapUsage
+                    + "; new node heap usage: "
+                    + nodeHeapUsages.get(targetNodeId).estimatedUsageBytes(),
+                nodeHeapUsages.get(targetNodeId).estimatedUsageBytes(),
+                equalTo(estimatedBytesUsed + shardHeapUsage + indexHeapUsage)
+            );
+        }
+
+        /** Relocate the second index shard from the source node. This should remove the index heap usage from the source node. */
+        {
+            var sourceNodeHeapBeforeRelocation = nodeHeapUsages.get(sourceNodeId).estimatedUsageBytes();
+            var targetNodeHeapBeforeRelocation = nodeHeapUsages.get(targetNodeId).estimatedUsageBytes();
+
+            var relocationShards = allocation.routingNodes()
+                .relocateShard(
+                    shardRouting2,
+                    targetNodeId,
+                    allocation.clusterInfo().getShardSize(shardRouting2, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE),
+                    "relocating shard in test",
+                    allocation.changes()
+                );
+            boolean indexRemovedFromSource = allocation.routingNodes()
+                .node(relocationShards.v1().currentNodeId())
+                .numberOfOwningShardsForIndex(shardRouting1.index()) == 0;
+            boolean indexAddedToTarget = allocation.routingNodes()
+                .node(relocationShards.v2().currentNodeId())
+                .numberOfOwningShardsForIndex(shardRouting1.index()) == 1;
+            assertThat("Expected all the index shards to be moved off the original node", indexRemovedFromSource, equalTo(true));
+            assertThat("Expected all the index shards to be assigned to the other node now", indexAddedToTarget, equalTo(false));
+
+            if (useAlreadyStartedPath) {
+                final var startedRelocatingShard = allocation.routingNodes()
+                    .startShard(
+                        relocationShards.v2(), // ShardRouting for the target node
+                        allocation.changes(),
+                        randomLongBetween(100, 999)
+                    );
+                simulator.simulateAlreadyStartedShard(startedRelocatingShard, relocationShards.v1().currentNodeId());
+                if (indexRemovedFromSource) {
+                    simulator.simulateRemoveIndexFromNode(relocationShards.v1().currentNodeId(), relocationShards.v1().index());
+                }
+                if (indexAddedToTarget) {
+                    simulator.simulateAddIndexToNode(startedRelocatingShard.currentNodeId(), startedRelocatingShard.index());
+                }
+                shardRouting2 = startedRelocatingShard;
+            } else {
+                simulator.simulateShardStarted(relocationShards.v2());
+                // Finish the relocation by starting the shard, after the simulation call that expects an initializing state.
+                shardRouting2 = allocation.routingNodes()
+                    .startShard(relocationShards.v2(), allocation.changes(), randomLongBetween(100, 999));
+            }
+
+            // Now, the estimated heap usage on nodeId2 should have increased with the new shard, while sourceNodeId remained the same.
+            assertThat(
+                "Expected the original node heap usage, "
+                    + sourceNodeHeapBeforeRelocation
+                    + ", for node "
+                    + sourceNodeId
+                    + ", to have decreased by the shard's heap usage, "
+                    + shardHeapUsage
+                    + ", and its index heap usage, "
+                    + indexHeapUsage
+                    + "; new node heap usage: "
+                    + nodeHeapUsages.get(sourceNodeId).estimatedUsageBytes(),
+                nodeHeapUsages.get(sourceNodeId).estimatedUsageBytes(),
+                equalTo(sourceNodeHeapBeforeRelocation - shardHeapUsage - indexHeapUsage)
+            );
+            assertThat(
+                "Expected the original node heap usage, "
+                    + targetNodeHeapBeforeRelocation
+                    + ", for node "
+                    + targetNodeId
+                    + ", to have increased by the shard's heap usage, "
+                    + shardHeapUsage
+                    + ", and not its index heap usage, "
+                    + indexHeapUsage
+                    + "; new node heap usage: "
+                    + nodeHeapUsages.get(targetNodeId).estimatedUsageBytes(),
+                nodeHeapUsages.get(targetNodeId).estimatedUsageBytes(),
+                equalTo(targetNodeHeapBeforeRelocation + shardHeapUsage)
+            );
+        }
+
+        /** Assign a new shard (pretend by unassigning an existing shard and then initializing it on a new node) */
+        {
+            assertThat("Shards should all be on the 'target' node", shardRouting1.currentNodeId(), equalTo(targetNodeId));
+            var newTargetNodeId = sourceNodeId; // So we'll move the shard back to the 'source' node, making it the new target node.
+            var targetNodeHeapBeforeAssignment = nodeHeapUsages.get(newTargetNodeId).estimatedUsageBytes();
+
+            // Unassign the shard - note, this leaves the heap usage incorrect for the node that owned the shard, since the node
+            // unrealistically didn't leave the cluster, and there is no shard removal simulation.
+            allocation.routingNodes()
+                .failShard(shardRouting1, new UnassignedInfo(NODE_LEFT, "unassigning shard for test"), allocation.changes());
+            var unassignedIt = allocation.routingNodes().unassigned().iterator();
+            assertTrue(unassignedIt.hasNext());
+            var unassignedShardRouting = unassignedIt.next();
+            assertFalse(unassignedIt.hasNext());
+            // Initialize the shard on the other node.
+            shardRouting1 = allocation.routingNodes()
+                .initializeShard(unassignedShardRouting, newTargetNodeId, null, 0, allocation.changes());
+
+            if (useAlreadyStartedPath) {
+                final var startedShard = allocation.routingNodes()
+                    .startShard(
+                        shardRouting1, // ShardRouting for the target node
+                        allocation.changes(),
+                        randomLongBetween(100, 999)
+                    );
+                simulator.simulateAlreadyStartedShard(startedShard, null);
+                if (allocation.routingNodes().node(startedShard.currentNodeId()).numberOfOwningShardsForIndex(shardRouting1.index()) == 1) {
+                    simulator.simulateAddIndexToNode(startedShard.currentNodeId(), startedShard.index());
+                }
+                shardRouting1 = startedShard;
+            } else {
+                simulator.simulateShardStarted(shardRouting1);
+                // Finish the relocation by starting the shard, after the simulation call that expects an initializing state.
+                shardRouting1 = allocation.routingNodes().startShard(shardRouting1, allocation.changes(), randomLongBetween(100, 999));
+            }
+
+            // Check that nodeId2 further increased the heap usage.
+            assertThat(
+                "Expect the original node heap usage, "
+                    + estimatedBytesUsed
+                    + ", for node "
+                    + newTargetNodeId
+                    + ", to have increased by the shard's heap usage, "
+                    + shardHeapUsage
+                    + ", and its index heap usage, "
+                    + indexHeapUsage,
+                nodeHeapUsages.get(newTargetNodeId).estimatedUsageBytes(),
+                equalTo(targetNodeHeapBeforeAssignment + shardHeapUsage + indexHeapUsage)
+            );
+        }
+    }
+
+    /**
+     * Tests relocating and initializing shards with neither node nor shard level heap usage estimates.
+     */
+    public void testHeapUsageSimulationWithoutAnyEstimates() {
+        var harness = setupHeapUsageTestHarness();
+        var shardRouting1 = harness.shardRouting1; // Need to update these reference, harness doesn't allow it (as a record type.
+
+        /** Set up ClusterInfo */
+
+        ClusterInfo clusterInfo = ClusterInfo.builder().build();
+
+        /** Set up the Simulator */
+
+        final var allocation = new RoutingAllocation(
+            new AllocationDeciders(List.of()),
+            harness.clusterState,
+            clusterInfo,
+            SnapshotShardSizeInfo.EMPTY,
+            System.nanoTime()
+        ).mutableCloneForSimulation();
+
+        final var simulator = new ClusterInfoSimulator(allocation);
+
+        /** The estimated heap usage should be zero, as was initialized in the ClusterInfo above. */
+
+        var nodeHeapUsages = simulator.getEstimatedHeapUsages();
+        assertNull(nodeHeapUsages.get(harness.nodeId1));
+        assertNull(nodeHeapUsages.get(harness.nodeId2));
+
+        var sourceNodeId = shardRouting1.currentNodeId();
+        var targetNodeId = sourceNodeId == harness.nodeId1 ? harness.nodeId2 : harness.nodeId1;
+
+        /** Relocate a shard, heap usage should remain unchanged. */
+        {
+            var relocationShards = allocation.routingNodes()
+                .relocateShard(
+                    shardRouting1,
+                    targetNodeId,
+                    allocation.clusterInfo().getShardSize(shardRouting1, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE),
+                    "relocating shard in test",
+                    allocation.changes()
+                );
+
+            simulator.simulateShardStarted(relocationShards.v2());
+
+            assertNull(nodeHeapUsages.get(sourceNodeId));
+            assertNull(nodeHeapUsages.get(targetNodeId));
+
+            // Want to continue testing with this shard later, so start it.
+            shardRouting1 = allocation.routingNodes().startShard(relocationShards.v2(), allocation.changes(), 0);
+        }
+
+        /** Assign a new shard (pretend by unassigning an existing shard and then initializing it on a new node) */
+        {
+            assertThat("Shards should all be on the 'target' node", shardRouting1.currentNodeId(), equalTo(targetNodeId));
+            var newTargetNodeId = sourceNodeId; // So we'll move the shard back to the 'source' node, making it the new target node.
+
+            // Unassign the shard -- unrealistic in the sense that the node is still part of the cluster state, but ok for testing purposes.
+            allocation.routingNodes()
+                .failShard(shardRouting1, new UnassignedInfo(NODE_LEFT, "unassigning shard for test"), allocation.changes());
+            var unassignedIt = allocation.routingNodes().unassigned().iterator();
+            assertTrue(unassignedIt.hasNext());
+            var unassignedShardRouting = unassignedIt.next();
+            assertFalse(unassignedIt.hasNext());
+            // Initialize the shard on the other node.
+            shardRouting1 = allocation.routingNodes()
+                .initializeShard(unassignedShardRouting, newTargetNodeId, null, 0, allocation.changes());
+            simulator.simulateShardStarted(shardRouting1);
+
+            assertNull(nodeHeapUsages.get(newTargetNodeId));
+        }
+    }
+
+    /**
+     * Tests relocating and initializing shards with node level heap usage estimates, but no shard level estimates.
+     */
+    public void testHeapUsageSimulationWithoutShardEstimates() {
+        var harness = setupHeapUsageTestHarness();
+        var shardRouting1 = harness.shardRouting1; // Need to update these reference, harness doesn't allow it (as a record type.
+
+        /** Set up ClusterInfo */
+
+        final long totalBytes = 500;
+        final long estimatedBytesUsed = 250;
+
+        final Map<String, EstimatedHeapUsage> estimatedHeapUsages = new HashMap<>();
+        estimatedHeapUsages.put(harness.nodeId1, new EstimatedHeapUsage(harness.nodeId1, totalBytes, estimatedBytesUsed));
+        estimatedHeapUsages.put(harness.nodeId2, new EstimatedHeapUsage(harness.nodeId2, totalBytes, estimatedBytesUsed));
+
+        ClusterInfo clusterInfo = ClusterInfo.builder().estimatedHeapUsages(estimatedHeapUsages).build();
+
+        /** Set up the Simulator */
+
+        final var allocation = new RoutingAllocation(
+            new AllocationDeciders(List.of()),
+            harness.clusterState,
+            clusterInfo,
+            SnapshotShardSizeInfo.EMPTY,
+            System.nanoTime()
+        ).mutableCloneForSimulation();
+
+        final var simulator = new ClusterInfoSimulator(allocation);
+
+        /** The estimated heap usage should be as initialized in the ClusterInfo above. */
+
+        var nodeHeapUsages = simulator.getEstimatedHeapUsages();
+        assertThat(nodeHeapUsages.get(harness.nodeId1).estimatedUsageBytes(), equalTo(estimatedBytesUsed));
+        assertThat(nodeHeapUsages.get(harness.nodeId2).estimatedUsageBytes(), equalTo(estimatedBytesUsed));
+
+        var sourceNodeId = shardRouting1.currentNodeId();
+        var targetNodeId = sourceNodeId == harness.nodeId1 ? harness.nodeId2 : harness.nodeId1;
+
+        /** Relocate a shard, heap usage should remain unchanged. */
+        {
+            var relocationShards = allocation.routingNodes()
+                .relocateShard(
+                    shardRouting1,
+                    targetNodeId,
+                    allocation.clusterInfo().getShardSize(shardRouting1, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE),
+                    "relocating shard in test",
+                    allocation.changes()
+                );
+
+            simulator.simulateShardStarted(relocationShards.v2());
+
+            assertThat(nodeHeapUsages.get(sourceNodeId).estimatedUsageBytes(), equalTo(estimatedBytesUsed));
+            assertThat(nodeHeapUsages.get(targetNodeId).estimatedUsageBytes(), equalTo(estimatedBytesUsed));
+
+            // Want to continue testing with this shard later, so start it.
+            shardRouting1 = allocation.routingNodes().startShard(relocationShards.v2(), allocation.changes(), 0);
+        }
+
+        /** Assign a new shard (pretend by unassigning an existing shard and then initializing it on a new node) */
+        {
+            assertThat("Shards should all be on the 'target' node", shardRouting1.currentNodeId(), equalTo(targetNodeId));
+            var newTargetNodeId = sourceNodeId; // So we'll move the shard back to the 'source' node, making it the new target node.
+
+            // Unassign the shard -- unrealistic in the sense that the node is still part of the cluster state, but ok for testing purposes.
+            allocation.routingNodes()
+                .failShard(shardRouting1, new UnassignedInfo(NODE_LEFT, "unassigning shard for test"), allocation.changes());
+            var unassignedIt = allocation.routingNodes().unassigned().iterator();
+            assertTrue(unassignedIt.hasNext());
+            var unassignedShardRouting = unassignedIt.next();
+            assertFalse(unassignedIt.hasNext());
+            // Initialize the shard on the other node.
+            shardRouting1 = allocation.routingNodes()
+                .initializeShard(unassignedShardRouting, newTargetNodeId, null, 0, allocation.changes());
+            simulator.simulateShardStarted(shardRouting1);
+
+            assertThat(nodeHeapUsages.get(newTargetNodeId).estimatedUsageBytes(), equalTo(estimatedBytesUsed));
+        }
+    }
+
+    /**
+     * When {@link ClusterInfo#getEstimatedShardHeapUsages()} has no entry for a shard, the simulator must use
+     * {@link ClusterInfo#getDefaultShardHeapUsageForShardsWithoutMetrics()} so heap estimates move by a non-zero amount when a new
+     * shard starts, and drop by the same amount when that shard is relocated away from a node.
+     */
+    public void testHeapUsageSimulationUsesDefaultShardHeapWhenPerShardMapMissing() {
+        final long maxHeapBytes = randomLongBetween(10000, 20000);
+        final long baselineBytes = randomLongBetween(1000, 1900);
+        final long defaultShardHeapBytes = randomLongBetween(50, 100);
+        final long defaultIndexHeapBytes = randomLongBetween(20, 70);
+        final long deltaBytes = defaultShardHeapBytes + defaultIndexHeapBytes;
+        final var defaultShardAndIndexHeap = new ShardAndIndexHeapUsage(defaultShardHeapBytes, defaultIndexHeapBytes);
+
+        // For a new shard
+        {
+            final var indexName = randomIndexName();
+            final var stateForNewShard = ClusterStateCreationUtils.stateWithUnassignedPrimariesAndReplicas(
+                new String[] { indexName },
+                1,
+                0
+            );
+
+            final String nodeId = randomFrom(stateForNewShard.nodes()).getLocalNodeId();
+            final ShardRouting onlyShard = stateForNewShard.globalRoutingTable()
+                .routingTable(ProjectId.DEFAULT)
+                .index(indexName)
+                .shard(0)
+                .primaryShard();
+            assert onlyShard.unassigned();
+            final var newPrimary = shardRoutingBuilder(onlyShard.shardId(), nodeId, true, INITIALIZING).withRecoverySource(
+                RecoverySource.EmptyStoreRecoverySource.INSTANCE
+            ).build();
+
+            final Map<String, EstimatedHeapUsage> estimatedHeapUsages = new HashMap<>();
+            estimatedHeapUsages.put(nodeId, new EstimatedHeapUsage(nodeId, maxHeapBytes, baselineBytes));
+
+            final ClusterInfo clusterInfoForNewShard = ClusterInfo.builder()
+                .estimatedHeapUsages(estimatedHeapUsages)
+                .estimatedShardHeapUsages(Map.of())
+                .defaultShardHeapUsageForShardsWithoutMetrics(defaultShardAndIndexHeap)
+                .build();
+
+            final var allocationForNewShard = createRoutingAllocation(
+                stateForNewShard,
+                clusterInfoForNewShard,
+                SnapshotShardSizeInfo.EMPTY
+            );
+            final var simulatorForNewShard = new ClusterInfoSimulator(allocationForNewShard);
+            final var initialisingShard = allocationForNewShard.routingNodes()
+                .initializeShard(onlyShard, nodeId, null, randomNonNegativeLong(), RoutingChangesObserver.NOOP);
+            allocationForNewShard.routingNodes().startShard(initialisingShard, RoutingChangesObserver.NOOP, randomNonNegativeLong());
+            simulatorForNewShard.simulateShardStarted(newPrimary);
+
+            assertThat(
+                simulatorForNewShard.getEstimatedHeapUsages().get(nodeId).estimatedUsageBytes(),
+                equalTo(baselineBytes + deltaBytes)
+            );
+        }
+
+        // For a relocation
+        {
+            final var indexName = randomIndexName();
+            final var stateForRelocation = ClusterStateCreationUtils.state(indexName, 2, 1);
+            final var startedPrimary = stateForRelocation.globalRoutingTable()
+                .routingTable(ProjectId.DEFAULT)
+                .index(indexName)
+                .shard(0)
+                .primaryShard();
+            final String sourceNodeId = startedPrimary.currentNodeId();
+            final String targetNodeId = stateForRelocation.nodes()
+                .stream()
+                .filter(n -> n.getId().equals(sourceNodeId) == false)
+                .findFirst()
+                .get()
+                .getId();
+
+            final Map<String, EstimatedHeapUsage> twoNodeHeaps = new HashMap<>();
+            twoNodeHeaps.put(sourceNodeId, new EstimatedHeapUsage(sourceNodeId, maxHeapBytes, baselineBytes));
+            twoNodeHeaps.put(targetNodeId, new EstimatedHeapUsage(targetNodeId, maxHeapBytes, baselineBytes));
+
+            final ClusterInfo clusterInfoForRelocation = ClusterInfo.builder()
+                .estimatedHeapUsages(twoNodeHeaps)
+                .estimatedShardHeapUsages(Map.of())
+                .defaultShardHeapUsageForShardsWithoutMetrics(defaultShardAndIndexHeap)
+                .build();
+
+            final var allocationForRelocation = new RoutingAllocation(
+                new AllocationDeciders(List.of()),
+                stateForRelocation,
+                clusterInfoForRelocation,
+                SnapshotShardSizeInfo.EMPTY,
+                System.nanoTime()
+            ).mutableCloneForSimulation();
+            final var simulatorForRelocation = new ClusterInfoSimulator(allocationForRelocation);
+
+            final var relocationShards = allocationForRelocation.routingNodes()
+                .relocateShard(
+                    startedPrimary,
+                    targetNodeId,
+                    randomNonNegativeLong(),
+                    "relocating shard in test",
+                    allocationForRelocation.changes()
+                );
+
+            simulatorForRelocation.simulateShardStarted(relocationShards.v2());
+
+            assertThat(
+                simulatorForRelocation.getEstimatedHeapUsages().get(sourceNodeId).estimatedUsageBytes(),
+                equalTo(baselineBytes - deltaBytes)
+            );
+            assertThat(
+                simulatorForRelocation.getEstimatedHeapUsages().get(targetNodeId).estimatedUsageBytes(),
+                equalTo(baselineBytes + deltaBytes)
+            );
+        }
+    }
+
+    private record HeapUsageTestHarness(
+        ClusterState clusterState,
+        String nodeId1,
+        String nodeId2,
+        ShardRouting shardRouting1,
+        ShardRouting shardRouting2
+    ) {}
+
+    /**
+     * Set up ClusterState with a single index with two primary shards and returns a {@link HeapUsageTestHarness} with references.
+     */
+    private HeapUsageTestHarness setupHeapUsageTestHarness() {
+        final String indexName = "test-index-one";
+
+        final ClusterState clusterState = ClusterStateCreationUtils.stateWithAssignedPrimariesAndReplicas(new String[] { indexName }, 2, 0);
+        final var indexMetadata = clusterState.metadata().getProject(ProjectId.DEFAULT).index(indexName);
+        assertThat(indexMetadata.getNumberOfShards(), equalTo(2));
+        final var nodes = clusterState.nodes().getNodes();
+        var shardRouting1 = clusterState.routingTable(ProjectId.DEFAULT).index(indexName).shard(0).shard(0);
+        var shardRouting2 = clusterState.routingTable(ProjectId.DEFAULT).index(indexName).shard(1).shard(0);
+
+        assertThat(nodes.size(), equalTo(2));
+        final var nodesIt = nodes.entrySet().iterator();
+        assertTrue(nodesIt.hasNext());
+        final String nodeId1 = nodesIt.next().getKey();
+        assertTrue(nodesIt.hasNext());
+        final String nodeId2 = nodesIt.next().getKey();
+        assertFalse(nodesIt.hasNext());
+
+        logger.info("---> Cluster state: " + clusterState);
+
+        return new HeapUsageTestHarness(clusterState, nodeId1, nodeId2, shardRouting1, shardRouting2);
     }
 
     private static void addIndex(Metadata.Builder metadataBuilder, RoutingTable.Builder routingTableBuilder, ShardRouting shardRouting) {
@@ -693,7 +1299,14 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
         SnapshotShardSizeInfo snapshotShardSizeInfo,
         AllocationDecider... deciders
     ) {
-        return new RoutingAllocation(new AllocationDeciders(List.of(deciders)), state, clusterInfo, snapshotShardSizeInfo, 0);
+        return new RoutingAllocation(
+            new AllocationDeciders(List.of(deciders)),
+            state.getRoutingNodes().mutableCopy(),
+            state,
+            clusterInfo,
+            snapshotShardSizeInfo,
+            0
+        );
     }
 
     private static class SnapshotShardSizeInfoTestBuilder {

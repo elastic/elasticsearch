@@ -404,7 +404,7 @@ spec:
       pipeline_file: .buildkite/pipelines/pull-request-performance-benchmark.yml
       env:
         ELASTIC_PR_COMMENTS_ENABLED: "true"
-        ELASTIC_SLACK_NOTIFICATIONS_ENABLED: "true"
+        ELASTIC_SLACK_NOTIFICATIONS_ENABLED: "false"
         SLACK_NOTIFICATIONS_CHANNEL: "#es-perf-build"
         SLACK_NOTIFICATIONS_ALL_BRANCHES: "true"
       cancel_intermediate_builds: false
@@ -440,6 +440,7 @@ spec:
       name: elasticsearch-version-bump
     spec:
       pipeline_file: ".buildkite/pipelines/version-bump-pipeline.yml"
+      skip_intermediate_builds: false
       provider_settings:
         trigger_mode: none
       repository: elastic/elasticsearch

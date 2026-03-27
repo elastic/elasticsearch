@@ -13,8 +13,6 @@ import org.apache.arrow.flight.FlightInfo;
 import org.apache.arrow.flight.FlightStream;
 import org.apache.arrow.flight.Location;
 import org.apache.arrow.flight.Ticket;
-import org.apache.arrow.memory.BufferAllocator;
-import org.apache.arrow.memory.RootAllocator;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.xpack.esql.datasources.spi.Connector;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
@@ -38,23 +36,25 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 class FlightConnector implements Connector {
 
-    private final BufferAllocator allocator;
-    private final FlightClient defaultClient;
+    private FlightClient defaultClient;
     private final String defaultEndpoint;
+    private final URI endpointURI;
     private final Map<String, FlightClient> locationClients = new ConcurrentHashMap<>();
     private volatile boolean closed = false;
 
     FlightConnector(String endpoint) {
         URI uri = URI.create(endpoint);
-        String host = uri.getHost();
-        if (host == null || host.isBlank()) {
-            throw new IllegalArgumentException("Invalid endpoint URI: missing host: " + endpoint);
+        this.endpointURI = uri;
+        this.defaultEndpoint = uri.getHost() + ":" + getPort(uri);
+    }
+
+    private FlightClient defaultClient(QueryRequest request) {
+        if (defaultClient == null) {
+            Location location = Location.forGrpcInsecure(endpointURI.getHost(), getPort(endpointURI));
+            var allocator = request.blockFactory().arrowAllocator();
+            this.defaultClient = FlightClient.builder(allocator, location).build();
         }
-        int port = uri.getPort() > 0 ? uri.getPort() : FlightConnectorFactory.DEFAULT_FLIGHT_PORT;
-        Location location = Location.forGrpcInsecure(host, port);
-        this.allocator = new RootAllocator();
-        this.defaultClient = FlightClient.builder(allocator, location).build();
-        this.defaultEndpoint = host + ":" + port;
+        return defaultClient;
     }
 
     @Override
@@ -72,9 +72,9 @@ class FlightConnector implements Connector {
         FlightClient client;
         if (flightSplit != null) {
             ticket = new Ticket(flightSplit.ticketBytes());
-            client = clientForSplit(flightSplit);
+            client = clientForSplit(flightSplit, request);
         } else {
-            client = defaultClient;
+            client = defaultClient(request);
             FlightInfo info = client.getInfo(FlightDescriptor.path(request.target()));
             if (info.getEndpoints().isEmpty()) {
                 throw new IllegalStateException("Flight server returned no endpoints for target: " + request.target());
@@ -85,26 +85,27 @@ class FlightConnector implements Connector {
         return new FlightResultCursor(stream, request.attributes(), request.blockFactory());
     }
 
-    private FlightClient clientForSplit(FlightSplit split) {
+    private FlightClient clientForSplit(FlightSplit split, QueryRequest request) {
         if (closed) {
             throw new IllegalStateException("Connector is closed");
         }
         String loc = split.location();
         if (loc == null) {
-            return defaultClient;
+            return defaultClient(request);
         }
         URI uri = URI.create(loc);
         String host = uri.getHost();
         if (host == null || host.isBlank()) {
             throw new IllegalArgumentException("Invalid location URI: missing host: " + loc);
         }
-        int port = uri.getPort() > 0 ? uri.getPort() : FlightConnectorFactory.DEFAULT_FLIGHT_PORT;
+        int port = getPort(uri);
         String key = host + ":" + port;
         if (key.equals(defaultEndpoint)) {
-            return defaultClient;
+            return defaultClient(request);
         }
         return locationClients.computeIfAbsent(key, k -> {
             Location location = Location.forGrpcInsecure(host, port);
+            var allocator = request.blockFactory().arrowAllocator();
             return FlightClient.builder(allocator, location).build();
         });
     }
@@ -118,11 +119,7 @@ class FlightConnector implements Connector {
         }
         locationClients.clear();
         toClose.add(asCloseable(defaultClient));
-        try {
-            IOUtils.close(toClose);
-        } finally {
-            allocator.close();
-        }
+        IOUtils.close(toClose);
     }
 
     private static Closeable asCloseable(FlightClient client) {
@@ -134,6 +131,10 @@ class FlightConnector implements Connector {
                 throw new IOException("Interrupted while closing FlightClient", e);
             }
         };
+    }
+
+    private static int getPort(URI uri) {
+        return uri.getPort() > 0 ? uri.getPort() : FlightConnectorFactory.DEFAULT_FLIGHT_PORT;
     }
 
     @Override

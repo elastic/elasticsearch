@@ -7,8 +7,8 @@
 | aggregate_metric_double | double |
 | dense_vector | dense_vector |
 | double | double |
-| exponential_histogram {applies_to}`stack: preview 9.3.0` | double |
+| exponential_histogram {applies_to}`stack: preview 9.3.0, ga 9.4.0` | double |
 | integer | long |
 | long | long |
-| tdigest {applies_to}`stack: preview 9.3.0` | double |
+| tdigest {applies_to}`stack: preview 9.3.0, ga 9.4.0` | double |
 

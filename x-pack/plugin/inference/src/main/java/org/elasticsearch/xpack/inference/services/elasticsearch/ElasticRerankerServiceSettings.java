@@ -18,7 +18,6 @@ import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsS
 
 import java.io.IOException;
 import java.util.EnumSet;
-import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 
@@ -183,7 +182,6 @@ public class ElasticRerankerServiceSettings extends ElasticsearchInternalService
 
     @Override
     public ServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
-        serviceSettings = new HashMap<>(serviceSettings);
         ServiceSettings updated = super.updateServiceSettings(serviceSettings);
         if (updated instanceof ElasticsearchInternalServiceSettings esSettings) {
             return new ElasticRerankerServiceSettings(esSettings, longDocumentStrategy, maxChunksPerDoc);

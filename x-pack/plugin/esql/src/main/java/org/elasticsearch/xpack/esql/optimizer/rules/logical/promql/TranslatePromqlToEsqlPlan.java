@@ -803,7 +803,7 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
      * @param matcher the label matcher to translate
      * @return the ESQL Expression, or null if the matcher matches all or none
      */
-    private static Expression translateLabelMatcher(Source source, Expression field, LabelMatcher matcher) {
+    public static Expression translateLabelMatcher(Source source, Expression field, LabelMatcher matcher) {
         // Check for universal matchers
         if (matcher.matchesAll()) {
             return Literal.fromBoolean(source, true); // No filter needed (matches everything)

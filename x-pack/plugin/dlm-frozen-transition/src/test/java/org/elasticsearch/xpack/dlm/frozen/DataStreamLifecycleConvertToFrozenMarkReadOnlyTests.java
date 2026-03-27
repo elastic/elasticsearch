@@ -119,9 +119,16 @@ public class DataStreamLifecycleConvertToFrozenMarkReadOnlyTests extends ESTestC
                     .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build())
                     .numberOfShards(1)
                     .numberOfReplicas(0)
+                    .putCustom(
+                        DataStreamsPlugin.LIFECYCLE_CUSTOM_INDEX_METADATA_KEY,
+                        Map.of(DataStreamLifecycleService.FROZEN_CANDIDATE_REPOSITORY_METADATA_KEY, DEFAULT_REPO_NAME)
+                    )
                     .build(),
                 false
             );
+
+        RepositoryMetadata repo = new RepositoryMetadata(DEFAULT_REPO_NAME, "fs", Settings.EMPTY);
+        projectMetadataBuilder.putCustom(RepositoriesMetadata.TYPE, new RepositoriesMetadata(List.of(repo)));
 
         ClusterBlocks clusterBlocks = ClusterBlocks.builder().addIndexBlock(projectId, indexName, writeBlock).build();
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
@@ -251,9 +258,16 @@ public class DataStreamLifecycleConvertToFrozenMarkReadOnlyTests extends ESTestC
                     .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build())
                     .numberOfShards(1)
                     .numberOfReplicas(0)
+                    .putCustom(
+                        DataStreamsPlugin.LIFECYCLE_CUSTOM_INDEX_METADATA_KEY,
+                        Map.of(DataStreamLifecycleService.FROZEN_CANDIDATE_REPOSITORY_METADATA_KEY, DEFAULT_REPO_NAME)
+                    )
                     .build(),
                 false
             );
+
+        RepositoryMetadata repo = new RepositoryMetadata(DEFAULT_REPO_NAME, "fs", Settings.EMPTY);
+        projectMetadataBuilder.putCustom(RepositoriesMetadata.TYPE, new RepositoriesMetadata(List.of(repo)));
 
         ClusterBlocks clusterBlocks = ClusterBlocks.builder().addIndexBlock(projectId, indexName, readBlock).build();
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
@@ -465,6 +479,8 @@ public class DataStreamLifecycleConvertToFrozenMarkReadOnlyTests extends ESTestC
         setState(clusterService, clusterState);
     }
 
+    private static final String DEFAULT_REPO_NAME = "my-repo";
+
     private void createProjectState() {
         ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(projectId)
             .put(
@@ -472,9 +488,16 @@ public class DataStreamLifecycleConvertToFrozenMarkReadOnlyTests extends ESTestC
                     .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build())
                     .numberOfShards(1)
                     .numberOfReplicas(0)
+                    .putCustom(
+                        DataStreamsPlugin.LIFECYCLE_CUSTOM_INDEX_METADATA_KEY,
+                        Map.of(DataStreamLifecycleService.FROZEN_CANDIDATE_REPOSITORY_METADATA_KEY, DEFAULT_REPO_NAME)
+                    )
                     .build(),
                 false
             );
+
+        RepositoryMetadata repo = new RepositoryMetadata(DEFAULT_REPO_NAME, "fs", Settings.EMPTY);
+        projectMetadataBuilder.putCustom(RepositoriesMetadata.TYPE, new RepositoriesMetadata(List.of(repo)));
 
         ClusterState.Builder clusterStateBuilder = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(projectMetadataBuilder);
 

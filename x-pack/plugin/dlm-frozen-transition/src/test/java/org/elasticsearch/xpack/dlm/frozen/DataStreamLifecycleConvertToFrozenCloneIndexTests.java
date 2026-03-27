@@ -23,6 +23,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
+import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
@@ -31,6 +33,8 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.datastreams.DataStreamsPlugin;
+import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
@@ -45,6 +49,8 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.time.Clock;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
@@ -396,6 +402,8 @@ public class DataStreamLifecycleConvertToFrozenCloneIndexTests extends ESTestCas
         assertThat(capturedHealthRequest.get().waitForStatus(), equalTo(org.elasticsearch.cluster.health.ClusterHealthStatus.GREEN));
     }
 
+    private static final String REPO_NAME = "my-repo";
+
     /**
      * Creates a ProjectState with the target index having the specified number of replicas.
      */
@@ -411,9 +419,16 @@ public class DataStreamLifecycleConvertToFrozenCloneIndexTests extends ESTestCas
                     )
                     .numberOfShards(1)
                     .numberOfReplicas(numberOfReplicas)
+                    .putCustom(
+                        DataStreamsPlugin.LIFECYCLE_CUSTOM_INDEX_METADATA_KEY,
+                        Map.of(DataStreamLifecycleService.FROZEN_CANDIDATE_REPOSITORY_METADATA_KEY, REPO_NAME)
+                    )
                     .build(),
                 false
             );
+
+        RepositoryMetadata repo = new RepositoryMetadata(REPO_NAME, "fs", Settings.EMPTY);
+        projectMetadataBuilder.putCustom(RepositoriesMetadata.TYPE, new RepositoriesMetadata(List.of(repo)));
 
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(projectMetadataBuilder).build();
         setState(clusterService, clusterState);
@@ -435,6 +450,10 @@ public class DataStreamLifecycleConvertToFrozenCloneIndexTests extends ESTestCas
             )
             .numberOfShards(1)
             .numberOfReplicas(1)
+            .putCustom(
+                DataStreamsPlugin.LIFECYCLE_CUSTOM_INDEX_METADATA_KEY,
+                Map.of(DataStreamLifecycleService.FROZEN_CANDIDATE_REPOSITORY_METADATA_KEY, REPO_NAME)
+            )
             .build();
 
         IndexMetadata cloneIndexMetadata = IndexMetadata.builder(cloneIndexName)
@@ -446,6 +465,9 @@ public class DataStreamLifecycleConvertToFrozenCloneIndexTests extends ESTestCas
         ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(projectId)
             .put(originalIndexMetadata, false)
             .put(cloneIndexMetadata, false);
+
+        RepositoryMetadata repo = new RepositoryMetadata(REPO_NAME, "fs", Settings.EMPTY);
+        projectMetadataBuilder.putCustom(RepositoriesMetadata.TYPE, new RepositoriesMetadata(List.of(repo)));
 
         ShardRouting primaryShard = TestShardRouting.newShardRouting(
             new ShardId(cloneIndexMetadata.getIndex(), 0),

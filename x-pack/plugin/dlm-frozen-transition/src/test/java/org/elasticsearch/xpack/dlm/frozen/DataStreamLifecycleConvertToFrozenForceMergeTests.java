@@ -24,12 +24,16 @@ import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
+import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.datastreams.DataStreamsPlugin;
+import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.engine.Segment;
@@ -46,6 +50,7 @@ import org.junit.Before;
 
 import java.time.Clock;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
@@ -269,6 +274,8 @@ public class DataStreamLifecycleConvertToFrozenForceMergeTests extends ESTestCas
         assertThat(exception.getCause().getMessage(), containsString("transport failure"));
     }
 
+    private static final String REPO_NAME = "my-repo";
+
     private void createProjectState() {
         buildProjectState(Settings.EMPTY);
     }
@@ -281,6 +288,10 @@ public class DataStreamLifecycleConvertToFrozenForceMergeTests extends ESTestCas
         if (indexSettings != null) {
             projectMetadata.put(buildIndexMetadata(indexSettings), false);
         }
+
+        RepositoryMetadata repo = new RepositoryMetadata(REPO_NAME, "fs", Settings.EMPTY);
+        projectMetadata.putCustom(RepositoriesMetadata.TYPE, new RepositoriesMetadata(List.of(repo)));
+
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(projectMetadata.build()).build();
         setState(clusterService, clusterState);
     }
@@ -296,6 +307,10 @@ public class DataStreamLifecycleConvertToFrozenForceMergeTests extends ESTestCas
             )
             .numberOfShards(1)
             .numberOfReplicas(0)
+            .putCustom(
+                DataStreamsPlugin.LIFECYCLE_CUSTOM_INDEX_METADATA_KEY,
+                Map.of(DataStreamLifecycleService.FROZEN_CANDIDATE_REPOSITORY_METADATA_KEY, REPO_NAME)
+            )
             .build();
     }
 }

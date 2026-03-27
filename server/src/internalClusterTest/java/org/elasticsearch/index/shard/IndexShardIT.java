@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.EstimatedHeapUsageCollector;
 import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.NodeUsageStatsForThreadPools;
 import org.elasticsearch.cluster.ShardAndIndexHeapUsage;
+import org.elasticsearch.cluster.ShardHeapUsageEstimates;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -1017,10 +1018,9 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         }
 
         @Override
-        public void collectShardHeapUsage(ActionListener<Map<ShardId, ShardAndIndexHeapUsage>> listener) {
-            ActionListener.completeWith(
-                listener,
-                () -> plugin.getClusterService()
+        public void collectShardHeapUsage(ActionListener<ShardHeapUsageEstimates> listener) {
+            ActionListener.completeWith(listener, () -> {
+                var perShard = plugin.getClusterService()
                     .state()
                     .getRoutingNodes()
                     .stream()
@@ -1028,12 +1028,27 @@ public class IndexShardIT extends ESSingleNodeTestCase {
                     .flatMap(nodeIt -> StreamSupport.stream(nodeIt.spliterator(), false))
                     .collect(
                         Collectors.toUnmodifiableMap(
-                            shardRouting -> shardRouting.shardId(),
-                            shardRouting -> new ShardAndIndexHeapUsage(randomNonNegativeLong(), randomNonNegativeLong())
+                            ShardRouting::shardId,
+                            shardRouting -> new ShardAndIndexHeapUsage(randomShardHeapUsage(), randomIndexHeapUsage())
                         )
-                    )
-            );
+                    );
+                return new ShardHeapUsageEstimates(perShard, new ShardAndIndexHeapUsage(randomShardHeapUsage(), randomIndexHeapUsage()));
+            });
         }
+    }
+
+    /**
+     * Reasonable shard heap usage estimate (to prevent overflow)
+     */
+    private static long randomShardHeapUsage() {
+        return randomLong(1_000_000);
+    }
+
+    /**
+     * Reasonable index heap usage estimate (to prevent overflow)
+     */
+    private static long randomIndexHeapUsage() {
+        return randomLong(400_000);
     }
 
     public static class BogusEstimatedHeapUsagePlugin extends Plugin implements ClusterPlugin {

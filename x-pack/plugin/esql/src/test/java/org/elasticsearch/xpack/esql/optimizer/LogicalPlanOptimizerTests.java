@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.expression.TimeSeriesMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -162,6 +163,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -9252,6 +9254,76 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var eval = as(project.child(), Eval.class);
         var local = as(eval.child(), LocalRelation.class);
         assertThat(local.supplier(), instanceOf(EmptyLocalSupplier.class));
+    }
+
+    public void testWithoutGroupingWithRegularAggregates() {
+        assumeTrue("requires WITHOUT grouping", EsqlCapabilities.Cap.ESQL_WITHOUT_GROUPING.isEnabled());
+        var query = "TS k8s | STATS avg(network.cost) BY WITHOUT(pod)";
+        var plan = planMetrics(query);
+        // Verify plan contains a TimeSeriesAggregate
+        var tsAggregates = plan.collect(TimeSeriesAggregate.class);
+        assertThat(tsAggregates, hasSize(1));
+        var tsAgg = tsAggregates.get(0);
+        // After TranslateTimeSeriesAggregate, the TS aggregate groups by _tsid.
+        // The WITHOUT exclusion is encoded in the EsRelation's _timeseries attribute.
+        var esRelations = tsAgg.collect(EsRelation.class);
+        assertThat(esRelations, hasSize(1));
+        var timeSeriesAttrs = esRelations.get(0)
+            .output()
+            .stream()
+            .filter(a -> a instanceof TimeSeriesMetadataAttribute)
+            .map(a -> (TimeSeriesMetadataAttribute) a)
+            .toList();
+        assertThat(timeSeriesAttrs, hasSize(1));
+        assertThat(timeSeriesAttrs.get(0).withoutFields(), equalTo(Set.of("pod")));
+    }
+
+    public void testWithoutGroupingExcludesMultipleDimensions() {
+        assumeTrue("requires WITHOUT grouping", EsqlCapabilities.Cap.ESQL_WITHOUT_GROUPING.isEnabled());
+        var query = "TS k8s | STATS avg(network.cost) BY WITHOUT(pod, region)";
+        var plan = planMetrics(query);
+        var tsAggregates = plan.collect(TimeSeriesAggregate.class);
+        assertThat(tsAggregates, hasSize(1));
+        var esRelations = tsAggregates.get(0).collect(EsRelation.class);
+        assertThat(esRelations, hasSize(1));
+        var timeSeriesAttrs = esRelations.get(0)
+            .output()
+            .stream()
+            .filter(a -> a instanceof TimeSeriesMetadataAttribute)
+            .map(a -> (TimeSeriesMetadataAttribute) a)
+            .toList();
+        assertThat(timeSeriesAttrs, hasSize(1));
+        assertThat(timeSeriesAttrs.get(0).withoutFields(), equalTo(Set.of("pod", "region")));
+    }
+
+    public void testWithoutGroupingNoDuplicateWithTsAggFunction() {
+        assumeTrue("requires WITHOUT grouping", EsqlCapabilities.Cap.ESQL_WITHOUT_GROUPING.isEnabled());
+        assumeTrue("requires metrics group by all", EsqlCapabilities.Cap.METRICS_GROUP_BY_ALL.isEnabled());
+        var query = "TS k8s | STATS avg_over_time(network.cost) BY WITHOUT(pod)";
+        var plan = planMetrics(query);
+        // Should have exactly one TimeSeriesMetadataAttribute in the EsRelation (no duplicates)
+        var esRelations = plan.collect(EsRelation.class);
+        assertThat(esRelations, hasSize(1));
+        var timeSeriesAttrs = esRelations.get(0).output().stream().filter(a -> a instanceof TimeSeriesMetadataAttribute).toList();
+        assertThat("Expected exactly one _timeseries attribute", timeSeriesAttrs, hasSize(1));
+    }
+
+    public void testWithoutGroupingEmptyExcludesNothing() {
+        assumeTrue("requires WITHOUT grouping", EsqlCapabilities.Cap.ESQL_WITHOUT_GROUPING.isEnabled());
+        var query = "TS k8s | STATS avg(network.cost) BY WITHOUT()";
+        var plan = planMetrics(query);
+        var tsAggregates = plan.collect(TimeSeriesAggregate.class);
+        assertThat(tsAggregates, hasSize(1));
+        var esRelations = tsAggregates.get(0).collect(EsRelation.class);
+        assertThat(esRelations, hasSize(1));
+        var timeSeriesAttrs = esRelations.get(0)
+            .output()
+            .stream()
+            .filter(a -> a instanceof TimeSeriesMetadataAttribute)
+            .map(a -> (TimeSeriesMetadataAttribute) a)
+            .toList();
+        assertThat(timeSeriesAttrs, hasSize(1));
+        assertThat(timeSeriesAttrs.get(0).withoutFields(), equalTo(Set.of()));
     }
 
     public void testTimeSeriesBareFieldWithBucketAndLimitZeroDoesNotFailVerifier() {

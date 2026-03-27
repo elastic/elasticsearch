@@ -482,7 +482,7 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
                 .setSize(0)
                 .setRequestCache(true)
                 .setQuery(QueryBuilders.rangeQuery("s").gte("2016-03-20").lte("2016-03-26"))
-                .addAggregation(dateRange("foo").field("s").addRange("now-10y", "now")),
+                .addAggregation(dateRange("foo").field("s").addRange("now-100y", "now")),
             response -> {
                 ElasticsearchAssertions.assertAllSuccessful(response);
                 assertThat(response.getHits().getTotalHits().value(), equalTo(7L));
@@ -511,7 +511,7 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
                 .setSize(0)
                 .setRequestCache(true)
                 .setQuery(QueryBuilders.rangeQuery("s").gte("2016-03-20").lte("2016-03-26"))
-                .addAggregation(filter("foo", QueryBuilders.rangeQuery("s").from("now-10y").to("now"))),
+                .addAggregation(filter("foo", QueryBuilders.rangeQuery("s").from("now-100y").to("now"))),
             response -> {
                 ElasticsearchAssertions.assertAllSuccessful(response);
                 assertThat(response.getHits().getTotalHits().value(), equalTo(7L));

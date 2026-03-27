@@ -22,7 +22,6 @@
 
 #include <stddef.h>
 #include <arm_sve.h>
-#include <math.h>
 #include "vec.h"
 #include "vec_common.h"
 #include "aarch64/aarch64_vec_common.h"

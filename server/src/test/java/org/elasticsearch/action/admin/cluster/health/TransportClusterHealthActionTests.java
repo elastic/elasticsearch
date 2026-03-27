@@ -81,10 +81,6 @@ public class TransportClusterHealthActionTests extends ESTestCase {
     }
 
     ClusterState randomClusterStateWithInitializingShards(String index, final int initializingShards, ProjectId projectId) {
-        final IndexMetadata indexMetadata = IndexMetadata.builder(index)
-            .settings(indexSettings(IndexVersion.current(), 1, randomInt(20)))
-            .build();
-
         final List<ShardRoutingState> shardRoutingStates = new ArrayList<>();
         if (initializingShards == 1 && randomBoolean()) {
             shardRoutingStates.add(ShardRoutingState.INITIALIZING);
@@ -102,6 +98,11 @@ public class TransportClusterHealthActionTests extends ESTestCase {
             // primary must be active, otherwise replicas can't in initializing or relocating state.
             shardRoutingStates.add(0, randomFrom(ShardRoutingState.STARTED, ShardRoutingState.RELOCATING));
         }
+
+        final int numberOfReplicas = shardRoutingStates.size() - 1;
+        final IndexMetadata indexMetadata = IndexMetadata.builder(index)
+            .settings(indexSettings(IndexVersion.current(), 1, numberOfReplicas))
+            .build();
 
         final ShardId shardId = new ShardId(indexMetadata.getIndex(), 0);
         final IndexRoutingTable.Builder routingTable = new IndexRoutingTable.Builder(

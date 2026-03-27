@@ -19,6 +19,8 @@ import org.openjdk.jmh.annotations.Param;
 
 import java.util.Arrays;
 
+import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.supportsHeapSegments;
+
 public class VectorScorerInt4BenchmarkTests extends ESTestCase {
 
     private final double delta = 1e-3;
@@ -48,17 +50,25 @@ public class VectorScorerInt4BenchmarkTests extends ESTestCase {
         for (int i = 0; i < 100; i++) {
             var data = new VectorScorerInt4Benchmark.VectorData(dims);
             var scalar = createBench(VectorImplementation.SCALAR, data);
-            var lucene = createBench(VectorImplementation.LUCENE, data);
-            var nativeBench = createBench(VectorImplementation.NATIVE, data);
+            VectorScorerInt4Benchmark lucene = null;
+            VectorScorerInt4Benchmark nativeBench = null;
+            if (supportsHeapSegments()) {
+                lucene = createBench(VectorImplementation.LUCENE, data);
+                nativeBench = createBench(VectorImplementation.NATIVE, data);
+            }
 
             try {
                 float expected = scalar.score();
-                assertEquals("LUCENE score", expected, lucene.score(), delta);
-                assertEquals("NATIVE score", expected, nativeBench.score(), delta);
+                if(supportsHeapSegments()) {
+                    assertEquals("LUCENE score", expected, lucene.score(), delta);
+                    assertEquals("NATIVE score", expected, nativeBench.score(), delta);
+                }
             } finally {
                 scalar.teardown();
-                lucene.teardown();
-                nativeBench.teardown();
+                if(supportsHeapSegments()) {
+                    lucene.teardown();
+                    nativeBench.teardown();
+                }
             }
         }
     }
@@ -67,17 +77,25 @@ public class VectorScorerInt4BenchmarkTests extends ESTestCase {
         for (int i = 0; i < 100; i++) {
             var data = new VectorScorerInt4Benchmark.VectorData(dims);
             var scalar = createBench(VectorImplementation.SCALAR, data);
-            var lucene = createBench(VectorImplementation.LUCENE, data);
-            var nativeBench = createBench(VectorImplementation.NATIVE, data);
+            VectorScorerInt4Benchmark lucene = null;
+            VectorScorerInt4Benchmark nativeBench = null;
+            if (supportsHeapSegments()) {
+                lucene = createBench(VectorImplementation.LUCENE, data);
+                nativeBench = createBench(VectorImplementation.NATIVE, data);
+            }
 
             try {
                 float expected = scalar.scoreQuery();
-                assertEquals("LUCENE scoreQuery", expected, lucene.scoreQuery(), delta);
-                assertEquals("NATIVE scoreQuery", expected, nativeBench.scoreQuery(), delta);
+                if(supportsHeapSegments()) {
+                    assertEquals("LUCENE scoreQuery", expected, lucene.scoreQuery(), delta);
+                    assertEquals("NATIVE scoreQuery", expected, nativeBench.scoreQuery(), delta);
+                }
             } finally {
                 scalar.teardown();
-                lucene.teardown();
-                nativeBench.teardown();
+                if(supportsHeapSegments()) {
+                    lucene.teardown();
+                    nativeBench.teardown();
+                }
             }
         }
     }

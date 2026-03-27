@@ -88,8 +88,6 @@ The following settings can be used to customize the [OTLP endpoint](docs-content
 
 `xpack.otel_data.histogram_field_type` {applies_to}`stack: preview 9.3, ga 9.4+` {applies_to}`serverless: ga`
 :   Defines how OTLP histograms are mapped in Elasticsearch.
-    Defaults to `histogram` {applies_to}`stack: preview 9.3` and `exponential_histogram`
-    {applies_to}`stack: ga 9.4+`
     Valid values are:
 
 * `histogram`: Map histograms as T-Digests using the `histogram` field type (Default on {applies_to}`stack: preview 9.3`)

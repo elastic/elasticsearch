@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.core.datastreams;
+package org.elasticsearch.xpack.dlm.frozen;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
@@ -109,8 +109,6 @@ public class DataStreamLifecycleConvertToFrozenSnapshotTests extends ESTestCase 
     public void cleanup() {
         threadPool.shutdownNow();
     }
-
-    // ========== Tests for maybeTakeSnapshot when no snapshot is in progress ==========
 
     public void testStartsNewSnapshotWhenNoSnapshotExistsInRepoAndNoneInProgress() {
         ProjectState projectState = createProjectState();
@@ -223,8 +221,6 @@ public class DataStreamLifecycleConvertToFrozenSnapshotTests extends ESTestCase 
         assertThat(capturedCreateSnapshotRequest.get(), is(notNullValue()));
     }
 
-    // ========== Tests for maybeTakeSnapshot when a snapshot IS in progress ==========
-
     public void testLeavesSnapshotAloneWhenInProgressAndNotTimedOut() {
         // Snapshot started 1 minute ago — well within the 12-hour timeout
         long snapshotStartTime = clock.millis() - 60_000;
@@ -256,8 +252,6 @@ public class DataStreamLifecycleConvertToFrozenSnapshotTests extends ESTestCase 
         assertThat(capturedDeleteSnapshotRequest.get(), is(notNullValue()));
         assertThat(capturedCreateSnapshotRequest.get(), is(notNullValue()));
     }
-
-    // ========== Tests for error handling ==========
 
     public void testThrowsWhenCreateSnapshotFails() {
         ProjectState projectState = createProjectState();
@@ -390,8 +384,6 @@ public class DataStreamLifecycleConvertToFrozenSnapshotTests extends ESTestCase 
         assertThat(exception.getMessage(), containsString("failed shards"));
     }
 
-    // ========== Tests for snapshot name and request building ==========
-
     public void testSnapshotNameFormat() {
         String name = DataStreamLifecycleConvertToFrozen.snapshotName("my-index");
         assertThat(name, is("dlm-frozen-my-index"));
@@ -411,8 +403,6 @@ public class DataStreamLifecycleConvertToFrozenSnapshotTests extends ESTestCase 
         assertThat(userMetadata, is(notNullValue()));
         assertThat(userMetadata.get("dlm-managed"), is(Boolean.TRUE));
     }
-
-    // ========== Tests for the in-progress snapshot boundary ==========
 
     public void testSnapshotAtExactTimeoutBoundaryIsNotTimedOut() {
         // Snapshot started exactly 12 hours ago — at the boundary, (clock - start) == timeout, NOT > timeout
@@ -442,8 +432,6 @@ public class DataStreamLifecycleConvertToFrozenSnapshotTests extends ESTestCase 
         assertThat(capturedDeleteSnapshotRequest.get(), is(notNullValue()));
         assertThat(capturedCreateSnapshotRequest.get(), is(notNullValue()));
     }
-
-    // ========== Helper methods ==========
 
     private NoOpClient createMockClient() {
         return new NoOpClient(threadPool, TestProjectResolvers.usingRequestHeader(threadPool.getThreadContext())) {

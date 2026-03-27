@@ -19,6 +19,8 @@ import org.openjdk.jmh.annotations.Param;
 
 import java.util.Arrays;
 
+import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.supportsHeapSegments;
+
 public class VectorScorerInt4BenchmarkTests extends ESTestCase {
 
     private final double delta = 1e-3;
@@ -40,8 +42,9 @@ public class VectorScorerInt4BenchmarkTests extends ESTestCase {
     }
 
     @BeforeClass
-    public static void skipWindows() {
+    public static void skipUnsupported() {
         assumeFalse("doesn't work on windows yet", Constants.WINDOWS);
+        assumeTrue("native requires JDK22+", supportsHeapSegments());
     }
 
     public void testScores() throws Exception {

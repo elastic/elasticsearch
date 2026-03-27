@@ -51,7 +51,7 @@ public class PrometheusLabelValuesRestAction extends BaseRestHandler {
     private static final String LIMIT_PARAM = "limit";
     private static final String INDEX_PARAM = "index";
 
-    private static final int DEFAULT_LIMIT = 10_000;
+    private static final int DEFAULT_LIMIT = 0;
     private static final long DEFAULT_LOOKBACK_HOURS = 24;
 
     @Override
@@ -85,7 +85,9 @@ public class PrometheusLabelValuesRestAction extends BaseRestHandler {
             ? PromqlParserUtils.parseDate(Source.EMPTY, startParam)
             : end.minus(DEFAULT_LOOKBACK_HOURS, HOURS);
 
-        // Optional limit; default to DEFAULT_LIMIT to avoid unbounded ESQL scans
+        // Optional limit; 0 means "disabled" (Prometheus semantics), which defers to the ESQL
+        // result_truncation_max_size cluster setting (default 10 000). Positive values use a
+        // limit+1 sentinel to detect and report truncation.
         int limit = request.paramAsInt(LIMIT_PARAM, DEFAULT_LIMIT);
 
         LogicalPlan plan = PrometheusLabelValuesPlanBuilder.buildPlan(labelName, index, matchSelectors, start, end, limit);

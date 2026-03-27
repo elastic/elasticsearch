@@ -33,6 +33,7 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -193,8 +194,8 @@ public class RoundTripTests extends ESTestCase {
         reindex.setDestIndex("dest");
         reindex.getSearchRequest().source().size(100);
 
-        TransportVersion versionBeforeFeature = TransportVersion.minimumCompatible();
         TransportVersion sourceIndicesForDescriptionVersion = TransportVersion.fromName("bulk_by_scroll_source_indices_for_description");
+        TransportVersion versionBeforeFeature = TransportVersionUtils.getPreviousVersion(sourceIndicesForDescriptionVersion);
         assumeTrue(
             "minimumCompatible must not support sourceIndicesForDescription for this BWC test",
             versionBeforeFeature.supports(sourceIndicesForDescriptionVersion) == false

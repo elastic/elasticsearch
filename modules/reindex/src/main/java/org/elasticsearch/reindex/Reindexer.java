@@ -187,6 +187,7 @@ public class Reindexer {
          * Once slicing for remote is enabled, we'll need to change this to prevent duplicate remote version look-ups
          */
         else if (isRemote) {
+            assert request.getSlices() == 1 : "remote reindex must use slices==1";
             lookupRemoteVersionAndExecute(task, request, bulkClient, responseListener, workerAction);
         }
         // Point-in-time searching is enabled, and this is a local request

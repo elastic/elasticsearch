@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 145093
+summary: Skip COUNT(field) stats pushdown through EVAL/RENAME path
+type: bug

@@ -71,6 +71,15 @@ public class PushStatsToSource extends PhysicalOptimizerRules.ParameterizedOptim
         List<? extends NamedExpression> aggregates = aggregateExec.aggregates();
         if (aliasReplacedBy.isEmpty() == false) {
             aggregates = resolveAliases(aggregates, aliasReplacedBy);
+            // When resolving through EVAL/RENAME, only push COUNT(*) — not COUNT(field).
+            // Alias resolution transforms ReferenceAttribute → FieldAttribute, which enables
+            // COUNT(field) pushdown via isSingleValue(). But isSingleValue() is per-shard and
+            // can disagree across shards in INLINESTATS queries where filtering narrows the data
+            // asymmetrically. COUNT(field) on multivalue fields counts values, not documents,
+            // and Lucene count returns document count — producing wrong results.
+            if (hasCountOverField(aggregates)) {
+                return aggregateExec;
+            }
         }
 
         var tuple = pushableStats(aggregateExec.groupings(), aggregates, context);
@@ -109,6 +118,22 @@ public class PushStatsToSource extends PhysicalOptimizerRules.ParameterizedOptim
         }
 
         return plan;
+    }
+
+    /**
+     * Returns true if any aggregate is COUNT(field) — not COUNT(*).
+     * COUNT(field) on multivalue fields is unsafe to push to Lucene count.
+     */
+    private static boolean hasCountOverField(List<? extends NamedExpression> aggregates) {
+        for (int i = 0; i < aggregates.size(); i++) {
+            NamedExpression agg = aggregates.get(i);
+            if (agg instanceof Alias alias && alias.child() instanceof Count count) {
+                if (count.field().foldable() == false) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     /**

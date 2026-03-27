@@ -131,7 +131,7 @@ public class TextSimilarityTestPlugin extends Plugin implements ActionPlugin {
                 List.of(
                     new ModelConfigurations(
                         request.getInferenceEntityId(),
-                        request.getTaskType(),
+                        TaskType.RERANK,
                         CohereService.NAME,
                         new CohereRerankServiceSettings("uri", "model", null, CohereServiceSettings.CohereApiVersion.V2),
                         topN == null ? new EmptyTaskSettings() : new CohereRerankTaskSettings(topN, null, null)

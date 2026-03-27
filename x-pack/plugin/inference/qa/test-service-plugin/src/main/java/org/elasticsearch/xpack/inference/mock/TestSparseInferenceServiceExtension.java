@@ -142,9 +142,10 @@ public class TestSparseInferenceServiceExtension implements InferenceServiceExte
                 listener.onFailure(new RuntimeException("validation call intentionally failed based on task settings"));
                 return;
             }
-            switch (model.getConfigurations().getTaskType()) {
-                case ANY, SPARSE_EMBEDDING -> listener.onResponse(makeResults(input));
-                default -> listener.onFailure(
+            if (model.getConfigurations().getTaskType() == TaskType.SPARSE_EMBEDDING) {
+                listener.onResponse(makeResults(input));
+            } else {
+                listener.onFailure(
                     new ElasticsearchStatusException(
                         TaskType.unsupportedTaskTypeErrorMsg(model.getConfigurations().getTaskType(), name()),
                         RestStatus.BAD_REQUEST
@@ -188,9 +189,10 @@ public class TestSparseInferenceServiceExtension implements InferenceServiceExte
             TimeValue timeout,
             ActionListener<List<ChunkedInference>> listener
         ) {
-            switch (model.getConfigurations().getTaskType()) {
-                case ANY, SPARSE_EMBEDDING -> listener.onResponse(makeChunkedResults(input));
-                default -> listener.onFailure(
+            if (model.getConfigurations().getTaskType() == TaskType.SPARSE_EMBEDDING) {
+                listener.onResponse(makeChunkedResults(input));
+            } else {
+                listener.onFailure(
                     new ElasticsearchStatusException(
                         TaskType.unsupportedTaskTypeErrorMsg(model.getConfigurations().getTaskType(), name()),
                         RestStatus.BAD_REQUEST

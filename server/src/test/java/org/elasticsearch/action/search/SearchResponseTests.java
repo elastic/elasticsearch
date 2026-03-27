@@ -31,6 +31,7 @@ import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.search.profile.SearchProfileResultsTests;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.SuggestTests;
+import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
@@ -70,6 +71,28 @@ public class SearchResponseTests extends ESTestCase {
 
     private SearchResponse createTestItem(ShardSearchFailure... shardSearchFailures) {
         return createTestItem(false, shardSearchFailures);
+    }
+
+    /**
+     * {@link SuggestTests#createTestItem()} can embed refcounted completion {@link SearchHit}s. {@link SearchResponse}
+     * ctor takes a ref via {@code collectCompletionOptionHits(true)} and {@link SearchResponse#decRef()} releases that ref,
+     * but the test factory ref on each hit must still be released once per option (same pattern as
+     * {@link SuggestTests#releaseSuggest}).
+     */
+    private static void releaseSuggestFactoryRefsToCompletionOptionHits(Suggest suggest) {
+        if (suggest == null) {
+            return;
+        }
+        for (Suggest.Suggestion<?> suggestion : suggest) {
+            if (suggestion instanceof CompletionSuggestion completionSuggestion) {
+                for (CompletionSuggestion.Entry.Option option : completionSuggestion.getOptions()) {
+                    SearchHit hit = option.getHit();
+                    if (hit != null) {
+                        hit.decRef();
+                    }
+                }
+            }
+        }
     }
 
     /**
@@ -260,10 +283,12 @@ public class SearchResponseTests extends ESTestCase {
      */
     public void testFromXContent() throws IOException {
         var response = createTestItem();
+        Suggest suggestForRelease = response.getSuggest();
         try {
             doFromXContentTestWithRandomFields(response, false);
         } finally {
             response.decRef();
+            releaseSuggestFactoryRefsToCompletionOptionHits(suggestForRelease);
         }
     }
 
@@ -328,12 +353,14 @@ public class SearchResponseTests extends ESTestCase {
         }
         BytesReference originalBytes;
         SearchResponse response = createTestItem(failures);
+        Suggest suggestForRelease = response.getSuggest();
         XContentType xcontentType = randomFrom(XContentType.values());
         try {
             final ToXContent.Params params = new ToXContent.MapParams(singletonMap(RestSearchAction.TYPED_KEYS_PARAM, "true"));
             originalBytes = toShuffledXContent(ChunkedToXContent.wrapAsToXContent(response), xcontentType, params, randomBoolean());
         } finally {
             response.decRef();
+            releaseSuggestFactoryRefsToCompletionOptionHits(suggestForRelease);
         }
         try (XContentParser parser = createParser(xcontentType.xContent(), originalBytes)) {
             SearchResponse parsed = SearchResponseUtils.parseSearchResponse(parser);
@@ -609,6 +636,7 @@ public class SearchResponseTests extends ESTestCase {
 
     public void testSerialization() throws IOException {
         SearchResponse searchResponse = createTestItem(false);
+        Suggest suggestForRelease = searchResponse.getSuggest();
         try {
             SearchResponse deserialized = copyWriteable(
                 searchResponse,
@@ -634,6 +662,7 @@ public class SearchResponseTests extends ESTestCase {
             }
         } finally {
             searchResponse.decRef();
+            releaseSuggestFactoryRefsToCompletionOptionHits(suggestForRelease);
         }
     }
 

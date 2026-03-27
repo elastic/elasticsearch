@@ -6062,3 +6062,130 @@ FROM employees
 emp_no:integer | first_name:keyword | language_name:keyword
 ;
 
+whereNullBeforeLookupJoin
+required_capability: join_lookup_v12
+
+FROM employees
+| WHERE null
+| EVAL language_code = languages
+| LOOKUP JOIN languages_lookup ON language_code
+| KEEP emp_no, language_code, language_name
+;
+
+emp_no:integer | language_code:integer | language_name:keyword
+;
+
+evalNullFilterBeforeLookupJoin
+required_capability: join_lookup_v12
+
+FROM employees
+| EVAL x = null
+| WHERE x::int > 0
+| EVAL language_code = languages
+| LOOKUP JOIN languages_lookup ON language_code
+| KEEP emp_no, language_code, language_name
+;
+
+emp_no:integer | language_code:integer | language_name:keyword
+;
+
+whereNullBeforeLookupJoinWithStatsAfter
+required_capability: join_lookup_v12
+
+FROM employees
+| WHERE null
+| EVAL language_code = languages
+| LOOKUP JOIN languages_lookup ON language_code
+| STATS c = COUNT(*)
+;
+
+c:long
+0
+;
+
+whereNullBeforeLookupJoinWithFilterAfter
+required_capability: join_lookup_v12
+
+FROM employees
+| WHERE null
+| EVAL language_code = languages
+| LOOKUP JOIN languages_lookup ON language_code
+| WHERE emp_no > 100
+| KEEP emp_no, language_code, language_name
+;
+
+emp_no:integer | language_code:integer | language_name:keyword
+;
+
+nullArithmeticFilterBeforeLookupJoin
+required_capability: join_lookup_v12
+
+FROM employees
+| WHERE 1 + null > 0
+| EVAL language_code = languages
+| LOOKUP JOIN languages_lookup ON language_code
+| KEEP emp_no, language_code, language_name
+;
+
+emp_no:integer | language_code:integer | language_name:keyword
+;
+
+whereNullConjunctionBeforeLookupJoin
+required_capability: join_lookup_v12
+
+FROM employees
+| WHERE null AND emp_no > 0
+| EVAL language_code = languages
+| LOOKUP JOIN languages_lookup ON language_code
+| KEEP emp_no, language_code, language_name
+;
+
+emp_no:integer | language_code:integer | language_name:keyword
+;
+
+whereNullDisjunctionBeforeLookupJoin
+required_capability: join_lookup_v12
+
+FROM employees
+| WHERE null OR false
+| EVAL language_code = languages
+| LOOKUP JOIN languages_lookup ON language_code
+| KEEP emp_no, language_code, language_name
+;
+
+emp_no:integer | language_code:integer | language_name:keyword
+;
+
+// See https://github.com/elastic/elasticsearch/issues/144329
+whereNullBeforeLookupJoinWithMatch
+required_capability: join_lookup_v12
+required_capability: match_function
+required_capability: propagate_empty_relation_past_joins
+
+FROM sample_data
+| WHERE null
+| LOOKUP JOIN message_types_lookup ON message
+| WHERE match(message, "Connection error")
+| KEEP message, type
+;
+
+message:keyword | type:keyword
+;
+
+// See https://github.com/elastic/elasticsearch/issues/144329
+evalNullFilterBeforeLookupJoinWithMatch
+required_capability: join_lookup_v12
+required_capability: match_function
+required_capability: propagate_empty_relation_past_joins
+
+FROM sample_data
+| EVAL x = null
+| WHERE x::int > 0
+| LOOKUP JOIN message_types_lookup ON message
+| WHERE match(message, "Connection error")
+| KEEP message, type
+;
+
+message:keyword | type:keyword
+;
+

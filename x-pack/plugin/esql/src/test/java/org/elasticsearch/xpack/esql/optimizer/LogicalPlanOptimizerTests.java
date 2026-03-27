@@ -3261,6 +3261,114 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertThat(local.supplier(), not(is(EmptyLocalSupplier.EMPTY)));
     }
 
+    /**
+     * Expected:
+     * <pre>{@code
+     * LocalRelation[[emp_no{f}#5, language_code{r}#14, language_name{f}#17],EMPTY]
+     * }</pre>
+     *
+     * WHERE null is folded to WHERE false, then PropagateEmptyRelation collapses the entire plan.
+     */
+    public void testPropagateEmptyRelationWithWhereNullThroughLookupJoin() {
+        var plan = optimizedPlan("""
+            from test
+            | where null
+            | eval language_code = languages
+            | lookup join languages_lookup on language_code
+            | keep emp_no, language_code, language_name
+            """);
+
+        var local = as(plan, LocalRelation.class);
+        assertThat(local.supplier(), is(EmptyLocalSupplier.EMPTY));
+    }
+
+    /**
+     * Expected:
+     * <pre>{@code
+     * LocalRelation[[emp_no{f}#5, language_code{r}#17, language_name{f}#20],EMPTY]
+     * }</pre>
+     *
+     * EVAL x = null | WHERE x::int > 0 folds to an empty relation via FoldNull + constant folding,
+     * then PropagateEmptyRelation collapses the join.
+     */
+    public void testPropagateEmptyRelationWithEvalNullFilterThroughLookupJoin() {
+        var plan = optimizedPlan("""
+            from test
+            | eval x = null
+            | where x::int > 0
+            | eval language_code = languages
+            | lookup join languages_lookup on language_code
+            | keep emp_no, language_code, language_name
+            """);
+
+        var local = as(plan, LocalRelation.class);
+        assertThat(local.supplier(), is(EmptyLocalSupplier.EMPTY));
+    }
+
+    /**
+     * Expected:
+     * <pre>{@code
+     * Limit[1000[INTEGER],false,false]
+     * \_LocalRelation[[count{r}#6],Page{blocks=[LongVectorBlock[vector=ConstantLongVector[positions=1, value=0]]]}]
+     * }</pre>
+     *
+     * WHERE null collapses the driving side; ungrouped COUNT(*) on empty input returns 0.
+     */
+    public void testPropagateEmptyRelationWithWhereNullThroughLookupJoinAndStats() {
+        var plan = optimizedPlan("""
+            from test
+            | where null
+            | eval language_code = languages
+            | lookup join languages_lookup on language_code
+            | stats count = count(*)
+            """);
+
+        var limit = as(plan, Limit.class);
+        var local = as(limit.child(), LocalRelation.class);
+        assertThat(local.supplier(), not(is(EmptyLocalSupplier.EMPTY)));
+    }
+
+    /**
+     * Expected:
+     * <pre>{@code
+     * Limit[1000[INTEGER],false,false]
+     * \_LocalRelation[[count{r}#4],Page{blocks=[LongVectorBlock[vector=ConstantLongVector[positions=1, value=0]]]}]
+     * }</pre>
+     *
+     * WHERE null folds to WHERE false, producing an empty relation that is folded into
+     * an ungrouped COUNT(*) returning 0.
+     */
+    public void testPropagateEmptyRelationWithWhereNull() {
+        var plan = optimizedPlan("""
+            from test
+            | where null
+            | stats count = count(*)
+            """);
+
+        var limit = as(plan, Limit.class);
+        var local = as(limit.child(), LocalRelation.class);
+        assertThat(local.supplier(), not(is(EmptyLocalSupplier.EMPTY)));
+    }
+
+    /**
+     * Expected:
+     * <pre>{@code
+     * LocalRelation[[{e}#2],EMPTY]
+     * }</pre>
+     *
+     * WHERE 1 + null > 0 folds the null arithmetic to null, then the comparison to null (false),
+     * producing an empty relation.
+     */
+    public void testPropagateEmptyRelationWithNullArithmeticFilter() {
+        var plan = optimizedPlan("""
+            from test
+            | where 1 + null > 0
+            """);
+
+        var local = as(plan, LocalRelation.class);
+        assertThat(local.supplier(), is(EmptyLocalSupplier.EMPTY));
+    }
+
     public void testFoldFromRow() {
         var plan = optimizedPlan("""
               row a = 1, b = 2, c = 3

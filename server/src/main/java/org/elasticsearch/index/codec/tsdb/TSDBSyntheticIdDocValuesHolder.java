@@ -306,6 +306,10 @@ class TSDBSyntheticIdDocValuesHolder {
         final var tsId = lookupTsIdOrd(docTsIdOrd);
         final var routingHashBytes = docRoutingHash(docID);
 
+        // The synthetic _id starts with the tsId bytes. If the first byte is >= BASE64_ESCAPE (0xfd),
+        // it could be misinterpreted as the UTF8 (0xff) or NUMERIC (0xfe) encoding prefixes used
+        // elsewhere in ID handling. In that case, we prepend an escape byte to avoid ambiguity.
+        // See Uid#encodeBase64Id which applies the same escaping logic when encoding IDs.
         final boolean needsEscape = Byte.toUnsignedInt(tsId.bytes[tsId.offset]) >= Uid.BASE64_ESCAPE;
         final int offset = needsEscape ? 1 : 0;
         final int length = TsidExtractingIdFieldMapper.syntheticIdLength(tsId) + offset;

@@ -182,7 +182,7 @@ public record WindowGroupingAggregatorFunction(GroupingAggregatorFunction next, 
                 }
                 int position = groupIdToPositions[groupId];
                 if (hasIntermediateState(page, position)) {
-                    fn.addIntermediateInput(position, oneGroup, page);
+                    addIntermediateInputAtPositions(fn, oneGroup, page, new int[] { position });
                 }
             });
         }
@@ -223,20 +223,26 @@ public record WindowGroupingAggregatorFunction(GroupingAggregatorFunction next, 
         if (count > 0) {
             // TODO: Should we add a filter(boolean, int[] positions, int count) overload to Block/Vector to avoid this copy?
             int[] validPositions = Arrays.copyOf(positions, count);
-            Block[] filteredBlocks = new Block[page.getBlockCount()];
-            boolean success = false;
-            try {
-                for (int b = 0; b < filteredBlocks.length; b++) {
-                    filteredBlocks[b] = page.getBlock(b).filter(false, validPositions);
-                }
-                success = true;
-                try (IntVector filteredGroups = groups.filter(false, validPositions); Page filteredPage = new Page(count, filteredBlocks)) {
-                    fn.addIntermediateInput(0, filteredGroups, filteredPage);
-                }
-            } finally {
-                if (success == false) {
-                    Releasables.closeExpectNoException(filteredBlocks);
-                }
+            try (IntVector filteredGroups = groups.filter(false, validPositions)) {
+                addIntermediateInputAtPositions(fn, filteredGroups, page, validPositions);
+            }
+        }
+    }
+
+    private static void addIntermediateInputAtPositions(GroupingAggregatorFunction fn, IntVector groups, Page page, int[] positions) {
+        Block[] filteredBlocks = new Block[page.getBlockCount()];
+        boolean success = false;
+        try {
+            for (int b = 0; b < filteredBlocks.length; b++) {
+                filteredBlocks[b] = page.getBlock(b).filter(false, positions);
+            }
+            success = true;
+            try (Page filteredPage = new Page(positions.length, filteredBlocks)) {
+                fn.addIntermediateInput(0, groups, filteredPage);
+            }
+        } finally {
+            if (success == false) {
+                Releasables.closeExpectNoException(filteredBlocks);
             }
         }
     }

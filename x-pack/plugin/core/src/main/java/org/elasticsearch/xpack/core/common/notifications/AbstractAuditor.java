@@ -147,6 +147,8 @@ public abstract class AbstractAuditor<T extends AbstractAuditMessage> {
                 if (indexAndAliasCreationInProgress.compareAndSet(false, true)) {
                     installTemplateAndCreateIndex(createListener);
                 }
+            } else {
+                writeDoc(toXContent);
             }
         }
     }

@@ -6,8 +6,10 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
+import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.routing.allocation.command.AllocateEmptyPrimaryAllocationCommand;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
@@ -156,10 +158,14 @@ public class AdJobRetryResilienceIT extends BaseMlIntegTestCase {
         );
         ensureStableCluster(3);
 
-        // Create indices: state/results on state-and-results, config on config
+        // Create indices: state/results on state-and-results, config on config.
+        // Explicit shard/replica settings override the randomized index template so that
+        // AllocateEmptyPrimaryAllocationCommand can reference shard 0 deterministically.
         indicesAdmin().prepareCreate(".ml-anomalies-shared-000001")
             .setSettings(
                 Settings.builder()
+                    .put("index.number_of_shards", 1)
+                    .put("index.number_of_replicas", 0)
                     .put("index.routing.allocation.include.ml-indices", "state-and-results")
                     .put("index.routing.allocation.exclude.ml-indices", "config,ml-only")
                     .build()
@@ -168,6 +174,8 @@ public class AdJobRetryResilienceIT extends BaseMlIntegTestCase {
         indicesAdmin().prepareCreate(".ml-state")
             .setSettings(
                 Settings.builder()
+                    .put("index.number_of_shards", 1)
+                    .put("index.number_of_replicas", 0)
                     .put("index.routing.allocation.include.ml-indices", "state-and-results")
                     .put("index.routing.allocation.exclude.ml-indices", "config,ml-only")
                     .build()
@@ -176,6 +184,8 @@ public class AdJobRetryResilienceIT extends BaseMlIntegTestCase {
         indicesAdmin().prepareCreate(".ml-config")
             .setSettings(
                 Settings.builder()
+                    .put("index.number_of_shards", 1)
+                    .put("index.number_of_replicas", 0)
                     .put("index.routing.allocation.exclude.ml-indices", "state-and-results")
                     .put("index.routing.allocation.include.ml-indices", "config")
                     .build()
@@ -208,13 +218,29 @@ public class AdJobRetryResilienceIT extends BaseMlIntegTestCase {
         internalCluster().stopNode(jobNode);
         ensureStableCluster(1, configNode);
 
-        // Config node's open attempts fail (state indices red). Allow allocation to config so shards relocate.
+        // Config node's open attempts fail (state indices red). Fix allocation filters and force-allocate
+        // the lost primaries on configNode. Two corrections are needed:
+        // 1. Clear the exclude filter (still blocked configNode) alongside updating include.
+        // 2. Allocate empty primaries because stateNode's shard data is permanently gone.
         indicesAdmin().prepareUpdateSettings(".ml-state", ".ml-anomalies-shared-000001")
-            .setSettings(Settings.builder().put("index.routing.allocation.include.ml-indices", "state-and-results,config").build())
+            .setSettings(
+                Settings.builder()
+                    .put("index.routing.allocation.include.ml-indices", "state-and-results,config")
+                    .putNull("index.routing.allocation.exclude.ml-indices")
+                    .build()
+            )
             .get();
 
-        // Wait for shards to allocate on the config node so GetJobsStats (used by awaitJobOpenedAndAssigned) can search the indices.
-        // Use a longer timeout than default ensureYellow (30s); on CI shard relocation after 2 node stops can take longer.
+        // Force-allocate empty primaries on configNode since the original primary data was on stateNode
+        // (which is now stopped). The ML job opening pipeline handles empty state gracefully: jobs with no
+        // model snapshot (newly created) skip snapshot verification and proceed to open directly.
+        ClusterRerouteUtils.reroute(
+            client(),
+            new AllocateEmptyPrimaryAllocationCommand(".ml-state", 0, configNode, true),
+            new AllocateEmptyPrimaryAllocationCommand(".ml-anomalies-shared-000001", 0, configNode, true)
+        );
+
+        // Wait for the allocated shards to initialise so GetJobsStats can search the indices.
         ensureGreen(TimeValue.timeValueMinutes(2), ".ml-state", ".ml-anomalies-shared-000001");
 
         awaitJobOpenedAndAssigned(jobId, null);

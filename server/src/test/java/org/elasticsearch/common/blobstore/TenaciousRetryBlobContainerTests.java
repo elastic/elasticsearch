@@ -26,20 +26,30 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 
+import static org.hamcrest.Matchers.is;
+import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockingDetails;
 
 public class TenaciousRetryBlobContainerTests extends ESTestCase {
 
-    public void testNonRetryable() throws IOException {
-
+    public void testOnlyRetryListBlobs() throws IOException {
         final var recordingMeterRegistry = new RecordingMeterRegistry();
         final var repositoriesMetrics = new RepositoriesMetrics(recordingMeterRegistry);
-        BlobContainer blobContainer = mock(BlobContainer.class, invocationOnMock -> { throw new IOException("test"); });
+
+        BlobContainer blobContainer = mock(BlobContainer.class, invocationOnMock -> {
+            assert invocationOnMock.getMethod().getName().equals("listBlobs") == false;
+            assert invocationOnMock.getMethod().getName().equals("listBlobsByPrefix") == false;
+            // Not supported
+            assert invocationOnMock.getMethod().getName().equals("copyBlob") == false;
+            throw new IOException(invocationOnMock.getMethod().getName());
+        });
 
         TenaciousRetryBlobContainer tenaciousRetryBlobContainer = new TenaciousRetryBlobContainer(
             blobContainer,
@@ -66,11 +76,24 @@ public class TenaciousRetryBlobContainerTests extends ESTestCase {
 
         List<Method> nonRetryable = nonRetryableBlobContainerMethods();
 
-        Method method = randomFrom(nonRetryable);
-        Object[] args = buildArgs(method);
+        for (int i = 0; i < randomIntBetween(50, 100); i++) {
+            Method method = randomFrom(nonRetryable);
+            Object[] args = buildArgs(method);
+            System.out.println(method.getName());
+            InvocationTargetException ex = expectThrows(
+                InvocationTargetException.class,
+                () -> method.invoke(tenaciousRetryBlobContainer, args)
+            );
+            assertThat(ex.getTargetException().getMessage(), is(method.getName()));
 
-        expectThrows(InvocationTargetException.class, () -> method.invoke(tenaciousRetryBlobContainer, args));
+            long matchingCalls = mockingDetails(blobContainer).getInvocations()
+                .stream()
+                .filter(inv -> inv.getMethod().getName().equals(method.getName()))
+                .count();
 
+            assertThat(matchingCalls, is(1L));
+            clearInvocations(blobContainer);
+        }
     }
 
     private Object[] buildArgs(Method method) {
@@ -84,10 +107,20 @@ public class TenaciousRetryBlobContainerTests extends ESTestCase {
 
     private List<Method> nonRetryableBlobContainerMethods() {
         List<Method> methods = new ArrayList<>();
-        for (Method m : BlobContainer.class.getDeclaredMethods()) {
+        for (Method m : BlobContainer.class.getMethods()) {
+            // Retryable methods.
             if (m.getName().equals("listBlobs") || m.getName().equals("listBlobsByPrefix")) {
                 continue;
             }
+            // Not supported
+            if (m.getName().equals("copyBlob")) {
+                continue;
+            }
+            // Static methods
+            if (Modifier.isStatic(m.getModifiers())) {
+                continue;
+            }
+
             methods.add(m);
         }
         return Collections.unmodifiableList(methods);

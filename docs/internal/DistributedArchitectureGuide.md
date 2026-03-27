@@ -2712,7 +2712,7 @@ before routing. The latest applied [ClusterState](#cluster-state) supplies routi
 [ShardRouting](#cluster-state)). A routing key is chosen: by default the document `_id`, though the request may
 [set](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-index) `routing` explicitly.
 The routing key is then hashed to a shard number by `IndexRouting.hashToShardId`. For time series indices the key is
-[derived from the document's dimension fields](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/routing/IndexRouting.java#L62C13-L62C70).
+[derived from the document's dimension fields](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/routing/IndexRouting.java#L62).
 For indices with a `routing_path` configured, it is derived from the configured value.
 
 The coordinator now knows which shard holds the document. It still needs the current primary node for that shard.

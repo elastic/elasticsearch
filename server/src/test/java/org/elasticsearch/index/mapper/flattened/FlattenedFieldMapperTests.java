@@ -1999,18 +1999,6 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
         );
     }
 
-    @Override
-    protected List<SortShortcutSupport> getSortShortcutSupport() {
-        return List.of(new SortShortcutSupport(this::minimalMapping, this::writeField, true));
-    }
-
-    @Override
-    protected boolean supportsDocValuesSkippers() {
-        return false;
-    }
-
-    // ---- passthrough tests ----
-
     public void testPassthroughWithNegativePriorityThrows() throws IOException {
         Exception e = expectThrows(Exception.class, () -> createMapperService(fieldMapping(b -> {
             b.field("type", "flattened");
@@ -2020,14 +2008,19 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
         assertThat(e.getMessage(), containsString("passthrough_with_priority"));
     }
 
-    public void testPassthroughWithPriorityZeroAndNoPropertiesSucceeds() throws IOException {
-        MapperService mapperService = createMapperService(fieldMapping(b -> {
-            b.field("type", "flattened");
-            b.field("passthrough_with_priority", 0);
-        }));
-        FlattenedFieldMapper mapper = (FlattenedFieldMapper) mapperService.mappingLookup().getMapper("field");
-        assertTrue(mapper.isPassthrough());
-        assertTrue(mapper.passThroughSubFields().isEmpty());
+    public void testPassthroughWithoutPropertiesThrows() throws IOException {
+        for (int priority : new int[] { 0, 5, 100 }) {
+            final int p = priority;
+            MapperParsingException e = expectThrows(
+                MapperParsingException.class,
+                () -> createMapperService(fieldMapping(b -> {
+                    b.field("type", "flattened");
+                    b.field("passthrough_with_priority", p);
+                }))
+            );
+            assertThat(e.getMessage(), containsString("passthrough_with_priority"));
+            assertThat(e.getMessage(), containsString("properties"));
+        }
     }
 
     public void testPassthroughWithSubFields() throws IOException {
@@ -2090,5 +2083,15 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
         FlattenedFieldMapper reparsedMapper = (FlattenedFieldMapper) reparsed.mappingLookup().getMapper("field");
         assertTrue(reparsedMapper.isPassthrough());
         assertEquals(7, reparsedMapper.priority());
+    }
+
+    @Override
+    protected List<SortShortcutSupport> getSortShortcutSupport() {
+        return List.of(new SortShortcutSupport(this::minimalMapping, this::writeField, true));
+    }
+
+    @Override
+    protected boolean supportsDocValuesSkippers() {
+        return false;
     }
 }

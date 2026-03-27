@@ -355,8 +355,13 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
             if (copyTo.copyToFields().isEmpty() == false) {
                 throw new IllegalArgumentException(CONTENT_TYPE + " field [" + leafName() + "] does not support [copy_to]");
             }
-            Map<String, FieldMapper> mappedSubFields = new TreeMap<>();
             Map<String, FieldMapper.Builder> propertyBuilders = properties.getValue();
+            if (passthroughWithPriority.getValue() != null && propertyBuilders.isEmpty()) {
+                throw new MapperParsingException(
+                    "Flattened field [" + leafName() + "] has [passthrough_with_priority] set but no [properties] defined"
+                );
+            }
+            Map<String, FieldMapper> mappedSubFields = new TreeMap<>();
             if (propertyBuilders.isEmpty() == false) {
                 MapperBuilderContext childContext = context.createChildContext(leafName(), null);
                 for (Map.Entry<String, FieldMapper.Builder> entry : propertyBuilders.entrySet()) {

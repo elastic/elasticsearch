@@ -49,7 +49,6 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -156,7 +155,7 @@ public class TestAnalyzer {
             Map.of(noFieldsIndexName, IndexMode.STANDARD),
             Map.of("", List.of(noFieldsIndexName)),
             Map.of("", List.of(noFieldsIndexName)),
-            Set.of()
+            Map.of()
         );
         addIndex(noFieldsIndexName, IndexResolution.valid(noFieldsIndex));
         return this;
@@ -770,7 +769,7 @@ public class TestAnalyzer {
      */
     public static IndexResolution loadMapping(String resource, String indexName, IndexMode indexMode) {
         return IndexResolution.valid(
-            new EsIndex(indexName, EsqlTestUtils.loadMapping(resource), Map.of(indexName, indexMode), Map.of(), Map.of(), Set.of())
+            new EsIndex(indexName, EsqlTestUtils.loadMapping(resource), Map.of(indexName, indexMode), Map.of(), Map.of(), Map.of())
         );
     }
 

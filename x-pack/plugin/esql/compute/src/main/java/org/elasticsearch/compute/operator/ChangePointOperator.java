@@ -25,9 +25,7 @@ import org.elasticsearch.xpack.ml.aggs.changepoint.ChangeType;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -40,6 +38,8 @@ import java.util.Objects;
 public class ChangePointOperator extends CompleteInputCollectorOperator {
     private static final Logger logger = LogManager.getLogger(ChangePointOperator.class);
     public static final int INPUT_VALUE_COUNT_LIMIT = 1000;
+
+    private record DetectedChangePoint(int index, ChangeType type) {}
 
     public record Factory(int channel, Integer groupingChannel, WarningSourceLocation source) implements OperatorFactory {
 
@@ -79,7 +79,7 @@ public class ChangePointOperator extends CompleteInputCollectorOperator {
         return outputPages.isEmpty() == false;
     }
 
-    private ChangeType flush(List<Double> values, List<Integer> bucketIndexes) {
+    private ChangeType detectChangePoint(List<Double> values, List<Integer> bucketIndexes) {
         MlAggsHelper.DoubleBucketValues bucketValues = new MlAggsHelper.DoubleBucketValues(
             null,
             values.stream().mapToDouble(Double::doubleValue).toArray(),
@@ -101,10 +101,10 @@ public class ChangePointOperator extends CompleteInputCollectorOperator {
 
         List<Double> values = new ArrayList<>();
         List<Integer> bucketIndexes = new ArrayList<>();
-        Map<Integer, ChangeType> changepoints = new HashMap<>();
+        ArrayDeque<DetectedChangePoint> detectedChangePoints = new ArrayDeque<>();
         int valuesIndex = 0;
         Object previousGroupKey = groupChannel != null
-            ? BlockUtils.toJavaObject(inputPages.peek().getBlock(groupChannel), 0)
+            ? BlockUtils.toJavaObject(inputPages.peek().getBlock(groupChannel), 0) // TODO can we got no input?
             : null;
 
         boolean hasNulls = false;
@@ -119,10 +119,10 @@ public class ChangePointOperator extends CompleteInputCollectorOperator {
                     Object currentGroupKey = BlockUtils.toJavaObject(groupBlock, i);
                     if (Objects.equals(currentGroupKey, previousGroupKey) == false) {
                         if (values.isEmpty() == false) {
-                            var changeType = flush(values, bucketIndexes);
+                            var changeType = detectChangePoint(values, bucketIndexes);
                             var changePointIndex = changeType.changePoint();
                             if (changePointIndex >= 0) {
-                                changepoints.put(changePointIndex, changeType);
+                                detectedChangePoints.offer(new DetectedChangePoint(changePointIndex, changeType));
                             }
                             if (changeType instanceof ChangeType.Indeterminable indeterminable) {
                                 hasIndeterminableChangePoint = true;
@@ -152,10 +152,10 @@ public class ChangePointOperator extends CompleteInputCollectorOperator {
         // flush last (or only) group; for the flat (no-group) case this is unconditional so that
         // an all-null input still runs the detector and produces an "indeterminable" warning.
         if (values.isEmpty() == false || groupChannel == null) {
-            var changeType = flush(values, bucketIndexes);
+            var changeType = detectChangePoint(values, bucketIndexes);
             var changePointIndex = changeType.changePoint();
             if (changePointIndex >= 0) {
-                changepoints.put(changePointIndex, changeType);
+                detectedChangePoints.offer(new DetectedChangePoint(changePointIndex, changeType));
             }
             if (changeType instanceof ChangeType.Indeterminable indeterminable) {
                 hasIndeterminableChangePoint = true;
@@ -163,30 +163,33 @@ public class ChangePointOperator extends CompleteInputCollectorOperator {
             }
         }
 
-        buildOutputPages(changepoints);
+        buildOutputPages(detectedChangePoints);
         emitWarnings(tooManyValues, hasNulls, hasMultivalued, hasIndeterminableChangePoint, indeterminableChangePointReason);
     }
 
-    private void buildOutputPages(Map<Integer, ChangeType> changepoints) {
+    private void buildOutputPages(ArrayDeque<DetectedChangePoint> detectedChangePoints) {
         BlockFactory blockFactory = driverContext.blockFactory();
         int pageStartIndex = 0;
         while (inputPages.isEmpty() == false) {
             Page inputPage = inputPages.peek();
+            int pageEndIndex = pageStartIndex + inputPage.getPositionCount();
             Page outputPage;
             Block changeTypeBlock = null;
             Block changePvalueBlock = null;
             boolean success = false;
             try {
-                if (pageContainsChangePoints(changepoints, pageStartIndex, pageStartIndex + inputPage.getPositionCount())) {
+                DetectedChangePoint head = detectedChangePoints.peek();
+                if (head != null && head.index() < pageEndIndex) {
                     try (
                         BytesRefBlock.Builder changeTypeBlockBuilder = blockFactory.newBytesRefBlockBuilder(inputPage.getPositionCount());
                         DoubleBlock.Builder pvalueBlockBuilder = blockFactory.newDoubleBlockBuilder(inputPage.getPositionCount())
                     ) {
                         for (int i = 0; i < inputPage.getPositionCount(); i++) {
-                            ChangeType ct = changepoints.get(pageStartIndex + i);
-                            if (ct != null) {
-                                changeTypeBlockBuilder.appendBytesRef(new BytesRef(ct.getWriteableName()));
-                                pvalueBlockBuilder.appendDouble(ct.pValue());
+                            if (head != null && pageStartIndex + i == head.index()) {
+                                changeTypeBlockBuilder.appendBytesRef(new BytesRef(head.type().getWriteableName()));
+                                pvalueBlockBuilder.appendDouble(head.type().pValue());
+                                detectedChangePoints.poll();
+                                head = detectedChangePoints.peek();
                             } else {
                                 changeTypeBlockBuilder.appendNull();
                                 pvalueBlockBuilder.appendNull();
@@ -210,7 +213,7 @@ public class ChangePointOperator extends CompleteInputCollectorOperator {
 
             inputPages.removeFirst();
             outputPages.add(outputPage);
-            pageStartIndex += inputPage.getPositionCount();
+            pageStartIndex = pageEndIndex;
         }
     }
 
@@ -240,16 +243,6 @@ public class ChangePointOperator extends CompleteInputCollectorOperator {
                 )
             );
         }
-    }
-
-    private boolean pageContainsChangePoints(Map<Integer, ChangeType> changepoints, int pageStartIndex, int pageEndIndex) {
-        // TODO we could take advantage of sorted inputs?
-        for (int i = pageStartIndex; i < pageEndIndex; i++) {
-            if (changepoints.containsKey(i)) {
-                return true;
-            }
-        }
-        return false;
     }
 
     @Override

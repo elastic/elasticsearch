@@ -27,7 +27,7 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
-import org.elasticsearch.index.reindex.BulkByPaginatedSearchFailure;
+import org.elasticsearch.index.reindex.PaginatedSearchFailure;
 import org.elasticsearch.index.reindex.RejectAwareActionListener;
 import org.elasticsearch.index.reindex.ResumeInfo.ScrollWorkerResumeInfo;
 import org.elasticsearch.index.reindex.ResumeInfo.WorkerResumeInfo;
@@ -145,14 +145,14 @@ public class ClientScrollablePaginatedHitSource extends PaginatedHitSource {
     }
 
     private static Response wrapSearchResponse(SearchResponse response) {
-        List<BulkByPaginatedSearchFailure> failures;
+        List<PaginatedSearchFailure> failures;
         if (response.getShardFailures() == null) {
             failures = emptyList();
         } else {
             failures = new ArrayList<>(response.getShardFailures().length);
             for (ShardSearchFailure failure : response.getShardFailures()) {
                 String nodeId = failure.shard() == null ? null : failure.shard().getNodeId();
-                failures.add(new BulkByPaginatedSearchFailure(failure.getCause(), failure.index(), failure.shardId(), nodeId));
+                failures.add(new PaginatedSearchFailure(failure.getCause(), failure.index(), failure.shardId(), nodeId));
             }
         }
         List<Hit> hits;

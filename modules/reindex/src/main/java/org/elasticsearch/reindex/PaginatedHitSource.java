@@ -16,7 +16,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.reindex.BulkByPaginatedSearchFailure;
+import org.elasticsearch.index.reindex.PaginatedSearchFailure;
 import org.elasticsearch.index.reindex.RejectAwareActionListener;
 import org.elasticsearch.index.reindex.ResumeInfo.WorkerResumeInfo;
 import org.elasticsearch.index.reindex.RetryListener;
@@ -185,14 +185,14 @@ public abstract class PaginatedHitSource {
      */
     public static class Response {
         private final boolean timedOut;
-        private final List<BulkByPaginatedSearchFailure> failures;
+        private final List<PaginatedSearchFailure> failures;
         private final long totalHits;
         private final List<? extends Hit> hits;
         private final String scrollId;
 
         public Response(
             boolean timedOut,
-            List<BulkByPaginatedSearchFailure> failures,
+            List<PaginatedSearchFailure> failures,
             long totalHits,
             List<? extends Hit> hits,
             String scrollId
@@ -214,7 +214,7 @@ public abstract class PaginatedHitSource {
         /**
          * Where there any search failures?
          */
-        public final List<BulkByPaginatedSearchFailure> getFailures() {
+        public final List<PaginatedSearchFailure> getFailures() {
             return failures;
         }
 

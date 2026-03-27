@@ -59,8 +59,8 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.index.reindex.BulkByPaginatedSearchFailure;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
+import org.elasticsearch.index.reindex.PaginatedSearchFailure;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -541,7 +541,7 @@ public class EnrichPolicyRunner {
                         bulkByScrollResponse.getSearchFailures().size()
                     );
                     if (logger.isDebugEnabled()) {
-                        for (BulkByPaginatedSearchFailure failure : bulkByScrollResponse.getSearchFailures()) {
+                        for (PaginatedSearchFailure failure : bulkByScrollResponse.getSearchFailures()) {
                             logger.debug(
                                 () -> format(
                                     "Policy [%s]: search failed for index [%s], shard [%s] on node [%s]",

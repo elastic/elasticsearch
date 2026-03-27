@@ -34,9 +34,9 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
-import org.elasticsearch.index.reindex.BulkByPaginatedSearchFailure;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.BulkByScrollTask;
+import org.elasticsearch.index.reindex.PaginatedSearchFailure;
 import org.elasticsearch.index.reindex.ResumeInfo;
 import org.elasticsearch.index.reindex.ResumeInfo.WorkerResumeInfo;
 import org.elasticsearch.index.reindex.WorkerBulkByScrollTaskState;
@@ -316,7 +316,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
     protected BulkByScrollResponse buildResponse(
         TimeValue took,
         List<BulkItemResponse.Failure> indexingFailures,
-        List<BulkByPaginatedSearchFailure> bulkByPaginatedSearchFailures,
+        List<PaginatedSearchFailure> bulkByPaginatedSearchFailures,
         boolean timedOut
     ) {
         return new BulkByScrollResponse(took, task.getStatus(), indexingFailures, bulkByPaginatedSearchFailures, timedOut);
@@ -609,11 +609,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
      * Start terminating a request that finished non-catastrophically by refreshing the modified indices and then proceeding to
      * {@link #finishHim(Exception, List, List, boolean)}.
      */
-    void refreshAndFinish(
-        List<Failure> indexingFailures,
-        List<BulkByPaginatedSearchFailure> bulkByPaginatedSearchFailures,
-        boolean timedOut
-    ) {
+    void refreshAndFinish(List<Failure> indexingFailures, List<PaginatedSearchFailure> bulkByPaginatedSearchFailures, boolean timedOut) {
         if (task.isCancelled() || false == mainRequest.isRefresh() || destinationIndices.isEmpty()) {
             finishHim(null, indexingFailures, bulkByPaginatedSearchFailures, timedOut);
             return;
@@ -654,7 +650,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
     protected void finishHim(
         Exception failure,
         List<Failure> indexingFailures,
-        List<BulkByPaginatedSearchFailure> bulkByPaginatedSearchFailures,
+        List<PaginatedSearchFailure> bulkByPaginatedSearchFailures,
         boolean timedOut
     ) {
         logger.debug("[{}]: finishing without any catastrophic failures", task.getId());

@@ -18,11 +18,11 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.util.Map;
 
-import static org.elasticsearch.index.reindex.BulkByPaginatedSearchFailure.INDEX_FIELD;
-import static org.elasticsearch.index.reindex.BulkByPaginatedSearchFailure.NODE_FIELD;
-import static org.elasticsearch.index.reindex.BulkByPaginatedSearchFailure.REASON_FIELD;
-import static org.elasticsearch.index.reindex.BulkByPaginatedSearchFailure.SHARD_FIELD;
-import static org.elasticsearch.index.reindex.BulkByPaginatedSearchFailure.STATUS_FIELD;
+import static org.elasticsearch.index.reindex.PaginatedSearchFailure.INDEX_FIELD;
+import static org.elasticsearch.index.reindex.PaginatedSearchFailure.NODE_FIELD;
+import static org.elasticsearch.index.reindex.PaginatedSearchFailure.REASON_FIELD;
+import static org.elasticsearch.index.reindex.PaginatedSearchFailure.SHARD_FIELD;
+import static org.elasticsearch.index.reindex.PaginatedSearchFailure.STATUS_FIELD;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.not;
@@ -30,11 +30,11 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertSame;
 
-public class BulkByPaginatedSearchFailureTests extends ESTestCase {
+public class PaginatedSearchFailureTests extends ESTestCase {
 
     public void testConstructorWithReasonOnly() {
         Throwable reason = randomException();
-        BulkByPaginatedSearchFailure failure = new BulkByPaginatedSearchFailure(reason);
+        PaginatedSearchFailure failure = new PaginatedSearchFailure(reason);
         assertSame(reason, failure.getReason());
         assertNull(failure.getIndex());
         assertNull(failure.getShardId());
@@ -47,7 +47,7 @@ public class BulkByPaginatedSearchFailureTests extends ESTestCase {
         String index = randomAlphaOfLengthBetween(3, 10);
         Integer shardId = randomIntBetween(0, 100);
         String nodeId = randomAlphaOfLengthBetween(3, 10);
-        BulkByPaginatedSearchFailure failure = new BulkByPaginatedSearchFailure(reason, index, shardId, nodeId);
+        PaginatedSearchFailure failure = new PaginatedSearchFailure(reason, index, shardId, nodeId);
         assertSame(reason, failure.getReason());
         assertEquals(index, failure.getIndex());
         assertEquals(shardId, failure.getShardId());
@@ -61,7 +61,7 @@ public class BulkByPaginatedSearchFailureTests extends ESTestCase {
         String index = randomAlphaOfLengthBetween(3, 10);
         Integer shardId = randomIntBetween(0, 10);
         String nodeId = randomAlphaOfLengthBetween(3, 10);
-        BulkByPaginatedSearchFailure failure = new BulkByPaginatedSearchFailure(reason, index, shardId, nodeId);
+        PaginatedSearchFailure failure = new PaginatedSearchFailure(reason, index, shardId, nodeId);
         String json = Strings.toString(failure);
         Map<String, Object> map = XContentHelper.convertToMap(XContentType.JSON.xContent(), json, false);
         assertThat(map.get(INDEX_FIELD), equalTo(index));
@@ -76,7 +76,7 @@ public class BulkByPaginatedSearchFailureTests extends ESTestCase {
     }
 
     public void testToXContentOmitsNullOptionalFields() {
-        BulkByPaginatedSearchFailure failure = new BulkByPaginatedSearchFailure(randomException());
+        PaginatedSearchFailure failure = new PaginatedSearchFailure(randomException());
         String json = Strings.toString(failure);
         Map<String, Object> map = XContentHelper.convertToMap(XContentType.JSON.xContent(), json, false);
         assertThat(map, not(hasKey(INDEX_FIELD)));

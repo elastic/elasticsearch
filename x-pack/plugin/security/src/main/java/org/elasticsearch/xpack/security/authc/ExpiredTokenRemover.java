@@ -16,10 +16,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.index.reindex.BulkByPaginatedSearchFailure;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
+import org.elasticsearch.index.reindex.PaginatedSearchFailure;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
@@ -129,7 +129,7 @@ final class ExpiredTokenRemover extends AbstractRunnable {
                     failure.getCause()
                 );
             }
-            for (BulkByPaginatedSearchFailure failure : response.getSearchFailures()) {
+            for (PaginatedSearchFailure failure : response.getSearchFailures()) {
                 logger.debug(
                     () -> format(
                         "search failed for index [%s], shard [%s] on node [%s]",

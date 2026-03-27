@@ -57,9 +57,9 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
-import org.elasticsearch.index.reindex.BulkByPaginatedSearchFailure;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.BulkByScrollTask;
+import org.elasticsearch.index.reindex.PaginatedSearchFailure;
 import org.elasticsearch.index.reindex.ResumeInfo;
 import org.elasticsearch.index.reindex.WorkerBulkByScrollTaskState;
 import org.elasticsearch.index.shard.ShardId;
@@ -427,7 +427,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
      * scroll request going down.
      */
     public void testShardFailuresAbortRequest() throws Exception {
-        BulkByPaginatedSearchFailure shardFailure = new BulkByPaginatedSearchFailure(new RuntimeException("test"));
+        PaginatedSearchFailure shardFailure = new PaginatedSearchFailure(new RuntimeException("test"));
         PaginatedHitSource.Response scrollResponse = new PaginatedHitSource.Response(
             false,
             singletonList(shardFailure),

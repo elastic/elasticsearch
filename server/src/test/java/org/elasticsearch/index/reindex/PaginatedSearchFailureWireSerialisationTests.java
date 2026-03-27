@@ -18,51 +18,51 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import java.io.IOException;
 import java.util.Objects;
 
-import static org.elasticsearch.index.reindex.BulkByPaginatedSearchFailureTests.randomException;
+import static org.elasticsearch.index.reindex.PaginatedSearchFailureTests.randomException;
 
-public class BulkByPaginatedSearchFailureWireSerialisationTests extends AbstractWireSerializingTestCase<
-    BulkByPaginatedSearchFailureWireSerialisationTests.BulkByPaginatedSearchFailureWrapper> {
+public class PaginatedSearchFailureWireSerialisationTests extends AbstractWireSerializingTestCase<
+    PaginatedSearchFailureWireSerialisationTests.PaginatedSearchFailureWrapper> {
     @Override
-    protected BulkByPaginatedSearchFailureWrapper createTestInstance() {
+    protected PaginatedSearchFailureWrapper createTestInstance() {
         Throwable reason = randomException();
         String index = randomBoolean() ? randomAlphaOfLengthBetween(1, 10) : null;
         Integer shardId = randomBoolean() ? randomIntBetween(0, 100) : null;
         String nodeId = randomBoolean() ? randomAlphaOfLengthBetween(1, 10) : null;
-        return new BulkByPaginatedSearchFailureWrapper(new BulkByPaginatedSearchFailure(reason, index, shardId, nodeId));
+        return new PaginatedSearchFailureWrapper(new PaginatedSearchFailure(reason, index, shardId, nodeId));
     }
 
     @Override
-    protected Writeable.Reader<BulkByPaginatedSearchFailureWrapper> instanceReader() {
-        return BulkByPaginatedSearchFailureWrapper::new;
+    protected Writeable.Reader<PaginatedSearchFailureWrapper> instanceReader() {
+        return PaginatedSearchFailureWrapper::new;
     }
 
     @Override
-    protected BulkByPaginatedSearchFailureWrapper mutateInstance(BulkByPaginatedSearchFailureWrapper instance) {
-        return new BulkByPaginatedSearchFailureWrapper(mutateSearchFailure(instance.failure()));
+    protected PaginatedSearchFailureWrapper mutateInstance(PaginatedSearchFailureWrapper instance) {
+        return new PaginatedSearchFailureWrapper(mutateSearchFailure(instance.failure()));
     }
 
     /**
-     * Wrapper around {@link BulkByPaginatedSearchFailure} used exclusively for wire-serialization tests.
+     * Wrapper around {@link PaginatedSearchFailure} used exclusively for wire-serialization tests.
      * <p>
      * {@link AbstractWireSerializingTestCase} requires instances to be comparable via
-     * {@code equals}/{@code hashCode()}, but {@link BulkByPaginatedSearchFailure} does not define
+     * {@code equals}/{@code hashCode()}, but {@link PaginatedSearchFailure} does not define
      * suitable semantic equality due to its embedded {@link Throwable}.
      * <p>
      * This wrapper provides stable, test-only equality semantics without leaking
      * test concerns into production code.
      */
-    static final class BulkByPaginatedSearchFailureWrapper implements Writeable {
-        private final BulkByPaginatedSearchFailure failure;
+    static final class PaginatedSearchFailureWrapper implements Writeable {
+        private final PaginatedSearchFailure failure;
 
-        BulkByPaginatedSearchFailureWrapper(BulkByPaginatedSearchFailure failure) {
+        PaginatedSearchFailureWrapper(PaginatedSearchFailure failure) {
             this.failure = failure;
         }
 
-        BulkByPaginatedSearchFailureWrapper(StreamInput in) throws IOException {
-            this.failure = new BulkByPaginatedSearchFailure(in);
+        PaginatedSearchFailureWrapper(StreamInput in) throws IOException {
+            this.failure = new PaginatedSearchFailure(in);
         }
 
-        BulkByPaginatedSearchFailure failure() {
+        PaginatedSearchFailure failure() {
             return failure;
         }
 
@@ -75,7 +75,7 @@ public class BulkByPaginatedSearchFailureWireSerialisationTests extends Abstract
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
-            BulkByPaginatedSearchFailureWrapper that = (BulkByPaginatedSearchFailureWrapper) o;
+            PaginatedSearchFailureWrapper that = (PaginatedSearchFailureWrapper) o;
             return failuresEqual(failure, that.failure);
         }
 
@@ -91,7 +91,7 @@ public class BulkByPaginatedSearchFailureWireSerialisationTests extends Abstract
             );
         }
 
-        private static boolean failuresEqual(BulkByPaginatedSearchFailure a, BulkByPaginatedSearchFailure b) {
+        private static boolean failuresEqual(PaginatedSearchFailure a, PaginatedSearchFailure b) {
             return Objects.equals(a.getIndex(), b.getIndex())
                 && Objects.equals(a.getShardId(), b.getShardId())
                 && Objects.equals(a.getNodeId(), b.getNodeId())
@@ -101,7 +101,7 @@ public class BulkByPaginatedSearchFailureWireSerialisationTests extends Abstract
         }
     }
 
-    static BulkByPaginatedSearchFailure mutateSearchFailure(BulkByPaginatedSearchFailure instance) {
+    static PaginatedSearchFailure mutateSearchFailure(PaginatedSearchFailure instance) {
         int fieldToMutate = randomIntBetween(0, 3);
         return switch (fieldToMutate) {
             case 0 -> {
@@ -110,7 +110,7 @@ public class BulkByPaginatedSearchFailureWireSerialisationTests extends Abstract
                     newReason = randomException();
                 } while (newReason.getClass().equals(instance.getReason().getClass())
                     && Objects.equals(newReason.getMessage(), instance.getReason().getMessage()));
-                yield new BulkByPaginatedSearchFailure(
+                yield new PaginatedSearchFailure(
                     newReason,
                     instance.getIndex(),
                     instance.getShardId(),
@@ -122,7 +122,7 @@ public class BulkByPaginatedSearchFailureWireSerialisationTests extends Abstract
                 String newIndex = instance.getIndex() == null
                     ? randomAlphaOfLengthBetween(1, 10)
                     : randomValueOtherThan(instance.getIndex(), () -> randomAlphaOfLengthBetween(1, 10));
-                yield new BulkByPaginatedSearchFailure(
+                yield new PaginatedSearchFailure(
                     instance.getReason(),
                     newIndex,
                     instance.getShardId(),
@@ -134,7 +134,7 @@ public class BulkByPaginatedSearchFailureWireSerialisationTests extends Abstract
                 Integer newShardId = instance.getShardId() == null
                     ? randomIntBetween(0, 100)
                     : randomValueOtherThan(instance.getShardId(), () -> randomIntBetween(0, 100));
-                yield new BulkByPaginatedSearchFailure(
+                yield new PaginatedSearchFailure(
                     instance.getReason(),
                     instance.getIndex(),
                     newShardId,
@@ -146,7 +146,7 @@ public class BulkByPaginatedSearchFailureWireSerialisationTests extends Abstract
                 String newNodeId = instance.getNodeId() == null
                     ? randomAlphaOfLengthBetween(1, 10)
                     : randomValueOtherThan(instance.getNodeId(), () -> randomAlphaOfLengthBetween(1, 10));
-                yield new BulkByPaginatedSearchFailure(
+                yield new PaginatedSearchFailure(
                     instance.getReason(),
                     instance.getIndex(),
                     instance.getShardId(),

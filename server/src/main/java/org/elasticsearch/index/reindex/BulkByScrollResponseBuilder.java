@@ -25,7 +25,7 @@ class BulkByScrollResponseBuilder extends StatusBuilder {
     private TimeValue took;
     private BulkByScrollTask.Status status;
     private List<Failure> bulkFailures = new ArrayList<>();
-    private List<BulkByPaginatedSearchFailure> bulkByPaginatedSearchFailures = new ArrayList<>();
+    private List<PaginatedSearchFailure> bulkByPaginatedSearchFailures = new ArrayList<>();
     private boolean timedOut;
 
     BulkByScrollResponseBuilder() {}
@@ -47,8 +47,8 @@ class BulkByScrollResponseBuilder extends StatusBuilder {
             for (Object object : failures) {
                 if (object instanceof Failure) {
                     bulkFailures.add((Failure) object);
-                } else if (object instanceof BulkByPaginatedSearchFailure) {
-                    bulkByPaginatedSearchFailures.add((BulkByPaginatedSearchFailure) object);
+                } else if (object instanceof PaginatedSearchFailure) {
+                    bulkByPaginatedSearchFailures.add((PaginatedSearchFailure) object);
                 }
             }
         }

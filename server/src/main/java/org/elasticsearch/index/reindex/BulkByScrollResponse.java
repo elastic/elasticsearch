@@ -35,7 +35,7 @@ public class BulkByScrollResponse extends ActionResponse implements ToXContentFr
     private final TimeValue took;
     private final BulkByScrollTask.Status status;
     private final List<Failure> bulkFailures;
-    private final List<BulkByPaginatedSearchFailure> bulkByPaginatedSearchFailures;
+    private final List<PaginatedSearchFailure> bulkByPaginatedSearchFailures;
     private boolean timedOut;
     @Nullable
     private final ResumeInfo resumeInfo; // only used on the local node so not serialized in transport
@@ -48,7 +48,7 @@ public class BulkByScrollResponse extends ActionResponse implements ToXContentFr
         took = in.readTimeValue();
         status = new BulkByScrollTask.Status(in);
         bulkFailures = in.readCollectionAsList(Failure::new);
-        bulkByPaginatedSearchFailures = in.readCollectionAsList(BulkByPaginatedSearchFailure::new);
+        bulkByPaginatedSearchFailures = in.readCollectionAsList(PaginatedSearchFailure::new);
         timedOut = in.readBoolean();
         resumeInfo = null;
     }
@@ -57,7 +57,7 @@ public class BulkByScrollResponse extends ActionResponse implements ToXContentFr
         TimeValue took,
         BulkByScrollTask.Status status,
         List<Failure> bulkFailures,
-        List<BulkByPaginatedSearchFailure> bulkByPaginatedSearchFailures,
+        List<PaginatedSearchFailure> bulkByPaginatedSearchFailures,
         boolean timedOut
     ) {
         this(took, status, bulkFailures, bulkByPaginatedSearchFailures, timedOut, null);
@@ -67,7 +67,7 @@ public class BulkByScrollResponse extends ActionResponse implements ToXContentFr
         TimeValue took,
         BulkByScrollTask.Status status,
         List<Failure> bulkFailures,
-        List<BulkByPaginatedSearchFailure> bulkByPaginatedSearchFailures,
+        List<PaginatedSearchFailure> bulkByPaginatedSearchFailures,
         boolean timedOut,
         @Nullable ResumeInfo resumeInfo
     ) {
@@ -163,7 +163,7 @@ public class BulkByScrollResponse extends ActionResponse implements ToXContentFr
     /**
      * All search failures.
      */
-    public List<BulkByPaginatedSearchFailure> getSearchFailures() {
+    public List<PaginatedSearchFailure> getSearchFailures() {
         return bulkByPaginatedSearchFailures;
     }
 
@@ -202,7 +202,7 @@ public class BulkByScrollResponse extends ActionResponse implements ToXContentFr
             failure.toXContent(builder, params);
             builder.endObject();
         }
-        for (BulkByPaginatedSearchFailure failure : bulkByPaginatedSearchFailures) {
+        for (PaginatedSearchFailure failure : bulkByPaginatedSearchFailures) {
             failure.toXContent(builder, params);
         }
         builder.endArray();

@@ -29,7 +29,7 @@ import static java.util.Objects.requireNonNull;
 /**
  * A failure during paginated search. Like {@link ShardSearchFailure} but useful for reindex from remote as well.
  */
-public class BulkByPaginatedSearchFailure implements Writeable, ToXContentObject {
+public class PaginatedSearchFailure implements Writeable, ToXContentObject {
     private final Throwable reason;
     private final RestStatus status;
     @Nullable
@@ -45,11 +45,11 @@ public class BulkByPaginatedSearchFailure implements Writeable, ToXContentObject
     public static final String REASON_FIELD = "reason";
     public static final String STATUS_FIELD = BulkItemResponse.Failure.STATUS_FIELD;
 
-    public BulkByPaginatedSearchFailure(Throwable reason, @Nullable String index, @Nullable Integer shardId, @Nullable String nodeId) {
+    public PaginatedSearchFailure(Throwable reason, @Nullable String index, @Nullable Integer shardId, @Nullable String nodeId) {
         this(reason, index, shardId, nodeId, ExceptionsHelper.status(reason));
     }
 
-    public BulkByPaginatedSearchFailure(
+    public PaginatedSearchFailure(
         Throwable reason,
         @Nullable String index,
         @Nullable Integer shardId,
@@ -66,14 +66,14 @@ public class BulkByPaginatedSearchFailure implements Writeable, ToXContentObject
     /**
      * Build a search failure that doesn't have shard information available.
      */
-    public BulkByPaginatedSearchFailure(Throwable reason) {
+    public PaginatedSearchFailure(Throwable reason) {
         this(reason, null, null, null);
     }
 
     /**
      * Read from a stream.
      */
-    public BulkByPaginatedSearchFailure(StreamInput in) throws IOException {
+    public PaginatedSearchFailure(StreamInput in) throws IOException {
         reason = in.readException();
         index = in.readOptionalString();
         shardId = in.readOptionalVInt();

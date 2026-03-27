@@ -11,9 +11,9 @@ package org.elasticsearch.reindex;
 
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.reindex.BulkByPaginatedSearchFailure;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.BulkByScrollTask;
+import org.elasticsearch.index.reindex.PaginatedSearchFailure;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
@@ -31,7 +31,7 @@ public class BulkIndexByScrollResponseTests extends ESTestCase {
         int took = between(1000, 10000);
         int tookIndex = between(0, mergeCount - 1);
         List<BulkItemResponse.Failure> allBulkFailures = new ArrayList<>();
-        List<BulkByPaginatedSearchFailure> allBulkByPaginatedSearchFailures = new ArrayList<>();
+        List<PaginatedSearchFailure> allBulkByPaginatedSearchFailures = new ArrayList<>();
         boolean timedOut = false;
         String reasonCancelled = rarely() ? randomAlphaOfLength(5) : null;
 
@@ -62,11 +62,9 @@ public class BulkIndexByScrollResponseTests extends ESTestCase {
                     .mapToObj(j -> new BulkItemResponse.Failure("idx", "id", new Exception()))
                     .collect(Collectors.toList());
             allBulkFailures.addAll(bulkFailures);
-            List<BulkByPaginatedSearchFailure> bulkByPaginatedSearchFailures = frequently()
+            List<PaginatedSearchFailure> bulkByPaginatedSearchFailures = frequently()
                 ? emptyList()
-                : IntStream.range(0, between(1, 3))
-                    .mapToObj(j -> new BulkByPaginatedSearchFailure(new Exception()))
-                    .collect(Collectors.toList());
+                : IntStream.range(0, between(1, 3)).mapToObj(j -> new PaginatedSearchFailure(new Exception())).collect(Collectors.toList());
             allBulkByPaginatedSearchFailures.addAll(bulkByPaginatedSearchFailures);
             boolean thisTimedOut = rarely();
             timedOut |= thisTimedOut;

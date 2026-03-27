@@ -211,6 +211,13 @@ public class SearchTransportService {
         );
     }
 
+    ActionListener<? super SearchPhaseResult> newStatsCollector(Transport.Connection connection) {
+        if (responseWrapper == null) {
+            return null;
+        }
+        return responseWrapper.apply(connection, ActionListener.noop());
+    }
+
     public void sendExecuteQuery(
         Transport.Connection connection,
         final QuerySearchRequest request,

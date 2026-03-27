@@ -64,6 +64,9 @@ public class ClusterInfo implements ChunkedToXContent, Writeable, ExpectedShardS
         "nodes_write_load_hotspotting_in_cluster_info"
     );
     private static final TransportVersion SHARD_HEAP_USAGE_IN_CLUSTER_INFO = TransportVersion.fromName("shard_heap_usage_in_cluster_info");
+    private static final TransportVersion DEFAULT_SHARD_HEAP_USAGE_WHEN_MISSING_IN_CLUSTER_INFO = TransportVersion.fromName(
+        "default_shard_heap_usage_when_missing_in_cluster_info"
+    );
 
     private final Map<String, DiskUsage> leastAvailableSpaceUsage;
     private final Map<String, DiskUsage> mostAvailableSpaceUsage;
@@ -73,6 +76,7 @@ public class ClusterInfo implements ChunkedToXContent, Writeable, ExpectedShardS
     final Map<NodeAndPath, ReservedSpace> reservedSpace;
     final Map<String, EstimatedHeapUsage> estimatedHeapUsages;
     final Map<ShardId, ShardAndIndexHeapUsage> estimatedShardHeapUsages;
+    final ShardAndIndexHeapUsage defaultShardHeapUsageForShardsWithoutMetrics;
     final Map<String, NodeUsageStatsForThreadPools> nodeUsageStatsForThreadPools;
     final Map<ShardId, Double> shardWriteLoads;
     // max heap size per node ID
@@ -81,7 +85,21 @@ public class ClusterInfo implements ChunkedToXContent, Writeable, ExpectedShardS
     private final Map<ShardId, Set<String>> shardToNodeIds;
 
     protected ClusterInfo() {
-        this(Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Set.of());
+        this(
+            Map.of(),
+            Map.of(),
+            Map.of(),
+            Map.of(),
+            Map.of(),
+            Map.of(),
+            Map.of(),
+            Map.of(),
+            ShardAndIndexHeapUsage.ZERO,
+            Map.of(),
+            Map.of(),
+            Map.of(),
+            Set.of()
+        );
     }
 
     /**
@@ -95,6 +113,7 @@ public class ClusterInfo implements ChunkedToXContent, Writeable, ExpectedShardS
      * @param reservedSpace reserved space per shard broken down by node and data path
      * @param estimatedHeapUsages estimated heap usage broken down by node
      * @param estimatedShardHeapUsages estimated heap usage broken down by {@link ShardId}
+     * @param defaultShardHeapUsageForShardsWithoutMetrics estimate for a shard that has no entry in {@code estimatedShardHeapUsages}
      * @param nodeUsageStatsForThreadPools node-level usage stats (operational load) broken down by node
      * @see #shardIdentifierFromRouting
      * @param maxHeapSizePerNode node id to max heap size
@@ -109,6 +128,7 @@ public class ClusterInfo implements ChunkedToXContent, Writeable, ExpectedShardS
         Map<NodeAndPath, ReservedSpace> reservedSpace,
         Map<String, EstimatedHeapUsage> estimatedHeapUsages,
         Map<ShardId, ShardAndIndexHeapUsage> estimatedShardHeapUsages,
+        ShardAndIndexHeapUsage defaultShardHeapUsageForShardsWithoutMetrics,
         Map<String, NodeUsageStatsForThreadPools> nodeUsageStatsForThreadPools,
         Map<ShardId, Double> shardWriteLoads,
         Map<String, ByteSizeValue> maxHeapSizePerNode,
@@ -123,6 +143,7 @@ public class ClusterInfo implements ChunkedToXContent, Writeable, ExpectedShardS
             reservedSpace,
             estimatedHeapUsages,
             estimatedShardHeapUsages,
+            defaultShardHeapUsageForShardsWithoutMetrics,
             nodeUsageStatsForThreadPools,
             shardWriteLoads,
             maxHeapSizePerNode,
@@ -140,6 +161,7 @@ public class ClusterInfo implements ChunkedToXContent, Writeable, ExpectedShardS
         Map<NodeAndPath, ReservedSpace> reservedSpace,
         Map<String, EstimatedHeapUsage> estimatedHeapUsages,
         Map<ShardId, ShardAndIndexHeapUsage> estimatedShardHeapUsages,
+        ShardAndIndexHeapUsage defaultShardHeapUsageForShardsWithoutMetrics,
         Map<String, NodeUsageStatsForThreadPools> nodeUsageStatsForThreadPools,
         Map<ShardId, Double> shardWriteLoads,
         Map<String, ByteSizeValue> maxHeapSizePerNode,
@@ -154,6 +176,7 @@ public class ClusterInfo implements ChunkedToXContent, Writeable, ExpectedShardS
         this.reservedSpace = Map.copyOf(reservedSpace);
         this.estimatedHeapUsages = Map.copyOf(estimatedHeapUsages);
         this.estimatedShardHeapUsages = Map.copyOf(estimatedShardHeapUsages);
+        this.defaultShardHeapUsageForShardsWithoutMetrics = defaultShardHeapUsageForShardsWithoutMetrics;
         this.nodeUsageStatsForThreadPools = Map.copyOf(nodeUsageStatsForThreadPools);
         this.shardWriteLoads = Map.copyOf(shardWriteLoads);
         this.maxHeapSizePerNode = Map.copyOf(maxHeapSizePerNode);
@@ -198,6 +221,11 @@ public class ClusterInfo implements ChunkedToXContent, Writeable, ExpectedShardS
         } else {
             this.estimatedShardHeapUsages = Map.of();
         }
+        if (in.getTransportVersion().supports(DEFAULT_SHARD_HEAP_USAGE_WHEN_MISSING_IN_CLUSTER_INFO)) {
+            this.defaultShardHeapUsageForShardsWithoutMetrics = new ShardAndIndexHeapUsage(in);
+        } else {
+            this.defaultShardHeapUsageForShardsWithoutMetrics = ShardAndIndexHeapUsage.ZERO;
+        }
         this.shardToNodeIds = computeShardToNodeIds(dataPath);
     }
 
@@ -219,6 +247,7 @@ public class ClusterInfo implements ChunkedToXContent, Writeable, ExpectedShardS
             reservedSpace,
             estimatedHeapUsages,
             estimatedShardHeapUsages,
+            this.defaultShardHeapUsageForShardsWithoutMetrics,
             nodeUsageStatsForThreadPools,
             shardWriteLoads,
             maxHeapSizePerNode,
@@ -269,6 +298,9 @@ public class ClusterInfo implements ChunkedToXContent, Writeable, ExpectedShardS
         }
         if (out.getTransportVersion().supports(SHARD_HEAP_USAGE_IN_CLUSTER_INFO)) {
             out.writeMap(this.estimatedShardHeapUsages);
+        }
+        if (out.getTransportVersion().supports(DEFAULT_SHARD_HEAP_USAGE_WHEN_MISSING_IN_CLUSTER_INFO)) {
+            out.writeWriteable(this.defaultShardHeapUsageForShardsWithoutMetrics);
         }
     }
 
@@ -367,8 +399,26 @@ public class ClusterInfo implements ChunkedToXContent, Writeable, ExpectedShardS
         return estimatedHeapUsages;
     }
 
+    /**
+     * Get the shard heap usage estimate for the specified shard, returning the default if no estimate is
+     * present for that shard
+     *
+     * @param shardId The shard ID
+     * @return The estimated heap usage
+     */
+    public ShardAndIndexHeapUsage getEstimatedShardHeapUsage(ShardId shardId) {
+        return estimatedShardHeapUsages.getOrDefault(shardId, defaultShardHeapUsageForShardsWithoutMetrics);
+    }
+
     public Map<ShardId, ShardAndIndexHeapUsage> getEstimatedShardHeapUsages() {
         return estimatedShardHeapUsages;
+    }
+
+    /**
+     * Heap usage estimate for a shard that has no entry in {@link #getEstimatedShardHeapUsages()}
+     */
+    public ShardAndIndexHeapUsage getDefaultShardHeapUsageForShardsWithoutMetrics() {
+        return defaultShardHeapUsageForShardsWithoutMetrics;
     }
 
     /**
@@ -478,6 +528,7 @@ public class ClusterInfo implements ChunkedToXContent, Writeable, ExpectedShardS
             && reservedSpace.equals(that.reservedSpace)
             && estimatedHeapUsages.equals(that.estimatedHeapUsages)
             && estimatedShardHeapUsages.equals(that.estimatedShardHeapUsages)
+            && defaultShardHeapUsageForShardsWithoutMetrics.equals(that.defaultShardHeapUsageForShardsWithoutMetrics)
             && nodeUsageStatsForThreadPools.equals(that.nodeUsageStatsForThreadPools)
             && shardWriteLoads.equals(that.shardWriteLoads)
             && maxHeapSizePerNode.equals(that.maxHeapSizePerNode)
@@ -495,6 +546,7 @@ public class ClusterInfo implements ChunkedToXContent, Writeable, ExpectedShardS
             reservedSpace,
             estimatedHeapUsages,
             estimatedShardHeapUsages,
+            defaultShardHeapUsageForShardsWithoutMetrics,
             nodeUsageStatsForThreadPools,
             shardWriteLoads,
             maxHeapSizePerNode,
@@ -621,6 +673,7 @@ public class ClusterInfo implements ChunkedToXContent, Writeable, ExpectedShardS
         private Map<NodeAndPath, ReservedSpace> reservedSpace = Map.of();
         private Map<String, EstimatedHeapUsage> estimatedHeapUsages = Map.of();
         private Map<ShardId, ShardAndIndexHeapUsage> estimatedShardHeapUsages = Map.of();
+        private ShardAndIndexHeapUsage defaultShardHeapUsageForShardsWithoutMetrics = ShardAndIndexHeapUsage.ZERO;
         private Map<String, NodeUsageStatsForThreadPools> nodeUsageStatsForThreadPools = Map.of();
         private Map<ShardId, Double> shardWriteLoads = Map.of();
         private Map<String, ByteSizeValue> maxHeapSizePerNode = Map.of();
@@ -636,11 +689,17 @@ public class ClusterInfo implements ChunkedToXContent, Writeable, ExpectedShardS
                 reservedSpace,
                 estimatedHeapUsages,
                 estimatedShardHeapUsages,
+                defaultShardHeapUsageForShardsWithoutMetrics,
                 nodeUsageStatsForThreadPools,
                 shardWriteLoads,
                 maxHeapSizePerNode,
                 nodeIdsWriteLoadHotspotting
             );
+        }
+
+        public Builder defaultShardHeapUsageForShardsWithoutMetrics(ShardAndIndexHeapUsage defaultShardHeapUsageForShardsWithoutMetrics) {
+            this.defaultShardHeapUsageForShardsWithoutMetrics = defaultShardHeapUsageForShardsWithoutMetrics;
+            return this;
         }
 
         public Builder leastAvailableSpaceUsage(Map<String, DiskUsage> leastAvailableSpaceUsage) {

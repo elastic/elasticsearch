@@ -219,10 +219,7 @@ public class QueryBuilderStoreTests extends ESTestCase {
                 IndexMode.STANDARD
             );
 
-            BytesBinaryIndexFieldData fieldData = new BytesBinaryIndexFieldData(
-                fieldMapper.fullPath(),
-                CoreValuesSourceType.KEYWORD
-            );
+            BytesBinaryIndexFieldData fieldData = new BytesBinaryIndexFieldData(fieldMapper.fullPath(), CoreValuesSourceType.KEYWORD);
             BiFunction<MappedFieldType, FieldDataContext, IndexFieldData<?>> indexFieldDataLookup = (mft, fdc) -> fieldData;
 
             SearchExecutionContext baseContext = new SearchExecutionContext(

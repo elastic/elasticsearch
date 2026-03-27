@@ -323,6 +323,18 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
             this.properties = propertiesParam(m -> builder(m).properties.getValue());
         }
 
+        public Builder passthroughWithPriority(int priority) {
+            this.passthroughWithPriority.setValue(priority);
+            return this;
+        }
+
+        public Builder property(String name, FieldMapper.Builder propertyBuilder) {
+            Map<String, FieldMapper.Builder> current = new TreeMap<>(this.properties.getValue());
+            current.put(name, propertyBuilder);
+            this.properties.setValue(current);
+            return this;
+        }
+
         @Override
         protected Parameter<?>[] getParameters() {
             return new Parameter<?>[] {

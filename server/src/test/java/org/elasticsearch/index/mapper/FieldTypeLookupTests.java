@@ -430,6 +430,14 @@ public class FieldTypeLookupTests extends ESTestCase {
         return new FlattenedFieldMapper.Builder(fieldName).build(MapperBuilderContext.root(false, false));
     }
 
+    private static FlattenedFieldMapper createFlattenedMapper(String fieldName, int priority, String... subFieldNames) {
+        var builder = new FlattenedFieldMapper.Builder(fieldName).passthroughWithPriority(priority);
+        for (String name : subFieldNames) {
+            builder.property(name, new MockFieldMapper.Builder(name));
+        }
+        return builder.build(MapperBuilderContext.root(false, false));
+    }
+
     private PassThroughObjectMapper createPassThroughMapper(String name, Map<String, Mapper> mappers, int priority) {
         return new PassThroughObjectMapper(
             name,
@@ -548,67 +556,45 @@ public class FieldTypeLookupTests extends ESTestCase {
         }
     }
 
-    // ---- passthrough FlattenedFieldMapper tests ----
-
-    private static PassThroughFieldSource flattenedPassThrough(String fullPath, int priority, Map<String, FieldMapper> subFields) {
-        return new PassThroughFieldSource() {
-            @Override
-            public int priority() {
-                return priority;
-            }
-
-            @Override
-            public String fullPath() {
-                return fullPath;
-            }
-
-            @Override
-            public Collection<FieldMapper> passThroughSubFields() {
-                return subFields.values();
-            }
-        };
-    }
-
     public void testFlattenedPassthroughSubFieldResolvedAtRoot() {
-        MockFieldMapper statusField = new MockFieldMapper("labels.status");
-        PassThroughFieldSource source = flattenedPassThrough("labels", 10, Map.of("status", statusField));
+        FlattenedFieldMapper labels = createFlattenedMapper("labels", 10, "status", "count");
+        Map<String, MappedFieldType> subFieldTypes = labels.passThroughSubFields().stream()
+            .collect(java.util.stream.Collectors.toMap(FieldMapper::leafName, FieldMapper::fieldType));
 
-        FieldTypeLookup lookup = new FieldTypeLookup(List.of(statusField), List.of(), List.of(source), List.of());
-        assertEquals(statusField.fieldType(), lookup.get("status"));
+        FieldTypeLookup lookup = new FieldTypeLookup(List.of(labels), List.of(), List.of(labels), List.of());
+        assertSame(subFieldTypes.get("status"), lookup.get("status"));
+        assertSame(subFieldTypes.get("count"), lookup.get("count"));
     }
 
     public void testFlattenedPassthroughVsObjectPassthroughHigherPriorityWins() {
-        MockFieldMapper flattenedFoo = new MockFieldMapper("labels.foo");
-        PassThroughFieldSource flattenedSource = flattenedPassThrough("labels", 5, Map.of("foo", flattenedFoo));
+        FlattenedFieldMapper labels = createFlattenedMapper("labels", 5, "foo");
 
         MockFieldMapper objectFoo = new MockFieldMapper("attributes.foo");
         PassThroughObjectMapper objectSource = createPassThroughMapper("attributes", Map.of("foo", objectFoo), 10);
 
         FieldTypeLookup lookup = new FieldTypeLookup(
-            randomizedList(flattenedFoo, objectFoo),
+            randomizedList(labels, objectFoo),
             List.of(),
-            randomizedList(flattenedSource, objectSource),
+            randomizedList(labels, objectSource),
             List.of()
         );
-        // objectSource has priority 10 > 5, so it wins
-        assertEquals(objectFoo.fieldType(), lookup.get("foo"));
+        // objectSource has priority 10 > 5, so objectFoo's type wins
+        assertSame(objectFoo.fieldType(), lookup.get("foo"));
     }
 
     public void testFlattenedPassthroughRootConcreteFieldWins() {
-        MockFieldMapper flattenedStatus = new MockFieldMapper("labels.status");
+        FlattenedFieldMapper labels = createFlattenedMapper("labels", 10, "status");
         MockFieldMapper rootStatus = new MockFieldMapper("status");
-        PassThroughFieldSource source = flattenedPassThrough("labels", 10, Map.of("status", flattenedStatus));
 
-        FieldTypeLookup lookup = new FieldTypeLookup(randomizedList(flattenedStatus, rootStatus), List.of(), List.of(source), List.of());
-        assertEquals(rootStatus.fieldType(), lookup.get("status"));
+        FieldTypeLookup lookup = new FieldTypeLookup(randomizedList(labels, rootStatus), List.of(), List.of(labels), List.of());
+        assertSame(rootStatus.fieldType(), lookup.get("status"));
     }
 
     public void testNonPassthroughFlattenedRegistersNoRootAliases() {
+        FlattenedFieldMapper labels = createFlattenedMapper("labels");
         MockFieldMapper statusField = new MockFieldMapper("labels.status");
-        // empty passThroughSubFields means not passthrough
-        PassThroughFieldSource source = flattenedPassThrough("labels", 10, Map.of());
 
-        FieldTypeLookup lookup = new FieldTypeLookup(List.of(statusField), List.of(), List.of(source), List.of());
+        FieldTypeLookup lookup = new FieldTypeLookup(List.of(labels, statusField), List.of(), List.of(), List.of());
         assertNull(lookup.get("status"));
     }
 

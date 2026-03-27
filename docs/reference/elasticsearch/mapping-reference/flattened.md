@@ -256,7 +256,7 @@ Sub-fields may not use `copy_to` or `fields` (multi-fields) parameters.
 
 ## Passthrough sub-fields [flattened-passthrough]
 
-The `passthrough_with_priority` parameter makes the typed sub-fields defined in `properties` queryable at the root level of the index, without prefixing them with the flattened field name. This behaves similarly to [pass-through object fields](docs-content://manage-data/data-store/mapping/pass-through-object.md).
+The `passthrough_with_priority` parameter makes the typed sub-fields defined in `properties` queryable at the root level of the index, without prefixing them with the flattened field name. This behaves similarly to [pass-through object fields](/reference/elasticsearch/mapping-reference/passthrough.md).
 
 ```console
 PUT events

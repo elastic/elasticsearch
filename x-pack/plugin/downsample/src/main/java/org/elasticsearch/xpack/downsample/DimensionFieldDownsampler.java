@@ -77,18 +77,15 @@ public class DimensionFieldDownsampler extends LastValueFieldDownsampler {
             return;
         }
 
-        for (int i = 0; i < docIdBuffer.size(); i++) {
-            int docId = docIdBuffer.get(i);
-            if (docValues.advanceExact(docId) == false) {
-                continue;
+        // Only need to record one dimension value from one document, within in the same tsid-and-time-interval bucket values are the same.
+        if (docIdBuffer.isEmpty() == false) {
+            int docId = docIdBuffer.get(0);
+            if (docValues.advanceExact(docId)) {
+                int docValueCount = docValues.docValueCount();
+                for (int j = 0; j < docValueCount; j++) {
+                    collectOnce(docValues.nextValue());
+                }
             }
-            int docValueCount = docValues.docValueCount();
-            for (int j = 0; j < docValueCount; j++) {
-                collectOnce(docValues.nextValue());
-            }
-            // Only need to record one dimension value from one document, within in the same tsid-and-time-interval bucket values are the
-            // same.
-            return;
         }
     }
 

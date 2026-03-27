@@ -21,11 +21,9 @@ import org.elasticsearch.compute.aggregation.TimeSeriesGroupingAggregatorEvaluat
 import org.elasticsearch.compute.aggregation.WindowGroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.aggregation.blockhash.TimeSeriesBlockHash;
-import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntVector;
-import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -221,26 +219,14 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
     }
 
     @Override
-    protected void evaluateAggregator(
-        GroupingAggregator aggregator,
-        Block[] blocks,
-        int offset,
-        IntVector selected,
-        GroupingAggregatorEvaluationContext evaluationContext
-    ) {
+    protected IntVector customizeSelected(GroupingAggregator aggregator, IntVector selected) {
         if (expandingGroups != null && expandingGroups.count > 0 && isValuesAggregator(aggregator.aggregatorFunction())) {
-            try (var valuesSelected = selectedForValuesAggregator(driverContext.blockFactory(), selected, expandingGroups)) {
-                super.evaluateAggregator(aggregator, blocks, offset, valuesSelected, evaluationContext);
-            }
-        } else {
-            if (aggregator.aggregatorFunction() instanceof FirstDocIdGroupingAggregatorFunction) {
-                try (IntVector dedup = selectedForDocIdsAggregator(evaluationContext.blockFactory(), selected)) {
-                    super.evaluateAggregator(aggregator, blocks, offset, dedup, evaluationContext);
-                }
-            } else {
-                super.evaluateAggregator(aggregator, blocks, offset, selected, evaluationContext);
-            }
+            return selectedForValuesAggregator(driverContext.blockFactory(), selected, expandingGroups);
         }
+        if (aggregator.aggregatorFunction() instanceof FirstDocIdGroupingAggregatorFunction) {
+            return selectedForDocIdsAggregator(driverContext.blockFactory(), selected);
+        }
+        return super.customizeSelected(aggregator, selected);
     }
 
     /*
@@ -324,15 +310,15 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
     }
 
     @Override
-    protected GroupingAggregatorEvaluationContext evaluationContext(BlockHash blockHash, Block[] keys) {
-        if (keys.length < 2) {
-            return super.evaluationContext(blockHash, keys);
+    protected GroupingAggregatorEvaluationContext evaluationContext(BlockHash blockHash) {
+        if (blockHash instanceof TimeSeriesBlockHash tsBlockHash) {
+            return evaluationContext(tsBlockHash);
         }
-        final TimeSeriesBlockHash tsBlockHash = (TimeSeriesBlockHash) blockHash;
+        return super.evaluationContext(blockHash);
+    }
 
-        final LongBlock timestamps = keys[0].elementType() == ElementType.LONG ? (LongBlock) keys[0] : (LongBlock) keys[1];
+    private GroupingAggregatorEvaluationContext evaluationContext(TimeSeriesBlockHash tsBlockHash) {
         Rounding.Prepared optimizedTimeBucket = optimizeRoundingForTimeRange(tsBlockHash.minTimestamp(), tsBlockHash.maxTimestamp());
-
         // block hash so that we can look key
         return new TimeSeriesGroupingAggregatorEvaluationContext(driverContext) {
             IntArray prevGroupIds;
@@ -340,12 +326,12 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
 
             @Override
             public long rangeStartInMillis(int groupId) {
-                return timeResolution.roundDownToMillis(timestamps.getLong(groupId));
+                return timeResolution.roundDownToMillis(tsBlockHash.timestampForGroup(groupId));
             }
 
             @Override
             public long rangeEndInMillis(int groupId) {
-                return optimizedTimeBucket.nextRoundingValue(timeResolution.roundDownToMillis(timestamps.getLong(groupId)));
+                return optimizedTimeBucket.nextRoundingValue(timeResolution.roundDownToMillis(tsBlockHash.timestampForGroup(groupId)));
             }
 
             @Override

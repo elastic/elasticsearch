@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.plan.physical.TopNByExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
@@ -138,6 +139,9 @@ public class SpatialDocValuesExtraction extends PhysicalOptimizerRules.Parameter
                 }
             }
             if (exec instanceof TopNExec topNExec) {
+                exec = topNExec.withDocValuesAttributes(new HashSet<>(foundAttributes));
+            }
+            if (exec instanceof TopNByExec topNExec) {
                 exec = topNExec.withDocValuesAttributes(new HashSet<>(foundAttributes));
             }
             return exec;

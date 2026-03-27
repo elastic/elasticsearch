@@ -24,6 +24,7 @@ setup:
                 similarity: l2_norm
                 index_options:
                   type: int4_flat
+                  confidence_interval: 0.0
 
   - do:
       index:
@@ -335,6 +336,7 @@ setup:
                 similarity: l2_norm
                 index_options:
                   type: int4_hnsw
+                  confidence_interval: 0.0
 
   # verify index fails for odd dim vector
   - do:
@@ -430,6 +432,7 @@ setup:
                   type: int4_flat
                   rescore_vector:
                     oversample: 1.5
+                  confidence_interval: 0.0
 
   - do:
       bulk:
@@ -531,6 +534,7 @@ setup:
                     similarity: l2_norm
                     index_options:
                       type: int4_flat
+                      confidence_interval: 0.0
   - do:
       index:
         index: int4_flat_nested

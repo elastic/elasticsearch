@@ -35,6 +35,7 @@ import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
@@ -219,10 +220,19 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
 
         private final Parameter<Map<String, FieldMapper.Builder>> properties;
 
-        private final Parameter<Boolean> passthrough = Parameter.boolParam("passthrough", true, m -> builder(m).passthrough.get(), false);
-
-        private final Parameter<Integer> priority = Parameter.intParam("priority", true, m -> builder(m).priority.get(), -1)
-            .setSerializerCheck((includeDefaults, isConfigured, v) -> v >= 0);
+        private final Parameter<Integer> passthroughWithPriority = new Parameter<>(
+            "passthrough_with_priority",
+            true,
+            () -> null,
+            (n, c, o) -> o == null ? null : XContentMapValues.nodeIntegerValue(o),
+            m -> builder(m).passthroughWithPriority.get(),
+            (b, n, v) -> { if (v != null) b.field(n, v); },
+            Objects::toString
+        ).acceptsNull().addValidator(v -> {
+            if (v != null && v < 0) {
+                throw new IllegalArgumentException("[passthrough_with_priority] must be non-negative, got [" + v + "]");
+            }
+        }).setSerializerCheck((includeDefaults, isConfigured, v) -> v != null);
 
         private final IndexMode indexMode;
         private final IndexVersion indexCreatedVersion;
@@ -326,8 +336,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
                 meta,
                 dimensions,
                 properties,
-                passthrough,
-                priority };
+                passthroughWithPriority };
         }
 
         @Override
@@ -344,12 +353,6 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
             if (copyTo.copyToFields().isEmpty() == false) {
                 throw new IllegalArgumentException(CONTENT_TYPE + " field [" + leafName() + "] does not support [copy_to]");
             }
-            if (passthrough.getValue() && priority.getValue() < 0) {
-                throw new MapperParsingException(
-                    "Flattened field [" + leafName() + "] with [passthrough=true] requires a non-negative [priority]"
-                );
-            }
-
             Map<String, FieldMapper> mappedSubFields = new TreeMap<>();
             Map<String, FieldMapper.Builder> propertyBuilders = properties.getValue();
             if (propertyBuilders.isEmpty() == false) {
@@ -1331,8 +1334,8 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
     private final FlattenedFieldParser fieldParser;
     private final Builder builder;
     private final Map<String, FieldMapper> mappedSubFields;
+    private final int passthroughPriority; // -1 means passthrough disabled
     private final boolean passthrough;
-    private final int passthroughPriority;
 
     private FlattenedFieldMapper(
         String leafName,
@@ -1344,8 +1347,9 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
         super(leafName, mappedFieldType, builderParams);
         this.builder = builder;
         this.mappedSubFields = Collections.unmodifiableSortedMap(new TreeMap<>(mappedSubFields));
-        this.passthrough = builder.passthrough.get();
-        this.passthroughPriority = builder.priority.get();
+        Integer ptv = builder.passthroughWithPriority.getValue();
+        this.passthroughPriority = ptv != null ? ptv : -1;
+        this.passthrough = this.passthroughPriority >= 0;
         this.fieldParser = new FlattenedFieldParser(
             mappedFieldType.name(),
             mappedFieldType.name() + KEYED_FIELD_SUFFIX,

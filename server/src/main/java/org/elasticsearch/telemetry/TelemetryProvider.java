@@ -37,7 +37,9 @@ public interface TelemetryProvider {
      */
     void attemptFlushTraces();
 
-    TelemetryProvider NOOP = new TelemetryProvider() {
+    TelemetryProvider NOOP = new NoopTelemetryProvider();
+
+    class NoopTelemetryProvider implements TelemetryProvider {
 
         @Override
         public Tracer getTracer() {
@@ -54,5 +56,5 @@ public interface TelemetryProvider {
 
         @Override
         public void attemptFlushTraces() {}
-    };
+    }
 }

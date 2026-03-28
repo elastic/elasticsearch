@@ -372,6 +372,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.analysis.AnalyzerTests
   method: testLookup
   issue: https://github.com/elastic/elasticsearch/issues/144696
+- class: org.elasticsearch.xpack.esql.analysis.AnalyzerTests
+  method: testLookupMissingTable
+  issue: https://github.com/elastic/elasticsearch/issues/144695
 
 # Examples:
 #

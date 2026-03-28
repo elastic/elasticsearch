@@ -392,12 +392,12 @@ public class PromqlCommand extends UnaryPlan
                         }
                     }
                 }
-                case PromqlFunctionCall functionCall -> {
-                    if (functionCall instanceof AcrossSeriesAggregate asa) {
-                        if (asa.grouping() == AcrossSeriesAggregate.Grouping.WITHOUT) {
-                            failures.add(fail(asa, "'without' grouping is not supported at this time [{}]", asa.sourceText()));
-                        }
+                case AcrossSeriesAggregate agg -> {
+                    if (agg.grouping() == AcrossSeriesAggregate.Grouping.WITHOUT && usesWithoutGrouping(agg.child())) {
+                        failures.add(fail(agg, "nested WITHOUT over WITHOUT is not supported at this time [{}]", agg.sourceText()));
                     }
+                }
+                case PromqlFunctionCall functionCall -> {
                 }
                 case ScalarFunction scalarFunction -> {
                     // ok
@@ -439,6 +439,9 @@ public class PromqlCommand extends UnaryPlan
                     if (binaryOperator instanceof VectorBinarySet) {
                         failures.add(fail(lp, "set operators are not supported at this time [{}]", lp.sourceText()));
                     }
+                    if (usesWithoutGrouping(binaryOperator.left()) || usesWithoutGrouping(binaryOperator.right())) {
+                        failures.add(fail(lp, "binary expressions with WITHOUT are not supported at this time [{}]", lp.sourceText()));
+                    }
                 }
                 case PlaceholderRelation placeholderRelation -> {
                     // ok
@@ -449,5 +452,9 @@ public class PromqlCommand extends UnaryPlan
             }
             root.set(false);
         });
+    }
+
+    private static boolean usesWithoutGrouping(LogicalPlan plan) {
+        return plan.anyMatch(p -> p instanceof AcrossSeriesAggregate agg && agg.grouping() == AcrossSeriesAggregate.Grouping.WITHOUT);
     }
 }

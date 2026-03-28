@@ -52,6 +52,8 @@ public class OutlierDetectionAggregator extends MetricsAggregator {
     private final long seed;
     private final int overfetchFactor;
     private final OutlierDetectionMethod method;
+    private final int maxCoordSample;
+    private final ScoreNormalization normalize;
 
     private final List<CollectedVector> collectedVectors = new ArrayList<>();
     private final Random reservoirRng;
@@ -78,7 +80,9 @@ public class OutlierDetectionAggregator extends MetricsAggregator {
         int projectionDim,
         long seed,
         int overfetchFactor,
-        OutlierDetectionMethod method
+        OutlierDetectionMethod method,
+        int maxCoordSample,
+        ScoreNormalization normalize
     ) throws IOException {
         super(name, context, parent, metadata);
         this.field = field;
@@ -91,6 +95,8 @@ public class OutlierDetectionAggregator extends MetricsAggregator {
         this.seed = seed;
         this.overfetchFactor = overfetchFactor;
         this.method = method;
+        this.maxCoordSample = maxCoordSample;
+        this.normalize = normalize;
         this.reservoirRng = new Random(seed);
     }
 
@@ -184,8 +190,13 @@ public class OutlierDetectionAggregator extends MetricsAggregator {
             candidates.add(new OutlierCandidate(docIdStr, projectedVectors[idx], scores[idx], 0));
         }
 
-        // Build sample summary: the projected vectors themselves (for re-scoring at reduce)
-        float[][] sampleSummary = projectedVectors;
+        // Build sample summary: truncate to maxCoordSample to limit coord-node payload
+        float[][] sampleSummary;
+        if (projectedVectors.length > maxCoordSample) {
+            sampleSummary = Arrays.copyOf(projectedVectors, maxCoordSample);
+        } else {
+            sampleSummary = projectedVectors;
+        }
 
         return new InternalOutlierDetection(
             name,
@@ -196,7 +207,8 @@ public class OutlierDetectionAggregator extends MetricsAggregator {
             topN,
             nNeighbors,
             seed,
-            method
+            method,
+            normalize
         );
     }
 
@@ -211,7 +223,8 @@ public class OutlierDetectionAggregator extends MetricsAggregator {
             topN,
             nNeighbors,
             seed,
-            method
+            method,
+            normalize
         );
     }
 

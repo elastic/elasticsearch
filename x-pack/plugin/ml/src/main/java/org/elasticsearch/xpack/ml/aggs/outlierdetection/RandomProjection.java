@@ -10,11 +10,16 @@ package org.elasticsearch.xpack.ml.aggs.outlierdetection;
 import java.util.Random;
 
 /**
- * Johnson-Lindenstrauss random projection for dimensionality reduction.
+ * Random orthogonal projection for dimensionality reduction.
  * Projects vectors from {@code originalDim} dimensions to {@code projectedDim}
  * dimensions while approximately preserving pairwise distances.
  * <p>
- * Uses a Gaussian random matrix scaled by {@code 1/sqrt(projectedDim)}.
+ * Generates a Gaussian random matrix and orthogonalises the rows via
+ * Modified Gram-Schmidt, then scales by {@code sqrt(originalDim / projectedDim)}.
+ * Orthogonal rows give lower-variance distance estimates than i.i.d. Gaussian
+ * (see Choromanski et al., "The Unreasonable Effectiveness of Structured Random
+ * Orthogonal Embeddings", 2017).
+ * <p>
  * A shared seed ensures all shards use the same projection matrix.
  */
 public class RandomProjection {
@@ -36,19 +41,71 @@ public class RandomProjection {
         }
         this.originalDim = originalDim;
         this.projectedDim = projectedDim;
-        this.projectionMatrix = buildMatrix(originalDim, projectedDim, seed);
+        this.projectionMatrix = buildOrthogonalMatrix(originalDim, projectedDim, seed);
     }
 
-    private static float[][] buildMatrix(int originalDim, int projectedDim, long seed) {
+    /**
+     * Build a random orthogonal projection matrix using Modified Gram-Schmidt.
+     * Each row is a unit vector in R^originalDim, mutually orthogonal, then
+     * scaled so that squared distances are approximately preserved.
+     */
+    private static float[][] buildOrthogonalMatrix(int originalDim, int projectedDim, long seed) {
         Random rng = new Random(seed);
-        float scale = (float) (1.0 / Math.sqrt(projectedDim));
         float[][] matrix = new float[projectedDim][originalDim];
+
+        // Generate random Gaussian rows
         for (int i = 0; i < projectedDim; i++) {
             for (int j = 0; j < originalDim; j++) {
-                matrix[i][j] = (float) rng.nextGaussian() * scale;
+                matrix[i][j] = (float) rng.nextGaussian();
             }
         }
+
+        // Modified Gram-Schmidt orthogonalisation
+        for (int i = 0; i < projectedDim; i++) {
+            // Subtract projections onto all previous rows
+            for (int k = 0; k < i; k++) {
+                float dot = dotProduct(matrix[i], matrix[k]);
+                for (int j = 0; j < originalDim; j++) {
+                    matrix[i][j] -= dot * matrix[k][j];
+                }
+            }
+            // Normalise to unit length
+            float norm = norm(matrix[i]);
+            if (norm < 1e-10f) {
+                // Degenerate row — regenerate (extremely unlikely for Gaussian)
+                for (int j = 0; j < originalDim; j++) {
+                    matrix[i][j] = (float) rng.nextGaussian();
+                }
+                // Re-run orthogonalisation for this row
+                i--;
+                continue;
+            }
+            for (int j = 0; j < originalDim; j++) {
+                matrix[i][j] /= norm;
+            }
+        }
+
+        // Scale so that E[||Px||^2] ≈ ||x||^2: multiply by sqrt(originalDim / projectedDim)
+        float scale = (float) Math.sqrt((double) originalDim / projectedDim);
+        for (int i = 0; i < projectedDim; i++) {
+            for (int j = 0; j < originalDim; j++) {
+                matrix[i][j] *= scale;
+            }
+        }
+
         return matrix;
+    }
+
+    private static float dotProduct(float[] a, float[] b) {
+        float sum = 0f;
+        for (int i = 0; i < a.length; i++) {
+            sum += a[i] * b[i];
+        }
+        return sum;
+    }
+
+    private static float norm(float[] v) {
+        return (float) Math.sqrt(dotProduct(v, v));
     }
 
     /**

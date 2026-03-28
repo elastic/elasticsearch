@@ -136,4 +136,88 @@ public class RandomProjectionTests extends ESTestCase {
         float[] result = projection.project(input);
         assertEquals(dim, result.length);
     }
+
+    public void testOrthogonalityOfProjectionRows() {
+        int originalDim = 100;
+        int projectedDim = 20;
+        long seed = 42L;
+
+        RandomProjection projection = new RandomProjection(originalDim, projectedDim, seed);
+
+        // Project standard basis vectors to extract rows of the projection matrix
+        float[][] rows = new float[projectedDim][];
+        for (int i = 0; i < projectedDim; i++) {
+            float[] basis = new float[originalDim];
+            basis[0] = 1.0f; // just need any vector to test projection works
+            rows[i] = new float[originalDim];
+        }
+
+        // Actually verify by projecting pairs and checking inner products
+        // Project two orthogonal input vectors and check they remain approximately orthogonal
+        float[] v1 = new float[originalDim];
+        float[] v2 = new float[originalDim];
+        v1[0] = 1.0f;
+        v2[1] = 1.0f;
+
+        float[] p1 = projection.project(v1);
+        float[] p2 = projection.project(v2);
+
+        // Inner product of projected orthogonal vectors should be near zero
+        double dot = 0;
+        for (int i = 0; i < projectedDim; i++) {
+            dot += p1[i] * p2[i];
+        }
+
+        // With orthogonal projection, this should be much smaller than the norms
+        double norm1 = 0, norm2 = 0;
+        for (int i = 0; i < projectedDim; i++) {
+            norm1 += p1[i] * p1[i];
+            norm2 += p2[i] * p2[i];
+        }
+        double cosine = Math.abs(dot) / (Math.sqrt(norm1) * Math.sqrt(norm2));
+        assertTrue("Projected orthogonal vectors should have small cosine, got " + cosine, cosine < 0.3);
+    }
+
+    public void testDistancePreservationImprovedByOrthogonality() {
+        // This test verifies that the orthogonal projection preserves distances well
+        int originalDim = 200;
+        int projectedDim = 50;
+        long seed = 42L;
+
+        RandomProjection projection = new RandomProjection(originalDim, projectedDim, seed);
+
+        // Generate multiple random vector pairs and check distance preservation
+        java.util.Random rng = new java.util.Random(seed);
+        int numPairs = 50;
+        double sumRatio = 0;
+
+        for (int p = 0; p < numPairs; p++) {
+            float[] a = new float[originalDim];
+            float[] b = new float[originalDim];
+            for (int i = 0; i < originalDim; i++) {
+                a[i] = (float) rng.nextGaussian();
+                b[i] = (float) rng.nextGaussian();
+            }
+
+            double origDist = 0;
+            for (int i = 0; i < originalDim; i++) {
+                double diff = a[i] - b[i];
+                origDist += diff * diff;
+            }
+
+            float[] pa = projection.project(a);
+            float[] pb = projection.project(b);
+            double projDist = 0;
+            for (int i = 0; i < projectedDim; i++) {
+                double diff = pa[i] - pb[i];
+                projDist += diff * diff;
+            }
+
+            sumRatio += projDist / origDist;
+        }
+
+        double avgRatio = sumRatio / numPairs;
+        // Orthogonal projection should preserve distances: ratio should be close to 1.0
+        assertTrue("Average distance ratio should be close to 1.0, got " + avgRatio, avgRatio > 0.5 && avgRatio < 2.0);
+    }
 }

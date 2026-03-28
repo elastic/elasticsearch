@@ -17,7 +17,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
@@ -34,6 +33,7 @@ public class InternalOutlierDetection extends InternalAggregation {
     private final int nNeighbors;
     private final long seed;
     private final OutlierDetectionMethod method;
+    private final ScoreNormalization normalize;
 
     public InternalOutlierDetection(
         String name,
@@ -44,7 +44,8 @@ public class InternalOutlierDetection extends InternalAggregation {
         int topN,
         int nNeighbors,
         long seed,
-        OutlierDetectionMethod method
+        OutlierDetectionMethod method,
+        ScoreNormalization normalize
     ) {
         super(name, metadata);
         this.candidates = candidates;
@@ -54,6 +55,7 @@ public class InternalOutlierDetection extends InternalAggregation {
         this.nNeighbors = nNeighbors;
         this.seed = seed;
         this.method = method;
+        this.normalize = normalize;
     }
 
     public InternalOutlierDetection(StreamInput in) throws IOException {
@@ -73,6 +75,7 @@ public class InternalOutlierDetection extends InternalAggregation {
         this.nNeighbors = in.readVInt();
         this.seed = in.readLong();
         this.method = in.readEnum(OutlierDetectionMethod.class);
+        this.normalize = in.readEnum(ScoreNormalization.class);
     }
 
     @Override
@@ -90,6 +93,7 @@ public class InternalOutlierDetection extends InternalAggregation {
         out.writeVInt(nNeighbors);
         out.writeLong(seed);
         out.writeEnum(method);
+        out.writeEnum(normalize);
     }
 
     @Override
@@ -135,7 +139,7 @@ public class InternalOutlierDetection extends InternalAggregation {
 
                 if (allCandidates.isEmpty()) {
                     return new InternalOutlierDetection(
-                        getName(), getMetadata(), List.of(), new float[0][], 0, topN, nNeighbors, seed, method
+                        getName(), getMetadata(), List.of(), new float[0][], 0, topN, nNeighbors, seed, method, normalize
                     );
                 }
 
@@ -169,12 +173,13 @@ public class InternalOutlierDetection extends InternalAggregation {
                 if (reduceContext.isFinalReduce()) {
                     int limit = Math.min(topN, rescoredCandidates.size());
                     List<OutlierCandidate> finalCandidates = new ArrayList<>(rescoredCandidates.subList(0, limit));
+                    finalCandidates = applyNormalization(finalCandidates);
                     return new InternalOutlierDetection(
-                        getName(), getMetadata(), finalCandidates, mergedSampleArray, totalSampleCount, topN, nNeighbors, seed, method
+                        getName(), getMetadata(), finalCandidates, mergedSampleArray, totalSampleCount, topN, nNeighbors, seed, method, normalize
                     );
                 } else {
                     return new InternalOutlierDetection(
-                        getName(), getMetadata(), rescoredCandidates, mergedSampleArray, totalSampleCount, topN, nNeighbors, seed, method
+                        getName(), getMetadata(), rescoredCandidates, mergedSampleArray, totalSampleCount, topN, nNeighbors, seed, method, normalize
                     );
                 }
             }
@@ -189,8 +194,31 @@ public class InternalOutlierDetection extends InternalAggregation {
         sorted.sort(null);
         List<OutlierCandidate> trimmed = new ArrayList<>(sorted.subList(0, topN));
         return new InternalOutlierDetection(
-            getName(), getMetadata(), trimmed, result.sampleVectors, result.sampleCount, topN, nNeighbors, seed, method
+            getName(), getMetadata(), trimmed, result.sampleVectors, result.sampleCount, topN, nNeighbors, seed, method, normalize
         );
+    }
+
+    /**
+     * Apply score normalisation to the final candidate list.
+     * Extracts scores, normalises in-place, then rebuilds candidates with new scores.
+     */
+    private List<OutlierCandidate> applyNormalization(List<OutlierCandidate> candidates) {
+        if (normalize == ScoreNormalization.NONE || candidates.isEmpty()) {
+            return candidates;
+        }
+        double[] scores = new double[candidates.size()];
+        for (int i = 0; i < candidates.size(); i++) {
+            scores[i] = candidates.get(i).getScore();
+        }
+        normalize.apply(scores);
+        List<OutlierCandidate> normalized = new ArrayList<>(candidates.size());
+        for (int i = 0; i < candidates.size(); i++) {
+            OutlierCandidate c = candidates.get(i);
+            normalized.add(new OutlierCandidate(c.getDocId(), c.getProjectedVector(), scores[i], c.getShardIndex()));
+        }
+        // Re-sort after normalisation (order may not change for min-max, but z-score could flip signs)
+        normalized.sort(null);
+        return normalized;
     }
 
     /**
@@ -456,5 +484,9 @@ public class InternalOutlierDetection extends InternalAggregation {
 
     public OutlierDetectionMethod getMethod() {
         return method;
+    }
+
+    public ScoreNormalization getNormalize() {
+        return normalize;
     }
 }

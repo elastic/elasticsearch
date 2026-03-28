@@ -35,10 +35,13 @@ public class OutlierDetectionAggregationBuilder extends AbstractAggregationBuild
     public static final ParseField SEED_FIELD = new ParseField("seed");
     public static final ParseField OVERFETCH_FACTOR_FIELD = new ParseField("overfetch_factor");
     public static final ParseField METHOD_FIELD = new ParseField("method");
+    public static final ParseField MAX_COORD_SAMPLE_FIELD = new ParseField("max_coord_sample");
+    public static final ParseField NORMALIZE_FIELD = new ParseField("normalize");
 
     public static final int DEFAULT_TOP_N = 10;
     public static final int DEFAULT_N_NEIGHBORS = 5;
     public static final int DEFAULT_OVERFETCH_FACTOR = 3;
+    public static final int DEFAULT_MAX_COORD_SAMPLE = 500;
 
     public static final ObjectParser<OutlierDetectionAggregationBuilder, String> PARSER = ObjectParser.fromBuilder(
         NAME,
@@ -54,6 +57,8 @@ public class OutlierDetectionAggregationBuilder extends AbstractAggregationBuild
         PARSER.declareLong(OutlierDetectionAggregationBuilder::setSeed, SEED_FIELD);
         PARSER.declareInt(OutlierDetectionAggregationBuilder::setOverfetchFactor, OVERFETCH_FACTOR_FIELD);
         PARSER.declareString(OutlierDetectionAggregationBuilder::setMethod, METHOD_FIELD);
+        PARSER.declareInt(OutlierDetectionAggregationBuilder::setMaxCoordSample, MAX_COORD_SAMPLE_FIELD);
+        PARSER.declareString(OutlierDetectionAggregationBuilder::setNormalize, NORMALIZE_FIELD);
     }
 
     private String field;
@@ -64,6 +69,8 @@ public class OutlierDetectionAggregationBuilder extends AbstractAggregationBuild
     private Long seed;
     private int overfetchFactor = DEFAULT_OVERFETCH_FACTOR;
     private OutlierDetectionMethod method = OutlierDetectionMethod.DEFAULT;
+    private int maxCoordSample = DEFAULT_MAX_COORD_SAMPLE;
+    private ScoreNormalization normalize = ScoreNormalization.NONE;
 
     public OutlierDetectionAggregationBuilder(String name) {
         super(name);
@@ -83,6 +90,8 @@ public class OutlierDetectionAggregationBuilder extends AbstractAggregationBuild
         this.seed = clone.seed;
         this.overfetchFactor = clone.overfetchFactor;
         this.method = clone.method;
+        this.maxCoordSample = clone.maxCoordSample;
+        this.normalize = clone.normalize;
     }
 
     public OutlierDetectionAggregationBuilder(StreamInput in) throws IOException {
@@ -95,6 +104,8 @@ public class OutlierDetectionAggregationBuilder extends AbstractAggregationBuild
         this.seed = in.readOptionalLong();
         this.overfetchFactor = in.readVInt();
         this.method = in.readEnum(OutlierDetectionMethod.class);
+        this.maxCoordSample = in.readVInt();
+        this.normalize = in.readEnum(ScoreNormalization.class);
     }
 
     @Override
@@ -107,6 +118,8 @@ public class OutlierDetectionAggregationBuilder extends AbstractAggregationBuild
         out.writeOptionalLong(seed);
         out.writeVInt(overfetchFactor);
         out.writeEnum(method);
+        out.writeVInt(maxCoordSample);
+        out.writeEnum(normalize);
     }
 
     @Override
@@ -146,7 +159,9 @@ public class OutlierDetectionAggregationBuilder extends AbstractAggregationBuild
             projectionDim,
             seed,
             overfetchFactor,
-            method
+            method,
+            maxCoordSample,
+            normalize
         );
     }
 
@@ -167,6 +182,8 @@ public class OutlierDetectionAggregationBuilder extends AbstractAggregationBuild
         }
         builder.field(OVERFETCH_FACTOR_FIELD.getPreferredName(), overfetchFactor);
         builder.field(METHOD_FIELD.getPreferredName(), method.toString());
+        builder.field(MAX_COORD_SAMPLE_FIELD.getPreferredName(), maxCoordSample);
+        builder.field(NORMALIZE_FIELD.getPreferredName(), normalize.toString());
         builder.endObject();
         return builder;
     }
@@ -238,6 +255,24 @@ public class OutlierDetectionAggregationBuilder extends AbstractAggregationBuild
         return this;
     }
 
+    public OutlierDetectionAggregationBuilder setMaxCoordSample(int maxCoordSample) {
+        if (maxCoordSample < 1) {
+            throw new IllegalArgumentException("[max_coord_sample] must be >= 1, got [" + maxCoordSample + "]");
+        }
+        this.maxCoordSample = maxCoordSample;
+        return this;
+    }
+
+    public OutlierDetectionAggregationBuilder setNormalize(String normalize) {
+        this.normalize = ScoreNormalization.fromString(normalize);
+        return this;
+    }
+
+    public OutlierDetectionAggregationBuilder setNormalize(ScoreNormalization normalize) {
+        this.normalize = normalize;
+        return this;
+    }
+
     // Getters
 
     public String getField() {
@@ -272,9 +307,17 @@ public class OutlierDetectionAggregationBuilder extends AbstractAggregationBuild
         return method;
     }
 
+    public int getMaxCoordSample() {
+        return maxCoordSample;
+    }
+
+    public ScoreNormalization getNormalize() {
+        return normalize;
+    }
+
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), field, topN, nNeighbors, sampleSize, projectionDim, seed, overfetchFactor, method);
+        return Objects.hash(super.hashCode(), field, topN, nNeighbors, sampleSize, projectionDim, seed, overfetchFactor, method, maxCoordSample, normalize);
     }
 
     @Override
@@ -290,6 +333,8 @@ public class OutlierDetectionAggregationBuilder extends AbstractAggregationBuild
             && Objects.equals(projectionDim, other.projectionDim)
             && Objects.equals(seed, other.seed)
             && overfetchFactor == other.overfetchFactor
-            && method == other.method;
+            && method == other.method
+            && maxCoordSample == other.maxCoordSample
+            && normalize == other.normalize;
     }
 }

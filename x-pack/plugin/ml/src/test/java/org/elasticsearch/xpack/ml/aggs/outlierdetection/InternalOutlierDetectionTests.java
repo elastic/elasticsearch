@@ -109,11 +109,11 @@ public class InternalOutlierDetectionTests extends ESTestCase {
         OutlierCandidate c2 = new OutlierCandidate("doc_outlier", new float[] { 50, 50 }, 100.0, 1);
 
         InternalOutlierDetection shard1Result = new InternalOutlierDetection(
-            "test", null, List.of(c1), shard1Samples, 3, 1, 1, 42L, OutlierDetectionMethod.KTH_NN
+            "test", null, List.of(c1), shard1Samples, 3, 1, 1, 42L, OutlierDetectionMethod.KTH_NN, ScoreNormalization.NONE
         );
 
         InternalOutlierDetection shard2Result = new InternalOutlierDetection(
-            "test", null, List.of(c2), shard2Samples, 2, 1, 1, 42L, OutlierDetectionMethod.KTH_NN
+            "test", null, List.of(c2), shard2Samples, 2, 1, 1, 42L, OutlierDetectionMethod.KTH_NN, ScoreNormalization.NONE
         );
 
         var reducer = shard1Result.getReducer(

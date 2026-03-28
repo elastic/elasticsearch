@@ -43,6 +43,12 @@ public class OutlierDetectionAggregationBuilderTests extends BaseAggregationTest
         if (randomBoolean()) {
             builder.setOverfetchFactor(randomIntBetween(1, 10));
         }
+        if (randomBoolean()) {
+            builder.setMaxCoordSample(randomIntBetween(50, 2000));
+        }
+        if (randomBoolean()) {
+            builder.setNormalize(randomFrom(ScoreNormalization.values()));
+        }
         return builder;
     }
 }

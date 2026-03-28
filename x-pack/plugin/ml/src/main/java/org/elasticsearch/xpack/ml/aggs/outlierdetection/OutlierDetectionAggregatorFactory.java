@@ -29,6 +29,8 @@ public class OutlierDetectionAggregatorFactory extends AggregatorFactory {
     private final Long seed;
     private final int overfetchFactor;
     private final OutlierDetectionMethod method;
+    private final int maxCoordSample;
+    private final ScoreNormalization normalize;
 
     public OutlierDetectionAggregatorFactory(
         String name,
@@ -43,7 +45,9 @@ public class OutlierDetectionAggregatorFactory extends AggregatorFactory {
         Integer projectionDim,
         Long seed,
         int overfetchFactor,
-        OutlierDetectionMethod method
+        OutlierDetectionMethod method,
+        int maxCoordSample,
+        ScoreNormalization normalize
     ) throws IOException {
         super(name, context, parent, subFactoriesBuilder, metadata);
         this.field = field;
@@ -54,6 +58,8 @@ public class OutlierDetectionAggregatorFactory extends AggregatorFactory {
         this.seed = seed;
         this.overfetchFactor = overfetchFactor;
         this.method = method;
+        this.maxCoordSample = maxCoordSample;
+        this.normalize = normalize;
     }
 
     @Override
@@ -122,7 +128,9 @@ public class OutlierDetectionAggregatorFactory extends AggregatorFactory {
             effectiveProjectionDim,
             effectiveSeed,
             overfetchFactor,
-            method
+            method,
+            maxCoordSample,
+            normalize
         );
     }
 }

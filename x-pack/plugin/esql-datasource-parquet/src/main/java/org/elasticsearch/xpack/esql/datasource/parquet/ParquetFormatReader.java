@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnBlockConversions;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
@@ -269,6 +270,11 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
     }
 
     @Override
+    public AggregatePushdownSupport aggregatePushdownSupport() {
+        return new ParquetAggregatePushdownSupport();
+    }
+
+    @Override
     public String formatName() {
         return "parquet";
     }
@@ -359,7 +365,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
         List<Attribute> resolvedAttributes,
         ErrorPolicy errorPolicy
     ) throws IOException {
-        InputFile parquetInputFile = new ParquetStorageObjectAdapter(object);
+        InputFile parquetInputFile = ParquetStorageObjectAdapter.forRange(object, rangeEnd - rangeStart);
         ParquetReadOptions.Builder optionsBuilder = readOptionsBuilder().withRange(rangeStart, rangeEnd);
         if (FilterCompat.isFilteringRequired(pushedFilter)) {
             optionsBuilder.withRecordFilter(pushedFilter);
@@ -544,6 +550,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
             this.rowBudget = rowLimit;
             this.createdBy = createdBy != null ? createdBy : "";
 
+            reader.setRequestedSchema(projectedSchema);
+
             this.columnInfos = new ColumnInfo[attributes.size()];
             Map<String, ColumnDescriptor> descByName = new HashMap<>();
             for (ColumnDescriptor desc : projectedSchema.getColumns()) {
@@ -593,7 +601,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
                 rowGroup.close();
                 rowGroup = null;
             }
-            rowGroup = reader.readNextRowGroup();
+            rowGroup = reader.readNextFilteredRowGroup();
             if (rowGroup == null) {
                 exhausted = true;
                 return false;

@@ -369,6 +369,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.analysis.AnalyzerTests
   method: testLookupMatchTypeWrong
   issue: https://github.com/elastic/elasticsearch/issues/144694
+- class: org.elasticsearch.xpack.esql.analysis.AnalyzerTests
+  method: testLookup
+  issue: https://github.com/elastic/elasticsearch/issues/144696
 
 # Examples:
 #

@@ -329,6 +329,11 @@ public class PluginDescriptorTests extends ESTestCase {
         assertThat(names, contains("a", "b", "c", "d", "e"));
     }
 
+    public void testLegacyTypePropertyIsIgnored() throws Exception {
+        PluginDescriptor info = mockInternalDescriptor("type", "isolated");
+        assertEquals("my_plugin", info.getName());
+    }
+
     public void testUnknownProperties() throws Exception {
         assertBothDescriptors(writer -> {
             IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> writer.write("extra", "property"));

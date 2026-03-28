@@ -273,6 +273,10 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
         boolean modular = module != null;
         DeploymentTarget deploymentTarget = readDeploymentTarget(propsMap, name);
 
+        // Consume legacy properties from older Elasticsearch versions to allow reading
+        // plugin descriptors written by those versions (e.g. during a rolling upgrade from 7.x).
+        propsMap.remove("type");
+
         return new PluginDescriptor(
             name,
             desc,

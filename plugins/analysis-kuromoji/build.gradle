@@ -16,6 +16,7 @@ esplugin {
 
 dependencies {
   api "org.apache.lucene:lucene-analysis-kuromoji:${versions.lucene}"
+  clusterModules project(':modules:codecs-common')
 }
 
 restResources {

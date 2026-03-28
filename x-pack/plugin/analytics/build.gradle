@@ -32,6 +32,7 @@ dependencies {
   testImplementation project(xpackModule('otel-data')) // for coerce compatibility tests
   testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation(testArtifact(project(":libs:exponential-histogram")))
+  clusterModules project(':modules:codecs-common')
 }
 
 if (buildParams.snapshotBuild == false) {

@@ -20,3 +20,8 @@ restResources {
     include '_common', 'bulk', 'cluster', 'get', 'nodes', 'indices', 'index', 'search'
   }
 }
+
+dependencies {
+  internalClusterTestImplementation project(':modules:codecs-common')
+  clusterModules project(':modules:codecs-common')
+}

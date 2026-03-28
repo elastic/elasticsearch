@@ -17,6 +17,8 @@ esplugin {
 
 dependencies {
   testImplementation project(':modules:parent-join')
+  testImplementation project(':modules:codecs-common')
+  clusterModules project(':modules:codecs-common')
 }
 
 restResources {

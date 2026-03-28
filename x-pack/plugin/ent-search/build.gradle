@@ -31,12 +31,15 @@ dependencies {
   testImplementation project(":test:framework")
   testImplementation(project(':modules:lang-mustache'))
   testImplementation(project(':modules:reindex'))
+  testImplementation(project(':modules:codecs-common'))
 
   javaRestTestImplementation(project(path: xpackModule('core')))
   javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
   javaRestTestImplementation(project(':modules:lang-mustache'))
+  javaRestTestImplementation(project(':modules:codecs-common'))
 
   yamlRestTestImplementation(testArtifact(project(xpackModule('core'))))
+  clusterModules project(':modules:codecs-common')
 }
 
 restResources {

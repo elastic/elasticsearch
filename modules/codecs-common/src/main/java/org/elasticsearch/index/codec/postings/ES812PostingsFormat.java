@@ -35,6 +35,7 @@ import org.apache.lucene.index.TermState;
 import org.apache.lucene.store.DataOutput;
 import org.apache.lucene.util.packed.PackedInts;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.index.codec.BlockTermStateFPProvider;
 import org.elasticsearch.index.codec.ForUtil;
 
 import java.io.IOException;
@@ -428,7 +429,7 @@ public class ES812PostingsFormat extends PostingsFormat {
      * org.apache.lucene.index.PostingsEnum} without re-seeking the terms dict.
      *
      */
-    public static final class IntBlockTermState extends BlockTermState {
+    public static final class IntBlockTermState extends BlockTermState implements BlockTermStateFPProvider {
         /** file pointer to the start of the doc ids enumeration, in {@link #DOC_EXTENSION} file */
         public long docStartFP;
 
@@ -467,6 +468,21 @@ public class ES812PostingsFormat extends PostingsFormat {
             skipOffset = -1;
             lastPosBlockOffset = -1;
             singletonDocID = -1;
+        }
+
+        @Override
+        public long getDocStartFP() {
+            return docStartFP;
+        }
+
+        @Override
+        public long getPosStartFP() {
+            return posStartFP;
+        }
+
+        @Override
+        public long getPayStartFP() {
+            return payStartFP;
         }
 
         @Override

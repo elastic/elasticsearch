@@ -25,3 +25,6 @@ artifacts {
   restTests(new File(projectDir, "src/yamlRestTest/resources/rest-api-spec/test"))
 }
 
+dependencies {
+  clusterModules project(':modules:codecs-common')
+}

@@ -95,6 +95,9 @@ dependencies {
   hdfsFixture2 project(':test:fixtures:hdfs-fixture')
   hdfsFixture3 project(':test:fixtures:hdfs-fixture')
 
+  clusterModules project(':modules:codecs-common')
+  testImplementation(project(':modules:codecs-common'))
+
   attributesSchema {
     attribute(patched)
   }

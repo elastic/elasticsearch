@@ -25,6 +25,7 @@ dependencies {
   internalClusterTestImplementation project(':modules:rest-root')
 
   clusterModules project(':modules:analysis-common')
+  clusterModules project(':modules:codecs-common')
   clusterModules project(':modules:ingest-common')
   clusterModules project(':modules:mapper-extras')
 

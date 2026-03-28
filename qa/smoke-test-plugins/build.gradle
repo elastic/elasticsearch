@@ -19,6 +19,7 @@ project(':plugins').getChildProjects().each { pluginName, pluginProject ->
 }
 
 dependencies {
+  clusterModules project(':modules:codecs-common')
   clusterModules project(":modules:lang-painless")
   pluginPaths.each { pluginPath ->
     clusterPlugins(project(pluginPath))

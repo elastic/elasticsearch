@@ -31,6 +31,8 @@ dependencies {
   api "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}"
   yamlRestTestImplementation project(':test:fixtures:url-fixture')
   yamlRestTestImplementation project(':modules:repository-url')
+  internalClusterTestImplementation project(':modules:codecs-common')
+  clusterModules project(':modules:codecs-common')
 }
 
 tasks.named("thirdPartyAudit").configure {

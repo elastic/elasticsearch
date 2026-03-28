@@ -14,6 +14,7 @@ dependencies {
   internalClusterTestImplementation project(':test:framework')
   internalClusterTestImplementation project(':modules:lang-mustache')
   clusterModules project(":modules:ingest-common")
+  clusterModules project(":modules:codecs-common")
   clusterModules project(":modules:lang-mustache")
   clusterModules project(":modules:reindex")
   clusterModules project(":modules:data-streams")

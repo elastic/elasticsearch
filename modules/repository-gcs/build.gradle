@@ -61,7 +61,9 @@ dependencies {
   testImplementation "org.apache.httpcomponents:httpcore:${versions.httpcore}"
 
   testImplementation project(':test:fixtures:gcs-fixture')
+  testImplementation(project(':modules:codecs-common'))
   yamlRestTestImplementation project(':test:fixtures:gcs-fixture')
+  clusterModules project(':modules:codecs-common')
 }
 
 restResources {

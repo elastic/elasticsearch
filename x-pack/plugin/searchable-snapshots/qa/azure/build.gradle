@@ -11,6 +11,7 @@ dependencies {
   clusterModules project(xpackModule('searchable-snapshots'))
   clusterModules project(':modules:repository-azure')
   clusterModules project(':modules:lang-painless')
+  clusterModules project(':modules:codecs-common')
   javaRestTestImplementation(testArtifact(project(xpackModule('searchable-snapshots'))))
   javaRestTestImplementation(project(':test:fixtures:azure-fixture'))
 }

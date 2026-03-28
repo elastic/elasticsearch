@@ -49,8 +49,10 @@ dependencies {
   api "io.netty:netty-transport-native-unix-common:${versions.netty}"
 
   testImplementation project(':modules:rest-root')
+  internalClusterTestImplementation(project(':modules:codecs-common'))
 
   clusterModules project(':modules:rest-root')
+  clusterModules project(':modules:codecs-common')
 }
 
 restResources {

@@ -12,6 +12,7 @@ dependencies {
   compileOnly project(':x-pack:plugin:core')
   compileOnly project(':x-pack:plugin:security')
   clusterPlugins project(':x-pack:plugin:security:qa:rcs-extension')
+  clusterModules project(':modules:codecs-common')
 
   javaRestTestImplementation project(':x-pack:plugin:core')
   javaRestTestImplementation project(':x-pack:plugin:security')

@@ -36,6 +36,7 @@ dependencies {
   javaRestTestImplementation("com.google.protobuf:protobuf-java:${versions.protobuf}")
 
   clusterModules project(':modules:analysis-common')
+  clusterModules project(':modules:codecs-common')
   clusterModules project(':modules:legacy-geo')
   clusterModules project(':modules:lang-painless')
   clusterModules project(':test:external-modules:test-error-query')

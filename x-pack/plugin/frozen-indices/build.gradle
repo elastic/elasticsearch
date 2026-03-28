@@ -12,5 +12,6 @@ base {
 
 dependencies {
   compileOnly project(path: xpackModule('core'))
+  testImplementation project(path: ':modules:codecs-common')
   testImplementation(testArtifact(project(xpackModule('core'))))
 }

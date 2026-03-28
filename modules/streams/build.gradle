@@ -40,6 +40,7 @@ dependencies {
   testImplementation project(path: ':test:test-clusters')
   clusterModules project(':modules:ingest-common')
   clusterModules project(':modules:reindex')
+  clusterModules project(':modules:codecs-common')
 }
 
 tasks.named("yamlRestCompatTestTransform").configure ({ task ->

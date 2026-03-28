@@ -20,6 +20,7 @@ dependencies {
   clusterModules project(xpackModule('search-business-rules'))
   clusterModules project(':modules:mapper-extras')
   clusterModules project(':modules:lang-painless')
+  clusterModules project(':modules:codecs-common')
   clusterModules project(xpackModule('inference'))
 }
 

@@ -75,6 +75,7 @@ dependencies {
   testImplementation project(path: ':modules:data-streams')
   testImplementation project(':modules:mapper-extras')
   testImplementation(testArtifact(project(':server')))
+  clusterModules project(':modules:codecs-common')
 
   // security deps
   api "com.unboundid:unboundid-ldapsdk:${versions.ldapsdk}"
@@ -86,6 +87,7 @@ dependencies {
   testImplementation project(path: ':modules:parent-join')
   testImplementation project(path: ':modules:lang-mustache')
   testImplementation project(path: ':modules:analysis-common')
+  testImplementation project(path: ':modules:codecs-common')
   testImplementation project(path: ':modules:rest-root')
   testImplementation project(path: ':modules:health-shards-availability')
   // Needed for Fips140ProviderVerificationTests

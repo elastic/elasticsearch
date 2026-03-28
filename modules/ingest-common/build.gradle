@@ -26,6 +26,7 @@ dependencies {
   api project(':libs:user-agent-api')
 
   testImplementation project(':modules:user-agent')
+  internalClusterTestImplementation(project(':modules:codecs-common'))
 }
 
 restResources {

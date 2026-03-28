@@ -15,6 +15,11 @@ esplugin {
   classname ='org.elasticsearch.plugin.mapper.MapperSizePlugin'
 }
 
+dependencies {
+  clusterModules project(':modules:codecs-common')
+  internalClusterTestImplementation(project(':modules:codecs-common'))
+}
+
 restResources {
   restApi {
     include '_common', 'indices', 'index', 'get'

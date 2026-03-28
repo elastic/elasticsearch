@@ -8,3 +8,7 @@ restResources {
   }
 }
 
+dependencies {
+  clusterModules project(':modules:codecs-common')
+}
+

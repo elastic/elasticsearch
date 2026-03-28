@@ -21,6 +21,8 @@ base {
 dependencies {
   compileOnly project(':modules:lang-painless:spi')
   compileOnly project(path: xpackModule('core'))
+  testImplementation(project(':modules:codecs-common'))
+  clusterModules project(':modules:codecs-common')
 }
 
 if (buildParams.getSnapshotBuild() == false) {

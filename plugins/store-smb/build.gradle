@@ -13,6 +13,12 @@ esplugin {
   description = 'The Store SMB plugin adds support for SMB stores.'
   classname ='org.elasticsearch.plugin.store.smb.SMBStorePlugin'
 }
+
+dependencies {
+  clusterModules project(':modules:codecs-common')
+  internalClusterTestImplementation(project(':modules:codecs-common'))
+}
+
 restResources {
   restApi {
     include '_common', 'cluster', 'nodes', 'index', 'indices', 'get'

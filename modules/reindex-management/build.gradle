@@ -22,11 +22,13 @@ esplugin {
 dependencies {
   compileOnly project(path: ':modules:reindex')
   internalClusterTestImplementation project(path: ':modules:reindex')
+  internalClusterTestImplementation project(':modules:codecs-common')
 
   testImplementation project(':modules:rest-root')
 
   clusterModules project(':modules:reindex')
   clusterModules project(":modules:rest-root")
+  clusterModules project(':modules:codecs-common')
 }
 
 restResources {

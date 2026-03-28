@@ -1,0 +1,6 @@
+pr: 145147
+summary: Handle legacy 'type' property in plugin descriptors from 7.x
+area: Infra/Plugins
+type: bug
+issues:
+ - 144317

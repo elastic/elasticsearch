@@ -57,6 +57,7 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
     private final String clusterExtension;
     private final int versionDirectIo;
     private final float dynamicVisitRatio;
+    protected final int versionMeta;
 
     @SuppressWarnings("this-escape")
     protected IVFVectorsReader(
@@ -105,6 +106,7 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
             IOUtils.closeWhileHandlingException(this);
             throw t;
         }
+        this.versionMeta = versionMeta;
     }
 
     public abstract CentroidIterator getCentroidIterator(

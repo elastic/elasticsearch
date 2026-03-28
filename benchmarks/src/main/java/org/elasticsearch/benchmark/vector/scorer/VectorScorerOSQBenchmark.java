@@ -142,7 +142,7 @@ public class VectorScorerOSQBenchmark {
         var query = new float[dims];
         for (int i = 0; i < VectorScorerOSQBenchmark.NUM_VECTORS; i++) {
             randomVector(random, query, similarityFunction);
-            queryVectors[i] = createOSQQueryData(query, centroid, quantizer, dims, queryBits, binaryQueryLength);
+            queryVectors[i] = createOSQQueryData(query, centroid, quantizer, dims, queryBits, binaryQueryLength, bits);
         }
 
         var denseOffsetsCount = BULK_SIZE - 3;
@@ -260,9 +260,29 @@ public class VectorScorerOSQBenchmark {
             default -> throw new IllegalArgumentException("Unsupported bits: " + bits);
         };
         this.scorer = switch (implementation) {
-            case SCALAR -> new ESNextOSQVectorsScorer(input, (byte) queryBits, (byte) docBits, dims, data.binaryIndexLength);
+            case SCALAR -> new ESNextOSQVectorsScorer(
+                input,
+                (byte) queryBits,
+                (byte) docBits,
+                dims,
+                data.binaryIndexLength,
+                ESNextOSQVectorsScorer.BULK_SIZE,
+                docBits == 4
+                    ? ESNextOSQVectorsScorer.SymmetricInt4Encoding.PACKED_NIBBLE
+                    : ESNextOSQVectorsScorer.SymmetricInt4Encoding.STRIPED
+            );
             case VECTORIZED -> ESVectorizationProvider.getInstance()
-                .newESNextOSQVectorsScorer(input, (byte) queryBits, (byte) docBits, dims, data.binaryIndexLength, BULK_SIZE);
+                .newESNextOSQVectorsScorer(
+                    input,
+                    (byte) queryBits,
+                    (byte) docBits,
+                    dims,
+                    data.binaryIndexLength,
+                    BULK_SIZE,
+                    docBits == 4
+                        ? ESNextOSQVectorsScorer.SymmetricInt4Encoding.PACKED_NIBBLE
+                        : ESNextOSQVectorsScorer.SymmetricInt4Encoding.STRIPED
+                );
         };
         this.scratchScores = new float[BULK_SIZE];
         this.denseOffsets = data.denseOffsets();

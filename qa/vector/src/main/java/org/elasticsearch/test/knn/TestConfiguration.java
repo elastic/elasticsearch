@@ -53,6 +53,7 @@ record TestConfiguration(
     int numQueries,
     KnnIndexTester.IndexType indexType,
     int ivfClusterSize,
+    String ivfFormat,
     int hnswM,
     int hnswEfConstruction,
     int indexThreads,
@@ -87,6 +88,7 @@ record TestConfiguration(
     static final ParseField K_FIELD = new ParseField("k");
     static final ParseField VISIT_PERCENTAGE_FIELD = new ParseField("visit_percentage");
     static final ParseField IVF_CLUSTER_SIZE_FIELD = new ParseField("ivf_cluster_size");
+    static final ParseField IVF_FORMAT_FIELD = new ParseField("ivf_format");
     static final ParseField SECONDARY_CLUSTER_SIZE = new ParseField("secondary_cluster_size");
     static final ParseField OVER_SAMPLING_FACTOR_FIELD = new ParseField("over_sampling_factor");
     static final ParseField HNSW_M_FIELD = new ParseField("hnsw_m");
@@ -142,6 +144,7 @@ record TestConfiguration(
         PARSER.declareIntArray(Builder::setK, K_FIELD);
         PARSER.declareDoubleArray(Builder::setVisitPercentages, VISIT_PERCENTAGE_FIELD);
         PARSER.declareInt(Builder::setIvfClusterSize, IVF_CLUSTER_SIZE_FIELD);
+        PARSER.declareString(Builder::setIvfFormat, IVF_FORMAT_FIELD);
         PARSER.declareFloatArray(Builder::setOverSamplingFactor, OVER_SAMPLING_FACTOR_FIELD);
         PARSER.declareInt(Builder::setHnswM, HNSW_M_FIELD);
         PARSER.declareInt(Builder::setHnswEfConstruction, HNSW_EF_CONSTRUCTION_FIELD);
@@ -205,6 +208,7 @@ record TestConfiguration(
             new ParameterHelp("num_queries", "int", "Number of queries to run from the query vectors file."),
             new ParameterHelp("index_type", "string", "Index type: hnsw, flat, ivf, or gpu_hnsw."),
             new ParameterHelp("ivf_cluster_size", "int", "IVF: number of clusters."),
+            new ParameterHelp("ivf_format", "string", "IVF: diskbbq format variant: esnext (default), es940, or es940_legacy."),
             new ParameterHelp("secondary_cluster_size", "int", "IVF: centroids per parent cluster; -1 uses the format default."),
             new ParameterHelp("hnsw_m", "int", "HNSW: M parameter (graph degree)."),
             new ParameterHelp("hnsw_ef_construction", "int", "HNSW: efConstruction parameter."),
@@ -359,6 +363,7 @@ record TestConfiguration(
         private List<Integer> k = List.of(10);
         private List<Double> visitPercentages = List.of(1.0);
         private int ivfClusterSize = ESNextDiskBBQVectorsFormat.DEFAULT_VECTORS_PER_CLUSTER;
+        private String ivfFormat = "esnext";
         private List<Float> overSamplingFactor = List.of(0f);
         private int hnswM = 16;
         private int hnswEfConstruction = 200;
@@ -460,6 +465,11 @@ record TestConfiguration(
 
         public Builder setIvfClusterSize(int ivfClusterSize) {
             this.ivfClusterSize = ivfClusterSize;
+            return this;
+        }
+
+        public Builder setIvfFormat(String ivfFormat) {
+            this.ivfFormat = ivfFormat;
             return this;
         }
 
@@ -815,6 +825,7 @@ record TestConfiguration(
                 numQueries,
                 indexType,
                 ivfClusterSize,
+                ivfFormat,
                 hnswM,
                 hnswEfConstruction,
                 indexThreads,
@@ -862,6 +873,7 @@ record TestConfiguration(
             builder.field(K_FIELD.getPreferredName(), k);
             builder.field(VISIT_PERCENTAGE_FIELD.getPreferredName(), visitPercentages);
             builder.field(IVF_CLUSTER_SIZE_FIELD.getPreferredName(), ivfClusterSize);
+            builder.field(IVF_FORMAT_FIELD.getPreferredName(), ivfFormat);
             builder.field(OVER_SAMPLING_FACTOR_FIELD.getPreferredName(), overSamplingFactor);
             builder.field(HNSW_M_FIELD.getPreferredName(), hnswM);
             builder.field(HNSW_EF_CONSTRUCTION_FIELD.getPreferredName(), hnswEfConstruction);

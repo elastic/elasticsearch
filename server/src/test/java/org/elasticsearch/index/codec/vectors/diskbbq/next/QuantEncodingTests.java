@@ -62,14 +62,14 @@ public class QuantEncodingTests extends ESTestCase {
 
     public void testHalfByteAndNibblesPackSize() {
         ESNextDiskBBQVectorsFormat.QuantEncoding encoding = ESNextDiskBBQVectorsFormat.QuantEncoding.FOUR_BIT_SYMMETRIC;
-        assertEquals(4, encoding.getDocPackedLength(3));
+        assertEquals(2, encoding.getDocPackedLength(3));
         assertEquals(4, encoding.getQueryPackedLength(3));
         assertEquals(4, encoding.getDocPackedLength(8));
-        assertEquals(4, encoding.getQueryPackedLength(8));
+        assertEquals(8, encoding.getQueryPackedLength(8));
         assertEquals(8, encoding.getDocPackedLength(16));
         assertEquals(8, encoding.getDocPackedLength(16));
-        assertEquals(8, encoding.getQueryPackedLength(16));
-        assertEquals(8, encoding.getQueryPackedLength(16));
+        assertEquals(16, encoding.getQueryPackedLength(16));
+        assertEquals(16, encoding.getQueryPackedLength(16));
     }
 
     public void testSevenBitPackSize() {

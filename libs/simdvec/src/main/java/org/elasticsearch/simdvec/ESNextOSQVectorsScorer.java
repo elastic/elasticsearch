@@ -23,6 +23,11 @@ public class ESNextOSQVectorsScorer {
 
     public static final int BULK_SIZE = 32;
 
+    public enum SymmetricInt4Encoding {
+        STRIPED,
+        PACKED_NIBBLE
+    }
+
     protected static final float[] BIT_SCALES = new float[] {
         1f,
         1f / ((1 << 2) - 1),
@@ -41,6 +46,7 @@ public class ESNextOSQVectorsScorer {
     protected final int length;
     protected final int dimensions;
     protected final int bulkSize;
+    protected final SymmetricInt4Encoding int4Encoding;
 
     protected final float[] lowerIntervals;
     protected final float[] upperIntervals;
@@ -48,7 +54,15 @@ public class ESNextOSQVectorsScorer {
     protected final float[] additionalCorrections;
     private final byte[] scratch;
 
-    public ESNextOSQVectorsScorer(IndexInput in, byte queryBits, byte indexBits, int dimensions, int dataLength, int bulkSize) {
+    public ESNextOSQVectorsScorer(
+        IndexInput in,
+        byte queryBits,
+        byte indexBits,
+        int dimensions,
+        int dataLength,
+        int bulkSize,
+        SymmetricInt4Encoding int4Encoding
+    ) {
         if (indexBits == 1 && queryBits != 4) {
             throw new IllegalArgumentException("Only asymmetric 4-bit query supported for 1-bit index");
         }
@@ -71,7 +85,12 @@ public class ESNextOSQVectorsScorer {
         this.targetComponentSums = new int[bulkSize];
         this.additionalCorrections = new float[bulkSize];
         this.bulkSize = bulkSize;
+        this.int4Encoding = int4Encoding == null ? SymmetricInt4Encoding.STRIPED : int4Encoding;
         this.scratch = indexBits == 7 ? new byte[dimensions] : null;
+    }
+
+    public ESNextOSQVectorsScorer(IndexInput in, byte queryBits, byte indexBits, int dimensions, int dataLength, int bulkSize) {
+        this(in, queryBits, indexBits, dimensions, dataLength, bulkSize, SymmetricInt4Encoding.STRIPED);
     }
 
     public ESNextOSQVectorsScorer(IndexInput in, byte queryBits, byte indexBits, int dimensions, int dataLength) {
@@ -90,6 +109,9 @@ public class ESNextOSQVectorsScorer {
             return quantized4BitScore2BitIndex(q);
         }
         if (indexBits == 4) {
+            if (int4Encoding == SymmetricInt4Encoding.PACKED_NIBBLE) {
+                return quantized4BitScorePacked(q);
+            }
             return quantized4BitScoreSymmetric(q);
         }
         assert (indexBits == 7);
@@ -109,6 +131,17 @@ public class ESNextOSQVectorsScorer {
         int stripe2 = (int) quantized4BitScore(q, length / 4);
         int stripe3 = (int) quantized4BitScore(q, length / 4);
         return stripe0 + ((long) stripe1 << 1) + ((long) stripe2 << 2) + ((long) stripe3 << 3);
+    }
+
+    private long quantized4BitScorePacked(byte[] q) throws IOException {
+        assert q.length == length * 2 : "length mismatch q " + q.length + " vs " + (length * 2);
+        long score = 0;
+        for (int i = 0; i < length; i++) {
+            int packed = in.readByte() & 0xFF;
+            score += ((packed >>> 4) & 0x0F) * (q[i] & 0x0F);
+            score += (packed & 0x0F) * (q[i + length] & 0x0F);
+        }
+        return score;
     }
 
     private long quantized4BitScore2BitIndex(byte[] q) throws IOException {

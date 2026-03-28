@@ -49,13 +49,36 @@ public abstract class ESVectorizationProvider {
      * {@link IllegalArgumentException} is thrown. Non-wrapper inputs (e.g.
      * {@code ByteBuffersIndexInput}) are accepted and use a heap-copy fallback.
      */
-    public abstract ESNextOSQVectorsScorer newESNextOSQVectorsScorer(
+    public ESNextOSQVectorsScorer newESNextOSQVectorsScorer(
         IndexInput input,
         byte queryBits,
         byte indexBits,
         int dimension,
         int dataLength,
         int bulkSize
+    ) throws IOException {
+        return newESNextOSQVectorsScorer(
+            input,
+            queryBits,
+            indexBits,
+            dimension,
+            dataLength,
+            bulkSize,
+            ESNextOSQVectorsScorer.SymmetricInt4Encoding.STRIPED
+        );
+    }
+
+    /**
+     * Create a new {@link ESNextOSQVectorsScorer} with an explicit int4 encoding.
+     */
+    public abstract ESNextOSQVectorsScorer newESNextOSQVectorsScorer(
+        IndexInput input,
+        byte queryBits,
+        byte indexBits,
+        int dimension,
+        int dataLength,
+        int bulkSize,
+        ESNextOSQVectorsScorer.SymmetricInt4Encoding int4Encoding
     ) throws IOException;
 
     /**

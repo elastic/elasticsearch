@@ -28,15 +28,21 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.is;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockingDetails;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class TenaciousRetryBlobContainerTests extends ESTestCase {
 
@@ -55,7 +61,6 @@ public class TenaciousRetryBlobContainerTests extends ESTestCase {
             BackoffPolicy.linearBackoff(TimeValue.timeValueMillis(50), Integer.MAX_VALUE, TimeValue.ONE_MINUTE),
             repositoriesMetrics
         ) {
-
             @Override
             protected boolean isExceptionRetryable(Exception e) {
                 return true;
@@ -90,6 +95,59 @@ public class TenaciousRetryBlobContainerTests extends ESTestCase {
 
             // No retry attempted.
             assertThat(matchingCalls, is(1L));
+            clearInvocations(blobContainer);
+        }
+    }
+
+    public void testRetryListOperations() throws IOException {
+        final var recordingMeterRegistry = new RecordingMeterRegistry();
+        final var repositoriesMetrics = new RepositoriesMetrics(recordingMeterRegistry);
+
+        BlobContainer blobContainer = mock(BlobContainer.class);
+        when(blobContainer.listBlobs(any())).thenThrow(new IOException("listBlobs"))
+            .thenThrow(new IOException("listBlobs"))
+            .thenReturn(new HashMap<>());
+        when(blobContainer.listBlobsByPrefix(any(), any())).thenThrow(new IOException());
+
+        int maximumRetries = randomIntBetween(3, 5);
+
+        TenaciousRetryBlobContainer tenaciousRetryBlobContainer = new TenaciousRetryBlobContainer(
+            blobContainer,
+            maximumRetries,
+            BackoffPolicy.linearBackoff(TimeValue.timeValueMillis(10), Integer.MAX_VALUE, TimeValue.ONE_MINUTE),
+            repositoriesMetrics
+        ) {
+            @Override
+            protected boolean isExceptionRetryable(Exception e) {
+                return e instanceof IOException;
+            }
+
+            @Override
+            protected String getRepositoryType() {
+                return "test";
+            }
+
+            @Override
+            protected BlobContainer wrapChild(BlobContainer child) {
+                return child;
+            }
+        };
+
+        var nonIndicesPurposes = Arrays.stream(OperationPurpose.values())
+            .filter(operationPurpose -> operationPurpose != OperationPurpose.INDICES)
+            .toList();
+
+        // No retry for non indices purposes
+        for (int i = 0; i < randomInt(nonIndicesPurposes.size()); i++) {
+            expectThrows(IOException.class, () -> tenaciousRetryBlobContainer.listBlobs(randomFrom(nonIndicesPurposes)));
+
+            expectThrows(
+                IOException.class,
+                () -> tenaciousRetryBlobContainer.listBlobsByPrefix(randomFrom(nonIndicesPurposes), randomIndexName())
+            );
+
+            verify(blobContainer, times(1)).listBlobs(any());
+            verify(blobContainer, times(1)).listBlobsByPrefix(any(), any());
             clearInvocations(blobContainer);
         }
     }

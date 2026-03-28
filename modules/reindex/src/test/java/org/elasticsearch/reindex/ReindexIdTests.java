@@ -27,10 +27,12 @@ import org.elasticsearch.index.reindex.AbstractAsyncBulkByScrollActionTestCase;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.PaginatedHitSource;
 import org.elasticsearch.index.reindex.ReindexRequest;
+import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.util.List;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -98,6 +100,30 @@ public class ReindexIdTests extends AbstractAsyncBulkByScrollActionTestCase<Rein
         return Settings.builder()
             .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
             .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "foo");
+    }
+
+    public void testConversionErrorContainsDocId() throws Exception {
+        PaginatedHitSource.BasicHit hit = new PaginatedHitSource.BasicHit("source_index", "doc_123", -1)
+            .setSource(new BytesArray("not valid json"), XContentType.JSON);
+        ReindexRequest req = request();
+        req.getDestination().source(new BytesArray("{}"), XContentType.CBOR);
+        final ProjectState projectState = ClusterState.EMPTY_STATE.projectState(Metadata.DEFAULT_PROJECT_ID);
+        Reindexer.AsyncIndexBySearchAction action = new Reindexer.AsyncIndexBySearchAction(
+            task,
+            logger,
+            null,
+            null,
+            threadPool,
+            null,
+            projectState,
+            null,
+            req,
+            listener(),
+            null
+        );
+        XContentParseException e = expectThrows(XContentParseException.class, () -> action.buildRequest(hit));
+        assertThat(e.getMessage(), containsString("[source_index]"));
+        assertThat(e.getMessage(), containsString("[doc_123]"));
     }
 
     private PaginatedHitSource.BasicHit doc() {

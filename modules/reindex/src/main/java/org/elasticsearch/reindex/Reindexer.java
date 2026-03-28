@@ -79,6 +79,7 @@ import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
@@ -811,7 +812,19 @@ public class Reindexer {
                     index.source(BytesReference.bytes(builder), builder.contentType());
                 } catch (IOException e) {
                     throw new UncheckedIOException(
-                        "failed to convert hit from " + sourceXContentType + " to " + mainRequestXContentType,
+                        "failed to convert hit [" + doc.getIndex() + "][" + doc.getId() + "] from "
+                            + sourceXContentType
+                            + " to "
+                            + mainRequestXContentType,
+                        e
+                    );
+                } catch (XContentParseException e) {
+                    throw new XContentParseException(
+                        e.getLocation(),
+                        "failed to convert hit [" + doc.getIndex() + "][" + doc.getId() + "] from "
+                            + sourceXContentType
+                            + " to "
+                            + mainRequestXContentType,
                         e
                     );
                 }

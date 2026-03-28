@@ -11,12 +11,14 @@ package org.elasticsearch.common.blobstore;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.BackoffPolicy;
+import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.blobstore.support.TenaciousRetryBlobContainer;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.repositories.RepositoriesMetrics;
+import org.elasticsearch.telemetry.InstrumentType;
 import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 
@@ -33,13 +35,18 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.repositories.RepositoriesMetrics.METRIC_ALLOCATION_TRANSIENT_ERROR_RETRY_ATTEMPTS_HISTOGRAM;
+import static org.elasticsearch.repositories.RepositoriesMetrics.METRIC_ALLOCATION_TRANSIENT_ERROR_RETRY_SUCCESS_HISTOGRAM;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockingDetails;
+import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -103,10 +110,9 @@ public class TenaciousRetryBlobContainerTests extends ESTestCase {
         final var recordingMeterRegistry = new RecordingMeterRegistry();
         final var repositoriesMetrics = new RepositoriesMetrics(recordingMeterRegistry);
 
+        final Map<String, BlobMetadata> answer = new HashMap<>();
         BlobContainer blobContainer = mock(BlobContainer.class);
-        when(blobContainer.listBlobs(any())).thenThrow(new IOException("listBlobs"))
-            .thenThrow(new IOException("listBlobs"))
-            .thenReturn(new HashMap<>());
+        when(blobContainer.listBlobs(any())).thenThrow(new IOException("listBlobs"));
         when(blobContainer.listBlobsByPrefix(any(), any())).thenThrow(new IOException());
 
         int maximumRetries = randomIntBetween(3, 5);
@@ -150,6 +156,28 @@ public class TenaciousRetryBlobContainerTests extends ESTestCase {
             verify(blobContainer, times(1)).listBlobsByPrefix(any(), any());
             clearInvocations(blobContainer);
         }
+
+        reset(blobContainer);
+        when(blobContainer.listBlobs(any())).thenThrow(new IOException("listBlobs"))
+            .thenThrow(new IOException("listBlobs"))
+            .thenReturn(answer);
+
+        assertThat(tenaciousRetryBlobContainer.listBlobs(OperationPurpose.INDICES), is(answer));
+        verify(blobContainer, times(3)).listBlobs(any());
+        recordingMeterRegistry.getRecorder().collect();
+
+        assertThat(getMeasurement(recordingMeterRegistry, METRIC_ALLOCATION_TRANSIENT_ERROR_RETRY_ATTEMPTS_HISTOGRAM), equalTo(1L));
+
+        assertThat(getMeasurement(recordingMeterRegistry, METRIC_ALLOCATION_TRANSIENT_ERROR_RETRY_SUCCESS_HISTOGRAM), equalTo(1L));
+    }
+
+    private long getMeasurement(RecordingMeterRegistry meterRegistry, String name) {
+        return meterRegistry.getRecorder()
+            .getMeasurements(InstrumentType.LONG_COUNTER, name)
+            .stream()
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("Unable to find measurement"))
+            .getLong();
     }
 
     private Object[] buildArgs(Method method) {

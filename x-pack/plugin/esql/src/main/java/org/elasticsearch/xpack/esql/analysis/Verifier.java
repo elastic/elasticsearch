@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.capabilities.Unresolvable;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
@@ -515,7 +514,7 @@ public class Verifier {
 
     /**
      * Reject queries that refer to partially unmapped non-keyword fields (PUNKs) when {@code unmapped_fields="load"}. First,
-     * {@link #partiallyUnmappedNonKeywords} collects PUNK attributes from {@link EsRelation} nodes into an {@link AttributeSet}. Then the
+     * {@link #partiallyUnmappedNonKeywords} collects all PUNK field names from {@link EsRelation} nodes in the logical plan. Then the
      * plan is walked, bottom-up, skipping {@link EsRelation} nodes, and any expression referencing a PUNK attribute is flagged as a
      * verification failure.
      * <p>
@@ -528,43 +527,43 @@ public class Verifier {
      * Given the above indices, a query like {@code FROM index1, index2 | KEEP foo} is rejected.
      */
     private static void checkPartiallyUnmappedNonKeywordReferences(LogicalPlan plan, Failures failures, AnalyzerContext context) {
-        final String errorMessage = "unmapped_fields=\"load\" is not supported for partially unmapped field [{}] with non-KEYWORD type";
-        AttributeSet punks = partiallyUnmappedNonKeywords(plan, context.indexResolution());
+        final String errorMessage = "Using partially unmapped non-KEYWORD field [{}] is not supported with unmapped_fields=\"load\"";
+
+        // The set of all partially unmapped non-keyword field names
+        Set<String> punks = partiallyUnmappedNonKeywords(plan, context.indexResolution());
+
         plan.forEachUp(p -> {
             if (p instanceof EsRelation) {
                 return;
             }
             p.forEachExpression(FieldAttribute.class, fa -> {
-                if (punks.contains(fa)) {
-                    failures.add(fail(fa, errorMessage, fa.name()));
+                String name = fa.name();
+                if (punks.contains(name)) {
+                    failures.add(fail(fa, errorMessage, name));
                 }
             });
         });
     }
 
     /**
-     * Walks the plan's {@link EsRelation} nodes and collects partially unmapped non-keyword attributes from their output.
+     * Walks the plan's {@link EsRelation} nodes and collects partially unmapped non-keyword field names from their output.
      */
-    private static AttributeSet partiallyUnmappedNonKeywords(LogicalPlan plan, Map<IndexPattern, IndexResolution> indexResolutions) {
-        AttributeSet.Builder builder = AttributeSet.builder();
+    private static Set<String> partiallyUnmappedNonKeywords(LogicalPlan plan, Map<IndexPattern, IndexResolution> indexResolutions) {
+        Set<String> punks = new HashSet<>();
         plan.forEachUp(EsRelation.class, relation -> {
-            if (relation.indexMode() == IndexMode.LOOKUP) {
-                return;
-            }
             IndexResolution indexResolution = indexResolutions.get(new IndexPattern(relation.source(), relation.indexPattern()));
             if (indexResolution != null && indexResolution.isValid()) {
-                EsIndex esIndex = indexResolution.get();
+                EsIndex index = indexResolution.get();
                 for (Attribute attr : relation.output()) {
                     if (attr instanceof FieldAttribute fa
-                        && esIndex.isPartiallyUnmappedField(fa.name())
+                        && index.isPartiallyUnmappedField(fa.name())
                         && fa.dataType() != DataType.KEYWORD) {
-                        builder.add(fa);
+                        punks.add(fa.name());
                     }
                 }
             }
         });
-
-        return builder.build();
+        return punks;
     }
 
     private void licenseCheck(LogicalPlan plan, Failures failures) {

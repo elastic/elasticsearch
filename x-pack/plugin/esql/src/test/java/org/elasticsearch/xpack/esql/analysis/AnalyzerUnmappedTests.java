@@ -207,8 +207,10 @@ public class AnalyzerUnmappedTests extends ESTestCase {
                     """),
                 allOf(
                     containsString("Found 4 problems"),
-                    containsString("Subqueries and views are not supported with unmapped_fields=\"load\""),
-                    containsString("LOOKUP JOIN is not supported with unmapped_fields=\"load\""),
+                    containsString("line 2:5: Subqueries and views are not supported with unmapped_fields=\"load\""),
+                    containsString("line 5:5: Subqueries and views are not supported with unmapped_fields=\"load\""),
+                    containsString("line 7:5: Subqueries and views are not supported with unmapped_fields=\"load\""),
+                    containsString("line 9:19: LOOKUP JOIN is not supported with unmapped_fields=\"load\""),
                     not(containsString("FORK is not supported"))
                 )
             );
@@ -412,18 +414,28 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         assertUnmappedLoadError(
             test().addLanguagesLookup(),
             "FROM test | EVAL language_code = languages | LOOKUP JOIN languages_lookup ON language_code",
-            containsString("LOOKUP JOIN is not supported with unmapped_fields=\"load\"")
+            allOf(
+                containsString("Found 1 problem"),
+                containsString("line 1:86: LOOKUP JOIN is not supported with unmapped_fields=\"load\"")
+            )
         );
     }
 
     public void testLoadModeDisallowsLookupJoinAfterFilter() {
-        assertUnmappedLoadError(test().addLanguagesLookup(), """
-            FROM test
-            | WHERE emp_no > 1
-            | EVAL language_code = languages
-            | LOOKUP JOIN languages_lookup ON language_code
-            | KEEP emp_no, language_name
-            """, containsString("LOOKUP JOIN is not supported with unmapped_fields=\"load\""));
+        assertUnmappedLoadError(
+            test().addLanguagesLookup(),
+            """
+                FROM test
+                | WHERE emp_no > 1
+                | EVAL language_code = languages
+                | LOOKUP JOIN languages_lookup ON language_code
+                | KEEP emp_no, language_name
+                """,
+            allOf(
+                containsString("Found 1 problem"),
+                containsString("line 4:15: LOOKUP JOIN is not supported with unmapped_fields=\"load\"")
+            )
+        );
     }
 
     public void testLoadModeDisallowsForkAndLookupJoin() {
@@ -519,12 +531,19 @@ public class AnalyzerUnmappedTests extends ESTestCase {
 
     public void testLoadModeDisallowsSubqueryWithLookupJoin() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        assertUnmappedLoadError(test().addLanguagesLookup(), """
-            FROM test,
-                (FROM test
-                | EVAL language_code = languages
-                | LOOKUP JOIN languages_lookup ON language_code)
-            """, containsString("Subqueries and views are not supported with unmapped_fields=\"load\""));
+        assertUnmappedLoadError(
+            test().addLanguagesLookup(),
+            """
+                FROM test,
+                    (FROM test
+                    | EVAL language_code = languages
+                    | LOOKUP JOIN languages_lookup ON language_code)
+                """,
+            allOf(
+                containsString("Found 2 problems"),
+                containsString("line 4:19: LOOKUP JOIN is not supported with unmapped_fields=\"load\"")
+            )
+        );
     }
 
     public void testLoadModeDisallowsSingleSubqueryPlusFork() {
@@ -562,8 +581,12 @@ public class AnalyzerUnmappedTests extends ESTestCase {
             .statementError(
                 query,
                 allOf(
-                    containsString("Subqueries and views are not supported with unmapped_fields=\"load\""),
-                    containsString("FORK is not supported with unmapped_fields=\"load\"")
+                    containsString("Found 5 problems"),
+                    containsString("line 2:3: FORK is not supported with unmapped_fields=\"load\""),
+                    // error below appears twice
+                    containsString("line 1:40: Subqueries and views are not supported with unmapped_fields=\"load\""),
+                    // error below appears twice
+                    containsString("line 1:34: FORK after subquery is not supported")
                 )
             );
     }
@@ -717,7 +740,14 @@ public class AnalyzerUnmappedTests extends ESTestCase {
             ta.addIndex(entry.getKey().indexPattern(), entry.getValue());
         }
         var e = expectThrows(VerificationException.class, () -> ta.statement(setUnmappedLoad("FROM foo, bar, baz | SORT message")));
-        assertThat(e.getMessage(), allOf(containsString("Cannot use field [message]"), containsString("[long] in [bar, foo]")));
+        assertThat(
+            e.getMessage(),
+            allOf(
+                containsString("Found 1 problem"),
+                containsString("line 1:55: Cannot use field [message]"),
+                containsString("[long] in [bar, foo]")
+            )
+        );
     }
 
     private static final String UNMAPPED_TIMESTAMP_SUFFIX = UnresolvedTimestamp.UNRESOLVED_SUFFIX + Verifier.UNMAPPED_TIMESTAMP_SUFFIX;
@@ -809,7 +839,10 @@ public class AnalyzerUnmappedTests extends ESTestCase {
     public void testTbucketWithUnmappedTimestampWithFork() {
         var query = "FROM test | FORK (STATS c = COUNT(*) BY tbucket(1 hour)) (STATS d = COUNT(*) BY emp_no)";
         for (var statement : List.of(setUnmappedNullify(query), setUnmappedLoad(query))) {
-            test().statementError(statement, allOf(containsString("[tbucket(1 hour)] "), not(containsString("FORK is not supported"))));
+            test().statementError(
+                statement,
+                allOf(containsString("Found 1 problem"), containsString("[tbucket(1 hour)]"), not(containsString("FORK is not supported")))
+            );
         }
     }
 
@@ -824,7 +857,16 @@ public class AnalyzerUnmappedTests extends ESTestCase {
             test().addLanguagesLookup()
                 .statementError(
                     statement,
-                    allOf(containsString("[tbucket(1 hour)] "), not(containsString("LOOKUP JOIN is not supported")))
+                    allOf(
+                        containsString("Found 1 problem"),
+                        containsString(
+                            "line 4:25: [tbucket(1 hour)] requires the [@timestamp] "
+                                + "field, which was either not present in the source index, "
+                                + "or has been dropped or renamed; the [unmapped_fields] "
+                                + "setting does not apply to the implicit @timestamp reference"
+                        ),
+                        not(containsString("LOOKUP JOIN is not supported"))
+                    )
                 );
         }
     }
@@ -908,16 +950,20 @@ public class AnalyzerUnmappedTests extends ESTestCase {
             "FROM test | SORT field.x | KEEP field.z",
             unmappedLoadAndFlattenedSubfieldHelper("field.x", "field", "field.z", "field")
         );
-        assertUnmappedLoadError(index1(), "FROM test | KEEP field | KEEP field.a", containsString("Unknown column [field.a]"));
+        assertUnmappedLoadError(
+            index1(),
+            "FROM test | KEEP field | KEEP field.a",
+            allOf(containsString("Found 1 problem"), containsString("line 1:59: Unknown column [field.a], did you mean [field]?"))
+        );
         assertUnmappedLoadError(
             index1(),
             "FROM test | KEEP field | WHERE field.sub.subfield == \"x\"",
-            containsString("Unknown column [field.sub.subfield]")
+            allOf(containsString("Found 1 problem"), containsString("line 1:60: Unknown column [field.sub.subfield]"))
         );
         assertUnmappedLoadError(
             index1(),
             "FROM test | KEEP field | WHERE field.a.b == \"x\" | KEEP field.a",
-            containsString("Unknown column [field.a.b], did you mean [field]?")
+            allOf(containsString("Found 1 problem"), containsString("line 1:60: Unknown column [field.a.b], did you mean [field]?"))
         );
     }
 
@@ -1014,7 +1060,12 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         assertUnmappedLoadError(
             analyzer().addIndex(esIndex),
             "FROM partial_idx | KEEP partial_long",
-            containsString(loadPartialNonKeywordMessage("partial_long"))
+            allOf(
+                containsString("Found 1 problem"),
+                containsString(
+                    "line 1:53: Using partially unmapped non-KEYWORD field [partial_long] is not supported with unmapped_fields=\"load\""
+                )
+            )
         );
     }
 
@@ -1029,7 +1080,15 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         assertUnmappedLoadError(
             analyzer().addIndex(esIndex),
             "FROM partial_idx | KEEP partial_long, partial_double",
-            containsString(loadPartialNonKeywordMessage("partial_double, partial_long"))
+            allOf(
+                containsString("Found 2 problems"),
+                containsString(
+                    "line 1:53: Using partially unmapped non-KEYWORD field [partial_long] is not supported with unmapped_fields=\"load\""
+                ),
+                containsString(
+                    "line 1:67: Using partially unmapped non-KEYWORD field [partial_double] is not supported with unmapped_fields=\"load\""
+                )
+            )
         );
     }
 
@@ -1081,7 +1140,12 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         assertUnmappedLoadError(
             analyzer().addIndex(pattern, IndexResolution.valid(merged)),
             "FROM idx_a, idx_b | KEEP partial_long",
-            containsString(loadPartialNonKeywordMessage("partial_long"))
+            allOf(
+                containsString("Found 1 problem"),
+                containsString(
+                    "line 1:54: Using partially unmapped non-KEYWORD field [partial_long] is not supported with unmapped_fields=\"load\""
+                )
+            )
         );
     }
 
@@ -1100,7 +1164,13 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         assertUnmappedLoadError(
             analyzer().addIndex(esIndex),
             "FROM partial_idx | WHERE partial_long > 0",
-            containsString(loadPartialNonKeywordMessage("partial_long"))
+            allOf(
+                containsString("Found 1 problem"),
+                containsString(
+                    "line 1:54: Cannot use field [partial_long] due to ambiguities being mapped as [2] incompatible types: "
+                        + "[keyword] enforced by INSIST command, [long] in [partial_idx]"
+                )
+            )
         );
     }
 
@@ -1111,7 +1181,13 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         assertUnmappedLoadError(
             analyzer().addIndex(esIndex),
             "FROM partial_idx | SORT partial_long",
-            containsString(loadPartialNonKeywordMessage("partial_long"))
+            allOf(
+                containsString("Found 1 problem"),
+                containsString(
+                    "line 1:53: Cannot use field [partial_long] due to ambiguities being mapped as [2] incompatible types: "
+                        + "[keyword] enforced by INSIST command, [long] in [partial_idx]"
+                )
+            )
         );
     }
 
@@ -1124,7 +1200,12 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         assertUnmappedLoadError(
             analyzer().addIndex(esIndex),
             "FROM partial_idx | KEEP `obj.sub`",
-            containsString(loadPartialNonKeywordMessage("obj.sub"))
+            allOf(
+                containsString("Found 1 problem"),
+                containsString(
+                    "line 1:53: Using partially unmapped non-KEYWORD field [obj.sub] is not supported with unmapped_fields=\"load\""
+                )
+            )
         );
     }
 
@@ -1207,13 +1288,6 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         return new EsField(name, DataType.KEYWORD, emptyMap(), true, EsField.TimeSeriesFieldType.NONE);
     }
 
-    private static String loadPartialNonKeywordMessage(String fields) {
-        return "Loading partially mapped non-KEYWORD fields is not yet supported. "
-            + "unmapped_fields=\"load\" is not supported when the query involves partially mapped fields that are not KEYWORD: "
-            + fields
-            + ". Use unmapped_fields=\"nullify\" or unmapped_fields=\"fail\", or ensure the field is mapped as KEYWORD in all indices.";
-    }
-
     private static String setUnmappedNullify(String query) {
         assumeTrue("Requires OPTIONAL_FIELDS_NULLIFY_TECH_PREVIEW", EsqlCapabilities.Cap.OPTIONAL_FIELDS_NULLIFY_TECH_PREVIEW.isEnabled());
         return "SET unmapped_fields=\"nullify\"; " + query;
@@ -1237,32 +1311,67 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         var analyzer = test();
         analyzer.statementError(
             setUnmappedLoad("FROM test | WHERE first_name:\"foo\" | KEEP first_name"),
-            containsString("does not support full-text search function [:]")
+            allOf(
+                containsString("Found 1 problem"),
+                containsString(
+                    "line 1:47: unmapped_fields=\"load\" does not support full-text search function [:]; use \"default\" or \"nullify\""
+                )
+            )
         );
         analyzer.statementError(
             setUnmappedLoad("FROM test | WHERE match(first_name, \"foo\") | KEEP first_name"),
-            containsString("does not support full-text search function [MATCH]")
+            allOf(
+                containsString("Found 1 problem"),
+                containsString(
+                    "line 1:47: unmapped_fields=\"load\" does not support full-text search function [MATCH]; "
+                        + "use \"default\" or \"nullify\""
+                )
+            )
         );
         analyzer.statementError(
             setUnmappedLoad("FROM test | WHERE match_phrase(first_name, \"foo bar\") | KEEP first_name"),
-            containsString("does not support full-text search function [MatchPhrase]")
+            allOf(
+                containsString("Found 1 problem"),
+                containsString(
+                    "line 1:47: unmapped_fields=\"load\" does not support full-text search function [MatchPhrase]; "
+                        + "use \"default\" or \"nullify\""
+                )
+            )
         );
         if (EsqlCapabilities.Cap.QSTR_FUNCTION.isEnabled()) {
             analyzer.statementError(
                 setUnmappedLoad("FROM test | WHERE qstr(\"first_name: foo\") | KEEP first_name"),
-                containsString("does not support full-text search function [QSTR]")
+                allOf(
+                    containsString("Found 1 problem"),
+                    containsString(
+                        "line 1:47: unmapped_fields=\"load\" does not support full-text search function [QSTR]; "
+                            + "use \"default\" or \"nullify\""
+                    )
+                )
             );
         }
         if (EsqlCapabilities.Cap.KQL_FUNCTION.isEnabled()) {
             analyzer.statementError(
                 setUnmappedLoad("FROM test | WHERE kql(\"first_name: foo\") | KEEP first_name"),
-                containsString("does not support full-text search function [KQL]")
+                allOf(
+                    containsString("Found 1 problem"),
+                    containsString(
+                        "line 1:47: unmapped_fields=\"load\" does not support full-text search function [KQL]; "
+                            + "use \"default\" or \"nullify\""
+                    )
+                )
             );
         }
         analyzer().addIndex("test", "mapping-full_text_search.json")
             .statementError(
                 setUnmappedLoad("FROM test | WHERE knn(vector, [1, 2, 3]) | KEEP vector"),
-                containsString("does not support full-text search function [KNN]")
+                allOf(
+                    containsString("Found 1 problem"),
+                    containsString(
+                        "line 1:47: unmapped_fields=\"load\" does not support full-text search function [KNN]; "
+                            + "use \"default\" or \"nullify\""
+                    )
+                )
             );
     }
 

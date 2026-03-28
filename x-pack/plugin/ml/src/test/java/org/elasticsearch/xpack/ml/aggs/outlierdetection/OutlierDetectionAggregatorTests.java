@@ -8,9 +8,9 @@
 package org.elasticsearch.xpack.ml.aggs.outlierdetection;
 
 import org.apache.lucene.document.Document;
+import org.apache.lucene.document.Field;
 import org.apache.lucene.document.KnnFloatVectorField;
 import org.apache.lucene.document.StringField;
-import org.apache.lucene.document.Field;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
@@ -67,8 +67,7 @@ public class OutlierDetectionAggregatorTests extends AggregatorTestCase {
                     false
                 );
 
-                OutlierDetectionAggregationBuilder builder = new OutlierDetectionAggregationBuilder("test_outliers")
-                    .setField(FIELD_NAME)
+                OutlierDetectionAggregationBuilder builder = new OutlierDetectionAggregationBuilder("test_outliers").setField(FIELD_NAME)
                     .setTopN(1)
                     .setNNeighbors(3)
                     .setSeed(42)
@@ -89,11 +88,7 @@ public class OutlierDetectionAggregatorTests extends AggregatorTestCase {
         try (var directory = new ByteBuffersDirectory()) {
             try (var writer = new IndexWriter(directory, new IndexWriterConfig())) {
                 for (int i = 0; i < 20; i++) {
-                    addVector(writer, "doc" + i, new float[] {
-                        (float) (Math.sin(i) * 0.5),
-                        (float) (Math.cos(i) * 0.5),
-                        0.1f * i
-                    });
+                    addVector(writer, "doc" + i, new float[] { (float) (Math.sin(i) * 0.5), (float) (Math.cos(i) * 0.5), 0.1f * i });
                 }
                 addVector(writer, "outlier", new float[] { 50.0f, 50.0f, 50.0f });
                 writer.commit();
@@ -112,14 +107,12 @@ public class OutlierDetectionAggregatorTests extends AggregatorTestCase {
                     false
                 );
 
-                OutlierDetectionAggregationBuilder builder1 = new OutlierDetectionAggregationBuilder("test1")
-                    .setField(FIELD_NAME)
+                OutlierDetectionAggregationBuilder builder1 = new OutlierDetectionAggregationBuilder("test1").setField(FIELD_NAME)
                     .setTopN(3)
                     .setNNeighbors(3)
                     .setSeed(12345);
 
-                OutlierDetectionAggregationBuilder builder2 = new OutlierDetectionAggregationBuilder("test2")
-                    .setField(FIELD_NAME)
+                OutlierDetectionAggregationBuilder builder2 = new OutlierDetectionAggregationBuilder("test2").setField(FIELD_NAME)
                     .setTopN(3)
                     .setNNeighbors(3)
                     .setSeed(12345);
@@ -155,8 +148,7 @@ public class OutlierDetectionAggregatorTests extends AggregatorTestCase {
                     false
                 );
 
-                OutlierDetectionAggregationBuilder builder = new OutlierDetectionAggregationBuilder("test_empty")
-                    .setField(FIELD_NAME)
+                OutlierDetectionAggregationBuilder builder = new OutlierDetectionAggregationBuilder("test_empty").setField(FIELD_NAME)
                     .setTopN(5)
                     .setNNeighbors(3)
                     .setSeed(42);

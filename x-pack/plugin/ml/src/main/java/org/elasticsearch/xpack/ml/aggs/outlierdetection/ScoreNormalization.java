@@ -42,7 +42,8 @@ public enum ScoreNormalization {
             return;
         }
         switch (this) {
-            case NONE -> {}
+            case NONE -> {
+            }
             case MIN_MAX -> applyMinMax(scores);
             case Z_SCORE -> applyZScore(scores);
         }

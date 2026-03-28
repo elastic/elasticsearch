@@ -39,7 +39,7 @@ public class ProjectionComparisonBenchmarkTests extends ESTestCase {
     }
 
     // ────────────────────────────────────────────────────────
-    //  Old Gaussian projection (inlined from commit 037119c)
+    // Old Gaussian projection (inlined from commit 037119c)
     // ────────────────────────────────────────────────────────
     private static float[][] buildGaussianMatrix(int originalDim, int projectedDim, long seed) {
         Random rng = new Random(seed);
@@ -74,7 +74,7 @@ public class ProjectionComparisonBenchmarkTests extends ESTestCase {
     }
 
     // ════════════════════════════════════════════════════════
-    //  Scenario 1: Gaussian cluster + isolated outliers
+    // Scenario 1: Gaussian cluster + isolated outliers
     // ════════════════════════════════════════════════════════
     public void testGaussianClusterComparison() {
         int[] sizes = { 500, 1000, 2000, 5000 };
@@ -97,7 +97,7 @@ public class ProjectionComparisonBenchmarkTests extends ESTestCase {
     }
 
     // ════════════════════════════════════════════════════════
-    //  Scenario 2: Multi-cluster + inter-cluster outliers
+    // Scenario 2: Multi-cluster + inter-cluster outliers
     // ════════════════════════════════════════════════════════
     public void testMultiClusterComparison() {
         int[] sizes = { 500, 1000, 2000, 5000 };
@@ -121,7 +121,7 @@ public class ProjectionComparisonBenchmarkTests extends ESTestCase {
     }
 
     // ════════════════════════════════════════════════════════
-    //  Scenario 3: High-dimensional (D=200 -> D'=30)
+    // Scenario 3: High-dimensional (D=200 -> D'=30)
     // ════════════════════════════════════════════════════════
     public void testHighDimensionalComparison() {
         int[] sizes = { 500, 1000, 2000 };
@@ -144,7 +144,7 @@ public class ProjectionComparisonBenchmarkTests extends ESTestCase {
     }
 
     // ════════════════════════════════════════════════════════
-    //  Scenario 4: Projection dimension sweep
+    // Scenario 4: Projection dimension sweep
     // ════════════════════════════════════════════════════════
     public void testProjectionDimensionSweep() {
         int n = 2000;
@@ -171,17 +171,26 @@ public class ProjectionComparisonBenchmarkTests extends ESTestCase {
         report.append("PROJECTION DIM SWEEP: Gaussian vs Orthogonal (N=").append(n);
         report.append(", D=").append(dims).append(", k=").append(k);
         report.append(", outliers=").append(numOutliers).append(", sample=").append(sampleSize).append(")\n");
-        report.append(String.format(
-            "%-4s | %-22s | %-30s | %-30s | %s%n",
-            "D'", "Brute-Force", "Gaussian (old)", "Orthogonal (new)", "Improvement"
-        ));
+        report.append(
+            String.format("%-4s | %-22s | %-30s | %-30s | %s%n", "D'", "Brute-Force", "Gaussian (old)", "Orthogonal (new)", "Improvement")
+        );
         report.append("-".repeat(130)).append("\n");
 
         // Brute-force row
-        report.append(String.format(
-            "%-4s | %8s  P=%.2f R=%.2f | %8s  %18s | %8s  %18s | %s%n",
-            "—", "exact", bfPrec, bfRec, "—", "—", "—", "—", "baseline"
-        ));
+        report.append(
+            String.format(
+                "%-4s | %8s  P=%.2f R=%.2f | %8s  %18s | %8s  %18s | %s%n",
+                "—",
+                "exact",
+                bfPrec,
+                bfRec,
+                "—",
+                "—",
+                "—",
+                "—",
+                "baseline"
+            )
+        );
 
         for (int projDims : projDimsArray) {
             // Old Gaussian projection
@@ -231,13 +240,24 @@ public class ProjectionComparisonBenchmarkTests extends ESTestCase {
                 improvement = String.format("-%.0f%% recall", (gaussRec - orthoRec) * 100);
             }
 
-            report.append(String.format(
-                "%-4d | %8.2f  P=%.2f R=%.2f | %8.2f  P=%.2f R=%.2f v=%.4f | %8.2f  P=%.2f R=%.2f v=%.4f | %s%n",
-                projDims, bfScores.length > 0 ? 0.0 : 0.0, bfPrec, bfRec,
-                gaussNs / 1e6, gaussPrec, gaussRec, gaussDistVar,
-                orthoNs / 1e6, orthoPrec, orthoRec, orthoDistVar,
-                improvement
-            ));
+            report.append(
+                String.format(
+                    "%-4d | %8.2f  P=%.2f R=%.2f | %8.2f  P=%.2f R=%.2f v=%.4f | %8.2f  P=%.2f R=%.2f v=%.4f | %s%n",
+                    projDims,
+                    bfScores.length > 0 ? 0.0 : 0.0,
+                    bfPrec,
+                    bfRec,
+                    gaussNs / 1e6,
+                    gaussPrec,
+                    gaussRec,
+                    gaussDistVar,
+                    orthoNs / 1e6,
+                    orthoPrec,
+                    orthoRec,
+                    orthoDistVar,
+                    improvement
+                )
+            );
         }
 
         report.append("-".repeat(130)).append("\n");
@@ -246,9 +266,9 @@ public class ProjectionComparisonBenchmarkTests extends ESTestCase {
     }
 
     // ════════════════════════════════════════════════════════
-    //  Scenario 5: Distance ratio variance comparison
-    //    Measures how faithfully each projection preserves
-    //    pairwise distances (lower variance = better)
+    // Scenario 5: Distance ratio variance comparison
+    // Measures how faithfully each projection preserves
+    // pairwise distances (lower variance = better)
     // ════════════════════════════════════════════════════════
     public void testDistanceRatioVariance() {
         int n = 1000;
@@ -277,10 +297,7 @@ public class ProjectionComparisonBenchmarkTests extends ESTestCase {
             double orthoVar = computeDistanceRatioVariance(vectors, orthoAll, seed, numPairs);
 
             double improvement = gaussVar > 0 ? (1 - orthoVar / gaussVar) * 100 : 0;
-            report.append(String.format(
-                "%-6d | %12.6f | %12.6f | %+10.1f%%%n",
-                projDims, gaussVar, orthoVar, improvement
-            ));
+            report.append(String.format("%-6d | %12.6f | %12.6f | %+10.1f%%%n", projDims, gaussVar, orthoVar, improvement));
         }
 
         report.append("-".repeat(80)).append("\n");
@@ -289,7 +306,7 @@ public class ProjectionComparisonBenchmarkTests extends ESTestCase {
     }
 
     // ════════════════════════════════════════════════════════
-    //  Core comparison runner
+    // Core comparison runner
     // ════════════════════════════════════════════════════════
 
     private void appendComparison(
@@ -351,17 +368,27 @@ public class ProjectionComparisonBenchmarkTests extends ESTestCase {
         double speedupGauss = (double) bfNs / Math.max(gaussNs, 1);
         double speedupOrtho = (double) bfNs / Math.max(orthoNs, 1);
 
-        report.append(String.format(
-            "%-6d | %8.2f  P=%.2f R=%.2f | %8.2f  P=%.2f R=%.2f %5.1fx | %8.2f  P=%.2f R=%.2f %5.1fx%n",
-            n,
-            bfNs / 1e6, bfPrec, bfRec,
-            gaussNs / 1e6, gaussPrec, gaussRec, speedupGauss,
-            orthoNs / 1e6, orthoPrec, orthoRec, speedupOrtho
-        ));
+        report.append(
+            String.format(
+                "%-6d | %8.2f  P=%.2f R=%.2f | %8.2f  P=%.2f R=%.2f %5.1fx | %8.2f  P=%.2f R=%.2f %5.1fx%n",
+                n,
+                bfNs / 1e6,
+                bfPrec,
+                bfRec,
+                gaussNs / 1e6,
+                gaussPrec,
+                gaussRec,
+                speedupGauss,
+                orthoNs / 1e6,
+                orthoPrec,
+                orthoRec,
+                speedupOrtho
+            )
+        );
     }
 
     // ════════════════════════════════════════════════════════
-    //  Data generation
+    // Data generation
     // ════════════════════════════════════════════════════════
 
     private static float[][] generateGaussianWithOutliers(int n, int dims, int numOutliers, long seed) {
@@ -405,8 +432,7 @@ public class ProjectionComparisonBenchmarkTests extends ESTestCase {
         for (int i = normalCount; i < n; i++) {
             int oi = i - normalCount;
             for (int d = 0; d < dims; d++) {
-                vectors[i][d] = 80.0f + ((d % numOutliers == oi) ? 40.0f : 0.0f)
-                    + (float) (rng.nextGaussian() * 0.05);
+                vectors[i][d] = 80.0f + ((d % numOutliers == oi) ? 40.0f : 0.0f) + (float) (rng.nextGaussian() * 0.05);
             }
         }
         return vectors;
@@ -421,7 +447,7 @@ public class ProjectionComparisonBenchmarkTests extends ESTestCase {
     }
 
     // ════════════════════════════════════════════════════════
-    //  Distance ratio variance
+    // Distance ratio variance
     // ════════════════════════════════════════════════════════
 
     private static double computeDistanceRatioVariance(float[][] original, float[][] projected, long seed) {
@@ -464,17 +490,14 @@ public class ProjectionComparisonBenchmarkTests extends ESTestCase {
     }
 
     // ════════════════════════════════════════════════════════
-    //  Helpers
+    // Helpers
     // ════════════════════════════════════════════════════════
 
     private static StringBuilder header(String title) {
         StringBuilder sb = new StringBuilder();
         sb.append("\n").append("=".repeat(120)).append("\n");
         sb.append(title).append("\n");
-        sb.append(String.format(
-            "%-6s | %-22s | %-30s | %-30s%n",
-            "N", "Brute-Force", "Gaussian (old)", "Orthogonal (new)"
-        ));
+        sb.append(String.format("%-6s | %-22s | %-30s | %-30s%n", "N", "Brute-Force", "Gaussian (old)", "Orthogonal (new)"));
         sb.append("-".repeat(120)).append("\n");
         return sb;
     }

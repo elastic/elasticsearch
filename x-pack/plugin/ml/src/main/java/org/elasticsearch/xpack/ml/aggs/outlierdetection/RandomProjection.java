@@ -35,9 +35,7 @@ public class RandomProjection {
      */
     public RandomProjection(int originalDim, int projectedDim, long seed) {
         if (projectedDim > originalDim) {
-            throw new IllegalArgumentException(
-                "projectedDim [" + projectedDim + "] must be <= originalDim [" + originalDim + "]"
-            );
+            throw new IllegalArgumentException("projectedDim [" + projectedDim + "] must be <= originalDim [" + originalDim + "]");
         }
         this.originalDim = originalDim;
         this.projectedDim = projectedDim;

@@ -165,9 +165,7 @@ public class OutlierDetectionAggregator extends MetricsAggregator {
         int n = collectedVectors.size();
 
         // Apply random projection
-        RandomProjection projection = (projectionDim < dims)
-            ? new RandomProjection(dims, projectionDim, seed)
-            : null;
+        RandomProjection projection = (projectionDim < dims) ? new RandomProjection(dims, projectionDim, seed) : null;
 
         float[][] projectedVectors = new float[n][];
         for (int i = 0; i < n; i++) {
@@ -198,34 +196,12 @@ public class OutlierDetectionAggregator extends MetricsAggregator {
             sampleSummary = projectedVectors;
         }
 
-        return new InternalOutlierDetection(
-            name,
-            metadata(),
-            candidates,
-            sampleSummary,
-            n,
-            topN,
-            nNeighbors,
-            seed,
-            method,
-            normalize
-        );
+        return new InternalOutlierDetection(name, metadata(), candidates, sampleSummary, n, topN, nNeighbors, seed, method, normalize);
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalOutlierDetection(
-            name,
-            metadata(),
-            List.of(),
-            new float[0][],
-            0,
-            topN,
-            nNeighbors,
-            seed,
-            method,
-            normalize
-        );
+        return new InternalOutlierDetection(name, metadata(), List.of(), new float[0][], 0, topN, nNeighbors, seed, method, normalize);
     }
 
     /**

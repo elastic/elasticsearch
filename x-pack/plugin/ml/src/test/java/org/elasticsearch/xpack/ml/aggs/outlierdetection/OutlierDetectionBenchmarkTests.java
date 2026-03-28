@@ -76,10 +76,7 @@ public class OutlierDetectionBenchmarkTests extends ESTestCase {
         }
 
         for (int outlierIdx : outlierIndices) {
-            assertTrue(
-                "Sampling-based approach should find outlier at index " + outlierIdx,
-                sampledTopSet.contains(outlierIdx)
-            );
+            assertTrue("Sampling-based approach should find outlier at index " + outlierIdx, sampledTopSet.contains(outlierIdx));
         }
     }
 
@@ -121,10 +118,7 @@ public class OutlierDetectionBenchmarkTests extends ESTestCase {
         }
 
         for (int outlierIdx : outlierIndices) {
-            assertTrue(
-                "Projected kNN should find outlier at index " + outlierIdx,
-                topSet.contains(outlierIdx)
-            );
+            assertTrue("Projected kNN should find outlier at index " + outlierIdx, topSet.contains(outlierIdx));
         }
     }
 

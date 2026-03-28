@@ -15,13 +15,7 @@ import java.util.List;
 public class InternalOutlierDetectionTests extends ESTestCase {
 
     public void testComputeKthNnDistance() {
-        float[][] sample = {
-            { 0, 0 },
-            { 1, 0 },
-            { 0, 1 },
-            { 1, 1 },
-            { 10, 10 }
-        };
+        float[][] sample = { { 0, 0 }, { 1, 0 }, { 0, 1 }, { 1, 1 }, { 10, 10 } };
 
         double outlierDist = InternalOutlierDetection.computeKthNnDistance(sample[4], sample, 1);
         assertEquals(162.0, outlierDist, 0.01);
@@ -33,23 +27,14 @@ public class InternalOutlierDetectionTests extends ESTestCase {
     }
 
     public void testComputeKthNnDistanceWithLargerK() {
-        float[][] sample = {
-            { 0, 0 },
-            { 1, 0 },
-            { 0, 1 },
-            { 1, 1 },
-            { 100, 100 }
-        };
+        float[][] sample = { { 0, 0 }, { 1, 0 }, { 0, 1 }, { 1, 1 }, { 100, 100 } };
 
         double dist = InternalOutlierDetection.computeKthNnDistance(sample[4], sample, 3);
         assertEquals(19801.0, dist, 0.01);
     }
 
     public void testComputeKthNnDistanceSkipsSelf() {
-        float[][] sample = {
-            { 0, 0 },
-            { 5, 5 },
-        };
+        float[][] sample = { { 0, 0 }, { 5, 5 }, };
 
         double dist = InternalOutlierDetection.computeKthNnDistance(sample[0], sample, 1);
         assertEquals(50.0, dist, 0.01);
@@ -63,13 +48,7 @@ public class InternalOutlierDetectionTests extends ESTestCase {
     }
 
     public void testKnnDistancesInAggregator() {
-        float[][] vectors = {
-            { 0, 0 },
-            { 1, 0 },
-            { 0, 1 },
-            { 1, 1 },
-            { 50, 50 }
-        };
+        float[][] vectors = { { 0, 0 }, { 1, 0 }, { 0, 1 }, { 1, 1 }, { 50, 50 } };
 
         double[] scores = OutlierDetectionAggregator.computeKnnDistances(vectors, 2);
 
@@ -94,32 +73,41 @@ public class InternalOutlierDetectionTests extends ESTestCase {
     }
 
     public void testReduceMergesAndRescores() {
-        float[][] shard1Samples = {
-            { 0, 0 },
-            { 1, 0 },
-            { 0, 1 }
-        };
+        float[][] shard1Samples = { { 0, 0 }, { 1, 0 }, { 0, 1 } };
 
-        float[][] shard2Samples = {
-            { 1, 1 },
-            { 50, 50 }
-        };
+        float[][] shard2Samples = { { 1, 1 }, { 50, 50 } };
 
         OutlierCandidate c1 = new OutlierCandidate("doc1", new float[] { 0, 0 }, 1.0, 0);
         OutlierCandidate c2 = new OutlierCandidate("doc_outlier", new float[] { 50, 50 }, 100.0, 1);
 
         InternalOutlierDetection shard1Result = new InternalOutlierDetection(
-            "test", null, List.of(c1), shard1Samples, 3, 1, 1, 42L, OutlierDetectionMethod.KTH_NN, ScoreNormalization.NONE
+            "test",
+            null,
+            List.of(c1),
+            shard1Samples,
+            3,
+            1,
+            1,
+            42L,
+            OutlierDetectionMethod.KTH_NN,
+            ScoreNormalization.NONE
         );
 
         InternalOutlierDetection shard2Result = new InternalOutlierDetection(
-            "test", null, List.of(c2), shard2Samples, 2, 1, 1, 42L, OutlierDetectionMethod.KTH_NN, ScoreNormalization.NONE
+            "test",
+            null,
+            List.of(c2),
+            shard2Samples,
+            2,
+            1,
+            1,
+            42L,
+            OutlierDetectionMethod.KTH_NN,
+            ScoreNormalization.NONE
         );
 
         var reducer = shard1Result.getReducer(
-            new org.elasticsearch.search.aggregations.AggregationReduceContext.ForFinal(
-                null, null, () -> false, null, b -> {}
-            ),
+            new org.elasticsearch.search.aggregations.AggregationReduceContext.ForFinal(null, null, () -> false, null, b -> {}),
             2
         );
         reducer.accept(shard1Result);

@@ -1058,8 +1058,7 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
                 .add(runApplesToApplesDfaVsAggregation("kthnn", OutlierDetection.Method.DISTANCE_KTH_NN, "kth_nn", 2L, runId));
             latenciesByMethod.get("tnn")
                 .add(runApplesToApplesDfaVsAggregation("tnn", OutlierDetection.Method.DISTANCE_KNN, "tnn", 2L, runId));
-            latenciesByMethod.get("lof")
-                .add(runApplesToApplesDfaVsAggregation("lof", OutlierDetection.Method.LOF, "lof", 1L, runId));
+            latenciesByMethod.get("lof").add(runApplesToApplesDfaVsAggregation("lof", OutlierDetection.Method.LOF, "lof", 1L, runId));
         }
 
         logApplesToApplesLatencyPercentiles(latenciesByMethod, iterations);
@@ -1112,7 +1111,16 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
             indexRequest.id("normal-" + i);
             double value1 = 1.0 + (i % 3) * 0.05;
             double value2 = 1.0 + (i % 5) * 0.04;
-            indexRequest.source("numeric_1", value1, "numeric_2", value2, "categorical_1", "normal", "vec", new double[] { value1, value2 });
+            indexRequest.source(
+                "numeric_1",
+                value1,
+                "numeric_2",
+                value2,
+                "categorical_1",
+                "normal",
+                "vec",
+                new double[] { value1, value2 }
+            );
             bulkRequestBuilder.add(indexRequest);
         }
 
@@ -1158,8 +1166,7 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
             dfaTop3.addAll(dfaScores.stream().limit(3).map(Map.Entry::getKey).toList());
         });
 
-        OutlierDetectionAggregationBuilder aggBuilder = new OutlierDetectionAggregationBuilder("agg_outliers")
-            .setField("vec")
+        OutlierDetectionAggregationBuilder aggBuilder = new OutlierDetectionAggregationBuilder("agg_outliers").setField("vec")
             .setTopN(3)
             .setNNeighbors(3)
             .setMethod(aggMethod)
@@ -1195,7 +1202,12 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
             aggTop3
         );
 
-        ApplesToApplesLatency latency = new ApplesToApplesLatency(dfaElapsedMillis, aggElapsedMillis[0], List.copyOf(dfaTop3), List.copyOf(aggTop3));
+        ApplesToApplesLatency latency = new ApplesToApplesLatency(
+            dfaElapsedMillis,
+            aggElapsedMillis[0],
+            List.copyOf(dfaTop3),
+            List.copyOf(aggTop3)
+        );
         logApplesToApplesLatencySummary(suffix, latency);
         return latency;
     }
@@ -1210,7 +1222,9 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
 
             StringBuilder summary = new StringBuilder();
             summary.append("apples-to-apples latency summary\n");
-            summary.append(String.format(Locale.ROOT, "%-6s | %8s | %8s | %8s | %s%n", "method", "dfa_ms", "agg_ms", "dfa/agg", "top1(dfa=agg)"));
+            summary.append(
+                String.format(Locale.ROOT, "%-6s | %8s | %8s | %8s | %s%n", "method", "dfa_ms", "agg_ms", "dfa/agg", "top1(dfa=agg)")
+            );
             summary.append("----------------------------------------------------------------\n");
 
             for (String orderedMethod : APPLES_TO_APPLES_METHOD_ORDER) {

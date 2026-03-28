@@ -88,9 +88,7 @@ public class OutlierCandidate implements Writeable, ToXContentObject, Comparable
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         OutlierCandidate that = (OutlierCandidate) o;
-        return Double.compare(that.score, score) == 0
-            && shardIndex == that.shardIndex
-            && docId.equals(that.docId);
+        return Double.compare(that.score, score) == 0 && shardIndex == that.shardIndex && docId.equals(that.docId);
     }
 
     @Override

@@ -317,7 +317,19 @@ public class OutlierDetectionAggregationBuilder extends AbstractAggregationBuild
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), field, topN, nNeighbors, sampleSize, projectionDim, seed, overfetchFactor, method, maxCoordSample, normalize);
+        return Objects.hash(
+            super.hashCode(),
+            field,
+            topN,
+            nNeighbors,
+            sampleSize,
+            projectionDim,
+            seed,
+            overfetchFactor,
+            method,
+            maxCoordSample,
+            normalize
+        );
     }
 
     @Override

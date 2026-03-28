@@ -139,7 +139,16 @@ public class InternalOutlierDetection extends InternalAggregation {
 
                 if (allCandidates.isEmpty()) {
                     return new InternalOutlierDetection(
-                        getName(), getMetadata(), List.of(), new float[0][], 0, topN, nNeighbors, seed, method, normalize
+                        getName(),
+                        getMetadata(),
+                        List.of(),
+                        new float[0][],
+                        0,
+                        topN,
+                        nNeighbors,
+                        seed,
+                        method,
+                        normalize
                     );
                 }
 
@@ -160,7 +169,13 @@ public class InternalOutlierDetection extends InternalAggregation {
                 List<OutlierCandidate> rescoredCandidates = new ArrayList<>(allCandidates.size());
                 for (OutlierCandidate candidate : allCandidates) {
                     double newScore = reScoreCandidate(
-                        candidate.getProjectedVector(), mergedSampleArray, nNeighbors, method, sampleTnn, sampleKDist, sampleLrd
+                        candidate.getProjectedVector(),
+                        mergedSampleArray,
+                        nNeighbors,
+                        method,
+                        sampleTnn,
+                        sampleKDist,
+                        sampleLrd
                     );
                     rescoredCandidates.add(
                         new OutlierCandidate(candidate.getDocId(), candidate.getProjectedVector(), newScore, candidate.getShardIndex())
@@ -175,11 +190,29 @@ public class InternalOutlierDetection extends InternalAggregation {
                     List<OutlierCandidate> finalCandidates = new ArrayList<>(rescoredCandidates.subList(0, limit));
                     finalCandidates = applyNormalization(finalCandidates);
                     return new InternalOutlierDetection(
-                        getName(), getMetadata(), finalCandidates, mergedSampleArray, totalSampleCount, topN, nNeighbors, seed, method, normalize
+                        getName(),
+                        getMetadata(),
+                        finalCandidates,
+                        mergedSampleArray,
+                        totalSampleCount,
+                        topN,
+                        nNeighbors,
+                        seed,
+                        method,
+                        normalize
                     );
                 } else {
                     return new InternalOutlierDetection(
-                        getName(), getMetadata(), rescoredCandidates, mergedSampleArray, totalSampleCount, topN, nNeighbors, seed, method, normalize
+                        getName(),
+                        getMetadata(),
+                        rescoredCandidates,
+                        mergedSampleArray,
+                        totalSampleCount,
+                        topN,
+                        nNeighbors,
+                        seed,
+                        method,
+                        normalize
                     );
                 }
             }
@@ -194,7 +227,16 @@ public class InternalOutlierDetection extends InternalAggregation {
         sorted.sort(null);
         List<OutlierCandidate> trimmed = new ArrayList<>(sorted.subList(0, topN));
         return new InternalOutlierDetection(
-            getName(), getMetadata(), trimmed, result.sampleVectors, result.sampleCount, topN, nNeighbors, seed, method, normalize
+            getName(),
+            getMetadata(),
+            trimmed,
+            result.sampleVectors,
+            result.sampleCount,
+            topN,
+            nNeighbors,
+            seed,
+            method,
+            normalize
         );
     }
 

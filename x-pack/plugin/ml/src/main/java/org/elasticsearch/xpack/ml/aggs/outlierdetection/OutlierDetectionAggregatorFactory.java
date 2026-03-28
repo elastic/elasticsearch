@@ -76,7 +76,9 @@ public class OutlierDetectionAggregatorFactory extends AggregatorFactory {
             throw new AggregationExecutionException(
                 "field ["
                     + field
-                    + "] is not a dense_vector field; [" + OutlierDetectionAggregationBuilder.NAME + "] requires a dense_vector field"
+                    + "] is not a dense_vector field; ["
+                    + OutlierDetectionAggregationBuilder.NAME
+                    + "] requires a dense_vector field"
             );
         }
 

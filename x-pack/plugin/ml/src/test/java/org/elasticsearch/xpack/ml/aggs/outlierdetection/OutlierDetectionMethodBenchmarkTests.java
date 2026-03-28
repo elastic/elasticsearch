@@ -264,7 +264,7 @@ public class OutlierDetectionMethodBenchmarkTests extends ESTestCase {
 
     // ────────────────────────────────────────────────────────
     // Scenario F: Summary table across all distributions
-    //   For a single size, compare all methods side-by-side.
+    // For a single size, compare all methods side-by-side.
     // ────────────────────────────────────────────────────────
     public void testSummaryComparison() {
         long seed = 42L;
@@ -302,10 +302,16 @@ public class OutlierDetectionMethodBenchmarkTests extends ESTestCase {
         report.append("SUMMARY: All methods comparison (N=").append(n).append(", D=").append(dims);
         report.append("→").append(projDims).append(", k=").append(k).append(", outliers=").append(numOutliers);
         report.append(", sample=").append(sampleSize).append(")\n");
-        report.append(String.format(
-            "%-8s | %26s | %26s | %8s | %s%n",
-            "Method", "Brute-Force (ms P R)", "Sample+Project (ms P R)", "Speedup", "Fidelity"
-        ));
+        report.append(
+            String.format(
+                "%-8s | %26s | %26s | %8s | %s%n",
+                "Method",
+                "Brute-Force (ms P R)",
+                "Sample+Project (ms P R)",
+                "Speedup",
+                "Fidelity"
+            )
+        );
         report.append("-".repeat(120)).append("\n");
 
         for (OutlierDetectionMethod method : ALL_METHODS) {
@@ -334,13 +340,20 @@ public class OutlierDetectionMethodBenchmarkTests extends ESTestCase {
 
             double speedup = (double) bfNs / Math.max(projNs, 1);
 
-            report.append(String.format(
-                "%-8s | %8.2f  P=%.2f R=%.2f   | %8.2f  P=%.2f R=%.2f   | %6.1fx | F=%.2f%n",
-                method.name(),
-                bfNs / 1e6, bfPrec, bfRec,
-                projNs / 1e6, projPrec, projRec,
-                speedup, fidelity(projTop, bfTop)
-            ));
+            report.append(
+                String.format(
+                    "%-8s | %8.2f  P=%.2f R=%.2f   | %8.2f  P=%.2f R=%.2f   | %6.1fx | F=%.2f%n",
+                    method.name(),
+                    bfNs / 1e6,
+                    bfPrec,
+                    bfRec,
+                    projNs / 1e6,
+                    projPrec,
+                    projRec,
+                    speedup,
+                    fidelity(projTop, bfTop)
+                )
+            );
 
             // KthNN and TNN should always detect well-separated outliers
             if (method == OutlierDetectionMethod.KTH_NN || method == OutlierDetectionMethod.TNN) {
@@ -357,7 +370,7 @@ public class OutlierDetectionMethodBenchmarkTests extends ESTestCase {
     }
 
     // ════════════════════════════════════════════════════════
-    //  Core runner: for each method, compare brute-force vs sampling+projection
+    // Core runner: for each method, compare brute-force vs sampling+projection
     // ════════════════════════════════════════════════════════
 
     private void runAllMethods(
@@ -402,13 +415,20 @@ public class OutlierDetectionMethodBenchmarkTests extends ESTestCase {
 
             double speedup = (double) bfNs / Math.max(projNs, 1);
 
-            report.append(String.format(
-                "  %-8s | %8.2f  P=%.2f R=%.2f | %8.2f  P=%.2f R=%.2f | %6.1fx | F=%.2f%n",
-                method.name(),
-                bfNs / 1e6, bfPrec, bfRec,
-                projNs / 1e6, projPrec, projRec,
-                speedup, fidelity
-            ));
+            report.append(
+                String.format(
+                    "  %-8s | %8.2f  P=%.2f R=%.2f | %8.2f  P=%.2f R=%.2f | %6.1fx | F=%.2f%n",
+                    method.name(),
+                    bfNs / 1e6,
+                    bfPrec,
+                    bfRec,
+                    projNs / 1e6,
+                    projPrec,
+                    projRec,
+                    speedup,
+                    fidelity
+                )
+            );
 
             // KthNN and TNN should always detect well-separated outliers
             if (method == OutlierDetectionMethod.KTH_NN || method == OutlierDetectionMethod.TNN) {
@@ -440,25 +460,20 @@ public class OutlierDetectionMethodBenchmarkTests extends ESTestCase {
         }
 
         for (int i = 0; i < n; i++) {
-            scores[i] = InternalOutlierDetection.reScoreCandidate(
-                allVectors[i], sample, k, method, sampleTnn, sampleKDist, sampleLrd
-            );
+            scores[i] = InternalOutlierDetection.reScoreCandidate(allVectors[i], sample, k, method, sampleTnn, sampleKDist, sampleLrd);
         }
         return scores;
     }
 
     // ════════════════════════════════════════════════════════
-    //  Helpers
+    // Helpers
     // ════════════════════════════════════════════════════════
 
     private static StringBuilder header(String title) {
         StringBuilder sb = new StringBuilder();
         sb.append("\n").append("=".repeat(110)).append("\n");
         sb.append(title).append("\n");
-        sb.append(String.format(
-            "  %-8s | %-22s | %-22s | %s | %s%n",
-            "Method", "Brute-Force", "Sample+Project", "Speedup", "Fidelity"
-        ));
+        sb.append(String.format("  %-8s | %-22s | %-22s | %s | %s%n", "Method", "Brute-Force", "Sample+Project", "Speedup", "Fidelity"));
         sb.append("-".repeat(110)).append("\n");
         return sb;
     }

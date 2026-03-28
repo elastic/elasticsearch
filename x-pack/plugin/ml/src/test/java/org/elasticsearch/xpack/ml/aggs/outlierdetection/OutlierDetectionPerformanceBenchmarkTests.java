@@ -93,8 +93,8 @@ public class OutlierDetectionPerformanceBenchmarkTests extends ESTestCase {
 
     // ────────────────────────────────────────────────────────
     // Scenario 2: Zipf / power-law magnitude distribution
-    //   Most vectors have small magnitudes; a few have huge ones.
-    //   Outliers are pushed far beyond the natural Zipf tail.
+    // Most vectors have small magnitudes; a few have huge ones.
+    // Outliers are pushed far beyond the natural Zipf tail.
     // ────────────────────────────────────────────────────────
     public void testZipfPowerLawDistribution() {
         int[] sizes = { 200, 500, 1000, 3000 };
@@ -189,8 +189,7 @@ public class OutlierDetectionPerformanceBenchmarkTests extends ESTestCase {
                 trueOutliers.add(i);
                 int oi = i - normalCount;
                 for (int d = 0; d < dims; d++) {
-                    vectors[i][d] = 80.0f + ((d % numOutliers == oi) ? 40.0f : 0.0f)
-                        + (float) (rng.nextGaussian() * 0.05);
+                    vectors[i][d] = 80.0f + ((d % numOutliers == oi) ? 40.0f : 0.0f) + (float) (rng.nextGaussian() * 0.05);
                 }
             }
 
@@ -230,8 +229,7 @@ public class OutlierDetectionPerformanceBenchmarkTests extends ESTestCase {
                 trueOutliers.add(i);
                 int oi = i - normalCount;
                 for (int d = 0; d < dims; d++) {
-                    vectors[i][d] = ((d % numOutliers == oi) ? 100.0f : 0.0f)
-                        + (float) (rng.nextGaussian() * 0.01);
+                    vectors[i][d] = ((d % numOutliers == oi) ? 100.0f : 0.0f) + (float) (rng.nextGaussian() * 0.01);
                 }
             }
 
@@ -320,8 +318,7 @@ public class OutlierDetectionPerformanceBenchmarkTests extends ESTestCase {
                 trueOutliers.add(i);
                 int oi = i - normalCount;
                 for (int d = 0; d < dims; d++) {
-                    vectors[i][d] = 80.0f + ((d % numOutliers == oi) ? 60.0f : 0.0f)
-                        + (float) (rng.nextGaussian() * 0.05);
+                    vectors[i][d] = 80.0f + ((d % numOutliers == oi) ? 60.0f : 0.0f) + (float) (rng.nextGaussian() * 0.05);
                 }
             }
 
@@ -334,7 +331,7 @@ public class OutlierDetectionPerformanceBenchmarkTests extends ESTestCase {
 
     // ────────────────────────────────────────────────────────
     // Scenario 7: Zipf per-dimension (correlated heavy tails)
-    //   Each coordinate independently drawn with rank-based magnitude.
+    // Each coordinate independently drawn with rank-based magnitude.
     // ────────────────────────────────────────────────────────
     public void testZipfPerDimensionCorrelatedTails() {
         int[] sizes = { 200, 500, 1000, 3000 };
@@ -364,8 +361,7 @@ public class OutlierDetectionPerformanceBenchmarkTests extends ESTestCase {
                 trueOutliers.add(i);
                 int oi = i - normalCount;
                 for (int d = 0; d < dims; d++) {
-                    vectors[i][d] = ((d % numOutliers == oi) ? 300.0f : 0.0f)
-                        + (float) (rng.nextGaussian() * 0.1);
+                    vectors[i][d] = ((d % numOutliers == oi) ? 300.0f : 0.0f) + (float) (rng.nextGaussian() * 0.1);
                 }
             }
 
@@ -377,7 +373,7 @@ public class OutlierDetectionPerformanceBenchmarkTests extends ESTestCase {
     }
 
     // ════════════════════════════════════════════════════════
-    //  Speedup test
+    // Speedup test
     // ════════════════════════════════════════════════════════
     public void testSpeedupRatio() {
         int n = 3000;
@@ -423,15 +419,18 @@ public class OutlierDetectionPerformanceBenchmarkTests extends ESTestCase {
         double speedup = (double) bfNs / projNs;
         String msg = String.format(
             "\nSpeedup at N=%d: brute-force=%.2fms, sample+project=%.2fms, speedup=%.1fx\n",
-            n, bfNs / 1e6, projNs / 1e6, speedup
+            n,
+            bfNs / 1e6,
+            projNs / 1e6,
+            speedup
         );
         writeReport(new StringBuilder(msg), true);
         assertTrue("Expected speedup > 1.0, got " + speedup, speedup > 1.0);
     }
 
     // ════════════════════════════════════════════════════════
-    //  Scenario 8: Projection dimension sweep
-    //  Fixed distribution (Gaussian, D=50, N=2000), vary D'
+    // Scenario 8: Projection dimension sweep
+    // Fixed distribution (Gaussian, D=50, N=2000), vary D'
     // ════════════════════════════════════════════════════════
     public void testProjectionDimensionSweep() {
         int n = 2000;
@@ -441,7 +440,7 @@ public class OutlierDetectionPerformanceBenchmarkTests extends ESTestCase {
         int k = 5;
         long seed = 42L;
 
-        // Generate data once —  Gaussian cluster + isolated directional outliers
+        // Generate data once — Gaussian cluster + isolated directional outliers
         Random rng = new Random(seed);
         float[][] vectors = new float[n][dims];
         Set<Integer> trueOutliers = new HashSet<>();
@@ -476,24 +475,28 @@ public class OutlierDetectionPerformanceBenchmarkTests extends ESTestCase {
         report.append("SCENARIO 8: Projection dimension sweep (fixed Gaussian, N=").append(n);
         report.append(", D=").append(dims).append(", k=").append(k);
         report.append(", outliers=").append(numOutliers).append(", sample=").append(sampleSize).append(")\n");
-        report.append(String.format(
-            "%-6s | %-22s | %-22s | %8s | %s%n",
-            "D'", "Brute-Force", "Sample+Project", "Speedup", "Notes"
-        ));
+        report.append(String.format("%-6s | %-22s | %-22s | %8s | %s%n", "D'", "Brute-Force", "Sample+Project", "Speedup", "Notes"));
         report.append("-".repeat(110)).append("\n");
 
         // Brute-force row
-        report.append(String.format(
-            "%-6s | %8.2f  P=%.2f R=%.2f | %8s  %4s %4s | %8s | %s%n",
-            "N/A", bfNs / 1e6, bfPrec, bfRec,
-            "—", "—", "—", "1.0x", "exact baseline"
-        ));
+        report.append(
+            String.format(
+                "%-6s | %8.2f  P=%.2f R=%.2f | %8s  %4s %4s | %8s | %s%n",
+                "N/A",
+                bfNs / 1e6,
+                bfPrec,
+                bfRec,
+                "—",
+                "—",
+                "—",
+                "1.0x",
+                "exact baseline"
+            )
+        );
 
         for (int projDims : projDimsArray) {
             long t1 = System.nanoTime();
-            RandomProjection projection = (projDims < dims)
-                ? new RandomProjection(dims, projDims, seed)
-                : null;
+            RandomProjection projection = (projDims < dims) ? new RandomProjection(dims, projDims, seed) : null;
             float[][] projAll = new float[n][];
             for (int i = 0; i < n; i++) {
                 projAll[i] = projection != null ? projection.project(vectors[i]) : vectors[i];
@@ -514,12 +517,20 @@ public class OutlierDetectionPerformanceBenchmarkTests extends ESTestCase {
             double speedup = (double) bfNs / Math.max(projNs, 1);
 
             String note = (projDims == dims) ? "no projection (identity)" : "";
-            report.append(String.format(
-                "%-6d | %8.2f  P=%.2f R=%.2f | %8.2f  P=%.2f R=%.2f | %6.1fx  | %s%n",
-                projDims, bfNs / 1e6, bfPrec, bfRec,
-                projNs / 1e6, projPrec, projRec,
-                speedup, note
-            ));
+            report.append(
+                String.format(
+                    "%-6d | %8.2f  P=%.2f R=%.2f | %8.2f  P=%.2f R=%.2f | %6.1fx  | %s%n",
+                    projDims,
+                    bfNs / 1e6,
+                    bfPrec,
+                    bfRec,
+                    projNs / 1e6,
+                    projPrec,
+                    projRec,
+                    speedup,
+                    note
+                )
+            );
 
             assertTrue("Projection recall too low at D'=" + projDims + " rec=" + projRec, projRec >= 0.5);
         }
@@ -530,7 +541,7 @@ public class OutlierDetectionPerformanceBenchmarkTests extends ESTestCase {
     }
 
     // ════════════════════════════════════════════════════════
-    //  Core benchmark runner
+    // Core benchmark runner
     // ════════════════════════════════════════════════════════
 
     private void runAndAppend(
@@ -587,14 +598,22 @@ public class OutlierDetectionPerformanceBenchmarkTests extends ESTestCase {
         double projPrec = precision(projTop, trueOutliers);
         double projRec = recall(projTop, trueOutliers);
 
-        report.append(String.format(
-            "%-6d | %8.2f  P=%.2f R=%.2f | %8.2f  P=%.2f R=%.2f | %8.2f  P=%.2f R=%.2f | %5.1fx%n",
-            n,
-            bfNs / 1e6, bfPrec, bfRec,
-            sampNs / 1e6, sampPrec, sampRec,
-            projNs / 1e6, projPrec, projRec,
-            (double) bfNs / Math.max(projNs, 1)
-        ));
+        report.append(
+            String.format(
+                "%-6d | %8.2f  P=%.2f R=%.2f | %8.2f  P=%.2f R=%.2f | %8.2f  P=%.2f R=%.2f | %5.1fx%n",
+                n,
+                bfNs / 1e6,
+                bfPrec,
+                bfRec,
+                sampNs / 1e6,
+                sampPrec,
+                sampRec,
+                projNs / 1e6,
+                projPrec,
+                projRec,
+                (double) bfNs / Math.max(projNs, 1)
+            )
+        );
 
         assertTrue("BF recall too low at n=" + n + " rec=" + bfRec, bfRec >= minRecall);
         assertTrue("Sampling recall too low at n=" + n + " rec=" + sampRec, sampRec >= minRecall);
@@ -602,17 +621,14 @@ public class OutlierDetectionPerformanceBenchmarkTests extends ESTestCase {
     }
 
     // ════════════════════════════════════════════════════════
-    //  Helpers
+    // Helpers
     // ════════════════════════════════════════════════════════
 
     private static StringBuilder header(String title) {
         StringBuilder sb = new StringBuilder();
         sb.append("\n").append("=".repeat(100)).append("\n");
         sb.append(title).append("\n");
-        sb.append(String.format(
-            "%-6s | %-22s | %-22s | %-22s | %s%n",
-            "N", "Brute-Force", "Sampling", "Sample+Project", "Speedup"
-        ));
+        sb.append(String.format("%-6s | %-22s | %-22s | %-22s | %s%n", "N", "Brute-Force", "Sampling", "Sample+Project", "Speedup"));
         sb.append("-".repeat(100)).append("\n");
         return sb;
     }

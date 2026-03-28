@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
@@ -538,7 +539,9 @@ public class Verifier {
             }
             p.forEachExpression(FieldAttribute.class, fa -> {
                 String name = fa.name();
-                if (punks.contains(name)) {
+                if (punks.contains(name)
+                    && fa.field() instanceof InvalidMappedField imf
+                    && imf.isPotentiallyUnmapped()) {
                     failures.add(fail(fa, errorMessage, name));
                 }
             });

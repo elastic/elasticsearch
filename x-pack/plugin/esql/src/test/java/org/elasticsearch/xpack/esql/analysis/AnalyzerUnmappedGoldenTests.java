@@ -645,10 +645,10 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
     }
 
     public void testMappedToNonKeywordInOneIndexOnly() throws Exception {
-        runTests("""
+        runTestsNullifyOnly("""
             FROM sample_data, no_mapping_sample_data
             | KEEP event_duration
-            """);
+            """, STAGES);
     }
 
     public void testTypeConflictMappedAndUnmappedWithCast() throws Exception {

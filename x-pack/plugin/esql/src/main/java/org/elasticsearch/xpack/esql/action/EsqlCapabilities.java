@@ -2378,6 +2378,8 @@ public class EsqlCapabilities {
          */
         REJECT_LOADING_FLATTENED_SUBFIELDS(OPTIONAL_FIELDS_V4.isEnabled()),
 
+        REJECT_LOADING_PARTIALLY_UNMAPPED_NON_KEYWORDS(OPTIONAL_FIELDS_V4.isEnabled()),
+
         FIX_DIV_ERROR_MESSAGE,
 
         /**

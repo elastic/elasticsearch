@@ -361,6 +361,11 @@ public class CsvTests extends ESTestCase {
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.TS_INFO_COMMAND.capabilityName())
             );
             assumeFalseLogging(
+                "WITHOUT grouping emit _timeseries which is unavailable in csv tests",
+                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.ESQL_WITHOUT_GROUPING.capabilityName())
+                    || testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.PROMQL_WITHOUT_GROUPING.capabilityName())
+            );
+            assumeFalseLogging(
                 "can't use QSTR function in csv tests",
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.QSTR_FUNCTION.capabilityName())
             );

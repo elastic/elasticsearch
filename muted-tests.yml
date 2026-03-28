@@ -345,9 +345,6 @@ tests:
 - class: org.elasticsearch.xpack.sql.qa.jdbc.single_node.SingleNodeJdbcResultSetIT
   method: testGettingValidIntegerWithoutCasting
   issue: https://github.com/elastic/elasticsearch/issues/145048
-- class: org.elasticsearch.backwards.RareTermsIT
-  method: testSingleValuedString
-  issue: https://github.com/elastic/elasticsearch/issues/145049
 - class: org.elasticsearch.xpack.sql.qa.jdbc.single_node.SingleNodeJdbcResultSetIT
   method: testGettingValidDoubleWithCasting
   issue: https://github.com/elastic/elasticsearch/issues/145050
@@ -363,6 +360,21 @@ tests:
 - class: org.elasticsearch.xpack.ml.integration.AdJobRetryResilienceIT
   method: testJobReopensAfterIndexUnavailabilityDuringReassignment
   issue: https://github.com/elastic/elasticsearch/issues/144968
+- class: org.elasticsearch.xpack.sql.qa.jdbc.single_node.SingleNodeJdbcResultSetIT
+  method: testGettingValidByteWithoutCasting
+  issue: https://github.com/elastic/elasticsearch/issues/145143
+- class: org.elasticsearch.xpack.esql.analysis.AnalyzerTests
+  method: testLookupMissingField
+  issue: https://github.com/elastic/elasticsearch/issues/144697
+- class: org.elasticsearch.xpack.esql.analysis.AnalyzerTests
+  method: testLookupMatchTypeWrong
+  issue: https://github.com/elastic/elasticsearch/issues/144694
+- class: org.elasticsearch.xpack.esql.analysis.AnalyzerTests
+  method: testLookup
+  issue: https://github.com/elastic/elasticsearch/issues/144696
+- class: org.elasticsearch.xpack.esql.analysis.AnalyzerTests
+  method: testLookupMissingTable
+  issue: https://github.com/elastic/elasticsearch/issues/144695
 
 # Examples:
 #

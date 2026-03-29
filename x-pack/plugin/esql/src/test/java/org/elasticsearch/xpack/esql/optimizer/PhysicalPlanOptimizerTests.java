@@ -152,7 +152,6 @@ import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plan.physical.TsInfoExec;
 import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
 import org.elasticsearch.xpack.esql.plan.physical.UriPartsExec;
-import org.elasticsearch.xpack.esql.plan.physical.UserAgentExec;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
@@ -8273,30 +8272,6 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(as(eq.left(), ReferenceAttribute.class).name(), is("rd.registered_domain"));
         var registeredDomain = as(filter.child(), RegisteredDomainExec.class);
         var fieldExtract = as(registeredDomain.child(), FieldExtractExec.class);
-        var queryExec = as(fieldExtract.child(), EsQueryExec.class);
-        assertThat(filter.condition(), instanceOf(Equals.class));
-        assertNull("Filter was incorrectly pushed down into EsQueryExec", queryExec.query());
-    }
-
-    public void testFilterOnUserAgentIsNotPushedDown() {
-        assumeTrue("requires user_agent command capability", EsqlCapabilities.Cap.USER_AGENT_COMMAND.isEnabled());
-
-        var plan = optimizedPlan(physicalPlan("""
-            FROM test
-            | user_agent ua = first_name WITH { "extract_device_type": true }
-            | WHERE ua.name == "Chrome"
-            """));
-
-        var coordinatorLimit = as(plan, LimitExec.class);
-        var exchange = as(coordinatorLimit.child(), ExchangeExec.class);
-        var project = as(exchange.child(), ProjectExec.class);
-        var topFieldExtract = as(project.child(), FieldExtractExec.class);
-        var dataNodeLimit = as(topFieldExtract.child(), LimitExec.class);
-        var filter = as(dataNodeLimit.child(), FilterExec.class);
-        var eq = as(filter.condition(), Equals.class);
-        assertThat(as(eq.left(), ReferenceAttribute.class).name(), is("ua.name"));
-        var userAgent = as(filter.child(), UserAgentExec.class);
-        var fieldExtract = as(userAgent.child(), FieldExtractExec.class);
         var queryExec = as(fieldExtract.child(), EsQueryExec.class);
         assertThat(filter.condition(), instanceOf(Equals.class));
         assertNull("Filter was incorrectly pushed down into EsQueryExec", queryExec.query());

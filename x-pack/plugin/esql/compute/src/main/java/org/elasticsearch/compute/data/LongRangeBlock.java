@@ -14,7 +14,7 @@ import org.elasticsearch.core.ReleasableIterator;
  * Block that stores long ranges.
  */
 public sealed interface LongRangeBlock extends Block permits LongRangeArrayBlock, ConstantNullBlock {
-    
+
     @Override
     boolean isNull(int position);
 

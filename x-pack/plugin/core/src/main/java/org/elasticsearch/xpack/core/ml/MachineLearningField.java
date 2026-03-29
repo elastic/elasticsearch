@@ -65,7 +65,7 @@ public final class MachineLearningField {
     public static final Setting<Boolean> MODEL_GRAPH_VALIDATION_ENABLED = Setting.boolSetting(
         "xpack.ml.model_graph_validation_enabled",
         true,
-        Setting.Property.Dynamic,
+        Setting.Property.OperatorDynamic,
         Setting.Property.NodeScope
     );
 

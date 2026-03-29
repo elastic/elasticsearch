@@ -1,4 +1,4 @@
-area: "ES|QL, Geo"
+area: "ES|QL"
 issues: []
 pr: 145154
 summary: Introduce Geospatial functions ST_Buffer and ST_SimplifyPreserveTopology

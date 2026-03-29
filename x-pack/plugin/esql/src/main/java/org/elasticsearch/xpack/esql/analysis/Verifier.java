@@ -539,9 +539,7 @@ public class Verifier {
             }
             p.forEachExpression(FieldAttribute.class, fa -> {
                 String name = fa.name();
-                if (punks.contains(name)
-                    && fa.field() instanceof InvalidMappedField imf
-                    && imf.isPotentiallyUnmapped()) {
+                if (punks.contains(name) && fa.field() instanceof InvalidMappedField imf && imf.isPotentiallyUnmapped()) {
                     failures.add(fail(fa, errorMessage, name));
                 }
             });

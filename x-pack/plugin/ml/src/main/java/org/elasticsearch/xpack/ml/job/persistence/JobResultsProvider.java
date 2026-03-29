@@ -31,6 +31,7 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.MultiSearchRequestBuilder;
 import org.elasticsearch.action.search.MultiSearchResponse;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
@@ -225,14 +226,15 @@ public class JobResultsProvider {
                     MultiSearchResponse.Item itemResponse = response.getResponses()[i];
                     if (itemResponse.isFailure()) {
                         Exception e = itemResponse.getFailure();
-                        // There's a further complication, which is that msearch doesn't translate a
-                        // closed index cluster block exception into a friendlier index closed exception
+                        // msearch doesn't translate a closed index cluster block exception
+                        // into a friendlier index closed exception
                         if (e instanceof ClusterBlockException cbe) {
                             for (ClusterBlock block : cbe.blocks()) {
                                 if ("index closed".equals(block.description())) {
                                     SearchRequest searchRequest = msearch.request().requests().get(i);
-                                    // Don't wrap the original exception, because then it would be the root cause
-                                    // and Kibana would display it in preference to the friendlier exception
+                                    // Don't wrap the original exception, because then it would
+                                    // be the root cause and Kibana would display it in preference
+                                    // to the friendlier exception
                                     e = ExceptionsHelper.badRequestException(
                                         "Cannot create job [{}] as it requires closed index {}",
                                         job.getId(),
@@ -240,6 +242,18 @@ public class JobResultsProvider {
                                     );
                                 }
                             }
+                            delegate.onFailure(e);
+                            return;
+                        }
+                        if (e instanceof SearchPhaseExecutionException) {
+                            LOGGER.debug(
+                                () -> "["
+                                    + job.getId()
+                                    + "] search failed during left-over document check, "
+                                    + "assuming no left-over documents",
+                                e
+                            );
+                            continue;
                         }
                         delegate.onFailure(e);
                         return;

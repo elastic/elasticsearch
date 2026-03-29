@@ -23,9 +23,8 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.index.mapper.blockloader.docvalues.MultiValueSeparateCountBinaryDocValuesReader;
-import org.elasticsearch.simdvec.ESVectorUtil;
 import org.elasticsearch.index.mapper.BlockLoader;
+import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
 import java.util.Objects;

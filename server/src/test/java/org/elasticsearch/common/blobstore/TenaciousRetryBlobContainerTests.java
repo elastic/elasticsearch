@@ -39,6 +39,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.repositories.RepositoriesMetrics.METRIC_ALLOCATION_TRANSIENT_ERROR_RETRY_ATTEMPTS_HISTOGRAM;
+import static org.elasticsearch.repositories.RepositoriesMetrics.METRIC_ALLOCATION_TRANSIENT_ERROR_RETRY_FAILURE_HISTOGRAM;
 import static org.elasticsearch.repositories.RepositoriesMetrics.METRIC_ALLOCATION_TRANSIENT_ERROR_RETRY_SUCCESS_HISTOGRAM;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -115,7 +116,7 @@ public class TenaciousRetryBlobContainerTests extends ESTestCase {
         when(blobContainer.listBlobs(any())).thenThrow(new IOException("listBlobs"));
         when(blobContainer.listBlobsByPrefix(any(), any())).thenThrow(new IOException());
 
-        int maximumRetries = randomIntBetween(3, 5);
+        int maximumRetries = randomIntBetween(5, 9);
 
         TenaciousRetryBlobContainer tenaciousRetryBlobContainer = new TenaciousRetryBlobContainer(
             blobContainer,
@@ -161,23 +162,28 @@ public class TenaciousRetryBlobContainerTests extends ESTestCase {
         when(blobContainer.listBlobs(any())).thenThrow(new IOException("listBlobs"))
             .thenThrow(new IOException("listBlobs"))
             .thenReturn(answer);
+        when(blobContainer.listBlobsByPrefix(any(), any())).thenThrow(new IOException());
 
         assertThat(tenaciousRetryBlobContainer.listBlobs(OperationPurpose.INDICES), is(answer));
         verify(blobContainer, times(3)).listBlobs(any());
         recordingMeterRegistry.getRecorder().collect();
 
-        assertThat(getMeasurement(recordingMeterRegistry, METRIC_ALLOCATION_TRANSIENT_ERROR_RETRY_ATTEMPTS_HISTOGRAM), equalTo(1L));
+        assertThat(getMeasurements(recordingMeterRegistry, METRIC_ALLOCATION_TRANSIENT_ERROR_RETRY_ATTEMPTS_HISTOGRAM), equalTo(2));
+        assertThat(getMeasurements(recordingMeterRegistry, METRIC_ALLOCATION_TRANSIENT_ERROR_RETRY_SUCCESS_HISTOGRAM), equalTo(1));
 
-        assertThat(getMeasurement(recordingMeterRegistry, METRIC_ALLOCATION_TRANSIENT_ERROR_RETRY_SUCCESS_HISTOGRAM), equalTo(1L));
+        recordingMeterRegistry.getRecorder().resetCalls();
+        expectThrows(IOException.class, () -> tenaciousRetryBlobContainer.listBlobsByPrefix(OperationPurpose.INDICES, randomIndexName()));
+        recordingMeterRegistry.getRecorder().collect();
+        assertThat(
+            getMeasurements(recordingMeterRegistry, METRIC_ALLOCATION_TRANSIENT_ERROR_RETRY_ATTEMPTS_HISTOGRAM),
+            equalTo(maximumRetries - 1)
+        );
+        assertThat(getMeasurements(recordingMeterRegistry, METRIC_ALLOCATION_TRANSIENT_ERROR_RETRY_FAILURE_HISTOGRAM), equalTo(1));
+
     }
 
-    private long getMeasurement(RecordingMeterRegistry meterRegistry, String name) {
-        return meterRegistry.getRecorder()
-            .getMeasurements(InstrumentType.LONG_COUNTER, name)
-            .stream()
-            .findFirst()
-            .orElseThrow(() -> new AssertionError("Unable to find measurement"))
-            .getLong();
+    private int getMeasurements(RecordingMeterRegistry meterRegistry, String name) {
+        return meterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_COUNTER, name).size();
     }
 
     private Object[] buildArgs(Method method) {

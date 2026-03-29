@@ -912,6 +912,7 @@ no_mapping_sample_data | 2024-10-23T13:55:01.543Z
 
 typeConflictLongUnmappedSortWithCastToLong
 required_capability: optional_fields_v4
+required_capability: reject_loading_partially_unmapped_non_keywords
 
 SET unmapped_fields="load"\;
 FROM sample_data, no_mapping_sample_data METADATA _index

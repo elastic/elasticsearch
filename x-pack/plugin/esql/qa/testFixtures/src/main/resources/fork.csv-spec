@@ -295,9 +295,11 @@ FROM k8s-downsampled, k8s
 | SORT @timestamp
 | KEEP network.eth*
 | LIMIT 1
+;
 
 network.eth0.currently_connected_clients:integer	| network.eth0.firmware_version:version	| network.eth0.last_up:date_nanos	| network.eth0.rx:unsupported	| network.eth0.tx:unsupported	| network.eth0.up:boolean
 862                                             	| 7.8.4                                	| 2024-04-13T05:15:29.735829818Z 	| null                       	| null                       	| true  
+;
 
 
 forkAfterLookupJoin

@@ -765,12 +765,12 @@ public class MachineLearning extends Plugin
     );
 
     /**
-     * Minimum number of consecutive search cycles a cross-project scope change must persist before being
-     * confirmed. Lowering this value (together with {@link #CPS_STABILIZATION_FLOOR}) enables faster
+     * Minimum number of consecutive search cycles a cross-cluster scope change must persist before being
+     * confirmed. Lowering this value (together with {@link #CCS_STABILIZATION_FLOOR}) enables faster
      * detection in integration tests without waiting for production timeouts.
      */
-    public static final Setting<Integer> CPS_STABILIZATION_CYCLES = Setting.intSetting(
-        "xpack.ml.cps_stabilization_cycles",
+    public static final Setting<Integer> CCS_STABILIZATION_CYCLES = Setting.intSetting(
+        "xpack.ml.ccs_stabilization_cycles",
         CrossClusterSearchStats.DEFAULT_STABILIZATION_CYCLES,
         1,
         Property.Dynamic,
@@ -778,11 +778,11 @@ public class MachineLearning extends Plugin
     );
 
     /**
-     * Minimum wall-clock duration since a cross-project scope change was first observed before it can
-     * be confirmed. Works in conjunction with {@link #CPS_STABILIZATION_CYCLES}.
+     * Minimum wall-clock duration since a cross-cluster scope change was first observed before it can
+     * be confirmed. Works in conjunction with {@link #CCS_STABILIZATION_CYCLES}.
      */
-    public static final Setting<TimeValue> CPS_STABILIZATION_FLOOR = Setting.timeSetting(
-        "xpack.ml.cps_stabilization_floor",
+    public static final Setting<TimeValue> CCS_STABILIZATION_FLOOR = Setting.timeSetting(
+        "xpack.ml.ccs_stabilization_floor",
         CrossClusterSearchStats.DEFAULT_MIN_STABILIZATION_DURATION,
         TimeValue.ZERO,
         Property.Dynamic,
@@ -906,8 +906,8 @@ public class MachineLearning extends Plugin
             MAX_ML_NODE_SIZE,
             DELAYED_DATA_CHECK_FREQ,
             JOB_OPEN_RETRY_TIMEOUT,
-            CPS_STABILIZATION_CYCLES,
-            CPS_STABILIZATION_FLOOR,
+            CCS_STABILIZATION_CYCLES,
+            CCS_STABILIZATION_FLOOR,
             DUMMY_ENTITY_MEMORY,
             DUMMY_ENTITY_PROCESSORS,
             SCALE_UP_COOLDOWN_TIME,

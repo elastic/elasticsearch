@@ -23,7 +23,7 @@ import java.util.function.Supplier;
 
 /**
  * Per-datafeed mutable runtime state that tracks which linked clusters participate
- * in a cross-cluster / cross-project search (CCS/CPS) datafeed across search cycles.
+ * in a cross-cluster search (CCS) datafeed across search cycles.
  * <p>
  * Detects cluster linking (new clusters appearing) and unlinking (existing clusters
  * disappearing) using a symmetric dual stabilization condition: a cluster must be
@@ -83,7 +83,7 @@ public class CrossClusterSearchStats {
      * a {@link ScopeChangeResult} describing any confirmed scope changes.
      *
      * @param linkedClusterStates per-cluster states extracted from the latest {@code SearchResponse};
-     *                            empty for non-CPS datafeeds (in which case this is a no-op)
+     *                            empty for local-only datafeeds (in which case this is a no-op)
      */
     public ScopeChangeResult update(List<LinkedClusterState> linkedClusterStates) {
         if (linkedClusterStates.isEmpty()) {

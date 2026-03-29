@@ -541,7 +541,7 @@ public class DatafeedJobTests extends ESTestCase {
         assertThat(analysisProblemException.shouldStop, is(true));
     }
 
-    public void testNonCpsDatafeedDoesNotTriggerScopeChange() throws Exception {
+    public void testNonCcsDatafeedDoesNotTriggerScopeChange() throws Exception {
         DatafeedJob datafeedJob = createDatafeedJob(1000, 500, -1, -1, randomBoolean());
         assertNull(datafeedJob.runLookBack(0L, 1000L));
 
@@ -572,7 +572,7 @@ public class DatafeedJobTests extends ESTestCase {
         currentTime += 30_000;
 
         // Set up extractor to return withNewProject states
-        resetExtractorForCpsTest(withNewProject);
+        resetExtractorForCcsTest(withNewProject);
 
         // Mock GetBucketsAction to return one elevated bucket
         @SuppressWarnings("unchecked")
@@ -635,7 +635,7 @@ public class DatafeedJobTests extends ESTestCase {
         }
         currentTime += 30_000;
 
-        resetExtractorForCpsTest(withNewProject);
+        resetExtractorForCcsTest(withNewProject);
 
         // Mock GetBucketsAction to return zero elevated buckets
         @SuppressWarnings("unchecked")
@@ -670,7 +670,7 @@ public class DatafeedJobTests extends ESTestCase {
         }
         currentTime += 30_000;
 
-        resetExtractorForCpsTest(afterUnlink);
+        resetExtractorForCcsTest(afterUnlink);
 
         @SuppressWarnings("unchecked")
         ActionFuture<GetBucketsAction.Response> getBucketsFuture = mock(ActionFuture.class);
@@ -733,7 +733,7 @@ public class DatafeedJobTests extends ESTestCase {
         }
         currentTime += 30_000;
 
-        resetExtractorForCpsTest(afterSwap);
+        resetExtractorForCcsTest(afterSwap);
 
         @SuppressWarnings("unchecked")
         ActionFuture<GetBucketsAction.Response> getBucketsFuture = mock(ActionFuture.class);
@@ -782,7 +782,7 @@ public class DatafeedJobTests extends ESTestCase {
         }
         currentTime += 30_000;
 
-        resetExtractorForCpsTest(withNewProject);
+        resetExtractorForCcsTest(withNewProject);
 
         // GetBucketsAction throws - simulating an internal error during anomaly lookback
         @SuppressWarnings("unchecked")
@@ -830,7 +830,7 @@ public class DatafeedJobTests extends ESTestCase {
 
         // The 12th cycle confirms the unlink
         currentTime += 30_000;
-        resetExtractorForCpsTest(withoutDeparting);
+        resetExtractorForCcsTest(withoutDeparting);
 
         @SuppressWarnings("unchecked")
         ActionFuture<GetBucketsAction.Response> getBucketsFuture = mock(ActionFuture.class);
@@ -893,7 +893,7 @@ public class DatafeedJobTests extends ESTestCase {
 
         // The 12th relink cycle will confirm the scope change
         currentTime += 30_000;
-        resetExtractorForCpsTest(withFlapping);
+        resetExtractorForCcsTest(withFlapping);
 
         @SuppressWarnings("unchecked")
         ActionFuture<GetBucketsAction.Response> getBucketsFuture = mock(ActionFuture.class);
@@ -927,7 +927,7 @@ public class DatafeedJobTests extends ESTestCase {
         List<LinkedClusterState> projects = List.of(new LinkedClusterState("origin", LinkedClusterState.Status.AVAILABLE, null, 10));
 
         currentTime = 1_000_000L;
-        resetExtractorForCpsTest(projects);
+        resetExtractorForCcsTest(projects);
 
         DatafeedJob datafeedJob = createDatafeedJob(1000, 500, -1, -1, false, DELAYED_DATA_FREQ, stats);
         assertNull(datafeedJob.runLookBack(0L, 1000L));
@@ -938,7 +938,7 @@ public class DatafeedJobTests extends ESTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    private void resetExtractorForCpsTest(List<LinkedClusterState> linkedClusterStates) throws IOException {
+    private void resetExtractorForCcsTest(List<LinkedClusterState> linkedClusterStates) throws IOException {
         dataExtractor = mock(DataExtractor.class);
         when(dataExtractor.hasNext()).thenReturn(true).thenReturn(false);
         byte[] contentBytes = "content".getBytes(StandardCharsets.UTF_8);
@@ -1019,7 +1019,7 @@ public class DatafeedJobTests extends ESTestCase {
         long latestRecordTimeMs,
         boolean haveSeenDataPreviously,
         long delayedDataFreq,
-        CrossClusterSearchStats crossProjectSearchStats
+        CrossClusterSearchStats crossClusterSearchStats
     ) {
         Supplier<Long> currentTimeSupplier = () -> currentTime;
         return new DatafeedJob(
@@ -1039,7 +1039,7 @@ public class DatafeedJobTests extends ESTestCase {
             latestRecordTimeMs,
             haveSeenDataPreviously,
             delayedDataFreq,
-            crossProjectSearchStats
+            crossClusterSearchStats
         );
     }
 

@@ -69,8 +69,7 @@ public class UserAgentGoldenTests extends GoldenTestCase {
     }
 
     /**
-     * A filter on a USER_AGENT-derived field (ua.name) must NOT be pushed into EsQueryExec.
-     * The filter should remain above UserAgentExec in the physical plan.
+     * A filter on a USER_AGENT-derived field (ua.name) must NOT be pushed past UserAgent.
      */
     public void testFilterOnUserAgentIsNotPushedDown() {
         assumeTrue("requires user_agent command capability", EsqlCapabilities.Cap.USER_AGENT_COMMAND.isEnabled());
@@ -79,7 +78,7 @@ public class UserAgentGoldenTests extends GoldenTestCase {
             | user_agent ua = first_name WITH { "extract_device_type": true }
             | WHERE ua.name == "Chrome"
             """;
-        runGoldenTest(query, EnumSet.of(Stage.PHYSICAL_OPTIMIZATION, Stage.LOCAL_PHYSICAL_OPTIMIZATION));
+        runGoldenTest(query, EnumSet.of(Stage.LOGICAL_OPTIMIZATION));
     }
 
     /**

@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
@@ -91,6 +92,20 @@ public class UserAgent extends CompoundOutputEval<UserAgent> {
         List<Attribute> outputFieldAttributes
     ) {
         return new UserAgent(source, child, input, outputFieldNames, outputFieldAttributes, this.extractDeviceType, this.regexFile);
+    }
+
+    @Override
+    protected NodeInfo<? extends LogicalPlan> info() {
+        return NodeInfo.create(
+            this,
+            UserAgent::new,
+            child(),
+            input,
+            outputFieldNames(),
+            generatedAttributes(),
+            extractDeviceType,
+            regexFile
+        );
     }
 
     @Override

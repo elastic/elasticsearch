@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 import java.io.IOException;
@@ -62,6 +63,20 @@ public class UserAgentExec extends CompoundOutputEvalExec {
     @Override
     public String getWriteableName() {
         return ENTRY.name;
+    }
+
+    @Override
+    protected NodeInfo<? extends PhysicalPlan> info() {
+        return NodeInfo.create(
+            this,
+            UserAgentExec::new,
+            child(),
+            input,
+            outputFieldNames(),
+            outputFieldAttributes(),
+            extractDeviceType,
+            regexFile
+        );
     }
 
     @Override

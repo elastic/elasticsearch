@@ -186,11 +186,13 @@ required_capability: str_commands_accept_null
 FROM web_logs
 | EVAL n = null
 | USER_AGENT ua = n
-| WHERE timestamp == "2024-01-10T10:00:00.000Z"
 | KEEP n, ua.*
+| LIMIT 3
 ;
 
 n:null | ua.name:keyword | ua.version:keyword | ua.os.name:keyword | ua.os.version:keyword | ua.os.full:keyword | ua.device.name:keyword
+  null |            null |               null |               null |                  null |               null |                   null
+  null |            null |               null |               null |                  null |               null |                   null
   null |            null |               null |               null |                  null |               null |                   null
 ;
 

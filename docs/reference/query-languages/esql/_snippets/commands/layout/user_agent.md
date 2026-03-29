@@ -10,13 +10,13 @@ This command doesn't support multi-value inputs.
 ::::
 
 
-**Syntax**
+## Syntax
 
 ```esql
 USER_AGENT prefix = expression [WITH { option = value [, ...] }]
 ```
 
-**Parameters**
+## Parameters
 
 `prefix`
 :   The prefix for the output columns. The extracted components are available as `prefix.component`.
@@ -24,10 +24,10 @@ USER_AGENT prefix = expression [WITH { option = value [, ...] }]
 `expression`
 :   The string expression containing the user-agent string to parse.
 
-**WITH options**
+## WITH options
 
 `regex_file`
-:   The name of the parser configuration to use. Default: `_default_`, which uses the built-in regexes from [uap-core](https://github.com/ua-parser/uap-core). To use a custom regex file, place a `.yml` file in the `config/ingest-user-agent` directory on each node before starting Elasticsearch. The file must be present at node startup; changes or new files added while the node is running have no effect. Pass the filename (including the `.yml` extension) as the value. Custom regex files are typically variants of the default, either a more recent uap-core release or a customized version.
+:   The name of the parser configuration to use. Default: `_default_`, which uses the built-in regexes from [uap-core](https://github.com/ua-parser/uap-core). To use a custom regex file, place a `.yml` file in the `config/user-agent` directory on each node before starting Elasticsearch. The file must be present at node startup; changes or new files added while the node is running have no effect. Pass the filename (including the `.yml` extension) as the value. Custom regex files are typically variants of the default, either a more recent uap-core release or a customized version.
 
 `extract_device_type`
 :   When `true`, extracts device type (e.g., Desktop, Phone, Tablet) on a best-effort basis and includes `prefix.device.type` in the output. Default: `false`.
@@ -35,19 +35,23 @@ USER_AGENT prefix = expression [WITH { option = value [, ...] }]
 `properties`
 :   List of property groups to include in the output. Each value expands to one or more columns: `name` → `prefix.name`; `version` → `prefix.version`; `os` → `prefix.os.name`, `prefix.os.version`, `prefix.os.full`; `device` → `prefix.device.name` (and `prefix.device.type` when `extract_device_type` is `true`). Default: `["name", "version", "os", "device"]`. You can pass a subset to reduce output columns.
 
-**Using a custom regex file**
+## Using a custom regex file
 
 To use a custom regex file instead of the built-in uap-core patterns:
 
-1. Place a `.yml` file in the `config/ingest-user-agent` directory on each node.
+1. Place a `.yml` file in the `config/user-agent` directory on each node.
 2. Create the directory and file before starting Elasticsearch.
 3. Pass the filename (including the `.yml` extension) as the `regex_file` option.
 
 Files must be present at node startup. Changes to existing files or new files added while the node is running have no effect until the node is restarted.
 
+::::{note}
+Before version 9.4, this directory was named `config/ingest-user-agent`. The old directory name is still supported as a fallback but is deprecated.
+::::
+
 Custom regex files are typically variants of the default [uap-core regexes.yaml](https://github.com/ua-parser/uap-core/blob/master/regexes.yaml), either a more recent release or a customized version for specific user-agent patterns. Use a custom file when you need to support newer user-agent formats before they are available in the built-in patterns, or to parse specialized or non-standard user-agent strings.
 
-**Description**
+## Description
 
 The `USER_AGENT` command parses a user-agent string and extracts its parts into new columns.
 The new columns are prefixed with the specified `prefix` followed by a dot (`.`).
@@ -80,7 +84,7 @@ The following columns may be created (depending on `properties` and `extract_dev
 If a component is missing or the input is not a valid user-agent string, the corresponding column contains `null`.
 If the expression evaluates to `null` or blank, all output columns are `null`.
 
-**Examples**
+## Examples
 
 The following example parses a user-agent string and extracts its parts:
 
@@ -95,7 +99,7 @@ ROW ua_str = "Mozilla/5.0 (iPhone; CPU iPhone OS 14_0 like Mac OS X) AppleWebKit
 | KEEP ua.*
 ```
 
-To use a custom regex file (e.g. `my-regexes.yml` in `config/ingest-user-agent`), pass the filename including the extension:
+To use a custom regex file (e.g. `my-regexes.yml` in `config/user-agent`), pass the filename including the extension:
 
 ```esql
 FROM web_logs

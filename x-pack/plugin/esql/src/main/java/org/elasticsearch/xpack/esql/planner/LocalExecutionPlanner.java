@@ -405,7 +405,7 @@ public class LocalExecutionPlanner {
     private PhysicalOperation planUserAgent(UserAgentExec exec, LocalExecutionPlannerContext context) {
         UserAgentParser parser = userAgentParserRegistry.getParser(exec.regexFile());
         if (parser == null) {
-            throw new IllegalArgumentException("Unknown user-agent regex file [" + exec.regexFile() + "]");
+            throw new EsqlIllegalArgumentException("Unknown user-agent regex file [" + exec.regexFile() + "]");
         }
         CompoundOutputEvaluator.OutputFieldsCollectorProvider provider = new CompoundOutputEvaluator.OutputFieldsCollectorProvider() {
             @Override

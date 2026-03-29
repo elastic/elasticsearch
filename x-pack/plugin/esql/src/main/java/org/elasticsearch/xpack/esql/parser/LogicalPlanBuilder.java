@@ -543,8 +543,6 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                     for (Object item : propList) {
                         if (item instanceof BytesRef) {
                             properties.add(BytesRefs.toString(item));
-                        } else if (item instanceof String s) {
-                            properties.add(s);
                         } else {
                             throw new ParsingException(propertiesExpr.source(), "Option [properties] must be a list of string literals");
                         }
@@ -562,8 +560,9 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             if (optionsMap.isEmpty() == false) {
                 throw new ParsingException(
                     source,
-                    "Invalid option [{}] in USER_AGENT, expected one of [regex_file, extract_device_type, properties]",
-                    optionsMap.keySet().iterator().next()
+                    "Invalid option{} {} in USER_AGENT, expected one of [regex_file, extract_device_type, properties]",
+                    optionsMap.size() > 1 ? "s" : "",
+                    optionsMap.keySet()
                 );
             }
         }

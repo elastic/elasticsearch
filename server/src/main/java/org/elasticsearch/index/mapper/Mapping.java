@@ -21,7 +21,6 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Map;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
@@ -151,7 +150,7 @@ public final class Mapping implements ToXContentFragment {
     }
 
     public SourceLoader.SyntheticFieldLoader syntheticFieldLoader(@Nullable SourceFilter filter) {
-        var mappers = Stream.concat(Stream.of(metadataMappers), root.mappers.values().stream()).collect(Collectors.toList());
+        var mappers = Stream.concat(Stream.of(metadataMappers), root.mappers.values().stream()).toList();
         return root.syntheticFieldLoader(filter, mappers, false);
     }
 

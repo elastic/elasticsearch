@@ -9,12 +9,8 @@
 
 package org.elasticsearch.repositories.blobstore;
 
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
-import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -72,28 +68,15 @@ public class TestUtils {
     }
 
     private static void createIndices(ClusterService clusterService, ProjectId projectId, Index... indices) {
-        clusterService.submitUnbatchedStateUpdateTask("create-indices", new ClusterStateUpdateTask() {
-            @Override
-            public ClusterState execute(ClusterState currentState) {
-                var projectBuilder = ProjectMetadata.builder(currentState.metadata().getProject(projectId));
-                for (Index index : indices) {
-                    projectBuilder.put(
-                        IndexMetadata.builder(index.getName())
-                            .settings(indexSettings(IndexVersion.current(), 1, 0).put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID()))
-                            .build(),
-                        false
-                    );
-                }
-                return ClusterState.builder(currentState)
-                    .metadata(Metadata.builder(currentState.metadata()).put(projectBuilder.build()).build())
-                    .build();
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                throw new AssertionError(e);
-            }
-        });
+        for (Index index : indices) {
+            BlobStoreTestUtil.createIndex(
+                clusterService,
+                projectId,
+                IndexMetadata.builder(index.getName())
+                    .settings(indexSettings(IndexVersion.current(), 1, 0).put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID()))
+                    .build()
+            );
+        }
     }
 
     private static Environment createEnvironment(Path tempDir) {

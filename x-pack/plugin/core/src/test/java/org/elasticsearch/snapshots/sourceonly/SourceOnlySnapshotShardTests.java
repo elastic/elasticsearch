@@ -127,7 +127,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
         SnapshotId snapshotId = new SnapshotId("test", "test");
         IndexId indexId = new IndexId(shard.shardId().getIndexName(), shard.shardId().getIndex().getUUID());
         final var projectId = ProjectId.DEFAULT;
-        SourceOnlySnapshotRepository repository = new SourceOnlySnapshotRepository(createRepository(projectId));
+        SourceOnlySnapshotRepository repository = new SourceOnlySnapshotRepository(createRepository(projectId, shard));
         assertThat(repository.getProjectId(), equalTo(projectId));
         repository.start();
         try (Engine.IndexCommitRef snapshotRef = shard.acquireLastIndexCommit(true)) {
@@ -181,7 +181,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
         SnapshotId snapshotId = new SnapshotId("test", "test");
         IndexId indexId = new IndexId(shard.shardId().getIndexName(), shard.shardId().getIndex().getUUID());
         final var projectId = ProjectId.DEFAULT;
-        SourceOnlySnapshotRepository repository = new SourceOnlySnapshotRepository(createRepository(projectId));
+        SourceOnlySnapshotRepository repository = new SourceOnlySnapshotRepository(createRepository(projectId, shard));
         assertThat(repository.getProjectId(), equalTo(projectId));
         repository.start();
         try (Engine.IndexCommitRef snapshotRef = shard.acquireLastIndexCommit(true)) {
@@ -225,7 +225,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
 
         IndexId indexId = new IndexId(shard.shardId().getIndexName(), shard.shardId().getIndex().getUUID());
         final var projectId = ProjectId.DEFAULT;
-        SourceOnlySnapshotRepository repository = new SourceOnlySnapshotRepository(createRepository(projectId));
+        SourceOnlySnapshotRepository repository = new SourceOnlySnapshotRepository(createRepository(projectId, shard));
         assertThat(repository.getProjectId(), equalTo(projectId));
         repository.start();
         int totalFileCount;
@@ -363,7 +363,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
         SnapshotId snapshotId = new SnapshotId("test", "test");
         IndexId indexId = new IndexId(shard.shardId().getIndexName(), shard.shardId().getIndex().getUUID());
         final var projectId = ProjectId.DEFAULT;
-        SourceOnlySnapshotRepository repository = new SourceOnlySnapshotRepository(createRepository(projectId));
+        SourceOnlySnapshotRepository repository = new SourceOnlySnapshotRepository(createRepository(projectId, shard));
         assertThat(repository.getProjectId(), equalTo(projectId));
         repository.start();
         try (Engine.IndexCommitRef snapshotRef = shard.acquireLastIndexCommit(true)) {
@@ -592,10 +592,11 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
     }
 
     /** Create a {@link Repository} with a random name **/
-    private Repository createRepository(ProjectId projectId) {
+    private Repository createRepository(ProjectId projectId, IndexShard shard) {
         Settings settings = Settings.builder().put("location", randomAlphaOfLength(10)).build();
         RepositoryMetadata repositoryMetadata = new RepositoryMetadata(randomAlphaOfLength(10), FsRepository.TYPE, settings);
         final ClusterService clusterService = BlobStoreTestUtil.mockClusterService(projectId, repositoryMetadata);
+        BlobStoreTestUtil.createIndex(clusterService, projectId, shard.indexSettings().getIndexMetadata());
         final Repository repository = new FsRepository(
             projectId,
             repositoryMetadata,

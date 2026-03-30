@@ -470,6 +470,22 @@ public final class BlobStoreTestUtil {
         return clusterService;
     }
 
+    public static void createIndex(ClusterService clusterService, ProjectId projectId, IndexMetadata indexMetadata) {
+        clusterService.submitUnbatchedStateUpdateTask("create-index", new ClusterStateUpdateTask() {
+            @Override
+            public ClusterState execute(ClusterState currentState) {
+                return ClusterState.builder(currentState)
+                    .putProjectMetadata(ProjectMetadata.builder(currentState.metadata().getProject(projectId)).put(indexMetadata, false))
+                    .build();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                throw new AssertionError(e);
+            }
+        });
+    }
+
     public static OperationPurpose randomPurpose() {
         return randomFrom(OperationPurpose.values());
     }

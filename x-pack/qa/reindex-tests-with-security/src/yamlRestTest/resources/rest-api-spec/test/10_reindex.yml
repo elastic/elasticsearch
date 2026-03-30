@@ -338,7 +338,7 @@ setup:
 
   - do:
       allowed_warnings:
-        - "Using the task management APIs to get reindex tasks is deprecated. Use the dedicated reindex API instead, GET /_reindex/<task_id>."
+        - "Using the task management APIs to get reindexing tasks is deprecated because they do not account for task relocations to other nodes. Use the dedicated reindex API instead: `GET /_reindex/{task_id}`"
       headers: {es-security-runas-user: minimal_with_task_user}
       tasks.get:
         wait_for_completion: true

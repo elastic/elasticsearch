@@ -39,8 +39,8 @@ public class FeatureUpgradeIT extends AbstractRollingUpgradeTestCase {
     }
 
     public void testGetFeatureUpgradeStatus() throws Exception {
-        final String reindexTaskGetApiDeprecation = "Using the task management APIs to get reindex tasks is deprecated. "
-            + "Use the dedicated reindex API instead, GET /_reindex/<task_id>.";
+        final String reindexTaskGetApiDeprecation = "Using the task management APIs to get reindexing tasks is deprecated because they do not account for "
+            + "task relocations to other nodes. Use the dedicated reindex API instead: `GET /_reindex/{task_id}`";
         final String systemIndexWarning = "this request accesses system indices: [.tasks], but in a future major version, direct "
             + "access to system indices will be prevented by default";
         if (isOldCluster()) {

@@ -40,7 +40,7 @@ setup:
 
   - do:
       allowed_warnings:
-        - "Using the task management APIs to get reindex tasks is deprecated. Use the dedicated reindex API instead, GET /_reindex/<task_id>."
+        - "Using the task management APIs to get reindexing tasks is deprecated because they do not account for task relocations to other nodes. Use the dedicated reindex API instead: `GET /_reindex/{task_id}`"
       tasks.get:
         task_id: $taskId
         wait_for_completion: true
@@ -63,7 +63,7 @@ setup:
 
   - do:
       allowed_warnings:
-        - "Using the task management APIs to cancel reindex tasks is deprecated. Use the dedicated reindex API instead, POST /_reindex/<task_id>/_cancel."
+        - "Using the task management APIs to cancel reindex tasks is deprecated because they do not account for task relocations to other nodes. Use the dedicated reindex API instead: `POST /_reindex/{task_id}/_cancel`."
       tasks.cancel:
         task_id: $taskId
         wait_for_completion: true

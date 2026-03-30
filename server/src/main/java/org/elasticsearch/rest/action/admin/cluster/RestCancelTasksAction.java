@@ -97,8 +97,8 @@ public class RestCancelTasksAction extends BaseRestHandler {
                 deprecationLogger.warn(
                     DeprecationCategory.API,
                     "cancel-api-deprecated-for-reindexing-tasks",
-                    "Using the task management APIs to cancel reindex tasks is deprecated. "
-                        + "Use the dedicated reindex API instead, POST /_reindex/<task_id>/_cancel."
+                    "Using the task management APIs to cancel reindex tasks is deprecated because they do not account for "
+                        + "task relocations to other nodes. Use the dedicated reindex API instead: `POST /_reindex/{task_id}/_cancel`."
                 );
                 return;
             }

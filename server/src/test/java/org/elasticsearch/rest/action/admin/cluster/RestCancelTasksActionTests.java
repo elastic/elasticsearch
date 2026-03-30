@@ -42,7 +42,7 @@ public class RestCancelTasksActionTests extends RestActionTestCase {
 
     /**
      * {@code POST /_tasks/.../_cancel} on a parent reindex task must emit the soft deprecation warning steering callers to
-     * {@code POST /_reindex/<task_id>/_cancel}.
+     * {@code POST /_reindex/{task_id}/_cancel}.
      */
     public void testCancelTaskActionLogsDeprecationWarningForReindexingTask() throws Exception {
         RestCancelTasksAction action = new RestCancelTasksAction(() -> DiscoveryNodes.EMPTY_NODES, f -> true);
@@ -76,8 +76,8 @@ public class RestCancelTasksActionTests extends RestActionTestCase {
         action.handleRequest(request, new FakeRestChannel(request, true), verifyingClient);
 
         assertWarnings(
-            "Using the task management APIs to cancel reindex tasks is deprecated. "
-                + "Use the dedicated reindex API instead, POST /_reindex/<task_id>/_cancel."
+            "Using the task management APIs to cancel reindex tasks is deprecated because they do not account for "
+                + "task relocations to other nodes. Use the dedicated reindex API instead: `POST /_reindex/{task_id}/_cancel`."
         );
     }
 
@@ -127,8 +127,8 @@ public class RestCancelTasksActionTests extends RestActionTestCase {
         action.handleRequest(request, new FakeRestChannel(request, true), verifyingClient);
 
         assertWarnings(
-            "Using the task management APIs to cancel reindex tasks is deprecated. "
-                + "Use the dedicated reindex API instead, POST /_reindex/<task_id>/_cancel."
+            "Using the task management APIs to cancel reindex tasks is deprecated because they do not account for "
+                + "task relocations to other nodes. Use the dedicated reindex API instead: `POST /_reindex/{task_id}/_cancel`."
         );
     }
 

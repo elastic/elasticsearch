@@ -75,8 +75,8 @@ public class RestGetTaskActionTests extends RestActionTestCase {
         action.handleRequest(request, new FakeRestChannel(request, true), verifyingClient);
 
         assertWarnings(
-            "Using the task management APIs to get reindex tasks is deprecated. "
-                + "Use the dedicated reindex API instead, GET /_reindex/<task_id>."
+            "Using the task management APIs to get reindexing tasks is deprecated because they do not account for "
+                + "task relocations to other nodes. Use the dedicated reindex API instead: `GET /_reindex/{task_id}`"
         );
     }
 

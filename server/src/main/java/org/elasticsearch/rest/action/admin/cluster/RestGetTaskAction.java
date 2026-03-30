@@ -93,8 +93,8 @@ public class RestGetTaskAction extends BaseRestHandler {
         deprecationLogger.warn(
             DeprecationCategory.API,
             "get-api-deprecated-for-reindexing-tasks",
-            "Using the task management APIs to get reindex tasks is deprecated. "
-                + "Use the dedicated reindex API instead, GET /_reindex/<task_id>."
+            "Using the task management APIs to get reindexing tasks is deprecated because they do not account for "
+                + "task relocations to other nodes. Use the dedicated reindex API instead: `GET /_reindex/{task_id}`"
         );
     }
 

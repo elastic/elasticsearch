@@ -21,6 +21,7 @@ import org.elasticsearch.entitlement.runtime.registry.InternalInstrumentationReg
 import java.lang.foreign.FunctionDescriptor;
 import java.lang.foreign.MemorySession;
 import java.lang.invoke.MethodHandle;
+import java.net.spi.InetAddressResolverProvider;
 import java.util.List;
 import java.util.concurrent.ForkJoinPool;
 
@@ -93,5 +94,9 @@ public class Java19Instrumentation implements InstrumentationConfig {
                 new DeniedEntitlementStrategy.NotEntitledDeniedEntitlementStrategy()
             )
         );
+
+        builder.on(InetAddressResolverProvider.class, rule -> {
+            rule.protectedCtor().enforce(Policies::changeNetworkHandling).elseThrowNotEntitled();
+        });
     }
 }

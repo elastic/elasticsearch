@@ -15,7 +15,6 @@ import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.transport.Transport;
-import org.elasticsearch.xpack.core.common.socket.SocketAccess;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -89,7 +88,7 @@ public class IpFilteringIntegrationTests extends SecurityIntegTestCase {
     @SuppressForbidden(reason = "Allow opening socket for test")
     private void trySocketConnection(Socket socket, InetSocketAddress address) throws IOException {
         logger.info("connecting to {}", address);
-        SocketAccess.doPrivileged(() -> socket.connect(address, 5000));
+        socket.connect(address, 5000);
 
         assertThat(socket.isConnected(), is(true));
         try (OutputStream os = socket.getOutputStream()) {

@@ -1,5 +1,0 @@
-area: Infra/Logging
-issues: []
-pr: 143536
-summary: "[Backport 8.19] Fix cluster name in ECS upgrade"
-type: bug

@@ -25,7 +25,7 @@ public abstract class AbstractRestEnterpriseSearchActionTests extends ESTestCase
         final XPackLicenseState licenseState = mock(XPackLicenseState.class);
         final EnterpriseSearchBaseRestHandler action = getRestAction(licenseState);
 
-        final FakeRestChannel channel = new FakeRestChannel(request, true, 1);
+        final FakeRestChannel channel = new FakeRestChannel(request, true);
 
         try (var threadPool = createThreadPool()) {
             final var nodeClient = new NoOpNodeClient(threadPool);

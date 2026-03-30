@@ -309,6 +309,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         imdBuilder.putCustom(Ccr.CCR_CUSTOM_METADATA_KEY, customMetadata);
 
         imdBuilder.settings(leaderIndexMetadata.getSettings());
+        imdBuilder.transportVersion(leaderIndexMetadata.getTransportVersion());
 
         // Copy mappings from leader IMD to follow IMD
         imdBuilder.putMapping(leaderIndexMetadata.mapping());

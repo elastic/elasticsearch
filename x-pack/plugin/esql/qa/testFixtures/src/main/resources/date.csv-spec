@@ -339,7 +339,7 @@ ROW from=TO_DATETIME("2023-12-31T23:59:59.999Z"), to=TO_DATETIME("2024-01-01T00:
 2023-12-31T23:59:59.999Z|2024-01-01T00:00:00.000Z|1                  |0
 ;
 
-evalDateDiffYearAsWhole1Year
+evalDateDiffYearAsWhole1YearEndOfYear
 required_capability: date_diff_year_calendarial
 
 ROW from=TO_DATETIME("2023-12-31T23:59:59.999Z"), to=TO_DATETIME("2025-01-01T00:00:00")
@@ -1550,7 +1550,7 @@ emp_no:integer | hire_date:datetime       | first_day_of_month:keyword
 10010          | 1989-08-24T00:00:00.000Z | Tuesday
 ;
 
-dayNameNestedCall
+dayNameNestedCallDesc
 required_capability:fn_day_name
 from employees 
 | sort emp_no desc
@@ -1669,7 +1669,7 @@ emp_no:integer | hire_date:datetime       | monthName:keyword
 10010          | 1989-08-24T00:00:00.000Z | August
 ;
 
-monthNameNestedCall
+monthNameNestedCallDesc
 required_capability:fn_month_name
 from employees 
 | sort emp_no desc

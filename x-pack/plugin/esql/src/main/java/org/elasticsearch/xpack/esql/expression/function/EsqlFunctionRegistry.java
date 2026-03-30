@@ -63,12 +63,12 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.WeightedAvg;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Kql;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchPhrase;
-import org.elasticsearch.xpack.esql.expression.function.fulltext.MultiMatch;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.QueryString;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Score;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TBucket;
+import org.elasticsearch.xpack.esql.expression.function.grouping.TimeSeriesWithout;
 import org.elasticsearch.xpack.esql.expression.function.inference.TextEmbedding;
 import org.elasticsearch.xpack.esql.expression.function.scalar.Clamp;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
@@ -184,11 +184,14 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialCo
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialDisjoint;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialIntersects;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialWithin;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StDimension;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StDistance;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StEnvelope;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeohash;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeohex;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeometryType;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeotile;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StIsEmpty;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StNPoints;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StSimplify;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StX;
@@ -351,6 +354,10 @@ public class EsqlFunctionRegistry {
         return defs.containsKey(functionName);
     }
 
+    public boolean functionExists(Class<? extends Function> clazz) {
+        return names.containsKey(clazz);
+    }
+
     public String functionName(Class<? extends Function> clazz) {
         String name = names.get(clazz);
         Check.notNull(name, "Cannot find function by class {}", clazz);
@@ -368,7 +375,8 @@ public class EsqlFunctionRegistry {
             new FunctionDefinition[] {
                 def(Bucket.class, Bucket::new, "bucket", "bin"),
                 def(Categorize.class, Categorize::new, "categorize"),
-                defTS(TBucket.class, TBucket::new, "tbucket") },
+                defTS(TBucket.class, TBucket::new, "tbucket"),
+                def(TimeSeriesWithout.class, TimeSeriesWithout::new, "without") },
             // aggregate functions
             // since they declare two public constructors - one with filter (for nested where) and one without
             // use casting to disambiguate between the two
@@ -488,6 +496,9 @@ public class EsqlFunctionRegistry {
                 def(StGeotile.class, StGeotile::new, "st_geotile"),
                 def(StGeohex.class, StGeohex::new, "st_geohex"),
                 def(StNPoints.class, StNPoints::new, "st_npoints"),
+                def(StGeometryType.class, StGeometryType::new, "st_geometrytype"),
+                def(StDimension.class, StDimension::new, "st_dimension"),
+                def(StIsEmpty.class, StIsEmpty::new, "st_isempty"),
                 def(StXMax.class, StXMax::new, "st_xmax"),
                 def(StXMin.class, StXMin::new, "st_xmin"),
                 def(StYMax.class, StYMax::new, "st_ymax"),
@@ -562,7 +573,6 @@ public class EsqlFunctionRegistry {
                 def(Kql.class, bic(Kql::new), "kql"),
                 def(Knn.class, tri(Knn::new), "knn"),
                 def(Match.class, tri(Match::new), "match"),
-                def(MultiMatch.class, MultiMatch::new, "multi_match"),
                 def(QueryString.class, bic(QueryString::new), "qstr"),
                 def(MatchPhrase.class, tri(MatchPhrase::new), "match_phrase"),
                 def(Score.class, uni(Score::new), "score"),
@@ -1126,7 +1136,7 @@ public class EsqlFunctionRegistry {
      * Build a {@linkplain FunctionDefinition} for multi-arg/n-ary function.
      */
     @SuppressWarnings("overloads") // These are ambiguous if you aren't using ctor references but we always do
-    protected <T extends Function> FunctionDefinition def(Class<T> function, NaryBuilder<T> ctorRef, String... names) {
+    protected static <T extends Function> FunctionDefinition def(Class<T> function, NaryBuilder<T> ctorRef, String... names) {
         FunctionBuilder builder = (source, children, cfg) -> { return ctorRef.build(source, children); };
         return def(function, builder, names);
     }

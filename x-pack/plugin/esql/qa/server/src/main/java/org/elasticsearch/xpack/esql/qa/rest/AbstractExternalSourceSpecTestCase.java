@@ -6,52 +6,38 @@
  */
 package org.elasticsearch.xpack.esql.qa.rest;
 
-import fixture.gcs.GoogleCloudStorageHttpFixture;
-import fixture.gcs.TestUtils;
-
-import com.github.luben.zstd.ZstdOutputStream;
-
-import org.apache.commons.compress.compressors.bzip2.BZip2CompressorOutputStream;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
 import org.elasticsearch.xpack.esql.SpecReader;
 import org.elasticsearch.xpack.esql.datasources.AzureFixtureUtils;
 import org.elasticsearch.xpack.esql.datasources.AzureFixtureUtils.DataSourcesAzureHttpFixture;
+import org.elasticsearch.xpack.esql.datasources.FixtureUtils;
+import org.elasticsearch.xpack.esql.datasources.GcsFixtureUtils;
+import org.elasticsearch.xpack.esql.datasources.GcsFixtureUtils.DataSourcesGcsHttpFixture;
 import org.elasticsearch.xpack.esql.datasources.S3FixtureUtils;
 import org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.DataSourcesS3HttpFixture;
 import org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.S3RequestLog;
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
 
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.net.URL;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.FileVisitResult;
-import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.SimpleFileVisitor;
-import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.zip.GZIPOutputStream;
 
-import static org.elasticsearch.test.ESTestCase.fail;
 import static org.elasticsearch.xpack.esql.CsvSpecReader.specParser;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.isEnabled;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.classpathResources;
 import static org.elasticsearch.xpack.esql.datasources.AzureFixtureUtils.ACCOUNT;
 import static org.elasticsearch.xpack.esql.datasources.AzureFixtureUtils.CONTAINER;
-import static org.elasticsearch.xpack.esql.datasources.AzureFixtureUtils.KEY;
-import static org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.ACCESS_KEY;
+import static org.elasticsearch.xpack.esql.datasources.FixtureUtils.COMPRESSED_EXTENSIONS;
 import static org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.BUCKET;
-import static org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.SECRET_KEY;
 import static org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.WAREHOUSE;
 
 /**
@@ -98,7 +84,7 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
         List<StorageBackend> backends = new ArrayList<>(
             List.of(StorageBackend.S3, StorageBackend.HTTP, StorageBackend.GCS, StorageBackend.AZURE)
         );
-        if (S3FixtureUtils.resolveLocalFixturesPath(AbstractExternalSourceSpecTestCase.class) != null) {
+        if (FixtureUtils.resolveLocalFixturesPath(logger, AbstractExternalSourceSpecTestCase.class) != null) {
             backends.add(StorageBackend.LOCAL);
         }
         BACKENDS = List.copyOf(backends);
@@ -169,23 +155,11 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
     @ClassRule
     public static DataSourcesAzureHttpFixture azureFixture = new DataSourcesAzureHttpFixture();
 
-    /** GCS bucket name used by the GCS fixture */
-    protected static final String GCS_BUCKET = "test-gcs-bucket";
-
-    /** GCS OAuth2 token path used by the GCS fixture */
-    protected static final String GCS_TOKEN = "o/oauth2/token";
-
     @ClassRule
-    public static GoogleCloudStorageHttpFixture gcsFixture = new GoogleCloudStorageHttpFixture(true, GCS_BUCKET, GCS_TOKEN);
-
-    /** Cached service account JSON for GCS authentication against the fixture */
-    private static String gcsServiceAccountJson;
+    public static DataSourcesGcsHttpFixture gcsFixture = new DataSourcesGcsHttpFixture();
 
     /** Cached path to local fixtures directory */
     private static Path localFixturesPath;
-
-    /** Compression suffixes to generate on the fly from .csv and .ndjson fixtures */
-    private static final List<String> COMPRESSION_SUFFIXES = List.of(".gz", ".zst", ".zstd", ".bz2", ".bz");
 
     /**
      * Load fixtures from src/test/resources/iceberg-fixtures/ into the S3 and GCS fixtures.
@@ -195,31 +169,10 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
     @BeforeClass
     public static void loadExternalSourceFixtures() {
         s3Fixture.loadFixturesFromResources();
-        loadGcsFixtures();
+        gcsFixture.loadFixturesFromResources();
         azureFixture.loadFixturesFromResources();
         generateCompressedFixtures();
         resolveLocalFixturesPath();
-    }
-
-    /**
-     * Generate a fake service account JSON and load fixture files into the GCS fixture.
-     */
-    private static void loadGcsFixtures() {
-        try {
-            byte[] serviceAccountBytes = TestUtils.createServiceAccount(random());
-            gcsServiceAccountJson = new String(serviceAccountBytes, StandardCharsets.UTF_8);
-
-            int[] count = { 0 };
-            S3FixtureUtils.forEachFixtureEntry(AbstractExternalSourceSpecTestCase.class, (relativePath, content) -> {
-                String key = WAREHOUSE + "/" + relativePath;
-                gcsFixture.getHandler().putBlob(key, new BytesArray(content));
-                count[0]++;
-            });
-
-            logger.info("Loaded {} fixture files into GCS fixture", count[0]);
-        } catch (Exception e) {
-            logger.error("Failed to load GCS fixtures", e);
-        }
     }
 
     /**
@@ -230,20 +183,20 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
     private static void generateCompressedFixtures() {
         try {
             int[] generated = { 0 };
-            S3FixtureUtils.forEachFixtureEntry(AbstractExternalSourceSpecTestCase.class, (relativePath, content) -> {
+            FixtureUtils.forEachFixtureEntry(AbstractExternalSourceSpecTestCase.class, (relativePath, content) -> {
                 String fileName = relativePath.contains("/") ? relativePath.substring(relativePath.lastIndexOf('/') + 1) : relativePath;
                 if (fileName.endsWith(".csv") == false && fileName.endsWith(".ndjson") == false) {
                     return;
                 }
                 String relativeDir = relativePath.contains("/") ? relativePath.substring(0, relativePath.lastIndexOf('/')) : "";
 
-                for (String suffix : COMPRESSION_SUFFIXES) {
-                    byte[] compressed = compress(content, suffix);
+                for (String suffix : COMPRESSED_EXTENSIONS) {
+                    byte[] compressed = FixtureUtils.compress(content, suffix);
                     String compressedName = fileName + suffix;
                     String key = WAREHOUSE + "/" + (relativeDir.isEmpty() ? compressedName : relativeDir + "/" + compressedName);
 
-                    addBlobToFixture(key, compressed);
-                    gcsFixture.getHandler().putBlob(key, new BytesArray(compressed));
+                    S3FixtureUtils.addBlobToFixture(s3Fixture.getHandler(), key, compressed);
+                    GcsFixtureUtils.addBlobToFixture(gcsFixture.getHandler(), key, compressed);
                     AzureFixtureUtils.addBlobToFixture(azureFixture.getAddress(), key, compressed);
                     generated[0]++;
                 }
@@ -255,31 +208,6 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
         }
     }
 
-    private static byte[] compress(byte[] input, String suffix) throws IOException {
-        ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        return switch (suffix) {
-            case ".gz" -> {
-                try (GZIPOutputStream out = new GZIPOutputStream(baos)) {
-                    out.write(input);
-                }
-                yield baos.toByteArray();
-            }
-            case ".zst", ".zstd" -> {
-                try (ZstdOutputStream out = new ZstdOutputStream(baos)) {
-                    out.write(input);
-                }
-                yield baos.toByteArray();
-            }
-            case ".bz2", ".bz" -> {
-                try (BZip2CompressorOutputStream out = new BZip2CompressorOutputStream(baos)) {
-                    out.write(input);
-                }
-                yield baos.toByteArray();
-            }
-            default -> throw new IllegalArgumentException("Unknown compression: " + suffix);
-        };
-    }
-
     /**
      * Resolve and cache the local path to the fixtures directory.
      * Writes generated compressed variants (.gz, .zst, .zstd, .bz2, .bz) alongside the
@@ -288,10 +216,10 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
      * tests will be skipped.
      */
     private static void resolveLocalFixturesPath() {
-        Path fixturesPath = S3FixtureUtils.resolveLocalFixturesPath(AbstractExternalSourceSpecTestCase.class);
+        Path fixturesPath = FixtureUtils.resolveLocalFixturesPath(logger, AbstractExternalSourceSpecTestCase.class);
         if (fixturesPath != null) {
             try {
-                writeCompressedVariantsToFixturesPath(fixturesPath);
+                FixtureUtils.writeCompressedVariantsToFixturesPath(fixturesPath);
                 localFixturesPath = fixturesPath;
                 logger.info("Local fixtures path: {}", localFixturesPath);
             } catch (Exception e) {
@@ -304,46 +232,8 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
         }
     }
 
-    private static void writeCompressedVariantsToFixturesPath(Path fixturesPath) throws IOException {
-        Files.walkFileTree(fixturesPath, new SimpleFileVisitor<>() {
-            @Override
-            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-                String name = file.getFileName().toString();
-                if (name.endsWith(".csv") || name.endsWith(".ndjson")) {
-                    byte[] content = Files.readAllBytes(file);
-                    Path parent = file.getParent();
-                    for (String suffix : COMPRESSION_SUFFIXES) {
-                        byte[] compressed = compress(content, suffix);
-                        Files.write(parent.resolve(name + suffix), compressed);
-                    }
-                }
-                return FileVisitResult.CONTINUE;
-            }
-        });
-    }
-
-    /**
-     * Skip standard test data loading for external source tests.
-     */
     @BeforeClass
-    public static void skipStandardDataLoading() {
-        try {
-            java.lang.reflect.Field ingestField = EsqlSpecTestCase.class.getDeclaredField("INGEST");
-            ingestField.setAccessible(true);
-            Object ingest = ingestField.get(null);
-
-            java.lang.reflect.Field completedField = ingest.getClass().getDeclaredField("completed");
-            completedField.setAccessible(true);
-            completedField.setBoolean(ingest, true);
-
-            logger.info("Skipped standard test data loading for external source tests");
-        } catch (Exception e) {
-            logger.warn("Failed to skip standard data loading, tests may be slower", e);
-        }
-    }
-
-    @BeforeClass
-    public static void verifySetup() {
+    public static void logSetup() {
         logger.info("=== External Source Test Setup Verification ===");
         logger.info("S3 Fixture endpoint: {}", s3Fixture.getAddress());
         logger.info("GCS Fixture endpoint: {}", gcsFixture.getAddress());
@@ -380,20 +270,6 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
         this.format = format;
     }
 
-    /**
-     * Get the storage backend for this test.
-     */
-    protected StorageBackend getStorageBackend() {
-        return storageBackend;
-    }
-
-    /**
-     * Get the format (e.g., "parquet", "csv") for this test.
-     */
-    protected String getFormat() {
-        return format;
-    }
-
     @Override
     protected void shouldSkipTest(String testName) throws IOException {
         checkCapabilities(adminClient(), testFeatureService, testName, testCase);
@@ -419,22 +295,24 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
         query = transformTemplates(query);
 
         // Inject endpoint and credentials for S3 backend
-        if (storageBackend == StorageBackend.S3 && isExternalQuery(query) && hasEndpointParam(query) == false) {
-            query = injectS3Params(query);
-        }
-
-        // Inject endpoint and credentials for GCS backend
-        if (storageBackend == StorageBackend.GCS && isExternalQuery(query) && hasEndpointParam(query) == false) {
-            query = injectGcsParams(query);
-        }
-
-        // Inject endpoint and credentials for Azure backend
-        if (storageBackend == StorageBackend.AZURE && isExternalQuery(query) && hasEndpointParam(query) == false) {
-            query = injectAzureParams(query);
+        if (isExternalQuery(query)) {
+            query = switch (storageBackend) {
+                case StorageBackend.S3 -> s3Fixture.injectParams(query);
+                case StorageBackend.GCS -> gcsFixture.injectParams(query);
+                case StorageBackend.AZURE -> azureFixture.injectParams(query);
+                default -> query;
+            };
         }
 
         logger.debug("Transformed query for {} backend: {}", storageBackend, query);
         doTest(query);
+    }
+
+    /**
+     * Check if query starts with EXTERNAL command.
+     */
+    private static boolean isExternalQuery(String query) {
+        return query.trim().toUpperCase(Locale.ROOT).startsWith("EXTERNAL");
     }
 
     /**
@@ -446,7 +324,7 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
      */
     private String transformTemplates(String query) {
         Matcher matcher = TEMPLATE_PATTERN.matcher(query);
-        StringBuffer result = new StringBuffer();
+        StringBuilder result = new StringBuilder();
 
         while (matcher.find()) {
             String templateName = matcher.group(1);
@@ -500,7 +378,7 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
 
             case GCS:
                 // GCS path: gs://bucket/warehouse/standalone/employees.parquet
-                return "gs://" + GCS_BUCKET + "/" + WAREHOUSE + "/" + relativePath;
+                return "gs://" + GcsFixtureUtils.BUCKET + "/" + WAREHOUSE + "/" + relativePath;
 
             case AZURE:
                 // Azure path: wasbs://account.blob.core.windows.net/container/warehouse/standalone/employees.parquet
@@ -511,132 +389,10 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
         }
     }
 
-    /**
-     * Inject S3 endpoint and credentials into the query.
-     */
-    private String injectS3Params(String query) {
-        String trimmed = query.trim();
-        int pipeIndex = findFirstPipeAfterExternal(trimmed);
-
-        String externalPart;
-        String restOfQuery;
-
-        if (pipeIndex == -1) {
-            externalPart = trimmed;
-            restOfQuery = "";
-        } else {
-            externalPart = trimmed.substring(0, pipeIndex).trim();
-            restOfQuery = " " + trimmed.substring(pipeIndex);
-        }
-
-        StringBuilder params = new StringBuilder();
-        params.append(" WITH { ");
-        params.append("\"endpoint\": \"").append(s3Fixture.getAddress()).append("\", ");
-        params.append("\"access_key\": \"").append(ACCESS_KEY).append("\", ");
-        params.append("\"secret_key\": \"").append(SECRET_KEY).append("\"");
-        params.append(" }");
-
-        return externalPart + params.toString() + restOfQuery;
-    }
-
-    /**
-     * Inject GCS endpoint, credentials, and project_id into the query.
-     */
-    private String injectGcsParams(String query) {
-        String trimmed = query.trim();
-        int pipeIndex = findFirstPipeAfterExternal(trimmed);
-
-        String externalPart;
-        String restOfQuery;
-
-        if (pipeIndex == -1) {
-            externalPart = trimmed;
-            restOfQuery = "";
-        } else {
-            externalPart = trimmed.substring(0, pipeIndex).trim();
-            restOfQuery = " " + trimmed.substring(pipeIndex);
-        }
-
-        // Escape the service account JSON for embedding inside the WITH clause.
-        // The JSON is embedded as a string value, so internal double-quotes must be escaped.
-        String escapedCredentials = gcsServiceAccountJson.replace("\\", "\\\\").replace("\"", "\\\"");
-
-        String tokenUri = gcsFixture.getAddress() + "/" + GCS_TOKEN;
-
-        StringBuilder params = new StringBuilder();
-        params.append(" WITH { ");
-        params.append("\"endpoint\": \"").append(gcsFixture.getAddress()).append("\", ");
-        params.append("\"credentials\": \"").append(escapedCredentials).append("\", ");
-        params.append("\"project_id\": \"test\", ");
-        params.append("\"token_uri\": \"").append(tokenUri).append("\"");
-        params.append(" }");
-
-        return externalPart + params.toString() + restOfQuery;
-    }
-
-    /**
-     * Inject Azure endpoint and credentials into the query.
-     */
-    private String injectAzureParams(String query) {
-        String trimmed = query.trim();
-        int pipeIndex = findFirstPipeAfterExternal(trimmed);
-
-        String externalPart;
-        String restOfQuery;
-
-        if (pipeIndex == -1) {
-            externalPart = trimmed;
-            restOfQuery = "";
-        } else {
-            externalPart = trimmed.substring(0, pipeIndex).trim();
-            restOfQuery = " " + trimmed.substring(pipeIndex);
-        }
-
-        StringBuilder params = new StringBuilder();
-        params.append(" WITH { ");
-        params.append("\"endpoint\": \"").append(azureFixture.getAddress()).append("\", ");
-        params.append("\"account\": \"").append(ACCOUNT).append("\", ");
-        params.append("\"key\": \"").append(KEY).append("\"");
-        params.append(" }");
-
-        return externalPart + params.toString() + restOfQuery;
-    }
-
-    /**
-     * Check if query starts with EXTERNAL command.
-     */
-    private static boolean isExternalQuery(String query) {
-        return query.trim().toUpperCase(Locale.ROOT).startsWith("EXTERNAL");
-    }
-
-    /**
-     * Check if query already has endpoint parameter.
-     */
-    private static boolean hasEndpointParam(String query) {
-        return query.toLowerCase(Locale.ROOT).contains("endpoint");
-    }
-
-    /**
-     * Find the first pipe character that's not inside a quoted string.
-     */
-    private static int findFirstPipeAfterExternal(String query) {
-        boolean inQuotes = false;
-        char quoteChar = 0;
-
-        for (int i = 0; i < query.length(); i++) {
-            char c = query.charAt(i);
-
-            if (inQuotes == false && (c == '"' || c == '\'')) {
-                inQuotes = true;
-                quoteChar = c;
-            } else if (inQuotes && c == quoteChar) {
-                inQuotes = false;
-            } else if (inQuotes == false && c == '|') {
-                return i;
-            }
-        }
-
-        return -1;
+    @Override
+    protected List<String> indicesToLoad() {
+        // languages: enrich policy source; languages_lookup: LOOKUP JOIN (see CsvTestsDataLoader.loadEnrichPoliciesForLoadedSourceIndices)
+        return List.of("languages", "languages_lookup");
     }
 
     @Override
@@ -651,55 +407,7 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
 
     // Static utility methods for fixture access
 
-    protected static String getS3Endpoint() {
-        return s3Fixture.getAddress();
-    }
-
-    protected static String getGcsEndpoint() {
-        return gcsFixture.getAddress();
-    }
-
-    protected static String getAzureEndpoint() {
-        return azureFixture.getAddress();
-    }
-
     protected static List<S3RequestLog> getRequestLogs() {
         return S3FixtureUtils.getRequestLogs();
-    }
-
-    protected static void clearRequestLogs() {
-        S3FixtureUtils.clearRequestLogs();
-    }
-
-    protected static void printRequestSummary() {
-        S3FixtureUtils.printRequestSummary();
-    }
-
-    protected static int getRequestCount(String requestType) {
-        return S3FixtureUtils.getRequestCount(requestType);
-    }
-
-    protected static List<S3RequestLog> getRequestsByType(String requestType) {
-        return S3FixtureUtils.getRequestsByType(requestType);
-    }
-
-    protected static boolean hasUnknownRequests() {
-        return S3FixtureUtils.hasUnknownRequests();
-    }
-
-    protected static List<S3RequestLog> getUnknownRequests() {
-        return S3FixtureUtils.getUnknownRequests();
-    }
-
-    protected static void addBlobToFixture(String key, String content) {
-        S3FixtureUtils.addBlobToFixture(s3Fixture.getHandler(), key, content);
-    }
-
-    protected static void addBlobToFixture(String key, byte[] content) {
-        S3FixtureUtils.addBlobToFixture(s3Fixture.getHandler(), key, content);
-    }
-
-    protected static String getWarehousePath() {
-        return S3FixtureUtils.getWarehousePath();
     }
 }

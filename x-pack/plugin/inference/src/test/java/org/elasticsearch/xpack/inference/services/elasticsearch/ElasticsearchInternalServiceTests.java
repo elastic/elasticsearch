@@ -2298,7 +2298,7 @@ public class ElasticsearchInternalServiceTests extends InferenceServiceTestCase 
     public void testUpdateServiceSettings_ThrowsExceptionWhenNumThreadsIsUpdated() {
         var existingSettings = new ElasticsearchInternalServiceSettings(1, 4, "test-model", null, null);
 
-        Map<String, Object> serviceSettingsWithNumThreads = Map.of(ElasticsearchInternalServiceSettings.NUM_THREADS, 8);
+        var serviceSettingsWithNumThreads = new HashMap<String, Object>(Map.of(ElasticsearchInternalServiceSettings.NUM_THREADS, 8));
         var exception = expectThrows(
             ValidationException.class,
             () -> existingSettings.updateServiceSettings(serviceSettingsWithNumThreads)

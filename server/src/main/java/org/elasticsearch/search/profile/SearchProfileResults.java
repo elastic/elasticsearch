@@ -50,7 +50,7 @@ public final class SearchProfileResults implements Writeable, ToXContentFragment
     public static final String QUERY_FIELD = "indices";
 
     public static final TransportVersion originalQueryIndicesInProfileResults = TransportVersion.fromName(
-        "include-original-query-indices-in-search-profile-results"
+        "include_original_query_indices_in_search_profile_results"
     );
 
     // map key is the composite "id" of form [nodeId][(clusterName:)indexName][shardId] created from SearchShardTarget.toString
@@ -100,7 +100,8 @@ public final class SearchProfileResults implements Writeable, ToXContentFragment
     }
 
     /**
-     * The {@link SearchRequest#source()} from the originating coordinator request when included with profile results; otherwise {@code null}.
+     * The {@link SearchRequest#source()} from the originating coordinator request when included with profile
+     * results; otherwise {@code null}.
      */
     @Nullable
     public SearchSourceBuilder getOriginalSource() {

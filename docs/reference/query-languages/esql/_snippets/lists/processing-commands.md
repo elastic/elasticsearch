@@ -11,7 +11,7 @@
 * [`LIMIT`](/reference/query-languages/esql/commands/limit.md)
 * [`LOOKUP JOIN`](/reference/query-languages/esql/commands/lookup-join.md) {applies_to}`stack: preview 9.0` {applies_to}`stack: ga 9.1`
 * [`INLINE STATS`](/reference/query-languages/esql/commands/inlinestats-by.md) {applies_to}`stack: preview 9.2` {applies_to}`stack: ga 9.3`
-* [`MV_EXPAND`](/reference/query-languages/esql/commands/mv_expand.md) {applies_to}`stack: preview` {applies_to}`serverless: preview`
+* [`MV_EXPAND`](/reference/query-languages/esql/commands/mv_expand.md) {applies_to}`stack: preview 9.0-9.3` {applies_to}`stack: ga 9.4`
 * [`REGISTERED_DOMAIN`](/reference/query-languages/esql/commands/registered-domain.md) {applies_to}`stack: preview 9.4` {applies_to}`serverless: preview`
 * [`RENAME`](/reference/query-languages/esql/commands/rename.md)
 * [`RERANK`](/reference/query-languages/esql/commands/rerank.md) {applies_to}`stack: preview 9.2` {applies_to}`stack: ga 9.4`

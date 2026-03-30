@@ -85,7 +85,7 @@ public class DlmFrozenTransitionServiceTests extends ESTestCase {
         settingSet.add(DlmFrozenTransitionService.MAX_CONCURRENCY_SETTING);
         settingSet.add(DlmFrozenTransitionService.MAX_QUEUE_SIZE);
         threadPool = new TestThreadPool(getTestName());
-        // Set max_queue_size equal to max_concurrency so that capacity tests remain valid: once maxConcurrency
+        // Set max_queue_size equal to max_concurrency so that capacity tests remain valid: once maxConcurrency * 2
         // tasks have been submitted, hasCapacity() returns false.
         int maxConcurrency = DlmFrozenTransitionService.MAX_CONCURRENCY_SETTING.getDefault(Settings.EMPTY);
         Settings settings = Settings.builder().put("dlm.frozen_transition.max_queue_size", maxConcurrency).build();

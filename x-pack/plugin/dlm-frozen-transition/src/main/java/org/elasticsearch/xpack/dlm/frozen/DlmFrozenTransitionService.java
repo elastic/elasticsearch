@@ -63,6 +63,7 @@ class DlmFrozenTransitionService implements ClusterStateListener, Closeable {
         "dlm.frozen_transition.max_queue_size",
         500,
         1,
+        10000,
         Setting.Property.NodeScope
     );
 

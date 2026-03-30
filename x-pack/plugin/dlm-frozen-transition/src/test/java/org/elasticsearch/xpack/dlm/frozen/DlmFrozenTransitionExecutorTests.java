@@ -8,55 +8,22 @@
 package org.elasticsearch.xpack.dlm.frozen;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.WrappedRunnable;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.Future;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 public class DlmFrozenTransitionExecutorTests extends ESTestCase {
-
-    /**
-     * Minimal test double implementing {@link DlmFrozenTransitionRunnable} with deterministic, test-controlled behavior.
-     * The {@code started} latch always counts down when the task begins. Set {@code blockUntil} to a non-released latch
-     * to hold the task, or leave it at the default (already released) for tasks that complete immediately.
-     */
-    static class TestDlmFrozenTransitionRunnable implements DlmFrozenTransitionRunnable {
-        private final String indexName;
-        CountDownLatch started = new CountDownLatch(1);
-        CountDownLatch blockUntil = new CountDownLatch(0);
-        Throwable throwOnRun;
-
-        TestDlmFrozenTransitionRunnable(String indexName) {
-            this.indexName = indexName;
-        }
-
-        @Override
-        public String getIndexName() {
-            return indexName;
-        }
-
-        @Override
-        public void run() {
-            started.countDown();
-            try {
-                blockUntil.await();
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                return;
-            }
-            if (throwOnRun instanceof RuntimeException rte) {
-                throw rte;
-            } else if (throwOnRun instanceof Error error) {
-                throw error;
-            }
-        }
-    }
 
     public void testTransitionSubmitted() throws Exception {
         try (var executor = new DlmFrozenTransitionExecutor(2, 10, Settings.EMPTY)) {
@@ -140,7 +107,7 @@ public class DlmFrozenTransitionExecutorTests extends ESTestCase {
 
     /**
      * A task that is submitted to the executor but waiting in the queue (single thread occupied) must still
-     * be reported as "running" by {@link DlmFrozenTransitionExecutor#transitionSubmitted}, because the entry
+     * be reported as "submitted" by {@link DlmFrozenTransitionExecutor#transitionSubmitted}, because the entry
      * is added to {@code submittedTransitions} at submission time, not when the thread actually starts.
      * This is the invariant that {@code checkForFrozenIndices} relies on to prevent re-submission of queued tasks.
      */
@@ -214,14 +181,22 @@ public class DlmFrozenTransitionExecutorTests extends ESTestCase {
         executor.submit(runningTask);
         safeAwait(firstStarted); // single thread occupied
 
+        Set<Runnable> submittedFutures = new HashSet<>(3);
         for (int i = 0; i < 3; i++) {
             var queuedTask = new TestDlmFrozenTransitionRunnable("queued-index-" + i);
             queuedTask.blockUntil = block;
-            executor.submit(queuedTask);
+            submittedFutures.add((Runnable) executor.submit(queuedTask));
         }
 
         List<Runnable> cancelled = executor.shutdownNow();
-        assertFalse("shutdownNow must return the queued tasks that were waiting to run", cancelled.isEmpty());
+        Set<Runnable> unwrappedCancelled = cancelled.stream().map(r -> {
+            Runnable unwrapped = r;
+            while (unwrapped instanceof WrappedRunnable wr) {
+                unwrapped = wr.unwrap();
+            }
+            return unwrapped;
+        }).collect(Collectors.toSet());
+        assertEquals(submittedFutures, unwrappedCancelled);
 
         executor.close();
     }
@@ -260,6 +235,43 @@ public class DlmFrozenTransitionExecutorTests extends ESTestCase {
             assertTrue("All submissions should succeed without error: " + errors, errors.isEmpty());
             for (Future<?> future : futures) {
                 future.get(10, TimeUnit.SECONDS);
+            }
+        }
+    }
+
+    /**
+     * Minimal test double implementing {@link DlmFrozenTransitionRunnable} with deterministic, test-controlled behavior.
+     * The {@code started} latch always counts down when the task begins. Set {@code blockUntil} to a non-released latch
+     * to hold the task, or leave it at the default (already released) for tasks that complete immediately.
+     */
+    static class TestDlmFrozenTransitionRunnable implements DlmFrozenTransitionRunnable {
+        private final String indexName;
+        CountDownLatch started = new CountDownLatch(1);
+        CountDownLatch blockUntil = new CountDownLatch(0);
+        Throwable throwOnRun;
+
+        TestDlmFrozenTransitionRunnable(String indexName) {
+            this.indexName = indexName;
+        }
+
+        @Override
+        public String getIndexName() {
+            return indexName;
+        }
+
+        @Override
+        public void run() {
+            started.countDown();
+            try {
+                blockUntil.await();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return;
+            }
+            if (throwOnRun instanceof RuntimeException rte) {
+                throw rte;
+            } else if (throwOnRun instanceof Error error) {
+                throw error;
             }
         }
     }

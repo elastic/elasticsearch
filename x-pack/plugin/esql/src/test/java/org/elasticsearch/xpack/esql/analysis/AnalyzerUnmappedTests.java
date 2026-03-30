@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
@@ -1165,6 +1166,41 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         assertThat(plan, not(nullValue()));
     }
 
+    public void testDisallowLoadWithPartiallyMappedNonKeywordInRename() {
+        assumeTrue("Requires OPTIONAL_FIELDS_V5", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
+
+        var esIndex = partialIndex(
+            "partial_idx",
+            Map.of("partial_long", longField("partial_long"), "common", keywordField("common")),
+            Set.of("partial_long")
+        );
+        var analyzer = analyzer().addIndex(esIndex);
+
+        assertUnmappedLoadError(
+            analyzer,
+            "FROM partial_idx | RENAME partial_long AS pl",
+            allOf(
+                containsString("Found 1 problem"),
+                containsString(
+                    "line 1:55: Cannot use field [partial_long] due to ambiguities being mapped as [2] incompatible types: "
+                        + "[keyword] enforced by INSIST command, [long] in [partial_idx]"
+                )
+            )
+        );
+
+        assertUnmappedLoadError(
+            analyzer,
+            "FROM partial_idx | RENAME common as c, partial_long AS pl",
+            allOf(
+                containsString("Found 1 problem"),
+                containsString(
+                    "line 1:68: Cannot use field [partial_long] due to ambiguities being mapped as [2] incompatible types: "
+                        + "[keyword] enforced by INSIST command, [long] in [partial_idx]"
+                )
+            )
+        );
+    }
+
     public void testDisallowLoadWithPartiallyMappedNonKeywordInWhere() {
         assumeTrue("Requires OPTIONAL_FIELDS_V5", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
 
@@ -1309,6 +1345,34 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         );
     }
 
+    public void testAllowLoadWithKeepDrop() {
+        assumeTrue("Requires OPTIONAL_FIELDS_V5", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
+
+        var esIndex = partialIndex(
+            "partial_idx",
+            Map.of("partial_long", longField("partial_long"), "common", keywordField("common")),
+            Set.of("partial_long")
+        );
+        var analyzer = analyzer().addIndex(esIndex);
+
+        String[] queries = new String[] {
+            "FROM partial_idx | KEEP common",
+            "FROM partial_idx | KEEP partial_long",
+            "FROM partial_idx | KEEP partial_long, common",
+            "FROM partial_idx | KEEP c*, p*",
+            "FROM partial_idx | DROP partial_long",
+            "FROM partial_idx | DROP common",
+            "FROM partial_idx | DROP c*",
+            "FROM partial_idx | DROP p*",
+            "FROM partial_idx | DROP partial_long | KEEP common", };
+        String suffix = randomFrom("", "| EVAL foo = 1", "| STATS count(*)", "| LIMIT 10");
+        LogicalPlan plan;
+        for (String query : queries) {
+            plan = analyzer.statement(setUnmappedLoad(query + suffix));
+            assertThat(plan, not(nullValue()));
+        }
+    }
+
     public void testAllowLoadWithPartiallyMappedKeyword() {
         assumeTrue("Requires OPTIONAL_FIELDS_V5", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
 
@@ -1325,7 +1389,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         assumeTrue("Requires OPTIONAL_FIELDS_NULLIFY_TECH_PREVIEW", EsqlCapabilities.Cap.OPTIONAL_FIELDS_NULLIFY_TECH_PREVIEW.isEnabled());
 
         var esIndex = partialIndex("partial_idx", Map.of("partial_long", longField("partial_long")), Set.of("partial_long"));
-        var plan = analyzer().addIndex(esIndex).statement(setUnmappedNullify("FROM partial_idx | KEEP partial_long"));
+        var plan = analyzer().addIndex(esIndex).statement(setUnmappedNullify("FROM partial_idx | WHERE partial_long IS NOT NULL"));
         assertThat(plan, not(nullValue()));
     }
 

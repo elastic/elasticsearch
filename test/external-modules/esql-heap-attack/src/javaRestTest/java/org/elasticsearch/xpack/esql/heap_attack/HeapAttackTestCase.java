@@ -125,7 +125,10 @@ public abstract class HeapAttackTestCase extends ESRestTestCase {
                     && "circuit_breaking_exception".equals(errorMap.get("type"))
                     && errorMap.get("stack_trace") instanceof String stackTrace
                     && classNames.stream().allMatch(stackTrace::contains)) {
-                    assertMap(map, matchesMap().entry("status", 429));
+                    assertMap(
+                        map,
+                        matchesMap().entry("status", 429).entry("error", matchesMap().extraOk().entry("type", "circuit_breaking_exception"))
+                    );
                     return;
                 }
                 logger.warn("{}: circuit broke but not via expected classes {}: {}", attempt, classNames, map);

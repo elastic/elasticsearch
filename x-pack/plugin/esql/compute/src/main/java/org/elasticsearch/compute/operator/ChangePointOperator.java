@@ -103,8 +103,8 @@ public class ChangePointOperator extends CompleteInputCollectorOperator {
         List<Integer> bucketIndexes = new ArrayList<>();
         ArrayDeque<DetectedChangePoint> detectedChangePoints = new ArrayDeque<>();
         int valuesIndex = 0;
-        Object previousGroupKey = groupChannel != null
-            ? BlockUtils.toJavaObject(inputPages.peek().getBlock(groupChannel), 0) // TODO can we got no input?
+        Object previousGroupKey = groupChannel != null && inputPages.isEmpty() == false
+            ? BlockUtils.toJavaObject(inputPages.peek().getBlock(groupChannel), 0)
             : null;
 
         boolean hasNulls = false;
@@ -119,7 +119,7 @@ public class ChangePointOperator extends CompleteInputCollectorOperator {
                 if (groupBlock != null) {
                     Object currentGroupKey = BlockUtils.toJavaObject(groupBlock, i);
                     if (Objects.equals(currentGroupKey, previousGroupKey) == false) {
-                        if (values.isEmpty() == false) {
+                        if (values.isEmpty() == false || lastGroupHasRows) {
                             var changeType = detectChangePoint(values, bucketIndexes);
                             var changePointIndex = changeType.changePoint();
                             if (changePointIndex >= 0) {
@@ -153,7 +153,7 @@ public class ChangePointOperator extends CompleteInputCollectorOperator {
         }
 
         // flush last (or only) group; for "non-grouped" or "all-null" input this still
-        // runs  to produce an "indeterminable" warning.
+        // runs to produce an "indeterminable" warning.
         if (values.isEmpty() == false || groupChannel == null || lastGroupHasRows) {
             var changeType = detectChangePoint(values, bucketIndexes);
             var changePointIndex = changeType.changePoint();
@@ -221,7 +221,10 @@ public class ChangePointOperator extends CompleteInputCollectorOperator {
     }
 
     private void emitWarnings(
-        boolean tooManyValues, boolean hasNulls, boolean hasMultivalued, boolean hasIndeterminableChangePoint,
+        boolean tooManyValues,
+        boolean hasNulls,
+        boolean hasMultivalued,
+        boolean hasIndeterminableChangePoint,
         String indeterminableReason
     ) {
         if (tooManyValues) {
@@ -272,8 +275,7 @@ public class ChangePointOperator extends CompleteInputCollectorOperator {
     public String toString() {
         if (groupChannel == null) {
             return "ChangePointOperator[channel=" + channel + "]";
-        }
-        else {
+        } else {
             return "ChangePointOperator[channel=" + channel + ", groupChannel=" + groupChannel + "]";
         }
     }

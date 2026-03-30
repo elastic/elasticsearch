@@ -189,7 +189,7 @@ public class ChangePoint extends UnaryPlan
                 failures.add(
                     fail(
                         grouping,
-                        "CHANGE_POINT grouping only support sortable values, found expression [{}] type [{}]",
+                        "CHANGE_POINT grouping only supports sortable values, found expression [{}] type [{}]",
                         grouping.sourceText(),
                         type
                     )

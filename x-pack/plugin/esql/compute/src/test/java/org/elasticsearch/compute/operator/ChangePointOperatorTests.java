@@ -109,7 +109,7 @@ public class ChangePointOperatorTests extends OperatorTestCase {
         // Group C: [0×15, 1×15] -> step at row 15 of page2
         Page page0 = buildPage(blockFactory, 30, i -> "A", i -> i < 15 ? 0L : 1L);
         Page page1 = buildPage(blockFactory, 30, i -> "B", i -> i < 15 ? 1L : 0L);
-        Page page2 = buildPage(blockFactory, 30, i -> "C", i -> i < 15  ? 0L : 1L);
+        Page page2 = buildPage(blockFactory, 30, i -> "C", i -> i < 15 ? 0L : 1L);
         var pages = List.of(page0, page1, page2);
 
         List<Page> outputPages = invokeChangePoint(ctx, pages);
@@ -151,7 +151,7 @@ public class ChangePointOperatorTests extends OperatorTestCase {
         // Group B: [0×35]
         Page page0 = buildPage(blockFactory, 20, i -> "A", i -> 0L);
         Page page1 = buildPage(blockFactory, 40, i -> "A", i -> i < 20 ? 0L : 1L);
-        Page page2 = buildPage(blockFactory, 40, i -> i < 5 ? "A" : "B", i -> i < 5 ? 1L: 0L);
+        Page page2 = buildPage(blockFactory, 40, i -> i < 5 ? "A" : "B", i -> i < 5 ? 1L : 0L);
         var pages = List.of(page0, page1, page2);
 
         List<Page> outputPages = invokeChangePoint(ctx, pages);
@@ -169,7 +169,7 @@ public class ChangePointOperatorTests extends OperatorTestCase {
         BlockFactory blockFactory = ctx.blockFactory();
 
         // Group A: [1×85]
-        // Group B: [0×20, 1x15]  -> step at row 25 of page2
+        // Group B: [0×20, 1x15] -> step at row 25 of page2
         Page page0 = buildPage(blockFactory, 40, i -> "A", i -> 1L);
         Page page1 = buildPage(blockFactory, 40, i -> "A", i -> 1L);
         Page page2 = buildPage(blockFactory, 40, i -> i < 5 ? "A" : "B", i -> i < 5 ? 1L : (i < 25 ? 0L : 1L));
@@ -202,7 +202,11 @@ public class ChangePointOperatorTests extends OperatorTestCase {
 
         try {
             assertThat(outputPages, hasSize(1));
-            assertWarnings("Line 1:1: evaluation of [null] failed, treating result as null. Only first 20 failures recorded.", "Line 1:1: java.lang.IllegalArgumentException: not enough buckets to calculate change_point. Requires at least [22]; found [0]", "Line 1:1: java.lang.IllegalArgumentException: values contain nulls; skipping them");
+            assertWarnings(
+                "Line 1:1: evaluation of [null] failed, treating result as null. Only first 20 failures recorded.",
+                "Line 1:1: java.lang.IllegalArgumentException: not enough buckets to calculate change_point. Requires at least [22]; found [0]",
+                "Line 1:1: java.lang.IllegalArgumentException: values contain nulls; skipping them"
+            );
             Block typeBlock = outputPages.get(0).getBlock(1);
             Block pvalueBlock = outputPages.get(0).getBlock(2);
             for (int j = 0; j < 30; j++) {
@@ -220,7 +224,10 @@ public class ChangePointOperatorTests extends OperatorTestCase {
         List<Page> outputPages = invokeChangePoint(ctx, List.of(), 0, null);
 
         assertThat(outputPages, hasSize(0));
-        assertWarnings("Line 1:1: evaluation of [null] failed, treating result as null. Only first 20 failures recorded.", "Line 1:1: java.lang.IllegalArgumentException: not enough buckets to calculate change_point. Requires at least [22]; found [0]");
+        assertWarnings(
+            "Line 1:1: evaluation of [null] failed, treating result as null. Only first 20 failures recorded.",
+            "Line 1:1: java.lang.IllegalArgumentException: not enough buckets to calculate change_point. Requires at least [22]; found [0]"
+        );
     }
 
     public void testGroupedSingleRowGroupProducesWarnings() {
@@ -236,8 +243,10 @@ public class ChangePointOperatorTests extends OperatorTestCase {
         try {
             assertNoChangePoints(outputPages.get(0));
             assertChangePointAt(outputPages.get(1), 15);
-            assertWarnings("Line 1:1: evaluation of [null] failed, treating result as null. Only first 20 failures recorded.",
-                "Line 1:1: java.lang.IllegalArgumentException: not enough buckets to calculate change_point. Requires at least [22]; found [1]");
+            assertWarnings(
+                "Line 1:1: evaluation of [null] failed, treating result as null. Only first 20 failures recorded.",
+                "Line 1:1: java.lang.IllegalArgumentException: not enough buckets to calculate change_point. Requires at least [22]; found [1]"
+            );
         } finally {
             outputPages.forEach(Page::releaseBlocks);
         }
@@ -251,10 +260,7 @@ public class ChangePointOperatorTests extends OperatorTestCase {
         // Group B: [null×30] -> warnings produced
         Page page0 = buildPage(blockFactory, 30, i -> "A", i -> i < 15 ? 0L : 1L);
         Page page1;
-        try (
-            BytesRefBlock.Builder g = blockFactory.newBytesRefBlockBuilder(5);
-            LongBlock.Builder v = blockFactory.newLongBlockBuilder(5)
-        ) {
+        try (BytesRefBlock.Builder g = blockFactory.newBytesRefBlockBuilder(5); LongBlock.Builder v = blockFactory.newLongBlockBuilder(5)) {
             for (int i = 0; i < 5; i++) {
                 g.appendBytesRef(new BytesRef("B"));
                 v.appendNull();
@@ -266,10 +272,49 @@ public class ChangePointOperatorTests extends OperatorTestCase {
         try {
             assertChangePointAt(outputPages.get(0), 15);
             assertNoChangePoints(outputPages.get(1));
-            assertWarnings("Line 1:1: evaluation of [null] failed, treating result as null. Only first 20 failures recorded.", "Line 1:1: java.lang.IllegalArgumentException: not enough buckets to calculate change_point. Requires at least [22]; found [0]", "Line 1:1: java.lang.IllegalArgumentException: values contain nulls; skipping them");
+            assertWarnings(
+                "Line 1:1: evaluation of [null] failed, treating result as null. Only first 20 failures recorded.",
+                "Line 1:1: java.lang.IllegalArgumentException: not enough buckets to calculate change_point. Requires at least [22]; found [0]",
+                "Line 1:1: java.lang.IllegalArgumentException: values contain nulls; skipping them"
+            );
         } finally {
             outputPages.forEach(Page::releaseBlocks);
         }
+    }
+
+    public void testGroupedAllNullGroupAtStartProducesWarnings() {
+        DriverContext ctx = driverContext();
+        BlockFactory blockFactory = ctx.blockFactory();
+
+        // Group A: [null×5] -> should produce indeterminable warning
+        // Group B: [0×15, 1×15] -> step change at row 15 of page1
+        Page page0;
+        try (BytesRefBlock.Builder g = blockFactory.newBytesRefBlockBuilder(5); LongBlock.Builder v = blockFactory.newLongBlockBuilder(5)) {
+            for (int i = 0; i < 5; i++) {
+                g.appendBytesRef(new BytesRef("A"));
+                v.appendNull();
+            }
+            page0 = new Page(g.build(), v.build());
+        }
+        Page page1 = buildPage(blockFactory, 30, i -> "B", i -> i < 15 ? 0L : 1L);
+        List<Page> outputPages = invokeChangePoint(ctx, List.of(page0, page1));
+        try {
+            assertNoChangePoints(outputPages.get(0));
+            assertChangePointAt(outputPages.get(1), 15);
+            assertWarnings(
+                "Line 1:1: evaluation of [null] failed, treating result as null. Only first 20 failures recorded.",
+                "Line 1:1: java.lang.IllegalArgumentException: not enough buckets to calculate change_point. Requires at least [22]; found [0]",
+                "Line 1:1: java.lang.IllegalArgumentException: values contain nulls; skipping them"
+            );
+        } finally {
+            outputPages.forEach(Page::releaseBlocks);
+        }
+    }
+
+    public void testGroupedNoInputPages() {
+        DriverContext ctx = driverContext();
+        List<Page> outputPages = invokeChangePoint(ctx, List.of(), 1, 0);
+        assertThat(outputPages, hasSize(0));
     }
 
     public void testGroupedTwoChangepointsOnSinglePage() {

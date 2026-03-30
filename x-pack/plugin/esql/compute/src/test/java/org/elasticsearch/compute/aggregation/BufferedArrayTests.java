@@ -62,4 +62,5 @@ public class BufferedArrayTests extends ComputeTestCase {
                 assertThat(buf.get(i), equalTo(expected[i]));
             }
         }
-    }}
+    }
+}

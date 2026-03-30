@@ -62,7 +62,7 @@ public class FileSettingsClusterSecretsLoaderTests extends ESTestCase {
         assertTrue(loadedSecrets.password().isEmpty());
 
         String output = terminal.getOutput();
-        assertThat(output, containsString("Using reserved state cluster secrets from"));
+        assertThat(output, containsString("Using cluster secrets from file settings"));
         assertThat(output, containsString(SETTINGS_FILE_NAME));
     }
 
@@ -92,7 +92,7 @@ public class FileSettingsClusterSecretsLoaderTests extends ESTestCase {
     public void testBootstrapNotSupported() {
         var secretsLoader = new FileSettingsClusterSecretsLoader();
         assertEquals(
-            "Bootstrapping locally mounted secrets is not supported",
+            "Bootstrapping cluster secrets in file settings is not supported",
             expectThrows(IllegalArgumentException.class, () -> secretsLoader.bootstrap(env, new SecureString(new char[0]))).getMessage()
         );
     }

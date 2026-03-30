@@ -57,7 +57,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class DataStreamLifecycleConvertToFrozenMarkReadOnlyTests extends ESTestCase {
+public class DLMConvertToFrozenMarkReadOnlyTests extends ESTestCase {
     private ProjectId projectId;
     private String indexName;
     private XPackLicenseState licenseState;
@@ -138,7 +138,7 @@ public class DataStreamLifecycleConvertToFrozenMarkReadOnlyTests extends ESTestC
             .build();
         setState(clusterService, clusterState);
 
-        DataStreamLifecycleConvertToFrozen converter = new DataStreamLifecycleConvertToFrozen(
+        DLMConvertToFrozen converter = new DLMConvertToFrozen(
             indexName,
             projectId,
             createMockClient(),
@@ -156,7 +156,7 @@ public class DataStreamLifecycleConvertToFrozenMarkReadOnlyTests extends ESTestC
         createProjectState();
         mockResponse.set(new AddIndexBlockResponse(true, true, List.of(new AddIndexBlockResponse.AddBlockResult(index))));
 
-        DataStreamLifecycleConvertToFrozen converter = new DataStreamLifecycleConvertToFrozen(
+        DLMConvertToFrozen converter = new DLMConvertToFrozen(
             indexName,
             projectId,
             createMockClient(),
@@ -177,7 +177,7 @@ public class DataStreamLifecycleConvertToFrozenMarkReadOnlyTests extends ESTestC
         createProjectState();
         mockResponse.set(new AddIndexBlockResponse(false, false, Collections.emptyList()));
 
-        DataStreamLifecycleConvertToFrozen converter = new DataStreamLifecycleConvertToFrozen(
+        DLMConvertToFrozen converter = new DLMConvertToFrozen(
             indexName,
             projectId,
             createMockClient(),
@@ -195,7 +195,7 @@ public class DataStreamLifecycleConvertToFrozenMarkReadOnlyTests extends ESTestC
         ElasticsearchException blockException = new ElasticsearchException("global failure");
         mockResponse.set(new AddIndexBlockResponse(false, false, List.of(new AddIndexBlockResponse.AddBlockResult(index, blockException))));
 
-        DataStreamLifecycleConvertToFrozen converter = new DataStreamLifecycleConvertToFrozen(
+        DLMConvertToFrozen converter = new DLMConvertToFrozen(
             indexName,
             projectId,
             createMockClient(),
@@ -220,7 +220,7 @@ public class DataStreamLifecycleConvertToFrozenMarkReadOnlyTests extends ESTestC
             new AddIndexBlockResponse.AddBlockShardResult(0, new AddIndexBlockResponse.AddBlockShardResult.Failure[] { shardFailure }) };
         mockResponse.set(new AddIndexBlockResponse(false, false, List.of(new AddIndexBlockResponse.AddBlockResult(index, shardResults))));
 
-        DataStreamLifecycleConvertToFrozen converter = new DataStreamLifecycleConvertToFrozen(
+        DLMConvertToFrozen converter = new DLMConvertToFrozen(
             indexName,
             projectId,
             createMockClient(),
@@ -237,7 +237,7 @@ public class DataStreamLifecycleConvertToFrozenMarkReadOnlyTests extends ESTestC
         createProjectState();
         mockFailure.set(new ElasticsearchException("some error"));
 
-        DataStreamLifecycleConvertToFrozen converter = new DataStreamLifecycleConvertToFrozen(
+        DLMConvertToFrozen converter = new DLMConvertToFrozen(
             indexName,
             projectId,
             createMockClient(),
@@ -278,7 +278,7 @@ public class DataStreamLifecycleConvertToFrozenMarkReadOnlyTests extends ESTestC
         setState(clusterService, clusterState);
         mockResponse.set(new AddIndexBlockResponse(true, true, List.of(new AddIndexBlockResponse.AddBlockResult(index))));
 
-        DataStreamLifecycleConvertToFrozen converter = new DataStreamLifecycleConvertToFrozen(
+        DLMConvertToFrozen converter = new DLMConvertToFrozen(
             indexName,
             projectId,
             createMockClient(),
@@ -314,7 +314,7 @@ public class DataStreamLifecycleConvertToFrozenMarkReadOnlyTests extends ESTestC
             new AddIndexBlockResponse.AddBlockShardResult(1, new AddIndexBlockResponse.AddBlockShardResult.Failure[] { shardFailure2 }) };
         mockResponse.set(new AddIndexBlockResponse(false, false, List.of(new AddIndexBlockResponse.AddBlockResult(index, shardResults))));
 
-        DataStreamLifecycleConvertToFrozen converter = new DataStreamLifecycleConvertToFrozen(
+        DLMConvertToFrozen converter = new DLMConvertToFrozen(
             indexName,
             projectId,
             createMockClient(),
@@ -337,7 +337,7 @@ public class DataStreamLifecycleConvertToFrozenMarkReadOnlyTests extends ESTestC
             new AddIndexBlockResponse.AddBlockShardResult(1, new AddIndexBlockResponse.AddBlockShardResult.Failure[0]) };
         mockResponse.set(new AddIndexBlockResponse(false, false, List.of(new AddIndexBlockResponse.AddBlockResult(index, shardResults))));
 
-        DataStreamLifecycleConvertToFrozen converter = new DataStreamLifecycleConvertToFrozen(
+        DLMConvertToFrozen converter = new DLMConvertToFrozen(
             indexName,
             projectId,
             createMockClient(),
@@ -354,7 +354,7 @@ public class DataStreamLifecycleConvertToFrozenMarkReadOnlyTests extends ESTestC
         createProjectState();
         mockResponse.set(new AddIndexBlockResponse(true, true, List.of(new AddIndexBlockResponse.AddBlockResult(index))));
 
-        DataStreamLifecycleConvertToFrozen converter = new DataStreamLifecycleConvertToFrozen(
+        DLMConvertToFrozen converter = new DLMConvertToFrozen(
             indexName,
             projectId,
             createMockClient(),
@@ -374,7 +374,7 @@ public class DataStreamLifecycleConvertToFrozenMarkReadOnlyTests extends ESTestC
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(projectMetadataBuilder).build();
         setState(clusterService, clusterState);
 
-        DataStreamLifecycleConvertToFrozen converter = new DataStreamLifecycleConvertToFrozen(
+        DLMConvertToFrozen converter = new DLMConvertToFrozen(
             indexName,
             projectId,
             createMockClient(),
@@ -391,7 +391,7 @@ public class DataStreamLifecycleConvertToFrozenMarkReadOnlyTests extends ESTestC
         String repoName = "my-repo";
         createProjectStateWithRepo(repoName, false);
 
-        DataStreamLifecycleConvertToFrozen converter = new DataStreamLifecycleConvertToFrozen(
+        DLMConvertToFrozen converter = new DLMConvertToFrozen(
             indexName,
             projectId,
             createMockClient(),
@@ -414,7 +414,7 @@ public class DataStreamLifecycleConvertToFrozenMarkReadOnlyTests extends ESTestC
             new XPackLicenseStatus(License.OperationMode.BASIC, true, null)
         );
 
-        DataStreamLifecycleConvertToFrozen converter = new DataStreamLifecycleConvertToFrozen(
+        DLMConvertToFrozen converter = new DLMConvertToFrozen(
             indexName,
             projectId,
             createMockClient(),
@@ -435,7 +435,7 @@ public class DataStreamLifecycleConvertToFrozenMarkReadOnlyTests extends ESTestC
         String repoName = "my-repo";
         createProjectStateWithRepo(repoName, true);
 
-        DataStreamLifecycleConvertToFrozen converter = new DataStreamLifecycleConvertToFrozen(
+        DLMConvertToFrozen converter = new DLMConvertToFrozen(
             indexName,
             projectId,
             createMockClient(),

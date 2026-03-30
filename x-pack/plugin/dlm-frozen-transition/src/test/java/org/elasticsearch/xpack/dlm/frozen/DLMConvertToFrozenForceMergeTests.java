@@ -60,7 +60,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class DataStreamLifecycleConvertToFrozenForceMergeTests extends ESTestCase {
+public class DLMConvertToFrozenForceMergeTests extends ESTestCase {
     private ProjectId projectId;
     private String indexName;
     private String indexUuid;
@@ -134,7 +134,7 @@ public class DataStreamLifecycleConvertToFrozenForceMergeTests extends ESTestCas
         mockSegmentResponse.set(new IndicesSegmentResponse(new ShardSegments[] { shardSegments }, 1, 1, 0, List.of()));
 
         createProjectState();
-        DataStreamLifecycleConvertToFrozen converter = new DataStreamLifecycleConvertToFrozen(
+        DLMConvertToFrozen converter = new DLMConvertToFrozen(
             indexName,
             projectId,
             createMockClient(),
@@ -159,7 +159,7 @@ public class DataStreamLifecycleConvertToFrozenForceMergeTests extends ESTestCas
         mockForceMergeResponse.set(new BroadcastResponse(1, 1, 0, List.of()));
 
         createProjectState();
-        DataStreamLifecycleConvertToFrozen converter = new DataStreamLifecycleConvertToFrozen(
+        DLMConvertToFrozen converter = new DLMConvertToFrozen(
             indexName,
             projectId,
             createMockClient(),
@@ -180,7 +180,7 @@ public class DataStreamLifecycleConvertToFrozenForceMergeTests extends ESTestCas
     public void testMaybeForceMergeSkipsWhenIndexNotInMetadata() {
         buildProjectState(null);
 
-        DataStreamLifecycleConvertToFrozen converter = new DataStreamLifecycleConvertToFrozen(
+        DLMConvertToFrozen converter = new DLMConvertToFrozen(
             indexName,
             projectId,
             createMockClient(),
@@ -206,7 +206,7 @@ public class DataStreamLifecycleConvertToFrozenForceMergeTests extends ESTestCas
         mockForceMergeResponse.set(new BroadcastResponse(1, 0, 1, List.of(shardFailure)));
 
         createProjectState();
-        DataStreamLifecycleConvertToFrozen converter = new DataStreamLifecycleConvertToFrozen(
+        DLMConvertToFrozen converter = new DLMConvertToFrozen(
             indexName,
             projectId,
             createMockClient(),
@@ -226,7 +226,7 @@ public class DataStreamLifecycleConvertToFrozenForceMergeTests extends ESTestCas
         mockForceMergeResponse.set(new BroadcastResponse(5, 3, 0, List.of()));
 
         createProjectState();
-        DataStreamLifecycleConvertToFrozen converter = new DataStreamLifecycleConvertToFrozen(
+        DLMConvertToFrozen converter = new DLMConvertToFrozen(
             indexName,
             projectId,
             createMockClient(),
@@ -246,7 +246,7 @@ public class DataStreamLifecycleConvertToFrozenForceMergeTests extends ESTestCas
         mockForceMergeResponse.set(new BroadcastResponse(1, 1, 0, List.of()));
 
         createProjectState();
-        DataStreamLifecycleConvertToFrozen converter = new DataStreamLifecycleConvertToFrozen(
+        DLMConvertToFrozen converter = new DLMConvertToFrozen(
             indexName,
             projectId,
             createMockClient(),
@@ -267,7 +267,7 @@ public class DataStreamLifecycleConvertToFrozenForceMergeTests extends ESTestCas
         mockForceMergeFailure.set(new RuntimeException("transport failure"));
 
         createProjectState();
-        DataStreamLifecycleConvertToFrozen converter = new DataStreamLifecycleConvertToFrozen(
+        DLMConvertToFrozen converter = new DLMConvertToFrozen(
             indexName,
             projectId,
             createMockClient(),

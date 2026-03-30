@@ -66,9 +66,9 @@ import static org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapsho
 /**
  * This class encapsulates the steps necessary to convert a data stream backing index to frozen.
  */
-public class DataStreamLifecycleConvertToFrozen implements DlmFrozenTransitionRunnable {
+public class DLMConvertToFrozen implements DlmFrozenTransitionRunnable {
 
-    private static final Logger logger = LogManager.getLogger(DataStreamLifecycleConvertToFrozen.class);
+    private static final Logger logger = LogManager.getLogger(DLMConvertToFrozen.class);
     public static final String CLONE_INDEX_PREFIX = "dlm-clone-";
     private static final IndicesOptions IGNORE_MISSING_OPTIONS = IndicesOptions.fromOptions(true, true, false, false);
 
@@ -80,7 +80,7 @@ public class DataStreamLifecycleConvertToFrozen implements DlmFrozenTransitionRu
     private final Clock clock;
     private String forceMergeIndex;
 
-    public DataStreamLifecycleConvertToFrozen(
+    public DLMConvertToFrozen(
         String indexName,
        ProjectId projectId, Client client,
         ClusterService clusterService,

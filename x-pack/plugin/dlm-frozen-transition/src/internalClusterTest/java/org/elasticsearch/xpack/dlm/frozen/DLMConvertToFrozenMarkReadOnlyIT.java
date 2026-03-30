@@ -38,12 +38,12 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
 /**
- * Integration tests for {@link DataStreamLifecycleConvertToFrozen#maybeMarkIndexReadOnly()}.
+ * Integration tests for {@link DLMConvertToFrozen#maybeMarkIndexReadOnly()}.
  * These tests run against a real internal cluster and verify that the write block is properly
  * added to (or skipped for) real indices, including under node failure scenarios.
  */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
-public class DataStreamLifecycleConvertToFrozenMarkReadOnlyIT extends ESIntegTestCase {
+public class DLMConvertToFrozenMarkReadOnlyIT extends ESIntegTestCase {
 
     private static final String INDEX_NAME = "test-convert-to-frozen-mark-readonly";
     private XPackLicenseState licenseState;
@@ -95,7 +95,7 @@ public class DataStreamLifecycleConvertToFrozenMarkReadOnlyIT extends ESIntegTes
         // verify the index does not have a WRITE block before calling the method
         assertIndexWriteBlock(false);
 
-        DataStreamLifecycleConvertToFrozen converter = new DataStreamLifecycleConvertToFrozen(
+        DLMConvertToFrozen converter = new DLMConvertToFrozen(
             INDEX_NAME,
             Metadata.DEFAULT_PROJECT_ID,
             client(),
@@ -125,7 +125,7 @@ public class DataStreamLifecycleConvertToFrozenMarkReadOnlyIT extends ESIntegTes
         assertAcked(client().execute(TransportAddIndexBlockAction.TYPE, addReadBlockRequest).actionGet());
         assertIndexWriteBlock(false);
 
-        DataStreamLifecycleConvertToFrozen converter = new DataStreamLifecycleConvertToFrozen(
+        DLMConvertToFrozen converter = new DLMConvertToFrozen(
             INDEX_NAME,
             Metadata.DEFAULT_PROJECT_ID,
             client(),
@@ -159,7 +159,7 @@ public class DataStreamLifecycleConvertToFrozenMarkReadOnlyIT extends ESIntegTes
         ensureGreen(INDEX_NAME);
         assertIndexWriteBlock(false);
 
-        DataStreamLifecycleConvertToFrozen converter = new DataStreamLifecycleConvertToFrozen(
+        DLMConvertToFrozen converter = new DLMConvertToFrozen(
             INDEX_NAME,
             Metadata.DEFAULT_PROJECT_ID,
             client(),
@@ -188,7 +188,7 @@ public class DataStreamLifecycleConvertToFrozenMarkReadOnlyIT extends ESIntegTes
 
         ClusterService clusterService = internalCluster().clusterService();
 
-        DataStreamLifecycleConvertToFrozen converter = new DataStreamLifecycleConvertToFrozen(
+        DLMConvertToFrozen converter = new DLMConvertToFrozen(
             INDEX_NAME,
             Metadata.DEFAULT_PROJECT_ID,
             client(),
@@ -209,7 +209,7 @@ public class DataStreamLifecycleConvertToFrozenMarkReadOnlyIT extends ESIntegTes
         long clusterStateVersionAfterFirstCall = stateAfterFirstCall.version();
 
         // Second converter uses the same ClusterService which always returns the latest state
-        DataStreamLifecycleConvertToFrozen converter2 = new DataStreamLifecycleConvertToFrozen(
+        DLMConvertToFrozen converter2 = new DLMConvertToFrozen(
             INDEX_NAME,
             Metadata.DEFAULT_PROJECT_ID,
             client(),
@@ -264,7 +264,7 @@ public class DataStreamLifecycleConvertToFrozenMarkReadOnlyIT extends ESIntegTes
         );
 
         try {
-            DataStreamLifecycleConvertToFrozen converter = new DataStreamLifecycleConvertToFrozen(
+            DLMConvertToFrozen converter = new DLMConvertToFrozen(
                 INDEX_NAME,
                 Metadata.DEFAULT_PROJECT_ID,
                 client(),
@@ -292,7 +292,7 @@ public class DataStreamLifecycleConvertToFrozenMarkReadOnlyIT extends ESIntegTes
         );
         ensureGreen(INDEX_NAME);
 
-        DataStreamLifecycleConvertToFrozen converter = new DataStreamLifecycleConvertToFrozen(
+        DLMConvertToFrozen converter = new DLMConvertToFrozen(
             INDEX_NAME,
             Metadata.DEFAULT_PROJECT_ID,
             client(),
@@ -326,7 +326,7 @@ public class DataStreamLifecycleConvertToFrozenMarkReadOnlyIT extends ESIntegTes
         ensureGreen(INDEX_NAME);
         assertIndexWriteBlock(false);
 
-        DataStreamLifecycleConvertToFrozen converter = new DataStreamLifecycleConvertToFrozen(
+        DLMConvertToFrozen converter = new DLMConvertToFrozen(
             INDEX_NAME,
             Metadata.DEFAULT_PROJECT_ID,
             client(),

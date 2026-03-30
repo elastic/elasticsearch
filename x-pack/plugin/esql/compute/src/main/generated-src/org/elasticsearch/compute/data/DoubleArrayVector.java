@@ -78,6 +78,11 @@ final class DoubleArrayVector extends AbstractVector implements DoubleVector {
     }
 
     @Override
+    public void copyTo(int srcPosition, double[] dst, int dstPosition, int length) {
+        System.arraycopy(values, srcPosition, dst, dstPosition, length);
+    }
+
+    @Override
     public ElementType elementType() {
         return ElementType.DOUBLE;
     }

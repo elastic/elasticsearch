@@ -120,7 +120,7 @@ $$$index-shard-check-on-startup$$$ `index.shard.check_on_startup`
 
 $$$index-disable-sequence-numbers$$$ `index.disable_sequence_numbers`
 :   ::::{warning}
-    This setting is experimental and may be changed or removed in a future release.
+    This setting is experimental and might be changed or removed in a future release. Available in {{serverless-full}} and {{stack}} 9.4+. 
     ::::
 
     Controls whether the index maintains sequence numbers for document operations. When set to `true`, sequence numbers are not available, trading some consistency guarantees for reduced storage overhead. Defaults to `false`. This setting can only be set at index creation time and cannot be changed afterwards. Requires `index.seq_no.index_options` to be set to `doc_values_only`.

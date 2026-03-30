@@ -287,6 +287,14 @@ public class QualifierTests extends AbstractStatementParserTests {
         );
 
         assertQualifiedAttributeInExpressions(
+            sourceQuery + "CHANGE_POINT [qualified].[field] AS type_name, pvalue_name ON [qualified].[field] BY [qualified].[field]",
+            "qualified",
+            "field",
+            3,
+            sourceQuery + "CHANGE_POINT qualified.field AS type_name, pvalue_name ON qualified.field BY qualified.field"
+        );
+
+        assertQualifiedAttributeInExpressions(
             sourceQuery + "DISSECT [qualified].[field] \"%{foo}\"",
             "qualified",
             "field",

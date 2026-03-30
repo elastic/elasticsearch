@@ -4179,6 +4179,11 @@ public class StatementParserTests extends AbstractStatementParserTests {
         expectError("ROW key=1, value=2 | CHANGE_POINT value AS a, b AS c, d", "line 1:49: CHANGE_POINT supports only one AS clause");
     }
 
+    public void testChangePointDuplicateBy() {
+        assumeTrue("change_point must be enabled", EsqlCapabilities.Cap.CHANGE_POINT_BY.isEnabled());
+        expectError("ROW key=1, value=2 | CHANGE_POINT value BY a BY b", "line 1:46: CHANGE_POINT supports only one BY clause");
+    }
+
     public void testChangePointDuplicateAsWithOnInBetween() {
         assumeTrue("change_point must be enabled", EsqlCapabilities.Cap.CHANGE_POINT_ARGS_ANY_ORDER.isEnabled());
         expectError(

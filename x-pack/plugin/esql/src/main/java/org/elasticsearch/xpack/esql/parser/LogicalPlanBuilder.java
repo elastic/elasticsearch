@@ -728,7 +728,10 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         return key == null ? new UnresolvedAttribute(src, "@timestamp") : key;
     }
 
-    private UnresolvedAttribute visitChangePointBy(List<EsqlBaseParser.ChangePointConfigurationContext> changePointOptionsContexts, Source src) {
+    private UnresolvedAttribute visitChangePointBy(
+        List<EsqlBaseParser.ChangePointConfigurationContext> changePointOptionsContexts,
+        Source src
+    ) {
         UnresolvedAttribute key = null;
         for (EsqlBaseParser.ChangePointConfigurationContext changePointContext : changePointOptionsContexts) {
             if (changePointContext.grouping != null) {

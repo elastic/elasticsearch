@@ -1477,3 +1477,21 @@ k:integer | g:integer | value:integer | type:keyword | pvalue:double
 13        | 1         | 42            | step_change  | 0.0
 13        | 2         | 42            | step_change  | 0.0
 ;
+
+
+detect step change by group with reversed arguments
+required_capability: change_point_by
+
+ROW k=[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25], g=[0,1,2]
+| MV_EXPAND k
+| MV_EXPAND g
+| EVAL value=CASE(k<13, 0, 42)
+| CHANGE_POINT value BY g ON k
+| WHERE type IS NOT NULL
+;
+
+k:integer | g:integer | value:integer | type:keyword | pvalue:double
+13        | 0         | 42            | step_change  | 0.0
+13        | 1         | 42            | step_change  | 0.0
+13        | 2         | 42            | step_change  | 0.0
+;

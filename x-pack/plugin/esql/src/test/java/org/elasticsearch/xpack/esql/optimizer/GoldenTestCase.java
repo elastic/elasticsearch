@@ -405,8 +405,13 @@ public abstract class GoldenTestCase extends ESTestCase {
             throw new IllegalStateException("Extra output files should not be created automatically:" + output);
         }
         String full = plan.toString(Node.NodeStringFormat.FULL);
-        Files.writeString(output, normalizeNameIds(normalizeSyntheticNames(full)), StandardCharsets.UTF_8);
+        Files.writeString(output, normalizeString(full), StandardCharsets.UTF_8);
         return Test.TestResult.CREATED;
+    }
+
+    // Visible for testing.
+    static String normalizeString(String input) {
+        return normalizeNameIds(normalizeSyntheticNames(input));
     }
 
     /**
@@ -421,14 +426,32 @@ public abstract class GoldenTestCase extends ESTestCase {
     }
 
     /**
-     * Normalizes synthetic attribute names of the form $$something($something)* that are followed by # (node id).
+     * Normalizes synthetic attribute names of the form $$something($something)*($digits)* that are followed by # (node id).
      * Replaces them with $$firstSegment$runningInt so golden output is stable across runs.
      */
     private static String normalizeSyntheticNames(String full) {
         return replaceMatches(full, SYNTHETIC_PATTERN, (matcher, idMap) -> {
-            String firstSegment = matcher.group(1);
-            return "$$" + firstSegment + "$" + idMap.getId(firstSegment);
+            StringBuilder result = new StringBuilder("$$");
+            StringBuilder numericSuffix = new StringBuilder();
+            for (String seg : matcher.group(1).split("\\$")) {
+                if (seg.chars().allMatch(Character::isDigit)) {
+                    appendSegment(numericSuffix, seg);
+                } else {
+                    if (numericSuffix.isEmpty() == false) {
+                        throw new IllegalArgumentException("Expected digits to only appear at end, but encountered '" + full + "'");
+                    }
+                    appendSegment(result, seg);
+                }
+            }
+            return numericSuffix.isEmpty() ? full : appendSegment(result, idMap.getId(numericSuffix.toString())).toString();
         });
+    }
+
+    private static StringBuilder appendSegment(StringBuilder sb, Object o) {
+        if (sb.isEmpty() || sb.charAt(sb.length() - 1) != '$') {
+            sb.append('$');
+        }
+        return sb.append(o);
     }
 
     private static <K> String replaceMatches(String input, Pattern pattern, BiFunction<Matcher, IdMap<K>, String> replacer) {
@@ -445,9 +468,9 @@ public abstract class GoldenTestCase extends ESTestCase {
         return sb.toString();
     }
 
-    // Matches synthetic names like $$alias$1$2#3, since those $digits are generated during the test run and may differ each time. The
-    // #digit are removed by the next pattern.
-    private static final Pattern SYNTHETIC_PATTERN = Pattern.compile("\\$\\$([^$\\s]+)(\\$\\d+)+(?=[{#])");
+    // Matches synthetic names like $$alias$1$2#3 or $$last_name$LENGTH$241149320{f$}#6. Digit-only segments are generated during the
+    // test run and may differ each time; text segments are kept. The #digit suffixes are normalized by IDENTIFIER_PATTERN.
+    private static final Pattern SYNTHETIC_PATTERN = Pattern.compile("\\$\\$([^$\\s{#]+(?:\\$[^$\\s{#]+)*)(?=[{#])");
     private static final Pattern IDENTIFIER_PATTERN = Pattern.compile("#\\d+");
 
     private static class IdMap<K> {
@@ -461,7 +484,7 @@ public abstract class GoldenTestCase extends ESTestCase {
 
     private static Test.TestResult verifyExisting(Path output, QueryPlan<?> plan) throws IOException {
         String full = plan.toString(Node.NodeStringFormat.FULL);
-        String testString = normalize(normalizeNameIds(normalizeSyntheticNames(full)));
+        String testString = normalize(normalizeString(full));
         if (testString.equals(normalize(Files.readString(output)))) {
             if (System.getProperty("golden.cleanactual") != null) {
                 Path path = actualPath(output);
@@ -478,7 +501,7 @@ public abstract class GoldenTestCase extends ESTestCase {
         } else {
             Path actualPath = actualPath(output);
             logger.info("Creating actual file at " + actualPath.toAbsolutePath());
-            Files.writeString(actualPath, normalizeNameIds(normalizeSyntheticNames(full)), StandardCharsets.UTF_8);
+            Files.writeString(actualPath, normalizeString(full), StandardCharsets.UTF_8);
         }
         return Test.TestResult.FAILURE;
     }

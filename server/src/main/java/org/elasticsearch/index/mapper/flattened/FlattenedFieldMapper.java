@@ -220,35 +220,27 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
 
         private final Parameter<Map<String, FieldMapper.Builder>> properties;
 
-        private final Parameter<Map<String, Object>> passthrough = new Parameter<>(
-            "passthrough",
-            true,
-            () -> null,
-            (n, c, o) -> {
-                if (o == null) return null;
-                if ((o instanceof Map<?, ?>) == false) {
-                    throw new MapperParsingException("[passthrough] must be an object with a [priority] field, got [" + o + "]");
-                }
-                @SuppressWarnings("unchecked")
-                Map<String, Object> map = (Map<String, Object>) o;
-                if (map.containsKey("priority") == false) {
-                    throw new MapperParsingException("[passthrough] requires a [priority] field");
-                }
-                return map;
-            },
-            m -> builder(m).passthrough.get(),
-            (b, n, v) -> {
-                if (v != null) b.field(n, v);
-            },
-            Objects::toString
-        ).acceptsNull().addValidator(v -> {
-            if (v != null) {
-                int priority = XContentMapValues.nodeIntegerValue(v.get("priority"));
-                if (priority < 0) {
-                    throw new IllegalArgumentException("[passthrough.priority] must be non-negative, got [" + priority + "]");
-                }
+        private final Parameter<Map<String, Object>> passthrough = new Parameter<>("passthrough", true, () -> null, (n, c, o) -> {
+            if (o == null) return null;
+            if ((o instanceof Map<?, ?>) == false) {
+                throw new MapperParsingException("[passthrough] must be an object with a [priority] field, got [" + o + "]");
             }
-        }).setSerializerCheck((includeDefaults, isConfigured, v) -> v != null);
+            @SuppressWarnings("unchecked")
+            Map<String, Object> map = (Map<String, Object>) o;
+            if (map.containsKey("priority") == false) {
+                throw new MapperParsingException("[passthrough] requires a [priority] field");
+            }
+            return map;
+        }, m -> builder(m).passthrough.get(), (b, n, v) -> { if (v != null) b.field(n, v); }, Objects::toString).acceptsNull()
+            .addValidator(v -> {
+                if (v != null) {
+                    int priority = XContentMapValues.nodeIntegerValue(v.get("priority"));
+                    if (priority < 0) {
+                        throw new IllegalArgumentException("[passthrough.priority] must be non-negative, got [" + priority + "]");
+                    }
+                }
+            })
+            .setSerializerCheck((includeDefaults, isConfigured, v) -> v != null);
 
         private final IndexMode indexMode;
         private final IndexVersion indexCreatedVersion;
@@ -383,9 +375,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
             }
             Map<String, FieldMapper.Builder> propertyBuilders = properties.getValue();
             if (passthrough.getValue() != null && propertyBuilders.isEmpty()) {
-                throw new MapperParsingException(
-                    "Flattened field [" + leafName() + "] has [passthrough] set but no [properties] defined"
-                );
+                throw new MapperParsingException("Flattened field [" + leafName() + "] has [passthrough] set but no [properties] defined");
             }
             Map<String, FieldMapper> mappedSubFields = new TreeMap<>();
             if (propertyBuilders.isEmpty() == false) {

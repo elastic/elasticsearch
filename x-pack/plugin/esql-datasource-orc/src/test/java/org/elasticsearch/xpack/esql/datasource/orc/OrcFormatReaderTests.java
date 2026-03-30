@@ -796,6 +796,100 @@ public class OrcFormatReaderTests extends ESTestCase {
         }
     }
 
+    public void testPreEpochTimestamp() throws Exception {
+        TypeDescription schema = TypeDescription.createStruct()
+            .addField("id", TypeDescription.createLong())
+            .addField("birth_date", TypeDescription.createTimestampInstant());
+
+        long preEpochMillis = Instant.parse("1953-09-02T00:00:00Z").toEpochMilli();
+        long postEpochMillis = Instant.parse("1986-06-26T00:00:00Z").toEpochMilli();
+
+        byte[] orcData = createOrcFile(schema, batch -> {
+            batch.size = 2;
+            LongColumnVector idCol = (LongColumnVector) batch.cols[0];
+            TimestampColumnVector tsCol = (TimestampColumnVector) batch.cols[1];
+
+            idCol.vector[0] = 1L;
+            tsCol.time[0] = preEpochMillis;
+            tsCol.nanos[0] = 0;
+
+            idCol.vector[1] = 2L;
+            tsCol.time[1] = postEpochMillis;
+            tsCol.nanos[1] = 0;
+        });
+
+        StorageObject storageObject = createStorageObject(orcData);
+        OrcFormatReader reader = new OrcFormatReader(blockFactory);
+
+        SourceMetadata metadata = reader.metadata(storageObject);
+        assertEquals(DataType.DATETIME, metadata.schema().get(1).dataType());
+
+        try (CloseableIterator<Page> iterator = reader.read(storageObject, null, 1024)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+
+            assertEquals(2, page.getPositionCount());
+
+            LongBlock tsBlock = (LongBlock) page.getBlock(1);
+            assertTrue("pre-epoch millis should be negative", tsBlock.getLong(0) < 0);
+            assertEquals(preEpochMillis, tsBlock.getLong(0));
+            assertEquals(postEpochMillis, tsBlock.getLong(1));
+        }
+    }
+
+    public void testReadListTimestampColumn() throws Exception {
+        TypeDescription schema = TypeDescription.createStruct()
+            .addField("id", TypeDescription.createLong())
+            .addField("events", TypeDescription.createList(TypeDescription.createTimestampInstant()));
+
+        long ts1 = Instant.parse("2024-01-15T10:00:00Z").toEpochMilli();
+        long ts2 = Instant.parse("2024-01-15T11:00:00Z").toEpochMilli();
+        long ts3 = Instant.parse("1965-03-20T08:30:00Z").toEpochMilli();
+
+        byte[] orcData = createOrcFile(schema, batch -> {
+            batch.size = 2;
+            LongColumnVector idCol = (LongColumnVector) batch.cols[0];
+            ListColumnVector eventsCol = (ListColumnVector) batch.cols[1];
+            TimestampColumnVector eventsChild = (TimestampColumnVector) eventsCol.child;
+
+            eventsChild.ensureSize(3, false);
+            idCol.vector[0] = 1L;
+            eventsCol.offsets[0] = 0;
+            eventsCol.lengths[0] = 2;
+            eventsChild.time[0] = ts1;
+            eventsChild.nanos[0] = 0;
+            eventsChild.time[1] = ts2;
+            eventsChild.nanos[1] = 0;
+
+            idCol.vector[1] = 2L;
+            eventsCol.offsets[1] = 2;
+            eventsCol.lengths[1] = 1;
+            eventsChild.time[2] = ts3;
+            eventsChild.nanos[2] = 0;
+        });
+
+        StorageObject storageObject = createStorageObject(orcData);
+        OrcFormatReader reader = new OrcFormatReader(blockFactory);
+
+        SourceMetadata metadata = reader.metadata(storageObject);
+        assertEquals(DataType.DATETIME, metadata.schema().get(1).dataType());
+
+        try (CloseableIterator<Page> iterator = reader.read(storageObject, null, 1024)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+
+            assertEquals(2, page.getPositionCount());
+
+            LongBlock eventsBlock = (LongBlock) page.getBlock(1);
+            assertEquals(2, eventsBlock.getValueCount(0));
+            assertEquals(ts1, eventsBlock.getLong(0));
+            assertEquals(ts2, eventsBlock.getLong(1));
+            assertEquals(1, eventsBlock.getValueCount(1));
+            assertTrue("pre-epoch list element should be negative", eventsBlock.getLong(2) < 0);
+            assertEquals(ts3, eventsBlock.getLong(2));
+        }
+    }
+
     public void testBinaryMapsToUnsupported() throws Exception {
         TypeDescription schema = TypeDescription.createStruct()
             .addField("id", TypeDescription.createLong())

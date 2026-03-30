@@ -555,6 +555,7 @@ public class OrcFormatReader implements FormatReader {
 
         private Block createListDoubleBlock(ListColumnVector listCol, int rowCount) {
             ColumnVector child = listCol.child;
+            double d64ScaleFactor = child instanceof Decimal64ColumnVector d64 ? Math.pow(10, d64.scale) : 0;
             try (var builder = blockFactory.newDoubleBlockBuilder(rowCount)) {
                 for (int i = 0; i < rowCount; i++) {
                     if (listCol.noNulls == false && listCol.isNull[i]) {
@@ -568,7 +569,7 @@ public class OrcFormatReader implements FormatReader {
                             if (child.noNulls == false && child.isNull[idx]) {
                                 builder.appendDouble(0.0);
                             } else {
-                                builder.appendDouble(readDoubleFrom(child, idx));
+                                builder.appendDouble(readDoubleFrom(child, idx, d64ScaleFactor));
                             }
                         }
                         builder.endPositionEntry();
@@ -578,13 +579,13 @@ public class OrcFormatReader implements FormatReader {
             }
         }
 
-        private static double readDoubleFrom(ColumnVector vector, int idx) {
+        private static double readDoubleFrom(ColumnVector vector, int idx, double d64ScaleFactor) {
             if (vector instanceof DoubleColumnVector dv) {
                 return dv.vector[idx];
             } else if (vector instanceof DecimalColumnVector decV) {
                 return decV.vector[idx].doubleValue();
             } else if (vector instanceof Decimal64ColumnVector d64) {
-                return d64.vector[idx] / Math.pow(10, d64.scale);
+                return d64.vector[idx] / d64ScaleFactor;
             }
             throw new QlIllegalArgumentException("Unsupported list element type: " + vector.getClass().getSimpleName());
         }

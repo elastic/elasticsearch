@@ -29,7 +29,6 @@ import org.elasticsearch.xpack.sql.session.RowSet;
 import org.elasticsearch.xpack.sql.session.SchemaRowSet;
 import org.elasticsearch.xpack.sql.session.SqlSession;
 
-import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.BitSet;
@@ -364,7 +363,7 @@ public class QuerierTests extends ESTestCase {
         assertSame(failure, receivedFailure[0]);
     }
 
-    public void testConsumeRowSetReleasesSearchHitRowSetWhenNoRows() throws Exception {
+    public void testConsumeRowSetReleasesSearchHitRowSetWhenNoRows() {
         SqlSession session = new SqlSession(SqlTestUtils.TEST_CFG, null, null, null, null, null, null, null, null);
         Querier querier = new Querier(session);
         Querier.LocalAggregationSorterListener listener = querier.new LocalAggregationSorterListener(
@@ -373,14 +372,11 @@ public class QuerierTests extends ESTestCase {
         SearchHitRowSet rowSet = mock(SearchHitRowSet.class);
         when(rowSet.hasCurrentRow()).thenReturn(false);
 
-        Method consumeRowSet = Querier.LocalAggregationSorterListener.class.getDeclaredMethod("consumeRowSet", RowSet.class);
-        consumeRowSet.trySetAccessible();
-
-        assertTrue((Boolean) consumeRowSet.invoke(listener, rowSet));
+        assertTrue(listener.consumeRowSet(rowSet));
         verify(rowSet, times(1)).releaseSearchHits();
     }
 
-    public void testConsumeRowSetReleasesSearchHitRowSetAfterOverflowFailure() throws Exception {
+    public void testConsumeRowSetReleasesSearchHitRowSetAfterOverflowFailure() {
         int targetRows = MultiBucketConsumerService.DEFAULT_MAX_BUCKETS + 2;
         SearchHit hit = new SearchHit(1, "doc");
         SearchHits hits = new SearchHits(new SearchHit[] { hit }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0f);
@@ -424,10 +420,7 @@ public class QuerierTests extends ESTestCase {
                 ActionListener.noop(), emptyList(), -1
             );
 
-            Method consumeRowSet = Querier.LocalAggregationSorterListener.class.getDeclaredMethod("consumeRowSet", RowSet.class);
-            consumeRowSet.trySetAccessible();
-
-            assertFalse((Boolean) consumeRowSet.invoke(listener, rowSet));
+            assertFalse(listener.consumeRowSet(rowSet));
             verify(rowSet, times(1)).releaseSearchHits();
         } finally {
             response.decRef();

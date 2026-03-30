@@ -400,7 +400,7 @@ public class Querier {
             sendResponse();
         }
 
-        private boolean consumeRowSet(RowSet rowSet) {
+        boolean consumeRowSet(RowSet rowSet) {
             ResultRowSet<?> rrs = (ResultRowSet<?>) rowSet;
             try {
                 for (boolean hasRows = rrs.hasCurrentRow(); hasRows; hasRows = rrs.advanceRow()) {

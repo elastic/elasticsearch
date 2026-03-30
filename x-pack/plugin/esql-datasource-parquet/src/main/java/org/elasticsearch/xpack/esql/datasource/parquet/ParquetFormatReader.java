@@ -593,7 +593,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
             DataType actualInFile = convertParquetTypeToEsql(fullSchema.getType(attr.name()));
             if (plannerTypeCompatibleWithFileDerivedType(attr.dataType(), actualInFile) == false) {
                 logger.warn(
-                    "Column [{}] in file [{}] has type [{}] incompatible with planner type [{}] after widening; returning nulls for this column",
+                    "Column [{}] in file [{}] has type [{}] incompatible with planner type [{}] after widening; "
+                        + "returning nulls for this column",
                     attr.name(),
                     fileLocation,
                     actualInFile,

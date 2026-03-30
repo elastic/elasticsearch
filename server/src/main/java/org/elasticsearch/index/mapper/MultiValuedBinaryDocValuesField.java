@@ -167,12 +167,14 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
             boolean keepDuplicates
         ) {
             var field = (SeparateCount) doc.getByKey(fieldName);
-            var countField = (NumericDocValuesField) doc.getByKey(fieldName + COUNT_FIELD_SUFFIX);
+            final NumericDocValuesField countField;
             if (field == null) {
                 field = new SeparateCount(fieldName, keepDuplicates);
                 countField = NumericDocValuesField.indexedField(field.countFieldName(), -1); // dummy value
                 doc.addWithKey(field.name(), field);
                 doc.addWithKey(countField.name(), countField);
+            } else {
+                countField = (NumericDocValuesField) doc.getByKey(fieldName + COUNT_FIELD_SUFFIX);
             }
 
             field.add(binaryValue);

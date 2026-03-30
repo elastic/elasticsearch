@@ -168,11 +168,7 @@ public abstract class TestingConventionsCheckTask extends PrecommitTask {
                 ProblemReporter reporter = getProblems().getReporter();
                 for (Class<?> clazz : matchingBaseClassNotMatchingSuffix) {
                     reporter.report(
-                        ProblemId.create(
-                            "invalid-suffix",
-                            "Testing convention violation",
-                            ElasticsearchBuildProblems.TESTING_CONVENTIONS
-                        ),
+                        ProblemId.create("invalid-suffix", "Testing convention violation", ElasticsearchBuildProblems.TESTING_CONVENTIONS),
                         spec -> spec.contextualLabel(clazz.getName())
                             .severity(Severity.ERROR)
                             .solution("Rename the test class to use the correct suffix")

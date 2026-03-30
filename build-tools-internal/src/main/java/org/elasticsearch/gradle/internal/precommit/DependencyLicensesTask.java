@@ -192,17 +192,23 @@ public abstract class DependencyLicensesTask extends AbstractDependenciesTask {
         File licensesDirAsFile = licensesDir.get().getAsFile();
         if (dependencies.isEmpty()) {
             if (licensesDirAsFile.exists() && allIgnored() == false) {
-                reportProblem("no-dependencies", "Licenses dir exists without dependencies",
+                reportProblem(
+                    "no-dependencies",
+                    "Licenses dir exists without dependencies",
                     "Licenses dir " + licensesDirAsFile + " exists, but there are no dependencies",
-                    "Remove the licenses directory or add dependencies");
+                    "Remove the licenses directory or add dependencies"
+                );
             }
             throwIfProblems();
             return; // no dependencies to check
         } else if (licensesDirAsFile.exists() == false) {
             String deps = dependencies.getFiles().stream().map(File::getName).collect(Collectors.joining("\n"));
-            reportProblem("missing-licenses-dir", "Licenses directory missing",
+            reportProblem(
+                "missing-licenses-dir",
+                "Licenses directory missing",
                 "Licenses dir " + licensesDirAsFile + " does not exist, but there are dependencies: " + deps,
-                "Create a licenses directory with LICENSE, NOTICE, and SHA files for each dependency");
+                "Create a licenses directory with LICENSE, NOTICE, and SHA files for each dependency"
+            );
             throwIfProblems();
             return;
         }
@@ -239,8 +245,7 @@ public abstract class DependencyLicensesTask extends AbstractDependenciesTask {
         if (collectedProblems.isEmpty() == false) {
             problemReporter.report(collectedProblems);
             throw new GradleException(
-                "Dependency license check failed with " + collectedProblems.size() + " problem"
-                    + (collectedProblems.size() == 1 ? "" : "s")
+                "Dependency license check failed with " + collectedProblems.size() + " problem" + (collectedProblems.size() == 1 ? "" : "s")
             );
         }
     }
@@ -249,10 +254,7 @@ public abstract class DependencyLicensesTask extends AbstractDependenciesTask {
         collectedProblems.add(
             problemReporter.create(
                 ProblemId.create(id, displayName, ElasticsearchBuildProblems.DEPENDENCY_LICENSES),
-                spec -> spec.contextualLabel(details)
-                    .details(details)
-                    .severity(Severity.ERROR)
-                    .solution(solution)
+                spec -> spec.contextualLabel(details).details(details).severity(Severity.ERROR).solution(solution)
             )
         );
     }
@@ -271,9 +273,12 @@ public abstract class DependencyLicensesTask extends AbstractDependenciesTask {
 
     private void checkUnused(String item, Boolean exists, String type) {
         if (exists == false) {
-            reportProblem("unused-" + type, "Unused " + type + " file",
+            reportProblem(
+                "unused-" + type,
+                "Unused " + type + " file",
                 "Unused " + type + " " + item,
-                "Remove the unused " + type + " file " + item);
+                "Remove the unused " + type + " file " + item
+            );
         }
     }
 
@@ -316,9 +321,12 @@ public abstract class DependencyLicensesTask extends AbstractDependenciesTask {
         String fileName = getFileName(name, counters, type);
 
         if (counters.containsKey(fileName) == false) {
-            reportProblem("missing-" + type.toLowerCase(Locale.ROOT), "Missing " + type + " file",
+            reportProblem(
+                "missing-" + type.toLowerCase(Locale.ROOT),
+                "Missing " + type + " file",
                 "Missing " + type + " for " + jarName + ", expected in " + fileName,
-                "Add a " + type + " file named " + fileName + " to the licenses directory");
+                "Add a " + type + " file named " + fileName + " to the licenses directory"
+            );
             return;
         }
 

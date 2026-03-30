@@ -119,8 +119,14 @@ public class JavaModulePrecommitTask extends PrecommitTask {
         checkModuleServices(mod, problems);
         if (problems.isEmpty() == false) {
             problemReporter.report(problems);
-            throw new GradleException("Module validation failed for " + mod.descriptor().name()
-                + " with " + problems.size() + " problem" + (problems.size() == 1 ? "" : "s"));
+            throw new GradleException(
+                "Module validation failed for "
+                    + mod.descriptor().name()
+                    + " with "
+                    + problems.size()
+                    + " problem"
+                    + (problems.size() == 1 ? "" : "s")
+            );
         }
     }
 
@@ -128,22 +134,25 @@ public class JavaModulePrecommitTask extends PrecommitTask {
         getLogger().info("{} checking module version for {}", this, mref.descriptor().name());
         Optional<String> rawVersion = mref.descriptor().rawVersion();
         if (rawVersion.isEmpty()) {
-            problems.add(problemReporter.create(
-                ProblemId.create("missing-module-version", "Missing module version", ElasticsearchBuildProblems.JAVA_MODULE),
-                spec -> spec.contextualLabel("No version found in module " + mref.descriptor().name())
-                    .severity(Severity.ERROR)
-                    .solution("Add a version to the module descriptor")
-            ));
+            problems.add(
+                problemReporter.create(
+                    ProblemId.create("missing-module-version", "Missing module version", ElasticsearchBuildProblems.JAVA_MODULE),
+                    spec -> spec.contextualLabel("No version found in module " + mref.descriptor().name())
+                        .severity(Severity.ERROR)
+                        .solution("Add a version to the module descriptor")
+                )
+            );
             return;
         }
         if (rawVersion.get().equals(expectedVersion) == false) {
-            problems.add(problemReporter.create(
-                ProblemId.create("module-version-mismatch", "Module version mismatch", ElasticsearchBuildProblems.JAVA_MODULE),
-                spec -> spec.contextualLabel("Expected version [" + expectedVersion + "] but found [" + rawVersion.get()
-                        + "] in " + mref.descriptor().name())
-                    .severity(Severity.ERROR)
-                    .solution("Update the module version to " + expectedVersion)
-            ));
+            problems.add(
+                problemReporter.create(
+                    ProblemId.create("module-version-mismatch", "Module version mismatch", ElasticsearchBuildProblems.JAVA_MODULE),
+                    spec -> spec.contextualLabel(
+                        "Expected version [" + expectedVersion + "] but found [" + rawVersion.get() + "] in " + mref.descriptor().name()
+                    ).severity(Severity.ERROR).solution("Update the module version to " + expectedVersion)
+                )
+            );
         }
     }
 
@@ -151,13 +160,14 @@ public class JavaModulePrecommitTask extends PrecommitTask {
         getLogger().info("{} checking module name prefix for {}", this, mref.descriptor().name());
         if (mref.descriptor().name().startsWith("org.elasticsearch.") == false
             && mref.descriptor().name().startsWith("co.elastic.") == false) {
-            problems.add(problemReporter.create(
-                ProblemId.create("invalid-module-name-prefix", "Invalid module name prefix", ElasticsearchBuildProblems.JAVA_MODULE),
-                spec -> spec.contextualLabel("Expected name starting with 'org.elasticsearch.' or 'co.elastic.' in "
-                        + mref.descriptor().name())
-                    .severity(Severity.ERROR)
-                    .solution("Rename the module to start with 'org.elasticsearch.' or 'co.elastic.'")
-            ));
+            problems.add(
+                problemReporter.create(
+                    ProblemId.create("invalid-module-name-prefix", "Invalid module name prefix", ElasticsearchBuildProblems.JAVA_MODULE),
+                    spec -> spec.contextualLabel(
+                        "Expected name starting with 'org.elasticsearch.' or 'co.elastic.' in " + mref.descriptor().name()
+                    ).severity(Severity.ERROR).solution("Rename the module to start with 'org.elasticsearch.' or 'co.elastic.'")
+                )
+            );
         }
     }
 
@@ -174,15 +184,21 @@ public class JavaModulePrecommitTask extends PrecommitTask {
                     .peek(s -> getLogger().info("%s checking service %s", this, s))
                     .forEach(service -> {
                         if (modServices.contains(service) == false) {
-                            problems.add(problemReporter.create(
-                                ProblemId.create("missing-module-service", "Missing module service declaration",
-                                    ElasticsearchBuildProblems.JAVA_MODULE),
-                                spec -> spec.contextualLabel(String.format(Locale.ROOT,
-                                        "Expected provides %s in module %s", service, mref.descriptor().name()))
-                                    .details("Module " + mref.descriptor().name() + " has provides " + mref.descriptor().provides())
-                                    .severity(Severity.ERROR)
-                                    .solution("Add 'provides " + service + "' to the module-info.java")
-                            ));
+                            problems.add(
+                                problemReporter.create(
+                                    ProblemId.create(
+                                        "missing-module-service",
+                                        "Missing module service declaration",
+                                        ElasticsearchBuildProblems.JAVA_MODULE
+                                    ),
+                                    spec -> spec.contextualLabel(
+                                        String.format(Locale.ROOT, "Expected provides %s in module %s", service, mref.descriptor().name())
+                                    )
+                                        .details("Module " + mref.descriptor().name() + " has provides " + mref.descriptor().provides())
+                                        .severity(Severity.ERROR)
+                                        .solution("Add 'provides " + service + "' to the module-info.java")
+                                )
+                            );
                         }
                     });
             } catch (IOException e) {

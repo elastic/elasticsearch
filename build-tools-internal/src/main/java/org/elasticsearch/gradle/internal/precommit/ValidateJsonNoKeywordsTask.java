@@ -139,8 +139,7 @@ public class ValidateJsonNoKeywordsTask extends DefaultTask {
                     for (String component : apiName.split("\\.")) {
                         if (languagesByKeyword.containsKey(component)) {
                             final Set<String> errorsForFile = errors.computeIfAbsent(file, _file -> new HashSet<>());
-                            String detail = component + " is a reserved keyword in these languages: "
-                                + languagesByKeyword.get(component);
+                            String detail = component + " is a reserved keyword in these languages: " + languagesByKeyword.get(component);
                             errorsForFile.add(detail);
                             problemReporter.report(
                                 ProblemId.create(
@@ -148,7 +147,9 @@ public class ValidateJsonNoKeywordsTask extends DefaultTask {
                                     "API name conflicts with reserved keyword",
                                     ElasticsearchBuildProblems.JSON_VALIDATION
                                 ),
-                                spec -> spec.contextualLabel("'" + component + "' in " + file.getName() + " conflicts with reserved keywords")
+                                spec -> spec.contextualLabel(
+                                    "'" + component + "' in " + file.getName() + " conflicts with reserved keywords"
+                                )
                                     .details(detail)
                                     .severity(Severity.ERROR)
                                     .fileLocation(file.getAbsolutePath())

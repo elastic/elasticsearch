@@ -360,6 +360,18 @@ tests:
 - class: org.elasticsearch.xpack.sql.qa.jdbc.single_node.SingleNodeJdbcResultSetIT
   method: testGettingValidByteWithoutCasting
   issue: https://github.com/elastic/elasticsearch/issues/145143
+- class: org.elasticsearch.xpack.esql.analysis.AnalyzerTests
+  method: testLookupMissingField
+  issue: https://github.com/elastic/elasticsearch/issues/144697
+- class: org.elasticsearch.xpack.esql.analysis.AnalyzerTests
+  method: testLookupMatchTypeWrong
+  issue: https://github.com/elastic/elasticsearch/issues/144694
+- class: org.elasticsearch.xpack.esql.analysis.AnalyzerTests
+  method: testLookup
+  issue: https://github.com/elastic/elasticsearch/issues/144696
+- class: org.elasticsearch.xpack.esql.analysis.AnalyzerTests
+  method: testLookupMissingTable
+  issue: https://github.com/elastic/elasticsearch/issues/144695
 
 # Examples:
 #

@@ -369,6 +369,9 @@ tests:
 - class: org.elasticsearch.xpack.sql.qa.jdbc.single_node.SingleNodeJdbcResultSetIT
   method: testGettingValidShortWithoutCasting
   issue: https://github.com/elastic/elasticsearch/issues/145241
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundToTests
+  method: testCrankyEvaluateBlockWithoutNulls {TestCase=<int, 20 fixed-interval ints>}
+  issue: https://github.com/elastic/elasticsearch/issues/145245
 
 # Examples:
 #

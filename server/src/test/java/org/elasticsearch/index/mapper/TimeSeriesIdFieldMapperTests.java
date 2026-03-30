@@ -124,10 +124,7 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
         Settings.Builder builder = getIndexSettingsBuilder();
         builder.put(IndexSettings.MODE.getKey(), IndexMode.STANDARD.name());
         builder.remove(IndexMetadata.INDEX_ROUTING_PATH.getKey());
-        DocumentMapper docMapper = createMapperService(
-            builder.build(),
-            mapping(b -> {})
-        ).documentMapper();
+        DocumentMapper docMapper = createMapperService(builder.build(), mapping(b -> {})).documentMapper();
         assertThat(docMapper.metadataMapper(TimeSeriesIdFieldMapper.class), is(nullValue()));
 
         ParsedDocument doc = docMapper.parse(source("id", b -> b.field("field", "value"), null));

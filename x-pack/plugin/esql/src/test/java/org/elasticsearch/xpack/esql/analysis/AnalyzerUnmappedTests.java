@@ -1331,10 +1331,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
     public void testAllowLoadWithPartiallyMappedKeyword() {
         assumeTrue("Requires OPTIONAL_FIELDS_V5", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
 
-        var esIndex = partialIndex(
-            Map.of("partial_type_keyword", keywordField("partial_type_keyword")),
-            Set.of("partial_type_keyword")
-        );
+        var esIndex = partialIndex(Map.of("partial_type_keyword", keywordField("partial_type_keyword")), Set.of("partial_type_keyword"));
         var plan = analyzer().addIndex(esIndex).statement(setUnmappedLoad("FROM idx* | KEEP partial_type_keyword"));
         assertThat(plan, not(nullValue()));
     }

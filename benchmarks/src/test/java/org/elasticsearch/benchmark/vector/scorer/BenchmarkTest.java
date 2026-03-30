@@ -9,15 +9,23 @@
 
 package org.elasticsearch.benchmark.vector.scorer;
 
+import org.apache.lucene.util.Constants;
+import org.apache.lucene.util.IOFunction;
+import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.BeforeClass;
 import org.openjdk.jmh.annotations.Param;
 
+import java.io.IOException;
 import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.supportsHeapSegments;
 
 public class BenchmarkTest extends ESTestCase {
 
@@ -68,6 +76,87 @@ public class BenchmarkTest extends ESTestCase {
         for (Object value : params.get(index)) {
             current[index] = value;
             generatePermutations(params, index + 1, current, permutations);
+        }
+    }
+
+    @BeforeClass
+    public static void skipWindows() {
+        assumeFalse("doesn't work on windows yet", Constants.WINDOWS);
+    }
+
+    public <V> void testSequential(
+        Supplier<V> vectorData,
+        CheckedBiFunction<V, VectorImplementation, VectorScorerBulkBenchmark, IOException> createBenchmark,
+        float delta
+    ) throws Exception {
+        for (int i = 0; i < 100; i++) {
+            V data = vectorData.get();
+            assertResultsEqual(
+                List.of(VectorImplementation.values()),
+                impl -> createBenchmark.apply(data, impl),
+                List.of(VectorScorerBulkBenchmark::scoreMultipleSequential, VectorScorerBulkBenchmark::scoreMultipleSequentialBulk),
+                delta
+            );
+        }
+    }
+
+    public <V> void testRandom(
+        Supplier<V> vectorData,
+        CheckedBiFunction<V, VectorImplementation, VectorScorerBulkBenchmark, IOException> createBenchmark,
+        float delta
+    ) throws IOException {
+        for (int i = 0; i < 100; i++) {
+            V data = vectorData.get();
+            assertResultsEqual(
+                List.of(VectorImplementation.values()),
+                impl -> createBenchmark.apply(data, impl),
+                List.of(VectorScorerBulkBenchmark::scoreMultipleRandom, VectorScorerBulkBenchmark::scoreMultipleRandomBulk),
+                delta
+            );
+        }
+    }
+
+    public <V> void testQueryRandom(
+        Supplier<V> vectorData,
+        CheckedBiFunction<V, VectorImplementation, VectorScorerBulkBenchmark, IOException> createBenchmark,
+        float delta
+    ) throws IOException {
+        assumeTrue("Only test with heap segments", supportsHeapSegments());
+        for (int i = 0; i < 100; i++) {
+            V data = vectorData.get();
+            assertResultsEqual(
+                List.of(VectorImplementation.LUCENE, VectorImplementation.NATIVE),
+                impl -> createBenchmark.apply(data, impl),
+                List.of(VectorScorerBulkBenchmark::scoreQueryMultipleRandom, VectorScorerBulkBenchmark::scoreQueryMultipleRandomBulk),
+                delta
+            );
+        }
+    }
+
+    static <B extends VectorScorerBulkBenchmark> void assertResultsEqual(
+        List<VectorImplementation> implementations,
+        IOFunction<VectorImplementation, B> getBenchmark,
+        List<IOFunction<B, float[]>> scores,
+        float delta
+    ) throws IOException {
+        float[] expected = null;
+        for (var impl : implementations) {
+            B bench = getBenchmark.apply(impl);
+
+            try {
+                for (IOFunction<B, float[]> score : scores) {
+                    float[] result = score.apply(bench);
+                    // just check against the first one - they should all be identical to each other
+                    if (expected == null) {
+                        expected = result;
+                        continue;
+                    }
+
+                    assertArrayEquals(impl.toString(), expected, result, delta);
+                }
+            } finally {
+                bench.teardown();
+            }
         }
     }
 }

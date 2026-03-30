@@ -51,12 +51,6 @@ import static org.elasticsearch.simdvec.internal.vectorization.VectorScorerTestU
  * across sequential and random access patterns.
  * Run with ./gradlew -p benchmarks run --args 'VectorScorerInt4BulkBenchmark'
  */
-@Fork(value = 1, jvmArgsPrepend = { "--add-modules=jdk.incubator.vector" })
-@Warmup(iterations = 3, time = 3)
-@Measurement(iterations = 5, time = 3)
-@BenchmarkMode(Mode.Throughput)
-@OutputTimeUnit(TimeUnit.SECONDS)
-@State(Scope.Thread)
 public class VectorScorerInt4BulkBenchmark extends VectorScorerBulkBenchmark {
 
     @Param({ "128", "1500", "130000" })

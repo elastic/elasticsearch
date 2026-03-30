@@ -11,13 +11,7 @@ package org.elasticsearch.benchmark.vector.scorer;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.apache.lucene.util.Constants;
 import org.elasticsearch.simdvec.VectorSimilarityType;
-import org.junit.BeforeClass;
-
-import java.util.List;
-
-import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.supportsHeapSegments;
 
 public class VectorScorerFloatBulkBenchmarkTests extends BenchmarkTest {
 
@@ -30,103 +24,33 @@ public class VectorScorerFloatBulkBenchmarkTests extends BenchmarkTest {
         this.dims = dims;
     }
 
-    @BeforeClass
-    public static void skipWindows() {
-        assumeFalse("doesn't work on windows yet", Constants.WINDOWS);
-    }
-
     public void testSequential() throws Exception {
-        for (int i = 0; i < 100; i++) {
-            VectorScorerFloatBulkBenchmark.VectorData vectorData = new VectorScorerFloatBulkBenchmark.VectorData(dims, 1000, 200);
-            float[] expected = null;
-            for (var impl : VectorImplementation.values()) {
-                var bench = new VectorScorerFloatBulkBenchmark();
-                bench.function = function;
-                bench.implementation = impl;
-                bench.dims = dims;
-                bench.numVectors = 1000;
-                bench.numVectorsToScore = 200;
-                bench.bulkSize = 200;
-                bench.setup(vectorData);
-
-                try {
-                    float[] result = bench.scoreMultipleSequential();
-                    if (expected == null) {
-                        assert impl == VectorImplementation.SCALAR;
-                        expected = result;
-                        continue;
-                    }
-
-                    assertArrayEquals(impl.toString(), expected, result, delta);
-                    assertArrayEquals(impl.toString(), expected, bench.scoreMultipleSequentialBulk(), delta);
-                } finally {
-                    bench.teardown();
-                }
-            }
-        }
+        testSequential(this::createData, this::createBenchmark, delta);
     }
 
     public void testRandom() throws Exception {
-        for (int i = 0; i < 100; i++) {
-            VectorScorerFloatBulkBenchmark.VectorData vectorData = new VectorScorerFloatBulkBenchmark.VectorData(dims, 1000, 200);
-            float[] expected = null;
-            for (var impl : VectorImplementation.values()) {
-                var bench = new VectorScorerFloatBulkBenchmark();
-                bench.function = function;
-                bench.implementation = impl;
-                bench.dims = dims;
-                bench.numVectors = 1000;
-                bench.numVectorsToScore = 200;
-                bench.bulkSize = 200;
-                bench.setup(vectorData);
-
-                try {
-                    float[] result = bench.scoreMultipleRandom();
-                    if (expected == null) {
-                        assert impl == VectorImplementation.SCALAR;
-                        expected = result;
-                        continue;
-                    }
-
-                    assertArrayEquals(impl.toString(), expected, result, delta);
-                    assertArrayEquals(impl.toString(), expected, bench.scoreMultipleRandomBulk(), delta);
-                } finally {
-                    bench.teardown();
-                }
-            }
-        }
+        testRandom(this::createData, this::createBenchmark, delta);
     }
 
     public void testQueryRandom() throws Exception {
-        assumeTrue("Only test with heap segments", supportsHeapSegments());
-        for (int i = 0; i < 100; i++) {
-            VectorScorerFloatBulkBenchmark.VectorData vectorData = new VectorScorerFloatBulkBenchmark.VectorData(dims, 1000, 200);
-            float[] expected = null;
-            for (var impl : List.of(VectorImplementation.LUCENE, VectorImplementation.NATIVE)) {
-                var bench = new VectorScorerFloatBulkBenchmark();
-                bench.function = function;
-                bench.implementation = impl;
-                bench.dims = dims;
-                bench.numVectors = 1000;
-                bench.numVectorsToScore = 200;
-                bench.bulkSize = 200;
-                bench.setup(vectorData);
+        testQueryRandom(this::createData, this::createBenchmark, delta);
+    }
 
-                try {
-                    float[] result = bench.scoreQueryMultipleRandom();
-                    if (expected == null) {
-                        assert impl == VectorImplementation.LUCENE;
-                        expected = result;
-                        continue;
-                    }
+    private VectorScorerFloatBulkBenchmark.VectorData createData() {
+        return new VectorScorerFloatBulkBenchmark.VectorData(dims, 1000, 200);
+    }
 
-                    assertArrayEquals(impl.toString(), expected, result, delta);
-                    assertArrayEquals(impl.toString(), expected, bench.scoreQueryMultipleRandomBulk(), delta);
-                } finally {
-                    bench.teardown();
-                }
-            }
-        }
+    private VectorScorerFloatBulkBenchmark createBenchmark(VectorScorerFloatBulkBenchmark.VectorData d, VectorImplementation impl)
+        throws java.io.IOException {
+        var bench = new VectorScorerFloatBulkBenchmark();
+        bench.function = function;
+        bench.implementation = impl;
+        bench.dims = dims;
+        bench.numVectors = 1000;
+        bench.numVectorsToScore = 200;
+        bench.bulkSize = 200;
+        bench.setup(d);
+        return bench;
     }
 
     @ParametersFactory

@@ -22,9 +22,9 @@ import org.hamcrest.Matcher;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.function.IntFunction;
-import java.util.function.LongUnaryOperator;
+import java.util.stream.Stream;
 
+import static java.util.Collections.nCopies;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.nullValue;
@@ -105,12 +105,13 @@ public class ChangePointOperatorTests extends OperatorTestCase {
         BlockFactory blockFactory = ctx.blockFactory();
 
         // Group A: [0×15, 1×15] -> step at row 15 of page0
-        // Group B: [0×15, 1×15] -> step at row 15 of page1
+        // Group B: [1×15, 0×15] -> step at row 15 of page1
         // Group C: [0×15, 1×15] -> step at row 15 of page2
-        Page page0 = buildPage(blockFactory, 30, i -> "A", i -> i < 15 ? 0L : 1L);
-        Page page1 = buildPage(blockFactory, 30, i -> "B", i -> i < 15 ? 1L : 0L);
-        Page page2 = buildPage(blockFactory, 30, i -> "C", i -> i < 15 ? 0L : 1L);
-        var pages = List.of(page0, page1, page2);
+        List<Long> valuesColumn = Stream.of(nCopies(15, 0L), nCopies(15, 1L), nCopies(15, 1L), nCopies(15, 0L), nCopies(15, 0L), nCopies(15, 1L))
+            .flatMap(List::stream)
+            .toList();
+        List<String> groupsColumn = Stream.of(nCopies(30, "A"), nCopies(30, "B"), nCopies(30, "C")).flatMap(List::stream).toList();
+        List<Page> pages = buildPages(blockFactory, List.of(30, 60), valuesColumn, groupsColumn);
 
         List<Page> outputPages = invokeChangePoint(ctx, pages);
         try {
@@ -128,10 +129,9 @@ public class ChangePointOperatorTests extends OperatorTestCase {
 
         // Group A: [0×15, 1×20] -> step at row 15 of page0
         // Group B: [1×85]
-        Page page0 = buildPage(blockFactory, 40, i -> i < 35 ? "A" : "B", i -> i < 15 ? 0L : 1L);
-        Page page1 = buildPage(blockFactory, 40, i -> "B", i -> 1L);
-        Page page2 = buildPage(blockFactory, 40, i -> "B", i -> 1L);
-        var pages = List.of(page0, page1, page2);
+        List<String> groupsColumn = Stream.concat(nCopies(35, "A").stream(), nCopies(85, "B").stream()).toList();
+        List<Long> valuesColumn = Stream.concat(nCopies(15, 0L).stream(), nCopies(105, 1L).stream()).toList();
+        List<Page> pages = buildPages(blockFactory, List.of(40, 80), valuesColumn, groupsColumn);
 
         List<Page> outputPages = invokeChangePoint(ctx, pages);
         try {
@@ -147,12 +147,11 @@ public class ChangePointOperatorTests extends OperatorTestCase {
         DriverContext ctx = driverContext();
         BlockFactory blockFactory = ctx.blockFactory();
 
-        // Group A: [0×40, 1x25] -> step at row 20 of page1
+        // Group A: [0×40, 1×25] -> step at row 20 of page1
         // Group B: [0×35]
-        Page page0 = buildPage(blockFactory, 20, i -> "A", i -> 0L);
-        Page page1 = buildPage(blockFactory, 40, i -> "A", i -> i < 20 ? 0L : 1L);
-        Page page2 = buildPage(blockFactory, 40, i -> i < 5 ? "A" : "B", i -> i < 5 ? 1L : 0L);
-        var pages = List.of(page0, page1, page2);
+        List<String> groupsColumn = Stream.concat(nCopies(65, "A").stream(), nCopies(35, "B").stream()).toList();
+        List<Long> valuesColumn = Stream.of(nCopies(40, 0L), nCopies(25, 1L), nCopies(35, 0L)).flatMap(List::stream).toList();
+        List<Page> pages = buildPages(blockFactory, List.of(20, 60), valuesColumn, groupsColumn);
 
         List<Page> outputPages = invokeChangePoint(ctx, pages);
         try {
@@ -169,11 +168,10 @@ public class ChangePointOperatorTests extends OperatorTestCase {
         BlockFactory blockFactory = ctx.blockFactory();
 
         // Group A: [1×85]
-        // Group B: [0×20, 1x15] -> step at row 25 of page2
-        Page page0 = buildPage(blockFactory, 40, i -> "A", i -> 1L);
-        Page page1 = buildPage(blockFactory, 40, i -> "A", i -> 1L);
-        Page page2 = buildPage(blockFactory, 40, i -> i < 5 ? "A" : "B", i -> i < 5 ? 1L : (i < 25 ? 0L : 1L));
-        var pages = List.of(page0, page1, page2);
+        // Group B: [0×20, 1×15] -> step at row 25 of page2
+        List<String> groupsColumn = Stream.concat(nCopies(85, "A").stream(), nCopies(35, "B").stream()).toList();
+        List<Long> valuesColumn = Stream.of(nCopies(85, 1L), nCopies(20, 0L), nCopies(15, 1L)).flatMap(List::stream).toList();
+        List<Page> pages = buildPages(blockFactory, List.of(40, 80), valuesColumn, groupsColumn);
 
         List<Page> outputPages = invokeChangePoint(ctx, pages);
         try {
@@ -183,22 +181,14 @@ public class ChangePointOperatorTests extends OperatorTestCase {
         } finally {
             outputPages.forEach(Page::releaseBlocks);
         }
-
     }
 
     public void testAllNullInputProducesWarning() {
         DriverContext ctx = driverContext();
         BlockFactory blockFactory = ctx.blockFactory();
 
-        Page page;
-        try (LongBlock.Builder v = blockFactory.newLongBlockBuilder(30)) {
-            for (int i = 0; i < 30; i++) {
-                v.appendNull();
-            }
-            page = new Page(v.build());
-        }
-
-        List<Page> outputPages = invokeChangePoint(ctx, List.of(page), 0, null);
+        List<Page> inputPages = buildPages(blockFactory, List.of(), nCopies(30, null));
+        List<Page> outputPages = invokeChangePoint(ctx, inputPages, 0, null);
 
         try {
             assertThat(outputPages, hasSize(1));
@@ -235,11 +225,13 @@ public class ChangePointOperatorTests extends OperatorTestCase {
         BlockFactory blockFactory = ctx.blockFactory();
 
         // Group A: [0×1]
-        // Group B: [15×1, 15x0] -> step at row 15 of page1
-        Page page0 = buildPage(blockFactory, 1, i -> "A", i -> 0L);
-        Page page1 = buildPage(blockFactory, 30, i -> "B", i -> i < 15 ? 0L : 1L);
+        // Group B: [0×15, 1×15] -> step at row 15 of page1
+        List<String> groupsColumn = Stream.concat(nCopies(1, "A").stream(), nCopies(30, "B").stream()).toList();
+        List<Long> valuesColumn = Stream.concat(nCopies(1, 0L).stream(), Stream.concat(nCopies(15, 0L).stream(), nCopies(15, 1L).stream()))
+            .toList();
+        List<Page> pages = buildPages(blockFactory, List.of(1), valuesColumn, groupsColumn);
 
-        List<Page> outputPages = invokeChangePoint(ctx, List.of(page0, page1));
+        List<Page> outputPages = invokeChangePoint(ctx, pages);
         try {
             assertNoChangePoints(outputPages.get(0));
             assertChangePointAt(outputPages.get(1), 15);
@@ -256,19 +248,13 @@ public class ChangePointOperatorTests extends OperatorTestCase {
         DriverContext ctx = driverContext();
         BlockFactory blockFactory = ctx.blockFactory();
 
-        // Group A: [0×15, 1x15] -> step at row 15 of page0
-        // Group B: [null×30] -> warnings produced
-        Page page0 = buildPage(blockFactory, 30, i -> "A", i -> i < 15 ? 0L : 1L);
-        Page page1;
-        try (BytesRefBlock.Builder g = blockFactory.newBytesRefBlockBuilder(5); LongBlock.Builder v = blockFactory.newLongBlockBuilder(5)) {
-            for (int i = 0; i < 5; i++) {
-                g.appendBytesRef(new BytesRef("B"));
-                v.appendNull();
-            }
-            page1 = new Page(g.build(), v.build());
-        }
+        // Group A: [0×15, 1×15] -> step at row 15 of page0
+        // Group B: [null×5] -> warnings produced
+        List<String> groupsColumn = Stream.concat(nCopies(30, "A").stream(), nCopies(5, "B").stream()).toList();
+        List<Long> valuesColumn = Stream.of(nCopies(15, 0L), nCopies(15, 1L), nCopies(5, (Long) null)).flatMap(List::stream).toList();
+        List<Page> pages = buildPages(blockFactory, List.of(30), valuesColumn, groupsColumn);
 
-        List<Page> outputPages = invokeChangePoint(ctx, List.of(page0, page1));
+        List<Page> outputPages = invokeChangePoint(ctx, pages);
         try {
             assertChangePointAt(outputPages.get(0), 15);
             assertNoChangePoints(outputPages.get(1));
@@ -288,16 +274,11 @@ public class ChangePointOperatorTests extends OperatorTestCase {
 
         // Group A: [null×5] -> should produce indeterminable warning
         // Group B: [0×15, 1×15] -> step change at row 15 of page1
-        Page page0;
-        try (BytesRefBlock.Builder g = blockFactory.newBytesRefBlockBuilder(5); LongBlock.Builder v = blockFactory.newLongBlockBuilder(5)) {
-            for (int i = 0; i < 5; i++) {
-                g.appendBytesRef(new BytesRef("A"));
-                v.appendNull();
-            }
-            page0 = new Page(g.build(), v.build());
-        }
-        Page page1 = buildPage(blockFactory, 30, i -> "B", i -> i < 15 ? 0L : 1L);
-        List<Page> outputPages = invokeChangePoint(ctx, List.of(page0, page1));
+        List<String> groupsColumn = Stream.concat(nCopies(5, "A").stream(), nCopies(30, "B").stream()).toList();
+        List<Long> valuesColumn = Stream.of(nCopies(5, (Long) null), nCopies(15, 0L), nCopies(15, 1L)).flatMap(List::stream).toList();
+        List<Page> pages = buildPages(blockFactory, List.of(5), valuesColumn, groupsColumn);
+
+        List<Page> outputPages = invokeChangePoint(ctx, pages);
         try {
             assertNoChangePoints(outputPages.get(0));
             assertChangePointAt(outputPages.get(1), 15);
@@ -321,11 +302,13 @@ public class ChangePointOperatorTests extends OperatorTestCase {
         DriverContext ctx = driverContext();
         BlockFactory blockFactory = ctx.blockFactory();
 
-        // Group A: [0×15, 1x15] -> step at row 15 of page0
-        // Group B: [1×15, 0x15] -> step at row 45 of page0
-        Page page0 = buildPage(blockFactory, 60, i -> i < 30 ? "A" : "B", i -> i < 15 ? 0L : (i < 30 ? 1L : (i < 45 ? 0L : 1L)));
+        // Group A: [0×15, 1×15] -> step at row 15 of page0
+        // Group B: [0×15, 1×15] -> step at row 45 of page0
+        List<String> groupsColumn = Stream.concat(nCopies(30, "A").stream(), nCopies(30, "B").stream()).toList();
+        List<Long> valuesColumn = Stream.of(nCopies(15, 0L), nCopies(15, 1L), nCopies(15, 0L), nCopies(15, 1L)).flatMap(List::stream).toList();
+        List<Page> pages = buildPages(blockFactory, List.of(), valuesColumn, groupsColumn);
 
-        List<Page> outputPages = invokeChangePoint(ctx, List.of(page0));
+        List<Page> outputPages = invokeChangePoint(ctx, pages);
         try {
             assertChangePointAt(outputPages.get(0), 15);
             assertChangePointAt(outputPages.get(0), 45);
@@ -339,10 +322,11 @@ public class ChangePointOperatorTests extends OperatorTestCase {
         BlockFactory blockFactory = ctx.blockFactory();
 
         // Group A: [0×29, 1×31] -> step at row 29 (last row of page0).
-        Page page0 = buildPage(blockFactory, 30, i -> "A", i -> i < 29 ? 0L : 1L);
-        Page page1 = buildPage(blockFactory, 30, i -> "A", i -> 1L);
+        List<String> groupsColumn = nCopies(60, "A");
+        List<Long> valuesColumn = Stream.concat(nCopies(29, 0L).stream(), nCopies(31, 1L).stream()).toList();
+        List<Page> pages = buildPages(blockFactory, List.of(30), valuesColumn, groupsColumn);
 
-        List<Page> outputPages = invokeChangePoint(ctx, List.of(page0, page1));
+        List<Page> outputPages = invokeChangePoint(ctx, pages);
         try {
             assertChangePointAt(outputPages.get(0), 29);
             assertNoChangePoints(outputPages.get(1));
@@ -356,10 +340,11 @@ public class ChangePointOperatorTests extends OperatorTestCase {
         BlockFactory blockFactory = ctx.blockFactory();
 
         // Group A: [0×30, 1×30] -> step at row 30 (first row of page1).
-        Page page0 = buildPage(blockFactory, 30, i -> "A", i -> 0L);
-        Page page1 = buildPage(blockFactory, 30, i -> "A", i -> 1L);
+        List<String> groupsColumn = nCopies(60, "A");
+        List<Long> valuesColumn = Stream.concat(nCopies(30, 0L).stream(), nCopies(30, 1L).stream()).toList();
+        List<Page> pages = buildPages(blockFactory, List.of(30), valuesColumn, groupsColumn);
 
-        List<Page> outputPages = invokeChangePoint(ctx, List.of(page0, page1));
+        List<Page> outputPages = invokeChangePoint(ctx, pages);
         try {
             assertNoChangePoints(outputPages.get(0));
             assertChangePointAt(outputPages.get(1), 0);
@@ -368,16 +353,51 @@ public class ChangePointOperatorTests extends OperatorTestCase {
         }
     }
 
-    private static Page buildPage(BlockFactory blockFactory, int size, IntFunction<String> group, LongUnaryOperator value) {
+    private static List<Page> buildPages(BlockFactory blockFactory, List<Integer> splits, List<Long> valuesColumn, List<String> groupsColumn) {
+        assert groupsColumn.size() == valuesColumn.size();
+        List<Page> pages = new ArrayList<>();
+        int start = 0;
+        for (int split : splits) {
+            pages.add(buildPage(blockFactory, valuesColumn.subList(start, split), groupsColumn.subList(start, split)));
+            start = split;
+        }
+        pages.add(buildPage(blockFactory, valuesColumn.subList(start, valuesColumn.size()), groupsColumn.subList(start, groupsColumn.size())));
+        return pages;
+    }
+
+    private static List<Page> buildPages(BlockFactory blockFactory, List<Integer> splits, List<Long> valuesColumn) {
+        List<Page> pages = new ArrayList<>();
+        int start = 0;
+        for (int split : splits) {
+            pages.add(buildPage(blockFactory, valuesColumn.subList(start, split)));
+            start = split;
+        }
+        pages.add(buildPage(blockFactory, valuesColumn.subList(start, valuesColumn.size())));
+        return pages;
+    }
+
+    private static Page buildPage(BlockFactory blockFactory, List<Long> valuesColumn, List<String> groupsColumn) {
         try (
-            BytesRefBlock.Builder g = blockFactory.newBytesRefBlockBuilder(size);
-            LongBlock.Builder v = blockFactory.newLongBlockBuilder(size)
+            BytesRefBlock.Builder g = blockFactory.newBytesRefBlockBuilder(groupsColumn.size());
+            LongBlock.Builder v = blockFactory.newLongBlockBuilder(valuesColumn.size())
         ) {
-            for (int i = 0; i < size; i++) {
-                g.appendBytesRef(new BytesRef(group.apply(i)));
-                v.appendLong(value.applyAsLong(i));
+            for (int i = 0; i < groupsColumn.size(); i++) {
+                g.appendBytesRef(new BytesRef(groupsColumn.get(i)));
+                Long val = valuesColumn.get(i);
+                if (val == null) v.appendNull();
+                else v.appendLong(val);
             }
             return new Page(g.build(), v.build());
+        }
+    }
+
+    private static Page buildPage(BlockFactory blockFactory, List<Long> valuesColumn) {
+        try (LongBlock.Builder v = blockFactory.newLongBlockBuilder(valuesColumn.size())) {
+            for (Long val : valuesColumn) {
+                if (val == null) v.appendNull();
+                else v.appendLong(val);
+            }
+            return new Page(v.build());
         }
     }
 
@@ -396,8 +416,8 @@ public class ChangePointOperatorTests extends OperatorTestCase {
         }
     }
 
-    private List<Page> invokeChangePoint(DriverContext ctx, List<Page> inputPages, int channel, Integer grouping) {
-        try (ChangePointOperator op = new ChangePointOperator(ctx, channel, grouping, new TestWarningsSource(null))) {
+    private List<Page> invokeChangePoint(DriverContext ctx, List<Page> inputPages, int keyChannel, Integer groupingChannel) {
+        try (ChangePointOperator op = new ChangePointOperator(ctx, keyChannel, groupingChannel, new TestWarningsSource(null))) {
             for (Page page : inputPages) {
                 op.addInput(page);
             }

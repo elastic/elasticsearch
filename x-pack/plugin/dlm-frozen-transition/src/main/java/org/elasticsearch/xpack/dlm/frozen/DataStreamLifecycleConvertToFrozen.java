@@ -114,11 +114,7 @@ public class DataStreamLifecycleConvertToFrozen implements DlmFrozenTransitionRu
             try {
                 checkIfEligibleForConvertToFrozen();
             } catch (IndexNotFoundException e) {
-                logger.debug(
-                    "Index [{}] no longer exists in project [{}], skipping DLM convert-to-frozen steps",
-                    indexName,
-                    projectState.projectId()
-                );
+                logger.debug("Index [{}] no longer exists in project [{}], skipping DLM convert-to-frozen steps", indexName, projectId);
                 return;
             }
             step.run();

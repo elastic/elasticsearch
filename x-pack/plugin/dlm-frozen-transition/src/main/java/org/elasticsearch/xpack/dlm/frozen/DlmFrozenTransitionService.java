@@ -90,7 +90,7 @@ class DlmFrozenTransitionService implements ClusterStateListener, Closeable {
     ) {
         this(
             clusterService,
-            (index, pid) -> new DataStreamLifecycleConvertToFrozen(index,pid, client, clusterService, licenseState, Clock.systemUTC()),
+            (index, pid) -> new DataStreamLifecycleConvertToFrozen(index, pid, client, clusterService, licenseState, Clock.systemUTC()),
             POLL_INTERVAL_SETTING.get(clusterService.getSettings()).millis(),
             errorStore
         );

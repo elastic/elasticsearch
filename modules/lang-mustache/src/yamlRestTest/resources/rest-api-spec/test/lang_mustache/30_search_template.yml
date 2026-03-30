@@ -137,7 +137,7 @@
 
   - match: { hits.total: 1 }
   - length: { hits.hits: 1 }
-  - length: { profile: 1 }
+  - length: { profile: 2 }
 
 ---
 "Test with new response format":

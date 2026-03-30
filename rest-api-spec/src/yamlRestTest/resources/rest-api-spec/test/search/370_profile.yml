@@ -582,10 +582,6 @@ composite_id_parsed:
 
 ---
 profile includes coordinator request metadata:
-  - requires:
-      cluster_features: ["search.profile.coordinator_request_metadata"]
-      reason: profile.request.indices and profile.request.source when profiling is enabled
-
   - do:
       indices.put_alias:
         index: test

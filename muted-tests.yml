@@ -234,9 +234,6 @@ tests:
 - class: org.elasticsearch.packaging.test.DebMetadataTests
   method: test05CheckLintian
   issue: https://github.com/elastic/elasticsearch/issues/142819
-- class: org.elasticsearch.xpack.search.CrossClusterAsyncSearchIT
-  method: testCancelViaExpirationOnRemoteResultsWithMinimizeRoundtrips
-  issue: https://github.com/elastic/elasticsearch/issues/143407
 - class: org.elasticsearch.xpack.security.support.MetadataFlattenedMigrationIntegTests
   method: testMigrationWithConcurrentUpdates
   issue: https://github.com/elastic/elasticsearch/issues/143674

@@ -501,30 +501,6 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
             }
 
             @Override
-            public List<Integer> groupIdsFromWindowBackward(int endingGroupId, Duration window) {
-                int tsid = tsBlockHash.tsidForGroup(endingGroupId);
-                long groupTimestamp = tsBlockHash.timestampForGroup(endingGroupId);
-                // endingGroupId sits at an output-aligned boundary (e.g. 00:00 for a 5m output bucket).
-                // The backward window covers [outputBucketEnd - window, outputBucketEnd).
-                Rounding.Prepared outputRounding = outputTimeBucket != null
-                    ? optimizeOutputRoundingForTimeRange(tsBlockHash.minTimestamp(), tsBlockHash.maxTimestamp())
-                    : optimizedTimeBucket;
-                long outputBucketEnd = outputRounding.nextRoundingValue(groupTimestamp);
-                long windowInNative = timeResolution.convert(window.toMillis());
-                long startTimestamp = outputBucketEnd - windowInNative;
-                long bucket = Math.max(startTimestamp, groupTimestamp);
-                List<Integer> results = new ArrayList<>();
-                while (bucket < outputBucketEnd) {
-                    long groupId = tsBlockHash.getGroupId(tsid, bucket);
-                    if (groupId != -1) {
-                        results.add(Math.toIntExact(groupId));
-                    }
-                    bucket = optimizedTimeBucket.nextRoundingValue(bucket);
-                }
-                return results;
-            }
-
-            @Override
             public int previousGroupId(int currentGroupId) {
                 return prevGroupIds.get(currentGroupId);
             }

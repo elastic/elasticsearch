@@ -9,10 +9,8 @@
 ###############################################
 
 ###############################################
-# Window smaller than bucket (small windows only, no non-multiple
-# windows): handled by ApplyWindowFilter which replaces the window
-# with a WindowFilter expression that filters rows at the bucket
-# boundary. No sub-bucketing is needed.
+# Window smaller than bucket: handled by WindowFilter
+# (TranslateTimeSeriesAggregate skips internal bucket changes)
 ###############################################
 
 sum_over_time_window_smaller_than_bucket_2m_window_5m_bucket
@@ -272,38 +270,6 @@ s:long | dim:keyword | time_bucket:datetime
 2550   | b           | 2024-01-01T00:20:00.000Z
 140    | a           | 2024-01-01T00:25:00.000Z
 1400   | b           | 2024-01-01T00:25:00.000Z
-;
-
-###############################################
-# Combined: small window + non-multiple window in a single STATS
-# Uses backward sub-bucket merging for the small window
-# and forward sub-bucket merging for the non-multiple window.
-# GCD(5m, 2m, 7m) = 1m internal sub-buckets.
-###############################################
-
-sum_and_avg_over_time_combined_small_and_non_multiple
-required_capability: ts_command_v0
-required_capability: time_series_window_smaller_than_bucket
-required_capability: time_series_window_non_multiple
-
-TS ts_window
-| STATS s = sum(sum_over_time(val, 2m)), p = avg(avg_over_time(val, 7m)) BY dim, time_bucket = TBUCKET(5minute)
-| SORT time_bucket, dim
-| LIMIT 20;
-
-s:long | p:double | dim:keyword | time_bucket:datetime
-9      | 4.0      | a           | 2024-01-01T00:00:00.000Z
-90     | 40.0     | b           | 2024-01-01T00:00:00.000Z
-19     | 9.0      | a           | 2024-01-01T00:05:00.000Z
-190    | 90.0     | b           | 2024-01-01T00:05:00.000Z
-29     | 14.0     | a           | 2024-01-01T00:10:00.000Z
-290    | 140.0    | b           | 2024-01-01T00:10:00.000Z
-39     | 19.0     | a           | 2024-01-01T00:15:00.000Z
-390    | 190.0    | b           | 2024-01-01T00:15:00.000Z
-49     | 24.0     | a           | 2024-01-01T00:20:00.000Z
-490    | 240.0    | b           | 2024-01-01T00:20:00.000Z
-59     | 28.0     | a           | 2024-01-01T00:25:00.000Z
-590    | 280.0    | b           | 2024-01-01T00:25:00.000Z
 ;
 
 ###############################################

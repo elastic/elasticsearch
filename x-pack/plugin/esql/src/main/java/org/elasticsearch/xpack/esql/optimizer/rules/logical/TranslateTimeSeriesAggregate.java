@@ -451,21 +451,10 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
     }
 
     /**
-     * Computes a finer-grained internal bucket when any window is not an exact multiple of the user bucket.
-     * The internal bucket size is the GCD of the user bucket and all window durations that require
-     * sub-bucketing, ensuring that both the window and the user bucket are exact multiples of the
-     * internal bucket. Returns the original bucket when no sub-bucketing is needed, or null if no
-     * bucket is provided.
-     * <p>
-     * Windows that are smaller than the bucket are handled by two complementary mechanisms:
-     * <ul>
-     *   <li>When sub-bucketing is active (because at least one non-multiple window forces it),
-     *       small windows participate in the GCD computation and are handled by backward sub-bucket
-     *       merging in {@link org.elasticsearch.compute.aggregation.WindowGroupingAggregatorFunction}.</li>
-     *   <li>When no sub-bucketing is needed, small windows are left unchanged and handled by
-     *       {@link ApplyWindowFilter} which replaces them with a {@code WindowFilter} expression.</li>
-     * </ul>
-     * Larger non-multiple windows (>= bucket) always trigger sub-bucketing and use forward merging.
+     * Computes a finer-grained internal bucket when window is not an exact multiple of the user bucket.
+     * The internal bucket size is the GCD of the user bucket and all window durations, ensuring that
+     * both the window and the user bucket are exact multiples of the internal bucket.
+     * Returns the original bucket when no sub-bucketing is needed, or null if no bucket is provided.
      */
     Bucket computeInternalBucket(Bucket userBucket, List<NamedExpression> aggregates) {
         if (userBucket == null) {
@@ -478,20 +467,19 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
         if (bucketMillis <= 0) {
             return userBucket;
         }
-        // First pass: compute GCD from windows >= bucket that are not exact multiples.
         long gcdMillis = bucketMillis;
+        boolean hasSmallWindow = false;
         boolean hasNonMultipleWindow = false;
-        List<Long> smallWindowMillis = new ArrayList<>();
-        List<String> allWindowSourceTexts = new ArrayList<>();
+        List<String> windowSourceTexts = new ArrayList<>();
         for (NamedExpression ne : aggregates) {
             if (Alias.unwrap(ne) instanceof AggregateFunction af && af.hasWindow()) {
                 Expression window = af.window();
                 if (window.foldable() && window.fold(FoldContext.small()) instanceof Duration d) {
                     long windowMillis = d.toMillis();
                     if (windowMillis > 0) {
-                        allWindowSourceTexts.add(window.sourceText());
+                        windowSourceTexts.add(window.sourceText());
                         if (windowMillis < bucketMillis) {
-                            smallWindowMillis.add(windowMillis);
+                            hasSmallWindow = true;
                         } else {
                             gcdMillis = MathUtil.gcd(gcdMillis, windowMillis);
                             if (windowMillis % bucketMillis != 0) {
@@ -502,23 +490,20 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
                 }
             }
         }
-        if (hasNonMultipleWindow == false && smallWindowMillis.isEmpty()) {
+        if (hasSmallWindow && hasNonMultipleWindow) {
+            throw new IllegalArgumentException(
+                "Combining windows smaller than the time bucket with non-multiple windows in the same aggregation is not supported"
+            );
+        }
+        if (hasSmallWindow) {
             return userBucket;
         }
-        // When sub-bucketing is already needed (non-multiple window forces it), include small
-        // windows in the GCD so they can be handled by backward sub-bucket merging.
-        // Otherwise, small windows are left for ApplyWindowFilter.
-        if (hasNonMultipleWindow) {
-            for (long wm : smallWindowMillis) {
-                gcdMillis = MathUtil.gcd(gcdMillis, wm);
-            }
-        }
-        if (gcdMillis == bucketMillis) {
+        if (hasNonMultipleWindow == false || gcdMillis == bucketMillis) {
             return userBucket;
         }
         long subBuckets = bucketMillis / gcdMillis;
         if (subBuckets > MAX_SUB_BUCKETS) {
-            String windowSizes = allWindowSourceTexts.stream().distinct().toList().toString();
+            String windowSizes = windowSourceTexts.stream().distinct().toList().toString();
             throw new IllegalArgumentException(
                 "The window "
                     + windowSizes

@@ -21,19 +21,10 @@ import java.util.stream.IntStream;
 
 /**
  * A {@link GroupingAggregatorFunction} that wraps another, and apply a window function on the final aggregation.
- *
- * @param next the underlying grouping aggregator
- * @param supplier the aggregator supplier (used to create a final-phase aggregator for the merge step)
- * @param window the window duration
- * @param outputBucket the output (user-visible) bucket duration; when the window is smaller than this,
- *                     backward merging is used (last N minutes of the output bucket)
  */
-public record WindowGroupingAggregatorFunction(
-    GroupingAggregatorFunction next,
-    AggregatorFunctionSupplier supplier,
-    Duration window,
-    Duration outputBucket
-) implements GroupingAggregatorFunction {
+public record WindowGroupingAggregatorFunction(GroupingAggregatorFunction next, AggregatorFunctionSupplier supplier, Duration window)
+    implements
+        GroupingAggregatorFunction {
 
     @Override
     public AddInput prepareProcessRawInputPage(SeenGroupIds seenGroupIds, Page page) {
@@ -112,26 +103,10 @@ public record WindowGroupingAggregatorFunction(
             try {
                 next.evaluateIntermediate(intermediateBlocks, 0, allGroups);
                 Page page = new Page(intermediateBlocks);
-                if (useBackwardMerge()) {
-                    // For backward merge, only load the backward window sub-buckets for each
-                    // selected group. Don't pre-load all groups — the starting group (output-aligned)
-                    // typically falls outside the backward window.
-                    for (int i = 0; i < selected.getPositionCount(); i++) {
-                        int gid = selected.getInt(i);
-                        var groupIds = evaluationContext.groupIdsFromWindowBackward(gid, window);
-                        try (IntVector oneGroup = evaluationContext.driverContext().blockFactory().newConstantIntVector(gid, 1)) {
-                            for (int g : groupIds) {
-                                int position = backwards[g];
-                                finalAgg.aggregatorFunction().addIntermediateInput(position, oneGroup, page);
-                            }
-                        }
-                    }
-                } else {
-                    finalAgg.aggregatorFunction().addIntermediateInput(0, allGroups, page);
-                    for (int i = 0; i < selected.getPositionCount(); i++) {
-                        int gid = selected.getInt(i);
-                        mergeBucketsFromWindow(gid, backwards, page, finalAgg.aggregatorFunction(), evaluationContext);
-                    }
+                finalAgg.aggregatorFunction().addIntermediateInput(0, allGroups, page);
+                for (int i = 0; i < selected.getPositionCount(); i++) {
+                    int gid = selected.getInt(i);
+                    mergeBucketsFromWindow(gid, backwards, page, finalAgg.aggregatorFunction(), evaluationContext);
                 }
             } finally {
                 Releasables.close(intermediateBlocks);
@@ -144,28 +119,16 @@ public record WindowGroupingAggregatorFunction(
                 new TimeSeriesGroupingAggregatorEvaluationContext(evaluationContext.driverContext()) {
                     @Override
                     public long rangeStartInMillis(int groupId) {
-                        if (useBackwardMerge()) {
-                            long outputEnd = evaluationContext.rangeStartInMillis(groupId) + outputBucket.toMillis();
-                            return outputEnd - window.toMillis();
-                        }
                         return evaluationContext.rangeStartInMillis(groupId);
                     }
 
                     @Override
                     public long rangeEndInMillis(int groupId) {
-                        if (useBackwardMerge()) {
-                            return evaluationContext.rangeStartInMillis(groupId) + outputBucket.toMillis();
-                        }
-                        return evaluationContext.rangeStartInMillis(groupId) + window.toMillis();
+                        return rangeStartInMillis(groupId) + window.toMillis();
                     }
 
                     @Override
                     public List<Integer> groupIdsFromWindow(int startingGroupId, Duration window) {
-                        throw new UnsupportedOperationException();
-                    }
-
-                    @Override
-                    public List<Integer> groupIdsFromWindowBackward(int endingGroupId, Duration window) {
                         throw new UnsupportedOperationException();
                     }
 
@@ -186,10 +149,6 @@ public record WindowGroupingAggregatorFunction(
                 }
             );
         }
-    }
-
-    private boolean useBackwardMerge() {
-        return window.compareTo(outputBucket) < 0;
     }
 
     private void mergeBucketsFromWindow(

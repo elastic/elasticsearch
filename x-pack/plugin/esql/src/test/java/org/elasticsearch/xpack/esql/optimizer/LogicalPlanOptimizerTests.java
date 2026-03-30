@@ -7612,7 +7612,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             plan.forEachExpressionDown(WindowFilter.class, windowFilterHolder::set);
             assertNull(windowFilterHolder.get());
         }
-        // smaller window - handled via WindowFilter (no sub-bucketing needed for small-only windows)
+        // smaller window
         {
             int window = randomIntBetween(1, 4);
             var query = String.format(Locale.ROOT, """
@@ -7695,14 +7695,6 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testApplyWindowFilter() {
-        // Two paths handle small windows (window < bucket):
-        // 1. WindowFilter path: when no sub-bucketing is active (only small windows, no non-multiple
-        // windows), ApplyWindowFilter replaces the window with a WindowFilter expression.
-        // 2. Backward sub-bucket merging path: when sub-bucketing is active (a non-multiple window
-        // forces GCD sub-bucketing), small windows participate in the GCD and are handled by
-        // WindowGroupingAggregatorFunction at the compute layer.
-
-        // --- Path 1: WindowFilter applied (no sub-bucketing, small windows only) ---
         // single layer of aggregations
         {
             int window = randomIntBetween(1, 4);
@@ -7731,7 +7723,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             assertNotNull(holder.get());
             assertThat(((Duration) holder.get().window().fold(FoldContext.small())).toMinutes(), equalTo((long) window));
         }
-        // multiple aggregates with varying small window sizes
+        // multiple aggregates with varying window sizes
         {
             int window1 = randomIntBetween(1, 4);
             int window2 = randomIntBetween(1, 4);
@@ -7756,7 +7748,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             assertThat(((Duration) lotWindowFilter.window().fold(FoldContext.small())).toMinutes(), equalTo((long) window1));
             assertThat(((Duration) rateWindowFilter.window().fold(FoldContext.small())).toMinutes(), equalTo((long) window2));
         }
-        // mixed: one small window + one exact-multiple window - only the small one gets WindowFilter
+        // multiple aggregates with only one filter
         {
             boolean rateBigger = randomBoolean();
             int window1 = rateBigger ? randomIntBetween(1, 4) : randomFrom(List.of(5, 10, 15, 20, 25, 30));
@@ -7794,31 +7786,6 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
                 assertFalse(maxHolder.get().hasFilter());
                 assertThat(((Duration) maxHolder.get().window().fold(FoldContext.small())).toMinutes(), equalTo((long) window1));
             }
-        }
-
-        // --- Path 2: backward sub-bucket merging (sub-bucketing forced by non-multiple window) ---
-        // When a non-multiple window forces sub-bucketing, small windows in the same query are
-        // included in the GCD and handled by backward merging — no WindowFilter is applied.
-        {
-            var query = """
-                TS k8s
-                | STATS min(max_over_time(network.bytes_in, 2 minute)), sum(rate(network.total_bytes_in, 7 minute)) BY TBUCKET(5 minute)
-                | LIMIT 10
-                """;
-            var plan = planMetrics(query);
-            Holder<Max> maxHolder = new Holder<>();
-            Holder<Rate> rateHolder = new Holder<>();
-            plan.forEachExpressionDown(Max.class, maxHolder::set);
-            plan.forEachExpressionDown(Rate.class, rateHolder::set);
-            assertNotNull(maxHolder.get());
-            assertNotNull(rateHolder.get());
-            assertTrue("small window retained for backward merging when sub-bucketing is active", maxHolder.get().hasWindow());
-            assertTrue("non-multiple window retained for forward merging", rateHolder.get().hasWindow());
-            assertThat(maxHolder.get().window().fold(FoldContext.small()), equalTo(Duration.ofMinutes(2)));
-            assertThat(rateHolder.get().window().fold(FoldContext.small()), equalTo(Duration.ofMinutes(7)));
-            Holder<WindowFilter> windowFilterHolder = new Holder<>();
-            plan.forEachExpressionDown(WindowFilter.class, windowFilterHolder::set);
-            assertNull("no WindowFilter when sub-bucketing is active", windowFilterHolder.get());
         }
     }
 
@@ -7900,6 +7867,18 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             assertNotNull("expected an aggregate function with a window in the plan", afHolder.get());
             assertThat(afHolder.get().window().fold(FoldContext.small()), equalTo(Duration.ofMinutes(10)));
         }
+    }
+
+    public void testTranslateOverTimeWithCombinedSmallAndNonMultipleWindows() {
+        var e = expectThrows(IllegalArgumentException.class, () -> {
+            var query = """
+                TS k8s
+                | STATS min(max_over_time(network.bytes_in, 2 minute)), sum(rate(network.total_bytes_in, 7 minute)) BY TBUCKET(5 minute)
+                | LIMIT 10
+                """;
+            planMetrics(query);
+        });
+        assertThat(e.getMessage(), containsString("Combining windows smaller than the time bucket with non-multiple windows"));
     }
 
     public void testTranslateOverTimeWithTooManySubBuckets() {

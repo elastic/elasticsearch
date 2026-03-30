@@ -82,7 +82,7 @@ public class TimeSeriesAggregationOperatorTests extends ComputeTestCase {
             rows.add(List.of("b", ts, 10));
         }
 
-        List<Page> results = runPipeline(oneMinBucket, fiveMinBucket, Duration.ofMinutes(5), windowDuration, rows);
+        List<Page> results = runPipeline(oneMinBucket, fiveMinBucket, windowDuration, rows);
 
         List<OutputRow> outputRows = extractRows(results);
 
@@ -125,7 +125,7 @@ public class TimeSeriesAggregationOperatorTests extends ComputeTestCase {
         }
 
         // internal bucket == output bucket → no sub-bucketing, all groups aligned
-        List<Page> results = runPipeline(fiveMinBucket, fiveMinBucket, Duration.ofMinutes(5), windowDuration, rows);
+        List<Page> results = runPipeline(fiveMinBucket, fiveMinBucket, windowDuration, rows);
 
         List<OutputRow> outputRows = extractRows(results);
         assertThat(outputRows.size(), greaterThan(0));
@@ -156,8 +156,10 @@ public class TimeSeriesAggregationOperatorTests extends ComputeTestCase {
 
         // Use both a window aggregator (sum) and a values aggregator (dimension values on tsid column)
         List<GroupingAggregator.Factory> aggregatorFactories = List.of(
-            new WindowAggregatorFunctionSupplier(new SumIntAggregatorFunctionSupplier(), windowDuration, Duration.ofMinutes(5))
-                .groupingAggregatorFactory(AggregatorMode.SINGLE, List.of(HASH_CHANNEL_COUNT)),
+            new WindowAggregatorFunctionSupplier(new SumIntAggregatorFunctionSupplier(), windowDuration).groupingAggregatorFactory(
+                AggregatorMode.SINGLE,
+                List.of(HASH_CHANNEL_COUNT)
+            ),
             new org.elasticsearch.compute.aggregation.ValuesBytesRefAggregatorFunctionSupplier().groupingAggregatorFactory(
                 AggregatorMode.SINGLE,
                 List.of(0)
@@ -237,8 +239,10 @@ public class TimeSeriesAggregationOperatorTests extends ComputeTestCase {
         rows.add(List.of("s1", baseTime + TimeValue.timeValueMinutes(8).millis(), 10));
 
         List<GroupingAggregator.Factory> aggregatorFactories = List.of(
-            new WindowAggregatorFunctionSupplier(new SumIntAggregatorFunctionSupplier(), windowDuration, Duration.ofMinutes(5))
-                .groupingAggregatorFactory(AggregatorMode.SINGLE, List.of(HASH_CHANNEL_COUNT)),
+            new WindowAggregatorFunctionSupplier(new SumIntAggregatorFunctionSupplier(), windowDuration).groupingAggregatorFactory(
+                AggregatorMode.SINGLE,
+                List.of(HASH_CHANNEL_COUNT)
+            ),
             new org.elasticsearch.compute.aggregation.ValuesBytesRefAggregatorFunctionSupplier().groupingAggregatorFactory(
                 AggregatorMode.SINGLE,
                 List.of(0)
@@ -326,7 +330,7 @@ public class TimeSeriesAggregationOperatorTests extends ComputeTestCase {
         }
 
         // 4m window, 3m output bucket, 1m internal bucket → GCD = 1m sub-buckets, output every 3m
-        List<Page> results = runPipeline(oneMinBucket, threeMinBucket, Duration.ofMinutes(3), windowDuration, rows);
+        List<Page> results = runPipeline(oneMinBucket, threeMinBucket, windowDuration, rows);
 
         List<OutputRow> outputRows = extractRows(results);
         assertThat(outputRows.size(), equalTo(3)); // 0, 3m, 6m
@@ -342,70 +346,11 @@ public class TimeSeriesAggregationOperatorTests extends ComputeTestCase {
         assertThat(outputRows.get(2).value(), equalTo(6L));
     }
 
-    /**
-     * Backward sub-bucket merging: 2m window with 5m output bucket and 1m internal sub-buckets.
-     * Each output bucket covers [bucketStart, bucketStart+5m), but the 2m backward window only
-     * includes the last 2 sub-buckets: [bucketEnd-2m, bucketEnd).
-     * <p>
-     * Data: two TSIDs over 15 minutes at 1-minute intervals.
-     *   TSID "a": val[m] = m + 1  (1..15)
-     *   TSID "b": val[m] = (m+1)*10  (10..150)
-     * <p>
-     * Expected backward window sums per output bucket:
-     *   00:00 → [03:00,05:00) → minutes 3,4 → a: 4+5=9,   b: 40+50=90
-     *   05:00 → [08:00,10:00) → minutes 8,9 → a: 9+10=19, b: 90+100=190
-     *   10:00 → [13:00,15:00) → minutes 13,14 → a: 14+15=29, b: 140+150=290
-     */
-    public void testBackwardMergeSmallWindowProducesCorrectSums() {
-        Rounding.Prepared oneMinBucket = Rounding.builder(TimeValue.timeValueMinutes(1)).build().prepareForUnknown();
-        Rounding.Prepared fiveMinBucket = Rounding.builder(TimeValue.timeValueMinutes(5)).build().prepareForUnknown();
-        Duration windowDuration = Duration.ofMinutes(2);
-
-        final long startTime = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2025-11-13");
-        long baseTime = oneMinBucket.round(startTime);
-
-        List<List<Object>> rows = new ArrayList<>();
-        for (int m = 0; m < 15; m++) {
-            long ts = baseTime + TimeValue.timeValueMinutes(m).millis();
-            rows.add(List.of("a", ts, m + 1));
-            rows.add(List.of("b", ts, (m + 1) * 10));
-        }
-
-        List<Page> results = runPipeline(oneMinBucket, fiveMinBucket, Duration.ofMinutes(5), windowDuration, rows);
-
-        List<OutputRow> outputRows = extractRows(results);
-        assertThat("2 TSIDs × 3 output buckets", outputRows.size(), equalTo(6));
-
-        for (OutputRow row : outputRows) {
-            assertThat(
-                "every output timestamp must be aligned to the 5-minute boundary",
-                fiveMinBucket.round(row.bucket()),
-                equalTo(row.bucket())
-            );
-        }
-
-        outputRows.sort(Comparator.comparing(OutputRow::tsid).thenComparingLong(OutputRow::bucket));
-        long bucket0 = baseTime;
-        long bucket1 = baseTime + TimeValue.timeValueMinutes(5).millis();
-        long bucket2 = baseTime + TimeValue.timeValueMinutes(10).millis();
-
-        // TSID "a": val = minute + 1
-        assertThat(outputRows.get(0), equalTo(new OutputRow("a", bucket0, 9L)));   // minutes 3,4: 4+5
-        assertThat(outputRows.get(1), equalTo(new OutputRow("a", bucket1, 19L)));  // minutes 8,9: 9+10
-        assertThat(outputRows.get(2), equalTo(new OutputRow("a", bucket2, 29L)));  // minutes 13,14: 14+15
-
-        // TSID "b": val = (minute + 1) * 10
-        assertThat(outputRows.get(3), equalTo(new OutputRow("b", bucket0, 90L)));  // 40+50
-        assertThat(outputRows.get(4), equalTo(new OutputRow("b", bucket1, 190L))); // 90+100
-        assertThat(outputRows.get(5), equalTo(new OutputRow("b", bucket2, 290L))); // 140+150
-    }
-
     // --- helpers ---
 
     private List<Page> runPipeline(
         Rounding.Prepared internalBucket,
         Rounding.Prepared outputBucket,
-        Duration outputBucketDuration,
         Duration windowDuration,
         List<List<Object>> rows
     ) {
@@ -418,8 +363,10 @@ public class TimeSeriesAggregationOperatorTests extends ComputeTestCase {
             ),
             AggregatorMode.SINGLE,
             List.of(
-                new WindowAggregatorFunctionSupplier(new SumIntAggregatorFunctionSupplier(), windowDuration, outputBucketDuration)
-                    .groupingAggregatorFactory(AggregatorMode.SINGLE, List.of(HASH_CHANNEL_COUNT))
+                new WindowAggregatorFunctionSupplier(new SumIntAggregatorFunctionSupplier(), windowDuration).groupingAggregatorFactory(
+                    AggregatorMode.SINGLE,
+                    List.of(HASH_CHANNEL_COUNT)
+                )
             ),
             10_000,
             outputBucket

@@ -147,7 +147,7 @@ public class WindowGroupingAggregatorFunctionTests extends ForkingOperatorTestCa
     }
 
     protected AggregatorFunctionSupplier aggregatorFunction() {
-        return new WindowAggregatorFunctionSupplier(new SumIntAggregatorFunctionSupplier(), Duration.ofMinutes(5), Duration.ZERO);
+        return new WindowAggregatorFunctionSupplier(new SumIntAggregatorFunctionSupplier(), Duration.ofMinutes(5));
     }
 
     protected String expectedToStringOfSimpleAggregator() {
@@ -213,8 +213,10 @@ public class WindowGroupingAggregatorFunctionTests extends ForkingOperatorTestCa
             ),
             AggregatorMode.SINGLE,
             List.of(
-                new WindowAggregatorFunctionSupplier(new SumIntAggregatorFunctionSupplier(), windowDuration, Duration.ofMinutes(5))
-                    .groupingAggregatorFactory(AggregatorMode.SINGLE, List.of(HASH_CHANNEL_COUNT))
+                new WindowAggregatorFunctionSupplier(new SumIntAggregatorFunctionSupplier(), windowDuration).groupingAggregatorFactory(
+                    AggregatorMode.SINGLE,
+                    List.of(HASH_CHANNEL_COUNT)
+                )
             ),
             10_000,
             fiveMinBucket
@@ -303,8 +305,10 @@ public class WindowGroupingAggregatorFunctionTests extends ForkingOperatorTestCa
             ),
             AggregatorMode.SINGLE,
             List.of(
-                new WindowAggregatorFunctionSupplier(new SumIntAggregatorFunctionSupplier(), windowDuration, Duration.ofMinutes(5))
-                    .groupingAggregatorFactory(AggregatorMode.SINGLE, List.of(HASH_CHANNEL_COUNT))
+                new WindowAggregatorFunctionSupplier(new SumIntAggregatorFunctionSupplier(), windowDuration).groupingAggregatorFactory(
+                    AggregatorMode.SINGLE,
+                    List.of(HASH_CHANNEL_COUNT)
+                )
             ),
             10_000,
             fiveMinBucket
@@ -404,8 +408,10 @@ public class WindowGroupingAggregatorFunctionTests extends ForkingOperatorTestCa
             ),
             AggregatorMode.SINGLE,
             List.of(
-                new WindowAggregatorFunctionSupplier(new SumIntAggregatorFunctionSupplier(), windowDuration, Duration.ZERO)
-                    .groupingAggregatorFactory(AggregatorMode.SINGLE, List.of(HASH_CHANNEL_COUNT))
+                new WindowAggregatorFunctionSupplier(new SumIntAggregatorFunctionSupplier(), windowDuration).groupingAggregatorFactory(
+                    AggregatorMode.SINGLE,
+                    List.of(HASH_CHANNEL_COUNT)
+                )
             ),
             10_000
         );
@@ -451,202 +457,5 @@ public class WindowGroupingAggregatorFunctionTests extends ForkingOperatorTestCa
         assertThat(outputRows.get(1).value(), equalTo(20L));
         assertThat(outputRows.get(2).value(), equalTo(20L));
         assertThat(outputRows.get(3).value(), equalTo(10L));
-    }
-
-    /**
-     * Backward sub-bucket merging: 2m window with 5m output bucket and 1m internal sub-buckets.
-     * Each output bucket aggregates only the last 2 sub-buckets before the output bucket end.
-     * <p>
-     * Data: TSID "a", minutes 0-14, val = minute + 1.
-     * Expected backward window sums:
-     *   00:00 → [03:00,05:00) → minutes 3,4 → 4+5 = 9
-     *   05:00 → [08:00,10:00) → minutes 8,9 → 9+10 = 19
-     *   10:00 → [13:00,15:00) → minutes 13,14 → 14+15 = 29
-     */
-    public void testBackwardMergeSmallWindowWithSubBucketing() {
-        Rounding.Prepared oneMinBucket = Rounding.builder(TimeValue.timeValueMinutes(1)).build().prepareForUnknown();
-        Rounding.Prepared fiveMinBucket = Rounding.builder(TimeValue.timeValueMinutes(5)).build().prepareForUnknown();
-        Duration windowDuration = Duration.ofMinutes(2);
-
-        final long startTime = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2025-11-13");
-        long baseTime = oneMinBucket.round(startTime);
-
-        List<List<Object>> rows = new ArrayList<>();
-        for (int m = 0; m < 15; m++) {
-            long ts = baseTime + TimeValue.timeValueMinutes(m).millis();
-            rows.add(List.of("a", ts, m + 1));
-        }
-
-        var operatorFactory = new TimeSeriesAggregationOperator.Factory(
-            oneMinBucket,
-            false,
-            List.of(
-                new BlockHash.GroupSpec(0, ElementType.BYTES_REF, null, null),
-                new BlockHash.GroupSpec(1, ElementType.LONG, null, null)
-            ),
-            AggregatorMode.SINGLE,
-            List.of(
-                new WindowAggregatorFunctionSupplier(new SumIntAggregatorFunctionSupplier(), windowDuration, Duration.ofMinutes(5))
-                    .groupingAggregatorFactory(AggregatorMode.SINGLE, List.of(HASH_CHANNEL_COUNT))
-            ),
-            10_000,
-            fiveMinBucket
-        );
-
-        var driverCtx = driverContext();
-        var source = new ListRowsBlockSourceOperator(
-            driverCtx.blockFactory(),
-            List.of(ElementType.BYTES_REF, ElementType.LONG, ElementType.INT),
-            rows
-        );
-        List<Page> results = new ArrayList<>();
-        try (
-            var driver = org.elasticsearch.compute.test.TestDriverFactory.create(
-                driverCtx,
-                source,
-                List.of(operatorFactory.get(driverCtx)),
-                new org.elasticsearch.compute.test.TestResultPageSinkOperator(results::add)
-            )
-        ) {
-            new org.elasticsearch.compute.test.TestDriverRunner().run(driver);
-        }
-
-        record OutputRow(String tsid, long bucket, long value) {}
-        List<OutputRow> outputRows = new ArrayList<>();
-        for (Page page : results) {
-            BytesRefBlock tsids = page.getBlock(0);
-            LongBlock buckets = page.getBlock(1);
-            LongBlock values = page.getBlock(2);
-            var scratch = new BytesRef();
-            for (int p = 0; p < page.getPositionCount(); p++) {
-                outputRows.add(new OutputRow(tsids.getBytesRef(p, scratch).utf8ToString(), buckets.getLong(p), values.getLong(p)));
-            }
-        }
-
-        assertThat("expected 3 output rows at 5-minute boundaries", outputRows.size(), equalTo(3));
-        for (OutputRow row : outputRows) {
-            assertThat(fiveMinBucket.round(row.bucket()), equalTo(row.bucket()));
-        }
-
-        outputRows.sort(Comparator.comparingLong(OutputRow::bucket));
-        long bucket0 = baseTime;
-        long bucket1 = baseTime + TimeValue.timeValueMinutes(5).millis();
-        long bucket2 = baseTime + TimeValue.timeValueMinutes(10).millis();
-
-        assertThat(outputRows.get(0), equalTo(new OutputRow("a", bucket0, 9L)));   // minutes 3,4: 4+5
-        assertThat(outputRows.get(1), equalTo(new OutputRow("a", bucket1, 19L)));  // minutes 8,9: 9+10
-        assertThat(outputRows.get(2), equalTo(new OutputRow("a", bucket2, 29L)));  // minutes 13,14: 14+15
-    }
-
-    /**
-     * Mixed forward and backward merging in separate aggregators within the same operator:
-     * one aggregator with a 7m window (forward merge) and one with a 2m window (backward merge),
-     * both over 5m output buckets with 1m internal sub-buckets.
-     * <p>
-     * Data: TSID "a", minutes 0-14, val = minute + 1.
-     * <p>
-     * Forward (7m window) expected sums:
-     *   00:00 → [00:00,07:00) → minutes 0..6 → 1+2+3+4+5+6+7 = 28
-     *   05:00 → [05:00,12:00) → minutes 5..11 → 6+7+8+9+10+11+12 = 63
-     *   10:00 → [10:00,17:00) → minutes 10..14 → 11+12+13+14+15 = 65
-     * <p>
-     * Backward (2m window) expected sums:
-     *   00:00 → [03:00,05:00) → minutes 3,4 → 4+5 = 9
-     *   05:00 → [08:00,10:00) → minutes 8,9 → 9+10 = 19
-     *   10:00 → [13:00,15:00) → minutes 13,14 → 14+15 = 29
-     */
-    public void testMixedForwardAndBackwardMerge() {
-        Rounding.Prepared oneMinBucket = Rounding.builder(TimeValue.timeValueMinutes(1)).build().prepareForUnknown();
-        Rounding.Prepared fiveMinBucket = Rounding.builder(TimeValue.timeValueMinutes(5)).build().prepareForUnknown();
-        Duration forwardWindow = Duration.ofMinutes(7);
-        Duration backwardWindow = Duration.ofMinutes(2);
-
-        final long startTime = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2025-11-13");
-        long baseTime = oneMinBucket.round(startTime);
-
-        List<List<Object>> rows = new ArrayList<>();
-        for (int m = 0; m < 15; m++) {
-            long ts = baseTime + TimeValue.timeValueMinutes(m).millis();
-            rows.add(List.of("a", ts, m + 1));
-        }
-
-        Duration outputBucketDuration = Duration.ofMinutes(5);
-        var operatorFactory = new TimeSeriesAggregationOperator.Factory(
-            oneMinBucket,
-            false,
-            List.of(
-                new BlockHash.GroupSpec(0, ElementType.BYTES_REF, null, null),
-                new BlockHash.GroupSpec(1, ElementType.LONG, null, null)
-            ),
-            AggregatorMode.SINGLE,
-            List.of(
-                new WindowAggregatorFunctionSupplier(new SumIntAggregatorFunctionSupplier(), forwardWindow, outputBucketDuration)
-                    .groupingAggregatorFactory(AggregatorMode.SINGLE, List.of(HASH_CHANNEL_COUNT)),
-                new WindowAggregatorFunctionSupplier(new SumIntAggregatorFunctionSupplier(), backwardWindow, outputBucketDuration)
-                    .groupingAggregatorFactory(AggregatorMode.SINGLE, List.of(HASH_CHANNEL_COUNT))
-            ),
-            10_000,
-            fiveMinBucket
-        );
-
-        var driverCtx = driverContext();
-        var source = new ListRowsBlockSourceOperator(
-            driverCtx.blockFactory(),
-            List.of(ElementType.BYTES_REF, ElementType.LONG, ElementType.INT),
-            rows
-        );
-        List<Page> results = new ArrayList<>();
-        try (
-            var driver = org.elasticsearch.compute.test.TestDriverFactory.create(
-                driverCtx,
-                source,
-                List.of(operatorFactory.get(driverCtx)),
-                new org.elasticsearch.compute.test.TestResultPageSinkOperator(results::add)
-            )
-        ) {
-            new org.elasticsearch.compute.test.TestDriverRunner().run(driver);
-        }
-
-        record MixedRow(String tsid, long bucket, long forwardSum, long backwardSum) {}
-        List<MixedRow> outputRows = new ArrayList<>();
-        for (Page page : results) {
-            // block 0: tsid, block 1: timestamp, block 2: forward sum, block 3: backward sum
-            assertThat("expected 4 blocks (2 keys + 2 agg results)", page.getBlockCount(), equalTo(4));
-            BytesRefBlock tsids = page.getBlock(0);
-            LongBlock buckets = page.getBlock(1);
-            LongBlock forwardValues = page.getBlock(2);
-            LongBlock backwardValues = page.getBlock(3);
-            var scratch = new BytesRef();
-            for (int p = 0; p < page.getPositionCount(); p++) {
-                outputRows.add(
-                    new MixedRow(
-                        tsids.getBytesRef(p, scratch).utf8ToString(),
-                        buckets.getLong(p),
-                        forwardValues.getLong(p),
-                        backwardValues.getLong(p)
-                    )
-                );
-            }
-        }
-
-        assertThat("expected 3 output rows at 5-minute boundaries", outputRows.size(), equalTo(3));
-        for (MixedRow row : outputRows) {
-            assertThat(fiveMinBucket.round(row.bucket()), equalTo(row.bucket()));
-        }
-
-        outputRows.sort(Comparator.comparingLong(MixedRow::bucket));
-        long bucket0 = baseTime;
-        long bucket1 = baseTime + TimeValue.timeValueMinutes(5).millis();
-        long bucket2 = baseTime + TimeValue.timeValueMinutes(10).millis();
-
-        // Forward sums (7m window)
-        assertThat("forward sum at bucket0", outputRows.get(0).forwardSum(), equalTo(28L));  // minutes 0..6
-        assertThat("forward sum at bucket1", outputRows.get(1).forwardSum(), equalTo(63L));  // minutes 5..11
-        assertThat("forward sum at bucket2", outputRows.get(2).forwardSum(), equalTo(65L));  // minutes 10..14
-
-        // Backward sums (2m window)
-        assertThat("backward sum at bucket0", outputRows.get(0).backwardSum(), equalTo(9L));   // minutes 3,4
-        assertThat("backward sum at bucket1", outputRows.get(1).backwardSum(), equalTo(19L));  // minutes 8,9
-        assertThat("backward sum at bucket2", outputRows.get(2).backwardSum(), equalTo(29L));  // minutes 13,14
     }
 }

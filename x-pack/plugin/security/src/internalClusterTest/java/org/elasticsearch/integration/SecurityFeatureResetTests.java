@@ -99,13 +99,13 @@ public class SecurityFeatureResetTests extends SecurityIntegTestCase {
     public void testFeatureResetNoManageRole() {
         final ResetFeatureStateRequest req = new ResetFeatureStateRequest(TEST_REQUEST_TIMEOUT);
 
-        PlainActionFuture<ResetFeatureStateResponse> future = new PlainActionFuture<>();
-        client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("usr", SUPER_USER_PASSWD)))
-            .admin()
-            .cluster()
-            .execute(TransportResetFeatureStateAction.TYPE, req, future);
-
-        Exception e = expectThrows(Exception.class, future::actionGet);
+        Exception e = expectThrows(
+            Exception.class,
+            client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("usr", SUPER_USER_PASSWD)))
+                .admin()
+                .cluster()
+                .execute(TransportResetFeatureStateAction.TYPE, req)
+        );
         assertThat(
             e.getMessage(),
             containsString("action [cluster:admin/features/reset] is unauthorized for user [usr]" + " with effective roles [role2]")

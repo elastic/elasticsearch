@@ -49,7 +49,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - uses: elastic/oblt-actions/updatecli/run@v1
+      - uses: elastic/oblt-actions/updatecli/run@31fd8582a94d1829536be22c624697f851fdf60e # v1
         with:
           # Runs in "--debug" mode to provide logs if the PR creation fails
           command: --experimental compose apply --debug

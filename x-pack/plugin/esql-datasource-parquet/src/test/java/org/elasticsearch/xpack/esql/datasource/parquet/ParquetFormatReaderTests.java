@@ -37,6 +37,8 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
@@ -52,10 +54,13 @@ import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThan;
 
 public class ParquetFormatReaderTests extends ESTestCase {
@@ -1246,6 +1251,208 @@ public class ParquetFormatReaderTests extends ESTestCase {
         assertTrue("Single row group file should return empty ranges", ranges.isEmpty());
     }
 
+    public void testInvalidParquetOpenGarbageIncludesUriInMessage() throws Exception {
+        byte[] garbage = new byte[64];
+        Arrays.fill(garbage, (byte) 0x5a);
+        StorageObject storageObject = createStorageObject(garbage, "s3://bucket/path/file.parquet");
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        IOException ex = expectThrows(IOException.class, () -> reader.metadata(storageObject));
+        assertThat(
+            ex.getMessage(),
+            allOf(
+                containsString("Could not read [s3://bucket/path/file.parquet] as a Parquet file"),
+                containsString("is not a Parquet file. Expected magic number at tail, but found [")
+            )
+        );
+    }
+
+    public void testInvalidParquetOpenEmptyFile() throws Exception {
+        StorageObject storageObject = createStorageObject(new byte[0], "memory://empty.parquet");
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        IOException ex = expectThrows(IOException.class, () -> reader.metadata(storageObject));
+        assertThat(
+            ex.getMessage(),
+            allOf(
+                containsString("Could not read [memory://empty.parquet] as a Parquet file:"),
+                containsString("is not a Parquet file (length is too low: 0)")
+            )
+        );
+    }
+
+    public void testInvalidParquetOpenTruncated() throws Exception {
+        MessageType schema = Types.buildMessage().required(PrimitiveType.PrimitiveTypeName.INT64).named("id").named("test_schema");
+        byte[] full = createParquetFile(schema, factory -> {
+            Group group = factory.newGroup();
+            group.add("id", 1L);
+            return List.of(group);
+        });
+        byte[] truncated = Arrays.copyOf(full, Math.max(1, full.length / 8));
+        StorageObject storageObject = createStorageObject(truncated, "https://host/obj.parquet");
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        IOException ex = expectThrows(IOException.class, () -> reader.metadata(storageObject));
+        assertTrue(ex.getMessage(), ex.getMessage().contains("https://host/obj.parquet"));
+    }
+
+    public void testValidParquetZeroRowsMetadata() throws Exception {
+        MessageType schema = Types.buildMessage().required(PrimitiveType.PrimitiveTypeName.INT64).named("id").named("test_schema");
+        byte[] parquetData = createParquetFile(schema, factory -> List.of());
+        StorageObject storageObject = createStorageObject(parquetData);
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        SourceMetadata metadata = reader.metadata(storageObject);
+        assertEquals("id", metadata.schema().get(0).name());
+    }
+
+    /**
+     * Planner type LONG (widened across globbed files) with INT32 in this file must still decode:
+     * widening matches {@link org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter#commonType}.
+     */
+    public void testPlannerLongCompatibleWithInt32InFileReadRange() throws Exception {
+        MessageType schema = Types.buildMessage().required(PrimitiveType.PrimitiveTypeName.INT32).named("x").named("test_schema");
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group g = factory.newGroup();
+            g.add("x", 42);
+            return List.of(g);
+        });
+        StorageObject storageObject = createStorageObject(parquetData);
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        List<Attribute> plannerTypes = List.of(new ReferenceAttribute(Source.EMPTY, "x", DataType.LONG));
+        try (
+            CloseableIterator<Page> iterator = reader.readRange(
+                storageObject,
+                List.of("x"),
+                100,
+                0,
+                parquetData.length,
+                plannerTypes,
+                ErrorPolicy.STRICT
+            )
+        ) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(1, page.getPositionCount());
+            assertEquals(42L, ((LongBlock) page.getBlock(0)).getLong(0));
+        }
+    }
+
+    /**
+     * Parquet string-annotated BINARY maps to TEXT; planner KEYWORD is still readable (both ESQL strings).
+     */
+    public void testPlannerKeywordCompatibleWithTextParquetColumnReadRange() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("x")
+            .named("test_schema");
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group g = factory.newGroup();
+            g.add("x", "hello");
+            return List.of(g);
+        });
+        StorageObject storageObject = createStorageObject(parquetData);
+        ParquetFormatReader r = new ParquetFormatReader(blockFactory);
+        List<Attribute> plannerTypes = List.of(new ReferenceAttribute(Source.EMPTY, "x", DataType.KEYWORD));
+        try (
+            CloseableIterator<Page> it = r.readRange(
+                storageObject,
+                List.of("x"),
+                10,
+                0,
+                parquetData.length,
+                plannerTypes,
+                ErrorPolicy.STRICT
+            )
+        ) {
+            Page page = it.next();
+            assertEquals(1, page.getPositionCount());
+            assertFalse(page.getBlock(0).isNull(0));
+            assertEquals(new BytesRef("hello"), ((BytesRefBlock) page.getBlock(0)).getBytesRef(0, new BytesRef()));
+        }
+    }
+
+    public void testSchemaMismatchInt32VsKeywordReturnsNullsOnReadRange() throws Exception {
+        MessageType schema = Types.buildMessage().required(PrimitiveType.PrimitiveTypeName.INT32).named("x").named("test_schema");
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group g = factory.newGroup();
+            g.add("x", 42);
+            return List.of(g);
+        });
+        StorageObject storageObject = createStorageObject(parquetData, "s3://b/mismatch1.parquet");
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        List<Attribute> plannerTypes = List.of(new ReferenceAttribute(Source.EMPTY, "x", DataType.KEYWORD));
+        try (
+            CloseableIterator<Page> iterator = reader.readRange(
+                storageObject,
+                List.of("x"),
+                100,
+                0,
+                parquetData.length,
+                plannerTypes,
+                ErrorPolicy.STRICT
+            )
+        ) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(1, page.getPositionCount());
+            assertTrue(page.getBlock(0).isNull(0));
+        }
+    }
+
+    public void testSchemaMismatchStringVsLongReturnsNullsOnReadRange() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("x")
+            .named("test_schema");
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group g = factory.newGroup();
+            g.add("x", "hello");
+            return List.of(g);
+        });
+        StorageObject storageObject = createStorageObject(parquetData);
+        ParquetFormatReader r = new ParquetFormatReader(blockFactory);
+        List<Attribute> plannerTypes = List.of(new ReferenceAttribute(Source.EMPTY, "x", DataType.LONG));
+        try (
+            CloseableIterator<Page> it = r.readRange(
+                storageObject,
+                List.of("x"),
+                10,
+                0,
+                parquetData.length,
+                plannerTypes,
+                ErrorPolicy.STRICT
+            )
+        ) {
+            Page page = it.next();
+            assertTrue(page.getBlock(0).isNull(0));
+        }
+    }
+
+    public void testSchemaMismatchBooleanVsDoubleReturnsNullsOnReadRange() throws Exception {
+        MessageType schema = Types.buildMessage().required(PrimitiveType.PrimitiveTypeName.BOOLEAN).named("x").named("test_schema");
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group g = factory.newGroup();
+            g.add("x", true);
+            return List.of(g);
+        });
+        StorageObject storageObject = createStorageObject(parquetData);
+        ParquetFormatReader r = new ParquetFormatReader(blockFactory);
+        List<Attribute> plannerTypes = List.of(new ReferenceAttribute(Source.EMPTY, "x", DataType.DOUBLE));
+        try (
+            CloseableIterator<Page> it = r.readRange(
+                storageObject,
+                List.of("x"),
+                10,
+                0,
+                parquetData.length,
+                plannerTypes,
+                ErrorPolicy.STRICT
+            )
+        ) {
+            Page page = it.next();
+            assertTrue(page.getBlock(0).isNull(0));
+        }
+    }
+
     public void testReadRangeSelectsCorrectRowGroups() throws Exception {
         byte[] parquetData = createWideMultiRowGroupFile(500);
 
@@ -1430,6 +1637,10 @@ public class ParquetFormatReaderTests extends ESTestCase {
     }
 
     private StorageObject createStorageObject(byte[] data) {
+        return createStorageObject(data, "memory://test.parquet");
+    }
+
+    private StorageObject createStorageObject(byte[] data, String locationUri) {
         return new StorageObject() {
             @Override
             public InputStream newStream() throws IOException {
@@ -1460,7 +1671,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
 
             @Override
             public StoragePath path() {
-                return StoragePath.of("memory://test.parquet");
+                return StoragePath.of(locationUri);
             }
         };
     }

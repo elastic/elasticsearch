@@ -15,9 +15,7 @@ import java.util.List;
 /**
  * A {@link AggregatorFunctionSupplier} that wraps another, and apply a window function on the final aggregation.
  */
-public record WindowAggregatorFunctionSupplier(AggregatorFunctionSupplier supplier, Duration window)
-    implements
-        AggregatorFunctionSupplier {
+public record WindowAggregatorFunctionSupplier(AggregatorFunctionSupplier supplier, Duration window) implements AggregatorFunctionSupplier {
 
     @Override
     public List<IntermediateStateDesc> nonGroupingIntermediateStateDesc() {

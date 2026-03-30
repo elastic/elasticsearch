@@ -56,10 +56,6 @@ public class MemoryIndexChunkScorerTests extends ESTestCase {
         for (int i = 1; i < scoredChunks.size(); i++) {
             assertTrue(scoredChunks.get(i - 1).score() >= scoredChunks.get(i).score());
         }
-
-        assertThat(scoredChunks.getFirst().docId(), equalTo(3));
-        assertThat(scoredChunks.get(1).docId(), equalTo(1));
-        assertThat(scoredChunks.get(2).docId(), equalTo(0));
     }
 
     public void testEmptyChunks() throws IOException {
@@ -84,7 +80,6 @@ public class MemoryIndexChunkScorerTests extends ESTestCase {
         chunk = scoredChunks.get(2);
         assertTrue(chunk.content().equalsIgnoreCase("The weather today is very sunny and warm"));
         assertThat(chunk.score(), equalTo(0f));
-        assertThat(chunk.docId(), equalTo(2));
 
         // Zero results with no backfill
         scoredChunks = scorer.scoreChunks(CHUNKS, "puggles", maxResults, false);
@@ -100,53 +95,30 @@ public class MemoryIndexChunkScorerTests extends ESTestCase {
         scoredChunks = scorer.scoreChunks(null, "puggles", maxResults, true);
         assertTrue(scoredChunks.isEmpty());
 
-        scoredChunks = scorer.scoreChunks(CHUNKS, null, maxResults, true);
+        scoredChunks = scorer.scoreChunks(CHUNKS, (String) null, maxResults, true);
         assertTrue(scoredChunks.isEmpty());
     }
 
-    public void testSessionScoreMatchesOneShot() throws IOException {
-        MemoryIndexChunkScorer scorer = new MemoryIndexChunkScorer();
-        String queryText = "dogs play walk";
-        int maxResults = 3;
-
-        List<ScoredChunk> oneShotResult = scorer.scoreChunks(CHUNKS, queryText, maxResults, true);
-
-        try (var session = scorer.openSession(CHUNKS)) {
-            List<ScoredChunk> sessionResult = session.score(queryText, maxResults, true);
-            assertThat(sessionResult.size(), equalTo(oneShotResult.size()));
-            for (int i = 0; i < oneShotResult.size(); i++) {
-                assertThat(sessionResult.get(i).content(), equalTo(oneShotResult.get(i).content()));
-                assertThat(sessionResult.get(i).score(), equalTo(oneShotResult.get(i).score()));
-            }
-        }
+    public void testDefaultConstructorUsesStandardAnalyzer() {
+        assertThat(new MemoryIndexChunkScorer().analyzer(), instanceOf(StandardAnalyzer.class));
     }
 
-    public void testSessionExposesLuceneComponents() throws IOException {
-        MemoryIndexChunkScorer scorer = new MemoryIndexChunkScorer();
-
-        try (var session = scorer.openSession(CHUNKS)) {
-            assertNotNull(session.searcher());
-            assertNotNull(session.reader());
-            assertNotNull(session.analyzer());
-            assertThat(session.reader().numDocs(), equalTo(CHUNKS.size()));
-        }
-    }
-
-    public void testDefaultConstructorUsesStandardAnalyzer() throws IOException {
-        try (var session = new MemoryIndexChunkScorer().openSession(CHUNKS)) {
-            assertThat(session.analyzer(), instanceOf(StandardAnalyzer.class));
-        }
-    }
-
-    public void testConstructorAcceptsCustomAnalyzer() throws IOException {
+    public void testCustomAnalyzer() {
         var whitespace = new WhitespaceAnalyzer();
-        try (var session = new MemoryIndexChunkScorer(whitespace).openSession(CHUNKS)) {
-            assertSame(whitespace, session.analyzer());
-        }
+        var scorer = new MemoryIndexChunkScorer(whitespace);
+        assertSame(whitespace, scorer.analyzer());
+
+        List<ScoredChunk> results = scorer.scoreChunks(CHUNKS, "dogs play walk", 3, false);
+        assertFalse(results.isEmpty());
     }
 
     public void testConstructorRejectsNullAnalyzer() {
         expectThrows(NullPointerException.class, () -> new MemoryIndexChunkScorer(null));
+    }
+
+    public void testBuildQuery() {
+        var scorer = new MemoryIndexChunkScorer();
+        assertNotNull(scorer.buildQuery("dogs play"));
     }
 
 }

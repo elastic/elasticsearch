@@ -240,9 +240,9 @@ public class TransportStatelessUnpromotableRelocationAction extends TransportAct
 
     private void openPitAsync(IndexShard indexShard, OpenPITContextInfo pitContextInfo, ActionListener<Void> listener) {
         ShardId shardId = indexShard.shardId();
-        final IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
-        final IndexShard shard = indexService.getShard(shardId.id());
         try {
+            final IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
+            final IndexShard shard = indexService.getShard(shardId.id());
             shard.withEngine(engine -> {
                 if (engine instanceof SearchEngine == false) {
                     throw new IllegalStateException("Expected SearchEngine but got: " + engine.getClass());
@@ -289,8 +289,10 @@ public class TransportStatelessUnpromotableRelocationAction extends TransportAct
                 );
                 return null;
             });
-        } catch (AlreadyClosedException e) {
+        } catch (Exception e) {
             logger.warn("Unexpected exception while acquiring searcher after PIT transfer for shard " + shardId, e);
+            // we don't want to fail the whole recovery because of a PIT context relocation issue
+            listener.onResponse(null);
         }
     }
 

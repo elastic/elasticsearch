@@ -11,7 +11,6 @@ import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 
 import org.apache.lucene.tests.util.TimeUnits;
 import org.elasticsearch.Build;
-import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.compute.aggregation.blockhash.HashImplFactory;
 import org.elasticsearch.compute.operator.GroupKeyEncoder;
@@ -25,13 +24,10 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.ListMatcher.matchesList;
-import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.hamcrest.Matchers.any;
 
@@ -344,43 +340,5 @@ public class HeapAttackLimitByIT extends HeapAttackTestCase {
      */
     private static Class<?> bytesRefHashClass() {
         return HashImplFactory.SWISS_TABLES_HASHING.isEnabled() ? BytesRefSwissHash.class : BytesRefHash.class;
-    }
-
-    /**
-     * Asserts that the given operation eventually trips the circuit breaker via the expected code
-     * path, as confirmed by all {@code classes} appearing in the exception's stack trace.
-     * <p>
-     * Unlike the base {@link #assertCircuitBreaks} which stops on the first circuit-breaking
-     * exception regardless of origin, this method continues to the next attempt if the exception
-     * came from a different part of the pipeline (e.g. an upstream {@code LIMIT} tripping before
-     * the operator under test). Each attempt scales the load, so a later attempt is more likely
-     * to reach the operator under test.
-     */
-    private void assertCircuitBreaksVia(TryCircuitBreaking tryBreaking, Class<?>... classes) throws IOException {
-        List<String> classNames = Arrays.stream(classes).map(Class::getName).collect(Collectors.toList());
-        int attempt = 1;
-        while (attempt <= MAX_ATTEMPTS) {
-            logger.info("Attempt {} to circuit break via {}", attempt, classNames);
-            try {
-                Map<String, Object> response = tryBreaking.attempt(attempt);
-                logger.warn("{}: should circuit broken but got {}", attempt, response);
-            } catch (ResponseException e) {
-                Map<?, ?> map = responseAsMap(e.getResponse());
-                Object error = map.get("error");
-                if (error instanceof Map<?, ?> errorMap
-                    && "circuit_breaking_exception".equals(errorMap.get("type"))
-                    && errorMap.get("stack_trace") instanceof String stackTrace
-                    && classNames.stream().allMatch(stackTrace::contains)) {
-                    assertMap(
-                        map,
-                        matchesMap().entry("status", 429).entry("error", matchesMap().extraOk().entry("type", "circuit_breaking_exception"))
-                    );
-                    return;
-                }
-                logger.warn("{}: circuit broke but not via expected classes {}: {}", attempt, classNames, map);
-            }
-            attempt++;
-        }
-        fail("giving up after " + attempt + " attempts waiting for circuit break via " + classNames);
     }
 }

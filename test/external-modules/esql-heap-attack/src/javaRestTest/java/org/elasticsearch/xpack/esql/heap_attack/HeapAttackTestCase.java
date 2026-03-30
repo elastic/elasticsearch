@@ -36,10 +36,12 @@ import org.junit.Before;
 import org.junit.ClassRule;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.function.IntFunction;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.Strings.hasText;
 import static org.elasticsearch.test.MapMatcher.assertMap;
@@ -96,6 +98,44 @@ public abstract class HeapAttackTestCase extends ESRestTestCase {
             }
         }
         fail("giving up circuit breaking after " + attempt + " attempts");
+    }
+
+    /**
+     * Asserts that the given operation eventually trips the circuit breaker via the expected code
+     * path, as confirmed by all {@code classes} appearing in the exception's stack trace.
+     * <p>
+     * Unlike {@link #assertCircuitBreaks} which stops on the first circuit-breaking exception
+     * regardless of origin, this method continues to the next attempt if the exception came from
+     * a different part of the pipeline (e.g. an upstream operator tripping before the operator
+     * under test). Each attempt scales the load, so a later attempt is more likely to reach the
+     * operator under test.
+     */
+    protected void assertCircuitBreaksVia(TryCircuitBreaking tryBreaking, Class<?>... classes) throws IOException {
+        List<String> classNames = Arrays.stream(classes).map(Class::getName).collect(Collectors.toList());
+        int attempt = 1;
+        while (attempt <= MAX_ATTEMPTS) {
+            logger.info("Attempt {} to circuit break via {}", attempt, classNames);
+            try {
+                Map<String, Object> response = tryBreaking.attempt(attempt);
+                logger.warn("{}: should circuit broken but got {}", attempt, response);
+            } catch (ResponseException e) {
+                Map<?, ?> map = responseAsMap(e.getResponse());
+                Object error = map.get("error");
+                if (error instanceof Map<?, ?> errorMap
+                    && "circuit_breaking_exception".equals(errorMap.get("type"))
+                    && errorMap.get("stack_trace") instanceof String stackTrace
+                    && classNames.stream().allMatch(stackTrace::contains)) {
+                    assertMap(
+                        map,
+                        matchesMap().entry("status", 429)
+                    );
+                    return;
+                }
+                logger.warn("{}: circuit broke but not via expected classes {}: {}", attempt, classNames, map);
+            }
+            attempt++;
+        }
+        fail("giving up after " + attempt + " attempts waiting for circuit break via " + classNames);
     }
 
     protected Response query(String query, String filterPath) throws IOException {

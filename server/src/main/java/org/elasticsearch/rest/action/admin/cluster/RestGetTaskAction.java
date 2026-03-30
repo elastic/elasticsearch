@@ -12,6 +12,7 @@ package org.elasticsearch.rest.action.admin.cluster;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskResponse;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -33,6 +34,7 @@ import java.util.function.Predicate;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestUtils.getTimeout;
 import static org.elasticsearch.rest.Scope.PUBLIC;
+import static org.elasticsearch.rest.action.admin.cluster.RestListTasksAction.listTasksResponseListener;
 
 @ServerlessScope(PUBLIC)
 public class RestGetTaskAction extends BaseRestHandler {
@@ -66,19 +68,11 @@ public class RestGetTaskAction extends BaseRestHandler {
         getTaskRequest.setWaitForCompletion(waitForCompletion);
         getTaskRequest.setTimeout(timeout);
         return channel -> {
-            ActionListener<GetTaskResponse> delegate = new RestToXContentListener<>(channel);
-            client.admin().cluster().getTask(getTaskRequest, new ActionListener<>() {
-                @Override
-                public void onResponse(GetTaskResponse response) {
-                    softDeprecateReindexingTasks(response);
-                    delegate.onResponse(response);
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    delegate.onFailure(e);
-                }
-            });
+            ActionListener<GetTaskResponse> listener = new RestToXContentListener<>(channel);
+            client.admin().cluster().getTask(getTaskRequest, listener.delegateFailureAndWrap((l, resp) -> {
+                softDeprecateReindexingTasks(resp);
+                l.onResponse(resp);
+            }));
         };
     }
 

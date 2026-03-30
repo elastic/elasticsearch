@@ -72,19 +72,11 @@ public class RestCancelTasksAction extends BaseRestHandler {
         cancelTasksRequest.setTargetParentTaskId(parentTaskId);
         cancelTasksRequest.setWaitForCompletion(request.paramAsBoolean("wait_for_completion", cancelTasksRequest.waitForCompletion()));
         return channel -> {
-            ActionListener<ListTasksResponse> delegate = listTasksResponseListener(nodesInCluster, groupBy, channel);
-            client.admin().cluster().cancelTasks(cancelTasksRequest, new ActionListener<>() {
-                @Override
-                public void onResponse(ListTasksResponse response) {
-                    softDeprecateReindexingTasks(response);
-                    delegate.onResponse(response);
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    delegate.onFailure(e);
-                }
-            });
+            ActionListener<ListTasksResponse> listener = listTasksResponseListener(nodesInCluster, groupBy, channel);
+            client.admin().cluster().cancelTasks(cancelTasksRequest, listener.delegateFailureAndWrap((l, resp) -> {
+                softDeprecateReindexingTasks(resp);
+                l.onResponse(resp);
+            }));
         };
     }
 

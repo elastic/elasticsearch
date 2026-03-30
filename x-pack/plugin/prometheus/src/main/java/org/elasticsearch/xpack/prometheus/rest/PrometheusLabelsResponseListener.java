@@ -87,7 +87,7 @@ public class PrometheusLabelsResponseListener {
      */
     static RestResponse buildSuccessResponse(List<String> labelNames, int limit) throws IOException {
         boolean truncated = limit > 0 && labelNames.size() == limit + 1;
-        // When truncated the last entry is the sentinel row — exclude it from the output
+        // When truncated the last entry is the sentinel row, exclude it from the output
         List<String> names = truncated ? labelNames.subList(0, limit) : labelNames;
         XContentBuilder builder = JsonXContent.contentBuilder();
         builder.startObject();

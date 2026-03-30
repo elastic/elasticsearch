@@ -76,7 +76,8 @@ final class PrometheusLabelsPlanBuilder {
         // Deduplicate via STATS BY dimension_fields
         plan = new Aggregate(Source.EMPTY, plan, List.of(dimField), List.of(dimField));
 
-        // Sort ascending
+        // Sort ascending — the Prometheus HTTP API spec does not mandate ordering, but the reference
+        // implementation sorts at the TSDB layer so clients conventionally expect alphabetical order.
         plan = new OrderBy(
             Source.EMPTY,
             plan,

@@ -42,34 +42,12 @@ public abstract class ESVectorizationProvider {
     public abstract ES91OSQVectorsScorer newES91OSQVectorsScorer(IndexInput input, int dimension, int bulkSize) throws IOException;
 
     /**
-     * Create a new {@link ESNextOSQVectorsScorer} for the given {@link IndexInput}.
+     * Create a new {@link ESNextOSQVectorsScorer} for the given {@link IndexInput} and explicit int4 disk format.
      * The input should be unwrapped before calling this method. If the input is
      * still a {@code FilterIndexInput} that does not implement
      * {@code MemorySegmentAccessInput} or {@code DirectAccessInput}, an
      * {@link IllegalArgumentException} is thrown. Non-wrapper inputs (e.g.
      * {@code ByteBuffersIndexInput}) are accepted and use a heap-copy fallback.
-     */
-    public ESNextOSQVectorsScorer newESNextOSQVectorsScorer(
-        IndexInput input,
-        byte queryBits,
-        byte indexBits,
-        int dimension,
-        int dataLength,
-        int bulkSize
-    ) throws IOException {
-        return newESNextOSQVectorsScorer(
-            input,
-            queryBits,
-            indexBits,
-            dimension,
-            dataLength,
-            bulkSize,
-            ESNextOSQVectorsScorer.SymmetricInt4Encoding.STRIPED
-        );
-    }
-
-    /**
-     * Create a new {@link ESNextOSQVectorsScorer} with an explicit int4 encoding.
      */
     public abstract ESNextOSQVectorsScorer newESNextOSQVectorsScorer(
         IndexInput input,

@@ -49,11 +49,14 @@ public class ES940DiskBBQBFloat16VectorsFormatTests extends BaseBFloat16KnnVecto
     @Before
     @Override
     public void setUp() throws Exception {
-        ES940DiskBBQVectorsFormat.QuantEncoding encoding = randomFrom(
-            ES940DiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY,
-            ES940DiskBBQVectorsFormat.QuantEncoding.TWO_BIT_4BIT_QUERY,
-            ES940DiskBBQVectorsFormat.QuantEncoding.FOUR_BIT_SYMMETRIC_PACKED,
-            ES940DiskBBQVectorsFormat.QuantEncoding.SEVEN_BIT_SYMMETRIC
+        ES940DiskBBQVectorsFormat.QuantEncoding encoding = RandomPicks.randomFrom(
+            random(),
+            List.of(
+                ES940DiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY,
+                ES940DiskBBQVectorsFormat.QuantEncoding.TWO_BIT_4BIT_QUERY,
+                ES940DiskBBQVectorsFormat.QuantEncoding.FOUR_BIT_SYMMETRIC_PACKED,
+                ES940DiskBBQVectorsFormat.QuantEncoding.SEVEN_BIT_SYMMETRIC
+            )
         );
         if (rarely()) {
             format = new ES940DiskBBQVectorsFormat(

@@ -23,6 +23,8 @@ public class ES940QuantEncodingTests extends ESTestCase {
 
     public void testSingleBitNibblesPackSize() {
         ES940DiskBBQVectorsFormat.QuantEncoding encoding = ES940DiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY;
+        assertEquals(1, encoding.getDocPackedLength(1));
+        assertEquals(4, encoding.getQueryPackedLength(1));
         assertEquals(1, encoding.getDocPackedLength(3));
         assertEquals(4, encoding.getQueryPackedLength(3));
         assertEquals(1, encoding.getDocPackedLength(8));
@@ -43,6 +45,8 @@ public class ES940QuantEncodingTests extends ESTestCase {
 
     public void testDibitAndNibblesPackSize() {
         ES940DiskBBQVectorsFormat.QuantEncoding encoding = ES940DiskBBQVectorsFormat.QuantEncoding.TWO_BIT_4BIT_QUERY;
+        assertEquals(2, encoding.getDocPackedLength(1));
+        assertEquals(4, encoding.getQueryPackedLength(1));
         assertEquals(2, encoding.getDocPackedLength(3));
         assertEquals(4, encoding.getQueryPackedLength(3));
         assertEquals(2, encoding.getDocPackedLength(8));
@@ -62,6 +66,8 @@ public class ES940QuantEncodingTests extends ESTestCase {
 
     public void testHalfByteAndNibblesPackSize() {
         ES940DiskBBQVectorsFormat.QuantEncoding encoding = ES940DiskBBQVectorsFormat.QuantEncoding.FOUR_BIT_SYMMETRIC_PACKED;
+        assertEquals(1, encoding.getDocPackedLength(1));
+        assertEquals(2, encoding.getQueryPackedLength(1));
         assertEquals(2, encoding.getDocPackedLength(3));
         assertEquals(4, encoding.getQueryPackedLength(3));
         assertEquals(4, encoding.getDocPackedLength(8));
@@ -74,6 +80,8 @@ public class ES940QuantEncodingTests extends ESTestCase {
 
     public void testHalfByteAndNibblesStripedPackSize() {
         ES940DiskBBQVectorsFormat.QuantEncoding encoding = ES940DiskBBQVectorsFormat.QuantEncoding.FOUR_BIT_SYMMETRIC_STRIPED;
+        assertEquals(4, encoding.getDocPackedLength(1));
+        assertEquals(4, encoding.getQueryPackedLength(1));
         assertEquals(4, encoding.getDocPackedLength(3));
         assertEquals(4, encoding.getQueryPackedLength(3));
         assertEquals(4, encoding.getDocPackedLength(8));
@@ -84,6 +92,8 @@ public class ES940QuantEncodingTests extends ESTestCase {
 
     public void testSevenBitPackSize() {
         ES940DiskBBQVectorsFormat.QuantEncoding encoding = ES940DiskBBQVectorsFormat.QuantEncoding.SEVEN_BIT_SYMMETRIC;
+        assertEquals(1, encoding.getDocPackedLength(1));
+        assertEquals(1, encoding.getQueryPackedLength(1));
         assertEquals(3, encoding.getDocPackedLength(3));
         assertEquals(3, encoding.getQueryPackedLength(3));
         assertEquals(8, encoding.getDocPackedLength(8));

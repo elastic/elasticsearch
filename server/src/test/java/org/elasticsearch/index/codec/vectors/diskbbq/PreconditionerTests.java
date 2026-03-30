@@ -14,10 +14,16 @@ import org.apache.lucene.store.ByteBuffersIndexInput;
 import org.apache.lucene.store.ByteBuffersIndexOutput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.tests.util.LuceneTestCase;
+import org.elasticsearch.common.logging.LogConfigurator;
 
 import java.io.IOException;
 
 public class PreconditionerTests extends LuceneTestCase {
+    static {
+        LogConfigurator.loadLog4jPlugins();
+        LogConfigurator.configureESLogging(); // native access requires logging to be initialized
+    }
+
     public void testRandomProviderConfigurations() throws IOException {
         int dim = random().nextInt(128, 1024);
 

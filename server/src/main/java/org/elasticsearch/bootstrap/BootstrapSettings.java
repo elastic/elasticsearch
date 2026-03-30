@@ -9,7 +9,6 @@
 
 package org.elasticsearch.bootstrap;
 
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 
@@ -35,9 +34,8 @@ public final class BootstrapSettings {
 
     public static final Setting<SecureSettingsSource> SECURE_SETTINGS_SOURCE_SETTING = Setting.enumSetting(
         SecureSettingsSource.class,
-        settings -> DiscoveryNode.isStateless(settings) ? SecureSettingsSource.FILE_SETTINGS.name() : SecureSettingsSource.KEYSTORE.name(),
         "bootstrap.secure_settings.source",
-        s -> {},
+        SecureSettingsSource.KEYSTORE,
         Property.NodeScope
     );
 

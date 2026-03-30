@@ -66,7 +66,13 @@ public class VectorScorerOSQBenchmarkTests extends ESTestCase {
             var scalar = new VectorScorerOSQBenchmark();
             var vectorized = new VectorScorerOSQBenchmark();
             try {
-                var data = VectorScorerOSQBenchmark.generateRandomVectorData(new Random(seed), dims, bits, int4Encoding, similarityFunction);
+                var data = VectorScorerOSQBenchmark.generateRandomVectorData(
+                    new Random(seed),
+                    dims,
+                    bits,
+                    int4Encoding,
+                    similarityFunction
+                );
 
                 scalar.implementation = VectorScorerOSQBenchmark.VectorImplementation.SCALAR;
                 scalar.dims = dims;
@@ -105,7 +111,13 @@ public class VectorScorerOSQBenchmarkTests extends ESTestCase {
             var scalar = new VectorScorerOSQBenchmark();
             var vectorized = new VectorScorerOSQBenchmark();
             try {
-                var data = VectorScorerOSQBenchmark.generateRandomVectorData(new Random(seed), dims, bits, int4Encoding, similarityFunction);
+                var data = VectorScorerOSQBenchmark.generateRandomVectorData(
+                    new Random(seed),
+                    dims,
+                    bits,
+                    int4Encoding,
+                    similarityFunction
+                );
 
                 scalar.implementation = VectorScorerOSQBenchmark.VectorImplementation.SCALAR;
                 scalar.dims = dims;
@@ -142,9 +154,7 @@ public class VectorScorerOSQBenchmarkTests extends ESTestCase {
         try {
             String[] dims = VectorScorerOSQBenchmark.class.getField("dims").getAnnotationsByType(Param.class)[0].value();
             String[] bits = VectorScorerOSQBenchmark.class.getField("bits").getAnnotationsByType(Param.class)[0].value();
-            String[] int4Encodings = VectorScorerOSQBenchmark.class.getField("int4Encoding")
-                .getAnnotationsByType(Param.class)[0]
-                .value();
+            String[] int4Encodings = VectorScorerOSQBenchmark.class.getField("int4Encoding").getAnnotationsByType(Param.class)[0].value();
 
             return () -> Arrays.stream(dims)
                 .map(Integer::parseInt)

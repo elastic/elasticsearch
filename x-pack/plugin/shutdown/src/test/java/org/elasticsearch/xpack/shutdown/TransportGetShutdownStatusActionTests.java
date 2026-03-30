@@ -1136,7 +1136,7 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
     public void testShardSnapshotsStatusCounts() {
         final int completedCount = randomIntBetween(0, 5);
         final int pausedCount = randomIntBetween(0, 5);
-        final int runningCount = randomIntBetween(0, 5);
+        final int runningCount = randomIntBetween(completedCount + pausedCount == 0 ? 1 : 0, 5);
 
         final ClusterState baseState = createTestClusterState(
             RoutingTable.EMPTY_ROUTING_TABLE,

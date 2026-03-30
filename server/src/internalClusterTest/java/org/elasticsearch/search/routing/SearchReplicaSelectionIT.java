@@ -48,10 +48,11 @@ public class SearchReplicaSelectionIT extends ESIntegTestCase {
         client.prepareIndex("test").setSource("field", "value").get();
         refresh();
 
-        // While adaptive stats are still incomplete, routing should still reach different replicas over
-        // successive searches (probabilistic exploration).
+        // Stat-less nodes are ranked ahead of measured nodes for probing. Since searches run
+        // sequentially, each request completes and builds stats before the next one is routed,
+        // so a different stat-less node is promoted on each iteration.
         Set<String> nodeIds = new HashSet<>();
-        for (int i = 0; i < 16; i++) {
+        for (int i = 0; i < 3; i++) {
             assertResponse(client.prepareSearch().setQuery(matchAllQuery()), response -> {
                 assertThat(response.getHits().getTotalHits().value(), equalTo(1L));
                 nodeIds.add(response.getHits().getAt(0).getShard().getNodeId());

@@ -23,16 +23,14 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Random;
 
 public class IndexShardRoutingTableTests extends ESTestCase {
 
     /**
-     * Replicas without statistics either have no synthetic rank (null — sorts last) or, with
-     * probability {@code unknown/total}, one such replica is assigned {@code nextDown(bestRank)} for
-     * exploration.
+     * Stat-less nodes below the in-flight cap are probed (assigned {@code nextDown(bestRank)}).
+     * Nodes at or above the cap get no rank entry and sort last via nullsLast.
      */
-    public void testRankNodesWithoutStatsExploresOrLeavesNull() {
+    public void testRankNodesWithoutStatsUsesInflightForProbing() {
         TestThreadPool threadPool = new TestThreadPool("test");
         try {
             ClusterService clusterService = new ClusterService(
@@ -57,17 +55,25 @@ public class IndexShardRoutingTableTests extends ESTestCase {
             double r1 = nodeStats.get("node1").get().rank(searchCounts.get("node1"));
             double r2 = nodeStats.get("node2").get().rank(searchCounts.get("node2"));
             double bestRank = Math.min(r1, r2);
-            double expectedExplore = Math.nextDown(bestRank);
+            double expectedProbe = Math.nextDown(bestRank);
 
-            for (int seed = 0; seed < 100; seed++) {
-                Map<String, Double> ranks = IndexShardRoutingTable.rankNodes(nodeStats, searchCounts, new Random(seed));
-                assertEquals(r1, ranks.get("node1"), 0.0);
-                assertEquals(r2, ranks.get("node2"), 0.0);
-                Double r3 = ranks.get("node3");
-                if (r3 != null) {
-                    assertEquals(expectedExplore, r3, 0.0);
-                }
-            }
+            long cap = 3; // small cap for easy testing
+
+            // node3 has 0 inflight (below cap) → should be probed
+            Map<String, Double> ranks = IndexShardRoutingTable.rankNodes(nodeStats, searchCounts, cap);
+            assertEquals(r1, ranks.get("node1"), 0.0);
+            assertEquals(r2, ranks.get("node2"), 0.0);
+            assertEquals(expectedProbe, ranks.get("node3"), 0.0);
+
+            // node3 has inflight below cap → still probed
+            searchCounts.put("node3", cap - 1);
+            ranks = IndexShardRoutingTable.rankNodes(nodeStats, searchCounts, cap);
+            assertEquals(expectedProbe, ranks.get("node3"), 0.0);
+
+            // node3 at cap → should NOT be probed (no rank entry)
+            searchCounts.put("node3", cap);
+            ranks = IndexShardRoutingTable.rankNodes(nodeStats, searchCounts, cap);
+            assertNull(ranks.get("node3"));
         } finally {
             terminate(threadPool);
         }

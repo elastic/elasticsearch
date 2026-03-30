@@ -16,6 +16,7 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
@@ -34,7 +35,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Random;
 import java.util.Set;
 import java.util.stream.Stream;
 
@@ -272,13 +272,47 @@ public class IndexShardRoutingTable {
         return nodeStats;
     }
 
+    /**
+     * Feature flag for ARS probing of stat-less nodes. When enabled:
+     * <ul>
+     *   <li>Nodes without EWMA stats are probed ahead of measured nodes to build initial stats,
+     *       bounded by {@link #PROBE_INFLIGHT_CAP}.</li>
+     *   <li>Null ranks (no stats, above cap) sort last so stat-less nodes are deprioritized.</li>
+     * </ul>
+     * When disabled, the original ARS behavior is preserved: null ranks sort first and no
+     * probing is applied.
+     */
+    private static final FeatureFlag ARS_PROBING_FEATURE_FLAG = new FeatureFlag("ars_probing");
+
+    /**
+     * Maximum number of in-flight requests to a stat-less node before it stops being probed.
+     * Caps the initial burst while the node builds EWMA stats from its first completed requests.
+     * Set to 0 (disabled) when the feature flag is off.
+     */
+    static final long PROBE_INFLIGHT_CAP = ARS_PROBING_FEATURE_FLAG.isEnabled() ? 8 : 0;
+
+    /**
+     * Computes a rank for each node based on its adaptive replica selection (ARS) stats.
+     * Nodes with stats are ranked using the C3 formula via {@link ResponseCollectorService.ComputedNodeStats#rank}.
+     * Nodes without stats (e.g. newly joined) are assigned {@code Math.nextDown(bestRank)} so they
+     * are probed ahead of measured nodes, but only while their in-flight request count stays below
+     * {@code probeInflightCap}. Once at the cap they receive no rank entry, causing the
+     * {@link NodeRankComparator} (nulls-last) to sort them after all ranked nodes.
+     *
+     * @param nodeStats        per-node EWMA stats; {@code Optional.empty()} for nodes without stats
+     * @param nodeSearchCounts per-node count of in-flight (outstanding) search requests on the
+     *                         coordinating node, captured from {@code TransportSearchAction}
+     * @param probeInflightCap maximum number of concurrent in-flight requests to a stat-less node
+     *                         before it stops being probed
+     * @return map of node ID to computed rank; nodes above the probe cap with no stats are absent
+     */
     static Map<String, Double> rankNodes(
         final Map<String, Optional<ResponseCollectorService.ComputedNodeStats>> nodeStats,
         final Map<String, Long> nodeSearchCounts,
-        final Random random
+        final long probeInflightCap
     ) {
         final Map<String, Double> nodeRanks = Maps.newMapWithExpectedSize(nodeStats.size());
-        List<String> nodesWithoutStats = null;
+        List<String> probeCandidates = null;
         double bestRank = Double.POSITIVE_INFINITY;
         for (Map.Entry<String, Optional<ResponseCollectorService.ComputedNodeStats>> entry : nodeStats.entrySet()) {
             Optional<ResponseCollectorService.ComputedNodeStats> maybeStats = entry.getValue();
@@ -290,17 +324,23 @@ public class IndexShardRoutingTable {
                     bestRank = rank;
                 }
             } else {
-                if (nodesWithoutStats == null) {
-                    nodesWithoutStats = new ArrayList<>();
+                final String nodeId = entry.getKey();
+                if (nodeSearchCounts.getOrDefault(nodeId, 0L) < probeInflightCap) {
+                    // No stats and below the in-flight cap — candidate for probing
+                    if (probeCandidates == null) {
+                        probeCandidates = new ArrayList<>();
+                    }
+                    probeCandidates.add(nodeId);
                 }
-                nodesWithoutStats.add(entry.getKey());
             }
+            // Nodes without stats at or above the cap already have enough probes in flight;
+            // they get no rank entry and sort last via nullsLast.
         }
 
-        if (nodesWithoutStats != null && nodeRanks.isEmpty() == false) {
-            final double bestRankProbability = (double) nodesWithoutStats.size() / nodeStats.size();
-            if (random.nextDouble() < bestRankProbability) {
-                nodeRanks.put(nodesWithoutStats.get(random.nextInt(nodesWithoutStats.size())), Math.nextDown(bestRank));
+        // Assign probe candidates just ahead of the best known rank so they receive traffic
+        if (probeCandidates != null && nodeRanks.isEmpty() == false) {
+            for (String nodeId : probeCandidates) {
+                nodeRanks.put(nodeId, Math.nextDown(bestRank));
             }
         }
         return nodeRanks;
@@ -357,11 +397,9 @@ public class IndexShardRoutingTable {
         // Retrieve which nodes we can potentially send the query to
         final Map<String, Optional<ResponseCollectorService.ComputedNodeStats>> nodeStats = getNodeStats(shards, collector);
 
-        // Retrieve all the nodes the shards exist on
-
         // sort all shards based on the shard rank
         ArrayList<ShardRouting> sortedShards = new ArrayList<>(shards);
-        sortedShards.sort(new NodeRankComparator(rankNodes(nodeStats, nodeSearchCounts, Randomness.get())));
+        sortedShards.sort(new NodeRankComparator(rankNodes(nodeStats, nodeSearchCounts, PROBE_INFLIGHT_CAP)));
 
         // adjust the non-winner nodes' stats so they will get a chance to receive queries
         ShardRouting minShard = sortedShards.get(0);
@@ -385,10 +423,13 @@ public class IndexShardRoutingTable {
 
     private static class NodeRankComparator implements Comparator<ShardRouting> {
         /**
-         * Null rank (missing stats) sorts after any finite rank, so those shards receive lower priority when
-         * ordering candidates; both null are equal.
+         * When ARS probing is enabled, null ranks (missing stats) sort after all ranked nodes so that
+         * stat-less nodes are deprioritized. When disabled, null ranks sort first to preserve the
+         * original ARS behavior.
          */
-        private static final Comparator<Double> NULLS_LAST_RANK = Comparator.nullsLast(Double::compare);
+        private static final Comparator<Double> RANK_COMPARATOR = ARS_PROBING_FEATURE_FLAG.isEnabled()
+            ? Comparator.nullsLast(Double::compare)
+            : Comparator.nullsFirst(Double::compare);
 
         private final Map<String, Double> nodeRanks;
 
@@ -398,7 +439,7 @@ public class IndexShardRoutingTable {
 
         @Override
         public int compare(ShardRouting s1, ShardRouting s2) {
-            return NULLS_LAST_RANK.compare(nodeRanks.get(s1.currentNodeId()), nodeRanks.get(s2.currentNodeId()));
+            return RANK_COMPARATOR.compare(nodeRanks.get(s1.currentNodeId()), nodeRanks.get(s2.currentNodeId()));
         }
     }
 

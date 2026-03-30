@@ -274,24 +274,17 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
             } else {
                 aggs = null;
             }
-            // Set before handing topHitsToRelease into reducedQueryPhase so a concurrent doClose() cannot
-            // release the list after the phase captures it but before a volatile write would be visible.
+            reducePhase = SearchPhaseController.reducedQueryPhase(
+                results.asList(),
+                aggs,
+                topDocsList == null ? Collections.emptyList() : topDocsList,
+                topDocsStats,
+                numReducePhases,
+                false,
+                queryPhaseRankCoordinatorContext,
+                topHitsToRelease
+            );
             topHitsOwnershipTransferred = true;
-            try {
-                reducePhase = SearchPhaseController.reducedQueryPhase(
-                    results.asList(),
-                    aggs,
-                    topDocsList == null ? Collections.emptyList() : topDocsList,
-                    topDocsStats,
-                    numReducePhases,
-                    false,
-                    queryPhaseRankCoordinatorContext,
-                    topHitsToRelease
-                );
-            } catch (Throwable t) {
-                topHitsOwnershipTransferred = false;
-                throw t;
-            }
             buffer = null;
         } finally {
             if (buffer != null) {

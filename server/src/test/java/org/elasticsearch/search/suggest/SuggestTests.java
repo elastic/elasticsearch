@@ -10,8 +10,6 @@
 package org.elasticsearch.search.suggest;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -22,7 +20,6 @@ import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.search.suggest.Suggest.Suggestion;
@@ -86,34 +83,6 @@ public class SuggestTests extends ESTestCase {
             cs.addTerm(completionEntry);
             decRefCompletionOptionTestFactoryRefs(new Suggest(Collections.singletonList(cs)));
         }
-    }
-
-    /**
-     * Release a suggest by wrapping it in a SearchResponse (which takes 1 ref per completion option hit)
-     * and then releasing the creation ref (1 ref per hit) that the test/caller held.
-     */
-    private static void releaseSuggest(Suggest suggest) {
-        if (suggest == null) {
-            return;
-        }
-        SearchResponse response = new SearchResponse(
-            SearchHits.empty(null, Float.NaN),
-            null,
-            suggest,
-            false,
-            null,
-            null,
-            1,
-            null,
-            1,
-            1,
-            0,
-            0L,
-            ShardSearchFailure.EMPTY_ARRAY,
-            SearchResponse.Clusters.EMPTY
-        );
-        response.decRef();
-        decRefCompletionOptionTestFactoryRefs(suggest);
     }
 
     private static final NamedXContentRegistry xContentRegistry;
@@ -242,8 +211,8 @@ public class SuggestTests extends ESTestCase {
             }
             assertToXContentEquivalent(originalBytes, toXContent(parsed, xContentType, params, humanReadable), xContentType);
         } finally {
-            releaseSuggest(suggest);
-            releaseSuggest(parsed);
+            decRefCompletionOptionTestFactoryRefs(suggest);
+            decRefCompletionOptionTestFactoryRefs(parsed);
         }
     }
 
@@ -392,9 +361,9 @@ public class SuggestTests extends ESTestCase {
 
             assertEquals(suggest, backAgain);
         } finally {
-            releaseSuggest(suggest);
-            releaseSuggest(bwcSuggest);
-            releaseSuggest(backAgain);
+            decRefCompletionOptionTestFactoryRefs(suggest);
+            decRefCompletionOptionTestFactoryRefs(bwcSuggest);
+            decRefCompletionOptionTestFactoryRefs(backAgain);
         }
     }
 }

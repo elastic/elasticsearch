@@ -116,7 +116,7 @@ public class TransportGetPipelineActionTests extends ESTestCase {
             1,
             1,
             0,
-            100L,
+            100,
             ShardSearchFailure.EMPTY_ARRAY,
             SearchResponse.Clusters.EMPTY,
             null,

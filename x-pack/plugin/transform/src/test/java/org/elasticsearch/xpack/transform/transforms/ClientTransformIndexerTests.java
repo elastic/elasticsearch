@@ -754,7 +754,7 @@ public class ClientTransformIndexerTests extends ESTestCase {
                             1,
                             1,
                             0,
-                            0L,
+                            0,
                             ShardSearchFailure.EMPTY_ARRAY,
                             SearchResponse.Clusters.EMPTY,
                             // copy the pit from the request

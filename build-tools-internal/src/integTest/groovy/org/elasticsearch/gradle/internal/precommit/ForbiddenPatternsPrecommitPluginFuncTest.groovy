@@ -115,7 +115,7 @@ class ForbiddenPatternsPrecommitPluginFuncTest extends AbstractGradleInternalPlu
         diagnostics.every { it.solutions != null && !it.solutions.isEmpty() }
     }
 
-    def "succeeds when no violations and no problems reported"() {
+    def "succeeds when no violations and problems report is empty"() {
         given:
         buildFile << """
         apply plugin:'java'
@@ -128,8 +128,8 @@ class ForbiddenPatternsPrecommitPluginFuncTest extends AbstractGradleInternalPlu
         then:
         result.task(":forbiddenPatterns").outcome == TaskOutcome.SUCCESS
 
-        and: "no forbidden-patterns problems in the report"
+        and: "the problems report contains no diagnostics at all"
         def diagnostics = problemsReportDiagnostics()
-        !diagnostics.any { diag -> diag.problemId.any { it.name == "forbidden-patterns" } }
+        diagnostics.isEmpty()
     }
 }

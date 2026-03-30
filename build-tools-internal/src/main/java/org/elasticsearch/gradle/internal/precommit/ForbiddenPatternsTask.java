@@ -117,6 +117,7 @@ public abstract class ForbiddenPatternsTask extends DefaultTask {
     public void checkInvalidPatterns() throws IOException {
         Pattern allPatterns = Pattern.compile("(" + String.join(")|(", getPatterns().values()) + ")");
         List<Problem> problems = new ArrayList<>();
+        List<String> violations = new ArrayList<>();
         for (File f : getFiles()) {
             List<String> lines;
             try (Stream<String> stream = Files.lines(f.toPath(), StandardCharsets.UTF_8)) {
@@ -138,6 +139,8 @@ public abstract class ForbiddenPatternsTask extends DefaultTask {
                         .forEach(p -> {
                             int lineNumber = kv.getKey();
                             String ruleName = p.getKey();
+                            String label = ruleName + " on line " + lineNumber + " of " + path;
+                            violations.add("- " + label);
                             problems.add(
                                 problemReporter.create(
                                     ProblemId.create(
@@ -145,7 +148,7 @@ public abstract class ForbiddenPatternsTask extends DefaultTask {
                                         "Forbidden pattern: " + ruleName,
                                         ElasticsearchBuildProblems.FORBIDDEN_PATTERNS
                                     ),
-                                    spec -> spec.contextualLabel(ruleName + " on line " + lineNumber + " of " + path)
+                                    spec -> spec.contextualLabel(label)
                                         .severity(Severity.ERROR)
                                         .lineInFileLocation(absolutePath, lineNumber)
                                         .solution("Remove the forbidden pattern from the source file")
@@ -156,9 +159,7 @@ public abstract class ForbiddenPatternsTask extends DefaultTask {
         }
         if (problems.isEmpty() == false) {
             problemReporter.report(problems);
-            throw new GradleException(
-                "Found " + problems.size() + " invalid pattern" + (problems.size() == 1 ? "" : "s") + " across source files"
-            );
+            throw new GradleException("Found invalid patterns:\n" + String.join("\n", violations));
         }
 
         File outputMarker = getOutputMarker();

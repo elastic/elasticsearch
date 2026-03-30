@@ -507,6 +507,54 @@ public class AuthorizationPollerTests extends ESTestCase {
         );
     }
 
+    public void testSendsAuthorizationRequest_ShouldDeleteRemovedEndpoints() {
+        var url = "eis-url";
+
+        when(mockRegistry.isReady()).thenReturn(true);
+        when(mockRegistry.getInferenceIds()).thenReturn(Set.of("id-1", "id-2", "id-3"));
+        ccmFeature = createMockCCMFeature(true);
+        ccmService = createMockCCMService(true);
+
+        givenAuthHandlerRespondsForUrl(url, List.of(), Set.of("id-1", "id-2"));
+
+        var poller = createPoller();
+        poller.sendAuthorizationRequest();
+
+        verify(mockRegistry, times(1)).deleteModels(eq(Set.of("id-1", "id-2")), any());
+    }
+
+    public void testSendsAuthorizationRequest_ShouldIgnoreRemovedEndpointsNotInRegistry() {
+        var url = "eis-url";
+
+        when(mockRegistry.isReady()).thenReturn(true);
+        when(mockRegistry.getInferenceIds()).thenReturn(Set.of("id-1", "id-3"));
+        ccmFeature = createMockCCMFeature(true);
+        ccmService = createMockCCMService(true);
+
+        givenAuthHandlerRespondsForUrl(url, List.of(), Set.of("id-1", "id-2", "id-3", "id-4"));
+
+        var poller = createPoller();
+        poller.sendAuthorizationRequest();
+
+        verify(mockRegistry, times(1)).deleteModels(eq(Set.of("id-1", "id-3")), any());
+    }
+
+    public void testSendsAuthorizationRequest_ShouldNotDeleteAnyWhenNoRemovedEndpointIsPresentInRegistry() {
+        var url = "eis-url";
+
+        when(mockRegistry.isReady()).thenReturn(true);
+        when(mockRegistry.getInferenceIds()).thenReturn(Set.of("id-1", "id-2"));
+        ccmFeature = createMockCCMFeature(true);
+        ccmService = createMockCCMService(true);
+
+        givenAuthHandlerRespondsForUrl(url, List.of(), Set.of("id-3", "id-4"));
+
+        var poller = createPoller();
+        poller.sendAuthorizationRequest();
+
+        verify(mockRegistry, never()).deleteModels(any(), any());
+    }
+
     private AuthorizationPoller createPoller() {
         return createPoller(null);
     }
@@ -528,10 +576,17 @@ public class AuthorizationPollerTests extends ESTestCase {
     }
 
     private void givenAuthHandlerReturnsEndpointsForUrl(String url, List<AuthorizedEndpoint> endpoints) {
+        givenAuthHandlerRespondsForUrl(url, endpoints, Set.of());
+    }
+
+    private void givenAuthHandlerRespondsForUrl(String url, List<AuthorizedEndpoint> endpoints, Set<String> removedEndpoints) {
         doAnswer(invocation -> {
             ActionListener<ElasticInferenceServiceAuthorizationModel> listener = invocation.getArgument(0);
             listener.onResponse(
-                ElasticInferenceServiceAuthorizationModel.of(new ElasticInferenceServiceAuthorizationResponseEntity(endpoints), url)
+                ElasticInferenceServiceAuthorizationModel.of(
+                    new ElasticInferenceServiceAuthorizationResponseEntity(endpoints, removedEndpoints),
+                    url
+                )
             );
             return Void.TYPE;
         }).when(mockAuthHandler).getAuthorization(any(), any());

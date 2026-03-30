@@ -88,10 +88,7 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
             matchesMap().entry("test:column_at_a_time:BlockDocValuesReader.BytesCustom", 1),
             // No ProjectOperator: when the push doesn't apply, no temporary attribute is
             // introduced, so the plan has no ProjectExec to drop it.
-            sig -> assertMap(
-                sig,
-                checkRuleNotApplied()
-            )
+            sig -> assertMap(sig, checkRuleNotApplied())
         );
     }
 
@@ -113,10 +110,7 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
                 .entry("test:row_stride:BlockSourceReader.Bytes", 1),
             // No ProjectOperator: when the push doesn't apply, no temporary attribute is
             // introduced, so the plan has no ProjectExec to drop it.
-            sig -> assertMap(
-                sig,
-                checkRuleNotApplied()
-            )
+            sig -> assertMap(sig, checkRuleNotApplied())
         );
     }
 

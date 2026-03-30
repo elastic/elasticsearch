@@ -112,9 +112,9 @@ public class OTelSdkMeterSupplier implements MeterSupplier {
     @Override
     public void attemptFlushMetrics() {
         synchronized (mutex) {
-            if (meterProvider != null) {
+            if (resources != null) {
                 // If the timeout expires, this quietly returns, which is ok in this context.
-                meterProvider.forceFlush().join(10, TimeUnit.SECONDS);
+                resources.meterProvider.forceFlush().join(10, TimeUnit.SECONDS);
             }
         }
     }

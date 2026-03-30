@@ -415,7 +415,15 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 return null;
             }
 
+            boolean dimIsConfigured = dims != null && dims.isConfigured();
+            if ((defaultBBQHnsw || defaultBBQDisk)  && dimIsConfigured == false) {
+                // Delay selecting the default index options until dimensions are configured.
+                // This applies only to indices that are eligible to use BBQ as the default,
+                // since prior to this change, the default was selected eagerly.
+                return null;
+            }
             if (defaultBBQDisk && isVectorIndexTypeAllowedByProviders(VectorIndexType.BBQ_DISK)) {
+                int bits = dims.getValue() < BBQ_DIMS_DEFAULT_THRESHOLD ? 4 : 1;
                 return new BBQIVFIndexOptions(
                     ES940DiskBBQVectorsFormat.DEFAULT_VECTORS_PER_CLUSTER,
                     -1,
@@ -424,20 +432,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     new RescoreVector(DEFAULT_OVERSAMPLE),
                     indexVersionCreated,
                     false,
-                    DEFAULT_BBQ_IVF_QUANTIZE_BITS,
+                    bits,
                     experimentalFeaturesEnabled
                 );
             }
 
-            boolean dimIsConfigured = dims != null && dims.isConfigured();
-            if (defaultBBQHnsw && dimIsConfigured == false) {
-                // Delay selecting the default index options until dimensions are configured.
-                // This applies only to indices that are eligible to use BBQ as the default,
-                // since prior to this change, the default was selected eagerly.
-                return null;
-            }
-
-            if (defaultBBQHnsw && dimIsConfigured && dims.getValue() >= BBQ_DIMS_DEFAULT_THRESHOLD) {
+            if (defaultBBQHnsw && dims.getValue() >= BBQ_DIMS_DEFAULT_THRESHOLD) {
                 return new BBQHnswIndexOptions(
                     Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN,
                     Lucene99HnswVectorsFormat.DEFAULT_BEAM_WIDTH,
@@ -445,7 +445,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     new RescoreVector(DEFAULT_OVERSAMPLE),
                     -1
                 );
-            } else if (defaultInt8Hnsw) {
+            }
+            if (defaultInt8Hnsw) {
                 return new Int8HnswIndexOptions(
                     Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN,
                     Lucene99HnswVectorsFormat.DEFAULT_BEAM_WIDTH,

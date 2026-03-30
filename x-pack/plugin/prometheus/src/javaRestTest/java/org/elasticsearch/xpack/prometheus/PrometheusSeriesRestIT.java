@@ -72,9 +72,7 @@ public class PrometheusSeriesRestIT extends ESRestTestCase {
         return Settings.builder().put(super.restClientSettings()).put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
-    // -------------------------------------------------------------------------
     // Validation — 400 responses
-    // -------------------------------------------------------------------------
 
     public void testMissingMatchSelectorReturnsBadRequest() throws Exception {
         Request request = new Request("GET", "/_prometheus/api/v1/series");
@@ -97,9 +95,7 @@ public class PrometheusSeriesRestIT extends ESRestTestCase {
         assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
     }
 
-    // -------------------------------------------------------------------------
     // Response format — 200 with JSON envelope
-    // -------------------------------------------------------------------------
 
     public void testGetResponseIsJsonWithSuccessEnvelope() throws Exception {
         writeMetric("test_gauge", Map.of());
@@ -114,9 +110,7 @@ public class PrometheusSeriesRestIT extends ESRestTestCase {
         assertThat(body.get("data"), notNullValue());
     }
 
-    // -------------------------------------------------------------------------
     // Data round-trip — write via remote write, read back via series
-    // -------------------------------------------------------------------------
 
     public void testGetReturnsIndexedSeries() throws Exception {
         writeMetric("test_gauge", Map.of("job", "series_test", "instance", "localhost:9090"), 42.0);
@@ -151,9 +145,7 @@ public class PrometheusSeriesRestIT extends ESRestTestCase {
         assertThat(data.getFirst().get("__name__"), equalTo("test_gauge_idx"));
     }
 
-    // -------------------------------------------------------------------------
     // Helpers
-    // -------------------------------------------------------------------------
 
     /**
      * Builds a series request with a single {@code match[]} parameter.

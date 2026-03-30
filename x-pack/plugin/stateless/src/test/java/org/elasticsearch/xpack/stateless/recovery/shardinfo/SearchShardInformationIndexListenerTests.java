@@ -41,8 +41,8 @@ import org.elasticsearch.telemetry.InstrumentType;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.telemetry.TelemetryProvider;
+import org.elasticsearch.telemetry.TelemetryProvider.NoopTelemetryProvider;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
-import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.xpack.stateless.engine.SearchEngine;
@@ -78,12 +78,7 @@ public class SearchShardInformationIndexListenerTests extends ESTestCase {
     private final Index index = new Index("my_index", "uuid");
     private final ShardId shardId = new ShardId(index, 0);
     private final RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
-    private final TelemetryProvider telemetryProvider = new TelemetryProvider() {
-        @Override
-        public Tracer getTracer() {
-            return Tracer.NOOP;
-        }
-
+    private final TelemetryProvider telemetryProvider = new NoopTelemetryProvider() {
         @Override
         public MeterRegistry getMeterRegistry() {
             return meterRegistry;

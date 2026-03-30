@@ -1615,8 +1615,9 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
     public void testSystemIndexMetadataIsUpgraded() throws Exception {
         final String systemIndexWarning = "this request accesses system indices: [.tasks], but in a future major version, direct "
             + "access to system indices will be prevented by default";
-        final String reindexTaskGetApiDeprecation = "Using the task management APIs to get reindexing tasks is deprecated because they do not account for "
-            + "task relocations to other nodes. Use the dedicated reindex API instead: `GET /_reindex/{task_id}`";
+        final String reindexTaskGetApiDeprecation =
+            "Using the task management APIs to get reindexing tasks is deprecated because they do not account for "
+                + "task relocations to other nodes. Use the dedicated reindex API instead: `GET /_reindex/{task_id}`";
         if (isRunningAgainstOldCluster()) {
             // create index
             client().performRequest(

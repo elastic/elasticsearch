@@ -12,7 +12,6 @@ package org.elasticsearch.rest.action.admin.cluster;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskResponse;
-import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -34,7 +33,6 @@ import java.util.function.Predicate;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestUtils.getTimeout;
 import static org.elasticsearch.rest.Scope.PUBLIC;
-import static org.elasticsearch.rest.action.admin.cluster.RestListTasksAction.listTasksResponseListener;
 
 @ServerlessScope(PUBLIC)
 public class RestGetTaskAction extends BaseRestHandler {

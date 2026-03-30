@@ -136,13 +136,12 @@ public class ReindexRemoteIT extends ESRestTestCase {
         Request getTaskRequest = new Request("GET", "/_tasks/" + taskId);
         getTaskRequest.addParameter("wait_for_completion", "true");
         getTaskRequest.addParameter("timeout", "30s");
-        final String reindexTaskGetApiDeprecation = "Using the task management APIs to get reindexing tasks is deprecated because they do not account for "
-            + "task relocations to other nodes. Use the dedicated reindex API instead: `GET /_reindex/{task_id}`";
+        final String reindexTaskGetApiDeprecation =
+            "Using the task management APIs to get reindexing tasks is deprecated because they do not account for "
+                + "task relocations to other nodes. Use the dedicated reindex API instead: `GET /_reindex/{task_id}`";
         getTaskRequest.setOptions(
             RequestOptions.DEFAULT.toBuilder()
-                .setWarningsHandler(
-                    warnings -> warnings.size() != 1 || reindexTaskGetApiDeprecation.equals(warnings.getFirst()) == false
-                )
+                .setWarningsHandler(warnings -> warnings.size() != 1 || reindexTaskGetApiDeprecation.equals(warnings.getFirst()) == false)
                 .build()
         );
         Response taskResponse = client().performRequest(getTaskRequest);

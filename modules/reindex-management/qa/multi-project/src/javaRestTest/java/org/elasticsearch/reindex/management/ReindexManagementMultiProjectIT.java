@@ -36,8 +36,9 @@ import static org.hamcrest.Matchers.instanceOf;
 /** Tests that endpoints in reindex-management module are project-aware and behave as expected in multi-project environments. */
 public class ReindexManagementMultiProjectIT extends ESRestTestCase {
 
-    private static final String REINDEX_TASK_GET_API_DEPRECATION = "Using the task management APIs to get reindexing tasks is deprecated because they do not account for "
-        + "task relocations to other nodes. Use the dedicated reindex API instead: `GET /_reindex/{task_id}`";
+    private static final String REINDEX_TASK_GET_API_DEPRECATION =
+        "Using the task management APIs to get reindexing tasks is deprecated because they do not account for "
+            + "task relocations to other nodes. Use the dedicated reindex API instead: `GET /_reindex/{task_id}`";
     private static final String REINDEX_TASK_CANCEL_API_DEPRECATION =
         "Using the task management APIs to cancel reindex tasks is deprecated because they do not account for "
             + "task relocations to other nodes. Use the dedicated reindex API instead: `POST /_reindex/{task_id}/_cancel`.";
@@ -213,9 +214,7 @@ public class ReindexManagementMultiProjectIT extends ESRestTestCase {
         final Request request = new Request("GET", "/_tasks/" + taskId);
         request.setOptions(
             RequestOptions.DEFAULT.toBuilder()
-                .setWarningsHandler(
-                    warnings -> failIfUnexpectedWarning(warnings, REINDEX_TASK_GET_API_DEPRECATION)
-                )
+                .setWarningsHandler(warnings -> failIfUnexpectedWarning(warnings, REINDEX_TASK_GET_API_DEPRECATION))
                 .build()
         );
         setRequestProjectId(request, projectId);
@@ -282,9 +281,7 @@ public class ReindexManagementMultiProjectIT extends ESRestTestCase {
         cancelRequest.addParameter("wait_for_completion", "true");
         cancelRequest.setOptions(
             RequestOptions.DEFAULT.toBuilder()
-                .setWarningsHandler(
-                    warnings -> failIfUnexpectedWarning(warnings, REINDEX_TASK_CANCEL_API_DEPRECATION)
-                )
+                .setWarningsHandler(warnings -> failIfUnexpectedWarning(warnings, REINDEX_TASK_CANCEL_API_DEPRECATION))
                 .build()
         );
         assertOK(adminClient().performRequest(cancelRequest));

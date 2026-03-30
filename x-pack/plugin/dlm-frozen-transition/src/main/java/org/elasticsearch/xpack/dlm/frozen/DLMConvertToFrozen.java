@@ -78,7 +78,6 @@ public class DLMConvertToFrozen implements DlmFrozenTransitionRunnable {
     private final ClusterService clusterService;
     private final XPackLicenseState licenseState;
     private final Clock clock;
-    private String forceMergeIndex;
 
     public DLMConvertToFrozen(
         String indexName,
@@ -101,23 +100,18 @@ public class DLMConvertToFrozen implements DlmFrozenTransitionRunnable {
     @Override
     public void run() {
         // Todo: WIP - steps will be implemented in follow-up PRs
-        List<Runnable> steps = List.of(
-            this::maybeMarkIndexReadOnly,
-            this::maybeCloneIndex,
-            this::maybeForceMergeIndex,
-            this::maybeTakeSnapshot,
-            this::maybeMountSearchableSnapshot
-        );
-
-        for (Runnable step : steps) {
-            checkIfThreadInterrupted();
-            try {
-                checkIfEligibleForConvertToFrozen();
-            } catch (IndexNotFoundException e) {
-                logger.debug("Index [{}] no longer exists in project [{}], skipping DLM convert-to-frozen steps", indexName, projectId);
-                return;
+        try {
+            maybeMarkIndexReadOnly();
+            String forceMergeIndex = maybeCloneIndex();
+            maybeForceMergeIndex(forceMergeIndex);
+            maybeTakeSnapshot();
+            maybeMountSearchableSnapshot();
+        } catch (IndexNotFoundException e) {
+            if (e.getIndex().getName().equals(indexName)) {
+                logger.warn("Index [{}] was not found during DLM convert-to-frozen operation, skipping this index", indexName);
+            } else {
+                throw e;
             }
-            step.run();
         }
     }
 
@@ -131,6 +125,9 @@ public class DLMConvertToFrozen implements DlmFrozenTransitionRunnable {
      * exception or an unacknowledged response from the cluster.
      */
     public void maybeMarkIndexReadOnly() {
+        checkIfThreadInterrupted();
+        checkIfEligibleForConvertToFrozen();
+
         if (isIndexReadOnly()) {
             logger.debug("Index [{}] is already marked as read-only, skipping to clone step", indexName);
             return;
@@ -159,9 +156,12 @@ public class DLMConvertToFrozen implements DlmFrozenTransitionRunnable {
      * Returns the name of the index to be used for force merge in the next step, which will be either the existing clone,
      * the original index (if it has 0 replicas), or a newly created clone.
      */
-    void maybeCloneIndex() {
+    String maybeCloneIndex() {
+        checkIfThreadInterrupted();
+        checkIfEligibleForConvertToFrozen();
+
         if (isCloneNeeded() == false) {
-            this.forceMergeIndex = getIndexForForceMerge();
+            return getIndexForForceMerge();
         }
 
         String cloneIndexName = getDLMCloneIndexName();
@@ -176,7 +176,7 @@ public class DLMConvertToFrozen implements DlmFrozenTransitionRunnable {
                 );
             }
             logger.info("DLM successfully cloned index [{}] to index [{}]", indexName, cloneIndexName);
-            this.forceMergeIndex = cloneIndexName;
+            return cloneIndexName;
         } catch (Exception e) {
             if (e instanceof InterruptedException || ExceptionsHelper.unwrapCause(e) instanceof IndexNotFoundException) {
                 Thread.currentThread().interrupt();
@@ -198,8 +198,11 @@ public class DLMConvertToFrozen implements DlmFrozenTransitionRunnable {
         }
     }
 
-    public void maybeForceMergeIndex() {
-        if (this.forceMergeIndex == null) {
+    public void maybeForceMergeIndex(String forceMergeIndex) {
+        checkIfThreadInterrupted();
+        checkIfEligibleForConvertToFrozen();
+
+        if (forceMergeIndex == null) {
             // this should not be reachable in normal execution
             throw new IllegalStateException(
                 "forceMergeIndex is not set. This should never happen as" + " maybeCloneIndex should have been called before this method"
@@ -256,9 +259,15 @@ public class DLMConvertToFrozen implements DlmFrozenTransitionRunnable {
         }
     }
 
-    public void maybeTakeSnapshot() {}
+    public void maybeTakeSnapshot() {
+        checkIfThreadInterrupted();
+        checkIfEligibleForConvertToFrozen();
+    }
 
-    public void maybeMountSearchableSnapshot() {}
+    public void maybeMountSearchableSnapshot() {
+        checkIfThreadInterrupted();
+        checkIfEligibleForConvertToFrozen();
+    }
 
     private boolean isIndexReadOnly() {
         return getProjectState().blocks().hasIndexBlock(projectId, indexName, WRITE.getBlock());

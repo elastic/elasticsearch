@@ -143,8 +143,7 @@ public class DLMConvertToFrozenForceMergeTests extends ESTestCase {
             Clock.systemUTC()
         );
 
-        converter.setForceMergeIndex(indexName);
-        converter.maybeForceMergeIndex();
+        converter.maybeForceMergeIndex(indexName);
 
         // No force merge request should have been sent since the index is already at 1 segment
         assertThat(capturedForceMergeRequest.get(), is(nullValue()));
@@ -168,32 +167,12 @@ public class DLMConvertToFrozenForceMergeTests extends ESTestCase {
             Clock.systemUTC()
         );
 
-        converter.setForceMergeIndex(indexName);
-        converter.maybeForceMergeIndex();
+        converter.maybeForceMergeIndex(indexName);
 
         assertThat(capturedForceMergeRequest.get(), is(notNullValue()));
         assertThat(capturedForceMergeRequest.get().indices().length, is(1));
         assertThat(capturedForceMergeRequest.get().indices()[0], is(indexName));
         assertThat(capturedForceMergeRequest.get().maxNumSegments(), is(1));
-    }
-
-    public void testMaybeForceMergeSkipsWhenIndexNotInMetadata() {
-        buildProjectState(null);
-
-        DLMConvertToFrozen converter = new DLMConvertToFrozen(
-            indexName,
-            projectId,
-            createMockClient(),
-            clusterService,
-            licenseState,
-            Clock.systemUTC()
-        );
-
-        converter.setForceMergeIndex(indexName);
-        converter.maybeForceMergeIndex();
-
-        // No force merge request should be sent when the index is not in metadata
-        assertThat(capturedForceMergeRequest.get(), is(nullValue()));
     }
 
     public void testForceMergeThrowsWhenShardsHaveFailures() {
@@ -215,8 +194,7 @@ public class DLMConvertToFrozenForceMergeTests extends ESTestCase {
             Clock.systemUTC()
         );
 
-        converter.setForceMergeIndex(indexName);
-        ElasticsearchException exception = expectThrows(ElasticsearchException.class, converter::maybeForceMergeIndex);
+        ElasticsearchException exception = expectThrows(ElasticsearchException.class, () -> converter.maybeForceMergeIndex(indexName));
         assertThat(exception.getMessage(), containsString(indexName));
         assertThat(exception.getMessage(), containsString("DLM failed to force merge"));
     }
@@ -235,8 +213,7 @@ public class DLMConvertToFrozenForceMergeTests extends ESTestCase {
             Clock.systemUTC()
         );
 
-        converter.setForceMergeIndex(indexName);
-        ElasticsearchException exception = expectThrows(ElasticsearchException.class, converter::maybeForceMergeIndex);
+        ElasticsearchException exception = expectThrows(ElasticsearchException.class, () -> converter.maybeForceMergeIndex(indexName));
         assertThat(exception.getMessage(), containsString(indexName));
         assertThat(exception.getMessage(), containsString("shards were unavailable"));
     }
@@ -256,8 +233,7 @@ public class DLMConvertToFrozenForceMergeTests extends ESTestCase {
         );
 
         // Should not throw
-        converter.setForceMergeIndex(indexName);
-        converter.maybeForceMergeIndex();
+        converter.maybeForceMergeIndex(indexName);
 
         assertThat(capturedForceMergeRequest.get(), is(notNullValue()));
     }
@@ -276,8 +252,7 @@ public class DLMConvertToFrozenForceMergeTests extends ESTestCase {
             Clock.systemUTC()
         );
 
-        converter.setForceMergeIndex(indexName);
-        ElasticsearchException exception = expectThrows(ElasticsearchException.class, converter::maybeForceMergeIndex);
+        ElasticsearchException exception = expectThrows(ElasticsearchException.class, () -> converter.maybeForceMergeIndex(indexName));
         assertThat(exception.getCause().getMessage(), containsString("transport failure"));
     }
 

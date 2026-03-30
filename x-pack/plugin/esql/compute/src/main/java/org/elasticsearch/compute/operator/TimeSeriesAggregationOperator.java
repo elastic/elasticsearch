@@ -55,6 +55,7 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
     ) implements OperatorFactory {
         @Override
         public Operator get(DriverContext driverContext) {
+            final boolean outputFinal = aggregatorMode.isOutputPartial() == false;
             return new TimeSeriesAggregationOperator(
                 timeBucket,
                 dateNanos ? DateFieldMapper.Resolution.NANOSECONDS : DateFieldMapper.Resolution.MILLISECONDS,
@@ -66,9 +67,9 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
                         var g1 = groups.get(0);
                         var g2 = groups.get(1);
                         if (g1.elementType() == ElementType.BYTES_REF && g2.elementType() == ElementType.LONG) {
-                            return new TimeSeriesBlockHash(g1.channel(), g2.channel(), false, driverContext.blockFactory());
+                            return new TimeSeriesBlockHash(g1.channel(), g2.channel(), false, outputFinal, driverContext.blockFactory());
                         } else if (g1.elementType() == ElementType.LONG && g2.elementType() == ElementType.BYTES_REF) {
-                            return new TimeSeriesBlockHash(g2.channel(), g1.channel(), true, driverContext.blockFactory());
+                            return new TimeSeriesBlockHash(g2.channel(), g1.channel(), true, outputFinal, driverContext.blockFactory());
                         }
                     }
                     // Broken optimizations are allowed as the inputs are vectors.
@@ -210,7 +211,7 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
             bucket = Math.max(bucket, tsBlockHash.minTimestamp());
             // Fill the missing buckets between (timestamp-window, timestamp)
             while (bucket < endTimestamp) {
-                if (tsBlockHash.addGroup(tsid, bucket) >= 0) {
+                if (tsBlockHash.addExtraGroup(tsid, bucket) >= 0) {
                     expandingGroups.addGroup(Math.toIntExact(groupId));
                 }
                 bucket = optimizedTimeBucket.nextRoundingValue(bucket);

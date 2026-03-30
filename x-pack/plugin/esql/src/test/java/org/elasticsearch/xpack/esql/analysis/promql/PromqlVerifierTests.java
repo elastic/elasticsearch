@@ -144,10 +144,6 @@ public class PromqlVerifierTests extends ESTestCase {
         );
     }
 
-    public void testWithoutNotSupported() {
-        tsdb.error("PROMQL index=test step=5m avg(foo) without (bar)", containsString("'without' grouping is not supported at this time"));
-    }
-
     public void testGroupModifiersNotSupported() {
         tsdb.error(
             "PROMQL index=test step=5m foo / on(bar) baz",

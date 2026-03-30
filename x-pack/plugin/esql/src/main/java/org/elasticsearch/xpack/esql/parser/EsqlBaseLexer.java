@@ -352,7 +352,7 @@ public class EsqlBaseLexer extends LexerConfig {
   private boolean DEV_EXTERNAL_sempred(RuleContext _localctx, int predIndex) {
     switch (predIndex) {
     case 1:
-      return this.isDevVersion();
+      return this.isExternalDataSourcesEnabled();
     }
     return true;
   }

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -33,8 +34,10 @@ import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
+import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
@@ -2560,6 +2563,66 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
             }
         };
         return new ExternalRelation(EMPTY, "s3://bucket/data.parquet", metadata, attributes);
+    }
+
+    /**
+     * PruneColumns must not descend into MetricsInfo children. MetricsInfo.computeReferences()
+     * returns EMPTY, so without the skip the rule would prune every projection below it to
+     * Project[[]], breaking the data pipeline on data nodes.
+     */
+    public void testPruneColumnsSkipsMetricsInfo() {
+        FieldAttribute cpuField = new FieldAttribute(
+            EMPTY,
+            "cpu",
+            new EsField("cpu", LONG, Map.of(), true, EsField.TimeSeriesFieldType.METRIC)
+        );
+        EsRelation esRelation = new EsRelation(
+            EMPTY,
+            "k8s",
+            IndexMode.TIME_SERIES,
+            Map.of(),
+            Map.of(),
+            Map.of("k8s", IndexMode.TIME_SERIES),
+            List.of(cpuField)
+        );
+        Project project = new Project(EMPTY, esRelation, List.of(cpuField));
+        MetricsInfo metricsInfo = new MetricsInfo(EMPTY, project);
+
+        LogicalPlan result = new PruneColumns().apply(metricsInfo);
+
+        MetricsInfo resultMetricsInfo = as(result, MetricsInfo.class);
+        Project resultProject = as(resultMetricsInfo.child(), Project.class);
+        assertThat(resultProject.projections(), hasSize(1));
+        assertThat(Expressions.names(resultProject.projections()), contains("cpu"));
+    }
+
+    /**
+     * Same as {@link #testPruneColumnsSkipsMetricsInfo()} but for TsInfo.
+     */
+    public void testPruneColumnsSkipsTsInfo() {
+        FieldAttribute cpuField = new FieldAttribute(
+            EMPTY,
+            "cpu",
+            new EsField("cpu", LONG, Map.of(), true, EsField.TimeSeriesFieldType.METRIC)
+        );
+        EsRelation esRelation = new EsRelation(
+            EMPTY,
+            "k8s",
+            IndexMode.TIME_SERIES,
+            Map.of(),
+            Map.of(),
+            Map.of("k8s", IndexMode.TIME_SERIES),
+            List.of(cpuField)
+        );
+        Project project = new Project(EMPTY, esRelation, List.of(cpuField));
+        TsInfo tsInfo = new TsInfo(EMPTY, project);
+
+        LogicalPlan result = new PruneColumns().apply(tsInfo);
+
+        TsInfo resultTsInfo = as(result, TsInfo.class);
+        Project resultProject = as(resultTsInfo.child(), Project.class);
+        assertThat(resultProject.projections(), hasSize(1));
+        assertThat(Expressions.names(resultProject.projections()), contains("cpu"));
     }
 
 }

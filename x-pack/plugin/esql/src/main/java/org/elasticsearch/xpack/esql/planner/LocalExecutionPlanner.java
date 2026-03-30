@@ -264,6 +264,7 @@ public class LocalExecutionPlanner {
             foldCtx,
             plannerSettings,
             timeSeries,
+            settings,
             shardContexts
         );
 
@@ -1644,6 +1645,7 @@ public class LocalExecutionPlanner {
         FoldContext foldCtx,
         PlannerSettings plannerSettings,
         boolean timeSeries,
+        Settings settings,
         IndexedByShardId<? extends ShardContext> shardContexts
     ) {
         void addDriverFactory(DriverFactory driverFactory) {

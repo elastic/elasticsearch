@@ -64,6 +64,8 @@ public abstract class GenerativeApproximationRestTest extends EsqlSpecTestCase {
             }
         }
 
+        // All CST tests (except for the approximation tests, which are skipped) have small data,
+        // therefore the exact result should be returned even with approximation enabled.
         super.assertResults(expected, actualColumns, actualValues, logger);
     }
 

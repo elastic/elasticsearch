@@ -6,7 +6,7 @@ setup:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ reject_loading_partially_unmapped_non_keywords ]
+          capabilities: [ optional_fields_v5 ]
       reason: "Loading a partially unmapped non-keyword field must fail when unmapped_fields=load"
   - do:
       indices.create:

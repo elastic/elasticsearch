@@ -6,7 +6,7 @@ setup:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [ reject_loading_flattened_subfields ]
+          capabilities: [ optional_fields_v5 ]
       reason: "Loading a subfield a flattened field must fail when unmapped_fields=load"
   - do:
       indices.create:

@@ -1055,7 +1055,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
      * Covers one offending field; see {@link #testDisallowLoadWithPartiallyMappedNonKeywordReportsAllFields} for multiple.
      */
     public void testDisallowLoadWithPartiallyMappedNonKeyword() {
-        assumeTrue("Requires OPTIONAL_FIELDS_V4", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V4.isEnabled());
+        assumeTrue("Requires OPTIONAL_FIELDS_V5", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
 
         var esIndex = partialIndex("partial_idx", Map.of("partial_long", longField("partial_long")), Set.of("partial_long"));
         assertUnmappedLoadError(
@@ -1072,7 +1072,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
     }
 
     public void testDisallowLoadWithPartiallyMappedNonKeywordReportsAllFields() {
-        assumeTrue("Requires OPTIONAL_FIELDS_V4", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V4.isEnabled());
+        assumeTrue("Requires OPTIONAL_FIELDS_V5", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
 
         var esIndex = partialIndex(
             "partial_idx",
@@ -1097,7 +1097,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
     }
 
     public void testAllowLoadWithPartialNonKeywordWhenFieldNotReferenced() {
-        assumeTrue("Requires OPTIONAL_FIELDS_V4", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V4.isEnabled());
+        assumeTrue("Requires OPTIONAL_FIELDS_V5", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
 
         var esIndex = partialIndex(
             "partial_idx",
@@ -1116,7 +1116,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
      * resolution (see {@link IndexResolution#matches}).
      */
     public void testAllowLoadCommaSeparatedIndicesWhenPartialNonKeywordUnused() {
-        assumeTrue("Requires OPTIONAL_FIELDS_V4", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V4.isEnabled());
+        assumeTrue("Requires OPTIONAL_FIELDS_V5", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
 
         var pattern = "idx_a,idx_b";
         var merged = new EsIndex(
@@ -1133,7 +1133,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
     }
 
     public void testDisallowLoadCommaSeparatedIndicesWhenPartialNonKeywordUsed() {
-        assumeTrue("Requires OPTIONAL_FIELDS_V4", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V4.isEnabled());
+        assumeTrue("Requires OPTIONAL_FIELDS_V5", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
 
         var pattern = "idx_a,idx_b";
         var merged = new EsIndex(
@@ -1158,7 +1158,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
     }
 
     public void testAllowLoadFromOnlyWhenPartialNonKeywordUnused() {
-        assumeTrue("Requires OPTIONAL_FIELDS_V4", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V4.isEnabled());
+        assumeTrue("Requires OPTIONAL_FIELDS_V5", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
 
         var esIndex = partialIndex("partial_idx", Map.of("partial_long", longField("partial_long")), Set.of("partial_long"));
         var plan = analyzer().addIndex(esIndex).statement(setUnmappedLoad("FROM partial_idx"));
@@ -1166,7 +1166,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
     }
 
     public void testDisallowLoadWithPartiallyMappedNonKeywordInWhere() {
-        assumeTrue("Requires OPTIONAL_FIELDS_V4", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V4.isEnabled());
+        assumeTrue("Requires OPTIONAL_FIELDS_V5", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
 
         var esIndex = partialIndex("partial_idx", Map.of("partial_long", longField("partial_long")), Set.of("partial_long"));
         assertUnmappedLoadError(
@@ -1183,7 +1183,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
     }
 
     public void testDisallowLoadWithPartiallyMappedNonKeywordInSort() {
-        assumeTrue("Requires OPTIONAL_FIELDS_V4", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V4.isEnabled());
+        assumeTrue("Requires OPTIONAL_FIELDS_V5", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
 
         var esIndex = partialIndex("partial_idx", Map.of("partial_long", longField("partial_long")), Set.of("partial_long"));
         assertUnmappedLoadError(
@@ -1205,7 +1205,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
      * A regression that bypasses the verifier for one of these commands would cause its test to fail.
      */
     public void testDisallowLoadWithPartiallyMappedNonKeywordInChangePoint() {
-        assumeTrue("Requires OPTIONAL_FIELDS_V4", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V4.isEnabled());
+        assumeTrue("Requires OPTIONAL_FIELDS_V5", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
         assumeTrue("Requires CHANGE_POINT", EsqlCapabilities.Cap.CHANGE_POINT.isEnabled());
 
         var esIndex = partialIndex(
@@ -1233,7 +1233,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
 
     /** See {@link #testDisallowLoadWithPartiallyMappedNonKeywordInChangePoint}. */
     public void testDisallowLoadWithPartiallyMappedNonKeywordInMvExpand() {
-        assumeTrue("Requires OPTIONAL_FIELDS_V4", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V4.isEnabled());
+        assumeTrue("Requires OPTIONAL_FIELDS_V5", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
 
         var esIndex = partialIndex("partial_idx", Map.of("partial_long", longField("partial_long")), Set.of("partial_long"));
         assertUnmappedLoadError(
@@ -1250,7 +1250,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
     }
 
     public void testDisallowLoadWithPartiallyMappedNonKeywordDottedPath() {
-        assumeTrue("Requires OPTIONAL_FIELDS_V4", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V4.isEnabled());
+        assumeTrue("Requires OPTIONAL_FIELDS_V5", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
 
         var sub = longField("sub");
         var obj = new EsField("obj", DataType.OBJECT, Map.of("sub", sub), true, EsField.TimeSeriesFieldType.NONE);
@@ -1273,7 +1273,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
      * {@code unmapped_fields=load}, this still fails because {@code @timestamp} is partially unmapped and used in {@code WHERE}.
      */
     public void testDisallowLoadWithPartialUnionTimestampInWhere() {
-        assumeTrue("Requires OPTIONAL_FIELDS_V4", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V4.isEnabled());
+        assumeTrue("Requires OPTIONAL_FIELDS_V5", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
 
         var pattern = "sample_data,sample_data_ts_nanos,no_mapping_sample_data";
         var tsField = new InvalidMappedField(
@@ -1309,7 +1309,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
     }
 
     public void testAllowLoadWithPartiallyMappedKeyword() {
-        assumeTrue("Requires OPTIONAL_FIELDS_V4", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V4.isEnabled());
+        assumeTrue("Requires OPTIONAL_FIELDS_V5", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
 
         var esIndex = partialIndex(
             "partial_idx",
@@ -1393,7 +1393,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
     }
 
     private static String setUnmappedLoad(String query) {
-        assumeTrue("Requires OPTIONAL_FIELDS_V4", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V4.isEnabled());
+        assumeTrue("Requires OPTIONAL_FIELDS_V5", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
         return "SET unmapped_fields=\"load\"; " + query;
     }
 

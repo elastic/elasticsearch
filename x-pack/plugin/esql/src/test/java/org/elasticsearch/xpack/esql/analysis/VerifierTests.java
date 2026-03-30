@@ -3972,7 +3972,7 @@ public class VerifierTests extends ESTestCase {
      * This exercises the full analysis + verification pipeline, not just the unit-tested Verifier path.
      */
     public void testPartiallyUnmappedNonKeywordIsRejectedWithLoad() {
-        assumeTrue("Requires OPTIONAL_FIELDS_V4", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V4.isEnabled());
+        assumeTrue("Requires OPTIONAL_FIELDS_V5", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
 
         var esIndex = partialNonKeywordIndex();
         var ta = analyzer().addIndex(esIndex);
@@ -3993,7 +3993,7 @@ public class VerifierTests extends ESTestCase {
      * must succeed — the check fires only when the field is used outside the source relation.
      */
     public void testPartiallyUnmappedNonKeywordIsAllowedWithLoad_WhenNotReferenced() {
-        assumeTrue("Requires OPTIONAL_FIELDS_V4", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V4.isEnabled());
+        assumeTrue("Requires OPTIONAL_FIELDS_V5", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
 
         var esIndex = partialNonKeywordIndex();
         // partial_long is in the index but not referenced in any downstream expression — no PUNK violation

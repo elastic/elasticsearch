@@ -14,22 +14,16 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.core.IOUtils;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.BeforeClass;
-import org.openjdk.jmh.annotations.Param;
 
-import java.util.Arrays;
-import java.util.List;
 import java.util.Random;
-
-import static org.elasticsearch.common.util.CollectionUtils.appendToCopy;
 
 @TestLogging(
     reason = "Noisy logging",
     value = "org.elasticsearch.env.NodeEnvironment:WARN,org.elasticsearch.xpack.searchablesnapshots.cache.full.PersistentCache:WARN"
 )
-public class VectorScorerOSQBenchmarkTests extends ESTestCase {
+public class VectorScorerOSQBenchmarkTests extends BenchmarkTest {
 
     private static final int REPETITIONS = 10;
     private final float deltaPercent = 0.1f;
@@ -130,19 +124,12 @@ public class VectorScorerOSQBenchmarkTests extends ESTestCase {
     }
 
     @ParametersFactory
-    public static Iterable<Object[]> parametersFactory() {
-        try {
-            String[] dims = VectorScorerOSQBenchmark.class.getField("dims").getAnnotationsByType(Param.class)[0].value();
-            String[] bits = VectorScorerOSQBenchmark.class.getField("bits").getAnnotationsByType(Param.class)[0].value();
-
-            return () -> Arrays.stream(dims)
-                .map(Integer::parseInt)
-                .flatMap(d -> Arrays.stream(bits).map(Byte::parseByte).map(b -> List.<Object>of(d, b)))
-                .flatMap(params -> Arrays.stream(VectorScorerOSQBenchmark.DirectoryType.values()).map(dir -> appendToCopy(params, dir)))
-                .flatMap(params -> Arrays.stream(VectorSimilarityFunction.values()).map(f -> appendToCopy(params, f).toArray()))
-                .iterator();
-        } catch (NoSuchFieldException e) {
-            throw new AssertionError(e);
-        }
+    public static Iterable<Object[]> parametersFactory() throws NoSuchFieldException {
+        return generateParameters(
+            VectorScorerOSQBenchmark.class.getField("dims"),
+            VectorScorerOSQBenchmark.class.getField("bits"),
+            VectorScorerOSQBenchmark.class.getField("directoryType"),
+            VectorScorerOSQBenchmark.class.getField("similarityFunction")
+        );
     }
 }

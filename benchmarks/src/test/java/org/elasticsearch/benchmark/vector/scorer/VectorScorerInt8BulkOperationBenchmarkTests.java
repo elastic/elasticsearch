@@ -10,16 +10,11 @@
 package org.elasticsearch.benchmark.vector.scorer;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.simdvec.VectorSimilarityType;
-import org.elasticsearch.test.ESTestCase;
 import org.junit.BeforeClass;
-import org.openjdk.jmh.annotations.Param;
 
-import java.util.Arrays;
-
-public class VectorScorerInt8BulkOperationBenchmarkTests extends ESTestCase {
+public class VectorScorerInt8BulkOperationBenchmarkTests extends BenchmarkTest {
 
     private final VectorSimilarityType function;
     private final int dims;
@@ -73,17 +68,10 @@ public class VectorScorerInt8BulkOperationBenchmarkTests extends ESTestCase {
     }
 
     @ParametersFactory
-    public static Iterable<Object[]> parametersFactory() {
-        try {
-            String[] dims = VectorScorerInt8BulkOperationBenchmark.class.getField("dims").getAnnotationsByType(Param.class)[0].value();
-            String[] functions = VectorScorerInt8BulkOperationBenchmark.class.getField("function").getAnnotationsByType(Param.class)[0]
-                .value();
-            return () -> Arrays.stream(dims)
-                .map(Integer::parseInt)
-                .flatMap(d -> Arrays.stream(functions).map(VectorSimilarityType::valueOf).map(f -> new Object[] { f, d }))
-                .iterator();
-        } catch (NoSuchFieldException e) {
-            throw new AssertionError(e);
-        }
+    public static Iterable<Object[]> parametersFactory() throws NoSuchFieldException {
+        return generateParameters(
+            VectorScorerInt8BulkOperationBenchmark.class.getField("function"),
+            VectorScorerInt8BulkOperationBenchmark.class.getField("dims")
+        );
     }
 }

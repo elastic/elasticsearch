@@ -13,16 +13,13 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.simdvec.VectorSimilarityType;
-import org.elasticsearch.test.ESTestCase;
 import org.junit.BeforeClass;
-import org.openjdk.jmh.annotations.Param;
 
-import java.util.Arrays;
 import java.util.List;
 
 import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.supportsHeapSegments;
 
-public class VectorScorerFloatBulkBenchmarkTests extends ESTestCase {
+public class VectorScorerFloatBulkBenchmarkTests extends BenchmarkTest {
 
     private final VectorSimilarityType function;
     private final float delta = 1e-3f;
@@ -133,16 +130,10 @@ public class VectorScorerFloatBulkBenchmarkTests extends ESTestCase {
     }
 
     @ParametersFactory
-    public static Iterable<Object[]> parametersFactory() {
-        try {
-            String[] dims = VectorScorerFloatBulkBenchmark.class.getField("dims").getAnnotationsByType(Param.class)[0].value();
-            String[] functions = VectorScorerFloatBulkBenchmark.class.getField("function").getAnnotationsByType(Param.class)[0].value();
-            return () -> Arrays.stream(dims)
-                .map(Integer::parseInt)
-                .flatMap(i -> Arrays.stream(functions).map(VectorSimilarityType::valueOf).map(f -> new Object[] { f, i }))
-                .iterator();
-        } catch (NoSuchFieldException e) {
-            throw new AssertionError(e);
-        }
+    public static Iterable<Object[]> parametersFactory() throws NoSuchFieldException {
+        return generateParameters(
+            VectorScorerFloatBulkBenchmark.class.getField("function"),
+            VectorScorerFloatBulkBenchmark.class.getField("dims")
+        );
     }
 }

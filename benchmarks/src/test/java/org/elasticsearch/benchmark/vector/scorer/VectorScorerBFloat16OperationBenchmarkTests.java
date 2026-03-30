@@ -12,22 +12,18 @@ package org.elasticsearch.benchmark.vector.scorer;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.codec.vectors.BFloat16;
 import org.elasticsearch.nativeaccess.VectorSimilarityFunctions;
 import org.elasticsearch.nativeaccess.jdk.ScalarOperations;
 import org.elasticsearch.simdvec.VectorSimilarityType;
-import org.elasticsearch.test.ESTestCase;
 import org.junit.AssumptionViolatedException;
 import org.junit.BeforeClass;
-import org.openjdk.jmh.annotations.Param;
 
 import java.nio.ShortBuffer;
-import java.util.Arrays;
 
 import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.supportsHeapSegments;
 
-public class VectorScorerBFloat16OperationBenchmarkTests extends ESTestCase {
+public class VectorScorerBFloat16OperationBenchmarkTests extends BenchmarkTest {
 
     private final VectorSimilarityType function;
     private final double delta;
@@ -84,19 +80,11 @@ public class VectorScorerBFloat16OperationBenchmarkTests extends ESTestCase {
     }
 
     @ParametersFactory
-    public static Iterable<Object[]> parametersFactory() {
-        try {
-            String[] size = VectorScorerBFloat16OperationBenchmark.class.getField("size").getAnnotationsByType(Param.class)[0].value();
-            String[] functions = VectorScorerBFloat16OperationBenchmark.class.getField("function").getAnnotationsByType(Param.class)[0]
-                .value();
-            VectorSimilarityFunctions.BFloat16QueryType[] queryTypes = VectorSimilarityFunctions.BFloat16QueryType.values();
-            return () -> Arrays.stream(size)
-                .map(Integer::parseInt)
-                .flatMap(i -> Arrays.stream(functions).map(VectorSimilarityType::valueOf).map(f -> new Object[] { f, i }))
-                .flatMap(o -> Arrays.stream(queryTypes).map(qt -> CollectionUtils.appendToCopy(Arrays.asList(o), qt).toArray()))
-                .iterator();
-        } catch (NoSuchFieldException e) {
-            throw new AssertionError(e);
-        }
+    public static Iterable<Object[]> parametersFactory() throws NoSuchFieldException {
+        return generateParameters(
+            VectorScorerBFloat16OperationBenchmark.class.getField("function"),
+            VectorScorerBFloat16OperationBenchmark.class.getField("size"),
+            VectorScorerBFloat16OperationBenchmark.class.getField("queryType")
+        );
     }
 }

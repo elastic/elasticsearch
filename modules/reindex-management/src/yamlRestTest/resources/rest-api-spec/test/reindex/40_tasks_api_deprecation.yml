@@ -1,6 +1,6 @@
 setup:
   - requires:
-      test_runner_features: [capabilities, allowed_warnings]
+      test_runner_features: [capabilities, warnings]
       reason: Task management deprecation uses Warning headers; dedicated reindex APIs must exist
       capabilities:
         - method: GET
@@ -39,7 +39,7 @@ setup:
   - set: { task: taskId }
 
   - do:
-      allowed_warnings:
+      warnings:
         - "Using the task management APIs to get reindexing tasks is deprecated because they do not account for task relocations to other nodes. Use the dedicated reindex API instead: `GET /_reindex/{task_id}`"
       tasks.get:
         task_id: $taskId
@@ -62,7 +62,7 @@ setup:
   - set: { task: taskId }
 
   - do:
-      allowed_warnings:
+      warnings:
         - "Using the task management APIs to cancel reindex tasks is deprecated because they do not account for task relocations to other nodes. Use the dedicated reindex API instead: `POST /_reindex/{task_id}/_cancel`."
       tasks.cancel:
         task_id: $taskId

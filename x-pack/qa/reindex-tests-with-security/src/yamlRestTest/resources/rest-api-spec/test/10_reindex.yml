@@ -315,7 +315,7 @@ setup:
 ---
 "Reindex wait_for_completion=false as minimal with task API":
   - requires:
-      test_runner_features: allowed_warnings
+      test_runner_features: warnings
   - do:
       index:
         index:   source
@@ -337,7 +337,7 @@ setup:
   - set: {task: task}
 
   - do:
-      allowed_warnings:
+      warnings:
         - "Using the task management APIs to get reindexing tasks is deprecated because they do not account for task relocations to other nodes. Use the dedicated reindex API instead: `GET /_reindex/{task_id}`"
       headers: {es-security-runas-user: minimal_with_task_user}
       tasks.get:

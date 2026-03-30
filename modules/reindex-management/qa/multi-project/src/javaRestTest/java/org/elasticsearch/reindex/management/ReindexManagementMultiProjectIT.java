@@ -213,7 +213,9 @@ public class ReindexManagementMultiProjectIT extends ESRestTestCase {
         final Request request = new Request("GET", "/_tasks/" + taskId);
         request.setOptions(
             RequestOptions.DEFAULT.toBuilder()
-                .setWarningsHandler(warnings -> warningsShouldFailUnlessAllowed(warnings, REINDEX_TASK_GET_API_DEPRECATION))
+                .setWarningsHandler(
+                    warnings -> failIfUnexpectedWarning(warnings, REINDEX_TASK_GET_API_DEPRECATION)
+                )
                 .build()
         );
         setRequestProjectId(request, projectId);
@@ -280,20 +282,20 @@ public class ReindexManagementMultiProjectIT extends ESRestTestCase {
         cancelRequest.addParameter("wait_for_completion", "true");
         cancelRequest.setOptions(
             RequestOptions.DEFAULT.toBuilder()
-                .setWarningsHandler(warnings -> warningsShouldFailUnlessAllowed(warnings, REINDEX_TASK_CANCEL_API_DEPRECATION))
+                .setWarningsHandler(
+                    warnings -> failIfUnexpectedWarning(warnings, REINDEX_TASK_CANCEL_API_DEPRECATION)
+                )
                 .build()
         );
         assertOK(adminClient().performRequest(cancelRequest));
     }
 
-    /** @return {@code true} if the request should fail due to unexpected warning headers */
-    private static boolean warningsShouldFailUnlessAllowed(List<String> warnings, String allowedMessage) {
-        for (String w : warnings) {
-            if (allowedMessage.equals(w) == false) {
-                return true;
-            }
-        }
-        return false;
+    /**
+     * @return {@code true} if the REST client should fail the response (missing or unexpected {@code Warning} headers), or
+     * {@code false} if the warning is equal to the expected reindex task management deprecation message.
+     */
+    private static boolean failIfUnexpectedWarning(List<String> warnings, String expectedDeprecation) {
+        return warnings.size() != 1 || expectedDeprecation.equals(warnings.getFirst()) == false;
     }
 
 }

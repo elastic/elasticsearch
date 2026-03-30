@@ -10,6 +10,7 @@
 package org.elasticsearch.reindex.management;
 
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -137,10 +138,13 @@ public class ReindexRemoteIT extends ESRestTestCase {
         getTaskRequest.addParameter("timeout", "30s");
         final String reindexTaskGetApiDeprecation = "Using the task management APIs to get reindexing tasks is deprecated because they do not account for "
             + "task relocations to other nodes. Use the dedicated reindex API instead: `GET /_reindex/{task_id}`";
-        getTaskRequest.setOptions(expectVersionSpecificWarnings(v -> {
-            v.current(reindexTaskGetApiDeprecation);
-            v.compatible(reindexTaskGetApiDeprecation);
-        }));
+        getTaskRequest.setOptions(
+            RequestOptions.DEFAULT.toBuilder()
+                .setWarningsHandler(
+                    warnings -> warnings.size() != 1 || reindexTaskGetApiDeprecation.equals(warnings.getFirst()) == false
+                )
+                .build()
+        );
         Response taskResponse = client().performRequest(getTaskRequest);
         Map<String, Object> body = entityAsMap(taskResponse);
 

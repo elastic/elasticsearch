@@ -167,7 +167,7 @@
 ---
 "Create a task result record in the old cluster":
   - requires:
-      test_runner_features: allowed_warnings
+      test_runner_features: warnings
   - do:
       indices.create:
         index: reindexed_index
@@ -203,7 +203,7 @@
   - set: {task: task}
 
   - do:
-      allowed_warnings:
+      warnings:
         - "Using the task management APIs to get reindexing tasks is deprecated because they do not account for task relocations to other nodes. Use the dedicated reindex API instead: `GET /_reindex/{task_id}`"
       tasks.get:
         wait_for_completion: true

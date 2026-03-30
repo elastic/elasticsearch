@@ -71,7 +71,7 @@ public class SystemIndicesUpgradeIT extends AbstractRollingUpgradeTestCase {
             getTask.addParameter("wait_for_completion", "true");
             getTask.setOptions(
                 RequestOptions.DEFAULT.toBuilder()
-                    .setWarningsHandler(warnings -> warningsShouldFailGetCompletedReindexTask(warnings, reindexTaskGetApiDeprecation))
+                    .setWarningsHandler(warnings -> failIfUnexpectedWarning(warnings, reindexTaskGetApiDeprecation))
                     .build()
             );
             client().performRequest(getTask);
@@ -130,15 +130,12 @@ public class SystemIndicesUpgradeIT extends AbstractRollingUpgradeTestCase {
     }
 
     /**
-     * {@code GET /_tasks} with {@code wait_for_completion=true} may return the reindex-tasks deprecation warning.
-     * Fail only on unexpected warnings.
+     * {@code GET /_tasks} with {@code wait_for_completion=true} must return exactly one {@code Warning} header with the
+     * reindex task GET deprecation message.
+     *
+     * @return {@code true} if the REST client should treat the response as invalid (missing or unexpected warnings)
      */
-    private static boolean warningsShouldFailGetCompletedReindexTask(List<String> warnings, String reindexTaskGetApiDeprecation) {
-        for (String w : warnings) {
-            if (reindexTaskGetApiDeprecation.equals(w) == false) {
-                return true;
-            }
-        }
-        return false;
+    private static boolean failIfUnexpectedWarning(List<String> warnings, String reindexTaskGetApiDeprecation) {
+        return warnings.size() != 1 || reindexTaskGetApiDeprecation.equals(warnings.get(0)) == false;
     }
 }

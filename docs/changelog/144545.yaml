@@ -1,0 +1,6 @@
+area: Machine Learning
+issues:
+ - 144544
+pr: 144545
+summary: Fix "reset anomaly detection API" crashing when only colliding indices exist
+type: bug

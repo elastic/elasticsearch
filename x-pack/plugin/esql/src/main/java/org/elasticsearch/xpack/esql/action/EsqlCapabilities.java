@@ -200,6 +200,11 @@ public class EsqlCapabilities {
         CASTING_OPERATOR_FOR_DATE,
 
         /**
+         * Support for the {@code ::tdigest} and {@code ::exponential_histogram} casting operators.
+         */
+        CASTING_OPERATOR_FOR_HISTOGRAM_TYPES,
+
+        /**
          * Blocks can be labelled with {@link org.elasticsearch.compute.data.Block.MvOrdering#SORTED_ASCENDING} for optimizations.
          */
         MV_ORDERING_SORTED_ASCENDING,
@@ -220,8 +225,8 @@ public class EsqlCapabilities {
         METADATA_FIELDS,
 
         /**
-         * Support for optional fields (might or might not be present in the mappings) using FAIL/NULLIFY only.
-         * Compared to {@link #OPTIONAL_FIELDS_V2}, this does not enable support for LOAD.
+         * Support for optional fields (might or might not be present in the mappings) using DEFAULT/NULLIFY only.
+         * Compared to {@link #OPTIONAL_FIELDS_V4}, this does not enable support for LOAD.
          */
         OPTIONAL_FIELDS_NULLIFY_TECH_PREVIEW,
 
@@ -243,10 +248,12 @@ public class EsqlCapabilities {
         OPTIONAL_FIELDS_DETECT_UNMAPPED_FIELDS_IN_AGG_FILTERS,
 
         /**
-         * Support for optional fields (might or might not be present in the mappings) using FAIL/NULLIFY/LOAD.
-         * V2:  prevent pushing down filters and sorts to Lucene of potentially unmapped fields.
+         * Support for optional fields (might or might not be present in the mappings) using DEFAULT/NULLIFY/LOAD.
+         * V2:  Prevent pushing down filters and sorts to Lucene of potentially unmapped fields.
+         * V3:  Fix synthetic _source numeric load bug (#143916)
+         * V4:  Support for union type like resolution for load.
          */
-        OPTIONAL_FIELDS_V2(Build.current().isSnapshot()),
+        OPTIONAL_FIELDS_V4(Build.current().isSnapshot()),
 
         /**
          * Support specifically for *just* the _index METADATA field. Used by CsvTests, since that is the only metadata field currently
@@ -1089,11 +1096,6 @@ public class EsqlCapabilities {
         FULL_TEXT_FUNCTIONS_DISJUNCTIONS_SCORE,
 
         /**
-         * Support for multi-match function.
-         */
-        MULTI_MATCH_FUNCTION(Build.current().isSnapshot()),
-
-        /**
          * Do {@code TO_LOWER} and {@code TO_UPPER} process all field values?
          */
         TO_LOWER_MV,
@@ -1180,17 +1182,17 @@ public class EsqlCapabilities {
         /**
          * Support non-correlated subqueries in the FROM clause.
          */
-        SUBQUERY_IN_FROM_COMMAND(Build.current().isSnapshot()),
+        SUBQUERY_IN_FROM_COMMAND,
 
         /**
          * Support non-correlated subqueries in the FROM clause without implicit limit.
          */
-        SUBQUERY_IN_FROM_COMMAND_WITHOUT_IMPLICIT_LIMIT(Build.current().isSnapshot()),
+        SUBQUERY_IN_FROM_COMMAND_WITHOUT_IMPLICIT_LIMIT,
 
         /**
          * Append an implicit limit to unbounded sorts in subqueries in the FROM clause.
          */
-        SUBQUERY_IN_FROM_COMMAND_APPEND_IMPLICIT_LIMIT_TO_UNBOUNDED_SORT_IN_SUBQUERY(Build.current().isSnapshot()),
+        SUBQUERY_IN_FROM_COMMAND_APPEND_IMPLICIT_LIMIT_TO_UNBOUNDED_SORT_IN_SUBQUERY,
 
         /**
          * Support for views in cluster state (and REST API).
@@ -1209,6 +1211,10 @@ public class EsqlCapabilities {
          * Views with branching (requires subqueries/FORK).
          */
         VIEWS_WITH_BRANCHING(VIEWS_WITH_NO_BRANCHING.isEnabled() && SUBQUERY_IN_FROM_COMMAND.isEnabled()),
+        /**
+         * Added telemetry for views
+         */
+        VIEWS_TELEMETRY,
 
         /**
          * Support for the {@code leading_zeros} named parameter.
@@ -1968,10 +1974,15 @@ public class EsqlCapabilities {
         PROMQL_IMPLICIT_RANGE_SELECTOR,
 
         /**
-         * Support for {@code TIME_SERIES_WITHOUT_GROUPING} capability for the
-         * grouping function that excludes specific dimensions from time-series grouping.
+         * Support for PromQL {@code without} grouping.
          */
-        TIME_SERIES_WITHOUT_GROUPING,
+        PROMQL_WITHOUT_GROUPING,
+
+        /**
+         * Support for`WITHOUT` grouping function
+         * that excludes specific dimensions from time-series grouping.
+         */
+        ESQL_WITHOUT_GROUPING,
 
         /**
          * KNN function adds support for k and visit_percentage options
@@ -2120,7 +2131,7 @@ public class EsqlCapabilities {
         /**
          * Support query approximation.
          */
-        APPROXIMATION_V4(Build.current().isSnapshot()),
+        APPROXIMATION_V6(Build.current().isSnapshot()),
 
         /**
          * Create a ScoreOperator only when shard contexts are available
@@ -2152,6 +2163,11 @@ public class EsqlCapabilities {
          * Support for the {@code TO_EXPONENTIAL_HISTOGRAM} conversion function.
          */
         TO_EXPONENTIAL_HISTOGRAM,
+
+        /**
+         * Support for converting {@code exponential_histogram} fields via {@code TO_TDIGEST}.
+         */
+        TO_TDIGEST_FROM_EXPONENTIAL_HISTOGRAM,
 
         /**
          * Support for {@code MEDIAN} aggregation on {@code tdigest} type fields.
@@ -2218,7 +2234,12 @@ public class EsqlCapabilities {
         /**
          * Support for the EXTERNAL command (datasource access).
          */
-        EXTERNAL_COMMAND(Build.current().isSnapshot()),
+        EXTERNAL_COMMAND(EsqlFeatureFlags.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
+
+        /**
+         * Support for the EXTERNAL command (datasource access).
+         */
+        EXTERNAL_CSV_IP_SUPPORT(EsqlFeatureFlags.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
 
         /**
          * https://github.com/elastic/elasticsearch/issues/142219
@@ -2320,9 +2341,20 @@ public class EsqlCapabilities {
         FIX_PASSTHROUGH_FIELD_CAPS_OBJECT_PARENT,
 
         /**
-         * LIMIT n BY expr1, expr2 support for retaining at most n docs per group.
+         * Enables the feature LIMIT n BY expr1, expr2 for retaining at most n docs per group.
+         * The feature will not work if we had SORT | LIMIT n BY
          */
-        LIMIT_BY(Build.current().isSnapshot()),
+        ESQL_LIMIT_BY(Build.current().isSnapshot()),
+
+        /**
+         * Enables the SORT | LIMIT n BY expr1, expr2 support, see ESQL_LIMIT_BY for more context
+         */
+        ESQL_TOPN_BY(Build.current().isSnapshot()),
+
+        /**
+         * Corrects a bug with ENRICH when a shard does not contain an index field and we use LIMIT BY on top
+         */
+        LIMIT_BY_ENRICH_FIX(ESQL_LIMIT_BY.isEnabled()),
 
         /**
          * Fix window validation in time-series aggregations when TBUCKET uses a numeric target bucket count.
@@ -2334,6 +2366,43 @@ public class EsqlCapabilities {
          * <a href="https://github.com/elastic/elasticsearch/pull/144388"></a>
          */
         CHANGE_POINT_SUPPORT_NULL_COLUMN,
+
+        /**
+         * MMR fixes for constant folding
+         */
+        MMR_FOLDABLE_QUERY_VECTOR_FIX,
+
+        /**
+         * Support CHANGE_POINT arguments in any order
+         */
+        CHANGE_POINT_ARGS_ANY_ORDER,
+
+        /**
+         * Reject loading sub-fields of flattened fields when {@code unmapped_fields="load"}
+         * See https://github.com/elastic/elasticsearch/issues/143494
+         */
+        REJECT_LOADING_FLATTENED_SUBFIELDS(OPTIONAL_FIELDS_V4.isEnabled()),
+
+        FIX_DIV_ERROR_MESSAGE,
+
+        /**
+         * Added {@link org.elasticsearch.xpack.esql.planner.PlannerSettings#DOC_THRESHOLD_AUTO_PARTITIONING}
+         */
+        AUTO_PARTITION_DOCS_THRESHOLD,
+
+        /**
+         * Rename the {@code unmapped_fields} default setting from {@code "fail"} to {@code "default"}.
+         * See https://github.com/elastic/elasticsearch/issues/144833
+         */
+        UNMAPPED_FIELDS_DEFAULT_SETTING_RENAME,
+
+        /**
+         * Fix for {@code SUM(null)} producing a type mismatch after surrogate expansion.
+         * See https://github.com/elastic/elasticsearch/issues/144914
+         */
+        FIX_SUM_OF_NULL_OPTIMIZATION,
+
+        PROPAGATE_EMPTY_RELATION_PAST_JOINS,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

@@ -1,0 +1,6 @@
+area: Security
+issues: []
+pr: 144685
+summary: Skip automaton construction for literal resource strings in application privilege
+  checks
+type: enhancement

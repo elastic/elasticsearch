@@ -12,6 +12,7 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.esql.AssertWarnings;
 import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
+import org.elasticsearch.xpack.esql.approximation.ApproximationPlan;
 import org.elasticsearch.xpack.esql.generator.Column;
 import org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator;
 import org.elasticsearch.xpack.esql.generator.LookupIdx;
@@ -22,6 +23,7 @@ import org.elasticsearch.xpack.esql.generator.command.CommandGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.EnrichGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.EvalGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.LookupJoinGenerator;
+import org.elasticsearch.xpack.esql.generator.command.source.FromGenerator;
 import org.elasticsearch.xpack.esql.qa.rest.ProfileLogger;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase;
 import org.junit.AfterClass;
@@ -67,6 +69,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         "argument of \\[count.*\\] must",
         "Cannot use field \\[.*\\] with unsupported type \\[.*\\]",
         "Unbounded SORT not supported yet",
+        "MV_EXPAND .* cannot yet have an unbounded SORT .* before it",
         "The field names are too complex to process", // field_caps problem
         "must be \\[any type except counter types\\]", // TODO refine the generation of count()
         "INLINE STATS cannot be used after an explicit or implicit LIMIT command",
@@ -76,7 +79,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         // full-text functions are not allowed to match on fields that come from lookup indices
         "cannot operate on \\[.*\\], supplied by an index \\[.*\\] in non-STANDARD mode \\[lookup\\]",
         "Can only use fuzzy queries on keyword and text fields - not on \\[.*\\] which is of type \\[.*\\]",
-        // multi_match query receiving a non-boolean value for a boolean type field
+        // full-text function receiving a non-boolean value for a boolean type field
         "Can't parse boolean value \\[.*\\], expected \\[true\\] or \\[false\\]",
         // full-text function trying to parse text as date field and failing
         "failed to parse date field \\[.*\\] with format",
@@ -214,9 +217,17 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
                 public void run(CommandGenerator generator, CommandGenerator.CommandDescription current) {
                     final String command = current.commandString();
 
-                    final QueryExecuted result = previousResult == null
+                    QueryExecuted result = previousResult == null
                         ? execute(command, 0)
                         : execute(previousResult.query() + command, previousResult.depth());
+
+                    // Strip the artificial query approximation columns, that are added after
+                    // query execution, and trailing all other columns. These columns confuse
+                    // follow-up command generation (that try to reference them), and result
+                    // validation (that expect columns added after them).
+                    if (FromGenerator.hasApproximationSettings(result.query())) {
+                        result = stripApproximationColumns(result);
+                    }
 
                     final boolean hasException = result.exception() != null;
                     if (hasException
@@ -284,6 +295,30 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
                 }
             }
         }
+    }
+
+    /**
+     * Strips {@code _approximation_} metadata columns from a {@link QueryExecuted}.
+     */
+    private static QueryExecuted stripApproximationColumns(QueryExecuted qe) {
+        if (qe == null || qe.outputSchema() == null) {
+            return qe;
+        }
+        List<Integer> keepIndices = new ArrayList<>();
+        for (int i = 0; i < qe.outputSchema().size(); i++) {
+            if (qe.outputSchema().get(i).name().startsWith(ApproximationPlan.CONFIDENCE_INTERVAL_COLUMN_PREFIX) == false
+                && qe.outputSchema().get(i).name().startsWith(ApproximationPlan.CERTIFIED_COLUMN_PREFIX) == false) {
+                keepIndices.add(i);
+            }
+        }
+        if (keepIndices.size() == qe.outputSchema().size()) {
+            return qe;
+        }
+        List<Column> schema = keepIndices.stream().map(qe.outputSchema()::get).toList();
+        List<List<Object>> rows = qe.result() == null
+            ? null
+            : qe.result().stream().map(row -> keepIndices.stream().map(row::get).toList()).toList();
+        return new QueryExecuted(qe.query(), qe.depth(), schema, rows, qe.exception());
     }
 
     protected CommandGenerator sourceCommand() {
@@ -672,7 +707,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
     }
 
     private static final Pattern FULL_TEXT_AFTER_WHERE_PATTERN = Pattern.compile(
-        ".*(?:(?:\\[(?:KQL|QSTR|MATCH|MultiMatch|MatchPhrase)] function)|(?:\\[:\\] operator)) cannot be used after \\(?WHERE.*",
+        ".*(?:(?:\\[(?:KQL|QSTR|MATCH|MatchPhrase)] function)|(?:\\[:\\] operator)) cannot be used after \\(?WHERE.*",
         Pattern.DOTALL
     );
 
@@ -685,9 +720,6 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         return FULL_TEXT_AFTER_WHERE_PATTERN.matcher(errorWithoutLineBreaks).matches();
     }
 
-    private static final Pattern MULTI_MATCH_LENIENT_FALSE_PATTERN = Pattern.compile(
-        "(?i)\\bmulti_match\\s*\\([^)]*\\{[^}]*[\"']lenient[\"']\\s*:\\s*false[^}]*}[^)]*\\)"
-    );
     private static final Pattern MATCH_LENIENT_FALSE_PATTERN = Pattern.compile(
         "(?i)\\bmatch\\s*\\([^)]*\\{[^}]*[\"']lenient[\"']\\s*:\\s*false[^}]*}[^)]*\\)"
     );
@@ -703,9 +735,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         if (errorWithoutLineBreaks.contains("failed to create query: For input string") == false) {
             return false;
         }
-        return MULTI_MATCH_LENIENT_FALSE_PATTERN.matcher(query).find()
-            || MATCH_LENIENT_FALSE_PATTERN.matcher(query).find()
-            || QSTR_LENIENT_FALSE_PATTERN.matcher(query).find();
+        return MATCH_LENIENT_FALSE_PATTERN.matcher(query).find() || QSTR_LENIENT_FALSE_PATTERN.matcher(query).find();
     }
 
     @Override

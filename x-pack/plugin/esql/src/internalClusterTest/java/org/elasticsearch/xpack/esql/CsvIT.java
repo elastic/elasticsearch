@@ -101,6 +101,7 @@ import static org.elasticsearch.xpack.esql.CsvTestUtils.isEnabled;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.loadCsvSpecValues;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.CSV_DATASET;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.INFERENCE_CONFIGS;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.classpathResources;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.greaterThan;
@@ -116,6 +117,9 @@ import static org.hamcrest.Matchers.hasSize;
 public class CsvIT extends ESTestCase {
 
     private static final Logger logger = LogManager.getLogger(CsvIT.class);
+    private static final EsqlCapabilities ENABLED_CAPS = EsqlCapabilities.capabilities(TEST_FUNCTION_REGISTRY, false);
+    private static final EsqlCapabilities ALL_CAPS = EsqlCapabilities.capabilities(TEST_FUNCTION_REGISTRY, true);
+    private static final int BULK_INDEX_BATCH_SIZE = 10_000;
 
     private static InternalTestCluster cluster;
     private static String currentGroupName = null;
@@ -218,6 +222,7 @@ public class CsvIT extends ESTestCase {
             "CSV tests cannot handle EXTERNAL sources (requires QA integration tests)",
             testCase.query.trim().toUpperCase(java.util.Locale.ROOT).startsWith("EXTERNAL")
         );
+        checkTestCapabilities();
 
         currentGroupName = groupName;
         // verify no prior failures
@@ -258,6 +263,10 @@ public class CsvIT extends ESTestCase {
             t.setStackTrace(prependSpec(t.getStackTrace()));
             throw t;
         }
+    }
+
+    private void checkTestCapabilities() {
+        CsvTestUtils.checkTestCapabilities(ALL_CAPS, ENABLED_CAPS, testCase.requiredCapabilities);
     }
 
     private StackTraceElement[] prependSpec(StackTraceElement[] original) {
@@ -405,6 +414,14 @@ public class CsvIT extends ESTestCase {
                             .setId(document.id())
                             .setSource(document.json().toString(), XContentType.JSON)
                     );
+                    if (bulk.numberOfActions() >= BULK_INDEX_BATCH_SIZE) {
+                        var result = bulk.get();
+                        assertFalse(
+                            "Must load dataset [" + dataset.indexName() + "] successfully: " + result.buildFailureMessage(),
+                            result.hasFailures()
+                        );
+                        bulk = cluster.client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+                    }
                 }
                 if (bulk.numberOfActions() > 0) {
                     var result = bulk.get();

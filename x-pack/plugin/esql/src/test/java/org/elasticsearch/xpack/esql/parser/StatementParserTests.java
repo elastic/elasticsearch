@@ -13,7 +13,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
@@ -45,7 +44,6 @@ import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FilteredExpression;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchOperator;
-import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDenseVector;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
@@ -62,6 +60,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Les
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.ChangePoint;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -96,7 +95,6 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -128,7 +126,6 @@ import static org.elasticsearch.xpack.esql.analysis.AnalyzerTests.withInlinestat
 import static org.elasticsearch.xpack.esql.core.expression.Literal.FALSE;
 import static org.elasticsearch.xpack.esql.core.expression.Literal.TRUE;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
-import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.expression.function.FunctionResolutionStrategy.DEFAULT;
@@ -1087,7 +1084,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testLimitBy() {
-        assumeTrue("LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.LIMIT_BY.isEnabled());
+        assumeTrue("LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_LIMIT_BY.isEnabled());
         LogicalPlan plan = query("""
                 FROM foo
                 | SORT @timestamp DESC
@@ -1095,16 +1092,14 @@ public class StatementParserTests extends AbstractStatementParserTests {
             """);
         assertThat(plan, instanceOf(LimitBy.class));
         LimitBy limitBy = (LimitBy) plan;
-        assertThat(limitBy.limit(), instanceOf(Literal.class));
-        assertThat(((Literal) limitBy.limit()).value(), equalTo(10));
+        assertThat(limitBy.limitPerGroup(), instanceOf(Literal.class));
+        assertThat(((Literal) limitBy.limitPerGroup()).value(), equalTo(10));
 
         assertThat(limitBy.groupings().size(), equalTo(2));
         assertThat(limitBy.groupings().get(0), instanceOf(UnresolvedAttribute.class));
         assertThat(((UnresolvedAttribute) limitBy.groupings().get(0)).name(), equalTo("hostname"));
-        assertThat(limitBy.groupings().get(1), instanceOf(Alias.class));
-        Alias divAlias = (Alias) limitBy.groupings().get(1);
-        assertThat(divAlias.child(), instanceOf(Div.class));
-        Div divExpr = (Div) divAlias.child();
+        assertThat(limitBy.groupings().get(1), instanceOf(Div.class));
+        Div divExpr = (Div) limitBy.groupings().get(1);
         assertThat(divExpr.left(), instanceOf(UnresolvedAttribute.class));
         assertThat(((UnresolvedAttribute) divExpr.left()).name(), equalTo("@timestamp"));
         assertThat(divExpr.right(), instanceOf(Literal.class));
@@ -1127,7 +1122,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testLimitByQualifiedName() {
-        assumeTrue("LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.LIMIT_BY.isEnabled());
+        assumeTrue("LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_LIMIT_BY.isEnabled());
         LogicalPlan plan = query("""
                 FROM foo
                 | SORT @timestamp DESC
@@ -1135,8 +1130,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
             """);
         assertThat(plan, instanceOf(LimitBy.class));
         LimitBy limitBy = (LimitBy) plan;
-        assertThat(limitBy.limit(), instanceOf(Literal.class));
-        assertThat(((Literal) limitBy.limit()).value(), equalTo(10));
+        assertThat(limitBy.limitPerGroup(), instanceOf(Literal.class));
+        assertThat(((Literal) limitBy.limitPerGroup()).value(), equalTo(10));
 
         assertThat(limitBy.groupings(), everyItem(instanceOf(UnresolvedAttribute.class)));
         assertThat(limitBy.groupings().size(), equalTo(1));
@@ -1158,6 +1153,36 @@ public class StatementParserTests extends AbstractStatementParserTests {
         LogicalPlan relation = orderBy.child();
         assertThat(relation, instanceOf(UnresolvedRelation.class));
         assertThat(((UnresolvedRelation) relation).indexPattern().indexPattern(), equalTo("foo"));
+    }
+
+    public void testLimitByNegativeValue() {
+        assumeTrue("LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_LIMIT_BY.isEnabled());
+        expectThrows(
+            ParsingException.class,
+            containsString("value of [LIMIT -1 BY languages] must be a non negative integer, found value [-1] type [integer]"),
+            () -> query("""
+                FROM foo
+                | LIMIT -1 BY languages
+                """)
+        );
+    }
+
+    public void testLimitByExpressionForN() {
+        assumeTrue("LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_LIMIT_BY.isEnabled());
+        expectThrows(ParsingException.class, containsString("mismatched input '*'"), () -> query("""
+            FROM foo
+            | LIMIT -1 * 42 BY languages
+            """));
+
+        expectThrows(ParsingException.class, containsString("mismatched input '*'"), () -> query("""
+            FROM foo
+            | LIMIT -1 * -42 BY languages
+            """));
+
+        expectThrows(ParsingException.class, containsString("mismatched input '+'"), () -> query("""
+            FROM foo
+            | LIMIT -1 + 5 BY languages
+            """));
     }
 
     public void testBasicSortCommand() {
@@ -4112,6 +4137,62 @@ public class StatementParserTests extends AbstractStatementParserTests {
         return new Alias(EMPTY, name, value);
     }
 
+    public void testChangePointAsBeforeOn() {
+        assumeTrue("change_point must be enabled", EsqlCapabilities.Cap.CHANGE_POINT_ARGS_ANY_ORDER.isEnabled());
+        LogicalPlan plan = query("ROW key=1, value=2 | CHANGE_POINT value AS my_type, my_pvalue ON key");
+        ChangePoint cp = as(plan, ChangePoint.class);
+        assertThat(cp.value().name(), equalTo("value"));
+        assertThat(cp.key().name(), equalTo("key"));
+        assertThat(cp.targetType().name(), equalTo("my_type"));
+        assertThat(cp.targetPvalue().name(), equalTo("my_pvalue"));
+    }
+
+    public void testChangePointOnBeforeAs() {
+        assumeTrue("change_point must be enabled", EsqlCapabilities.Cap.CHANGE_POINT.isEnabled());
+        LogicalPlan plan = query("ROW key=1, value=2 | CHANGE_POINT value ON key AS my_type, my_pvalue");
+        ChangePoint cp = as(plan, ChangePoint.class);
+        assertThat(cp.value().name(), equalTo("value"));
+        assertThat(cp.key().name(), equalTo("key"));
+        assertThat(cp.targetType().name(), equalTo("my_type"));
+        assertThat(cp.targetPvalue().name(), equalTo("my_pvalue"));
+    }
+
+    public void testChangePointDuplicateOn() {
+        assumeTrue("change_point must be enabled", EsqlCapabilities.Cap.CHANGE_POINT_ARGS_ANY_ORDER.isEnabled());
+        expectError("ROW key=1, value=2 | CHANGE_POINT value ON key ON key2", "line 1:48: CHANGE_POINT supports only one ON clause");
+    }
+
+    public void testChangePointDuplicateOnWithAsInBetween() {
+        assumeTrue("change_point must be enabled", EsqlCapabilities.Cap.CHANGE_POINT_ARGS_ANY_ORDER.isEnabled());
+        expectError(
+            "ROW key=1, value=2 | CHANGE_POINT value ON key AS x, y ON key2",
+            "line 1:56: CHANGE_POINT supports only one ON clause"
+        );
+    }
+
+    public void testChangePointDuplicateAs() {
+        assumeTrue("change_point must be enabled", EsqlCapabilities.Cap.CHANGE_POINT_ARGS_ANY_ORDER.isEnabled());
+        expectError("ROW key=1, value=2 | CHANGE_POINT value AS a, b AS c, d", "line 1:49: CHANGE_POINT supports only one AS clause");
+    }
+
+    public void testChangePointDuplicateAsWithOnInBetween() {
+        assumeTrue("change_point must be enabled", EsqlCapabilities.Cap.CHANGE_POINT_ARGS_ANY_ORDER.isEnabled());
+        expectError(
+            "ROW key=1, value=2 | CHANGE_POINT count AS type, pvalue ON @timestamp AS type2, pvalue2",
+            "line 1:71: CHANGE_POINT supports only one AS clause"
+        );
+    }
+
+    public void testChangePointMissingFieldAfterOn() {
+        assumeTrue("change_point must be enabled", EsqlCapabilities.Cap.CHANGE_POINT.isEnabled());
+        expectError("ROW key=1, value=2 | CHANGE_POINT count ON", "mismatched input '<EOF>'");
+    }
+
+    public void testChangePointAsWithOnlyOneArgument() {
+        assumeTrue("change_point must be enabled", EsqlCapabilities.Cap.CHANGE_POINT.isEnabled());
+        expectError("ROW key=1, value=2 | CHANGE_POINT count AS type", "line 1:48: mismatched input '<EOF>' expecting {',', '.'}");
+    }
+
     public void testValidFuse() {
         LogicalPlan plan = query("""
                 FROM foo* METADATA _id, _index, _score
@@ -4470,9 +4551,9 @@ public class StatementParserTests extends AbstractStatementParserTests {
         MMR mmrCmd = (MMR) cmd;
 
         assertThat(mmrCmd.diversifyField(), equalToIgnoringIds(attribute("dense_embedding")));
-        verifyMMRLimitValue(mmrCmd.limit(), 10);
+        assertEquals(integer(10), mmrCmd.limit());
         assertNull(mmrCmd.queryVector());
-        verifyMMRLambdaValue(mmrCmd, null);
+        assertNull(mmrCmd.options());
     }
 
     public void testMMRCommandWithLimitAndLambda() {
@@ -4482,8 +4563,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
         assertThat(mmrCmd.diversifyField(), equalToIgnoringIds(attribute("dense_embedding")));
 
-        verifyMMRLimitValue(mmrCmd.limit(), 10);
-        verifyMMRLambdaValue(mmrCmd, 0.5);
+        assertEquals(integer(10), mmrCmd.limit());
+        assertEquals(mapExpression(Map.of("lambda", 0.5)), mmrCmd.options());
 
         assertNull(mmrCmd.queryVector());
     }
@@ -4492,37 +4573,38 @@ public class StatementParserTests extends AbstractStatementParserTests {
         var mmrCmd = as(processingCommand("mmr [0.5, 0.4, 0.3, 0.2] on dense_embedding limit 10 with { \"lambda\": 0.5 }"), MMR.class);
         assertThat(mmrCmd.diversifyField(), equalToIgnoringIds(attribute("dense_embedding")));
 
-        verifyMMRLimitValue(mmrCmd.limit(), 10);
-        verifyMMRLambdaValue(mmrCmd, 0.5);
-        verifyMMRQueryVectorValue(mmrCmd.queryVector(), List.of(0.5, 0.4, 0.3, 0.2));
+        assertEquals(integer(10), mmrCmd.limit());
+        assertEquals(mapExpression(Map.of("lambda", 0.5)), mmrCmd.options());
+        assertEquals(literalDoubles(0.5, 0.4, 0.3, 0.2), mmrCmd.queryVector());
     }
 
     public void testMMRCommandWithByteVectorQuery() {
         var mmrByteArray = as(processingCommand("mmr [17, 48, 56] on dense_embedding limit 10 with { \"lambda\": 0.5 }"), MMR.class);
         assertThat(mmrByteArray.diversifyField(), equalToIgnoringIds(attribute("dense_embedding")));
-        verifyMMRLimitValue(mmrByteArray.limit(), 10);
-        verifyMMRLambdaValue(mmrByteArray, 0.5);
-        verifyMMRQueryVectorValue(mmrByteArray.queryVector(), List.of(17, 48, 56));
+        assertEquals(integer(10), mmrByteArray.limit());
+        assertEquals(mapExpression(Map.of("lambda", 0.5)), mmrByteArray.options());
+        assertEquals(integers(17, 48, 56), mmrByteArray.queryVector());
 
-        var mmrByteArrayString = as(processingCommand("mmr \"113038\" on dense_embedding limit 10 with { \"lambda\": 0.5 }"), MMR.class);
+        var mmrByteArrayString = as(processingCommand("mmr \"113038\" on dense_embedding limit 50 with { \"lambda\": 0.8 }"), MMR.class);
         assertThat(mmrByteArrayString.diversifyField(), equalToIgnoringIds(attribute("dense_embedding")));
-        verifyMMRLimitValue(mmrByteArrayString.limit(), 10);
-        verifyMMRLambdaValue(mmrByteArrayString, 0.5);
-        verifyMMRQueryVectorValue(mmrByteArrayString.queryVector(), List.of(), "113038");
+        assertEquals(integer(50), mmrByteArrayString.limit());
+        assertEquals(mapExpression(Map.of("lambda", 0.8)), mmrByteArrayString.options());
+        assertEquals(literalString("113038"), mmrByteArrayString.queryVector());
     }
 
     public void testMMRCommandWithFieldQueryVector() {
-        var queryParams = new QueryParams(List.of(paramAsConstant("query_vector_field", "[0.5, 0.4, 0.3, 0.2]")));
+        var queryVectorParam = List.of(0.5, 0.4, 0.3, 0.2);
+
+        var queryParams = new QueryParams(List.of(paramAsConstant("query_vector_field", queryVectorParam)));
         var mmrCmd = as(
             TEST_PARSER.parseQuery("row a = 1 | mmr ?query_vector_field on dense_embedding limit 10 with { \"lambda\": 0.5 }", queryParams),
             MMR.class
         );
 
         assertThat(mmrCmd.diversifyField(), equalToIgnoringIds(attribute("dense_embedding")));
-
-        verifyMMRLimitValue(mmrCmd.limit(), 10);
-        verifyMMRLambdaValue(mmrCmd, 0.5);
-        verifyMMRQueryVectorValue(mmrCmd.queryVector(), List.of(), "[0.5, 0.4, 0.3, 0.2]");
+        assertEquals(integer(10), mmrCmd.limit());
+        assertEquals(mapExpression(Map.of("lambda", 0.5)), mmrCmd.options());
+        assertEquals(literalDoubles(0.5, 0.4, 0.3, 0.2), mmrCmd.queryVector());
     }
 
     public void testMMRCommandWithTextEmbeddingQueryVector() {
@@ -4535,8 +4617,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
         assertThat(mmrCmd.diversifyField(), equalToIgnoringIds(attribute("dense_embedding")));
 
-        verifyMMRLimitValue(mmrCmd.limit(), 10);
-        verifyMMRLambdaValue(mmrCmd, 0.5);
+        assertEquals(integer(10), mmrCmd.limit());
+        assertEquals(mapExpression(Map.of("lambda", 0.5)), mmrCmd.options());
 
         Expression queryVectorExpression = mmrCmd.queryVector();
         if (queryVectorExpression instanceof UnresolvedFunction uaFunctioon) {
@@ -4547,62 +4629,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
         }
     }
 
-    private void verifyMMRLimitValue(Expression expression, int limit) {
-        assertThat(expression.dataType(), equalTo(INTEGER));
-        int limitValue = (Integer) (((Literal) expression).value());
-        assertEquals(limit, limitValue);
-    }
-
-    private void verifyMMRQueryVectorValue(Expression expression, List<?> expected) {
-        verifyMMRQueryVectorValue(expression, expected, null);
-    }
-
-    private void verifyMMRQueryVectorValue(Expression expression, List<?> expected, @Nullable String expectedString) {
-        if (expression instanceof Literal litExpression) {
-            var thisValue = litExpression.value();
-            if (thisValue instanceof Collection<?> litCollection) {
-                assertEquals(expected, litCollection);
-                return;
-            }
-        } else if (expression instanceof ToDenseVector asDenseVector) {
-            var thisValue = ((Literal) asDenseVector.field()).value();
-            if (thisValue instanceof Collection<?> litCollection) {
-                assertEquals(expected, litCollection);
-                return;
-            } else if (thisValue instanceof BytesRef bytesRef && expectedString != null) {
-                assertEquals(new BytesRef(expectedString), bytesRef);
-                return;
-            }
-        }
-
-        fail("query vector expression [" + expression + "] is not a valid dense vector convertable type");
-    }
-
-    private void verifyMMRLambdaValue(MMR mmrCmd, Double value) {
-        if (value == null) {
-            assertNull(mmrCmd.options());
-            return;
-        }
-
-        assertTrue(mmrCmd.options() instanceof MapExpression);
-        assertEquals(getLambdaFromMMROptions((MapExpression) mmrCmd.options()), value);
-    }
-
-    public Double getLambdaFromMMROptions(@Nullable MapExpression options) {
-        if (options == null) {
-            return null;
-        }
-
-        Map<String, Expression> optionsMap = options.keyFoldedMap();
-
-        Expression lambdaValueExpression = optionsMap.remove(MMR.LAMBDA_OPTION_NAME);
-        assertNotNull(lambdaValueExpression);
-        Literal litLambdaValue = (Literal) lambdaValueExpression;
-        assertNotNull(litLambdaValue);
-        assertEquals(DOUBLE, litLambdaValue.dataType());
-        return (Double) litLambdaValue.value();
-    }
-
     public void testInvalidMMRCommands() {
         expectError("row a = 1 | mmr on some_field", "line 1:30: mismatched input '<EOF>' expecting {'.', MMR_LIMIT}");
         expectError("row a = 1 | mmr on some_field limit", "line 1:36: mismatched input '<EOF>' expecting {INTEGER_LITERAL, '+', '-'}");
@@ -4610,6 +4636,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
             "row a = 1 | mmr on some_field limit 5 {\"unknown\": true}",
             "line 1:39: mismatched input '{' expecting {<EOF>, '|', 'with'}"
         );
+        expectError("row a = 1 | mmr on some_field limit 2.5", "line 1:37: mismatched input '2.5' expecting {INTEGER_LITERAL, '+', '-'}");
     }
 
     public void testInvalidSample() {

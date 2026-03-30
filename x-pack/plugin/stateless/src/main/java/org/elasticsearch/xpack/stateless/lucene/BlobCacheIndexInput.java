@@ -209,17 +209,35 @@ public final class BlobCacheIndexInput extends BlobCacheBufferedIndexInput imple
         }
         int positionBeforeRetry = b.position();
         int limitBeforeRetry = b.limit();
-        try {
-            readInternalSlow(b, position, length);
-        } catch (Exception ex) {
-            if (ExceptionsHelper.unwrap(ex, ResourceAlreadyUploadedException.class) != null) {
-                logger.debug(() -> this + " retrying from object store", ex);
-                assert b.position() == positionBeforeRetry : b.position() + " != " + positionBeforeRetry;
-                assert b.limit() == limitBeforeRetry : b.limit() + " != " + limitBeforeRetry;
+        // Normally we expect reads that overlap to synchronize through the SparseFileTracker so that only one read
+        // fills the cache from the source, and the others subscribe to the gaps it fills. Under these circumstances
+        // we would only need a single retry for ResourceAlreadyUploadedException, because only the read that has claimed
+        // the gap would receive it from the index shard, and it would mark the commit as uploaded before completing the
+        // read so that the next read would go to the object store.
+        // However, if a read cannot claim a cache slot, then it does not synchronize with other readers over the read
+        // range before contacting the index shard. In this case another read that does claim gaps in the cache may
+        // also be issued to the index shard. If the read that couldn't claim a cache slot fails with RAUE, it will retry
+        // and may then subscribe to the gap already claimed by the other in-flight read, which was issued to the object
+        // store before the commit was marked uploaded and so can also fail with RAUE, triggering a second failure on the
+        // subscribed read.
+        // It should not be possible to see more than two retries, because any retry happens after the commit has been
+        // marked uploaded, and either:
+        // a) it fails to get a cache entry and will do its own read, see the commit has been uploaded, and go to the object store, or
+        // b) it gets a cache entry and synchronizes on a gap. Gaps will only generate a single RAUE because the synchronization around
+        // claiming the gap means that any second attempt to fill a gap must have seen that the commit was uploaded.
+        for (int retries = 0; true; retries++) {
+            try {
                 readInternalSlow(b, position, length);
-                return;
+                break;
+            } catch (Exception ex) {
+                if (retries < 2 && ExceptionsHelper.unwrap(ex, ResourceAlreadyUploadedException.class) != null) {
+                    logger.debug(() -> this + " already uploaded, retrying", ex);
+                    assert b.position() == positionBeforeRetry : b.position() + " != " + positionBeforeRetry;
+                    assert b.limit() == limitBeforeRetry : b.limit() + " != " + limitBeforeRetry;
+                } else {
+                    throw ex;
+                }
             }
-            throw ex;
         }
     }
 

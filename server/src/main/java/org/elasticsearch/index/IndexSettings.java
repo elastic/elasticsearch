@@ -722,7 +722,7 @@ public final class IndexSettings {
         IndexVersion indexVersion = SETTING_INDEX_VERSION_CREATED.get(settings);
         IndexMode indexMode = MODE.get(settings);
         String codec = INDEX_CODEC_SETTING.get(settings);
-        boolean onByDefault = indexVersion.onOrAfter(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_DEFAULT);
+        boolean onByDefault = indexVersion.onOrAfter(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_DEFAULT_PROD);
         return IndexMode.TIME_SERIES.equals(indexMode) && CodecService.DEFAULT_CODEC.equalsIgnoreCase(codec) && onByDefault
             ? Boolean.TRUE.toString()
             : Boolean.FALSE.toString();

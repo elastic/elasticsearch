@@ -2641,7 +2641,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             if (isTsdb
                 && version.onOrAfter(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_94)
                 && (codecSetting == null || codecSetting.equalsIgnoreCase(CodecService.DEFAULT_CODEC))) {
-                boolean defaultValue = version.onOrAfter(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_DEFAULT);
+                boolean defaultValue = version.onOrAfter(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_DEFAULT_PROD);
                 return settings.getAsBoolean(IndexSettings.SYNTHETIC_ID.getKey(), defaultValue);
             }
             return false;

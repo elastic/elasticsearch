@@ -979,7 +979,7 @@ public class IndexSettingsTests extends ESTestCase {
 
     public void testSyntheticIdDefaultValueTrue() {
         IndexVersion version = IndexVersionUtils.randomVersionBetween(
-            IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_DEFAULT,
+            IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_DEFAULT_PROD,
             IndexVersion.current()
         );
         IndexMode mode = IndexMode.TIME_SERIES;
@@ -998,7 +998,7 @@ public class IndexSettingsTests extends ESTestCase {
     }
 
     public void testSyntheticIdDefaultValueFalse() {
-        IndexVersion version = IndexVersionUtils.getPreviousVersion(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_DEFAULT);
+        IndexVersion version = IndexVersionUtils.getPreviousVersion(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_DEFAULT_PROD);
         IndexMode mode = IndexMode.TIME_SERIES;
         String codec = CodecService.DEFAULT_CODEC;
 

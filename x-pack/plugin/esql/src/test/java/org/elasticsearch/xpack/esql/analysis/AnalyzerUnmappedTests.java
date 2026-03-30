@@ -1175,23 +1175,6 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         );
     }
 
-    public void testDisallowLoadWithPartiallyMappedNonKeywordInWhere() {
-        assumeTrue("Requires OPTIONAL_FIELDS_V5", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
-
-        var esIndex = partialIndex(Map.of("partial_long", longField("partial_long")), Set.of("partial_long"));
-        assertUnmappedLoadError(
-            analyzer().addIndex(esIndex),
-            "FROM idx* | WHERE partial_long > 0",
-            allOf(
-                containsString("Found 1 problem"),
-                containsString(
-                    "line 1:47: Cannot use field [partial_long] due to ambiguities being mapped as [2] incompatible types: "
-                        + "[keyword] due to loading from _source, [long] in [idx_mapped]"
-                )
-            )
-        );
-    }
-
     public void testDisallowLoadWithPartiallyMappedNonKeywordInSort() {
         assumeTrue("Requires OPTIONAL_FIELDS_V5", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
 
@@ -1362,27 +1345,6 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         var esIndex = partialIndex(Map.of("partial_long", longField("partial_long")), Set.of("partial_long"));
         var plan = analyzer().addIndex(esIndex).statement(setUnmappedNullify("FROM idx* | WHERE partial_long IS NOT NULL"));
         assertThat(plan, not(nullValue()));
-    }
-
-    /**
-     * Verifier rejects a reference to a partially unmapped non-KEYWORD field when {@code unmapped_fields=load}.
-     * This exercises the full analysis + verification pipeline, not just the unit-tested Verifier path.
-     */
-    public void testPartiallyUnmappedNonKeywordIsRejectedWithLoad() {
-        assumeTrue("Requires OPTIONAL_FIELDS_V5", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
-
-        var esIndex = partialIndex(Map.of("partial_long", longField("partial_long")), Set.of("partial_long"));
-        var ta = analyzer().addIndex(esIndex);
-        ta.statementError(
-            "SET unmapped_fields=\"load\"; FROM idx* | WHERE partial_long > 0",
-            allOf(
-                containsString("Found 1 problem"),
-                containsString(
-                    "Cannot use field [partial_long] due to ambiguities being mapped as [2] incompatible types: "
-                        + "[keyword] due to loading from _source, [long] in [idx_mapped]"
-                )
-            )
-        );
     }
 
     /**

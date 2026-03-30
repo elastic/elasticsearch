@@ -17,9 +17,11 @@
 
 package org.elasticsearch.xpack.stateless.lucene;
 
+import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.RandomAccessInput;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.ResourceAlreadyUploadedException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
@@ -70,6 +72,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING;
 import static org.elasticsearch.blobcache.shared.SharedBytes.PAGE_SIZE;
@@ -87,11 +90,14 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.intThat;
 import static org.mockito.ArgumentMatchers.longThat;
 import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -245,6 +251,144 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
             indexInput.readBytes(output, 0, output.length);
             assertArrayEquals(input, output);
             assertTrue(tracker.getLatestUploadInfo(termAndGen).isUploaded());
+        }
+    }
+
+    // Regression test for #5890
+    public void testAlreadyUploadedHandling() throws Exception {
+        // How this reproduces #5890:
+        // 1. schedule a read, which should try to get a cache region, fail, and then call getInputStream without
+        // the cache region. It will go to the index shard because it doesn't know the object is uploaded,
+        // but should block before it marks the object as uploaded
+        // 2. schedule other reads, which should succeed at acquiring a cache region, and create gaps to fill.
+        // Block them before they mark the object as uploaded.
+        // 3. unblock the initial read. It will fail on the shard because it has been uploaded, then retry with
+        // the object store listener and subscribe to the gaps.
+        // 4. Once it has subscribed, it unblocks the other reads.
+        // 5. The other reads have already decided to contact the index shard, so they will fail with already uploaded,
+        // which will fail the first read's subscribed listener a second time.
+
+        final int cachingReaders = randomIntBetween(1, 5);
+        logger.info("running with {} caching readers", cachingReaders);
+        final var fileSize = ByteSizeValue.ofKb(64);
+        final var indexReaderChunkSize = ByteSizeValue.ofKb(4);
+        final ByteSizeValue cacheSize = ByteSizeValue.of(32, ByteSizeUnit.MB);
+        final var settings = sharedCacheSettings(cacheSize);
+        try (
+            NodeEnvironment nodeEnvironment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            StatelessSharedBlobCacheService sharedBlobCacheService = newCacheService(nodeEnvironment, settings, threadPool)
+        ) {
+            final ShardId shardId = new ShardId(new Index(randomIndexName(), randomUUID()), 0);
+            final String fileName = randomAlphaOfLength(5) + randomFileExtension();
+            final byte[] input = randomChecksumBytes((int) fileSize.getBytes()).v2();
+            final var termAndGen = new PrimaryTermAndGeneration(randomNonNegativeLong(), randomNonNegativeLong());
+            final var tracker = new AtomicMutableObjectStoreUploadTracker();
+            final var blobContainer = TestUtils.singleBlobContainer(fileName, input);
+
+            // The first read will fail to claim a cache slot, then block until the other reads have claimed gaps
+            final var uncacheableReadArrived = new CountDownLatch(1);
+            final var uncacheableReadReleased = new CountDownLatch(cachingReaders);
+            // the others read will claim cache slots and then unblock the first read, then wait for the first read to
+            // have failed its first (unsubscribed) read before proceeding to have their own reads fail
+            final var objectStoreReadArrived = new CountDownLatch(1);
+            final var objectStoreReadReleased = new CountDownLatch(1);
+
+            final var cacheFile = spy(
+                sharedBlobCacheService.getCacheFile(
+                    new FileCacheKey(shardId, termAndGen.generation(), fileName),
+                    input.length,
+                    SharedBlobCacheService.CacheMissHandler.NOOP
+                )
+            );
+            // simulate eviction on only the first attempt to claim the cache
+            doThrow(new AlreadyClosedException("evicted")).doCallRealMethod()
+                .when(cacheFile)
+                .populateAndRead(any(), any(), any(), any(), anyString());
+
+            final ObjectStoreCacheBlobReader objectStoreReader = new ObjectStoreCacheBlobReader(
+                blobContainer,
+                fileName,
+                sharedBlobCacheService.getRangeSize(),
+                threadPool.executor(StatelessPlugin.SHARD_READ_THREAD_POOL)
+            ) {
+                @Override
+                public void getRangeInputStream(long position, int length, ActionListener<InputStream> listener) {
+                    logger.info("reading {}@{}+{} from object store", fileName, position, length);
+                    objectStoreReadArrived.countDown();
+                    safeAwait(objectStoreReadReleased);
+                    super.getRangeInputStream(position, length, listener);
+                }
+            };
+            final var numReads = new AtomicInteger();
+            final var indexShardReader = new IndexingShardCacheBlobReader(null, null, null, null, indexReaderChunkSize, threadPool) {
+                @Override
+                public void getRangeInputStream(long position, int length, ActionListener<InputStream> listener) {
+                    final var reads = numReads.getAndIncrement();
+                    logger.info("read {}: reading {}@{}+{} from index shard", reads, fileName, position, length);
+                    if (reads == 0) {
+                        logger.debug("blocking uncacheable read");
+                        uncacheableReadArrived.countDown();
+                        // should not be released until the second reader has started its object store read
+                        safeAwait(uncacheableReadReleased);
+                        logger.debug("uncacheable read released");
+                    } else {
+                        logger.debug("counting down uncacheable read");
+                        uncacheableReadReleased.countDown();
+                        safeAwait(objectStoreReadArrived);
+                        objectStoreReadReleased.countDown();
+                    }
+                    listener.onFailure(new ResourceAlreadyUploadedException("VBCC already uploaded: " + position + "+" + length));
+                }
+            };
+            final var switchingReader = new SwitchingCacheBlobReader(tracker, termAndGen, objectStoreReader, indexShardReader);
+
+            final Supplier<BlobCacheIndexInput> indexInputSupplier = () -> new BlobCacheIndexInput(
+                fileName,
+                randomIOContext(),
+                new CacheFileReader(
+                    cacheFile,
+                    switchingReader,
+                    createBlobFileRanges(termAndGen.primaryTerm(), termAndGen.generation(), 0, input.length),
+                    null,
+                    System::currentTimeMillis
+                ),
+                null,
+                input.length,
+                0
+            );
+
+            final var threads = new Thread[cachingReaders + 1];
+
+            // store uncaching reader at the end to make filling the array more natural
+            threads[cachingReaders] = new Thread(null, () -> {
+                final var totalSize = 4096 * cachingReaders;
+                try (var indexInput = indexInputSupplier.get()) {
+                    indexInput.readBytes(new byte[totalSize], 0, totalSize, false);
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            }, "THREAD-uncacheable");
+            threads[cachingReaders].start();
+
+            safeAwait(uncacheableReadArrived);
+
+            for (int i = 0; i < cachingReaders; i++) {
+                final var offset = i * 4096L;
+                final var reader = new Thread(null, () -> {
+                    try (var indexInput = indexInputSupplier.get()) {
+                        indexInput.seek(offset);
+                        indexInput.readBytes(new byte[4096], 0, 4096, false);
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
+                }, "THREAD-cacheable-" + i);
+                reader.start();
+                threads[i] = reader;
+            }
+
+            for (int i = 0; i < cachingReaders + 1; i++) {
+                safeJoin(threads[i]);
+            }
         }
     }
 

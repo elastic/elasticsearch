@@ -131,11 +131,7 @@ public class VectorScorerOSQBenchmark {
         return bits == 4 ? int4Encoding : ESNextOSQVectorsScorer.SymmetricInt4Encoding.STRIPED;
     }
 
-    private static int docPackedLength(
-        int dims,
-        byte bits,
-        ESNextOSQVectorsScorer.SymmetricInt4Encoding int4Encoding
-    ) {
+    private static int docPackedLength(int dims, byte bits, ESNextOSQVectorsScorer.SymmetricInt4Encoding int4Encoding) {
         if (bits == 4 && int4Encoding == ESNextOSQVectorsScorer.SymmetricInt4Encoding.STRIPED) {
             int discretized = ESNextDiskBBQVectorsFormat.QuantEncoding.fromBits(bits).discretizedDimensions(dims);
             return 4 * ((discretized + 7) / 8);
@@ -143,11 +139,7 @@ public class VectorScorerOSQBenchmark {
         return ESNextDiskBBQVectorsFormat.QuantEncoding.fromBits(bits).getDocPackedLength(dims);
     }
 
-    private static int queryPackedLength(
-        int dims,
-        byte bits,
-        ESNextOSQVectorsScorer.SymmetricInt4Encoding int4Encoding
-    ) {
+    private static int queryPackedLength(int dims, byte bits, ESNextOSQVectorsScorer.SymmetricInt4Encoding int4Encoding) {
         if (bits == 4 && int4Encoding == ESNextOSQVectorsScorer.SymmetricInt4Encoding.STRIPED) {
             return docPackedLength(dims, bits, int4Encoding);
         }

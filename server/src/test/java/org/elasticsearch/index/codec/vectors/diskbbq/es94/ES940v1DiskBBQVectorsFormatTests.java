@@ -67,7 +67,11 @@ public class ES940v1DiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCa
     protected VectorSimilarityFunction randomSimilarity() {
         return RandomPicks.randomFrom(
             random(),
-            List.of(VectorSimilarityFunction.DOT_PRODUCT, VectorSimilarityFunction.EUCLIDEAN, VectorSimilarityFunction.MAXIMUM_INNER_PRODUCT)
+            List.of(
+                VectorSimilarityFunction.DOT_PRODUCT,
+                VectorSimilarityFunction.EUCLIDEAN,
+                VectorSimilarityFunction.MAXIMUM_INNER_PRODUCT
+            )
         );
     }
 

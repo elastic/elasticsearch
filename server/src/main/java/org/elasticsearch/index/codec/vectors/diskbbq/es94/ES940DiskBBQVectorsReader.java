@@ -9,8 +9,8 @@
 
 package org.elasticsearch.index.codec.vectors.diskbbq.es94;
 
-import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.CorruptIndexException;
+import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.KnnVectorValues;
 import org.apache.lucene.index.SegmentReadState;
@@ -98,10 +98,7 @@ public class ES940DiskBBQVectorsReader extends IVFVectorsReader<ES940DiskBBQVect
     private void ensureCompatibleEncoding(ES940DiskBBQVectorsFormat.QuantEncoding quantEncoding) throws CorruptIndexException {
         if (versionMeta < ES940DiskBBQVectorsFormat.VERSION_PACKED_INT4
             && quantEncoding == ES940DiskBBQVectorsFormat.QuantEncoding.FOUR_BIT_SYMMETRIC_PACKED) {
-            throw new CorruptIndexException(
-                "Packed 4-bit encoding requires version " + ES940DiskBBQVectorsFormat.VERSION_PACKED_INT4,
-                ""
-            );
+            throw new CorruptIndexException("Packed 4-bit encoding requires version " + ES940DiskBBQVectorsFormat.VERSION_PACKED_INT4, "");
         }
         if (versionMeta >= ES940DiskBBQVectorsFormat.VERSION_PACKED_INT4
             && quantEncoding == ES940DiskBBQVectorsFormat.QuantEncoding.FOUR_BIT_SYMMETRIC_STRIPED) {

@@ -463,7 +463,6 @@ record TestConfiguration(
             return this;
         }
 
-
         public Builder setOverSamplingFactor(List<Float> overSamplingFactor) {
             this.overSamplingFactor = overSamplingFactor;
             return this;

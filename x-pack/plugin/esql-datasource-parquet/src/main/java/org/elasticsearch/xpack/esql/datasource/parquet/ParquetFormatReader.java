@@ -54,6 +54,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.io.IOException;
 import java.math.BigInteger;
@@ -566,8 +567,9 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
     }
 
     /**
-     * When the query plan expects a different ESQL type than the Parquet file provides (e.g. globbed
-     * files with schema drift), log a warning and read the column as null instead of failing at decode time.
+     * When the query plan type cannot be satisfied from this file's Parquet-derived ESQL type (after
+     * applying the same widening rules as {@link EsqlDataTypeConverter#commonType}, plus KEYWORD/TEXT
+     * interchangeability), log a warning and read the column as null instead of failing at decode time.
      */
     private static void validatePlannerTypesAgainstFile(
         Logger logger,
@@ -589,9 +591,9 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
                 continue;
             }
             DataType actualInFile = convertParquetTypeToEsql(fullSchema.getType(attr.name()));
-            if (attr.dataType().equals(actualInFile) == false) {
+            if (plannerTypeCompatibleWithFileDerivedType(attr.dataType(), actualInFile) == false) {
                 logger.warn(
-                    "Column [{}] in file [{}] has type [{}] but query expects [{}]; returning nulls for this column",
+                    "Column [{}] in file [{}] has type [{}] incompatible with planner type [{}] after widening; returning nulls for this column",
                     attr.name(),
                     fileLocation,
                     actualInFile,
@@ -600,6 +602,15 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
                 columnInfos[i] = null;
             }
         }
+    }
+
+    /**
+     * Whether values from a column whose Parquet schema maps to {@code fileDerived} can be read using
+     * the planner's {@code planner} type (same widening notion as globbed external sources).
+     */
+    private static boolean plannerTypeCompatibleWithFileDerivedType(DataType planner, DataType fileDerived) {
+        DataType unified = EsqlDataTypeConverter.commonType(planner, fileDerived);
+        return unified != null && unified.equals(planner);
     }
 
     /**
@@ -800,7 +811,12 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
             return switch (info.esqlType) {
                 case BOOLEAN -> readBooleanColumn(cr, info.maxDefLevel, rowsToRead);
                 case INTEGER -> readIntColumn(cr, info.maxDefLevel, rowsToRead);
-                case LONG -> readLongColumn(cr, info.maxDefLevel, rowsToRead);
+                case LONG -> {
+                    if (info.parquetType == PrimitiveType.PrimitiveTypeName.INT32) {
+                        yield readInt32WidenedToLongColumn(cr, info.maxDefLevel, rowsToRead);
+                    }
+                    yield readLongColumn(cr, info.maxDefLevel, rowsToRead);
+                }
                 case DOUBLE -> readDoubleColumn(cr, info, rowsToRead);
                 case KEYWORD, TEXT -> readBytesRefColumn(cr, info, rowsToRead);
                 case DATETIME -> readDatetimeColumn(cr, info, rowsToRead);
@@ -847,6 +863,25 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
                 return blockFactory.newIntArrayVector(values, rows).asBlock();
             }
             return blockFactory.newIntArrayBlock(values, rows, null, toBitSet(isNull, rows), Block.MvOrdering.UNORDERED);
+        }
+
+        /**
+         * Parquet INT32 columns do not support {@link ColumnReader#getLong()}; widen safely to long for planner LONG.
+         */
+        private Block readInt32WidenedToLongColumn(ColumnReader cr, int maxDef, int rows) {
+            long[] values = new long[rows];
+            boolean[] isNull = maxDef > 0 ? new boolean[rows] : null;
+            boolean noNulls = true;
+            for (int i = 0; i < rows; i++) {
+                if (maxDef > 0 && cr.getCurrentDefinitionLevel() < maxDef) {
+                    isNull[i] = true;
+                    noNulls = false;
+                } else {
+                    values[i] = cr.getInteger();
+                }
+                cr.consume();
+            }
+            return ColumnBlockConversions.longColumn(blockFactory, values, rows, noNulls, false, isNull);
         }
 
         private Block readLongColumn(ColumnReader cr, int maxDef, int rows) {

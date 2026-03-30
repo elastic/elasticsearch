@@ -115,7 +115,7 @@ setup:
 ---
 'loading from two indices with different mappings 2':
   - do:
-      catch: '/Cannot use field \[foo.bar\] due to ambiguities being mapped as \[2\] incompatible types: \[keyword\] enforced by INSIST command.*\[unsupported\]/'
+      catch: '/Cannot use field \[foo.bar\] due to ambiguities being mapped as \[2\] incompatible types: \[keyword\] due to loading from _source.*\[unsupported\]/'
       esql.query:
         body:
           # [foo] is flattened in index1

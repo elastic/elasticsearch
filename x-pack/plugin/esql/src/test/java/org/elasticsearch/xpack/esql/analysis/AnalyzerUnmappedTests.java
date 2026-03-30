@@ -1066,7 +1066,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
                 containsString("Found 1 problem"),
                 containsString(
                     "line 1:54: Cannot use field [partial_long] due to ambiguities being mapped as [2] incompatible types: "
-                        + "[keyword] enforced by INSIST command, [long] in [partial_idx]"
+                        + "[keyword] due to loading from _source, [long] in [partial_idx]"
                 )
             )
         );
@@ -1087,11 +1087,11 @@ public class AnalyzerUnmappedTests extends ESTestCase {
                 containsString("Found 2 problems"),
                 containsString(
                     "line 1:53: Cannot use field [partial_long] due to ambiguities being mapped as [2] incompatible types: "
-                        + "[keyword] enforced by INSIST command, [long] in [partial_idx]"
+                        + "[keyword] due to loading from _source, [long] in [partial_idx]"
                 ),
                 containsString(
                     "line 1:67: Cannot use field [partial_double] due to ambiguities being mapped as [2] incompatible types: "
-                        + "[keyword] enforced by INSIST command, [double] in [partial_idx]"
+                        + "[keyword] due to loading from _source, [double] in [partial_idx]"
                 )
             )
         );
@@ -1152,7 +1152,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
                 containsString("Found 1 problem"),
                 containsString(
                     "line 1:55: Cannot use field [partial_long] due to ambiguities being mapped as [2] incompatible types: "
-                        + "[keyword] enforced by INSIST command, [long] in [idx_a]"
+                        + "[keyword] due to loading from _source, [long] in [idx_a]"
                 )
             )
         );
@@ -1183,7 +1183,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
                 containsString("Found 1 problem"),
                 containsString(
                     "line 1:55: Cannot use field [partial_long] due to ambiguities being mapped as [2] incompatible types: "
-                        + "[keyword] enforced by INSIST command, [long] in [partial_idx]"
+                        + "[keyword] due to loading from _source, [long] in [partial_idx]"
                 )
             )
         );
@@ -1195,7 +1195,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
                 containsString("Found 1 problem"),
                 containsString(
                     "line 1:68: Cannot use field [partial_long] due to ambiguities being mapped as [2] incompatible types: "
-                        + "[keyword] enforced by INSIST command, [long] in [partial_idx]"
+                        + "[keyword] due to loading from _source, [long] in [partial_idx]"
                 )
             )
         );
@@ -1212,7 +1212,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
                 containsString("Found 1 problem"),
                 containsString(
                     "line 1:54: Cannot use field [partial_long] due to ambiguities being mapped as [2] incompatible types: "
-                        + "[keyword] enforced by INSIST command, [long] in [partial_idx]"
+                        + "[keyword] due to loading from _source, [long] in [partial_idx]"
                 )
             )
         );
@@ -1229,7 +1229,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
                 containsString("Found 1 problem"),
                 containsString(
                     "line 1:53: Cannot use field [partial_long] due to ambiguities being mapped as [2] incompatible types: "
-                        + "[keyword] enforced by INSIST command, [long] in [partial_idx]"
+                        + "[keyword] due to loading from _source, [long] in [partial_idx]"
                 )
             )
         );
@@ -1261,7 +1261,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
                 containsString("Found 1 problem"),
                 containsString(
                     "line 1:61: Cannot use field [partial_long] due to ambiguities being mapped as [2] incompatible types: "
-                        + "[keyword] enforced by INSIST command, [long] in [partial_idx]"
+                        + "[keyword] due to loading from _source, [long] in [partial_idx]"
                 )
             )
         );
@@ -1279,7 +1279,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
                 containsString("Found 1 problem"),
                 containsString(
                     "line 1:58: Cannot use field [partial_long] due to ambiguities being mapped as [2] incompatible types: "
-                        + "[keyword] enforced by INSIST command, [long] in [partial_idx]"
+                        + "[keyword] due to loading from _source, [long] in [partial_idx]"
                 )
             )
         );
@@ -1298,7 +1298,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
                 containsString("Found 1 problem"),
                 containsString(
                     "line 1:53: Cannot use field [obj.sub] due to ambiguities being mapped as [2] incompatible types: "
-                        + "[keyword] enforced by INSIST command, [long] in [partial_idx]"
+                        + "[keyword] due to loading from _source, [long] in [partial_idx]"
                 )
             )
         );
@@ -1339,7 +1339,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
                 containsString("Found 1 problem"),
                 containsString(
                     "line 1:116: Cannot use field [@timestamp] due to ambiguities being mapped as [2] incompatible types: "
-                        + "[keyword] enforced by INSIST command, [date_nanos] in [sample_data, sample_data_ts_nanos]"
+                        + "[keyword] due to loading from _source, [date_nanos] in [sample_data, sample_data_ts_nanos]"
                 )
             )
         );
@@ -1408,7 +1408,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
                 containsString("Found 1 problem"),
                 containsString(
                     "Cannot use field [partial_long] due to ambiguities being mapped as [2] incompatible types: "
-                        + "[keyword] enforced by INSIST command, [long] in [partial_idx]"
+                        + "[keyword] due to loading from _source, [long] in [partial_idx]"
                 )
             )
         );

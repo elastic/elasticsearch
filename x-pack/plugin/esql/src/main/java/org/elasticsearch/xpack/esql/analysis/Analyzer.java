@@ -282,7 +282,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     }
 
     public LogicalPlan verify(LogicalPlan plan, BitSet partialMetrics) {
-        Collection<Failure> failures = verifier.verify(plan, partialMetrics, context());
+        Collection<Failure> failures = verifier.verify(plan, partialMetrics, context().unmappedResolution());
         if (failures.isEmpty() == false) {
             throw new VerificationException(failures);
         }

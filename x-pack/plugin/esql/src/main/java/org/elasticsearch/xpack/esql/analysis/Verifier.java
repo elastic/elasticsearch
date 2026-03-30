@@ -19,18 +19,15 @@ import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.capabilities.Unresolvable;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
-import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedTimestamp;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
@@ -42,9 +39,6 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Neg
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
-import org.elasticsearch.xpack.esql.index.EsIndex;
-import org.elasticsearch.xpack.esql.index.IndexResolution;
-import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
@@ -68,7 +62,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -109,13 +102,11 @@ public class Verifier {
      *
      * @param plan The logical plan to be verified
      * @param partialMetrics A bitset indicating a certain command (or "telemetry feature") is present in the query
-     * @param context The analyzer context.
+     * @param unmappedResolution How unmapped fields are resolved for this query.
      * @return A collection of verification failures; empty if and only if the plan is valid
      */
-    Collection<Failure> verify(LogicalPlan plan, BitSet partialMetrics, AnalyzerContext context) {
+    Collection<Failure> verify(LogicalPlan plan, BitSet partialMetrics, UnmappedResolution unmappedResolution) {
         assert partialMetrics != null;
-
-        UnmappedResolution unmappedResolution = context.unmappedResolution();
 
         Failures failures = new Failures();
         boolean unmappedTimestampHandled = unmappedResolution != UnmappedResolution.DEFAULT
@@ -125,15 +116,6 @@ public class Verifier {
         checkUnresolvedAttributes(plan, failures, unmappedTimestampHandled);
 
         ConfigurationAware.verifyNoMarkerConfiguration(plan, failures);
-
-        // Partially-unmapped non-keyword field references are checked before the bail-out so that a query with both
-        // an unresolved attribute and a PUNK field produces both errors in one batch, consistent with the ESQL
-        // convention (see e.g. AnalyzerTests.testLookupJoinUnknownField).
-        // This is safe because checkPartiallyUnmappedNonKeywordReferences only visits resolved FieldAttribute nodes;
-        // any UnresolvedAttribute in the plan is skipped automatically.
-        if (unmappedResolution == UnmappedResolution.LOAD) {
-            checkPartiallyUnmappedNonKeywordReferences(plan, failures, context);
-        }
 
         // in case of failures bail-out as all other checks will be redundant
         if (failures.hasFailures()) {
@@ -521,87 +503,6 @@ public class Verifier {
         }
 
         return names;
-    }
-
-    /**
-     * Reject queries that refer to partially unmapped non-keyword fields (PUNKs) when {@code unmapped_fields="load"}.
-     * Any expression referencing a PUNK attribute is flagged as a verification failure unless it's within a conversion
-     * function or KEEP/DROP.
-     * <p>
-     * Example
-     * <p>
-     * With the two indices below
-     * <ol>
-     *     <li>index1 has foo(long) and bar(keyword)</li>
-     *     <li>index2 has bar(keyword)</li>
-     * </ol>
-     *
-     * The following queries should pass (assume unmapped_fields="load" and reading from both indices)
-     * <ul>
-     *     <li>KEEP foo</li>
-     *     <li>DROP foo*</li>
-     *     <li>EVAL x = foo::long</li>
-     * </ul>
-     * The following queries should fail (assume unmapped_fields="load" and reading from both indices)
-     * <ul>
-     *     <li>RENAME foo as x/li>
-     *     <li>EVAL x = foo</li>
-     *     <li>WHERE foo > 1</li>
-     * </ul>
-     */
-    private static void checkPartiallyUnmappedNonKeywordReferences(LogicalPlan plan, Failures failures, AnalyzerContext context) {
-        final String errorMessage = "Using partially unmapped non-KEYWORD field [{}] is not supported with unmapped_fields=\"load\"";
-
-        AttributeSet punks = partiallyUnmappedNonKeywords(plan, context.indexResolution());
-        Consumer<FieldAttribute> addFailureIfPunk = fa -> {
-            if (punks.contains(fa)) {
-                failures.add(fail(fa, errorMessage, fa.fieldName()));
-            }
-        };
-
-        plan.forEachUp(p -> {
-            if (p instanceof EsRelation) {
-                return;
-            }
-
-            // Project represents KEEP/DROP/RENAME. We are consistent with UnsupportedAttribute (unsupported type/type conflict):
-            // - RENAME is forbidden.
-            // - KEEP/DROP are fine, with and without wildcards.
-            if (p instanceof Project project) {
-                for (NamedExpression projection : project.projections()) {
-                    if (projection instanceof Attribute) {
-                        continue;
-                    }
-                    projection.forEachDown(FieldAttribute.class, addFailureIfPunk);
-                }
-                return;
-            }
-
-            p.forEachExpression(FieldAttribute.class, addFailureIfPunk);
-        });
-    }
-
-    /**
-     * Walks the plan's {@link EsRelation} nodes and collects partially unmapped non-keyword attributes.
-     */
-    private static AttributeSet partiallyUnmappedNonKeywords(LogicalPlan plan, Map<IndexPattern, IndexResolution> indexResolutions) {
-        AttributeSet.Builder punks = AttributeSet.builder();
-
-        plan.forEachUp(EsRelation.class, relation -> {
-            IndexResolution indexResolution = indexResolutions.get(new IndexPattern(relation.source(), relation.indexPattern()));
-            if (indexResolution != null && indexResolution.isValid()) {
-                EsIndex index = indexResolution.get();
-                for (Attribute attr : relation.output()) {
-                    if (attr instanceof FieldAttribute fa && index.isPartiallyUnmappedField(fa.name()) && fa.dataType() != DataType.KEYWORD
-                    // punk_field::long is fine; in this case, the FieldAttribute contains a MultiTypeEsField with the conversions.
-                        && fa.field() instanceof MultiTypeEsField == false) {
-                        punks.add(fa);
-                    }
-                }
-            }
-        });
-
-        return punks.build();
     }
 
     private void licenseCheck(LogicalPlan plan, Failures failures) {

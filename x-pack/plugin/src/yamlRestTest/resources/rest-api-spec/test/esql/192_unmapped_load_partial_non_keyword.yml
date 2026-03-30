@@ -41,7 +41,7 @@ setup:
   - match: { status: 400 }
   - match: { error.type: verification_exception }
   - contains: { error.reason: 'Found 1 problem' }
-  - contains: { error.reason: 'line 1:62: Cannot use field [partial_x] due to ambiguities being mapped as [2] incompatible types: [keyword] enforced by INSIST command, [long] in [partial_load_yaml_1]' }
+  - contains: { error.reason: 'line 1:62: Cannot use field [partial_x] due to ambiguities being mapped as [2] incompatible types: [keyword] due to loading from _source, [long] in [partial_load_yaml_1]' }
 
 ---
 "load allows query when partially mapped non-KEYWORD field is unused":

@@ -52,7 +52,6 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
-import org.mockito.Mockito;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -62,8 +61,6 @@ import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.greaterThan;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class QueryBuilderStoreTests extends ESTestCase {
 

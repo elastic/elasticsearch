@@ -1096,14 +1096,6 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         );
     }
 
-    public void testAllowLoadWithPartiallyMappedNonKeywordInKeep() {
-        assumeTrue("Requires OPTIONAL_FIELDS_V4", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V4.isEnabled());
-
-        var esIndex = partialIndex("partial_idx", Map.of("partial_long", longField("partial_long")), Set.of("partial_long"));
-        var plan = analyzer().addIndex(esIndex).statement(setUnmappedLoad("FROM partial_idx | KEEP partial_long"));
-        assertThat(plan, not(nullValue()));
-    }
-
     public void testAllowLoadWithPartialNonKeywordWhenFieldNotReferenced() {
         assumeTrue("Requires OPTIONAL_FIELDS_V4", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V4.isEnabled());
 
@@ -1113,7 +1105,10 @@ public class AnalyzerUnmappedTests extends ESTestCase {
             Set.of("partial_long")
         );
         var plan = analyzer().addIndex(esIndex).statement(setUnmappedLoad("FROM partial_idx | KEEP common"));
-        assertThat(plan, not(nullValue()));
+        var limit = as(plan, Limit.class);
+        // partial_long must not appear in the output — only the non-PUNK field that was explicitly kept
+        assertThat(Expressions.names(limit.output()), is(List.of("common")));
+        assertThat(limit.output().getFirst().dataType(), is(DataType.KEYWORD));
     }
 
     /**

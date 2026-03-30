@@ -11,6 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequestBuilder;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequestBuilder;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.AdminClient;
 import org.elasticsearch.common.settings.Settings;
@@ -53,6 +54,7 @@ import static org.elasticsearch.xpack.inference.services.elastic.response.Elasti
 import static org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityTests.RERANK_V1_ENDPOINT_ID;
 import static org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityTests.getEisRainbowSprinklesAuthorizationResponse;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
@@ -83,9 +85,13 @@ public class AuthorizationTaskExecutorIT extends ESSingleNodeTestCase {
     }
 
     @Before
-    public void createComponents() {
+    public void createComponents() throws Exception {
         modelRegistry = node().injector().getInstance(ModelRegistry.class);
         authorizationTaskExecutor = node().injector().getInstance(AuthorizationTaskExecutor.class);
+
+        // Wait for inference indices to be created
+        assertBusy(() -> getEisEndpoints());
+        ensureNoInitializingShards();
     }
 
     @After
@@ -212,8 +218,15 @@ public class AuthorizationTaskExecutorIT extends ESSingleNodeTestCase {
         var listener = new PlainActionFuture<List<UnparsedModel>>();
         modelRegistry.getAllModels(true, listener);
 
-        var endpoints = listener.actionGet(TimeValue.THIRTY_SECONDS);
-        return endpoints.stream().filter(m -> m.service().equals(ElasticInferenceService.NAME)).toList();
+        try {
+            var endpoints = listener.actionGet(TimeValue.THIRTY_SECONDS);
+            return endpoints.stream().filter(m -> m.service().equals(ElasticInferenceService.NAME)).toList();
+        } catch (SearchPhaseExecutionException e) {
+            // This can happen if the internal inference indices shards have not been initialized yet.
+            // We fail so that when this is called in assertBusy we can retry.
+            fail();
+            return List.of();
+        }
     }
 
     private void restartPollingTaskAndWaitForAuthResponse() throws Exception {
@@ -328,6 +341,9 @@ public class AuthorizationTaskExecutorIT extends ESSingleNodeTestCase {
 
         restartPollingTaskAndWaitForAuthResponse();
         assertWebServerReceivedRequest();
+
+        // Wait for the text embedding endpoint to be created
+        assertBusy(() -> assertThat(getEisEndpoints(), hasSize(2)));
 
         var eisEndpoints = getEisEndpoints().stream().collect(Collectors.toMap(UnparsedModel::inferenceEntityId, Function.identity()));
         assertThat(eisEndpoints.size(), is(2));

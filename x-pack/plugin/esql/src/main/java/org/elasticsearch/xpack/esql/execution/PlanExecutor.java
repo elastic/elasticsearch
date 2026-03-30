@@ -139,7 +139,7 @@ public class PlanExecutor {
         PlanTelemetry planTelemetry
     ) {
         planTelemetryManager.publish(planTelemetry, true);
-        queryLog.onQueryPhase(x, request.query());
+        queryLog.onQueryPhase(x, request.queryDescription());
         listener.onResponse(x);
     }
 
@@ -154,7 +154,7 @@ public class PlanExecutor {
         // TODO when we decide if we will differentiate Kibana from REST, this String value will likely come from the request
         metrics.failed(clientId);
         planTelemetryManager.publish(planTelemetry, false);
-        queryLog.onQueryFailure(request.query(), ex, System.nanoTime() - begin);
+        queryLog.onQueryFailure(request.queryDescription(), ex, System.nanoTime() - begin);
         listener.onFailure(ex);
     }
 

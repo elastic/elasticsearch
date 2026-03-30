@@ -45,8 +45,8 @@ import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.quantized
 import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.randomInt7BytesBetween;
 import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.supportsHeapSegments;
 import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.writeInt7VectorData;
-import static org.elasticsearch.benchmark.vector.scorer.ScalarOperations.dotProduct;
-import static org.elasticsearch.benchmark.vector.scorer.ScalarOperations.squareDistance;
+import static org.elasticsearch.nativeaccess.jdk.ScalarOperations.dotProduct;
+import static org.elasticsearch.nativeaccess.jdk.ScalarOperations.squareDistance;
 
 /**
  * Benchmark that compares various scalar quantized vector similarity function
@@ -102,7 +102,7 @@ public class VectorScorerInt7uBenchmark {
 
         @Override
         public float score(int node) throws IOException {
-            int dotProduct = dotProduct(vec1, vec2);
+            float dotProduct = dotProduct(vec1, vec2);
             float adjustedDistance = dotProduct * scoreCorrectionConstant + vec1CorrectionConstant + vec2CorrectionConstant;
             return (1 + adjustedDistance) / 2;
         }
@@ -129,7 +129,7 @@ public class VectorScorerInt7uBenchmark {
 
         @Override
         public float score(int node) throws IOException {
-            int squareDistance = squareDistance(vec1, vec2);
+            float squareDistance = squareDistance(vec1, vec2);
             float adjustedDistance = squareDistance * scoreCorrectionConstant;
             return 1 / (1f + adjustedDistance);
         }

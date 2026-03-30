@@ -11,38 +11,16 @@ package org.elasticsearch.benchmark.vector.scorer;
 
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
-import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.util.VectorUtil;
-import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.apache.lucene.util.hnsw.UpdateableRandomVectorScorer;
-import org.elasticsearch.benchmark.Utils;
-import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.simdvec.VectorScorerFactory;
 import org.elasticsearch.simdvec.VectorSimilarityType;
-import org.openjdk.jmh.annotations.Benchmark;
-import org.openjdk.jmh.annotations.BenchmarkMode;
-import org.openjdk.jmh.annotations.Fork;
-import org.openjdk.jmh.annotations.Measurement;
-import org.openjdk.jmh.annotations.Mode;
-import org.openjdk.jmh.annotations.OutputTimeUnit;
 import org.openjdk.jmh.annotations.Param;
-import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.Setup;
-import org.openjdk.jmh.annotations.State;
-import org.openjdk.jmh.annotations.TearDown;
-import org.openjdk.jmh.annotations.Warmup;
 
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.Collections;
-import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
-import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 
 import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.floatVectorValues;
 import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.getScorerFactoryOrDie;
@@ -53,50 +31,16 @@ import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.writeFloa
 import static org.elasticsearch.nativeaccess.jdk.ScalarOperations.dotProduct;
 import static org.elasticsearch.nativeaccess.jdk.ScalarOperations.squareDistance;
 
-/**
- * Benchmark that compares bulk scoring of various float vector similarity function
- * implementations (scalar, lucene's panama-ized, and Elasticsearch's native) against sequential
- * and random access target vectors.
- * Run with ./gradlew -p benchmarks run --args 'VectorScorerFloatBulkBenchmark'
- */
-@Fork(value = 1, jvmArgsPrepend = { "--add-modules=jdk.incubator.vector" })
-@Warmup(iterations = 3, time = 3)
-@Measurement(iterations = 5, time = 3)
-@BenchmarkMode(Mode.Throughput)
-@OutputTimeUnit(TimeUnit.SECONDS)
-@State(Scope.Thread)
-public class VectorScorerFloatBulkBenchmark {
+public class VectorScorerFloatBulkBenchmark extends VectorScorerBulkBenchmark {
 
-    static {
-        Utils.configureBenchmarkLogging();
-    }
-
-    @Param({ "1024" })
-    public int dims;
-
-    // 32 * 4 = 128kb is typically enough to not fit in L1 (core) cache for most processors;
-    // 375 * 4 = 1.5Mb is typically enough to not fit in L2 (core) cache;
-    // 32500 * 4 = 130Mb is enough to not fit in L3 cache
     @Param({ "32", "375", "32500" })
     public int numVectors;
-    public int numVectorsToScore;
-
-    // Bulk sizes to test.
-    // HNSW params will have the distributed ordinal bulk sizes depending on the number of connections in the graph
-    // The default is 16, maximum is 512, and the bottom layer is 2x that the configured setting, so 1024 is a maximum
-    // the MOST common case here is 32
-    @Param({ "32", "64", "256", "1024" })
-    public int bulkSize;
 
     @Param
     public VectorImplementation implementation;
 
     @Param({ "DOT_PRODUCT", "EUCLIDEAN" })
     public VectorSimilarityType function;
-
-    private Path path;
-    private Directory dir;
-    private IndexInput in;
 
     private static class ScalarDotProduct implements UpdateableRandomVectorScorer {
         private final FloatVectorValues values;
@@ -148,43 +92,25 @@ public class VectorScorerFloatBulkBenchmark {
         }
     }
 
-    private float[] scores;
-    private int[] ordinals;
-    private int[] ids;
-    private int[] toScore; // scratch array for bulk scoring
-
-    private UpdateableRandomVectorScorer scorer;
-    private RandomVectorScorer queryScorer;
-
-    static class VectorData {
-        private final int numVectorsToScore;
+    static class VectorData extends VectorScorerBulkBenchmark.VectorData {
         private final float[][] vectorData;
-        private final int[] ordinals;
-        private final int targetOrd;
         private final float[] queryVector;
 
         VectorData(int dims, int numVectors, int numVectorsToScore) {
-            this.numVectorsToScore = numVectorsToScore;
+            super(numVectors, numVectorsToScore);
             vectorData = new float[numVectors][];
 
             ThreadLocalRandom random = ThreadLocalRandom.current();
             for (int v = 0; v < numVectors; v++) {
-                vectorData[v] = new float[dims];
-                for (int d = 0; d < dims; d++) {
-                    vectorData[v][d] = random.nextFloat();
-                }
+                vectorData[v] = randomFloatArray(random, dims);
             }
 
-            List<Integer> list = IntStream.range(0, numVectors).boxed().collect(Collectors.toList());
-            Collections.shuffle(list, random);
-            ordinals = list.stream().limit(numVectorsToScore).mapToInt(Integer::intValue).toArray();
+            queryVector = randomFloatArray(random, dims);
+        }
 
-            targetOrd = random.nextInt(numVectors);
-
-            queryVector = new float[dims];
-            for (int i = 0; i < dims; i++) {
-                queryVector[i] = random.nextFloat();
-            }
+        @Override
+        void writeVectorData(Directory directory) throws IOException {
+            writeFloatVectorData(directory, vectorData);
         }
     }
 
@@ -194,20 +120,12 @@ public class VectorScorerFloatBulkBenchmark {
     }
 
     void setup(VectorData vectorData) throws IOException {
+        setup(vectorData, numVectors);
+    }
+
+    @Override
+    void createScorers(IndexInput in, VectorScorerBulkBenchmark.VectorData vectorData) throws IOException {
         VectorScorerFactory factory = getScorerFactoryOrDie();
-
-        path = Files.createTempDirectory("FloatBulkScorerBenchmark");
-        dir = new MMapDirectory(path);
-        writeFloatVectorData(dir, vectorData.vectorData);
-
-        numVectorsToScore = vectorData.numVectorsToScore;
-        scores = new float[bulkSize];
-        toScore = new int[bulkSize];
-        ids = IntStream.range(0, numVectors).toArray();
-        ordinals = vectorData.ordinals;
-
-        in = dir.openInput("vector.data", IOContext.DEFAULT);
-
         var values = floatVectorValues(dims, numVectors, in, function.function());
 
         switch (implementation) {
@@ -221,89 +139,16 @@ public class VectorScorerFloatBulkBenchmark {
             case LUCENE:
                 scorer = luceneScoreSupplier(values, function.function()).scorer();
                 if (supportsHeapSegments()) {
-                    queryScorer = luceneScorer(values, function.function(), vectorData.queryVector);
+                    queryScorer = luceneScorer(values, function.function(), ((VectorData) vectorData).queryVector);
                 }
                 break;
             case NATIVE:
                 scorer = factory.getFloatVectorScorerSupplier(function, in, values).orElseThrow().scorer();
                 if (supportsHeapSegments()) {
-                    queryScorer = factory.getFloatVectorScorer(function.function(), values, vectorData.queryVector).orElseThrow();
+                    queryScorer = factory.getFloatVectorScorer(function.function(), values, ((VectorData) vectorData).queryVector)
+                        .orElseThrow();
                 }
                 break;
         }
-
-        scorer.setScoringOrdinal(vectorData.targetOrd);
-    }
-
-    @TearDown
-    public void teardown() throws IOException {
-        IOUtils.close(in, dir);
-        IOUtils.rm(path);
-    }
-
-    @Benchmark
-    public float[] scoreMultipleSequential() throws IOException {
-        int v = 0;
-        while (v < numVectorsToScore) {
-            for (int i = 0; i < bulkSize && v < numVectorsToScore; i++, v++) {
-                scores[i] = scorer.score(v);
-            }
-        }
-        return scores;
-    }
-
-    @Benchmark
-    public float[] scoreMultipleRandom() throws IOException {
-        int v = 0;
-        while (v < numVectorsToScore) {
-            for (int i = 0; i < bulkSize && v < numVectorsToScore; i++, v++) {
-                scores[i] = scorer.score(ordinals[v]);
-            }
-        }
-        return scores;
-    }
-
-    @Benchmark
-    public float[] scoreQueryMultipleRandom() throws IOException {
-        int v = 0;
-        while (v < numVectorsToScore) {
-            for (int i = 0; i < bulkSize && v < numVectorsToScore; i++, v++) {
-                scores[i] = queryScorer.score(ordinals[v]);
-            }
-        }
-        return scores;
-    }
-
-    @Benchmark
-    public float[] scoreMultipleSequentialBulk() throws IOException {
-        for (int i = 0; i < numVectorsToScore; i += bulkSize) {
-            int toScoreInThisBatch = Math.min(bulkSize, numVectorsToScore - i);
-            // Copy the slice of sequential IDs to the scratch array
-            System.arraycopy(ids, i, toScore, 0, toScoreInThisBatch);
-            scorer.bulkScore(toScore, scores, toScoreInThisBatch);
-        }
-        return scores;
-    }
-
-    @Benchmark
-    public float[] scoreMultipleRandomBulk() throws IOException {
-        for (int i = 0; i < numVectorsToScore; i += bulkSize) {
-            int toScoreInThisBatch = Math.min(bulkSize, numVectorsToScore - i);
-            // Copy the slice of random ordinals to the scratch array
-            System.arraycopy(ordinals, i, toScore, 0, toScoreInThisBatch);
-            scorer.bulkScore(toScore, scores, toScoreInThisBatch);
-        }
-        return scores;
-    }
-
-    @Benchmark
-    public float[] scoreQueryMultipleRandomBulk() throws IOException {
-        for (int i = 0; i < numVectorsToScore; i += bulkSize) {
-            int toScoreInThisBatch = Math.min(bulkSize, numVectorsToScore - i);
-            // Copy the slice of random ordinals to the scratch array
-            System.arraycopy(ordinals, i, toScore, 0, toScoreInThisBatch);
-            queryScorer.bulkScore(toScore, scores, toScoreInThisBatch);
-        }
-        return scores;
     }
 }

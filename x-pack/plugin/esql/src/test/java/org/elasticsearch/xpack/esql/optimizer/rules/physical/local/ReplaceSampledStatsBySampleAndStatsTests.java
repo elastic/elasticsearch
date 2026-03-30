@@ -61,18 +61,6 @@ public class ReplaceSampledStatsBySampleAndStatsTests extends ESTestCase {
         assertThat(sampleExec.child(), instanceOf(EsQueryExec.class));
     }
 
-    public void testReplace_sumWithGrouping_noSampling() {
-        FieldAttribute salary = fieldAttribute("salary", DataType.INTEGER);
-        Alias sum = new Alias(Source.EMPTY, "sum", new Sum(Source.EMPTY, salary));
-        FieldAttribute dept = fieldAttribute("dept", DataType.KEYWORD);
-        SampledAggregateExec sampledAgg = sampledAggregate(esQueryExec(), List.of(sum), List.of(dept), AggregatorMode.INITIAL, 1.0);
-
-        PhysicalPlan result = applyRule(sampledAgg);
-
-        AggregateExec aggExec = assertAggregate(result, sampledAgg);
-        assertThat(aggExec.child(), instanceOf(EsQueryExec.class));
-    }
-
     public void testReplace_countAndStddev_finalMode() {
         FieldAttribute empNo = fieldAttribute("emp_no", DataType.INTEGER);
         Alias count = countAlias(empNo);

@@ -263,6 +263,7 @@ public class LocalExecutionPlanner {
             foldCtx,
             plannerSettings,
             timeSeries,
+            settings,
             shardContexts
         );
 
@@ -1011,6 +1012,13 @@ public class LocalExecutionPlanner {
         }
         // INITIAL mode: extraction on data nodes.
         if (FieldExtractExec.extractSourceAttributesFrom(metricsInfoExec.child()) == null) {
+            if (logger.isDebugEnabled()) {
+                logger.debug(
+                    "planMetricsInfo: no _doc attribute found in child [{}], outputSet [{}]; falling back to empty source",
+                    metricsInfoExec.child().nodeName(),
+                    metricsInfoExec.child().outputSet()
+                );
+            }
             return emptySourceForAttributes(metricsInfoExec.output());
         }
         // Step 1: Extract _tsid only
@@ -1111,6 +1119,13 @@ public class LocalExecutionPlanner {
         }
         // INITIAL mode: extraction on data nodes.
         if (FieldExtractExec.extractSourceAttributesFrom(tsInfoExec.child()) == null) {
+            if (logger.isDebugEnabled()) {
+                logger.debug(
+                    "planTsInfo: no _doc attribute found in child [{}], outputSet [{}]; falling back to empty source",
+                    tsInfoExec.child().nodeName(),
+                    tsInfoExec.child().outputSet()
+                );
+            }
             return emptySourceForAttributes(tsInfoExec.output());
         }
         // Step 1: Extract _tsid only
@@ -1629,6 +1644,7 @@ public class LocalExecutionPlanner {
         FoldContext foldCtx,
         PlannerSettings plannerSettings,
         boolean timeSeries,
+        Settings settings,
         IndexedByShardId<? extends ShardContext> shardContexts
     ) {
         void addDriverFactory(DriverFactory driverFactory) {

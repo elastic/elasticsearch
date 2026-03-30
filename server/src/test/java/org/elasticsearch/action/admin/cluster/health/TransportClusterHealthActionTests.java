@@ -81,10 +81,6 @@ public class TransportClusterHealthActionTests extends ESTestCase {
     }
 
     ClusterState randomClusterStateWithInitializingShards(String index, final int initializingShards, ProjectId projectId) {
-        final IndexMetadata indexMetadata = IndexMetadata.builder(index)
-            .settings(indexSettings(IndexVersion.current(), between(1, 10), randomInt(20)))
-            .build();
-
         final List<ShardRoutingState> shardRoutingStates = new ArrayList<>();
         if (initializingShards == 1 && randomBoolean()) {
             shardRoutingStates.add(ShardRoutingState.INITIALIZING);
@@ -100,8 +96,13 @@ public class TransportClusterHealthActionTests extends ESTestCase {
             Randomness.shuffle(shardRoutingStates);
 
             // primary must be active, otherwise replicas can't in initializing or relocating state.
-            shardRoutingStates.add(0, randomFrom(ShardRoutingState.STARTED, ShardRoutingState.RELOCATING));
+            shardRoutingStates.addFirst(randomFrom(ShardRoutingState.STARTED, ShardRoutingState.RELOCATING));
         }
+
+        final int numberOfReplicas = shardRoutingStates.size() - 1;
+        final IndexMetadata indexMetadata = IndexMetadata.builder(index)
+            .settings(indexSettings(IndexVersion.current(), 1, numberOfReplicas))
+            .build();
 
         final ShardId shardId = new ShardId(indexMetadata.getIndex(), 0);
         final IndexRoutingTable.Builder routingTable = new IndexRoutingTable.Builder(
@@ -111,7 +112,7 @@ public class TransportClusterHealthActionTests extends ESTestCase {
 
         // Primary
         {
-            ShardRoutingState state = shardRoutingStates.remove(0);
+            ShardRoutingState state = shardRoutingStates.removeFirst();
             String node = "node";
             String relocatingNode = state == ShardRoutingState.RELOCATING ? "relocating" : null;
             routingTable.addShard(TestShardRouting.newShardRouting(shardId, node, relocatingNode, true, state));
@@ -125,7 +126,7 @@ public class TransportClusterHealthActionTests extends ESTestCase {
             routingTable.addShard(TestShardRouting.newShardRouting(shardId, node, relocatingNode, false, state));
         }
 
-        var projects = randomMap(0, 5, () -> {
+        final var projects = randomMap(0, 5, () -> {
             var id = randomUniqueProjectId();
             return Tuple.tuple(id, ProjectMetadata.builder(id).build());
         });

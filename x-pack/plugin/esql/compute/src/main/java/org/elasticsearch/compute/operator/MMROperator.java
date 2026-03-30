@@ -52,7 +52,7 @@ public class MMROperator extends CompleteInputCollectorOperator {
         int diversificationFieldChannel,
         int limit,
         @Nullable VectorData queryVector,
-        @Nullable Float lambda
+        float lambda
     ) implements OperatorFactory {
 
         @Override
@@ -71,12 +71,10 @@ public class MMROperator extends CompleteInputCollectorOperator {
                 + ", queryVector="
                 + (queryVector != null ? queryVector.toString() : "null")
                 + ", lambda="
-                + (lambda != null ? lambda.toString() : "null")
+                + lambda
                 + "]";
         }
     }
-
-    public static Float DEFAULT_LAMBDA = 0.5f;
 
     private final String diversifyField;
     private final int diversifyFieldChannel;
@@ -91,7 +89,7 @@ public class MMROperator extends CompleteInputCollectorOperator {
     private int pagesProcessed = 0;
     private long rowsEmitted = 0L;
 
-    MMROperator(String diversifyField, int diversifyFieldChannel, int limit, @Nullable VectorData queryVector, @Nullable Float lambda) {
+    MMROperator(String diversifyField, int diversifyFieldChannel, int limit, @Nullable VectorData queryVector, float lambda) {
         super();
         this.diversifyField = diversifyField;
         this.diversifyFieldChannel = diversifyFieldChannel;
@@ -152,12 +150,7 @@ public class MMROperator extends CompleteInputCollectorOperator {
             docRank++;
         }
 
-        var diversificationContext = new MMRResultDiversificationContext(
-            diversifyField,
-            lambda == null ? DEFAULT_LAMBDA : lambda,
-            limit,
-            () -> queryVector
-        );
+        var diversificationContext = new MMRResultDiversificationContext(diversifyField, lambda, limit, () -> queryVector);
         diversificationContext.setFieldVectors(vectors);
 
         var diversification = new MMRResultDiversification(diversificationContext);

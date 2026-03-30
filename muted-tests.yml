@@ -369,6 +369,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
   method: test {csv-spec:approximation.Warn on max}
   issue: https://github.com/elastic/elasticsearch/issues/145218
+- class: org.elasticsearch.xpack.sql.qa.jdbc.single_node.SingleNodeJdbcResultSetIT
+  method: testGettingValidShortWithoutCasting
+  issue: https://github.com/elastic/elasticsearch/issues/145241
 
 # Examples:
 #

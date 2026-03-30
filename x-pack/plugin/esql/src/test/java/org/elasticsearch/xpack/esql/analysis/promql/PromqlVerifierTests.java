@@ -19,6 +19,7 @@ import java.util.List;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -142,11 +143,20 @@ public class PromqlVerifierTests extends ESTestCase {
 
     public void testAbsentMetricWithSimilarNameReturnsEmptyResult() {
         // Prometheus returns empty results for non-existent metrics, not errors.
-        // The metric name must be similar enough to an existing field (Levenshtein distance >= 0.5)
-        // to trigger the "did you mean" custom message in resolveAgainstList. This is the scenario
-        // where ResolveUnmapped.refreshPlan must clear the custom message inside the promqlPlan.
+        // It uses the load_unmapped="nullify" functionality to do that.
+        // There was a bug in this mechanism where it would throw an exception if the metric name was similar enough to an existing field,
+        // due to a "did you mean" message being left in the plan after resolution.
+        // This test ensures that the fix for that bug is working correctly.
         var plan = tsdb.query("PROMQL index=test step=5m network.bites_in");
         assertTrue("Plan should be resolved even when the metric is absent", plan.resolved());
+    }
+
+    public void testSimilarFieldInNonPromqlQueryFailsWithDidYouMean() {
+        // Showcases the did you mean message for non PROMQL queries.
+        tsdb.error(
+            "FROM test | WHERE network.bites_in > 0",
+            allOf(containsString("Unknown column [network.bites_in], did you mean any of ["), containsString("network.bytes_in"))
+        );
     }
 
     public void testNoMetricNameMatcherNotSupported() {

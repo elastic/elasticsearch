@@ -247,13 +247,10 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
             return ua;
         };
         var refreshed = plan.transformExpressionsOnlyUp(UnresolvedAttribute.class, refresh);
-        // transformExpressionsOnlyUp does not descend into the promqlPlan (a LogicalPlan property, not an Expression).
-        // Clear custom messages there too so ResolveRefs can re-resolve them against the now-updated EsRelation.
+        // transformExpressionsOnlyUp does not descend into the promqlPlan
+        // The promqlPlan is a separate tree and its children may contain UnresolvedAttribute expressions
         if (refreshed instanceof PromqlCommand promql && maybeNowResolvableAttributes.isEmpty() == false) {
-            LogicalPlan newPromqlPlan = promql.promqlPlan().transformExpressionsDown(UnresolvedAttribute.class, refresh);
-            if (newPromqlPlan != promql.promqlPlan()) {
-                refreshed = promql.withPromqlPlan(newPromqlPlan);
-            }
+            refreshed = promql.withPromqlPlan(promql.promqlPlan().transformExpressionsDown(UnresolvedAttribute.class, refresh));
         }
         return refreshed.transformDown(Fork.class, ResolveUnmapped::patchFork);
     }

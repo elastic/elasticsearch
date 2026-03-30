@@ -30,6 +30,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
@@ -133,6 +134,17 @@ public class PrometheusLabelValuesRestIT extends ESRestTestCase {
 
         assertThat(values, hasItem("filtered_job"));
         assertThat(values, not(hasItem("other_job")));
+    }
+
+    public void testMultipleMatchSelectorsReturnUnionOfValues() throws Exception {
+        writeMetric("multi_match_alpha", Map.of("job", "alpha"));
+        writeMetric("multi_match_beta", Map.of("job", "beta"));
+        writeMetric("multi_match_gamma", Map.of("job", "gamma"));
+
+        List<String> values = labelValuesData(client().performRequest(labelValuesRequest("job", "multi_match_alpha", "multi_match_beta")));
+
+        assertThat(values, containsInAnyOrder("alpha", "beta"));
+        assertThat(values, not(hasItem("gamma")));
     }
 
     public void testGetValuesAreSorted() throws Exception {

@@ -95,16 +95,20 @@ public class ES940DiskBBQVectorsReader extends IVFVectorsReader<ES940DiskBBQVect
         return bytes + paddingBytesNeeded;
     }
 
-    private void ensureCompatibleEncoding(ES940DiskBBQVectorsFormat.QuantEncoding quantEncoding) throws CorruptIndexException {
+    private void ensureCompatibleEncoding(IndexInput metaInput, ES940DiskBBQVectorsFormat.QuantEncoding quantEncoding)
+        throws CorruptIndexException {
         if (versionMeta < ES940DiskBBQVectorsFormat.VERSION_PACKED_INT4
             && quantEncoding == ES940DiskBBQVectorsFormat.QuantEncoding.FOUR_BIT_SYMMETRIC_PACKED) {
-            throw new CorruptIndexException("Packed 4-bit encoding requires version " + ES940DiskBBQVectorsFormat.VERSION_PACKED_INT4, "");
+            throw new CorruptIndexException(
+                "Packed 4-bit encoding requires version " + ES940DiskBBQVectorsFormat.VERSION_PACKED_INT4,
+                metaInput
+            );
         }
         if (versionMeta >= ES940DiskBBQVectorsFormat.VERSION_PACKED_INT4
             && quantEncoding == ES940DiskBBQVectorsFormat.QuantEncoding.FOUR_BIT_SYMMETRIC_STRIPED) {
             throw new CorruptIndexException(
                 "Striped 4-bit encoding requires version before " + ES940DiskBBQVectorsFormat.VERSION_PACKED_INT4,
-                ""
+                metaInput
             );
         }
     }
@@ -213,7 +217,7 @@ public class ES940DiskBBQVectorsReader extends IVFVectorsReader<ES940DiskBBQVect
     ) throws IOException {
         int bulkSize = input.readInt();
         ES940DiskBBQVectorsFormat.QuantEncoding quantEncoding = ES940DiskBBQVectorsFormat.QuantEncoding.fromId(input.readInt());
-        ensureCompatibleEncoding(quantEncoding);
+        ensureCompatibleEncoding(input, quantEncoding);
         long preconditionerLength = input.readLong();
         long preconditionerOffset = -1;
         if (preconditionerLength > 0) {

@@ -40,12 +40,19 @@ public class PrometheusSeriesPlanBuilderTests extends ESTestCase {
     private static final Instant START = Instant.ofEpochSecond(1_700_000_000L);
     private static final Instant END = Instant.ofEpochSecond(1_700_003_600L);
 
-    public void testBuildPlanWithoutLimitHasExpectedShape() {
+    public void testBuildPlanZeroLimitTopIsLimitWithMaxValue() {
+        // limit=0 means "unlimited": an explicit Limit(Integer.MAX_VALUE) is emitted so that ESQL's
+        // AddImplicitLimit rule sees an existing node and does not inject its own default.
         LogicalPlan plan = PrometheusSeriesPlanBuilder.buildPlan("*", List.of("up"), START, END, 0);
 
-        // Top: TsInfo
-        assertThat(plan, instanceOf(TsInfo.class));
-        LogicalPlan filterNode = ((TsInfo) plan).child();
+        // Top: Limit(Integer.MAX_VALUE)
+        assertThat(plan, instanceOf(Limit.class));
+        assertThat(((Limit) plan).limit().fold(null), is(Integer.MAX_VALUE));
+        LogicalPlan tsInfo = ((Limit) plan).child();
+
+        // Under Limit: TsInfo
+        assertThat(tsInfo, instanceOf(TsInfo.class));
+        LogicalPlan filterNode = ((TsInfo) tsInfo).child();
 
         // Under TsInfo: Filter
         assertThat(filterNode, instanceOf(Filter.class));
@@ -55,20 +62,17 @@ public class PrometheusSeriesPlanBuilderTests extends ESTestCase {
         assertThat(relation, instanceOf(UnresolvedRelation.class));
     }
 
-    public void testBuildPlanWithLimitWrapsWithLimitNode() {
+    public void testBuildPlanWithLimitTopIsLimitPlusOneSentinel() {
+        // limit>0 uses limit+1 as sentinel so the response listener can detect truncation.
         LogicalPlan plan = PrometheusSeriesPlanBuilder.buildPlan("*", List.of("up"), START, END, 100);
 
-        // Top: Limit
+        // Top: Limit(101)
         assertThat(plan, instanceOf(Limit.class));
+        assertThat(((Limit) plan).limit().fold(null), is(101));
         LogicalPlan tsInfo = ((Limit) plan).child();
 
         // Under Limit: TsInfo
         assertThat(tsInfo, instanceOf(TsInfo.class));
-    }
-
-    public void testBuildPlanZeroLimitDoesNotAddLimitNode() {
-        LogicalPlan plan = PrometheusSeriesPlanBuilder.buildPlan("*", List.of("up"), START, END, 0);
-        assertThat(plan, instanceOf(TsInfo.class));
     }
 
     public void testBuildPlanFilterContainsTimeRangeCondition() {

@@ -40,9 +40,11 @@ public class PrometheusSeriesResponseListener implements ActionListener<EsqlQuer
     private static final String CONTENT_TYPE = "application/json";
 
     private final RestChannel channel;
+    private final int limit;
 
-    public PrometheusSeriesResponseListener(RestChannel channel) {
+    public PrometheusSeriesResponseListener(RestChannel channel, int limit) {
         this.channel = channel;
+        this.limit = limit;
     }
 
     @Override
@@ -51,7 +53,7 @@ public class PrometheusSeriesResponseListener implements ActionListener<EsqlQuer
         // decRef() after this method returns, which is the correct single release.
         try {
             List<Map<String, String>> seriesList = extractSeries(response);
-            sendSuccess(seriesList);
+            channel.sendResponse(buildSuccessResponse(seriesList, limit));
         } catch (Exception e) {
             logger.debug("Failed to build series response", e);
             PrometheusErrorResponse.send(channel, e, logger);
@@ -147,12 +149,21 @@ public class PrometheusSeriesResponseListener implements ActionListener<EsqlQuer
         return labels;
     }
 
-    private void sendSuccess(List<Map<String, String>> seriesList) throws IOException {
+    /**
+     * Builds the success response. Truncation detection uses the sentinel approach: the plan
+     * builder requests {@code limit+1} rows from ESQL; if exactly {@code limit+1} rows are
+     * returned the result was truncated and a {@code warnings} entry is added. The extra sentinel
+     * row is never included in the output. When {@code limit == 0} (unlimited) no truncation check
+     * is performed. Package-private for testing.
+     */
+    static RestResponse buildSuccessResponse(List<Map<String, String>> seriesList, int limit) throws IOException {
+        boolean truncated = limit > 0 && seriesList.size() == limit + 1;
+        List<Map<String, String>> series = truncated ? seriesList.subList(0, limit) : seriesList;
         XContentBuilder builder = JsonXContent.contentBuilder();
         builder.startObject();
         builder.field("status", "success");
         builder.startArray("data");
-        for (Map<String, String> labels : seriesList) {
+        for (Map<String, String> labels : series) {
             builder.startObject();
             for (Map.Entry<String, String> entry : labels.entrySet()) {
                 builder.field(entry.getKey(), entry.getValue());
@@ -160,8 +171,13 @@ public class PrometheusSeriesResponseListener implements ActionListener<EsqlQuer
             builder.endObject();
         }
         builder.endArray();
+        if (truncated) {
+            builder.startArray("warnings");
+            builder.value("results truncated due to limit");
+            builder.endArray();
+        }
         builder.endObject();
-        channel.sendResponse(new RestResponse(RestStatus.OK, CONTENT_TYPE, Strings.toString(builder)));
+        return new RestResponse(RestStatus.OK, CONTENT_TYPE, Strings.toString(builder));
     }
 
 }

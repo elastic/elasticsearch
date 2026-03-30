@@ -152,6 +152,9 @@ public class PromqlCommand extends UnaryPlan
     }
 
     public PromqlCommand withPromqlPlan(LogicalPlan newPromqlPlan) {
+        if (newPromqlPlan == promqlPlan) {
+            return this;
+        }
         return new PromqlCommand(
             source(),
             child(),
@@ -274,6 +277,14 @@ public class PromqlCommand extends UnaryPlan
         return stepId;
     }
 
+    public ReferenceAttribute valueAttribute() {
+        return new ReferenceAttribute(source(), null, valueColumnName, DataType.DOUBLE, Nullability.FALSE, valueId, false);
+    }
+
+    public ReferenceAttribute stepAttribute() {
+        return new ReferenceAttribute(source(), null, stepColumnName(), DataType.DATETIME, Nullability.FALSE, stepId, false);
+    }
+
     @Override
     public Expression timestamp() {
         return timestamp;
@@ -284,8 +295,8 @@ public class PromqlCommand extends UnaryPlan
         if (output == null) {
             List<Attribute> additionalOutput = promqlPlan.output();
             output = new ArrayList<>(additionalOutput.size() + 2);
-            output.add(new ReferenceAttribute(source(), null, valueColumnName, DataType.DOUBLE, Nullability.FALSE, valueId, false));
-            output.add(new ReferenceAttribute(source(), null, stepColumnName(), DataType.DATETIME, Nullability.FALSE, stepId, false));
+            output.add(valueAttribute());
+            output.add(stepAttribute());
             output.addAll(additionalOutput);
         }
         return output;

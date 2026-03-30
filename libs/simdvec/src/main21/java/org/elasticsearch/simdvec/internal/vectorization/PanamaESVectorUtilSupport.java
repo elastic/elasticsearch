@@ -1394,6 +1394,7 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
     public static FloatVector pow2NQT(FloatVector exponent) {
         // lanewise(F2I) is a floor operation
         IntVector p = exponent.add(1).convert(VectorOperators.F2I, 0).reinterpretAsInts();
+        p = p.max(-30).min(30);
         FloatVector pFloat = p.convert(VectorOperators.I2F, 0).reinterpretAsFloats();
         FloatVector m = exponent.sub(pFloat).div(2).add(1);
         IntVector one = IntVector.broadcast(INTEGER_SPECIES, 1);

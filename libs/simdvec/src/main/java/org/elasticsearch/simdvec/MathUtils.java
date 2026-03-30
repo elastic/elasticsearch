@@ -30,6 +30,7 @@ public class MathUtils {
     /** Computes pow(2, exponent) using the NQT approximation. */
     public static float pow2NQT(float exponent) {
         int p = (int) Math.floor(exponent + 1);
+        p = Math.clamp(p, -30, 30);
         float m = (exponent - p) / 2 + 1;
         float result;
         if (p >= 0) {

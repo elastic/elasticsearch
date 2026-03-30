@@ -205,8 +205,9 @@ public class DataStreamLifecycleConvertToFrozen implements DlmFrozenTransitionRu
     public void maybeForceMergeIndex() {
         if (this.forceMergeIndex == null) {
             // this should not be reachable in normal execution
-            throw new IllegalStateException("forceMergeIndex is not set. This should never happen as" +
-                " maybeCloneIndex should have been called before this method");
+            throw new IllegalStateException(
+                "forceMergeIndex is not set. This should never happen as" + " maybeCloneIndex should have been called before this method"
+            );
         }
         boolean indexMissing = Optional.ofNullable(getProjectState())
             .map(ProjectState::metadata)
@@ -259,11 +260,9 @@ public class DataStreamLifecycleConvertToFrozen implements DlmFrozenTransitionRu
         }
     }
 
-    public void maybeTakeSnapshot() {
-    }
+    public void maybeTakeSnapshot() {}
 
-    public void maybeMountSearchableSnapshot() {
-    }
+    public void maybeMountSearchableSnapshot() {}
 
     private boolean isIndexReadOnly() {
         return getProjectState().blocks().hasIndexBlock(projectId, indexName, WRITE.getBlock());
@@ -323,7 +322,8 @@ public class DataStreamLifecycleConvertToFrozen implements DlmFrozenTransitionRu
 
         final String repositoryName = getRepositoryForFrozen(projectMetadata, indexName);
         if (Strings.hasText(repositoryName) == false) {
-            throw new DlmUnrecoverableException(indexName,
+            throw new DlmUnrecoverableException(
+                indexName,
                 "Default repository is required for convert-to-frozen steps but was not configured for index [{}]",
                 indexName
             );
@@ -333,7 +333,8 @@ public class DataStreamLifecycleConvertToFrozen implements DlmFrozenTransitionRu
             .stream()
             .anyMatch(repositoryMetadata -> repositoryMetadata.name().equals(repositoryName));
         if (repoIsRegistered == false) {
-            throw new DlmUnrecoverableException(indexName,
+            throw new DlmUnrecoverableException(
+                indexName,
                 "Repository [{}] required for convert-to-frozen steps is no longer registered in project [{}]",
                 repositoryName,
                 projectId

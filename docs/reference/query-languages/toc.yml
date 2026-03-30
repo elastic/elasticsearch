@@ -260,6 +260,9 @@ toc:
                   - file: esql/functions-operators/spatial-functions/st_y.md
                   - file: esql/functions-operators/spatial-functions/st_npoints.md
                   - file: esql/functions-operators/spatial-functions/st_simplify.md
+                  - file: esql/functions-operators/spatial-functions/st_geometrytype.md
+                  - file: esql/functions-operators/spatial-functions/st_dimension.md
+                  - file: esql/functions-operators/spatial-functions/st_isempty.md
                   - file: esql/functions-operators/spatial-functions/st_envelope.md
                   - file: esql/functions-operators/spatial-functions/st_xmax.md
                   - file: esql/functions-operators/spatial-functions/st_xmin.md

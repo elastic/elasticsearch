@@ -281,7 +281,7 @@ public class GlobDiscoveryLocalTests extends ESTestCase {
 
         @Override
         public StorageIterator listObjects(StoragePath prefix, boolean recursive) throws IOException {
-            Path dirPath = PathUtils.get(prefix.path());
+            Path dirPath = PathUtils.get(prefix.localPath());
             if (Files.exists(dirPath) == false || Files.isDirectory(dirPath) == false) {
                 return emptyIterator();
             }
@@ -291,7 +291,7 @@ public class GlobDiscoveryLocalTests extends ESTestCase {
                 Files.walkFileTree(dirPath, new SimpleFileVisitor<>() {
                     @Override
                     public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
-                        if (attrs.isRegularFile()) {
+                        if (attrs.isRegularFile() && isExtraFSFile(file) == false) {
                             entries.add(toEntry(file, attrs));
                         }
                         return FileVisitResult.CONTINUE;
@@ -301,7 +301,7 @@ public class GlobDiscoveryLocalTests extends ESTestCase {
                 try (DirectoryStream<Path> stream = Files.newDirectoryStream(dirPath)) {
                     for (Path entry : stream) {
                         BasicFileAttributes attrs = Files.readAttributes(entry, BasicFileAttributes.class);
-                        if (attrs.isRegularFile()) {
+                        if (attrs.isRegularFile() && isExtraFSFile(entry) == false) {
                             entries.add(toEntry(entry, attrs));
                         }
                     }
@@ -330,7 +330,7 @@ public class GlobDiscoveryLocalTests extends ESTestCase {
 
         @Override
         public boolean exists(StoragePath path) {
-            return Files.exists(PathUtils.get(path.path()));
+            return Files.exists(PathUtils.get(path.localPath()));
         }
 
         @Override
@@ -344,6 +344,10 @@ public class GlobDiscoveryLocalTests extends ESTestCase {
         private static StorageEntry toEntry(Path file, BasicFileAttributes attrs) {
             StoragePath storagePath = StoragePath.of(StoragePath.fileUri(file));
             return new StorageEntry(storagePath, attrs.size(), attrs.lastModifiedTime().toInstant());
+        }
+
+        private static boolean isExtraFSFile(Path file) {
+            return file.getFileName().toString().startsWith("extra");
         }
 
         private static StorageIterator emptyIterator() {
@@ -393,7 +397,7 @@ public class GlobDiscoveryLocalTests extends ESTestCase {
 
         @Override
         public boolean exists() {
-            return Files.exists(PathUtils.get(path.path()));
+            return Files.exists(PathUtils.get(path.localPath()));
         }
 
         @Override

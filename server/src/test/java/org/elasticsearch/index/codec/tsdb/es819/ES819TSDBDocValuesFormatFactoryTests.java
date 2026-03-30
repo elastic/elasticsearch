@@ -46,7 +46,7 @@ public class ES819TSDBDocValuesFormatFactoryTests extends ESTestCase {
         );
         assertSame(ES819TSDBDocValuesFormatFactory.ES_819_3_TSDB_DOC_VALUES_FORMAT_LARGE_BINARY_BLOCK, actual);
         assertThat(actual.formatConfig.blockBytesThreshold(), equalTo(1024 * 1024));
-        assertThat(actual.formatConfig.blockCountThreshold(), equalTo(32768));
+        assertThat(actual.formatConfig.blockCountThreshold(), equalTo(8096));
     }
 
     public void testVersionAfterVersion3() {

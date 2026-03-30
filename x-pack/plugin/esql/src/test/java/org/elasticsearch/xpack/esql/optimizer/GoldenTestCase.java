@@ -75,6 +75,12 @@ import static org.elasticsearch.xpack.esql.plan.QuerySettings.UNMAPPED_FIELDS;
 @LuceneTestCase.SuppressFileSystems("ExtrasFS") // ExtrasFS can create extraneous files in the output directory.
 public abstract class GoldenTestCase extends ESTestCase {
     private static final Logger logger = LogManager.getLogger(GoldenTestCase.class);
+
+    /**
+     * RandomizedRunner appends {@code {seed=[...]}} to {@link #getTestName()} for {@code -Dtests.iters} / {@code @Repeat} (See #144763).
+     */
+    private static final Pattern RANDOMIZED_RUNNER_SEED_SUFFIX_AT_END = Pattern.compile("(?:\\s+\\{seed=\\[[^\\]]+\\]\\})+$");
+
     private final Path baseFile;
 
     public GoldenTestCase() {
@@ -103,7 +109,7 @@ public abstract class GoldenTestCase extends ESTestCase {
         TransportVersion transportVersion,
         String... nestedPath
     ) {
-        String testName = extractTestName();
+        String testName = RANDOMIZED_RUNNER_SEED_SUFFIX_AT_END.matcher(getTestName()).replaceFirst("");
         new Test(baseFile, testName, nestedPath, esqlQuery, stages, searchStats, transportVersion).doTest();
     }
 
@@ -220,6 +226,7 @@ public abstract class GoldenTestCase extends ESTestCase {
             Files.writeString(queryPath, esqlQuery);
             TestAnalyzer testAnalyzer = analyzer().addLanguagesLookup()
                 .addAnalysisTestsEnrichResolution()
+                .addAnalysisTestsInferenceResolution()
                 .minimumTransportVersion(transportVersion)
                 .unmappedResolution(statement.setting(UNMAPPED_FIELDS));
             loadIndexResolution(CsvTests.testDatasets(parsedPlan)).forEach(
@@ -532,10 +539,6 @@ public abstract class GoldenTestCase extends ESTestCase {
 
     private static String normalize(String s) {
         return s.lines().map(String::strip).collect(Collectors.joining("\n"));
-    }
-
-    private String extractTestName() {
-        return getTestName();
     }
 
     /**

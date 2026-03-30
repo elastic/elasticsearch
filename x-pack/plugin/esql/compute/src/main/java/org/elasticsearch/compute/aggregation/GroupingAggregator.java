@@ -8,7 +8,6 @@
 package org.elasticsearch.compute.aggregation;
 
 import org.elasticsearch.compute.Describable;
-import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.IntArrayBlock;
 import org.elasticsearch.compute.data.IntBigArrayBlock;
 import org.elasticsearch.compute.data.IntVector;
@@ -60,16 +59,14 @@ public record GroupingAggregator(GroupingAggregatorFunction aggregatorFunction, 
         }
     }
 
-    /**
-     * Build the results for this aggregation.
-     * @param selected the groupIds that have been selected to be included in
-     *                 the results. Always ascending.
-     */
-    public void evaluate(Block[] blocks, int offset, IntVector selected, GroupingAggregatorEvaluationContext evaluationContext) {
+    public GroupingAggregatorFunction.PreparedForEvaluation prepareForEvaluate(
+        IntVector selected,
+        GroupingAggregatorEvaluationContext ctx
+    ) {
         if (mode.isOutputPartial()) {
-            aggregatorFunction.evaluateIntermediate(blocks, offset, selected);
+            return aggregatorFunction.prepareEvaluateIntermediate(selected, ctx);
         } else {
-            aggregatorFunction.evaluateFinal(blocks, offset, selected, evaluationContext);
+            return aggregatorFunction.prepareEvaluateFinal(selected, ctx);
         }
     }
 

@@ -821,7 +821,7 @@ class NodeConstruction {
             threadPool,
             systemIndices,
             projectResolver,
-            getWriteLoadForecaster(threadPool, settings, clusterService.getClusterSettings()),
+            getWriteLoadForecaster(threadPool, settings, clusterService.getClusterSettings(), clusterInfoService),
             telemetryProvider
         );
         modules.add(clusterModule);
@@ -1279,7 +1279,8 @@ class NodeConstruction {
             clusterService,
             systemIndices
         );
-        final SystemMetrics systemMetrics = new SystemMetrics(telemetryProvider.getMeterRegistry());
+        boolean emitOTelMetrics = settings.getAsBoolean("telemetry.otel.metrics.enabled", false);
+        final SystemMetrics systemMetrics = new SystemMetrics(telemetryProvider.getMeterRegistry(), emitOTelMetrics);
 
         OnlinePrewarmingService onlinePrewarmingService = pluginsService.loadSingletonServiceProvider(
             OnlinePrewarmingServiceProvider.class,
@@ -1298,6 +1299,7 @@ class NodeConstruction {
             telemetryProvider.getTracer(),
             onlinePrewarmingService
         );
+        searchTransportService.setSearchService(searchService);
 
         final SearchTaskWatchdog searchTaskWatchdog = new SearchTaskWatchdog(
             settingsModule.getClusterSettings(),
@@ -1700,9 +1702,17 @@ class NodeConstruction {
         return getSinglePlugin(recoveryPlannerServices, RecoveryPlannerService.class).orElseGet(PeerOnlyRecoveryPlannerService::new);
     }
 
-    private WriteLoadForecaster getWriteLoadForecaster(ThreadPool threadPool, Settings settings, ClusterSettings clusterSettings) {
+    private WriteLoadForecaster getWriteLoadForecaster(
+        ThreadPool threadPool,
+        Settings settings,
+        ClusterSettings clusterSettings,
+        ClusterInfoService clusterInfoService
+    ) {
         var writeLoadForecasters = pluginsService.filterPlugins(ClusterPlugin.class)
-            .flatMap(clusterPlugin -> clusterPlugin.createWriteLoadForecasters(threadPool, settings, clusterSettings).stream());
+            .flatMap(
+                clusterPlugin -> clusterPlugin.createWriteLoadForecasters(threadPool, settings, clusterSettings, clusterInfoService)
+                    .stream()
+            );
 
         WriteLoadForecaster forecaster = getSinglePlugin(writeLoadForecasters, WriteLoadForecaster.class).orElse(
             WriteLoadForecaster.DEFAULT

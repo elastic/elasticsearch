@@ -28,6 +28,7 @@ import org.apache.http.nio.protocol.HttpAsyncResponseConsumer;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.HeapBufferedAsyncResponseConsumer;
+import org.elasticsearch.client.ResponseListener;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.ParsingException;
@@ -76,6 +77,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -430,6 +432,41 @@ public class RemoteScrollablePaginatedHitSourceTests extends ESTestCase {
         paginatedHitSource.cleanup(() -> cleanupCallbackCalled.set(true));
         verify(client).close();
         assertTrue(cleanupCallbackCalled.get());
+    }
+
+    /** When scroll ID is empty or null, close runs cleanup immediately without calling clearScroll. */
+    public void testCloseWhenScrollIdEmpty() throws Exception {
+        RestClient client = mock(RestClient.class);
+        RemoteInfo remoteInfo = remoteInfo();
+        TestRemoteScrollablePaginatedHitSource paginatedHitSource = new TestRemoteScrollablePaginatedHitSource(client, remoteInfo);
+        AtomicBoolean closeCallbackCalled = new AtomicBoolean();
+
+        paginatedHitSource.close(() -> closeCallbackCalled.set(true));
+
+        assertTrue(closeCallbackCalled.get());
+        verify(client, never()).performRequestAsync(any(), any());
+        verify(client).close();
+    }
+
+    /** When scroll ID is set, close calls clearScroll and runs cleanup after it completes. */
+    public void testCloseWhenScrollIdSet() throws Exception {
+        RestClient client = mock(RestClient.class);
+        when(client.performRequestAsync(any(), any())).thenAnswer(invocation -> {
+            ResponseListener listener = invocation.getArgument(1);
+            listener.onSuccess(mock(org.elasticsearch.client.Response.class));
+            return null;
+        });
+        RemoteInfo remoteInfo = remoteInfo();
+        TestRemoteScrollablePaginatedHitSource paginatedHitSource = new TestRemoteScrollablePaginatedHitSource(client, remoteInfo);
+        paginatedHitSource.remoteVersion = Version.CURRENT;
+        paginatedHitSource.setScroll("scroll_123");
+        AtomicBoolean closeCallbackCalled = new AtomicBoolean();
+
+        paginatedHitSource.close(() -> closeCallbackCalled.set(true));
+
+        assertTrue(closeCallbackCalled.get());
+        verify(client).performRequestAsync(any(), any());
+        verify(client).close();
     }
 
     private RemoteScrollablePaginatedHitSource sourceWithMockedRemoteCall(String... paths) throws Exception {

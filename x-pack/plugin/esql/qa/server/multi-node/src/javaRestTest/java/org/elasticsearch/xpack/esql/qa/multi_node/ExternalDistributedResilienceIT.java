@@ -17,10 +17,12 @@ import org.elasticsearch.xpack.esql.datasources.FaultInjectingS3HttpHandler;
 import org.elasticsearch.xpack.esql.datasources.FaultInjectingS3HttpHandler.FaultType;
 import org.junit.After;
 
+import java.net.SocketTimeoutException;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.esql.core.util.TestUtils.isServerless;
 import static org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.WAREHOUSE;
 
 /**
@@ -107,21 +109,41 @@ public class ExternalDistributedResilienceIT extends AbstractExternalDistributed
         s3Fixture.loadFixturesFromResources();
 
         for (String mode : DISTRIBUTION_MODES) {
-            faultHandler().setFault(FaultType.HTTP_503, 100);
+            // Global per-request fault budget; distributed Parquet reads issue many HTTP requests and retries.
+            faultHandler().setFault(FaultType.HTTP_503, isServerless(adminClient()) ? 1_000 : 100);
 
-            ResponseException ex = expectThrows(ResponseException.class, () -> runQueryWithMode(employeesQuery(), mode));
-            String responseBody = new String(ex.getResponse().getEntity().getContent().readAllBytes(), StandardCharsets.UTF_8);
-            assertTrue(
-                Strings.format("Expected storage error in response for mode %s, got: %s", mode, responseBody),
-                responseBody.contains("503")
-                    || responseBody.contains("Service Unavailable")
-                    || responseBody.contains("SlowDown")
-                    || responseBody.contains("storage")
-                    || responseBody.contains("error")
-            );
+            Exception ex = expectThrows(Exception.class, () -> runQueryWithMode(employeesQuery(), mode));
+            if (ex instanceof ResponseException responseEx) {
+                String responseBody = new String(responseEx.getResponse().getEntity().getContent().readAllBytes(), StandardCharsets.UTF_8);
+                assertTrue(
+                    Strings.format("Expected storage error in response for mode %s, got: %s", mode, responseBody),
+                    responseBody.contains("503")
+                        || responseBody.contains("Service Unavailable")
+                        || responseBody.contains("SlowDown")
+                        || responseBody.contains("storage")
+                        || responseBody.contains("error")
+                );
+            } else {
+                // A Parquet read involves multiple sequential S3 operations, each with its own
+                // retry budget. Under persistent throttling the cumulative retry time can exceed
+                // the REST client's socket timeout, which is an acceptable failure mode.
+                assertTrue(
+                    Strings.format("Expected ResponseException or SocketTimeoutException for mode %s, got: %s", mode, ex.getClass()),
+                    hasCause(ex, SocketTimeoutException.class)
+                );
+            }
 
             faultHandler().clearFault();
         }
+    }
+
+    private static boolean hasCause(Throwable t, Class<? extends Throwable> type) {
+        for (Throwable current = t; current != null; current = current.getCause()) {
+            if (type.isInstance(current)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public void testPathFilteredFaultsOnlyAffectParquetReads() throws Exception {

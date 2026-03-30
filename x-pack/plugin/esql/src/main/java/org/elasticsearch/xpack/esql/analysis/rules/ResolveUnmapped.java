@@ -49,6 +49,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.ResolveRefs.insistKeyword;
 import static org.elasticsearch.xpack.esql.core.util.CollectionUtils.combine;
@@ -237,14 +238,23 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
      * again. That's what this method does.
      */
     private static LogicalPlan refreshPlan(LogicalPlan plan, Set<UnresolvedAttribute> maybeNowResolvableAttributes) {
-        var refreshed = plan.transformExpressionsOnlyUp(UnresolvedAttribute.class, ua -> {
+        Function<UnresolvedAttribute, UnresolvedAttribute> refresh = ua -> {
             if (maybeNowResolvableAttributes.remove(ua)) {
                 // Besides clearing the message, we need to refresh the nameId to avoid equality with the previous plan.
                 // (A `new UnresolvedAttribute(ua.source(), ua.name())` would save an allocation, but is problematic with subtypes.)
                 ua = (ua.withId(new NameId())).withUnresolvedMessage(null);
             }
             return ua;
-        });
+        };
+        var refreshed = plan.transformExpressionsOnlyUp(UnresolvedAttribute.class, refresh);
+        // transformExpressionsOnlyUp does not descend into the promqlPlan (a LogicalPlan property, not an Expression).
+        // Clear custom messages there too so ResolveRefs can re-resolve them against the now-updated EsRelation.
+        if (refreshed instanceof PromqlCommand promql && maybeNowResolvableAttributes.isEmpty() == false) {
+            LogicalPlan newPromqlPlan = promql.promqlPlan().transformExpressionsDown(UnresolvedAttribute.class, refresh);
+            if (newPromqlPlan != promql.promqlPlan()) {
+                refreshed = promql.withPromqlPlan(newPromqlPlan);
+            }
+        }
         return refreshed.transformDown(Fork.class, ResolveUnmapped::patchFork);
     }
 

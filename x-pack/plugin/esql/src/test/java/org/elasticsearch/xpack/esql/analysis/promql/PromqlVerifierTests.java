@@ -42,7 +42,10 @@ public class PromqlVerifierTests extends ESTestCase {
     }
 
     public void testPromqlIllegalNameLabelMatcher() {
-        tsdb.error("PROMQL index=test step=5m (avg({__name__=~\"*.foo.*\"}))", containsString("Unknown column [__name__]"));
+        tsdb.error(
+            "PROMQL index=test step=5m (avg({__name__=~\"*.foo.*\"}))",
+            containsString("regex label selectors on __name__ are not supported at this time")
+        );
     }
 
     public void testPromqlSubquery() {
@@ -135,6 +138,15 @@ public class PromqlVerifierTests extends ESTestCase {
         var localRelations = plan.collect(LocalRelation.class);
         assertThat(localRelations, hasSize(1));
         assertThat(localRelations.get(0).supplier(), equalTo(EmptyLocalSupplier.EMPTY));
+    }
+
+    public void testAbsentMetricWithSimilarNameReturnsEmptyResult() {
+        // Prometheus returns empty results for non-existent metrics, not errors.
+        // The metric name must be similar enough to an existing field (Levenshtein distance >= 0.5)
+        // to trigger the "did you mean" custom message in resolveAgainstList. This is the scenario
+        // where ResolveUnmapped.refreshPlan must clear the custom message inside the promqlPlan.
+        var plan = tsdb.query("PROMQL index=test step=5m network.bites_in");
+        assertTrue("Plan should be resolved even when the metric is absent", plan.resolved());
     }
 
     public void testNoMetricNameMatcherNotSupported() {

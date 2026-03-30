@@ -11,6 +11,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.dlm.DataStreamLifecycleErrorStore;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -42,8 +43,9 @@ class DlmFrozenTransitionExecutor implements Closeable {
     private final ExecutorService executor;
     private final int maxConcurrency;
     private final int maxQueueSize;
+    private final DataStreamLifecycleErrorStore errorStore;
 
-    DlmFrozenTransitionExecutor(int maxConcurrency, int maxQueueSize, Settings settings) {
+    DlmFrozenTransitionExecutor(int maxConcurrency, int maxQueueSize, Settings settings, DataStreamLifecycleErrorStore errorStore) {
         this.maxConcurrency = maxConcurrency;
         this.maxQueueSize = maxQueueSize;
         this.submittedTransitions = new ConcurrentHashMap<>(maxQueueSize);
@@ -56,6 +58,7 @@ class DlmFrozenTransitionExecutor implements Closeable {
             }
             return thread;
         }, new ThreadContext(settings), EsExecutors.TaskTrackingConfig.DEFAULT);
+        this.errorStore = errorStore;
     }
 
     public boolean transitionSubmitted(String indexName) {
@@ -112,7 +115,13 @@ class DlmFrozenTransitionExecutor implements Closeable {
                 task.run();
                 logger.debug("Transition completed for index [{}]", indexName);
             } catch (Exception ex) {
-                logger.error(() -> Strings.format("Error executing transition for index [%s]", indexName), ex);
+                errorStore.recordAndLogError(
+                    task.getProjectId(),
+                    indexName,
+                    ex,
+                    Strings.format("Error executing transition for index [%s]", indexName),
+                    1
+                );
             } finally {
                 submittedTransitions.remove(indexName);
             }

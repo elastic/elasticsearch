@@ -3870,3 +3870,128 @@ SUM(salary_change):double   | salary_change:double
 14.69                       | 1.92           
 6.000000000000001           | 1.98           
 ;
+
+multiStatsAfterFalseFilter_ByComputedValues
+from employees
+| where false
+| stats c = count(*), s = avg(salary)
+| stats max(c), min(s) by s, c
+;
+
+  max(c):l     |    min(s):d   |       s:d     |       c:l
+0              |null           |null           |0              
+;
+
+multiStatsAfterFalseFilter_ByLiteralValue
+from employees
+| where false
+| stats c = count(*), s = avg(salary)
+| stats max(c), min(s) by x = "abc"
+;
+
+    max(c):l   |    min(s):d   |       x:keyword       
+0              |null           |abc            
+;
+
+multiStatsAfterFalseFilter_ByField
+from employees
+| where false
+| stats c = count(gender), s = avg(salary) by gender
+| stats max(c), min(c), min(s), avg(s)
+;
+
+    max(c):l   |    min(c):l   |    min(s):d   |    avg(s):d
+null           |null           |null           |null           
+;
+
+whereNullBeforeStats
+from employees
+| where null
+| stats c = count(*)
+;
+
+c:long
+0
+;
+
+whereNullBeforeMixedStats
+from employees
+| where null
+| stats c = count(*), s = sum(salary), a = avg(salary)
+;
+
+c:long | s:long | a:double
+0      | null   | null
+;
+
+evalNullFilterBeforeStats
+from employees
+| eval x = null
+| where x::int > 0
+| stats c = count(*)
+;
+
+c:long
+0
+;
+
+nullArithmeticFilterBeforeStats
+from employees
+| where 1 + null > 0
+| stats c = count(*), mn = min(salary), mx = max(salary)
+;
+
+c:long | mn:integer | mx:integer
+0      | null       | null
+;
+
+whereNullConjunctionBeforeStats
+from employees
+| where null and salary > 0
+| stats c = count(*)
+;
+
+c:long
+0
+;
+
+whereNullBeforeGroupedStats
+from employees
+| where null
+| stats c = count(*) by gender
+;
+
+c:long | gender:keyword
+;
+
+evalNullFilterBeforeGroupedStats
+from employees
+| eval x = null
+| where x::int > 0
+| stats c = count(*), s = avg(salary) by gender
+;
+
+c:long | s:double | gender:keyword
+;
+
+multiStatsAfterNullFilter_ByComputedValues
+from employees
+| where null
+| stats c = count(*), s = avg(salary)
+| stats max(c), min(s) by s, c
+;
+
+ max(c):l | min(s):d | s:d | c:l
+0         |null      |null |0
+;
+
+multiStatsAfterNullFilter_ByField
+from employees
+| where null
+| stats c = count(gender), s = avg(salary) by gender
+| stats max(c), min(c), min(s), avg(s)
+;
+
+    max(c):l   |    min(c):l   |    min(s):d   |    avg(s):d
+null           |null           |null           |null           
+;

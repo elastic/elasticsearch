@@ -97,7 +97,7 @@ public class ES93HnswBinaryQuantizedVectorsFormatTests extends BaseHnswVectorsFo
         assertThat(format, hasToString(containsString("ES93BinaryQuantizedVectorsFormat")));
         assertThat(format, hasToString(containsString("ES93GenericFlatVectorsFormat")));
         assertThat(format, hasToString(containsString("Lucene99FlatVectorsFormat")));
-        assertThat(format, hasToString(containsString("ES93FlatVectorScorer")));
+        assertThat(format, hasToString(containsString("ES93GenericFlatVectorScorer")));
     }
 
     public void testDefaultHnswGraphThreshold() {

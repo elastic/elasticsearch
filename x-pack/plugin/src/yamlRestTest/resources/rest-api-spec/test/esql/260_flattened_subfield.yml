@@ -111,16 +111,12 @@ setup:
 ---
 'loading from two indices with different mappings 2':
   - do:
-      catch: bad_request
+      catch: '/Cannot use field \[foo.bar\] due to ambiguities being mapped as \[2\] incompatible types: \[keyword\] enforced by INSIST command.*\[unsupported\]/'
       esql.query:
         body:
           # [foo] is flattened in index1
           # [foo.bar] is keyword in index4
           query: 'SET unmapped_fields="load"; FROM index1,index4 | WHERE foo.bar == "something"'
-
-  - match: { error.type: verification_exception }
-  - contains: { error.reason: 'Found 1 problem' }
-  - contains: { error.reason: 'line 1:56: Cannot use field [foo.bar] due to ambiguities being mapped as [2] incompatible types: [keyword] enforced by INSIST command, and [unsupported] in index mappings' }
 
 ---
 'loading from two indices with different mappings 3':

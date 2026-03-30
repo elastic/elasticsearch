@@ -25,6 +25,7 @@ import java.util.Optional;
 
 import static org.elasticsearch.simdvec.internal.Similarities.dotProductI4;
 import static org.elasticsearch.simdvec.internal.Similarities.dotProductI4BulkWithOffsets;
+import static org.elasticsearch.simdvec.internal.vectorization.JdkFeatures.SUPPORTS_HEAP_SEGMENTS;
 
 /**
  * Int4 packed-nibble query-time scorer. The float query is quantized externally
@@ -33,8 +34,6 @@ import static org.elasticsearch.simdvec.internal.Similarities.dotProductI4BulkWi
  * followed by corrective terms (3 floats + 1 int).
  */
 public final class Int4VectorScorer extends RandomVectorScorer.AbstractRandomVectorScorer {
-
-    private static final boolean SUPPORTS_HEAP_SEGMENTS = Runtime.version().feature() >= 22;
 
     private final ScorerImpl scorerImpl;
     private final QueryContext query;

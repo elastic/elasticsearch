@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.optimizer.rules.logical.local;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
+import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
@@ -41,11 +42,18 @@ public class LocalPropagateEmptyRelation extends PropagateEmptyRelation {
         for (Attribute o : output) {
             DataType dataType = o.dataType();
             // boolean right now is used for the internal #seen so always return true
-            var value = dataType == DataType.BOOLEAN ? true
-                // look for count(literal) with literal != null
-                : aggFunc instanceof Count count && (count.foldable() == false || count.fold(foldCtx) != null) ? 0L
-                // otherwise nullify
-                : null;
+            Object value;
+            if (dataType == DataType.BOOLEAN) {
+                value = true;
+            } else if (aggFunc instanceof Count count && (count.foldable() == false || count.fold(foldCtx) != null)) {
+                value = switch (aggFunc.dataType()) {
+                    case LONG -> 0L;     // Count
+                    case DOUBLE -> 0.0;  // CountApproximate
+                    default -> throw new EsqlIllegalArgumentException("Unexpected COUNT return type [{}]", aggFunc.dataType());
+                };
+            } else {
+                value = null;
+            }
             var wrapper = BlockUtils.wrapperFor(blockFactory, PlannerUtils.toElementType(dataType), 1);
             wrapper.accept(value);
             blocks.add(wrapper.builder().build());

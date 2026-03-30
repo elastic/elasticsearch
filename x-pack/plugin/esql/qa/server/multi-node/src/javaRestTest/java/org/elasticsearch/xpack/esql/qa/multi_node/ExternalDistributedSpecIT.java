@@ -23,6 +23,7 @@ import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 

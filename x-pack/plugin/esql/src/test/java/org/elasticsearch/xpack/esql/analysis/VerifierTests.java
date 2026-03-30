@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.analysis;
 import org.elasticsearch.Build;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
@@ -26,6 +27,7 @@ import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchPhrase;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.QueryString;
 import org.elasticsearch.xpack.esql.expression.function.vector.Knn;
+import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
@@ -3963,6 +3965,48 @@ public class VerifierTests extends ESTestCase {
             | STATS mc = max(network.cost) BY cluster, pod, region
             | STATS d = sum(mc) BY WITHOUT(region)
             """, containsString("WITHOUT is only supported in time-series queries (i.e. TS | ...) at the moment"));
+    }
+
+    /**
+     * Verifier rejects a reference to a partially unmapped non-KEYWORD field when {@code unmapped_fields=load}.
+     * This exercises the full analysis + verification pipeline, not just the unit-tested Verifier path.
+     */
+    public void testPartiallyUnmappedNonKeywordIsRejectedWithLoad() {
+        assumeTrue("Requires OPTIONAL_FIELDS_V4", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V4.isEnabled());
+
+        var esIndex = partialNonKeywordIndex();
+        var ta = analyzer().addIndex(esIndex);
+        ta.statementError(
+            "SET unmapped_fields=\"load\"; FROM partial_idx | KEEP partial_long",
+            allOf(
+                containsString("Found 1 problem"),
+                containsString("Using partially unmapped non-KEYWORD field [partial_long] is not supported with unmapped_fields=\"load\"")
+            )
+        );
+    }
+
+    /**
+     * With {@code unmapped_fields=load}, referencing a partially unmapped non-KEYWORD field only in {@code FROM} (not downstream)
+     * must succeed — the check fires only when the field is used outside the source relation.
+     */
+    public void testPartiallyUnmappedNonKeywordIsAllowedWithLoad_WhenNotReferenced() {
+        assumeTrue("Requires OPTIONAL_FIELDS_V4", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V4.isEnabled());
+
+        var esIndex = partialNonKeywordIndex();
+        // partial_long is in the index but not referenced in any downstream expression — no PUNK violation
+        assertNotNull(analyzer().addIndex(esIndex).statement("SET unmapped_fields=\"load\"; FROM partial_idx"));
+    }
+
+    private static EsIndex partialNonKeywordIndex() {
+        var field = new EsField("partial_long", DataType.LONG, Map.of(), true, EsField.TimeSeriesFieldType.NONE);
+        return new EsIndex(
+            "partial_idx",
+            Map.of("partial_long", field),
+            Map.of("partial_idx", IndexMode.STANDARD),
+            Map.of(),
+            Map.of(),
+            Map.of("partial_long", Set.of("partial_idx_unmapped"))
+        );
     }
 
     private static TestAnalyzer defaultAnalyzer() {

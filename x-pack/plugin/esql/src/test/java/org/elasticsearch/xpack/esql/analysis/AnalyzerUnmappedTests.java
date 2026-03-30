@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedTimestamp;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
@@ -1191,6 +1192,56 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         );
     }
 
+    /**
+     * Same rule as {@link #testDisallowLoadWithPartiallyMappedNonKeyword} exercised through additional commands
+     * ({@code CHANGE_POINT} and {@code MV_EXPAND}) to ensure the check is not accidentally tied to a specific command.
+     * A regression that bypasses the verifier for one of these commands would cause its test to fail.
+     */
+    public void testDisallowLoadWithPartiallyMappedNonKeywordInChangePoint() {
+        assumeTrue("Requires OPTIONAL_FIELDS_V4", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V4.isEnabled());
+        assumeTrue("Requires CHANGE_POINT", EsqlCapabilities.Cap.CHANGE_POINT.isEnabled());
+
+        var esIndex = partialIndex(
+            "partial_idx",
+            Map.of(
+                "partial_long",
+                longField("partial_long"),
+                "@timestamp",
+                new EsField("@timestamp", DataType.DATETIME, emptyMap(), true, EsField.TimeSeriesFieldType.NONE)
+            ),
+            Set.of("partial_long")
+        );
+        assertUnmappedLoadError(
+            analyzer().addIndex(esIndex),
+            "FROM partial_idx | CHANGE_POINT partial_long ON @timestamp AS type, pvalue",
+            allOf(
+                containsString("Found 1 problem"),
+                containsString(
+                    "line 1:61: Cannot use field [partial_long] due to ambiguities being mapped as [2] incompatible types: "
+                        + "[keyword] enforced by INSIST command, [long] in [partial_idx]"
+                )
+            )
+        );
+    }
+
+    /** See {@link #testDisallowLoadWithPartiallyMappedNonKeywordInChangePoint}. */
+    public void testDisallowLoadWithPartiallyMappedNonKeywordInMvExpand() {
+        assumeTrue("Requires OPTIONAL_FIELDS_V4", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V4.isEnabled());
+
+        var esIndex = partialIndex("partial_idx", Map.of("partial_long", longField("partial_long")), Set.of("partial_long"));
+        assertUnmappedLoadError(
+            analyzer().addIndex(esIndex),
+            "FROM partial_idx | MV_EXPAND partial_long",
+            allOf(
+                containsString("Found 1 problem"),
+                containsString(
+                    "line 1:58: Cannot use field [partial_long] due to ambiguities being mapped as [2] incompatible types: "
+                        + "[keyword] enforced by INSIST command, [long] in [partial_idx]"
+                )
+            )
+        );
+    }
+
     public void testDisallowLoadWithPartiallyMappedNonKeywordDottedPath() {
         assumeTrue("Requires OPTIONAL_FIELDS_V4", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V4.isEnabled());
 
@@ -1204,6 +1255,46 @@ public class AnalyzerUnmappedTests extends ESTestCase {
                 containsString("Found 1 problem"),
                 containsString(
                     "line 1:53: Using partially unmapped non-KEYWORD field [obj.sub] is not supported with unmapped_fields=\"load\""
+                )
+            )
+        );
+    }
+
+    /**
+     * {@code @timestamp} resolved as date/date_nanos union across two indices, with a third index where it is outright unmapped. Under
+     * {@code unmapped_fields=load}, this still fails because {@code @timestamp} is partially unmapped and used in {@code WHERE}.
+     */
+    public void testDisallowLoadWithPartialUnionTimestampInWhere() {
+        assumeTrue("Requires OPTIONAL_FIELDS_V4", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V4.isEnabled());
+
+        var pattern = "sample_data,sample_data_ts_nanos,no_mapping_sample_data";
+        var tsField = new InvalidMappedField(
+            "@timestamp",
+            Map.of(DataType.DATETIME.typeName(), Set.of("sample_data"), DataType.DATE_NANOS.typeName(), Set.of("sample_data_ts_nanos"))
+        );
+        var merged = new EsIndex(
+            pattern,
+            Map.of("@timestamp", tsField),
+            Map.of(
+                "sample_data",
+                IndexMode.STANDARD,
+                "sample_data_ts_nanos",
+                IndexMode.STANDARD,
+                "no_mapping_sample_data",
+                IndexMode.STANDARD
+            ),
+            Map.of(),
+            Map.of(),
+            Map.of("@timestamp", Set.of("no_mapping_sample_data"))
+        );
+        assertUnmappedLoadError(
+            analyzer().addIndex(pattern, IndexResolution.valid(merged)),
+            "FROM sample_data, sample_data_ts_nanos, no_mapping_sample_data METADATA _index | WHERE @timestamp == \"2021-01-01\"::date_nanos",
+            allOf(
+                containsString("Found 1 problem"),
+                containsString(
+                    "line 1:116: Cannot use field [@timestamp] due to ambiguities being mapped as [2] incompatible types: "
+                        + "[keyword] enforced by INSIST command, [date_nanos] in [sample_data, sample_data_ts_nanos]"
                 )
             )
         );

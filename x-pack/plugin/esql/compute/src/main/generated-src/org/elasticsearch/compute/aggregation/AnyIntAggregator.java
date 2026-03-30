@@ -223,7 +223,6 @@ public class AnyIntAggregator {
             Releasables.close(observed, values, super::close);
         }
 
-        @Override
         public void toIntermediate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {
             try (var observedBlockBuilder = driverContext.blockFactory().newBooleanBlockBuilder(selected.getPositionCount())) {
                 for (int p = 0; p < selected.getPositionCount(); ++p) {

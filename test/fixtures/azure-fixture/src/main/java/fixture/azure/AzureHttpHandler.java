@@ -20,6 +20,7 @@ import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.rest.RequestParams;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.test.fixture.HttpHeaderParser;
@@ -34,7 +35,6 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -137,8 +137,7 @@ public class AzureHttpHandler implements HttpHandler {
         try {
             if (Regex.simpleMatch("PUT /" + account + "/" + container + "/*blockid=*", request)) {
                 // Put Block (https://docs.microsoft.com/en-us/rest/api/storageservices/put-block)
-                final Map<String, String> params = new HashMap<>();
-                RestUtils.decodeQueryString(exchange.getRequestURI().getRawQuery(), 0, params);
+                final var params = RequestParams.fromQueryString(exchange.getRequestURI().getRawQuery());
 
                 final String blockId = params.get("blockid");
                 assert assertValidBlockId(blockId);
@@ -273,8 +272,7 @@ public class AzureHttpHandler implements HttpHandler {
 
             } else if (Regex.simpleMatch("GET /" + account + "/" + container + "?*restype=container*comp=list*", request)) {
                 // List Blobs (https://docs.microsoft.com/en-us/rest/api/storageservices/list-blobs)
-                final Map<String, String> params = new HashMap<>();
-                RestUtils.decodeQueryString(exchange.getRequestURI().getQuery(), 0, params);
+                final var params = RequestParams.fromQueryString(exchange.getRequestURI().getQuery());
 
                 final StringBuilder list = new StringBuilder();
                 list.append("""

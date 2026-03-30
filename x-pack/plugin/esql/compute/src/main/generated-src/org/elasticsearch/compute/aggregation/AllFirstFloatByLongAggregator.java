@@ -302,7 +302,6 @@ public class AllFirstFloatByLongAggregator {
             Releasables.close(observed, hasTimestamp, timestamps, values, super::close);
         }
 
-        @Override
         public void toIntermediate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {
             try (
                 var observedBlockBuilder = driverContext.blockFactory().newBooleanBlockBuilder(selected.getPositionCount());

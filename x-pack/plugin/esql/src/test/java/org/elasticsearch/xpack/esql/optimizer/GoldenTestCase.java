@@ -436,7 +436,7 @@ public abstract class GoldenTestCase extends ESTestCase {
             StringBuilder numericSegments = new StringBuilder();
             boolean hasNormalized = false;
             for (String seg : matcher.group(1).split("\\$")) {
-                if (seg.chars().allMatch(Character::isDigit)) {
+                if (NUMERIC_SEGMENT_PATTERN.matcher(seg).matches()) {
                     appendSegment(numericSegments, seg);
                 } else {
                     if (numericSegments.isEmpty() == false) {
@@ -484,6 +484,7 @@ public abstract class GoldenTestCase extends ESTestCase {
      */
     private static final Pattern SYNTHETIC_PATTERN = Pattern.compile("\\$\\$([^$\\s{#]+(?:\\$[^$\\s{#]+)*)(?=[{#])");
     private static final Pattern IDENTIFIER_PATTERN = Pattern.compile("#\\d+");
+    private static final Pattern NUMERIC_SEGMENT_PATTERN = Pattern.compile("-?\\d+");
 
     private static class IdMap<K> {
         private final Map<K, Integer> map = new HashMap<>();

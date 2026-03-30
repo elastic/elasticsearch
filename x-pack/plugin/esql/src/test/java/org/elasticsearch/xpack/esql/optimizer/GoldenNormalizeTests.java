@@ -47,4 +47,8 @@ public class GoldenNormalizeTests extends ESTestCase {
     public void testSyntheticNameWithNoDigitSegmentsIsUnchanged() {
         assertThat(normalizeString("$$does_not_exist1$converted_to$long{r$}#7"), equalTo("$$does_not_exist1$converted_to$long{r$}#0"));
     }
+
+    public void testSyntheticNameWithNegativeHash() {
+        assertThat(normalizeString("$$dense_vector$V_COSINE$-2036552011{f$}#21"), equalTo("$$dense_vector$V_COSINE$0{f$}#0"));
+    }
 }

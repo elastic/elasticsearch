@@ -1,6 +1,6 @@
 ```yaml {applies_to}
 serverless: preview
-stack: preview
+stack: preview 9.4
 ```
 
 The `MMR` command reduces the result set from a set of input rows by applying a diversification strategy to the return rows.
@@ -45,9 +45,9 @@ Similarity is determined based on the `field` parameter and the optionally provi
 The ordering of results returned from the input rows is preserved.
 :::
 
-:::{note}
+:::{important}
 You must limit the number of input rows before the `MMR` command.
-As an example you can use the [LIMIT command](../../../../esql/commands/limit.md) to restrict the input.
+For example, you can use the [LIMIT command](../../../../esql/commands/limit.md) to restrict the input.
 :::
 
 ## Examples

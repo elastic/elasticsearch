@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedTimestamp;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
@@ -552,19 +553,32 @@ public class Verifier {
     private static void checkPartiallyUnmappedNonKeywordReferences(LogicalPlan plan, Failures failures, AnalyzerContext context) {
         final String errorMessage = "Using partially unmapped non-KEYWORD field [{}] is not supported with unmapped_fields=\"load\"";
 
-        // The set of all partially unmapped non-keyword field names
         AttributeSet punks = partiallyUnmappedNonKeywords(plan, context.indexResolution());
+        Consumer<FieldAttribute> addFailureIfPunk = fa -> {
+            if (punks.contains(fa)) {
+                failures.add(fail(fa, errorMessage, fa.fieldName()));
+            }
+        };
 
         plan.forEachUp(p -> {
-            // EsRelation is the source; Project represents KEEP/DROP which are allowed to pass partial fields through.
-            if (p instanceof EsRelation || p instanceof Project) {
+            if (p instanceof EsRelation) {
                 return;
             }
-            p.forEachExpression(FieldAttribute.class, fa -> {
-                if (punks.contains(fa) && (fa.field() instanceof MultiTypeEsField) == false) {
-                    failures.add(fail(fa, errorMessage, fa.fieldName()));
+
+            // Project represents KEEP/DROP/RENAME. We are consistent with UnsupportedAttribute (unsupported type/type conflict):
+            // - RENAME is forbidden.
+            // - KEEP/DROP are fine, with and without wildcards.
+            if (p instanceof Project project) {
+                for (NamedExpression projection : project.projections()) {
+                    if (projection instanceof Attribute) {
+                        continue;
+                    }
+                    projection.forEachDown(FieldAttribute.class, addFailureIfPunk);
                 }
-            });
+                return;
+            }
+
+            p.forEachExpression(FieldAttribute.class, addFailureIfPunk);
         });
     }
 
@@ -579,9 +593,9 @@ public class Verifier {
             if (indexResolution != null && indexResolution.isValid()) {
                 EsIndex index = indexResolution.get();
                 for (Attribute attr : relation.output()) {
-                    if (attr instanceof FieldAttribute fa
-                        && index.isPartiallyUnmappedField(fa.name())
-                        && fa.dataType() != DataType.KEYWORD) {
+                    if (attr instanceof FieldAttribute fa && index.isPartiallyUnmappedField(fa.name()) && fa.dataType() != DataType.KEYWORD
+                    // punk_field::long is fine; in this case, the FieldAttribute contains a MultiTypeEsField with the conversions.
+                        && fa.field() instanceof MultiTypeEsField == false) {
                         punks.add(fa);
                     }
                 }

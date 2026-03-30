@@ -1182,17 +1182,17 @@ public class EsqlCapabilities {
         /**
          * Support non-correlated subqueries in the FROM clause.
          */
-        SUBQUERY_IN_FROM_COMMAND(Build.current().isSnapshot()),
+        SUBQUERY_IN_FROM_COMMAND,
 
         /**
          * Support non-correlated subqueries in the FROM clause without implicit limit.
          */
-        SUBQUERY_IN_FROM_COMMAND_WITHOUT_IMPLICIT_LIMIT(Build.current().isSnapshot()),
+        SUBQUERY_IN_FROM_COMMAND_WITHOUT_IMPLICIT_LIMIT,
 
         /**
          * Append an implicit limit to unbounded sorts in subqueries in the FROM clause.
          */
-        SUBQUERY_IN_FROM_COMMAND_APPEND_IMPLICIT_LIMIT_TO_UNBOUNDED_SORT_IN_SUBQUERY(Build.current().isSnapshot()),
+        SUBQUERY_IN_FROM_COMMAND_APPEND_IMPLICIT_LIMIT_TO_UNBOUNDED_SORT_IN_SUBQUERY,
 
         /**
          * Support for views in cluster state (and REST API).

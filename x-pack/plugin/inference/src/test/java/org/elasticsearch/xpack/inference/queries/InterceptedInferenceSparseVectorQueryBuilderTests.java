@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.queries;
 
 import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.NestedQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -33,6 +34,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class InterceptedInferenceSparseVectorQueryBuilderTests extends AbstractInterceptedInferenceQueryBuilderTestCase<
     SparseVectorQueryBuilder> {
@@ -209,5 +211,53 @@ public class InterceptedInferenceSparseVectorQueryBuilderTests extends AbstractI
             sparseVectorQuery.shouldPruneTokens(),
             sparseVectorQuery.getTokenPruningConfig()
         ).boost(sparseVectorQuery.boost()).queryName(sparseVectorQuery.queryName());
+    }
+
+    public void testCopyPreservesQueryVectorSupplier() {
+        final String field = "test_field";
+        final TestIndex testIndex = new TestIndex("test-index", Map.of(field, SPARSE_INFERENCE_ID), Map.of());
+        final SparseVectorQueryBuilder sparseVectorQuery = new SparseVectorQueryBuilder(
+            field,
+            null,
+            SPARSE_INFERENCE_ID,
+            "test query",
+            false,
+            null
+        );
+
+        InterceptedInferenceSparseVectorQueryBuilder intercepted = new InterceptedInferenceSparseVectorQueryBuilder(
+            sparseVectorQuery,
+            Map.of()
+        );
+
+        // Before rewrite, queryVectorSupplier is null so getQuery() returns the query text
+        assertThat(intercepted.getQuery(), equalTo("test query"));
+
+        // Create a query rewrite context
+        final QueryRewriteContext queryRewriteContext = createQueryRewriteContext(
+            Map.of(testIndex.name(), testIndex.semanticTextFields()),
+            Map.of(),
+            TransportVersion.current(),
+            null
+        );
+
+        // customDoRewriteWaitForInferenceResults registers a sparse inference async action,
+        // returning a new instance with queryVectorSupplier set
+        InterceptedInferenceSparseVectorQueryBuilder afterCustomRewrite = intercepted.customDoRewriteWaitForInferenceResults(
+            queryRewriteContext
+        );
+
+        // queryVectorSupplier is now set (non-null), so getQuery() should return null
+        assertThat(afterCustomRewrite.getQuery(), nullValue());
+
+        // copy() should preserve queryVectorSupplier
+        InterceptedInferenceSparseVectorQueryBuilder copied = afterCustomRewrite.copy(
+            afterCustomRewrite.inferenceResultsMap,
+            new PlainActionFuture<>(),
+            false
+        );
+
+        // Verify queryVectorSupplier was preserved: getQuery() should still return null
+        assertThat(copied.getQuery(), nullValue());
     }
 }

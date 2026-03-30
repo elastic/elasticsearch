@@ -76,7 +76,7 @@ public class InterceptedInferenceKnnVectorQueryBuilder extends InterceptedInfere
         boolean interceptedCcsRequest
     ) {
         super(other, inferenceResultsMap, inferenceInfoFuture, interceptedCcsRequest);
-        this.queryVectorSupplier = null;
+        this.queryVectorSupplier = other instanceof InterceptedInferenceKnnVectorQueryBuilder knn ? knn.queryVectorSupplier : null;
     }
 
     private InterceptedInferenceKnnVectorQueryBuilder(

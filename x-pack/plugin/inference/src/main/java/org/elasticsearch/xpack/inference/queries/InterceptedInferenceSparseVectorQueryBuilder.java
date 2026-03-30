@@ -73,7 +73,7 @@ public class InterceptedInferenceSparseVectorQueryBuilder extends InterceptedInf
         boolean interceptedCcsRequest
     ) {
         super(other, inferenceResultsMap, inferenceInfoFuture, interceptedCcsRequest);
-        this.queryVectorSupplier = null;
+        this.queryVectorSupplier = other instanceof InterceptedInferenceSparseVectorQueryBuilder sparse ? sparse.queryVectorSupplier : null;
     }
 
     private InterceptedInferenceSparseVectorQueryBuilder(

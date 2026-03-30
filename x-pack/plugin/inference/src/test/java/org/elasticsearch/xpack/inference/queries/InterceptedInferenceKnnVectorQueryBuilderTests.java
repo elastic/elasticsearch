@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.queries;
 
 import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.mapper.IndexFieldMapper;
@@ -48,6 +49,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class InterceptedInferenceKnnVectorQueryBuilderTests extends AbstractInterceptedInferenceQueryBuilderTestCase<
     KnnVectorQueryBuilder> {
@@ -521,5 +523,49 @@ public class InterceptedInferenceKnnVectorQueryBuilderTests extends AbstractInte
                 )
             );
         }
+    }
+
+    public void testCopyPreservesQueryVectorSupplier() throws IOException {
+        final String field = "test_field";
+        final TestIndex testIndex = new TestIndex("test-index", Map.of(field, DENSE_INFERENCE_ID), Map.of());
+        final KnnVectorQueryBuilder knnQuery = new KnnVectorQueryBuilder(
+            field,
+            new TextEmbeddingQueryVectorBuilder(DENSE_INFERENCE_ID, "test query"),
+            10,
+            100,
+            10f,
+            null
+        );
+
+        InterceptedInferenceKnnVectorQueryBuilder intercepted = new InterceptedInferenceKnnVectorQueryBuilder(knnQuery, Map.of());
+
+        // Before rewrite, queryVectorSupplier is null so getQuery() returns the model text
+        assertThat(intercepted.getQuery(), equalTo("test query"));
+
+        // Create a query rewrite context
+        final QueryRewriteContext queryRewriteContext = createQueryRewriteContext(
+            Map.of(testIndex.name(), testIndex.semanticTextFields()),
+            Map.of(),
+            TransportVersion.current(),
+            null
+        );
+
+        // customDoRewriteWaitForInferenceResults registers a query vector builder async action,
+        // returning a new instance with queryVectorSupplier set
+        InterceptedInferenceKnnVectorQueryBuilder afterCustomRewrite = (InterceptedInferenceKnnVectorQueryBuilder) intercepted
+            .customDoRewriteWaitForInferenceResults(queryRewriteContext);
+
+        // queryVectorSupplier is now set (non-null), so getQuery() should return null
+        assertThat(afterCustomRewrite.getQuery(), nullValue());
+
+        // copy() should preserve queryVectorSupplier
+        InterceptedInferenceKnnVectorQueryBuilder copied = afterCustomRewrite.copy(
+            afterCustomRewrite.inferenceResultsMap,
+            new PlainActionFuture<>(),
+            false
+        );
+
+        // Verify queryVectorSupplier was preserved: getQuery() should still return null
+        assertThat(copied.getQuery(), nullValue());
     }
 }

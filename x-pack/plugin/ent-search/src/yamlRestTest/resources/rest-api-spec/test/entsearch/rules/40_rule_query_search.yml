@@ -691,6 +691,7 @@ teardown:
                     '_id': 'pinned_doc2'
   - do:
       search:
+        index: test-index-with-sparse-vector
         body:
           query:
             rule:
@@ -709,6 +710,7 @@ teardown:
 
   - do:
       search:
+        index: test-index-with-sparse-vector
         body:
           query:
             rule:
@@ -727,6 +729,7 @@ teardown:
 
   - do:
       search:
+        index: test-index-with-sparse-vector
         body:
           query:
             rule:

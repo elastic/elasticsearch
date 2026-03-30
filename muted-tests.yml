@@ -219,9 +219,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlClientYamlIT
   method: test {p0=esql/160_union_types/suggested_type}
   issue: https://github.com/elastic/elasticsearch/issues/142525
-- class: org.elasticsearch.xpack.esql.datasources.GlobDiscoveryLocalTests
-  method: testRecursiveDoubleStarAllFiles
-  issue: https://github.com/elastic/elasticsearch/issues/142576
 - class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
   method: test {p0=esql/160_union_types/suggested_type}
   issue: https://github.com/elastic/elasticsearch/issues/142525
@@ -234,9 +231,6 @@ tests:
 - class: org.elasticsearch.packaging.test.DebMetadataTests
   method: test05CheckLintian
   issue: https://github.com/elastic/elasticsearch/issues/142819
-- class: org.elasticsearch.xpack.search.CrossClusterAsyncSearchIT
-  method: testCancelViaExpirationOnRemoteResultsWithMinimizeRoundtrips
-  issue: https://github.com/elastic/elasticsearch/issues/143407
 - class: org.elasticsearch.xpack.security.support.MetadataFlattenedMigrationIntegTests
   method: testMigrationWithConcurrentUpdates
   issue: https://github.com/elastic/elasticsearch/issues/143674
@@ -351,12 +345,6 @@ tests:
 - class: org.elasticsearch.xpack.security.authc.ApiKeyIntegTests
   method: testDynamicDeletionInterval
   issue: https://github.com/elastic/elasticsearch/issues/145022
-- class: org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormatTests
-  method: testIndexSortOnFlush
-  issue: https://github.com/elastic/elasticsearch/issues/145071
-- class: org.elasticsearch.index.codec.vectors.diskbbq.es94.ES940DiskBBQVectorsFormatTests
-  method: testIndexSortOnFlush
-  issue: https://github.com/elastic/elasticsearch/issues/145072
 - class: org.elasticsearch.xpack.ml.integration.AdJobRetryResilienceIT
   method: testJobReopensAfterIndexUnavailabilityDuringReassignment
   issue: https://github.com/elastic/elasticsearch/issues/144968

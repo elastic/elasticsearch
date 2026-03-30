@@ -78,6 +78,11 @@ final class FloatArrayVector extends AbstractVector implements FloatVector {
     }
 
     @Override
+    public void copyTo(int srcPosition, float[] dst, int dstPosition, int length) {
+        System.arraycopy(values, srcPosition, dst, dstPosition, length);
+    }
+
+    @Override
     public ElementType elementType() {
         return ElementType.FLOAT;
     }

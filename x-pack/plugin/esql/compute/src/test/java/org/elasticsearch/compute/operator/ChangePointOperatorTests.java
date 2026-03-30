@@ -107,9 +107,14 @@ public class ChangePointOperatorTests extends OperatorTestCase {
         // Group A: [0×15, 1×15] -> step at row 15 of page0
         // Group B: [1×15, 0×15] -> step at row 15 of page1
         // Group C: [0×15, 1×15] -> step at row 15 of page2
-        List<Long> valuesColumn = Stream.of(nCopies(15, 0L), nCopies(15, 1L), nCopies(15, 1L), nCopies(15, 0L), nCopies(15, 0L), nCopies(15, 1L))
-            .flatMap(List::stream)
-            .toList();
+        List<Long> valuesColumn = Stream.of(
+            nCopies(15, 0L),
+            nCopies(15, 1L),
+            nCopies(15, 1L),
+            nCopies(15, 0L),
+            nCopies(15, 0L),
+            nCopies(15, 1L)
+        ).flatMap(List::stream).toList();
         List<String> groupsColumn = Stream.of(nCopies(30, "A"), nCopies(30, "B"), nCopies(30, "C")).flatMap(List::stream).toList();
         List<Page> pages = buildPages(blockFactory, List.of(30, 60), valuesColumn, groupsColumn);
 
@@ -305,7 +310,9 @@ public class ChangePointOperatorTests extends OperatorTestCase {
         // Group A: [0×15, 1×15] -> step at row 15 of page0
         // Group B: [0×15, 1×15] -> step at row 45 of page0
         List<String> groupsColumn = Stream.concat(nCopies(30, "A").stream(), nCopies(30, "B").stream()).toList();
-        List<Long> valuesColumn = Stream.of(nCopies(15, 0L), nCopies(15, 1L), nCopies(15, 0L), nCopies(15, 1L)).flatMap(List::stream).toList();
+        List<Long> valuesColumn = Stream.of(nCopies(15, 0L), nCopies(15, 1L), nCopies(15, 0L), nCopies(15, 1L))
+            .flatMap(List::stream)
+            .toList();
         List<Page> pages = buildPages(blockFactory, List.of(), valuesColumn, groupsColumn);
 
         List<Page> outputPages = invokeChangePoint(ctx, pages);
@@ -353,7 +360,12 @@ public class ChangePointOperatorTests extends OperatorTestCase {
         }
     }
 
-    private static List<Page> buildPages(BlockFactory blockFactory, List<Integer> splits, List<Long> valuesColumn, List<String> groupsColumn) {
+    private static List<Page> buildPages(
+        BlockFactory blockFactory,
+        List<Integer> splits,
+        List<Long> valuesColumn,
+        List<String> groupsColumn
+    ) {
         assert groupsColumn.size() == valuesColumn.size();
         List<Page> pages = new ArrayList<>();
         int start = 0;
@@ -361,7 +373,9 @@ public class ChangePointOperatorTests extends OperatorTestCase {
             pages.add(buildPage(blockFactory, valuesColumn.subList(start, split), groupsColumn.subList(start, split)));
             start = split;
         }
-        pages.add(buildPage(blockFactory, valuesColumn.subList(start, valuesColumn.size()), groupsColumn.subList(start, groupsColumn.size())));
+        pages.add(
+            buildPage(blockFactory, valuesColumn.subList(start, valuesColumn.size()), groupsColumn.subList(start, groupsColumn.size()))
+        );
         return pages;
     }
 

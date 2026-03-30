@@ -83,7 +83,6 @@ import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.StubRelation;
-import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.ResolvingProject;
 import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PlaceholderRelation;
@@ -157,7 +156,6 @@ public class ApproximationSupportTests extends ESTestCase {
         // These source commands makes no sense for approximation.
         Explain.class,
         ShowInfo.class,
-        LocalRelation.class,
         MetricsInfo.class,
         ExternalRelation.class,
         TsInfo.class,

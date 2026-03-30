@@ -185,7 +185,6 @@ import java.util.stream.Stream;
 import static java.util.Arrays.asList;
 import static java.util.stream.Collectors.joining;
 import static org.elasticsearch.compute.operator.ProjectOperator.ProjectOperatorFactory;
-import static org.elasticsearch.xpack.esql.plan.logical.MMR.getMMRLimitValue;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToInt;
 
 /**
@@ -264,6 +263,7 @@ public class LocalExecutionPlanner {
             foldCtx,
             plannerSettings,
             timeSeries,
+            settings,
             shardContexts
         );
 
@@ -379,8 +379,8 @@ public class LocalExecutionPlanner {
 
         assert (mmr.diversifyField() != null) : "diversifyField is required for the MMROperator";
 
-        int limit = getMMRLimitValue(mmr.limit());
-        Float lambdaValue = mmr.lambda();
+        int limit = mmr.limitValue();
+        float lambdaValue = mmr.lambda();
         VectorData queryVector = mmr.queryVector();
 
         int diversifyFieldChannel = source.layout.get(mmr.diversifyField().id()).channel();
@@ -1012,6 +1012,13 @@ public class LocalExecutionPlanner {
         }
         // INITIAL mode: extraction on data nodes.
         if (FieldExtractExec.extractSourceAttributesFrom(metricsInfoExec.child()) == null) {
+            if (logger.isDebugEnabled()) {
+                logger.debug(
+                    "planMetricsInfo: no _doc attribute found in child [{}], outputSet [{}]; falling back to empty source",
+                    metricsInfoExec.child().nodeName(),
+                    metricsInfoExec.child().outputSet()
+                );
+            }
             return emptySourceForAttributes(metricsInfoExec.output());
         }
         // Step 1: Extract _tsid only
@@ -1112,6 +1119,13 @@ public class LocalExecutionPlanner {
         }
         // INITIAL mode: extraction on data nodes.
         if (FieldExtractExec.extractSourceAttributesFrom(tsInfoExec.child()) == null) {
+            if (logger.isDebugEnabled()) {
+                logger.debug(
+                    "planTsInfo: no _doc attribute found in child [{}], outputSet [{}]; falling back to empty source",
+                    tsInfoExec.child().nodeName(),
+                    tsInfoExec.child().outputSet()
+                );
+            }
             return emptySourceForAttributes(tsInfoExec.output());
         }
         // Step 1: Extract _tsid only
@@ -1630,6 +1644,7 @@ public class LocalExecutionPlanner {
         FoldContext foldCtx,
         PlannerSettings plannerSettings,
         boolean timeSeries,
+        Settings settings,
         IndexedByShardId<? extends ShardContext> shardContexts
     ) {
         void addDriverFactory(DriverFactory driverFactory) {

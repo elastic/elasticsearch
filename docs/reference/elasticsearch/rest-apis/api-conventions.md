@@ -308,10 +308,10 @@ You can also exclude clusters from a list of clusters to search using the `-` ch
 Multi-target APIs that can target indices support the following query string parameters:
 
 `ignore_unavailable`
-:   (Optional, Boolean) If `false`, the request returns an error if it targets a missing or closed index. Defaults to `false`.
+:   (Optional, Boolean) If `false`, the request returns an error if it targets a concrete (non-wildcarded) index, alias, or data stream that is missing, closed, or otherwise unavailable. If `true`, unavailable concrete targets are silently ignored. Defaults to `false`.
 
 `allow_no_indices`
-:   (Optional, Boolean) If `false`, the request returns an error if any wildcard expression, [index alias](docs-content://manage-data/data-store/aliases.md), or `_all` value targets only missing or closed indices. This behavior applies even if the request targets other open indices. For example, a request targeting `foo*,bar*` returns an error if an index starts with `foo` but no index starts with `bar`.
+:   (Optional, Boolean) If `false`, the request returns an error (1) if any wildcard expression (including `_all` and `*`) resolves to zero matching indices or (2) if the complete set of resolved indices, [aliases](docs-content://manage-data/data-store/aliases.md) or data streams is empty after all expressions are evaluated. If `true`, index expressions that resolve to no indices are allowed and the request returns an empty result.
 
 `expand_wildcards`
 :   (Optional, string) Type of index that wildcard patterns can match. If the request can target data streams, this argument determines whether wildcard expressions match hidden data streams. Supports comma-separated values, such as `open,hidden`. Valid values are:

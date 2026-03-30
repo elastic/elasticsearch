@@ -28,33 +28,26 @@ abstract class BalancedKMeansLocal extends KMeansLocal {
     private final int sampleSize; // the number of training vectors to sample
     private final int maxIterations; // number of iterations, each covering sampleSize vectors divided in minibatches
     private final int sinkhornIterations; // the number of Sinkhorn iterations for the optimal transport problem
-    private final float gamma; // initial value of the temperature parameter for the entropic regularization
-    private final float alpha; // how much to decrease the temperature parameter for the entropic regularization between iterations
-    private final float etaMin; // the minimum value of the temprerature parameter for the entropic regularization
+    private final float etaInit; // initial value of the temperature parameter for the entropic regularization, should be larger than etaMin
+    private final float etaMultiplicativeUpdate; // how much to decrease the temperature parameter for the entropic regularization between
+                                                 // iterations, should be in (0, 1)
+    private final float etaMin; // the minimum value of the temperature parameter for the entropic regularization, should be larger than 0
     private final float forgettingFactor; // multiplicative factor in (0, 1], that allows forgetting the old soft assignments
     private final int miniBatchSize; // the mini-batch size
-    private final float convergenceRelativeTolerance; // for the relative difference between centroids in two consecutive iterations
 
 
-    BalancedKMeansLocal(int sampleSize, int maxIterations, float convergenceRelativeTolerance) {
+    BalancedKMeansLocal(int sampleSize, int maxIterations) {
         this.sampleSize = sampleSize;
         this.maxIterations = maxIterations;
         // These defaults seem stable enough so that we do not need to expose them externally.
         this.sinkhornIterations = 2;
-        this.gamma = 0.1f;
-        this.alpha = 0.8f;
+        this.etaInit = 1e-2f;
+        this.etaMultiplicativeUpdate = 0.8f;
         this.etaMin = 1e-5f;
         this.forgettingFactor = 0.9f;
         // A positive number means that the actual miniBatchSize will be set to that number.
         // A negative number means that the actual miniBatchSize will be set to k * abs(this.miniBatchSize).
         this.miniBatchSize = -2;
-        this.convergenceRelativeTolerance = convergenceRelativeTolerance;
-    }
-
-    BalancedKMeansLocal(int sampleSize, int maxIterations) {
-        // The convergenceRelativeTolerance default is reasonable for a number of dimensions in the 100s to 1000s.
-        // For fewer dimensions, adjust it down.
-        this(sampleSize, maxIterations, 1e-2f);
     }
 
     /** Number of workers to use for parallelism **/
@@ -144,6 +137,9 @@ abstract class BalancedKMeansLocal extends KMeansLocal {
 
         int miniBatchSizeLocal = (miniBatchSize < 0)? Math.abs(miniBatchSize) * k:  miniBatchSize;
 
+        // Tolerance for the relative difference between centroids in two consecutive iterations. Used to check convergence
+        float convergenceRelativeTolerance = (vectors.dimension() < 100)? 1e-3f: 1e-2f;
+
         float[][] distances = new float[miniBatchSizeLocal][k]; // distances from sampledVectors to centroids
         float[][] softAssignments = new float[miniBatchSizeLocal][k]; // soft-assignments of sampledVectors to centroids
 
@@ -151,7 +147,7 @@ abstract class BalancedKMeansLocal extends KMeansLocal {
                                                            // Used to compute the learning rate in the SGD update of the centroids
         Arrays.fill(cumulative_cluster_weights, 1); //  start with one to avoid 1 / epsilon numerical issues.
 
-        float eta = this.gamma;
+        float eta = this.etaInit;
 
         SinkhornIterations sinkhorn = new SinkhornIterations(miniBatchSizeLocal, k);
         OnlineQuantileEstimator medianEstimator = null; // We cannot initialize the estimator now because we need to know its range.
@@ -195,7 +191,7 @@ abstract class BalancedKMeansLocal extends KMeansLocal {
                 // Update the centroids using SGD.
                 updateCentroids(sampledVectors, ordTranslator, cumulative_cluster_weights, softAssignments, centroids);
             }
-            eta *= alpha;
+            eta *= etaMultiplicativeUpdate;
             for (int kk = 0; kk < k; kk++) {
                 cumulative_cluster_weights[kk] *= forgettingFactor;
             }

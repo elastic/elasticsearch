@@ -88,9 +88,7 @@ public class ESNextOSQVectorsScorer {
         this.bulkSize = bulkSize;
         this.int4Encoding = int4Encoding == null ? SymmetricInt4Encoding.STRIPED : int4Encoding;
         this.scratch = indexBits == 7 ? new byte[dimensions] : null;
-        this.packedScratch = indexBits == 4 && this.int4Encoding == SymmetricInt4Encoding.PACKED_NIBBLE
-            ? new byte[dataLength]
-            : null;
+        this.packedScratch = indexBits == 4 && this.int4Encoding == SymmetricInt4Encoding.PACKED_NIBBLE ? new byte[dataLength] : null;
     }
 
     public ESNextOSQVectorsScorer(IndexInput in, byte queryBits, byte indexBits, int dimensions, int dataLength, int bulkSize) {

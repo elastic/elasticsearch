@@ -244,14 +244,17 @@ public class SearchTransportService {
         Transport.Connection connection,
         final QuerySearchRequest request,
         SearchTask task,
-        final ActionListener<QuerySearchResult> listener
+        final ActionListener<SearchPhaseResult> listener
     ) {
+        final ActionListener<? super SearchPhaseResult> handler = responseWrapper != null
+            ? responseWrapper.apply(connection, listener)
+            : listener;
         transportService.sendChildRequest(
             connection,
             QUERY_ID_ACTION_NAME,
             request,
             task,
-            new ConnectionCountingHandler<>(listener, QuerySearchResult::new, connection)
+            new ConnectionCountingHandler<>(handler, QuerySearchResult::new, connection)
         );
     }
 

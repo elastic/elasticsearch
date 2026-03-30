@@ -524,10 +524,9 @@ public class Verifier {
     }
 
     /**
-     * Reject queries that refer to partially unmapped non-keyword fields (PUNKs) when {@code unmapped_fields="load"}. First,
-     * {@link #partiallyUnmappedNonKeywords} collects all PUNK attributes from {@link EsRelation} nodes in the logical plan. Then the
-     * plan is walked, bottom-up, skipping {@link EsRelation} and {@link Project} nodes, and any expression referencing a PUNK attribute
-     * is flagged as a verification failure, unless it's within a conversion function or KEEP/DROP.
+     * Reject queries that refer to partially unmapped non-keyword fields (PUNKs) when {@code unmapped_fields="load"}.
+     * Any expression referencing a PUNK attribute is flagged as a verification failure unless it's within a conversion
+     * function or KEEP/DROP.
      * <p>
      * Example
      * <p>

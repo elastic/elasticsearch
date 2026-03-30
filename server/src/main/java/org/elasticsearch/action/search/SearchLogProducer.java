@@ -29,8 +29,8 @@ public class SearchLogProducer implements ActivityLogProducer<SearchLogContext> 
     public static final String[] NEVER_MATCH = new String[] { "*", "-*" };
     public static final String QUERY_FIELD_HAS_AGGREGATIONS = ES_QUERY_FIELDS_PREFIX + "has_aggregations";
     public static final String QUERY_FIELD_IS_SYSTEM = ES_QUERY_FIELDS_PREFIX + "is_system";
-    public static final String QUERY_FIELD_SEARCH_HITS = ES_QUERY_FIELDS_PREFIX + "search.total_count";
-    public static final String QUERY_FIELD_SEARCH_HITS_GTE = ES_QUERY_FIELDS_PREFIX + "search.total_count_partial";
+    public static final String QUERY_FIELD_SEARCH_HITS = ES_QUERY_FIELDS_PREFIX + "dsl.total_count";
+    public static final String QUERY_FIELD_SEARCH_HITS_GTE = ES_QUERY_FIELDS_PREFIX + "dsl.total_count_partial";
 
     private boolean logSystemSearches = false;
     private final Predicate<String> systemChecker;

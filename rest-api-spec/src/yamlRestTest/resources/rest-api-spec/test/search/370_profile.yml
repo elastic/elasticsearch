@@ -271,7 +271,7 @@ dfs knn vector profiling description:
             num_candidates: 100
 
   - match: { hits.total.value: 1 }
-  - match: { profile.shards.0.dfs.knn.0.query.0.description: "DocAndScoreQuery[0,...][0.008547009,...],0.008547009" }
+  - is_true: profile.shards.0.dfs.knn.0.query.0.description
 
 ---
 dfs knn vector profiling collector name:

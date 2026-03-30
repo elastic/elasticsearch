@@ -426,24 +426,32 @@ public abstract class GoldenTestCase extends ESTestCase {
     }
 
     /**
-     * Normalizes synthetic attribute names of the form $$something($something)*($digits)* that are followed by # (node id).
-     * Replaces them with $$firstSegment$runningInt so golden output is stable across runs.
+     * Normalizes synthetic attribute names of the form $$something($something)* that are followed by # (node id).
+     * Digit-only segments (generated at run time) are replaced with a stable running integer; text segments are kept as-is.
+     * Digits may appear anywhere in the name, including in the middle (e.g. {@code $$SUM$field$0$sum}).
      */
     private static String normalizeSyntheticNames(String full) {
         return replaceMatches(full, SYNTHETIC_PATTERN, (matcher, idMap) -> {
             StringBuilder result = new StringBuilder("$$");
-            StringBuilder numericSuffix = new StringBuilder();
+            StringBuilder numericSegments = new StringBuilder();
+            boolean hasNormalized = false;
             for (String seg : matcher.group(1).split("\\$")) {
                 if (seg.chars().allMatch(Character::isDigit)) {
-                    appendSegment(numericSuffix, seg);
+                    appendSegment(numericSegments, seg);
                 } else {
-                    if (numericSuffix.isEmpty() == false) {
-                        throw new IllegalArgumentException("Expected digits to only appear at end, but encountered '" + full + "'");
+                    if (numericSegments.isEmpty() == false) {
+                        appendSegment(result, idMap.getId(numericSegments.toString()));
+                        numericSegments.setLength(0);
+                        hasNormalized = true;
                     }
                     appendSegment(result, seg);
                 }
             }
-            return numericSuffix.isEmpty() ? full : appendSegment(result, idMap.getId(numericSuffix.toString())).toString();
+            if (numericSegments.isEmpty() == false) {
+                appendSegment(result, idMap.getId(numericSegments.toString()));
+                hasNormalized = true;
+            }
+            return hasNormalized ? result.toString() : matcher.group();
         });
     }
 
@@ -468,8 +476,12 @@ public abstract class GoldenTestCase extends ESTestCase {
         return sb.toString();
     }
 
-    // Matches synthetic names like $$alias$1$2#3 or $$last_name$LENGTH$241149320{f$}#6. Digit-only segments are generated during the
-    // test run and may differ each time; text segments are kept. The #digit suffixes are normalized by IDENTIFIER_PATTERN.
+    /**
+     * Matches synthetic names like {@code $$alias$1$2#3}, {@code $$last_name$LENGTH$241149320{f$}#6}, or
+     * {@code $$SUM$field$0$sum#7}. Digit-only segments are generated during the test run and may differ
+     * each time; text segments are kept. The {@code #digit} suffixes are normalized by
+     * {@link #IDENTIFIER_PATTERN}.
+     */
     private static final Pattern SYNTHETIC_PATTERN = Pattern.compile("\\$\\$([^$\\s{#]+(?:\\$[^$\\s{#]+)*)(?=[{#])");
     private static final Pattern IDENTIFIER_PATTERN = Pattern.compile("#\\d+");
 

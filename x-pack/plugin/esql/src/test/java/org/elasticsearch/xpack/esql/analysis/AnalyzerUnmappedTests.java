@@ -1060,11 +1060,12 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         var esIndex = partialIndex("partial_idx", Map.of("partial_long", longField("partial_long")), Set.of("partial_long"));
         assertUnmappedLoadError(
             analyzer().addIndex(esIndex),
-            "FROM partial_idx | KEEP partial_long",
+            "FROM partial_idx | WHERE partial_long > 0",
             allOf(
                 containsString("Found 1 problem"),
                 containsString(
-                    "line 1:53: Using partially unmapped non-KEYWORD field [partial_long] is not supported with unmapped_fields=\"load\""
+                    "line 1:54: Cannot use field [partial_long] due to ambiguities being mapped as [2] incompatible types: "
+                        + "[keyword] enforced by INSIST command, [long] in [partial_idx]"
                 )
             )
         );
@@ -1080,17 +1081,27 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         );
         assertUnmappedLoadError(
             analyzer().addIndex(esIndex),
-            "FROM partial_idx | KEEP partial_long, partial_double",
+            "FROM partial_idx | SORT partial_long, partial_double",
             allOf(
                 containsString("Found 2 problems"),
                 containsString(
-                    "line 1:53: Using partially unmapped non-KEYWORD field [partial_long] is not supported with unmapped_fields=\"load\""
+                    "line 1:53: Cannot use field [partial_long] due to ambiguities being mapped as [2] incompatible types: "
+                        + "[keyword] enforced by INSIST command, [long] in [partial_idx]"
                 ),
                 containsString(
-                    "line 1:67: Using partially unmapped non-KEYWORD field [partial_double] is not supported with unmapped_fields=\"load\""
+                    "line 1:67: Cannot use field [partial_double] due to ambiguities being mapped as [2] incompatible types: "
+                        + "[keyword] enforced by INSIST command, [double] in [partial_idx]"
                 )
             )
         );
+    }
+
+    public void testAllowLoadWithPartiallyMappedNonKeywordInKeep() {
+        assumeTrue("Requires OPTIONAL_FIELDS_V4", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V4.isEnabled());
+
+        var esIndex = partialIndex("partial_idx", Map.of("partial_long", longField("partial_long")), Set.of("partial_long"));
+        var plan = analyzer().addIndex(esIndex).statement(setUnmappedLoad("FROM partial_idx | KEEP partial_long"));
+        assertThat(plan, not(nullValue()));
     }
 
     public void testAllowLoadWithPartialNonKeywordWhenFieldNotReferenced() {
@@ -1140,11 +1151,12 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         );
         assertUnmappedLoadError(
             analyzer().addIndex(pattern, IndexResolution.valid(merged)),
-            "FROM idx_a, idx_b | KEEP partial_long",
+            "FROM idx_a, idx_b | WHERE partial_long > 0",
             allOf(
                 containsString("Found 1 problem"),
                 containsString(
-                    "line 1:54: Using partially unmapped non-KEYWORD field [partial_long] is not supported with unmapped_fields=\"load\""
+                    "line 1:55: Cannot use field [partial_long] due to ambiguities being mapped as [2] incompatible types: "
+                        + "[keyword] enforced by INSIST command, [long] in [idx_a]"
                 )
             )
         );
@@ -1250,11 +1262,12 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         var esIndex = partialIndex("partial_idx", Map.of("obj", obj), Set.of("obj.sub"));
         assertUnmappedLoadError(
             analyzer().addIndex(esIndex),
-            "FROM partial_idx | KEEP `obj.sub`",
+            "FROM partial_idx | SORT `obj.sub`",
             allOf(
                 containsString("Found 1 problem"),
                 containsString(
-                    "line 1:53: Using partially unmapped non-KEYWORD field [obj.sub] is not supported with unmapped_fields=\"load\""
+                    "line 1:53: Cannot use field [obj.sub] due to ambiguities being mapped as [2] incompatible types: "
+                        + "[keyword] enforced by INSIST command, [long] in [partial_idx]"
                 )
             )
         );

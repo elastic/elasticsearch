@@ -542,7 +542,8 @@ public class Verifier {
         Set<String> punks = partiallyUnmappedNonKeywords(plan, context.indexResolution());
 
         plan.forEachUp(p -> {
-            if (p instanceof EsRelation) {
+            // EsRelation is the source; Project represents KEEP/DROP which are allowed to pass partial fields through.
+            if (p instanceof EsRelation || p instanceof Project) {
                 return;
             }
             p.forEachExpression(FieldAttribute.class, fa -> {

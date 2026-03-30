@@ -36,7 +36,6 @@ public class PushDownAndCombineLimitByTests extends AbstractLogicalPlanOptimizer
 
     @BeforeClass
     public static void checkLimitByCapability() {
-        assumeTrue("LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_LIMIT_BY.isEnabled());
     }
 
     /**

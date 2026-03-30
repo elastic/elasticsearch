@@ -19,7 +19,6 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeTo
 public class LimitByGoldenTests extends GoldenTestCase {
 
     public void testLimitByWithoutSort() {
-        assumeTrue("LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_LIMIT_BY.isEnabled());
         runGoldenTest(
             """
                 FROM employees
@@ -38,7 +37,6 @@ public class LimitByGoldenTests extends GoldenTestCase {
     }
 
     public void testSortLimitBy() {
-        assumeTrue("SORT | LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_TOPN_BY.isEnabled());
         runGoldenTest(
             """
                 FROM employees

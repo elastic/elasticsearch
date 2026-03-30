@@ -27,7 +27,6 @@ import static org.hamcrest.Matchers.equalTo;
 public class CombineLimitTopNTests extends AbstractLogicalPlanOptimizerTests {
 
     public void testCombineLimitByTopNBySameGroupings() {
-        assumeTrue("SORT | LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_TOPN_BY.isEnabled());
         var attr = getFieldAttribute("a");
         var groupings = List.<Expression>of(attr);
         var order = List.of(new Order(EMPTY, attr, Order.OrderDirection.ASC, null));
@@ -40,7 +39,6 @@ public class CombineLimitTopNTests extends AbstractLogicalPlanOptimizerTests {
     }
 
     public void testCombineLimitByTopNByDifferentGroupings() {
-        assumeTrue("SORT | LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_TOPN_BY.isEnabled());
         var attr = getFieldAttribute("a");
         var groupings = List.<Expression>of(attr);
         var otherGroupings = List.<Expression>of(getFieldAttribute("b"));
@@ -59,7 +57,6 @@ public class CombineLimitTopNTests extends AbstractLogicalPlanOptimizerTests {
      * the rule should still combine them. Ensures Expressions.semanticEquals(List, List) is used.
      */
     public void testCombineLimitTopNSemanticallyEqualGroupings() {
-        assumeTrue("SORT | LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_TOPN_BY.isEnabled());
         var a = getFieldAttribute("a");
         var b = getFieldAttribute("b");
         var topNGroupings = List.<Expression>of(b, a);
@@ -78,7 +75,6 @@ public class CombineLimitTopNTests extends AbstractLogicalPlanOptimizerTests {
     }
 
     public void testLowerLimitIsChosenForCombiningTopNByAndLimitBy() {
-        assumeTrue("SORT | LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_TOPN_BY.isEnabled());
         var attr = getFieldAttribute("a");
         var groupings = List.<Expression>of(attr);
         var order = List.of(new Order(EMPTY, attr, Order.OrderDirection.ASC, null));
@@ -91,7 +87,6 @@ public class CombineLimitTopNTests extends AbstractLogicalPlanOptimizerTests {
     }
 
     public void testLowerLimitIsChosenForCombiningTopNByAndLimitBy2() {
-        assumeTrue("SORT | LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_TOPN_BY.isEnabled());
         var attr = getFieldAttribute("a");
         var groupings = List.<Expression>of(attr);
         var order = List.of(new Order(EMPTY, attr, Order.OrderDirection.ASC, null));

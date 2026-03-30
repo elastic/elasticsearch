@@ -10819,7 +10819,6 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testLimitByZero() {
-        assumeTrue("LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_LIMIT_BY.isEnabled());
         var plan = plan("""
             FROM test
             | LIMIT 0 BY emp_no
@@ -10852,7 +10851,6 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }
      */
     public void testOnlyLastSortPreservedTopNBy() {
-        assumeTrue("SORT | LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_TOPN_BY.isEnabled());
         var query = """
             FROM employees
             | SORT emp_no DESC
@@ -10894,7 +10892,6 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }
      */
     public void testOnlyLastNonContiguousSortPreservedTopNBy() {
-        assumeTrue("SORT | LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_TOPN_BY.isEnabled());
         var query = """
             FROM employees
             | SORT emp_no DESC
@@ -10943,7 +10940,6 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }
      */
     public void testOnlyLastNonContiguousSortPreservedTopNByWithExprs() {
-        assumeTrue("SORT | LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_TOPN_BY.isEnabled());
         var query = """
             FROM employees
             | SORT emp_no DESC
@@ -10992,7 +10988,6 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testTopNByWorksWithQualifiedNames() {
-        assumeTrue("SORT | LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_TOPN_BY.isEnabled());
         var query = """
             FROM employees
             | SORT salary DESC

@@ -133,6 +133,71 @@ public class ForbiddenPatternsTaskTests {
         }
     }
 
+    // -- toKebabCase edge-case tests ------------------------------------------------
+
+    @Test
+    public void testToKebabCaseSimpleCamelCase() {
+        // toKebabCase lowercases first then replaces non-alphanumeric; it does not split on camelCase boundaries
+        assertEquals("nocommit", ForbiddenPatternsTask.toKebabCase("noCommit"));
+    }
+
+    @Test
+    public void testToKebabCaseUpperCamelCase() {
+        assertEquals("nocommit", ForbiddenPatternsTask.toKebabCase("NoCommit"));
+    }
+
+    @Test
+    public void testToKebabCaseAllUpperCase() {
+        assertEquals("nocommit", ForbiddenPatternsTask.toKebabCase("NOCOMMIT"));
+    }
+
+    @Test
+    public void testToKebabCaseAlreadyKebab() {
+        assertEquals("already-kebab", ForbiddenPatternsTask.toKebabCase("already-kebab"));
+    }
+
+    @Test
+    public void testToKebabCaseWithUnderscores() {
+        assertEquals("snake-case-name", ForbiddenPatternsTask.toKebabCase("snake_case_name"));
+    }
+
+    @Test
+    public void testToKebabCaseWithSpaces() {
+        assertEquals("with-spaces", ForbiddenPatternsTask.toKebabCase("with spaces"));
+    }
+
+    @Test
+    public void testToKebabCaseLeadingAndTrailingSpecialChars() {
+        assertEquals("trimmed", ForbiddenPatternsTask.toKebabCase("--trimmed--"));
+    }
+
+    @Test
+    public void testToKebabCaseConsecutiveSpecialChars() {
+        assertEquals("a-b", ForbiddenPatternsTask.toKebabCase("a___b"));
+    }
+
+    @Test
+    public void testToKebabCaseNumericContent() {
+        assertEquals("rule-42-name", ForbiddenPatternsTask.toKebabCase("rule 42 name"));
+    }
+
+    @Test
+    public void testToKebabCaseSingleWord() {
+        assertEquals("tabs", ForbiddenPatternsTask.toKebabCase("tabs"));
+    }
+
+    @Test
+    public void testToKebabCaseEmptyString() {
+        assertEquals("", ForbiddenPatternsTask.toKebabCase(""));
+    }
+
+    @Test
+    public void testToKebabCaseOnlySpecialChars() {
+        assertEquals("", ForbiddenPatternsTask.toKebabCase("---"));
+    }
+
+    // -- end toKebabCase tests -----------------------------------------------------
+
     private Project createProject() {
         Project project = ProjectBuilder.builder().build();
         project.getPlugins().apply(JavaPlugin.class);

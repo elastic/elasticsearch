@@ -26,8 +26,6 @@ public final class ElasticsearchBuildProblems {
 
     // Second-level groups
     public static final ProblemGroup PRECOMMIT = ProblemGroup.create("precommit", "Precommit Checks", ROOT);
-    public static final ProblemGroup ENVIRONMENT = ProblemGroup.create("environment", "Build Environment", ROOT);
-    public static final ProblemGroup CONFIGURATION = ProblemGroup.create("configuration", "Build Configuration", ROOT);
 
     // Leaf groups under PRECOMMIT
     public static final ProblemGroup FORBIDDEN_PATTERNS = ProblemGroup.create("forbidden-patterns", "Forbidden Patterns", PRECOMMIT);

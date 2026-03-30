@@ -166,7 +166,7 @@ public abstract class ForbiddenPatternsTask extends DefaultTask {
         Files.writeString(outputMarker.toPath(), "done");
     }
 
-    private static String toKebabCase(String name) {
+    static String toKebabCase(String name) {
         return name.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]+", "-").replaceAll("^-|-$", "");
     }
 

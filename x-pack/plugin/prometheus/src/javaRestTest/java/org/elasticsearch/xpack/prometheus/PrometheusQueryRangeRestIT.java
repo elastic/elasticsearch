@@ -16,7 +16,6 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
-import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
@@ -24,9 +23,11 @@ import org.elasticsearch.xpack.prometheus.proto.RemoteWrite;
 import org.junit.ClassRule;
 
 import java.io.IOException;
+import java.util.List;
 
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 
 /**
@@ -46,7 +47,6 @@ public class PrometheusQueryRangeRestIT extends ESRestTestCase {
         .setting("xpack.license.self_generated.type", "trial")
         .setting("xpack.ml.enabled", "false")
         .setting("xpack.watcher.enabled", "false")
-        .feature(FeatureFlag.PROMETHEUS_FEATURE_FLAG)
         .build();
 
     @Override
@@ -98,7 +98,16 @@ public class PrometheusQueryRangeRestIT extends ESRestTestCase {
         assertThat(responsePath.evaluate("data.result"), hasSize(1));
         assertThat(responsePath.evaluate("data.result.0.metric.job"), equalTo("test_job"));
         assertThat(responsePath.evaluate("data.result.0.metric.instance"), equalTo("localhost:9090"));
-        assertThat(responsePath.evaluate("data.result.0.values"), hasSize(5));
+        List<List<Object>> values = responsePath.evaluate("data.result.0.values");
+        assertThat(values, hasSize(5));
+
+        // Assert timestamps are in strictly ascending order
+        double prevTimestamp = -1;
+        for (List<Object> point : values) {
+            double timestamp = ((Number) point.getFirst()).doubleValue();
+            assertThat(timestamp, greaterThan(prevTimestamp));
+            prevTimestamp = timestamp;
+        }
     }
 
     private ObjectPath executeQueryRange() throws Exception {

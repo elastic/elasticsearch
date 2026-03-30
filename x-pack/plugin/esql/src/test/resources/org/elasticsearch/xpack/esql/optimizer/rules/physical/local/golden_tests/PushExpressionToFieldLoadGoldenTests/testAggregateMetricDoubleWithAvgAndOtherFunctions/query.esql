@@ -1,0 +1,2 @@
+from k8s-downsampled
+| STATS s = sum(network.eth0.tx), a = avg(network.eth0.tx)

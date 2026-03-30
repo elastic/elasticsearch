@@ -16,9 +16,10 @@ import java.util.List;
 
 import static org.elasticsearch.xpack.esql.CsvTestUtils.loadCsvSpecValues;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.APPROXIMATION_V5;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.ESQL_WITHOUT_GROUPING;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.FORK_V9;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.METRICS_GROUP_BY_ALL;
-import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.OPTIONAL_FIELDS_V3;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.OPTIONAL_FIELDS_V4;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.UNMAPPED_FIELDS;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING;
@@ -66,7 +67,7 @@ public abstract class GenerativeForkRestTest extends EsqlSpecTestCase {
         // FORK is not supported with unmapped_fields="load", see https://github.com/elastic/elasticsearch/issues/142033
         assumeFalse(
             "FORK is not supported with unmapped_fields=\"load\"",
-            testCase.requiredCapabilities.contains(OPTIONAL_FIELDS_V3.capabilityName())
+            testCase.requiredCapabilities.contains(OPTIONAL_FIELDS_V4.capabilityName())
         );
 
         assumeFalse(
@@ -82,6 +83,11 @@ public abstract class GenerativeForkRestTest extends EsqlSpecTestCase {
         assumeFalse(
             "Tests using GROUP_BY_ALL are skipped since we add a new _timeseries field",
             testCase.requiredCapabilities.contains(METRICS_GROUP_BY_ALL.capabilityName())
+        );
+
+        assumeFalse(
+            "FORK with ESQL WITHOUT grouping is not supported yet (plan consistency)",
+            testCase.requiredCapabilities.contains(ESQL_WITHOUT_GROUPING.capabilityName())
         );
 
         assumeFalse(

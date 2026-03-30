@@ -26,6 +26,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.junit.Before;
 
+import java.time.Clock;
 import java.util.Collection;
 import java.util.List;
 
@@ -99,7 +100,8 @@ public class DataStreamLifecycleConvertToFrozenMarkReadOnlyIT extends ESIntegTes
             Metadata.DEFAULT_PROJECT_ID,
             client(),
             internalCluster().clusterService(),
-            licenseState
+            licenseState,
+            Clock.systemUTC()
         );
 
         converter.maybeMarkIndexReadOnly();
@@ -128,7 +130,8 @@ public class DataStreamLifecycleConvertToFrozenMarkReadOnlyIT extends ESIntegTes
             Metadata.DEFAULT_PROJECT_ID,
             client(),
             internalCluster().clusterService(),
-            licenseState
+            licenseState,
+            Clock.systemUTC()
         );
 
         // Should still add the WRITE block since the existing block is READ, not WRITE
@@ -161,7 +164,8 @@ public class DataStreamLifecycleConvertToFrozenMarkReadOnlyIT extends ESIntegTes
             Metadata.DEFAULT_PROJECT_ID,
             client(),
             internalCluster().clusterService(),
-            licenseState
+            licenseState,
+            Clock.systemUTC()
         );
 
         converter.maybeMarkIndexReadOnly();
@@ -189,7 +193,8 @@ public class DataStreamLifecycleConvertToFrozenMarkReadOnlyIT extends ESIntegTes
             Metadata.DEFAULT_PROJECT_ID,
             client(),
             clusterService,
-            licenseState
+            licenseState,
+            Clock.systemUTC()
         );
 
         // First call adds the block
@@ -209,7 +214,8 @@ public class DataStreamLifecycleConvertToFrozenMarkReadOnlyIT extends ESIntegTes
             Metadata.DEFAULT_PROJECT_ID,
             client(),
             clusterService,
-            licenseState
+            licenseState,
+            Clock.systemUTC()
         );
 
         // Second call should be idempotent (skips since block is already present)
@@ -263,7 +269,8 @@ public class DataStreamLifecycleConvertToFrozenMarkReadOnlyIT extends ESIntegTes
                 Metadata.DEFAULT_PROJECT_ID,
                 client(),
                 internalCluster().clusterService(),
-                licenseState
+                licenseState,
+                Clock.systemUTC()
             );
 
             expectThrows(ElasticsearchException.class, converter::maybeMarkIndexReadOnly);
@@ -290,7 +297,8 @@ public class DataStreamLifecycleConvertToFrozenMarkReadOnlyIT extends ESIntegTes
             Metadata.DEFAULT_PROJECT_ID,
             client(),
             internalCluster().clusterService(),
-            licenseState
+            licenseState,
+            Clock.systemUTC()
         );
 
         // Delete the index after the converter is constructed but before calling maybeMarkIndexReadOnly
@@ -323,7 +331,8 @@ public class DataStreamLifecycleConvertToFrozenMarkReadOnlyIT extends ESIntegTes
             Metadata.DEFAULT_PROJECT_ID,
             client(),
             internalCluster().clusterService(),
-            licenseState
+            licenseState,
+            Clock.systemUTC()
         );
 
         converter.maybeMarkIndexReadOnly();

@@ -1,0 +1,6 @@
+area: TSDB
+issues:
+ - 144587
+pr: 145117
+summary: Fix `seekCeil` assertion failure in TSDB synthetic `_id` Lucene's
+type: bug

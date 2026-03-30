@@ -143,7 +143,8 @@ public class DataStreamLifecycleConvertToFrozenForceMergeTests extends ESTestCas
             Clock.systemUTC()
         );
 
-        converter.maybeForceMergeIndex(indexName);
+        converter.setForceMergeIndex(indexName);
+        converter.maybeForceMergeIndex();
 
         // No force merge request should have been sent since the index is already at 1 segment
         assertThat(capturedForceMergeRequest.get(), is(nullValue()));
@@ -167,7 +168,8 @@ public class DataStreamLifecycleConvertToFrozenForceMergeTests extends ESTestCas
             Clock.systemUTC()
         );
 
-        converter.maybeForceMergeIndex(indexName);
+        converter.setForceMergeIndex(indexName);
+        converter.maybeForceMergeIndex();
 
         assertThat(capturedForceMergeRequest.get(), is(notNullValue()));
         assertThat(capturedForceMergeRequest.get().indices().length, is(1));
@@ -187,7 +189,8 @@ public class DataStreamLifecycleConvertToFrozenForceMergeTests extends ESTestCas
             Clock.systemUTC()
         );
 
-        converter.maybeForceMergeIndex(indexName);
+        converter.setForceMergeIndex(indexName);
+        converter.maybeForceMergeIndex();
 
         // No force merge request should be sent when the index is not in metadata
         assertThat(capturedForceMergeRequest.get(), is(nullValue()));
@@ -212,7 +215,8 @@ public class DataStreamLifecycleConvertToFrozenForceMergeTests extends ESTestCas
             Clock.systemUTC()
         );
 
-        ElasticsearchException exception = expectThrows(ElasticsearchException.class, () -> converter.maybeForceMergeIndex(indexName));
+        converter.setForceMergeIndex(indexName);
+        ElasticsearchException exception = expectThrows(ElasticsearchException.class, converter::maybeForceMergeIndex);
         assertThat(exception.getMessage(), containsString(indexName));
         assertThat(exception.getMessage(), containsString("DLM failed to force merge"));
     }
@@ -231,7 +235,8 @@ public class DataStreamLifecycleConvertToFrozenForceMergeTests extends ESTestCas
             Clock.systemUTC()
         );
 
-        ElasticsearchException exception = expectThrows(ElasticsearchException.class, () -> converter.maybeForceMergeIndex(indexName));
+        converter.setForceMergeIndex(indexName);
+        ElasticsearchException exception = expectThrows(ElasticsearchException.class, converter::maybeForceMergeIndex);
         assertThat(exception.getMessage(), containsString(indexName));
         assertThat(exception.getMessage(), containsString("shards were unavailable"));
     }
@@ -251,7 +256,8 @@ public class DataStreamLifecycleConvertToFrozenForceMergeTests extends ESTestCas
         );
 
         // Should not throw
-        converter.maybeForceMergeIndex(indexName);
+        converter.setForceMergeIndex(indexName);
+        converter.maybeForceMergeIndex();
 
         assertThat(capturedForceMergeRequest.get(), is(notNullValue()));
     }
@@ -270,7 +276,8 @@ public class DataStreamLifecycleConvertToFrozenForceMergeTests extends ESTestCas
             Clock.systemUTC()
         );
 
-        ElasticsearchException exception = expectThrows(ElasticsearchException.class, () -> converter.maybeForceMergeIndex(indexName));
+        converter.setForceMergeIndex(indexName);
+        ElasticsearchException exception = expectThrows(ElasticsearchException.class, converter::maybeForceMergeIndex);
         assertThat(exception.getCause().getMessage(), containsString("transport failure"));
     }
 

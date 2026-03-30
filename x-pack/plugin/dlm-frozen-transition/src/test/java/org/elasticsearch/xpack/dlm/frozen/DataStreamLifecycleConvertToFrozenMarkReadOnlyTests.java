@@ -31,6 +31,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.XPackLicenseState;
@@ -367,7 +368,7 @@ public class DataStreamLifecycleConvertToFrozenMarkReadOnlyTests extends ESTestC
         assertTrue("AddIndexBlockRequest should have verified set to true", capturedRequest.get().markVerified());
     }
 
-    public void testIsEligibleReturnsFalseWhenIndexDoesNotExist() {
+    public void testIsEligibleThrowsWhenIndexDoesNotExist() {
         // Create project state without the target index
         ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(projectId);
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(projectMetadataBuilder).build();
@@ -382,7 +383,7 @@ public class DataStreamLifecycleConvertToFrozenMarkReadOnlyTests extends ESTestC
             Clock.systemUTC()
         );
 
-        assertThat(converter.isEligibleForConvertToFrozen(), is(false));
+        assertThrows(IndexNotFoundException.class, converter::checkIfEligibleForConvertToFrozen);
     }
 
     public void testIsEligibleThrowsWhenRepositoryIsNotRegistered() {
@@ -399,7 +400,7 @@ public class DataStreamLifecycleConvertToFrozenMarkReadOnlyTests extends ESTestC
             Clock.systemUTC()
         );
 
-        DlmUnrecoverableException exception = expectThrows(DlmUnrecoverableException.class, converter::isEligibleForConvertToFrozen);
+        DlmUnrecoverableException exception = expectThrows(DlmUnrecoverableException.class, converter::checkIfEligibleForConvertToFrozen);
         assertThat(exception.getMessage(), containsString(repoName));
     }
 
@@ -424,13 +425,13 @@ public class DataStreamLifecycleConvertToFrozenMarkReadOnlyTests extends ESTestC
 
         ElasticsearchSecurityException exception = expectThrows(
             ElasticsearchSecurityException.class,
-            converter::isEligibleForConvertToFrozen
+            converter::checkIfEligibleForConvertToFrozen
         );
         assertThat(exception.getMessage(), containsString("non-compliant"));
         assertThat(exception.getMessage(), containsString("searchable-snapshots"));
     }
 
-    public void testIsEligibleReturnsTrueWhenAllConditionsAreMet() {
+    public void testIsEligibleSucceedsWhenAllConditionsAreMet() {
         String repoName = "my-repo";
         createProjectStateWithRepo(repoName, true);
 
@@ -443,7 +444,8 @@ public class DataStreamLifecycleConvertToFrozenMarkReadOnlyTests extends ESTestC
             Clock.systemUTC()
         );
 
-        assertThat(converter.isEligibleForConvertToFrozen(), is(true));
+        // Should not throw any exception when all conditions are met
+        converter.checkIfEligibleForConvertToFrozen();
     }
 
     /**

@@ -15,8 +15,8 @@ import org.elasticsearch.ElasticsearchException;
  * is in progress, there is no point retrying the operation.
  */
 public class DlmUnrecoverableException extends ElasticsearchException {
-
-    public DlmUnrecoverableException(String msg, Object... args) {
+    public DlmUnrecoverableException(String indexName, String msg, Object... args) {
         super(msg, args);
+        setIndex(indexName);
     }
 }

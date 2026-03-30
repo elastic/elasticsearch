@@ -9,13 +9,13 @@ package org.elasticsearch.xpack.inference.services.azureopenai.embeddings;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.ModelConfigurations;
-import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -217,7 +217,7 @@ public class AzureOpenAiEmbeddingsServiceSettings extends AzureOpenAiServiceSett
     }
 
     @Override
-    public ServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
+    public AzureOpenAiEmbeddingsServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
         var validationException = new ValidationException();
 
         var updatedCommonSettings = updateCommonSettings(serviceSettings, validationException);
@@ -302,5 +302,10 @@ public class AzureOpenAiEmbeddingsServiceSettings extends AzureOpenAiServiceSett
     @Override
     public int hashCode() {
         return Objects.hash(super.hashCode(), dimensions, dimensionsSetByUser, maxInputTokens, similarity);
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this);
     }
 }

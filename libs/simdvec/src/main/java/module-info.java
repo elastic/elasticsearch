@@ -14,10 +14,6 @@
  * using significant amounts of CPU intrinsics to utilise specific SIMD operations.
  * The method handles are loaded using FFI, and made available through a series
  * of wrapper classes to be called from Elasticsearch-defined vector formats.
- * <p>
- * A small number of JDK 22-specific implementations remain in the {@code main22} source set,
- * packaged as a multi-release JAR. On JDK 22+, the multi-release classloader selects
- * those implementations over the {@code main} versions.
  */
 module org.elasticsearch.simdvec {
     requires org.elasticsearch.base;

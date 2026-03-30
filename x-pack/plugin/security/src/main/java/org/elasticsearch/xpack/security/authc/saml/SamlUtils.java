@@ -13,7 +13,6 @@ import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.core.XmlUtils;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.security.support.RestorableContextClassLoader;
 import org.opensaml.core.config.InitializationService;

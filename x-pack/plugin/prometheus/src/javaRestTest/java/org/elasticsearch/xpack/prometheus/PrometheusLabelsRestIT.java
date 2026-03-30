@@ -21,7 +21,6 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
-import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.prometheus.proto.RemoteWrite;
@@ -31,6 +30,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
@@ -57,7 +57,6 @@ public class PrometheusLabelsRestIT extends ESRestTestCase {
         .setting("xpack.license.self_generated.type", "trial")
         .setting("xpack.ml.enabled", "false")
         .setting("xpack.watcher.enabled", "false")
-        .feature(FeatureFlag.PROMETHEUS_FEATURE_FLAG)
         .build();
 
     @Override
@@ -115,7 +114,7 @@ public class PrometheusLabelsRestIT extends ESRestTestCase {
 
         List<String> data = queryLabelsData("labels_name_gauge");
 
-        assertThat(data, hasItem("__name__"));
+        assertThat(data, containsInAnyOrder("__name__", "job"));
     }
 
     public void testGetReturnsIndexedLabels() throws Exception {
@@ -123,9 +122,7 @@ public class PrometheusLabelsRestIT extends ESRestTestCase {
 
         List<String> data = queryLabelsData("labels_round_trip_gauge");
 
-        assertThat(data, hasItem("__name__"));
-        assertThat(data, hasItem("job"));
-        assertThat(data, hasItem("instance"));
+        assertThat(data, containsInAnyOrder("__name__", "instance", "job"));
     }
 
     public void testGetWithMatchSelectorFiltersToMatchingLabels() throws Exception {

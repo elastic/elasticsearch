@@ -77,7 +77,6 @@ import java.util.OptionalLong;
 public class OrcFormatReader implements FormatReader {
 
     private static final long MILLIS_PER_DAY = Duration.ofDays(1).toMillis();
-    private static final long NANOS_PER_DAY = Duration.ofDays(1).toNanos();
 
     private final BlockFactory blockFactory;
     private final SearchArgument pushedFilter;
@@ -121,11 +120,11 @@ public class OrcFormatReader implements FormatReader {
      * {@code false} uses getMinimum/getMaximum which applies a local-timezone shift. Without
      * it, predicates against TIMESTAMP_INSTANT columns cause false stripe exclusions.
      * <p>
-     * This is safe because ESQL maps timestamp types to DATE_NANOS using UTC epoch nanos,
-     * and the ORC files use TIMESTAMP_INSTANT (UTC-anchored) columns. If we ever support
-     * files with plain TIMESTAMP columns (writer-local timezone), this flag would incorrectly
-     * treat their statistics as UTC too — at that point we'd need per-column evaluation by
-     * bypassing SearchArgument and reading stripe statistics directly (the Trino approach).
+     * This is safe because the ORC files use TIMESTAMP_INSTANT (UTC-anchored) columns. If we
+     * ever support files with plain TIMESTAMP columns (writer-local timezone), this flag would
+     * incorrectly treat their statistics as UTC too — at that point we'd need per-column
+     * evaluation by bypassing SearchArgument and reading stripe statistics directly (the Trino
+     * approach).
      */
     private static OrcFile.ReaderOptions orcReaderOptions(OrcStorageObjectAdapter fs) {
         return OrcFile.readerOptions(new Configuration(false)).filesystem(fs).useUTCTimestamp(true);
@@ -334,7 +333,7 @@ public class OrcFormatReader implements FormatReader {
             case FLOAT, DOUBLE -> DataType.DOUBLE;
             case STRING -> DataType.TEXT;
             case VARCHAR, CHAR -> DataType.KEYWORD;
-            case TIMESTAMP, TIMESTAMP_INSTANT -> DataType.DATE_NANOS;
+            case TIMESTAMP, TIMESTAMP_INSTANT -> DataType.DATETIME;
             case DATE -> DataType.DATETIME;
             case DECIMAL -> DataType.DOUBLE;
             case LIST -> convertOrcTypeToEsql(orcType.getChildren().get(0));
@@ -461,7 +460,6 @@ public class OrcFormatReader implements FormatReader {
                 case DOUBLE -> createDoubleBlock(vector, rowCount);
                 case KEYWORD, TEXT -> createBytesRefBlock(vector, rowCount);
                 case DATETIME -> createDatetimeBlock(vector, rowCount);
-                case DATE_NANOS -> createDateNanosBlock(vector, rowCount);
                 default -> blockFactory.newConstantNullBlock(rowCount);
             };
         }
@@ -474,7 +472,6 @@ public class OrcFormatReader implements FormatReader {
                 case DOUBLE -> createListDoubleBlock(listCol, rowCount);
                 case BOOLEAN -> createListBooleanBlock(listCol, rowCount);
                 case DATETIME -> createListDatetimeBlock(listCol, rowCount);
-                case DATE_NANOS -> createListDateNanosBlock(listCol, rowCount);
                 default -> blockFactory.newConstantNullBlock(rowCount);
             };
         }
@@ -803,99 +800,6 @@ public class OrcFormatReader implements FormatReader {
                 );
             }
             return blockFactory.newConstantNullBlock(rowCount);
-        }
-
-        /**
-         * Converts a {@link TimestampColumnVector} to a DATE_NANOS block (epoch nanoseconds).
-         * ORC stores timestamps as ({@code time[]} millis, {@code nanos[]} nanos-within-second).
-         * We combine them: {@code floorDiv(millis, 1000) * 1_000_000_000 + nanos}.
-         * {@code floorDiv} is required for correct rounding of pre-epoch timestamps.
-         */
-        private Block createDateNanosBlock(ColumnVector vector, int rowCount) {
-            if (vector instanceof TimestampColumnVector tsVector) {
-                if (tsVector.isRepeating) {
-                    if (tsVector.noNulls == false && tsVector.isNull[0]) {
-                        return blockFactory.newConstantNullBlock(rowCount);
-                    }
-                    long epochNanos = Math.floorDiv(tsVector.time[0], 1000L) * 1_000_000_000L + tsVector.nanos[0];
-                    return blockFactory.newConstantLongBlockWith(epochNanos, rowCount);
-                }
-                long[] nanos = new long[rowCount];
-                for (int i = 0; i < rowCount; i++) {
-                    nanos[i] = Math.floorDiv(tsVector.time[i], 1000L) * 1_000_000_000L + tsVector.nanos[i];
-                }
-                if (tsVector.noNulls) {
-                    return blockFactory.newLongArrayVector(nanos, rowCount).asBlock();
-                }
-                return blockFactory.newLongArrayBlock(
-                    nanos,
-                    rowCount,
-                    null,
-                    toBitSet(tsVector.isNull, rowCount),
-                    Block.MvOrdering.UNORDERED
-                );
-            } else if (vector instanceof LongColumnVector longVector && vector instanceof Decimal64ColumnVector == false) {
-                if (longVector.isRepeating) {
-                    if (longVector.noNulls == false && longVector.isNull[0]) {
-                        return blockFactory.newConstantNullBlock(rowCount);
-                    }
-                    return blockFactory.newConstantLongBlockWith(longVector.vector[0] * NANOS_PER_DAY, rowCount);
-                }
-                long[] nanos = new long[rowCount];
-                for (int i = 0; i < rowCount; i++) {
-                    nanos[i] = longVector.vector[i] * NANOS_PER_DAY;
-                }
-                if (longVector.noNulls) {
-                    return blockFactory.newLongArrayVector(nanos, rowCount).asBlock();
-                }
-                return blockFactory.newLongArrayBlock(
-                    nanos,
-                    rowCount,
-                    null,
-                    toBitSet(longVector.isNull, rowCount),
-                    Block.MvOrdering.UNORDERED
-                );
-            }
-            return blockFactory.newConstantNullBlock(rowCount);
-        }
-
-        private Block createListDateNanosBlock(ListColumnVector listCol, int rowCount) {
-            ColumnVector child = listCol.child;
-            try (var builder = blockFactory.newLongBlockBuilder(rowCount)) {
-                for (int i = 0; i < rowCount; i++) {
-                    if (listCol.noNulls == false && listCol.isNull[i]) {
-                        builder.appendNull();
-                    } else {
-                        int start = (int) listCol.offsets[i];
-                        int len = (int) listCol.lengths[i];
-                        builder.beginPositionEntry();
-                        for (int j = 0; j < len; j++) {
-                            int idx = start + j;
-                            long nanos;
-                            if (child instanceof TimestampColumnVector ts) {
-                                if (ts.noNulls == false && ts.isNull[idx]) {
-                                    nanos = 0L;
-                                } else {
-                                    nanos = Math.floorDiv(ts.time[idx], 1000L) * 1_000_000_000L + ts.nanos[idx];
-                                }
-                            } else if (child instanceof LongColumnVector lv) {
-                                if (lv.noNulls == false && lv.isNull[idx]) {
-                                    nanos = 0L;
-                                } else {
-                                    nanos = lv.vector[idx] * NANOS_PER_DAY;
-                                }
-                            } else {
-                                throw new QlIllegalArgumentException(
-                                    "Unsupported list child type for DATE_NANOS: " + child.getClass().getSimpleName()
-                                );
-                            }
-                            builder.appendLong(nanos);
-                        }
-                        builder.endPositionEntry();
-                    }
-                }
-                return builder.build();
-            }
         }
 
         private static BitSet toBitSet(boolean[] isNull, int length) {

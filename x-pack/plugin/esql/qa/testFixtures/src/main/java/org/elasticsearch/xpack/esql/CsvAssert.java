@@ -126,11 +126,6 @@ public final class CsvAssert {
             if (actualType == Type.INTEGER && expectedType == Type.LONG) {
                 actualType = Type.LONG;
             }
-            // DATE_NANOS is a higher-precision form of DATETIME; external source formats (e.g. ORC) that preserve
-            // nanosecond precision return DATE_NANOS, but the shared csv-spec files declare columns as :date (DATETIME).
-            if (actualType == Type.DATE_NANOS && expectedType == Type.DATETIME) {
-                actualType = Type.DATETIME;
-            }
             if (actualType == null) {
                 actualType = Type.NULL;
             }

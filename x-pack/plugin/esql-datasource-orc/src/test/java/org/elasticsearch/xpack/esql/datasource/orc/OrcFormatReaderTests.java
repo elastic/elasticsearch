@@ -493,7 +493,7 @@ public class OrcFormatReaderTests extends ESTestCase {
         OrcFormatReader reader = new OrcFormatReader(blockFactory);
 
         SourceMetadata metadata = reader.metadata(storageObject);
-        assertEquals(DataType.DATE_NANOS, metadata.schema().get(1).dataType());
+        assertEquals(DataType.DATETIME, metadata.schema().get(1).dataType());
 
         try (CloseableIterator<Page> iterator = reader.read(storageObject, null, 1024)) {
             assertTrue(iterator.hasNext());
@@ -502,8 +502,8 @@ public class OrcFormatReaderTests extends ESTestCase {
             assertEquals(2, page.getPositionCount());
 
             LongBlock tsBlock = (LongBlock) page.getBlock(1);
-            assertEquals(epochMillis * 1_000_000L, tsBlock.getLong(0));
-            assertEquals((epochMillis + 3600_000) * 1_000_000L, tsBlock.getLong(1));
+            assertEquals(epochMillis, tsBlock.getLong(0));
+            assertEquals(epochMillis + 3600_000, tsBlock.getLong(1));
         }
     }
 
@@ -542,9 +542,9 @@ public class OrcFormatReaderTests extends ESTestCase {
             assertEquals(3, page.getPositionCount());
 
             LongBlock tsBlock = (LongBlock) page.getBlock(1);
-            assertEquals(epochMillis * 1_000_000L, tsBlock.getLong(0));
+            assertEquals(epochMillis, tsBlock.getLong(0));
             assertTrue(tsBlock.isNull(1));
-            assertEquals((epochMillis + 7200_000) * 1_000_000L, tsBlock.getLong(2));
+            assertEquals(epochMillis + 7200_000, tsBlock.getLong(2));
         }
     }
 
@@ -765,7 +765,7 @@ public class OrcFormatReaderTests extends ESTestCase {
         }
     }
 
-    public void testTimestampWithSubMillisPrecision() throws Exception {
+    public void testTimestampTruncatesToMillisPrecision() throws Exception {
         TypeDescription schema = TypeDescription.createStruct().addField("event_time", TypeDescription.createTimestampInstant());
 
         long epochMillis = Instant.parse("2024-01-15T10:30:00.123Z").toEpochMilli();
@@ -791,9 +791,8 @@ public class OrcFormatReaderTests extends ESTestCase {
             assertEquals(2, page.getPositionCount());
             LongBlock tsBlock = (LongBlock) page.getBlock(0);
 
-            long expectedSeconds = epochMillis / 1000;
-            assertEquals(expectedSeconds * 1_000_000_000L + 123_456_789L, tsBlock.getLong(0));
-            assertEquals(expectedSeconds * 1_000_000_000L + 123_000_000L, tsBlock.getLong(1));
+            assertEquals(epochMillis, tsBlock.getLong(0));
+            assertEquals(epochMillis, tsBlock.getLong(1));
         }
     }
 

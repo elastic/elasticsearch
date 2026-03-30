@@ -124,8 +124,11 @@ setup:
 ---
 "Default index options for dense_vector":
   - requires:
+      cluster_features: "gte_v8.14.0"
+      reason: 'dense_vector indexed as int8_hnsw by default was added in 8.14'
+  - skip:
       cluster_features: "search.default_disk_bbq"
-      reason: 'dense_vector indexed as bbq_disk by default was added in 9.4'
+      reason: 'dense_vector indexed as bbq_disk but only when under license'
   - do:
       indices.create:
         index: test_default_index_options
@@ -146,7 +149,7 @@ setup:
   - match: { test_default_index_options.mappings.properties.vector.dims: 5 }
   - match: { test_default_index_options.mappings.properties.vector.index: true }
   - match: { test_default_index_options.mappings.properties.vector.similarity: cosine }
-  - match: { test_default_index_options.mappings.properties.vector.index_options.type: bbq_disk }
+  - match: { test_default_index_options.mappings.properties.vector.index_options.type: int8_hnsw }
 ---
 "Default index options for dense_vector element type byte":
   - requires:

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.ingest.geoip;
 
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -72,7 +73,7 @@ public class GeoIpDownloaderStatsIT extends AbstractGeoIpIT {
         assertThat(jsonMapView.get("stats.databases_count"), equalTo(0));
         assertThat(jsonMapView.get("stats.total_download_time"), equalTo(0));
         assertEquals(0, jsonMapView.<Map<String, Object>>get("nodes").size());
-        putPipeline();
+        IpLocationTestHelper.requestDownloads(internalCluster(), ProjectId.DEFAULT.id());
         updateClusterSettings(Settings.builder().put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), true));
 
         assertBusy(() -> {
@@ -92,26 +93,6 @@ public class GeoIpDownloaderStatsIT extends AbstractGeoIpIT {
                     containsInAnyOrder("GeoLite2-City.mmdb", "GeoLite2-ASN.mmdb", "GeoLite2-Country.mmdb", "MyCustomGeoLite2-City.mmdb")
                 );
             }
-        });
-    }
-
-    private void putPipeline() throws IOException {
-        putJsonPipeline("_id", (builder, params) -> {
-            builder.startArray("processors");
-            {
-                builder.startObject();
-                {
-                    builder.startObject("geoip");
-                    {
-                        builder.field("field", "ip");
-                        builder.field("target_field", "ip-city");
-                        builder.field("database_file", "GeoLite2-City.mmdb");
-                    }
-                    builder.endObject();
-                }
-                builder.endObject();
-            }
-            return builder.endArray();
         });
     }
 

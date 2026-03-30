@@ -16,6 +16,7 @@ import org.elasticsearch.test.InternalTestCluster;
 import java.io.IOException;
 import java.util.Map;
 
+import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 
@@ -56,7 +57,7 @@ public final class IpLocationTestHelper {
         assertNotNull("database [" + databaseFile + "] should be available", lookup);
         Map<String, Object> result = lookup.lookup(ip);
         assertNotNull("lookup for [" + ip + "] in [" + databaseFile + "] should return data", result);
-        org.hamcrest.MatcherAssert.assertThat(
+        assertThat(
             "field [" + expectedField + "] in lookup result",
             result.get(expectedField),
             org.hamcrest.Matchers.equalTo(expectedValue)

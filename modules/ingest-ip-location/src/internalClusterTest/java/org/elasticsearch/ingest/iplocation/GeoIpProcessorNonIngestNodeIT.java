@@ -7,24 +7,40 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.ingest.geoip;
+package org.elasticsearch.ingest.iplocation;
 
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.ingest.IngestService;
+import org.elasticsearch.ingest.geoip.AbstractGeoIpIT;
+import org.elasticsearch.ingest.geoip.DatabaseNodeService;
+import org.elasticsearch.ingest.geoip.DatabaseReaderLazyLoader;
+import org.elasticsearch.ingest.geoip.IngestGeoIpPlugin;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.NodeRoles;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.test.NodeRoles.nonIngestNode;
 import static org.hamcrest.Matchers.equalTo;
 
+/**
+ * Tests that geoip databases are lazily loaded on ingest nodes and not loaded on non-ingest nodes.
+ * Moved from ip-location because it depends on the geoip processor type from {@link IngestIpLocationPlugin}.
+ */
 public class GeoIpProcessorNonIngestNodeIT extends AbstractGeoIpIT {
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return List.of(IngestGeoIpPlugin.class, IngestGeoIpSettingsPlugin.class, IngestIpLocationPlugin.class);
+    }
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
@@ -78,22 +94,17 @@ public class GeoIpProcessorNonIngestNodeIT extends AbstractGeoIpIT {
             }
             return builder.endArray();
         });
-        // the geo-IP databases should not be loaded on any nodes as they are all non-ingest nodes
         Arrays.stream(internalCluster().getNodeNames()).forEach(node -> assertDatabaseLoadStatus(node, false));
 
-        // start an ingest node
         final String ingestNode = internalCluster().startNode(NodeRoles.ingestNode());
         internalCluster().getInstance(IngestService.class, ingestNode);
-        // the geo-IP database should not be loaded yet as we have no indexed any documents using a pipeline that has a geo-IP processor
         assertDatabaseLoadStatus(ingestNode, false);
         final IndexRequest indexRequest = new IndexRequest("index");
         indexRequest.setPipeline("geoip");
         indexRequest.source(Map.of("ip", "1.1.1.1"));
         final DocWriteResponse indexResponse = client(ingestNode).index(indexRequest).actionGet();
         assertThat(indexResponse.status(), equalTo(RestStatus.CREATED));
-        // now the geo-IP database should be loaded on the ingest node
         assertDatabaseLoadStatus(ingestNode, true);
-        // the geo-IP database should still not be loaded on the non-ingest nodes
         Arrays.stream(internalCluster().getNodeNames())
             .filter(node -> node.equals(ingestNode) == false)
             .forEach(node -> assertDatabaseLoadStatus(node, false));
@@ -103,11 +114,10 @@ public class GeoIpProcessorNonIngestNodeIT extends AbstractGeoIpIT {
         final DatabaseNodeService databaseNodeService = internalCluster().getInstance(DatabaseNodeService.class, node);
         for (final DatabaseReaderLazyLoader loader : databaseNodeService.getAllDatabases()) {
             if (loaded) {
-                assertNotNull(loader.databaseReader.get());
+                assertTrue("database should be loaded on node [" + node + "]", loader.isLoaded());
             } else {
-                assertNull(loader.databaseReader.get());
+                assertFalse("database should not be loaded on node [" + node + "]", loader.isLoaded());
             }
         }
     }
-
 }

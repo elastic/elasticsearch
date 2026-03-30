@@ -8,10 +8,16 @@
  */
 
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
+apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
   description = 'Ingest processors for IP geolocation enrichment'
   classname = 'org.elasticsearch.ingest.iplocation.IngestIpLocationPlugin'
+}
+
+tasks.named('internalClusterTestTestingConventions').configure {
+  baseClass 'org.elasticsearch.ingest.geoip.AbstractGeoIpIT'
+  baseClass 'org.elasticsearch.test.ESTestCase'
 }
 
 dependencies {
@@ -19,6 +25,10 @@ dependencies {
   clusterModules project(':modules:ip-location')
   yamlRestTestImplementation project(':test:fixtures:geoip-fixture')
   yamlRestTestImplementation(testArtifact(project(":modules:ip-location"), "yamlRestTest"))
+  internalClusterTestImplementation project(':modules:reindex')
+  internalClusterTestImplementation project(':test:fixtures:geoip-fixture')
+  internalClusterTestImplementation(testArtifact(project(":modules:ip-location")))
+  internalClusterTestImplementation(testArtifact(project(":modules:ip-location"), "internalClusterTest"))
 }
 
 restResources {

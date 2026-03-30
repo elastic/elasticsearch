@@ -15,18 +15,11 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
-import org.elasticsearch.action.bulk.BulkItemResponse;
-import org.elasticsearch.action.bulk.BulkRequest;
-import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.action.get.GetRequest;
-import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.metadata.ProjectId;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -38,18 +31,14 @@ import org.elasticsearch.ingest.geoip.direct.PutDatabaseConfigurationAction;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.transport.RemoteTransportException;
-import org.elasticsearch.xcontent.XContentType;
 import org.junit.After;
 import org.junit.ClassRule;
 
-import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -97,53 +86,41 @@ public class EnterpriseGeoIpDownloaderIT extends ESIntegTestCase {
         return CollectionUtils.appendToCopyNoNullElements(super.nodePlugins(), IngestGeoIpPlugin.class, ReindexPlugin.class);
     }
 
-    @SuppressWarnings("unchecked")
     @TestLogging(reason = "For debugging tricky race conditions", value = "org.elasticsearch.ingest.geoip:TRACE")
     public void testEnterpriseDownloaderTask() throws Exception {
         /*
-         * This test starts the enterprise geoip downloader task, and creates a database configuration. Then it creates an ingest
-         * pipeline that references that database, and ingests a single document using that pipeline. It then asserts that the document
-         * was updated with information from the database.
-         * Note that the "enterprise database" is actually just a geolite database being loaded by the GeoIpHttpFixture.
+         * This test starts the enterprise geoip downloader task, creates database configurations, requests downloads on all nodes,
+         * then verifies that the databases are available and return correct data via the IpLocationService API.
          */
         EnterpriseGeoIpDownloader.DEFAULT_MAXMIND_ENDPOINT = getEndpoint();
         EnterpriseGeoIpDownloader.DEFAULT_IPINFO_ENDPOINT = getEndpoint();
-        final String indexName = "enterprise_geoip_test_index";
-        final String geoipPipelineName = "enterprise_geoip_pipeline";
-        final String iplocationPipelineName = "enterprise_iplocation_pipeline";
-        final String sourceField = "ip";
-        final String targetField = "ip-result";
+        String projectId = ProjectId.DEFAULT.id();
 
         startEnterpriseGeoIpDownloaderTask(ProjectId.DEFAULT);
         configureMaxmindDatabase(MAXMIND_DATABASE_TYPE);
         configureIpinfoDatabase(IPINFO_DATABASE_TYPE);
+        IpLocationTestHelper.requestDownloads(internalCluster(), projectId);
         waitAround();
-        createPipeline(geoipPipelineName, "geoip", MAXMIND_DATABASE_TYPE, sourceField, targetField);
-        createPipeline(iplocationPipelineName, "ip_location", IPINFO_DATABASE_TYPE, sourceField, targetField);
 
-        /*
-         * We know that the databases index has been populated (because we waited around, :wink:), but we don't know for sure that
-         * the databases have been pulled down and made available on all nodes. So we run these ingest-and-check steps in assertBusy blocks.
-         */
         assertBusy(() -> {
-            logger.info("Ingesting a test document");
-            String documentId = ingestDocument(indexName, geoipPipelineName, sourceField, "89.160.20.128");
-            GetResponse getResponse = client().get(new GetRequest(indexName, documentId)).actionGet();
-            Map<String, Object> returnedSource = getResponse.getSource();
-            assertNotNull(returnedSource);
-            Object targetFieldValue = returnedSource.get(targetField);
-            assertNotNull(targetFieldValue);
-            assertThat(((Map<String, Object>) targetFieldValue).get("city_name"), equalTo("Linköping"));
+            IpLocationTestHelper.assertDatabaseAvailable(
+                internalCluster(),
+                projectId,
+                MAXMIND_DATABASE_TYPE + ".mmdb",
+                "89.160.20.128",
+                "city_name",
+                "Linköping"
+            );
         });
         assertBusy(() -> {
-            logger.info("Ingesting another test document");
-            String documentId = ingestDocument(indexName, iplocationPipelineName, sourceField, "103.134.48.0");
-            GetResponse getResponse = client().get(new GetRequest(indexName, documentId)).actionGet();
-            Map<String, Object> returnedSource = getResponse.getSource();
-            assertNotNull(returnedSource);
-            Object targetFieldValue = returnedSource.get(targetField);
-            assertNotNull(targetFieldValue);
-            assertThat(((Map<String, Object>) targetFieldValue).get("organization_name"), equalTo("PT Nevigate Telekomunikasi Indonesia"));
+            IpLocationTestHelper.assertDatabaseAvailable(
+                internalCluster(),
+                projectId,
+                IPINFO_DATABASE_TYPE + ".mmdb",
+                "103.134.48.0",
+                "organization_name",
+                "PT Nevigate Telekomunikasi Indonesia"
+            );
         });
     }
 
@@ -224,37 +201,4 @@ public class EnterpriseGeoIpDownloaderIT extends ESIntegTestCase {
         });
     }
 
-    private void createPipeline(String pipelineName, String processorType, String databaseType, String sourceField, String targetField)
-        throws IOException {
-        putJsonPipeline(pipelineName, (builder, params) -> {
-            builder.field("description", "test");
-            builder.startArray("processors");
-            {
-                builder.startObject();
-                {
-                    builder.startObject(processorType);
-                    {
-                        builder.field("field", sourceField);
-                        builder.field("target_field", targetField);
-                        builder.field("database_file", databaseType + ".mmdb");
-                    }
-                    builder.endObject();
-                }
-                builder.endObject();
-            }
-            return builder.endArray();
-        });
-    }
-
-    private String ingestDocument(String indexName, String pipelineName, String sourceField, String value) {
-        BulkRequest bulkRequest = new BulkRequest();
-        bulkRequest.add(new IndexRequest(indexName).source(Strings.format("""
-            { "%s": "%s"}
-            """, sourceField, value), XContentType.JSON).setPipeline(pipelineName));
-        BulkResponse response = client().bulk(bulkRequest).actionGet();
-        BulkItemResponse[] bulkItemResponses = response.getItems();
-        assertThat(bulkItemResponses.length, equalTo(1));
-        assertThat(bulkItemResponses[0].status(), equalTo(RestStatus.CREATED));
-        return bulkItemResponses[0].getId();
-    }
 }

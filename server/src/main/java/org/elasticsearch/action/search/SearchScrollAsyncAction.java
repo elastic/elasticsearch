@@ -249,6 +249,7 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> {
     }
 
     private Lock lock = new ReentrantLock();
+
     protected void accumulateDirectoryMetrics(DirectoryMetrics metrics) {
         if (metrics.isEmpty() == false) {
             lock.lock();

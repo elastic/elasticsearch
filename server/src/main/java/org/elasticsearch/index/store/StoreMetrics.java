@@ -15,7 +15,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Map;
-import java.util.Objects;
 import java.util.function.Supplier;
 
 public class StoreMetrics implements DirectoryMetrics.PluggableMetrics<StoreMetrics> {

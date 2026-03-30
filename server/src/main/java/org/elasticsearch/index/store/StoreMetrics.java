@@ -100,6 +100,6 @@ public class StoreMetrics implements DirectoryMetrics.PluggableMetrics<StoreMetr
 
     @Override
     public int hashCode() {
-        return Objects.hash(bytesRead);
+        return Long.hashCode(bytesRead);
     }
 }

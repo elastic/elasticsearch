@@ -35,6 +35,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BiFunction;
 import java.util.function.Supplier;
 
@@ -246,10 +248,14 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> {
         };
     }
 
+    private Lock lock = new ReentrantLock();
     protected void accumulateDirectoryMetrics(DirectoryMetrics metrics) {
         if (metrics.isEmpty() == false) {
-            synchronized (this) {
+            lock.lock();
+            try {
                 mergedDirectoryMetrics = mergedDirectoryMetrics.merge(metrics);
+            } finally {
+                lock.unlock();
             }
         }
     }

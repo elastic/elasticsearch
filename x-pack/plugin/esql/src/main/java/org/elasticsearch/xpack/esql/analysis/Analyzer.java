@@ -1391,10 +1391,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 var source = promql.source();
                 var localRelation = new LocalRelation(
                     source,
-                    List.of(
-                        new ReferenceAttribute(source, null, promql.valueColumnName(), DOUBLE, Nullability.FALSE, promql.valueId(), false),
-                        new ReferenceAttribute(source, null, promql.stepColumnName(), DATETIME, Nullability.FALSE, promql.stepId(), false)
-                    ),
+                    List.of(promql.valueAttribute(), promql.stepAttribute()),
                     EmptyLocalSupplier.EMPTY
                 );
                 // Wrap in an explicit LIMIT 0 so that AddImplicitLimit skips the "No limit defined" warning,

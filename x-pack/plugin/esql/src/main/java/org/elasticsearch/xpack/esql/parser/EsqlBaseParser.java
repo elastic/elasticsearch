@@ -584,7 +584,7 @@ public class EsqlBaseParser extends ParserConfig {
         enterOuterAlt(_localctx, 7);
         {
         setState(258);
-        if (!(this.isDevVersion())) throw new FailedPredicateException(this, "this.isDevVersion()");
+        if (!(this.isExternalDataSourcesEnabled())) throw new FailedPredicateException(this, "this.isExternalDataSourcesEnabled()");
         setState(259);
         externalCommand();
         }
@@ -9738,7 +9738,7 @@ public class EsqlBaseParser extends ParserConfig {
     case 1:
       return this.isDevVersion();
     case 2:
-      return this.isDevVersion();
+      return this.isExternalDataSourcesEnabled();
     }
     return true;
   }

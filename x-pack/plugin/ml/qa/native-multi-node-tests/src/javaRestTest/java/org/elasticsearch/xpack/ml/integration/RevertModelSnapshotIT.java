@@ -238,8 +238,11 @@ public class RevertModelSnapshotIT extends MlNativeAutodetectIntegTestCase {
 
         GetJobsStatsAction.Response.JobStats statsAfterRevert = getJobStats(job.getId()).get(0);
 
-        // Check model_size_stats has been reverted
-        assertThat(statsAfterRevert.getModelSizeStats().getModelBytes(), equalTo(modelSizeStats1.getModelBytes()));
+        // Check model_size_stats has been reverted. Compare to bytes embedded in the snapshot, not modelSizeStats1 from
+        // an earlier getJobStats call: revert persists modelSnapshot.getModelSizeStats() (see JobManager.revertSnapshot),
+        // which can differ slightly from the last streamed stats at phase 1 end (#132733).
+        assertThat(revertSnapshot.getModelSizeStats(), is(notNullValue()));
+        assertThat(statsAfterRevert.getModelSizeStats().getModelBytes(), equalTo(revertSnapshot.getModelSizeStats().getModelBytes()));
 
         if (deleteInterveningResults) {
             // Check data counts have been reverted

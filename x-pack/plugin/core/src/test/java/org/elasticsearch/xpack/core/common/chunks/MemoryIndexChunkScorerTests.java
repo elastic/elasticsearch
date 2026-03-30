@@ -95,7 +95,7 @@ public class MemoryIndexChunkScorerTests extends ESTestCase {
         scoredChunks = scorer.scoreChunks(null, "puggles", maxResults, true);
         assertTrue(scoredChunks.isEmpty());
 
-        scoredChunks = scorer.scoreChunks(CHUNKS, (String) null, maxResults, true);
+        scoredChunks = scorer.scoreChunks(CHUNKS, " ", maxResults, true);
         assertTrue(scoredChunks.isEmpty());
     }
 

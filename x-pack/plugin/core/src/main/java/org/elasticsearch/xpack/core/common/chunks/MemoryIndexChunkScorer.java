@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.core.common.chunks;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.Document;
+import org.apache.lucene.document.Field.Store;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
@@ -109,7 +110,7 @@ public class MemoryIndexChunkScorer {
             try (IndexWriter writer = new IndexWriter(directory, config)) {
                 for (String chunk : chunks) {
                     Document doc = new Document();
-                    doc.add(new TextField(CONTENT_FIELD, chunk, org.apache.lucene.document.Field.Store.NO));
+                    doc.add(new TextField(CONTENT_FIELD, chunk, Store.NO));
                     writer.addDocument(doc);
                 }
                 writer.commit();

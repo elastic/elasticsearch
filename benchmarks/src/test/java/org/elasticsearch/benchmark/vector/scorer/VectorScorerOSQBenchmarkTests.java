@@ -159,12 +159,12 @@ public class VectorScorerOSQBenchmarkTests extends ESTestCase {
             return () -> Arrays.stream(dims)
                 .map(Integer::parseInt)
                 .flatMap(d -> Arrays.stream(bits).map(Byte::parseByte).map(b -> List.<Object>of(d, b)))
+                .flatMap(params -> Arrays.stream(VectorScorerOSQBenchmark.DirectoryType.values()).map(dir -> appendToCopy(params, dir)))
                 .flatMap(
                     params -> Arrays.stream(int4Encodings)
                         .map(ESNextOSQVectorsScorer.SymmetricInt4Encoding::valueOf)
                         .map(encoding -> appendToCopy(params, encoding))
                 )
-                .flatMap(params -> Arrays.stream(VectorScorerOSQBenchmark.DirectoryType.values()).map(dir -> appendToCopy(params, dir)))
                 .flatMap(params -> Arrays.stream(VectorSimilarityFunction.values()).map(f -> appendToCopy(params, f).toArray()))
                 .iterator();
         } catch (NoSuchFieldException e) {

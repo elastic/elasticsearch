@@ -47,6 +47,13 @@ import java.util.stream.Collectors;
  */
 public class ShutdownPrepareService {
 
+    /**
+     * Minimum time a relocated reindex task must run before it can be relocated again.
+     * Prevents quick back-to-back relocations that could cause issues with reindex management endpoints,
+     * as of writing, mainly race condition in list where the two-listing approach could hit two relocations and have missing results.
+     */
+    private static final long MIN_REINDEX_RELOCATION_NANOS = TimeUnit.SECONDS.toNanos(5);
+
     private record ShutdownHook(String name, Runnable action) {}
 
     public static final Setting<TimeValue> MAXIMUM_SHUTDOWN_TIMEOUT_SETTING = Setting.positiveTimeSetting(
@@ -211,8 +218,20 @@ public class ShutdownPrepareService {
 
     // package-private for tests
     static void maybeRequestRelocationForBulkByScroll(Task task) {
+        maybeRequestRelocationForBulkByScroll(task, MIN_REINDEX_RELOCATION_NANOS);
+    }
+
+    // visible for tests
+    static void maybeRequestRelocationForBulkByScroll(Task task, long minReindexRelocationNanos) {
+        assert minReindexRelocationNanos >= 0 : "Minimum re-relocation nanos must be non-negative";
         if (task instanceof BulkByScrollTask bulkByScrollTask) {
             if (bulkByScrollTask.isEligibleForRelocationOnShutdown() && bulkByScrollTask.isRelocationRequested() == false) {
+                final boolean taskRecentlyRelocated = bulkByScrollTask.isRelocatedTask()
+                    && (System.nanoTime() - bulkByScrollTask.getStartTimeNanos()) < minReindexRelocationNanos;
+                if (taskRecentlyRelocated) {
+                    logger.debug("skipping re-relocation for recently-relocated task [{}]", bulkByScrollTask.getId());
+                    return;
+                }
                 if (bulkByScrollTask.isLeader()) {
                     logger.info("Requesting relocation task for leader bulk-by-scroll task {} and its workers", bulkByScrollTask.getId());
                 } else {

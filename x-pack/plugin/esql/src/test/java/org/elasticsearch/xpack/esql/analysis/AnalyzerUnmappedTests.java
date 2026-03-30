@@ -1297,7 +1297,8 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         );
         assertUnmappedLoadError(
             analyzer().addIndex(pattern, IndexResolution.valid(merged)),
-            "FROM sample_data, sample_data_ts_nanos, no_mapping_sample_data METADATA _index | WHERE @timestamp == \"2021-01-01\"::date_nanos",
+            "FROM sample_data, sample_data_ts_nanos, no_mapping_sample_data METADATA _index "
+                + "| WHERE @timestamp == \"2021-01-01\"::date_nanos",
             allOf(
                 containsString("Found 1 problem"),
                 containsString(

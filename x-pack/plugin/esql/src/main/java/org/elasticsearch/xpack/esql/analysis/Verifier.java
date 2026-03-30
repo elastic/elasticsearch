@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.capabilities.Unresolvable;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
@@ -523,23 +524,36 @@ public class Verifier {
 
     /**
      * Reject queries that refer to partially unmapped non-keyword fields (PUNKs) when {@code unmapped_fields="load"}. First,
-     * {@link #partiallyUnmappedNonKeywords} collects all PUNK field names from {@link EsRelation} nodes in the logical plan. Then the
-     * plan is walked, bottom-up, skipping {@link EsRelation} nodes, and any expression referencing a PUNK attribute is flagged as a
-     * verification failure.
+     * {@link #partiallyUnmappedNonKeywords} collects all PUNK attributes from {@link EsRelation} nodes in the logical plan. Then the
+     * plan is walked, bottom-up, skipping {@link EsRelation} and {@link Project} nodes, and any expression referencing a PUNK attribute
+     * is flagged as a verification failure, unless it's within a conversion function or KEEP/DROP.
      * <p>
-     * Example:
-     * <ul>
+     * Example
+     * <p>
+     * With the two indices below
+     * <ol>
      *     <li>index1 has foo(long) and bar(keyword)</li>
      *     <li>index2 has bar(keyword)</li>
-     * </ul>
+     * </ol>
      *
-     * Given the above indices, a query like {@code FROM index1, index2 | KEEP foo} is rejected.
+     * The following queries should pass (assume unmapped_fields="load" and reading from both indices)
+     * <ul>
+     *     <li>KEEP foo</li>
+     *     <li>DROP foo*</li>
+     *     <li>EVAL x = foo::long</li>
+     * </ul>
+     * The following queries should fail (assume unmapped_fields="load" and reading from both indices)
+     * <ul>
+     *     <li>RENAME foo as x/li>
+     *     <li>EVAL x = foo</li>
+     *     <li>WHERE foo > 1</li>
+     * </ul>
      */
     private static void checkPartiallyUnmappedNonKeywordReferences(LogicalPlan plan, Failures failures, AnalyzerContext context) {
         final String errorMessage = "Using partially unmapped non-KEYWORD field [{}] is not supported with unmapped_fields=\"load\"";
 
         // The set of all partially unmapped non-keyword field names
-        Set<String> punks = partiallyUnmappedNonKeywords(plan, context.indexResolution());
+        AttributeSet punks = partiallyUnmappedNonKeywords(plan, context.indexResolution());
 
         plan.forEachUp(p -> {
             // EsRelation is the source; Project represents KEEP/DROP which are allowed to pass partial fields through.
@@ -547,19 +561,19 @@ public class Verifier {
                 return;
             }
             p.forEachExpression(FieldAttribute.class, fa -> {
-                String name = fa.name();
-                if (punks.contains(name) && (fa.field() instanceof MultiTypeEsField) == false) {
-                    failures.add(fail(fa, errorMessage, name));
+                if (punks.contains(fa) && (fa.field() instanceof MultiTypeEsField) == false) {
+                    failures.add(fail(fa, errorMessage, fa.fieldName()));
                 }
             });
         });
     }
 
     /**
-     * Walks the plan's {@link EsRelation} nodes and collects partially unmapped non-keyword field names from their output.
+     * Walks the plan's {@link EsRelation} nodes and collects partially unmapped non-keyword attributes.
      */
-    private static Set<String> partiallyUnmappedNonKeywords(LogicalPlan plan, Map<IndexPattern, IndexResolution> indexResolutions) {
-        Set<String> punks = new HashSet<>();
+    private static AttributeSet partiallyUnmappedNonKeywords(LogicalPlan plan, Map<IndexPattern, IndexResolution> indexResolutions) {
+        AttributeSet.Builder punks = AttributeSet.builder();
+
         plan.forEachUp(EsRelation.class, relation -> {
             IndexResolution indexResolution = indexResolutions.get(new IndexPattern(relation.source(), relation.indexPattern()));
             if (indexResolution != null && indexResolution.isValid()) {
@@ -568,12 +582,13 @@ public class Verifier {
                     if (attr instanceof FieldAttribute fa
                         && index.isPartiallyUnmappedField(fa.name())
                         && fa.dataType() != DataType.KEYWORD) {
-                        punks.add(fa.name());
+                        punks.add(fa);
                     }
                 }
             }
         });
-        return punks;
+
+        return punks.build();
     }
 
     private void licenseCheck(LogicalPlan plan, Failures failures) {

@@ -11,7 +11,6 @@ package org.elasticsearch.benchmark.vector.scorer;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.apache.lucene.util.Constants;
 import org.junit.BeforeClass;
 
 import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.supportsHeapSegments;
@@ -26,7 +25,6 @@ public class VectorScorerInt4OperationBenchmarkTests extends BenchmarkTest {
 
     @BeforeClass
     public static void skipUnsupported() {
-        assumeFalse("doesn't work on windows yet", Constants.WINDOWS);
         assumeTrue("native requires JDK22+", supportsHeapSegments());
     }
 

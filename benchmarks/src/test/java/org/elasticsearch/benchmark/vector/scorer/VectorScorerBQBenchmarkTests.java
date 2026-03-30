@@ -12,8 +12,6 @@ package org.elasticsearch.benchmark.vector.scorer;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.index.VectorSimilarityFunction;
-import org.apache.lucene.util.Constants;
-import org.junit.BeforeClass;
 
 import java.util.Random;
 
@@ -36,11 +34,6 @@ public class VectorScorerBQBenchmarkTests extends BenchmarkTest {
         this.dims = dims;
         this.directoryType = directoryType;
         this.similarityFunction = similarityFunction;
-    }
-
-    @BeforeClass
-    public static void skipWindows() {
-        assumeFalse("doesn't work on windows yet", Constants.WINDOWS);
     }
 
     public void testSingleScalarVsVectorized() throws Exception {

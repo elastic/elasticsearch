@@ -12,10 +12,8 @@ package org.elasticsearch.benchmark.vector.scorer;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.index.VectorSimilarityFunction;
-import org.apache.lucene.util.Constants;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.test.junit.annotations.TestLogging;
-import org.junit.BeforeClass;
 
 import java.util.Random;
 
@@ -42,11 +40,6 @@ public class VectorScorerOSQBenchmarkTests extends BenchmarkTest {
         this.bits = bits;
         this.directoryType = directoryType;
         this.similarityFunction = similarityFunction;
-    }
-
-    @BeforeClass
-    public static void skipWindows() {
-        assumeFalse("doesn't work on windows yet", Constants.WINDOWS);
     }
 
     public void testSingleScalarVsVectorized() throws Exception {

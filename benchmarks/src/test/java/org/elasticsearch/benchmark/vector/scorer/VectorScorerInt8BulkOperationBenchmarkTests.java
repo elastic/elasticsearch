@@ -11,9 +11,7 @@ package org.elasticsearch.benchmark.vector.scorer;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.apache.lucene.util.Constants;
 import org.elasticsearch.simdvec.VectorSimilarityType;
-import org.junit.BeforeClass;
 
 public class VectorScorerInt8BulkOperationBenchmarkTests extends BenchmarkTest {
 
@@ -23,11 +21,6 @@ public class VectorScorerInt8BulkOperationBenchmarkTests extends BenchmarkTest {
     public VectorScorerInt8BulkOperationBenchmarkTests(VectorSimilarityType function, int dims) {
         this.function = function;
         this.dims = dims;
-    }
-
-    @BeforeClass
-    public static void skipWindows() {
-        assumeFalse("doesn't work on windows yet", Constants.WINDOWS);
     }
 
     public void testSequential() {

@@ -11,11 +11,9 @@ package org.elasticsearch.benchmark.vector.scorer;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.apache.lucene.util.Constants;
 import org.elasticsearch.nativeaccess.jdk.ScalarOperations;
 import org.elasticsearch.simdvec.VectorSimilarityType;
 import org.junit.AssumptionViolatedException;
-import org.junit.BeforeClass;
 
 import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.supportsHeapSegments;
 
@@ -29,11 +27,6 @@ public class VectorScorerInt8OperationBenchmarkTests extends BenchmarkTest {
         this.function = function;
         this.size = size;
         delta = 1e-3 * size;
-    }
-
-    @BeforeClass
-    public static void skipWindows() {
-        assumeFalse("doesn't work on windows yet", Constants.WINDOWS);
     }
 
     public void test() {

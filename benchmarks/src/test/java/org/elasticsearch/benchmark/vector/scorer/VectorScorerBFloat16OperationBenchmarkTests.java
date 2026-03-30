@@ -11,13 +11,11 @@ package org.elasticsearch.benchmark.vector.scorer;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.apache.lucene.util.Constants;
 import org.elasticsearch.index.codec.vectors.BFloat16;
 import org.elasticsearch.nativeaccess.VectorSimilarityFunctions;
 import org.elasticsearch.nativeaccess.jdk.ScalarOperations;
 import org.elasticsearch.simdvec.VectorSimilarityType;
 import org.junit.AssumptionViolatedException;
-import org.junit.BeforeClass;
 
 import java.nio.ShortBuffer;
 
@@ -39,11 +37,6 @@ public class VectorScorerBFloat16OperationBenchmarkTests extends BenchmarkTest {
         this.size = size;
         this.queryType = queryType;
         delta = 1e-3 * size;
-    }
-
-    @BeforeClass
-    public static void skipWindows() {
-        assumeFalse("doesn't work on windows yet", Constants.WINDOWS);
     }
 
     public void test() {

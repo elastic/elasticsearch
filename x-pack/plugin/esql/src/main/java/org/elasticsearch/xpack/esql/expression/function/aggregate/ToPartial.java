@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.aggregation.Aggregator;
@@ -59,7 +58,6 @@ import java.util.stream.IntStream;
  */
 public class ToPartial extends AggregateFunction implements ToAggregator {
     private static final String NAME = "ToPartial";
-    public static final TransportVersion CREATED = TransportVersion.fromName("esql_agg_from_partial");
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, NAME, ToPartial::new);
 
     private final Expression function;

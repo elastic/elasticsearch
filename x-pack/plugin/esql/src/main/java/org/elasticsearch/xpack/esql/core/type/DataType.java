@@ -16,7 +16,6 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.ToPartial;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 
@@ -380,7 +379,7 @@ public enum DataType implements Writeable {
             .docValues()
             .supportedSince(DataTypesTransportVersions.INDEX_SOURCE, DataTypesTransportVersions.INDEX_SOURCE)
     ),
-    PARTIAL_AGG(builder().esType("partial_agg").estimatedSize(1024).underConstruction(ToPartial.CREATED)),
+    PARTIAL_AGG(builder().esType("partial_agg").estimatedSize(1024).underConstruction(DataTypesTransportVersions.ESQL_AGG_FROM_PARTIAL)),
     AGGREGATE_METRIC_DOUBLE(
         builder().esType("aggregate_metric_double")
             .estimatedSize(Double.BYTES * 3 + Integer.BYTES)
@@ -1169,5 +1168,10 @@ public enum DataType implements Writeable {
          * Release version for Histogram data type support
          */
         public static final TransportVersion ESQL_HISTOGRAM_DATATYPE_RELEASE = TransportVersion.fromName("esql_histogram_datatype_release");
+
+        /**
+         * Development version for partial_agg type support (used by ToPartial/FromPartial aggregate functions).
+         */
+        public static final TransportVersion ESQL_AGG_FROM_PARTIAL = TransportVersion.fromName("esql_agg_from_partial");
     }
 }

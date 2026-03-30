@@ -505,7 +505,6 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
                 matchesList().item("LuceneSourceOperator")
                     .item("ValuesSourceReaderOperator")
                     .item("EvalOperator")
-                    .item("ProjectOperator")
                     .item("TopNOperator")
                     .item("ValuesSourceReaderOperator")
                     .item("ProjectOperator")
@@ -594,7 +593,6 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
                         matchesList().item("LuceneSourceOperator")
                             .item("ValuesSourceReaderOperator") // the real work is here, checkOperatorProfile checks the status
                             .item("EvalOperator") // this one just renames the field
-                            .item("ProjectOperator")
                             .item("FilterOperator")
                             .item("AggregationOperator")
                             .item("ExchangeSinkOperator")
@@ -605,7 +603,6 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
                         matchesList().item("LuceneSourceOperator")
                             .item("ValuesSourceReaderOperator") // the real work is here, checkOperatorProfile checks the status
                             .item("EvalOperator") // this one just renames the field
-                            .item("ProjectOperator")
                             .item("AggregationOperator")
                             .item("ExchangeSinkOperator")
                     );
@@ -771,7 +768,6 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
                 matchesList().item("LuceneSourceOperator")
                     .item("ValuesSourceReaderOperator") // the real work is here, checkOperatorProfile checks the status
                     .item("EvalOperator") // this one just renames the field
-                    .item("ProjectOperator")
                     .item("AggregationOperator")
                     .item("ExchangeSinkOperator")
             )

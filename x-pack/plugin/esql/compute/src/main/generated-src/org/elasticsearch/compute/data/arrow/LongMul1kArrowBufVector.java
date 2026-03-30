@@ -28,32 +28,32 @@ import java.io.IOException;
  * <p>
  * This class is generated. Edit {@code X-ArrowBufVector.java.st} instead.
  */
-public final class Timestamp1kArrowBufVector extends AbstractArrowBufVector<LongVector, LongBlock> implements LongVector {
+public final class LongMul1kArrowBufVector extends AbstractArrowBufVector<LongVector, LongBlock> implements LongVector {
 
     /**
      *  Create an ArrowBuf vector based on the constituents of an Arrow <code>ValueVector</code>. The caller must retain the buffers if they
      *  are shared with other blocks or Arrow vectors.
      */
-    public Timestamp1kArrowBufVector(ArrowBuf valueBuffer, int positionCount, BlockFactory blockFactory) {
+    public LongMul1kArrowBufVector(ArrowBuf valueBuffer, int positionCount, BlockFactory blockFactory) {
         super(valueBuffer, positionCount, blockFactory);
     }
 
-    private Timestamp1kArrowBufVector(FixedWidthVector arrowVector, BlockFactory blockFactory) {
+    private LongMul1kArrowBufVector(FixedWidthVector arrowVector, BlockFactory blockFactory) {
         super(arrowVector, blockFactory);
     }
 
-    public static Timestamp1kArrowBufVector of(FixedWidthVector arrowVector, BlockFactory blockFactory) {
-        return new Timestamp1kArrowBufVector(arrowVector, blockFactory);
+    public static LongMul1kArrowBufVector of(FixedWidthVector arrowVector, BlockFactory blockFactory) {
+        return new LongMul1kArrowBufVector(arrowVector, blockFactory);
     }
 
     @Override
     protected ArrowBufVectorConstructor<LongVector> vectorConstructor() {
-        return Timestamp1kArrowBufVector::new;
+        return LongMul1kArrowBufVector::new;
     }
 
     @Override
     protected ArrowBufBlockConstructor<LongBlock> blockConstructor() {
-        return Timestamp1kArrowBufBlock::new;
+        return LongMul1kArrowBufBlock::new;
     }
 
     @Override

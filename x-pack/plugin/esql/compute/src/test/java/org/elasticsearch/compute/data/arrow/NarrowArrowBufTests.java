@@ -296,7 +296,7 @@ public class NarrowArrowBufTests extends ESTestCase {
         buf.setLong(2L * Long.BYTES, 1000L);
         buf.setLong(3L * Long.BYTES, 1_700_000_000L); // a Unix timestamp in seconds
 
-        try (var vector = new Timestamp1kArrowBufVector(buf, 4, blockFactory)) {
+        try (var vector = new LongMul1kArrowBufVector(buf, 4, blockFactory)) {
             assertEquals(4, vector.getPositionCount());
             assertEquals(ElementType.LONG, vector.elementType());
             assertEquals(0L, vector.getLong(0));
@@ -312,7 +312,7 @@ public class NarrowArrowBufTests extends ESTestCase {
         buf.setLong(Long.BYTES, 200L);
         buf.setLong(2L * Long.BYTES, 300L);
 
-        try (var vector = new Timestamp1kArrowBufVector(buf, 3, blockFactory)) {
+        try (var vector = new LongMul1kArrowBufVector(buf, 3, blockFactory)) {
             try (var filtered = vector.filter(false, 0, 2)) {
                 assertEquals(2, filtered.getPositionCount());
                 assertEquals(100_000L, filtered.getLong(0));
@@ -331,7 +331,7 @@ public class NarrowArrowBufTests extends ESTestCase {
         validityBuf.setZero(0, 8);
         validityBuf.setByte(0, 0b00000101); // positions 0 and 2 valid
 
-        try (var block = new Timestamp1kArrowBufBlock(valueBuf, validityBuf, null, 3, 0, blockFactory)) {
+        try (var block = new LongMul1kArrowBufBlock(valueBuf, validityBuf, null, 3, 0, blockFactory)) {
             assertFalse(block.isNull(0));
             assertEquals(1_700_000_000_000L, block.getLong(0));
 
@@ -348,7 +348,7 @@ public class NarrowArrowBufTests extends ESTestCase {
         valueBuf.setLong(Long.BYTES, 20L);
         valueBuf.setLong(2L * Long.BYTES, 30L);
 
-        try (var block = new Timestamp1kArrowBufBlock(valueBuf, null, null, 3, 0, blockFactory)) {
+        try (var block = new LongMul1kArrowBufBlock(valueBuf, null, null, 3, 0, blockFactory)) {
             try (LongBlock filtered = block.filter(false, 1, 2)) {
                 assertEquals(2, filtered.getPositionCount());
                 assertEquals(20_000L, filtered.getLong(0));
@@ -394,7 +394,7 @@ public class NarrowArrowBufTests extends ESTestCase {
         buf.setLong(2L * Long.BYTES, 30L);
         buf.setLong(3L * Long.BYTES, 40L);
 
-        try (var vector = new Timestamp1kArrowBufVector(buf, 4, blockFactory)) {
+        try (var vector = new LongMul1kArrowBufVector(buf, 4, blockFactory)) {
             try (IntBlock.Builder posBuilder = blockFactory.newIntBlockBuilder(2)) {
                 posBuilder.appendInt(1);
                 posBuilder.appendInt(3);

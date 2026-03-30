@@ -148,9 +148,9 @@ tasks.named('stringTemplates').configure {
   intProperties["arrowDesc"] = '32 bits signed integers'
 
   longProperties["extraArrowBufBlockPermits"] = """, org.elasticsearch.compute.data.arrow.UInt32ArrowBufBlock,
-    org.elasticsearch.compute.data.arrow.Timestamp1kArrowBufBlock"""
+    org.elasticsearch.compute.data.arrow.LongMul1kArrowBufBlock"""
   longProperties["extraArrowBufVectorPermits"] = """, org.elasticsearch.compute.data.arrow.UInt32ArrowBufVector,
-    org.elasticsearch.compute.data.arrow.Timestamp1kArrowBufVector"""
+    org.elasticsearch.compute.data.arrow.LongMul1kArrowBufVector"""
   longProperties["byteSize"] = "Long.BYTES"
   longProperties["valueRead"] = 'valueBuffer.getLong((long) valueIndex * Long.BYTES)'
   longProperties["arrowDesc"] = '64 bits signed integers'
@@ -201,10 +201,10 @@ tasks.named('stringTemplates').configure {
   uint32Properties["byteSize"] = "Integer.BYTES"
   uint32Properties["valueRead"] = 'Integer.toUnsignedLong(valueBuffer.getInt((long) valueIndex * Integer.BYTES))'
 
-  var timestamp1kProperties = prop("Timestamp1k", "Long", "long", "Long", "LONG", "Long.BYTES", "LongArray", "LongHash")
-  timestamp1kProperties["arrowDesc"] = "timestamps in seconds or microseconds, converted to millis or nanos"
-  timestamp1kProperties["byteSize"] = "Long.BYTES"
-  timestamp1kProperties["valueRead"] = 'valueBuffer.getLong((long) valueIndex * Long.BYTES) * 1000'
+  var longMul1kProperties = prop("LongMul1k", "Long", "long", "Long", "LONG", "Long.BYTES", "LongArray", "LongHash")
+  longMul1kProperties["arrowDesc"] = "timestamps in seconds or microseconds, converted to millis or nanos"
+  longMul1kProperties["byteSize"] = "Long.BYTES"
+  longMul1kProperties["valueRead"] = 'valueBuffer.getLong((long) valueIndex * Long.BYTES) * 1000'
 
   var float16Properties = prop("Float16", "Double", "double", "Double", "DOUBLE", "Double.BYTES", "DoubleArray", "LongHash")
   float16Properties["arrowDesc"] = "16 bits floats"
@@ -782,9 +782,9 @@ tasks.named('stringTemplates').configure {
     it.outputFile = "org/elasticsearch/compute/data/arrow/UInt32ArrowBufBlock.java"
   }
   template {
-    it.properties = timestamp1kProperties
+    it.properties = longMul1kProperties
     it.inputFile = arrowBufBlockInputFile
-    it.outputFile = "org/elasticsearch/compute/data/arrow/Timestamp1kArrowBufBlock.java"
+    it.outputFile = "org/elasticsearch/compute/data/arrow/LongMul1kArrowBufBlock.java"
   }
   template {
     it.properties = float16Properties
@@ -818,9 +818,9 @@ tasks.named('stringTemplates').configure {
     it.outputFile = "org/elasticsearch/compute/data/arrow/UInt32ArrowBufVector.java"
   }
   template {
-    it.properties = timestamp1kProperties
+    it.properties = longMul1kProperties
     it.inputFile = arrowBufVectorInputFile
-    it.outputFile = "org/elasticsearch/compute/data/arrow/Timestamp1kArrowBufVector.java"
+    it.outputFile = "org/elasticsearch/compute/data/arrow/LongMul1kArrowBufVector.java"
   }
   template {
     it.properties = float16Properties

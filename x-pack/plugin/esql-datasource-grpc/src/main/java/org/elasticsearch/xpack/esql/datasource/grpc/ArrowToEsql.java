@@ -23,7 +23,7 @@ import org.elasticsearch.compute.data.arrow.Int16ArrowBufBlock;
 import org.elasticsearch.compute.data.arrow.Int8ArrowBufBlock;
 import org.elasticsearch.compute.data.arrow.IntArrowBufBlock;
 import org.elasticsearch.compute.data.arrow.LongArrowBufBlock;
-import org.elasticsearch.compute.data.arrow.Timestamp1kArrowBufBlock;
+import org.elasticsearch.compute.data.arrow.LongMul1kArrowBufBlock;
 import org.elasticsearch.compute.data.arrow.UInt16ArrowBufBlock;
 import org.elasticsearch.compute.data.arrow.UInt8ArrowBufBlock;
 import org.elasticsearch.xpack.esql.arrow.ArrowToBlockConverter;
@@ -109,15 +109,15 @@ public record ArrowToEsql(DataType dataType, ElementType elementType, ArrowToBlo
             case TIMENANO -> null;
 
             // Convert to millis or nanos
-            case TIMESTAMPSEC -> new ArrowToEsql(DataType.DATETIME, ElementType.LONG, Timestamp1kArrowBufBlock::of);
+            case TIMESTAMPSEC -> new ArrowToEsql(DataType.DATETIME, ElementType.LONG, LongMul1kArrowBufBlock::of);
             case TIMESTAMPMILLI -> new ArrowToEsql(DataType.DATETIME, ElementType.LONG, LongArrowBufBlock::of);
-            case TIMESTAMPMICRO -> new ArrowToEsql(DataType.DATE_NANOS, ElementType.LONG, Timestamp1kArrowBufBlock::of);
+            case TIMESTAMPMICRO -> new ArrowToEsql(DataType.DATE_NANOS, ElementType.LONG, LongMul1kArrowBufBlock::of);
             case TIMESTAMPNANO -> new ArrowToEsql(DataType.DATE_NANOS, ElementType.LONG, LongArrowBufBlock::of);
 
             // Value is in UTC, timezone is dropped
-            case TIMESTAMPSECTZ -> new ArrowToEsql(DataType.DATETIME, ElementType.LONG, Timestamp1kArrowBufBlock::of);
+            case TIMESTAMPSECTZ -> new ArrowToEsql(DataType.DATETIME, ElementType.LONG, LongMul1kArrowBufBlock::of);
             case TIMESTAMPMILLITZ -> new ArrowToEsql(DataType.DATETIME, ElementType.LONG, LongArrowBufBlock::of);
-            case TIMESTAMPMICROTZ -> new ArrowToEsql(DataType.DATE_NANOS, ElementType.LONG, Timestamp1kArrowBufBlock::of);
+            case TIMESTAMPMICROTZ -> new ArrowToEsql(DataType.DATE_NANOS, ElementType.LONG, LongMul1kArrowBufBlock::of);
             case TIMESTAMPNANOTZ -> new ArrowToEsql(DataType.DATE_NANOS, ElementType.LONG, LongArrowBufBlock::of);
 
             case INTERVALDAY -> null;

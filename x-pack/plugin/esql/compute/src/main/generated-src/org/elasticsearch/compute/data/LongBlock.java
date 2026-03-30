@@ -22,7 +22,7 @@ import java.io.IOException;
  */
 public sealed interface LongBlock extends Block permits LongArrayBlock, LongVectorBlock, ConstantNullBlock, LongBigArrayBlock,
     org.elasticsearch.compute.data.arrow.LongArrowBufBlock, org.elasticsearch.compute.data.arrow.UInt32ArrowBufBlock,
-    org.elasticsearch.compute.data.arrow.Timestamp1kArrowBufBlock {
+    org.elasticsearch.compute.data.arrow.LongMul1kArrowBufBlock {
 
     /**
      * Retrieves the long value stored at the given value index.

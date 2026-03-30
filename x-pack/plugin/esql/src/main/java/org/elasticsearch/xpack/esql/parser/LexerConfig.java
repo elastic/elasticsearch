@@ -29,6 +29,10 @@ public abstract class LexerConfig extends Lexer {
         return config == null || config.isDevVersion();
     }
 
+    boolean isExternalDataSourcesEnabled() {
+        return config == null || config.isExternalDataSourcesEnabled();
+    }
+
     void setEsqlConfig(EsqlConfig config) {
         this.config = config;
     }

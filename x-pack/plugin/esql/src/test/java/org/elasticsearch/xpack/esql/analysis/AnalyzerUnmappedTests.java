@@ -937,11 +937,13 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         assertUnmappedLoadError(
             index1(),
             "FROM test | KEEP field | WHERE field.sub.subfield == \"x\"",
-            containsString("Unknown column [field.sub.subfield]")        );
+            containsString("Unknown column [field.sub.subfield]")
+        );
         assertUnmappedLoadError(
             index1(),
             "FROM test | KEEP field | WHERE field.a.b == \"x\" | KEEP field.a",
-            containsString("Unknown column [field.a.b], did you mean [field]?")        );
+            containsString("Unknown column [field.a.b], did you mean [field]?")
+        );
     }
 
     /**

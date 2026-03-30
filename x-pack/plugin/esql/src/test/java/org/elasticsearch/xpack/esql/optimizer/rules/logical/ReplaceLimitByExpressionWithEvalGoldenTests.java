@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.optimizer.GoldenTestCase;
 import org.junit.BeforeClass;
 
@@ -18,8 +17,7 @@ public class ReplaceLimitByExpressionWithEvalGoldenTests extends GoldenTestCase 
     private static final EnumSet<Stage> STAGES = EnumSet.of(Stage.ANALYSIS, Stage.LOGICAL_OPTIMIZATION);
 
     @BeforeClass
-    public static void checkLimitByCapability() {
-    }
+    public static void checkLimitByCapability() {}
 
     public void testAttributeGroupingUnchanged() {
         runGoldenTest("""

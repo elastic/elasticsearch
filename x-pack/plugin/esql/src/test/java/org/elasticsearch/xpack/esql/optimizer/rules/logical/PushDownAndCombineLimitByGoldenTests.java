@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.optimizer.GoldenTestCase;
 import org.junit.BeforeClass;
 
@@ -20,8 +19,7 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeTo
 public class PushDownAndCombineLimitByGoldenTests extends GoldenTestCase {
 
     @BeforeClass
-    public static void checkLimitByCapability() {
-    }
+    public static void checkLimitByCapability() {}
 
     private static final EnumSet<Stage> STAGES = EnumSet.of(Stage.LOGICAL_OPTIMIZATION);
 

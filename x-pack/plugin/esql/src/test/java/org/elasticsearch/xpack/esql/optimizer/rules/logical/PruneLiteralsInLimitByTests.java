@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.optimizer.AbstractLogicalPlanOptimizerTests;
@@ -26,8 +25,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class PruneLiteralsInLimitByTests extends AbstractLogicalPlanOptimizerTests {
 
     @BeforeClass
-    public static void checkLimitByCapability() {
-    }
+    public static void checkLimitByCapability() {}
 
     /**
      * A foldable eval alias used in LIMIT BY should be propagated by {@code PropagateEvalFoldables}

@@ -226,7 +226,7 @@ public class OsStats implements Writeable, ToXContentFragment {
             assert free >= 0 : "expected free swap to be positive, got: " + free;
             if (free < 0) {
                 logger.error("negative free swap [{}] deserialized in swap stats", free);
-                free = 0
+                free = 0;
             }
             this.free = free;
         }

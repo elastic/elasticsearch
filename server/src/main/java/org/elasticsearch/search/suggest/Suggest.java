@@ -121,17 +121,15 @@ public final class Suggest implements Iterable<Suggest.Suggestion<? extends Entr
                     SearchHit hit = option.getHit();
                     if (hit != null) {
                         hits.add(hit);
+                        if (shouldIncRef) {
+                            hit.mustIncRef();
+                        }
                     }
                 }
             }
         }
         if (hits.isEmpty()) {
             return null;
-        }
-        if (shouldIncRef) {
-            for (SearchHit hit : hits) {
-                hit.mustIncRef();
-            }
         }
         return Collections.unmodifiableList(hits);
     }

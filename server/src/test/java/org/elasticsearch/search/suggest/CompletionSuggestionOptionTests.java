@@ -96,7 +96,9 @@ public class CompletionSuggestionOptionTests extends ESTestCase {
             score = hit.getScore();
         }
         CompletionSuggestion.Entry.Option option = new CompletionSuggestion.Entry.Option(-1, text, score, contexts);
-        option.setHit(hit);
+        if (hit != null) {
+            option.setHit(hit);
+        }
         return option;
     }
 
@@ -120,7 +122,9 @@ public class CompletionSuggestionOptionTests extends ESTestCase {
             score = hit.getScore();
         }
         Option option = new CompletionSuggestion.Entry.Option(docId, text, score, contexts);
-        option.setHit(hit);
+        if (hit != null) {
+            option.setHit(hit);
+        }
         return option;
     }
 

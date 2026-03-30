@@ -19,6 +19,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
@@ -59,6 +60,35 @@ import static org.hamcrest.Matchers.equalTo;
 public class SuggestTests extends ESTestCase {
 
     /**
+     * DecRefs the extra factory reference on each completion option {@link SearchHit} from test fixtures (e.g.
+     * {@link #createTestItem()}). Uses {@link Suggest#collectCompletionOptionHits(boolean)} with {@code false} so
+     * refs are not incremented.
+     */
+    public static void decRefCompletionOptionTestFactoryRefs(@Nullable Suggest suggest) {
+        if (suggest == null) {
+            return;
+        }
+        var completionHits = suggest.collectCompletionOptionHits(false);
+        if (completionHits != null) {
+            for (SearchHit hit : completionHits) {
+                hit.decRef();
+            }
+        }
+    }
+
+    /**
+     * Same as {@link #decRefCompletionOptionTestFactoryRefs(Suggest)} for a single completion entry (wraps in an
+     * ephemeral {@link Suggest} so {@link Suggest#collectCompletionOptionHits(boolean)} can be reused).
+     */
+    public static void decRefCompletionOptionTestFactoryRefs(Entry<?> entry) {
+        if (entry instanceof CompletionSuggestion.Entry completionEntry) {
+            CompletionSuggestion cs = new CompletionSuggestion("__test_release__", 1, false);
+            cs.addTerm(completionEntry);
+            decRefCompletionOptionTestFactoryRefs(new Suggest(Collections.singletonList(cs)));
+        }
+    }
+
+    /**
      * Release a suggest by wrapping it in a SearchResponse (which takes 1 ref per completion option hit)
      * and then releasing the creation ref (1 ref per hit) that the test/caller held.
      */
@@ -83,16 +113,7 @@ public class SuggestTests extends ESTestCase {
             SearchResponse.Clusters.EMPTY
         );
         response.decRef();
-        for (Suggest.Suggestion<?> suggestion : suggest) {
-            if (suggestion instanceof CompletionSuggestion completionSuggestion) {
-                for (CompletionSuggestion.Entry.Option option : completionSuggestion.getOptions()) {
-                    SearchHit hit = option.getHit();
-                    if (hit != null) {
-                        hit.decRef();
-                    }
-                }
-            }
-        }
+        decRefCompletionOptionTestFactoryRefs(suggest);
     }
 
     private static final NamedXContentRegistry xContentRegistry;

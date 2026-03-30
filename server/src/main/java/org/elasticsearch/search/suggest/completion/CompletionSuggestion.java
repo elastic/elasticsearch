@@ -284,7 +284,12 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
                 this.doc.shardIndex = shardIndex;
             }
 
+            /**
+             * Assigns the fetched {@link SearchHit} for this option (merge/fetch path). Must be called at most once.
+             * Score-only options (no embedded hit) leave the field unset instead of passing {@code null}.
+             */
             public void setHit(SearchHit hit) {
+                Objects.requireNonNull(hit, "completion option SearchHit");
                 assert this.hit == null : "completion option SearchHit is assigned only once from mergeSuggest";
                 this.hit = hit;
             }

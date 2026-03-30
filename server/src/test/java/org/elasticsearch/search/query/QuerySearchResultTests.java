@@ -108,14 +108,7 @@ public class QuerySearchResultTests extends ESTestCase {
      * explicitly when discarding instances built with {@link SuggestTests#createTestItem()} (or wire copies thereof).
      */
     private static void releaseCompletionSuggestOptionHits(QuerySearchResult result) {
-        if (result.suggest() != null) {
-            var completionHits = result.suggest().collectCompletionOptionHits(false);
-            if (completionHits != null) {
-                for (SearchHit hit : completionHits) {
-                    hit.decRef();
-                }
-            }
-        }
+        SuggestTests.decRefCompletionOptionTestFactoryRefs(result.suggest());
     }
 
     public void testSerialization() throws Exception {

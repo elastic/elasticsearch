@@ -128,17 +128,6 @@ public class SuggestionEntryTests extends ESTestCase {
         doTestFromXContent(true);
     }
 
-    /** Release refs held by completion suggestion option hits when entry is not part of a SearchResponse. */
-    static void releaseCompletionOptionHits(Entry<?> entry) {
-        if (entry instanceof CompletionSuggestion.Entry completionEntry) {
-            for (CompletionSuggestion.Entry.Option option : completionEntry.getOptions()) {
-                if (option.getHit() != null) {
-                    option.getHit().decRef();
-                }
-            }
-        }
-    }
-
     @SuppressWarnings("unchecked")
     private void doTestFromXContent(boolean addRandomFields) throws IOException {
         for (Class<? extends Entry<?>> entryType : ENTRY_PARSERS.keySet()) {
@@ -182,9 +171,9 @@ public class SuggestionEntryTests extends ESTestCase {
                 }
                 assertToXContentEquivalent(originalBytes, toXContent(parsed, xContentType, humanReadable), xContentType);
             } finally {
-                releaseCompletionOptionHits(entry);
+                SuggestTests.decRefCompletionOptionTestFactoryRefs(entry);
                 if (parsed != null) {
-                    releaseCompletionOptionHits(parsed);
+                    SuggestTests.decRefCompletionOptionTestFactoryRefs(parsed);
                 }
             }
         }

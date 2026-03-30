@@ -144,11 +144,11 @@ public class SuggestionTests extends ESTestCase {
                 assertToXContentEquivalent(originalBytes, toXContent(parsed, xContentType, params, humanReadable), xContentType);
             } finally {
                 for (Object e : suggestion.getEntries()) {
-                    SuggestionEntryTests.releaseCompletionOptionHits((Entry<?>) e);
+                    SuggestTests.decRefCompletionOptionTestFactoryRefs((Entry<?>) e);
                 }
                 if (parsed != null) {
                     for (Object e : parsed.getEntries()) {
-                        SuggestionEntryTests.releaseCompletionOptionHits((Entry<?>) e);
+                        SuggestTests.decRefCompletionOptionTestFactoryRefs((Entry<?>) e);
                     }
                 }
             }
@@ -173,7 +173,7 @@ public class SuggestionTests extends ESTestCase {
             }
         } finally {
             for (Object e : suggestion.getEntries()) {
-                SuggestionEntryTests.releaseCompletionOptionHits((Entry<?>) e);
+                SuggestTests.decRefCompletionOptionTestFactoryRefs((Entry<?>) e);
             }
         }
     }

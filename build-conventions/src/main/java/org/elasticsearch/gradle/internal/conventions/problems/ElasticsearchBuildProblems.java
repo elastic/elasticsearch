@@ -14,7 +14,8 @@ import org.gradle.api.problems.ProblemGroup;
 /**
  * Centralized problem group hierarchy for Elasticsearch build problems.
  * These groups are used with the Gradle Problems API to provide structured,
- * categorized error reporting that integrates with Build Scans and the Tooling API.
+ * categorized error reporting that integrates with the Tooling API and the
+ * local problems report ({@code build/reports/problems/problems-report.html}).
  */
 public final class ElasticsearchBuildProblems {
 

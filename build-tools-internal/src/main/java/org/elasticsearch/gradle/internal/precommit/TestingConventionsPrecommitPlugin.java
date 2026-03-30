@@ -106,12 +106,6 @@ public class TestingConventionsPrecommitPlugin extends PrecommitPlugin {
                 .register(taskName, TestingConventionsCheckTask.class, task -> {
                     task.getTestClassesDirs().from(sourceSet.getOutput().getClassesDirs());
                     task.getClasspath().from(sourceSet.getRuntimeClasspath());
-                    task.getViolationsFile()
-                        .convention(
-                            project.getLayout()
-                                .getBuildDirectory()
-                                .file("precommit/testingConventions/" + taskName + "-violations.txt")
-                        );
                 });
             register.configure(config);
         });

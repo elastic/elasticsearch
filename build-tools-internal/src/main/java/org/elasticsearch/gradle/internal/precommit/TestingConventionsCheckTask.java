@@ -16,7 +16,6 @@ import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.file.EmptyFileVisitor;
 import org.gradle.api.file.FileTree;
 import org.gradle.api.file.FileVisitDetails;
-import org.gradle.api.file.RegularFileProperty;
 import org.gradle.api.logging.Logging;
 import org.gradle.api.problems.ProblemId;
 import org.gradle.api.problems.ProblemReporter;
@@ -38,12 +37,8 @@ import org.gradle.workers.WorkParameters;
 import org.gradle.workers.WorkQueue;
 import org.gradle.workers.WorkerExecutor;
 
-import java.io.File;
-import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
-import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -76,14 +71,8 @@ public abstract class TestingConventionsCheckTask extends PrecommitTask {
     @Input
     public abstract ListProperty<String> getBaseClasses();
 
-    @Internal
-    public abstract RegularFileProperty getViolationsFile();
-
     @Inject
     public abstract WorkerExecutor getWorkerExecutor();
-
-    @Inject
-    public abstract Problems getProblems();
 
     public void baseClass(String qualifiedClassname) {
         getBaseClasses().add(qualifiedClassname);
@@ -101,49 +90,7 @@ public abstract class TestingConventionsCheckTask extends PrecommitTask {
             parameters.getClassDirectories().setFrom(getTestClassesDirs());
             parameters.getBaseClassesNames().set(getBaseClasses().get());
             parameters.getSuffixes().set(getSuffixes().get());
-            parameters.getViolationsFile().set(getViolationsFile());
         });
-        try {
-            workQueue.await();
-        } catch (org.gradle.workers.WorkerExecutionException e) {
-            // Worker wrote violations to file before throwing. Report them as structured problems,
-            // then re-throw the original cause to preserve the error message format.
-            reportViolationsAsProblems();
-            Throwable cause = e.getCause();
-            if (cause instanceof RuntimeException) {
-                throw (RuntimeException) cause;
-            }
-            throw e;
-        }
-    }
-
-    private void reportViolationsAsProblems() {
-        File violationsOutput = getViolationsFile().getAsFile().get();
-        if (violationsOutput.exists()) {
-            try {
-                List<String> violations = Files.readAllLines(violationsOutput.toPath());
-                if (violations.isEmpty() == false) {
-                    ProblemReporter reporter = getProblems().getReporter();
-                    for (String violation : violations) {
-                        String[] parts = violation.split("\\|", 2);
-                        String type = parts[0];
-                        String detail = parts.length > 1 ? parts[1] : violation;
-                        reporter.report(
-                            ProblemId.create(type, "Testing convention violation", ElasticsearchBuildProblems.TESTING_CONVENTIONS),
-                            spec -> spec.contextualLabel(detail)
-                                .severity(Severity.ERROR)
-                                .solution(
-                                    type.equals("missing-base-class")
-                                        ? "Make the test class extend a supported base class"
-                                        : "Rename the test class to use the correct suffix"
-                                )
-                        );
-                    }
-                }
-            } catch (IOException ioException) {
-                throw new UncheckedIOException(ioException);
-            }
-        }
     }
 
     abstract static class TestingConventionsCheckWorkAction implements WorkAction<Parameters> {
@@ -158,6 +105,9 @@ public abstract class TestingConventionsCheckTask extends PrecommitTask {
 
         @Inject
         public TestingConventionsCheckWorkAction() {}
+
+        @Inject
+        public abstract Problems getProblems();
 
         @Override
         public void execute() {
@@ -190,11 +140,19 @@ public abstract class TestingConventionsCheckTask extends PrecommitTask {
                 .filter(TestingConventionsCheckWorkAction::seemsLikeATest)
                 .toList();
             if (mismatchingBaseClasses.isEmpty() == false) {
-                writeViolations(
-                    mismatchingBaseClasses.stream()
-                        .map(c -> "missing-base-class|" + c.getName())
-                        .collect(Collectors.toList())
-                );
+                ProblemReporter reporter = getProblems().getReporter();
+                for (Class<?> clazz : mismatchingBaseClasses) {
+                    reporter.report(
+                        ProblemId.create(
+                            "missing-base-class",
+                            "Testing convention violation",
+                            ElasticsearchBuildProblems.TESTING_CONVENTIONS
+                        ),
+                        spec -> spec.contextualLabel(clazz.getName())
+                            .severity(Severity.ERROR)
+                            .solution("Make the test class extend a supported base class")
+                    );
+                }
                 throw new GradleException(
                     "Following test classes do not extend any supported base class:\n\t"
                         + mismatchingBaseClasses.stream().map(c -> c.getName()).collect(Collectors.joining("\n\t"))
@@ -207,27 +165,25 @@ public abstract class TestingConventionsCheckTask extends PrecommitTask {
                 .filter(c -> suffixes.stream().allMatch(s -> c.getName().endsWith(s) == false))
                 .toList();
             if (matchingBaseClassNotMatchingSuffix.isEmpty() == false) {
-                writeViolations(
-                    matchingBaseClassNotMatchingSuffix.stream()
-                        .map(c -> "invalid-suffix|" + c.getName())
-                        .collect(Collectors.toList())
-                );
+                ProblemReporter reporter = getProblems().getReporter();
+                for (Class<?> clazz : matchingBaseClassNotMatchingSuffix) {
+                    reporter.report(
+                        ProblemId.create(
+                            "invalid-suffix",
+                            "Testing convention violation",
+                            ElasticsearchBuildProblems.TESTING_CONVENTIONS
+                        ),
+                        spec -> spec.contextualLabel(clazz.getName())
+                            .severity(Severity.ERROR)
+                            .solution("Rename the test class to use the correct suffix")
+                    );
+                }
                 throw new GradleException(
                     "Following test classes do not match naming convention to use suffix "
                         + suffixes.stream().map(s -> "'" + s + "'").collect(Collectors.joining(" or "))
                         + ":\n\t"
                         + matchingBaseClassNotMatchingSuffix.stream().map(c -> c.getName()).collect(Collectors.joining("\n\t"))
                 );
-            }
-        }
-
-        private void writeViolations(List<String> violations) {
-            File outputFile = getParameters().getViolationsFile().getAsFile().get();
-            outputFile.getParentFile().mkdirs();
-            try {
-                Files.write(outputFile.toPath(), violations);
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
             }
         }
 
@@ -329,7 +285,5 @@ public abstract class TestingConventionsCheckTask extends PrecommitTask {
         ListProperty<String> getSuffixes();
 
         ListProperty<String> getBaseClassesNames();
-
-        RegularFileProperty getViolationsFile();
     }
 }

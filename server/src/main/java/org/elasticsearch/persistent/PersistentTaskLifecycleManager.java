@@ -9,6 +9,7 @@
 
 package org.elasticsearch.persistent;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
@@ -20,12 +21,10 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.transport.RemoteTransportException;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -54,14 +53,12 @@ public final class PersistentTaskLifecycleManager implements ClusterStateListene
     private static final Logger logger = LogManager.getLogger(PersistentTaskLifecycleManager.class);
 
     private final PersistentTasksService persistentTasksService;
-    private final Settings settings;
     private final ClusterSettings clusterSettings;
     private final List<ClusterTaskRegistration> clusterRegistrations = new ArrayList<>();
     private final List<ProjectTaskRegistration> projectRegistrations = new ArrayList<>();
 
     public PersistentTaskLifecycleManager(PersistentTasksService persistentTasksService, ClusterService clusterService) {
         this.persistentTasksService = persistentTasksService;
-        this.settings = clusterService.getSettings();
         this.clusterSettings = clusterService.getClusterSettings();
         clusterService.addListener(this);
     }
@@ -94,8 +91,8 @@ public final class PersistentTaskLifecycleManager implements ClusterStateListene
         Supplier<? extends PersistentTaskParams> paramsSupplier,
         TimeValue masterNodeTimeout
     ) {
-        final var enabled = new AtomicBoolean(enabledSetting.get(settings));
-        clusterSettings.addSettingsUpdateConsumer(enabledSetting, enabled::set);
+        final var enabled = new AtomicBoolean();
+        clusterSettings.initializeAndWatch(enabledSetting, enabled::set);
         registerClusterTask(taskName, enabled::get, paramsSupplier, masterNodeTimeout);
     }
 
@@ -132,8 +129,8 @@ public final class PersistentTaskLifecycleManager implements ClusterStateListene
         Supplier<? extends PersistentTaskParams> paramsSupplier,
         TimeValue masterNodeTimeout
     ) {
-        final var enabled = new AtomicBoolean(enabledSetting.get(settings));
-        clusterSettings.addSettingsUpdateConsumer(enabledSetting, enabled::set);
+        final var enabled = new AtomicBoolean();
+        clusterSettings.initializeAndWatch(enabledSetting, enabled::set);
         registerProjectTask(taskName, taskIdFn, enabled::get, paramsSupplier, masterNodeTimeout);
     }
 
@@ -213,7 +210,7 @@ public final class PersistentTaskLifecycleManager implements ClusterStateListene
     }
 
     private void handleStartFailure(String taskName, @Nullable ProjectId projectId, Exception e) {
-        Throwable t = e instanceof RemoteTransportException ? e.getCause() : e;
+        Throwable t = ExceptionsHelper.unwrapCause(e);
         if (t instanceof ResourceAlreadyExistsException == false) {
             if (projectId == null) {
                 logger.warn(() -> "Failed to create [" + taskName + "] task", e);
@@ -224,7 +221,7 @@ public final class PersistentTaskLifecycleManager implements ClusterStateListene
     }
 
     private void handleStopFailure(String taskName, @Nullable ProjectId projectId, Exception e) {
-        Throwable t = e instanceof RemoteTransportException ? e.getCause() : e;
+        Throwable t = ExceptionsHelper.unwrapCause(e);
         if (t instanceof ResourceNotFoundException == false) {
             if (projectId == null) {
                 logger.warn(() -> "Failed to remove [" + taskName + "] task", e);

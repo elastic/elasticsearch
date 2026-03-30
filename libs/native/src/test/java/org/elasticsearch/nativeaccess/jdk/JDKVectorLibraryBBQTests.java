@@ -15,17 +15,14 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.nativeaccess.VectorSimilarityFunctions;
 import org.elasticsearch.nativeaccess.VectorSimilarityFunctionsTests;
 import org.junit.AfterClass;
-import org.junit.AssumptionViolatedException;
 import org.junit.BeforeClass;
 
 import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
 import java.util.Arrays;
 import java.util.List;
-import java.util.function.ToIntBiFunction;
 import java.util.stream.Stream;
 
-import static java.lang.foreign.ValueLayout.JAVA_FLOAT_UNALIGNED;
 import static org.hamcrest.Matchers.containsString;
 
 public class JDKVectorLibraryBBQTests extends VectorSimilarityFunctionsTests {
@@ -104,15 +101,15 @@ public class JDKVectorLibraryBBQTests extends VectorSimilarityFunctionsTests {
             var querySlice = querySegment.asSlice((long) queryIndex * queryVectorBytes, queryVectorBytes);
             var indexSlice = indexSegment.asSlice((long) indexIndex * indexVectorBytes, indexVectorBytes);
 
-            int expected = scalarSimilarity(unpackedQueryVectors[queryIndex], unpackedIndexVectors[indexIndex]);
-            assertEquals(expected, nativeSimilarity(indexSlice, querySlice, indexVectorBytes));
+            float expected = ScalarOperations.similarity(function, unpackedQueryVectors[queryIndex], unpackedIndexVectors[indexIndex]);
+            assertEquals(expected, nativeSimilarity(indexSlice, querySlice, indexVectorBytes), 0f);
 
             if (supportsHeapSegments()) {
                 var queryHeapSegment = MemorySegment.ofArray(queryVectors[queryIndex]);
                 var indexHeapSegment = MemorySegment.ofArray(indexVectors[indexIndex]);
-                assertEquals(expected, nativeSimilarity(indexHeapSegment, queryHeapSegment, indexVectorBytes));
-                assertEquals(expected, nativeSimilarity(indexHeapSegment, querySlice, indexVectorBytes));
-                assertEquals(expected, nativeSimilarity(indexSlice, queryHeapSegment, indexVectorBytes));
+                assertEquals(expected, nativeSimilarity(indexHeapSegment, queryHeapSegment, indexVectorBytes), 0f);
+                assertEquals(expected, nativeSimilarity(indexHeapSegment, querySlice, indexVectorBytes), 0f);
+                assertEquals(expected, nativeSimilarity(indexSlice, queryHeapSegment, indexVectorBytes), 0f);
 
                 // trivial bulk with a single vector
                 float[] bulkScore = new float[1];
@@ -196,7 +193,7 @@ public class JDKVectorLibraryBBQTests extends VectorSimilarityFunctionsTests {
         final TestData testData = createTestData(numVecs, size, type);
 
         float[] expectedScores = new float[numVecs];
-        scalarSimilarityBulk(testData.unpackedQueryVector, testData.unpackedIndexVectors, expectedScores);
+        ScalarOperations.bulk(function, testData.unpackedQueryVector, testData.unpackedIndexVectors, expectedScores);
 
         var bulkScoresSeg = arena.allocate((long) numVecs * Float.BYTES);
         nativeSimilarityBulk(testData.indexSegment, testData.querySegment, testData.indexVectorBytes, numVecs, bulkScoresSeg);
@@ -223,7 +220,13 @@ public class JDKVectorLibraryBBQTests extends VectorSimilarityFunctionsTests {
         final TestOffsets testOffsets = createTestOffsets(numVecs);
 
         float[] expectedScores = new float[numVecs];
-        scalarSimilarityBulkWithOffsets(testData.unpackedQueryVector, testData.unpackedIndexVectors, testOffsets.offsets, expectedScores);
+        ScalarOperations.bulkWithOffsets(
+            function,
+            testData.unpackedQueryVector,
+            testData.unpackedIndexVectors,
+            testOffsets.offsets,
+            expectedScores
+        );
 
         var bulkScoresSeg = arena.allocate((long) numVecs * Float.BYTES);
 
@@ -248,7 +251,13 @@ public class JDKVectorLibraryBBQTests extends VectorSimilarityFunctionsTests {
         final TestOffsets testOffsets = createTestOffsets(numVecs);
 
         float[] expectedScores = new float[numVecs];
-        scalarSimilarityBulkWithOffsets(testData.unpackedQueryVector, testData.unpackedIndexVectors, testOffsets.offsets, expectedScores);
+        ScalarOperations.bulkWithOffsets(
+            function,
+            testData.unpackedQueryVector,
+            testData.unpackedIndexVectors,
+            testOffsets.offsets,
+            expectedScores
+        );
 
         var bulkScoresSeg = arena.allocate((long) numVecs * Float.BYTES);
 
@@ -275,7 +284,13 @@ public class JDKVectorLibraryBBQTests extends VectorSimilarityFunctionsTests {
         final TestOffsets testOffsets = createTestOffsets(numVecs);
 
         float[] expectedScores = new float[numVecs];
-        scalarSimilarityBulkWithOffsets(testData.unpackedQueryVector, testData.unpackedIndexVectors, testOffsets.offsets, expectedScores);
+        ScalarOperations.bulkWithOffsets(
+            function,
+            testData.unpackedQueryVector,
+            testData.unpackedIndexVectors,
+            testOffsets.offsets,
+            expectedScores
+        );
 
         float[] bulkScores = new float[numVecs];
         nativeSimilarityBulkWithOffsets(
@@ -318,6 +333,34 @@ public class JDKVectorLibraryBBQTests extends VectorSimilarityFunctionsTests {
 
         var tooSmall = arena.allocate((long) 3 * Float.BYTES - 1);
         ex = expectThrows(IOOBE, () -> nativeSimilarityBulk(segA, segB, size, 3, tooSmall));
+        assertThat(ex.getMessage(), containsString("out of bounds for length"));
+    }
+
+    // Verifies that individual offset values are bounds-checked against the data segment.
+    public void testBulkOffsetsOutOfRange() {
+        assumeTrue(notSupportedMsg(), supported());
+        final int indexVectorBytes = numBytes(size, type.dataBits());
+        final int queryVectorBytes = numBytes(size, type.queryBits());
+        final int numVecs = 3;
+        var indexSegment = arena.allocate((long) indexVectorBytes * numVecs);
+        var query = arena.allocate(queryVectorBytes);
+        var scores = arena.allocate((long) numVecs * Float.BYTES);
+        var offsetsSegment = arena.allocate((long) numVecs * Integer.BYTES);
+
+        offsetsSegment.setAtIndex(ValueLayout.JAVA_INT, 0, 0);
+        offsetsSegment.setAtIndex(ValueLayout.JAVA_INT, 1, numVecs);
+        offsetsSegment.setAtIndex(ValueLayout.JAVA_INT, 2, 0);
+        Exception ex = expectThrows(
+            IOOBE,
+            () -> nativeSimilarityBulkWithOffsets(indexSegment, query, indexVectorBytes, indexVectorBytes, offsetsSegment, numVecs, scores)
+        );
+        assertThat(ex.getMessage(), containsString("out of bounds for length"));
+
+        offsetsSegment.setAtIndex(ValueLayout.JAVA_INT, 1, -1);
+        ex = expectThrows(
+            IOOBE,
+            () -> nativeSimilarityBulkWithOffsets(indexSegment, query, indexVectorBytes, indexVectorBytes, offsetsSegment, numVecs, scores)
+        );
         assertThat(ex.getMessage(), containsString("out of bounds for length"));
     }
 
@@ -373,61 +416,6 @@ public class JDKVectorLibraryBBQTests extends VectorSimilarityFunctionsTests {
                 .invokeExact(a, b, dims, pitch, offsets, count, result);
         } catch (Throwable t) {
             throw rethrow(t);
-        }
-    }
-
-    int scalarSimilarity(byte[] a, byte[] b) {
-        return switch (function) {
-            case DOT_PRODUCT -> dotProductScalar(a, b);
-            case SQUARE_DISTANCE -> throw new AssumptionViolatedException("square distance not implemented");
-            case COSINE -> throw new AssumptionViolatedException("cosine not supported");
-        };
-    }
-
-    void scalarSimilarityBulk(byte[] query, byte[][] data, float[] scores) {
-        switch (function) {
-            case DOT_PRODUCT -> bulkScalar(JDKVectorLibraryBBQTests::dotProductScalar, query, data, scores);
-            case SQUARE_DISTANCE -> throw new AssumptionViolatedException("square distance not implemented");
-        }
-    }
-
-    void scalarSimilarityBulkWithOffsets(byte[] query, byte[][] data, int[] offsets, float[] scores) {
-        switch (function) {
-            case DOT_PRODUCT -> bulkWithOffsetsScalar(JDKVectorLibraryBBQTests::dotProductScalar, query, data, offsets, scores);
-            case SQUARE_DISTANCE -> throw new AssumptionViolatedException("square distance not implemented");
-        }
-    }
-
-    static int dotProductScalar(byte[] a, byte[] b) {
-        int res = 0;
-        for (int i = 0; i < a.length; i++) {
-            res += a[i] * b[i];
-        }
-        return res;
-    }
-
-    static void bulkScalar(ToIntBiFunction<byte[], byte[]> function, byte[] query, byte[][] data, float[] scores) {
-        for (int i = 0; i < data.length; i++) {
-            scores[i] = function.applyAsInt(query, data[i]);
-        }
-    }
-
-    static void bulkWithOffsetsScalar(
-        ToIntBiFunction<byte[], byte[]> function,
-        byte[] query,
-        byte[][] data,
-        int[] offsets,
-        float[] scores
-    ) {
-        for (int i = 0; i < data.length; i++) {
-            scores[i] = function.applyAsInt(query, data[offsets[i]]);
-        }
-    }
-
-    static void assertScoresEquals(float[] expectedScores, MemorySegment expectedScoresSeg) {
-        assert expectedScores.length == (expectedScoresSeg.byteSize() / Float.BYTES);
-        for (int i = 0; i < expectedScores.length; i++) {
-            assertEquals(expectedScores[i], expectedScoresSeg.get(JAVA_FLOAT_UNALIGNED, (long) i * Float.BYTES), 0f);
         }
     }
 }

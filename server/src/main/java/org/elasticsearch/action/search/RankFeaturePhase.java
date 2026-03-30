@@ -253,7 +253,8 @@ public class RankFeaturePhase extends SearchPhase {
             reducedQueryPhase.from(),
             reducedQueryPhase.isEmptyResult(),
             reducedQueryPhase.timeRangeFilterFromMillis(),
-            reducedQueryPhase.originalSearchSource(),
+            reducedQueryPhase.topHitsToRelease(),
+            reducedQueryPhase.orginalSearchSource(),
             reducedQueryPhase.originalIndices()
         );
     }

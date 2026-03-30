@@ -12,17 +12,20 @@ package org.elasticsearch.action.search;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.logging.activity.ActivityLoggerContext;
+import org.elasticsearch.common.logging.activity.QueryLoggerContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xcontent.ToXContent;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Map;
 import java.util.Optional;
+import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
-public class SearchLogContext extends ActivityLoggerContext {
+public class SearchLogContext extends ActivityLoggerContext implements QueryLoggerContext {
     public static final String TYPE = "dsl";
     private final SearchRequest request;
     private final @Nullable SearchResponse response;
@@ -62,7 +65,8 @@ public class SearchLogContext extends ActivityLoggerContext {
         this(task, namedWriteableRegistry, request, null, tookInNanos, error);
     }
 
-    String getQuery() {
+    @Override
+    public String getQuery() {
         var source = request.source();
         if (source == null) {
             return "{}";
@@ -71,7 +75,8 @@ public class SearchLogContext extends ActivityLoggerContext {
         }
     }
 
-    long getHits() {
+    @Override
+    public int getResultCount() {
         if (response == null || response.getHits() == null || response.getHits().getHits() == null) {
             return 0;
         }
@@ -114,6 +119,7 @@ public class SearchLogContext extends ActivityLoggerContext {
         return response != null && response.isTimedOut();
     }
 
+    @Override
     public String[] getIndices() {
         return getIndexNames();
     }
@@ -122,22 +128,13 @@ public class SearchLogContext extends ActivityLoggerContext {
         return response != null && response.hasAggregations();
     }
 
+    @Override
     public Optional<ShardInfo> shardInfo() {
-        if (response == null) {
-            return Optional.empty();
-        }
-        return Optional.of(new ShardInfo(response.getSuccessfulShards(), response.getSkippedShards(), response.getFailedShards()));
+        return Optional.ofNullable(response)
+            .map(response -> new ShardInfo(response.getSuccessfulShards(), response.getSkippedShards(), response.getFailedShards()));
     }
 
     // CCS stuff
-
-    /**
-     * Does this search refer to other clusters?
-     */
-    public boolean isCrossClusterSearch() {
-        // TODO: this does not account for CCS failures.
-        return response != null && response.getClusters().hasRemoteClusters();
-    }
 
     /**
      * Non-null alias means the request is from a remote cluster.
@@ -146,13 +143,14 @@ public class SearchLogContext extends ActivityLoggerContext {
         return request.getLocalClusterAlias() != null;
     }
 
-    public long remoteClusterCount() {
-        return response != null
-            ? response.getClusters()
-                .getClusterAliases()
-                .stream()
-                .filter(alias -> alias.equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY) == false)
-                .count()
-            : 0;
+    @Override
+    public Map<String, String> getClusters() {
+        if (response == null) {
+            return Map.of();
+        }
+        var clusters = response.getClusters();
+        return clusters.getClusterAliases()
+            .stream()
+            .collect(Collectors.toMap(Function.identity(), alias -> clusters.getCluster(alias).getStatus().toString()));
     }
 }

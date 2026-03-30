@@ -281,8 +281,10 @@ public final class SearchPhaseController {
                 }
                 FetchSearchResult fetchResult = searchResultProvider.fetchResult();
                 final int index = fetchResult.counterGetAndIncrement();
-                assert index < fetchResult.hits().getHits().length
-                    : "not enough hits fetched. index [" + index + "] length: " + fetchResult.hits().getHits().length;
+                if (index >= fetchResult.hits().getHits().length) {
+                    // the fetch phase on this shard timed out and returned partial results
+                    continue;
+                }
                 SearchHit hit = fetchResult.hits().getHits()[index];
                 CompletionSuggestion.Entry.Option suggestOption = suggestionOptions.get(scoreDocIndex - currentOffset);
                 hit.score(shardDoc.score);
@@ -334,8 +336,10 @@ public final class SearchPhaseController {
                 }
                 FetchSearchResult fetchResult = fetchResultProvider.fetchResult();
                 final int index = fetchResult.counterGetAndIncrement();
-                assert index < fetchResult.hits().getHits().length
-                    : "not enough hits fetched. index [" + index + "] length: " + fetchResult.hits().getHits().length;
+                if (index >= fetchResult.hits().getHits().length) {
+                    // the fetch phase on this shard timed out and returned partial results
+                    continue;
+                }
                 SearchHit searchHit = fetchResult.hits().getHits()[index];
                 searchHit.shard(fetchResult.getSearchShardTarget());
                 if (shardDoc instanceof RankDoc) {
@@ -373,13 +377,12 @@ public final class SearchPhaseController {
 
     /**
      * Reduces the given query results and consumes all aggregations and profile results.
-     *
-     * @param queryResults         a list of non-null query shard results
-     * @param reducedAggs          already reduced aggregations
-     * @param bufferedTopDocs      a list of pre-collected top docs.
-     * @param numReducePhases      the number of non-final reduce phases applied to the query results.
-     * @param originalSearchSource
-     * @param originalIndices
+     * @param queryResults a list of non-null query shard results
+     * @param reducedAggs already reduced aggregations
+     * @param bufferedTopDocs a list of pre-collected top docs.
+     * @param numReducePhases the number of non-final reduce phases applied to the query results.
+     * @param originalSearchSource the original search source from the request
+     * @param originalIndices original, unresolved target indices from the request
      * @see QuerySearchResult#getAggs()
      * @see QuerySearchResult#consumeProfileResult()
      */
@@ -391,8 +394,9 @@ public final class SearchPhaseController {
         int numReducePhases,
         boolean isScrollRequest,
         QueryPhaseRankCoordinatorContext queryPhaseRankCoordinatorContext,
-        SearchSourceBuilder originalSearchSource,
-        String[] originalIndices
+        @Nullable List<SearchHits> topHitsToRelease,
+        @Nullable SearchSourceBuilder originalSearchSource,
+        @Nullable String[] originalIndices
     ) {
         assert numReducePhases >= 0 : "num reduce phases must be >= 0 but was: " + numReducePhases;
         numReducePhases++; // increment for this phase
@@ -413,6 +417,7 @@ public final class SearchPhaseController {
                 0,
                 0,
                 true,
+                null,
                 null,
                 originalSearchSource,
                 originalIndices
@@ -522,6 +527,7 @@ public final class SearchPhaseController {
             from,
             false,
             timeRangeFilterFromMillis,
+            topHitsToRelease,
             originalSearchSource,
             originalIndices
         );
@@ -608,8 +614,12 @@ public final class SearchPhaseController {
         // <code>true</code> iff the query phase had no results. Otherwise <code>false</code>
         boolean isEmptyResult,
         Long timeRangeFilterFromMillis,
-        SearchSourceBuilder originalSearchSource,
-        String[] originalIndices
+        // SearchHits from top_hits aggs for release by SearchResponse (may be null)
+        @Nullable List<SearchHits> topHitsToRelease,
+        // Original search source from the request
+        @Nullable SearchSourceBuilder originalSearchSource,
+        // Original unresolved target indices from the request
+        @Nullable String[] originalIndices
     ) {
 
         public ReducedQueryPhase {
@@ -631,7 +641,8 @@ public final class SearchPhaseController {
                 terminatedEarly,
                 buildSearchProfileResults(fetchResults),
                 numReducePhases,
-                timeRangeFilterFromMillis
+                timeRangeFilterFromMillis,
+                topHitsToRelease
             );
         }
 

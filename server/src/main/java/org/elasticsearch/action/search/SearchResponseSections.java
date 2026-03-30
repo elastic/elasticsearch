@@ -18,6 +18,7 @@ import org.elasticsearch.search.profile.SearchProfileShardResult;
 import org.elasticsearch.search.suggest.Suggest;
 
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -54,6 +55,8 @@ public class SearchResponseSections implements Releasable {
     protected final Boolean terminatedEarly;
     protected final int numReducePhases;
     protected final Long timeRangeFilterFromMillis;
+    // List of top_hits SearchHits to release; cleared when transferred to SearchResponse so close() does not release
+    private List<SearchHits> topHitsToRelease;
 
     public SearchResponseSections(
         SearchHits hits,
@@ -65,6 +68,20 @@ public class SearchResponseSections implements Releasable {
         int numReducePhases,
         Long timeRangeFilterFromMillis
     ) {
+        this(hits, aggregations, suggest, timedOut, terminatedEarly, profileResults, numReducePhases, timeRangeFilterFromMillis, null);
+    }
+
+    public SearchResponseSections(
+        SearchHits hits,
+        InternalAggregations aggregations,
+        Suggest suggest,
+        boolean timedOut,
+        Boolean terminatedEarly,
+        SearchProfileResults profileResults,
+        int numReducePhases,
+        Long timeRangeFilterFromMillis,
+        @Nullable List<SearchHits> topHitsToRelease
+    ) {
         this.hits = hits;
         this.aggregations = aggregations;
         this.suggest = suggest;
@@ -73,6 +90,18 @@ public class SearchResponseSections implements Releasable {
         this.terminatedEarly = terminatedEarly;
         this.numReducePhases = numReducePhases;
         this.timeRangeFilterFromMillis = timeRangeFilterFromMillis;
+        this.topHitsToRelease = topHitsToRelease;
+    }
+
+    /**
+     * Transfers ownership of the top-hits-to-release list to the caller. Call when building a SearchResponse so
+     * close() does not release the list. Returns null if the list was already transferred or was never set.
+     */
+    @Nullable
+    public final List<SearchHits> transferTopHitsToRelease() {
+        List<SearchHits> list = topHitsToRelease;
+        topHitsToRelease = null;
+        return list;
     }
 
     public final SearchHits hits() {
@@ -108,6 +137,12 @@ public class SearchResponseSections implements Releasable {
 
     @Override
     public void close() {
+        if (topHitsToRelease != null) {
+            for (SearchHits h : topHitsToRelease) {
+                h.decRef();
+            }
+            topHitsToRelease = null;
+        }
         hits.decRef();
     }
 }

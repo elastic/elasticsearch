@@ -276,9 +276,6 @@ tests:
 - class: org.elasticsearch.server.cli.APMJvmOptionsTests
   method: testAPMAgentAlwaysAttached
   issue: https://github.com/elastic/elasticsearch/issues/144358
-- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
-  method: test {csv-spec:approximation.Approximate stats by on large single-valued data}
-  issue: https://github.com/elastic/elasticsearch/issues/144382
 - class: org.elasticsearch.xpack.application.OpenAiServiceUpgradeIT
   method: testOpenAiEmbeddings {upgradedNodes=3}
   issue: https://github.com/elastic/elasticsearch/issues/144440
@@ -291,12 +288,6 @@ tests:
 - class: org.elasticsearch.xpack.logsdb.RandomizedRollingUpgradeIT
   method: testIndexingSyntheticSource
   issue: https://github.com/elastic/elasticsearch/issues/144585
-- class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
-  method: test
-  issue: https://github.com/elastic/elasticsearch/issues/144587
-- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
-  method: test
-  issue: https://github.com/elastic/elasticsearch/issues/144587
 - class: org.elasticsearch.xpack.esql.action.AsyncEsqlQueryActionIT
   method: testUpdateKeepAlive
   issue: https://github.com/elastic/elasticsearch/issues/144618

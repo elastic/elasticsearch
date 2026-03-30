@@ -59,6 +59,21 @@ public class PromqlQueryPlanBuilderTests extends ESTestCase {
         assertThat(((NamedExpression) ((InstantSelector) promqlCommand.promqlPlan()).series()).name(), equalTo("up"));
     }
 
+    public void testBuildStatementWithGroupByAbsentLabel() {
+        EsqlStatement statement = PromqlQueryPlanBuilder.buildStatement(
+            "sum(rate(http_request_duration_microseconds_count[1m])) by (handler)",
+            "*",
+            "2025-01-01T00:00:00Z",
+            "2025-01-01T01:00:00Z",
+            "15s"
+        );
+        assertThat(statement.plan(), instanceOf(OrderBy.class));
+        Eval eval = (Eval) ((OrderBy) statement.plan()).child();
+        assertThat(eval.fields().size(), equalTo(1));
+        assertThat(eval.fields().get(0).name(), equalTo("step"));
+        assertThat(eval.child(), instanceOf(PromqlCommand.class));
+    }
+
     public void testBuildStatementWithNumericStep() {
         EsqlStatement statement = PromqlQueryPlanBuilder.buildStatement("up", "*", "1735689600", "1735693200", "60");
         assertThat(statement.plan(), instanceOf(OrderBy.class));

@@ -391,7 +391,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
     }
 
     protected final void doTest(String query) throws Throwable {
-        if (query.trim().toUpperCase(Locale.ROOT).startsWith("EXTERNAL") && query.contains("{{")) {
+        if (query.trim().toUpperCase(Locale.ROOT).contains("EXTERNAL \"{{")) {
             Path path = getCsvDataPath();
             if (path != null) {
                 query = substituteTemplates(query, csvFileTemplateResolver(path));

@@ -78,6 +78,11 @@ final class LongArrayVector extends AbstractVector implements LongVector {
     }
 
     @Override
+    public void copyTo(int srcPosition, long[] dst, int dstPosition, int length) {
+        System.arraycopy(values, srcPosition, dst, dstPosition, length);
+    }
+
+    @Override
     public ElementType elementType() {
         return ElementType.LONG;
     }

@@ -219,9 +219,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlClientYamlIT
   method: test {p0=esql/160_union_types/suggested_type}
   issue: https://github.com/elastic/elasticsearch/issues/142525
-- class: org.elasticsearch.xpack.esql.datasources.GlobDiscoveryLocalTests
-  method: testRecursiveDoubleStarAllFiles
-  issue: https://github.com/elastic/elasticsearch/issues/142576
 - class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
   method: test {p0=esql/160_union_types/suggested_type}
   issue: https://github.com/elastic/elasticsearch/issues/142525
@@ -234,9 +231,6 @@ tests:
 - class: org.elasticsearch.packaging.test.DebMetadataTests
   method: test05CheckLintian
   issue: https://github.com/elastic/elasticsearch/issues/142819
-- class: org.elasticsearch.xpack.search.CrossClusterAsyncSearchIT
-  method: testCancelViaExpirationOnRemoteResultsWithMinimizeRoundtrips
-  issue: https://github.com/elastic/elasticsearch/issues/143407
 - class: org.elasticsearch.xpack.security.support.MetadataFlattenedMigrationIntegTests
   method: testMigrationWithConcurrentUpdates
   issue: https://github.com/elastic/elasticsearch/issues/143674
@@ -282,9 +276,6 @@ tests:
 - class: org.elasticsearch.server.cli.APMJvmOptionsTests
   method: testAPMAgentAlwaysAttached
   issue: https://github.com/elastic/elasticsearch/issues/144358
-- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
-  method: test {csv-spec:approximation.Approximate stats by on large single-valued data}
-  issue: https://github.com/elastic/elasticsearch/issues/144382
 - class: org.elasticsearch.xpack.application.OpenAiServiceUpgradeIT
   method: testOpenAiEmbeddings {upgradedNodes=3}
   issue: https://github.com/elastic/elasticsearch/issues/144440
@@ -297,12 +288,6 @@ tests:
 - class: org.elasticsearch.xpack.logsdb.RandomizedRollingUpgradeIT
   method: testIndexingSyntheticSource
   issue: https://github.com/elastic/elasticsearch/issues/144585
-- class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
-  method: test
-  issue: https://github.com/elastic/elasticsearch/issues/144587
-- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
-  method: test
-  issue: https://github.com/elastic/elasticsearch/issues/144587
 - class: org.elasticsearch.xpack.esql.action.AsyncEsqlQueryActionIT
   method: testUpdateKeepAlive
   issue: https://github.com/elastic/elasticsearch/issues/144618
@@ -345,24 +330,45 @@ tests:
 - class: org.elasticsearch.xpack.sql.qa.jdbc.single_node.SingleNodeJdbcResultSetIT
   method: testGettingValidIntegerWithoutCasting
   issue: https://github.com/elastic/elasticsearch/issues/145048
-- class: org.elasticsearch.backwards.RareTermsIT
-  method: testSingleValuedString
-  issue: https://github.com/elastic/elasticsearch/issues/145049
 - class: org.elasticsearch.xpack.sql.qa.jdbc.single_node.SingleNodeJdbcResultSetIT
   method: testGettingValidDoubleWithCasting
   issue: https://github.com/elastic/elasticsearch/issues/145050
 - class: org.elasticsearch.xpack.security.authc.ApiKeyIntegTests
   method: testDynamicDeletionInterval
   issue: https://github.com/elastic/elasticsearch/issues/145022
-- class: org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormatTests
-  method: testIndexSortOnFlush
-  issue: https://github.com/elastic/elasticsearch/issues/145071
-- class: org.elasticsearch.index.codec.vectors.diskbbq.es94.ES940DiskBBQVectorsFormatTests
-  method: testIndexSortOnFlush
-  issue: https://github.com/elastic/elasticsearch/issues/145072
 - class: org.elasticsearch.xpack.ml.integration.AdJobRetryResilienceIT
   method: testJobReopensAfterIndexUnavailabilityDuringReassignment
   issue: https://github.com/elastic/elasticsearch/issues/144968
+- class: org.elasticsearch.xpack.sql.qa.jdbc.single_node.SingleNodeJdbcResultSetIT
+  method: testGettingValidByteWithoutCasting
+  issue: https://github.com/elastic/elasticsearch/issues/145143
+- class: org.elasticsearch.xpack.esql.analysis.AnalyzerTests
+  method: testLookupMissingField
+  issue: https://github.com/elastic/elasticsearch/issues/144697
+- class: org.elasticsearch.xpack.esql.analysis.AnalyzerTests
+  method: testLookupMatchTypeWrong
+  issue: https://github.com/elastic/elasticsearch/issues/144694
+- class: org.elasticsearch.xpack.esql.analysis.AnalyzerTests
+  method: testLookup
+  issue: https://github.com/elastic/elasticsearch/issues/144696
+- class: org.elasticsearch.xpack.esql.analysis.AnalyzerTests
+  method: testLookupMissingTable
+  issue: https://github.com/elastic/elasticsearch/issues/144695
+- class: org.elasticsearch.xpack.idp.action.SamlIdentityProviderTests
+  method: testSpInitiatedSsoFailsForMalformedRequest
+  issue: https://github.com/elastic/elasticsearch/issues/145197
+- class: org.elasticsearch.indices.memory.breaker.AccountableQueryCircuitBreakerIT
+  method: testPrefixQueryMemoryReleased
+  issue: https://github.com/elastic/elasticsearch/issues/145200
+- class: org.elasticsearch.search.basic.SearchWithRandomIOExceptionsIT
+  method: testRandomDirectoryIOExceptions
+  issue: https://github.com/elastic/elasticsearch/issues/118733
+- class: org.elasticsearch.datastreams.TSDBSyntheticIdsIT
+  method: testNoopTombstones
+  issue: https://github.com/elastic/elasticsearch/issues/145217
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
+  method: test {csv-spec:approximation.Warn on max}
+  issue: https://github.com/elastic/elasticsearch/issues/145218
 
 # Examples:
 #

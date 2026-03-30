@@ -146,6 +146,8 @@ public class RoundToTests extends AbstractScalarFunctionTestCase {
         suppliers.add(supplier(1.5, 1.0, 0.0, 1.0, 100.0));
         suppliers.add(supplier(200, 100, 0.0, 1.0, 100.0));
 
+        addFixedIntervalCases(suppliers);
+
         return parameterSuppliersFromTypedDataWithDefaultChecks(
             (int nullPosition, DataType nullValueDataType, TestCaseSupplier.TestCase original) -> {
                 if (nullValueDataType != DataType.NULL) {
@@ -163,6 +165,75 @@ public class RoundToTests extends AbstractScalarFunctionTestCase {
             },
             randomizeBytesRefsOffset(suppliers)
         );
+    }
+
+    private static void addFixedIntervalCases(List<TestCaseSupplier> suppliers) {
+        for (int numPoints : new int[] { 11, 15, 20 }) {
+            final int n = numPoints;
+            suppliers.add(
+                fixedIntervalLongs(
+                    "<long, " + n + " fixed-interval longs>",
+                    DataType.LONG,
+                    () -> randomLongBetween(0, (long) (n - 1) * 100),
+                    IntStream.range(0, n).mapToObj(i -> DataType.LONG).toList(),
+                    () -> IntStream.range(0, n).mapToObj(i -> (long) i * 100).toList()
+                )
+            );
+            suppliers.add(
+                fixedIntervalInts(
+                    "<int, " + n + " fixed-interval ints>",
+                    DataType.INTEGER,
+                    () -> randomIntBetween(0, (n - 1) * 100),
+                    IntStream.range(0, n).mapToObj(i -> DataType.INTEGER).toList(),
+                    () -> IntStream.range(0, n).mapToObj(i -> i * 100).toList()
+                )
+            );
+            suppliers.add(
+                fixedIntervalLongs(
+                    "<date, " + n + " fixed-interval dates>",
+                    DataType.DATETIME,
+                    () -> randomLongBetween(0, (long) (n - 1) * 300_000),
+                    IntStream.range(0, n).mapToObj(i -> DataType.DATETIME).toList(),
+                    () -> IntStream.range(0, n).mapToObj(i -> (long) i * 300_000).toList()
+                )
+            );
+        }
+    }
+
+    private static TestCaseSupplier fixedIntervalLongs(
+        String name,
+        DataType fieldType,
+        Supplier<Number> fieldSupplier,
+        List<DataType> pointsTypes,
+        Supplier<List<Long>> pointsSupplier
+    ) {
+        return supplier(name, fieldType, fieldSupplier, pointsTypes, pointsSupplier, (f, p) -> {
+            long max = p.stream().mapToLong(l -> l).min().getAsLong();
+            for (long l : p) {
+                if (l > max && f.doubleValue() > l) {
+                    max = l;
+                }
+            }
+            return max;
+        }, "FixedInterval");
+    }
+
+    private static TestCaseSupplier fixedIntervalInts(
+        String name,
+        DataType fieldType,
+        Supplier<Number> fieldSupplier,
+        List<DataType> pointsTypes,
+        Supplier<List<Integer>> pointsSupplier
+    ) {
+        return supplier(name, fieldType, fieldSupplier, pointsTypes, pointsSupplier, (f, p) -> {
+            int max = p.stream().mapToInt(i -> i).min().getAsInt();
+            for (int l : p) {
+                if (l > max && f.doubleValue() > l) {
+                    max = l;
+                }
+            }
+            return max;
+        }, "FixedInterval");
     }
 
     private static TestCaseSupplier supplier(double f, double expected, double... points) {
@@ -244,6 +315,18 @@ public class RoundToTests extends AbstractScalarFunctionTestCase {
         Supplier<List<P>> pointsSupplier,
         BiFunction<Number, List<P>, Number> expected
     ) {
+        return supplier(name, fieldType, fieldSupplier, pointsTypes, pointsSupplier, expected, null);
+    }
+
+    private static <P> TestCaseSupplier supplier(
+        String name,
+        DataType fieldType,
+        Supplier<Number> fieldSupplier,
+        List<DataType> pointsTypes,
+        Supplier<List<P>> pointsSupplier,
+        BiFunction<Number, List<P>, Number> expected,
+        String forcedSpecialization
+    ) {
         List<DataType> types = new ArrayList<>(pointsTypes.size() + 1);
         types.add(fieldType);
         types.addAll(pointsTypes);
@@ -264,14 +347,28 @@ public class RoundToTests extends AbstractScalarFunctionTestCase {
                 case DATETIME, DATE_NANOS, LONG -> "Long";
                 default -> throw new UnsupportedOperationException();
             };
-            Matcher<String> expectedEvaluatorName = startsWith("RoundTo" + type + specialization(points.size()) + "Evaluator");
+            String spec = forcedSpecialization != null ? forcedSpecialization : specialization(points.size(), fieldType, points);
+            Matcher<String> expectedEvaluatorName = startsWith("RoundTo" + type + spec + "Evaluator");
             return new TestCaseSupplier.TestCase(params, expectedEvaluatorName, expectedType, equalTo(expected.apply(field, points)));
         });
     }
 
-    private static String specialization(int pointsSize) {
+    private static <P> String specialization(int pointsSize, DataType dataType, List<P> points) {
         if (pointsSize < 11) {
             return Integer.toString(pointsSize);
+        }
+        // fixed intervals?
+        if (dataType == DataType.INTEGER || dataType == DataType.LONG || dataType == DataType.DATETIME || dataType == DataType.DATE_NANOS) {
+            int size = points.size();
+            long p0 = ((Number) points.get(0)).longValue();
+            long pn = ((Number) points.get(size - 1)).longValue();
+            long interval = (pn - p0) / (size - 1);
+            for (int i = 1; i < size; i++) {
+                if (((Number) points.get(i)).longValue() - ((Number) points.get(i - 1)).longValue() != interval) {
+                    return "BinarySearch";
+                }
+            }
+            return "FixedInterval";
         }
         return "BinarySearch";
     }

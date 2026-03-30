@@ -325,6 +325,10 @@ public class CsvTests extends ESTestCase {
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.LOAD_FLATTENED_FIELD.capabilityName())
             );
             assumeFalseLogging(
+                "Can't simulate _source loading for unmapped fields in csv tests",
+                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.OPTIONAL_FIELDS_V4.capabilityName())
+            );
+            assumeFalseLogging(
                 "can't use rereank in csv tests",
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.RERANK.capabilityName())
             );
@@ -355,6 +359,11 @@ public class CsvTests extends ESTestCase {
             assumeFalseLogging(
                 "TS_INFO requires real shard contexts and _timeseries_metadata which are unavailable in csv tests",
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.TS_INFO_COMMAND.capabilityName())
+            );
+            assumeFalseLogging(
+                "WITHOUT grouping emit _timeseries which is unavailable in csv tests",
+                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.ESQL_WITHOUT_GROUPING.capabilityName())
+                    || testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.PROMQL_WITHOUT_GROUPING.capabilityName())
             );
             assumeFalseLogging(
                 "can't use QSTR function in csv tests",
@@ -496,7 +505,7 @@ public class CsvTests extends ESTestCase {
                 indexModes,
                 Map.of(),
                 Map.of(),
-                mergedMappings.partiallyUnmappedFields
+                mergedMappings.fieldToUnmappedIndices
             )
         );
     }
@@ -534,10 +543,11 @@ public class CsvTests extends ESTestCase {
 
     record MappingPerIndex(String index, Map<String, EsField> mapping) {}
 
-    record MergedResult(Map<String, EsField> mapping, Set<String> partiallyUnmappedFields) {}
+    record MergedResult(Map<String, EsField> mapping, Map<String, Set<String>> fieldToUnmappedIndices) {}
 
     private static MergedResult mergeMappings(List<MappingPerIndex> mappingsPerIndex) {
         int numberOfIndices = mappingsPerIndex.size();
+        Set<String> allIndices = mappingsPerIndex.stream().map(MappingPerIndex::index).collect(toSet());
         Map<String, Map<String, EsField>> columnNamesToFieldByIndices = new HashMap<>();
         for (var mappingPerIndex : mappingsPerIndex) {
             for (var entry : mappingPerIndex.mapping().entrySet()) {
@@ -547,15 +557,19 @@ public class CsvTests extends ESTestCase {
             }
         }
 
-        var partiallyUnmappedFields = columnNamesToFieldByIndices.entrySet()
-            .stream()
-            .filter(e -> e.getValue().size() < numberOfIndices)
-            .map(Map.Entry::getKey)
-            .collect(toSet());
+        Map<String, Set<String>> fieldToUnmappedIndices = new HashMap<>();
+        for (var e : columnNamesToFieldByIndices.entrySet()) {
+            if (e.getValue().size() < numberOfIndices) {
+                Set<String> unmappedIndices = allIndices.stream().filter(i -> e.getValue().containsKey(i) == false).collect(toSet());
+                if (unmappedIndices.isEmpty() == false) {
+                    fieldToUnmappedIndices.put(e.getKey(), unmappedIndices);
+                }
+            }
+        }
         var mappings = columnNamesToFieldByIndices.entrySet()
             .stream()
             .collect(Collectors.toMap(Map.Entry::getKey, e -> mergeFields(e.getKey(), e.getValue())));
-        return new MergedResult(mappings, partiallyUnmappedFields);
+        return new MergedResult(mappings, fieldToUnmappedIndices);
     }
 
     private static EsField mergeFields(String index, Map<String, EsField> columnNameToField) {
@@ -726,7 +740,8 @@ public class CsvTests extends ESTestCase {
 
     private static TestPhysicalOperationProviders testOperationProviders(
         FoldContext foldCtx,
-        Map<IndexPattern, CsvTestsDataLoader.MultiIndexTestDataset> allDatasets
+        Map<IndexPattern, CsvTestsDataLoader.MultiIndexTestDataset> allDatasets,
+        UnmappedResolution unmappedResolution
     ) throws Exception {
         var indexPages = new ArrayList<TestPhysicalOperationProviders.IndexPage>();
         for (CsvTestsDataLoader.MultiIndexTestDataset datasets : allDatasets.values()) {
@@ -738,7 +753,7 @@ public class CsvTests extends ESTestCase {
                 );
             }
         }
-        return TestPhysicalOperationProviders.create(foldCtx, indexPages);
+        return TestPhysicalOperationProviders.create(foldCtx, indexPages, unmappedResolution);
     }
 
     private ActualResults executePlan(BigArrays bigArrays) throws Exception {
@@ -820,7 +835,7 @@ public class CsvTests extends ESTestCase {
             PlannerSettings.DEFAULTS,
             EsqlTestUtils.MOCK_TRANSPORT_ACTION_SERVICES
         );
-        TestPhysicalOperationProviders physicalOperationProviders = testOperationProviders(foldCtx, testDatasets);
+        TestPhysicalOperationProviders physicalOperationProviders = testOperationProviders(foldCtx, testDatasets, unmappedResolution);
 
         PlainActionFuture<ActualResults> listener = new PlainActionFuture<>();
         var logicalPlanPreOptimizer = new LogicalPlanPreOptimizer(

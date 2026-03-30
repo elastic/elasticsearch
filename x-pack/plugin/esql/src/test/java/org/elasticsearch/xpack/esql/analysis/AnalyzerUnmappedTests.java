@@ -1035,15 +1035,15 @@ public class AnalyzerUnmappedTests extends ESTestCase {
     public void testDisallowLoadWithPartiallyMappedNonKeyword() {
         assumeTrue("Requires OPTIONAL_FIELDS_V5", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
 
-        var esIndex = partialIndex("partial_idx", Map.of("partial_long", longField("partial_long")), Set.of("partial_long"));
+        var esIndex = partialIndex(Map.of("partial_long", longField("partial_long")), Set.of("partial_long"));
         assertUnmappedLoadError(
             analyzer().addIndex(esIndex),
-            "FROM partial_idx | WHERE partial_long > 0",
+            "FROM idx* | WHERE partial_long > 0",
             allOf(
                 containsString("Found 1 problem"),
                 containsString(
-                    "line 1:54: Cannot use field [partial_long] due to ambiguities being mapped as [2] incompatible types: "
-                        + "[keyword] due to loading from _source, [long] in [partial_idx]"
+                    "line 1:47: Cannot use field [partial_long] due to ambiguities being mapped as [2] incompatible types: "
+                        + "[keyword] due to loading from _source, [long] in [idx_mapped]"
                 )
             )
         );
@@ -1053,22 +1053,21 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         assumeTrue("Requires OPTIONAL_FIELDS_V5", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
 
         var esIndex = partialIndex(
-            "partial_idx",
             Map.of("partial_long", longField("partial_long"), "partial_double", doubleField("partial_double")),
             Set.of("partial_long", "partial_double")
         );
         assertUnmappedLoadError(
             analyzer().addIndex(esIndex),
-            "FROM partial_idx | SORT partial_long, partial_double",
+            "FROM idx* | SORT partial_long, partial_double",
             allOf(
                 containsString("Found 2 problems"),
                 containsString(
-                    "line 1:53: Cannot use field [partial_long] due to ambiguities being mapped as [2] incompatible types: "
-                        + "[keyword] due to loading from _source, [long] in [partial_idx]"
+                    "line 1:46: Cannot use field [partial_long] due to ambiguities being mapped as [2] incompatible types: "
+                        + "[keyword] due to loading from _source, [long] in [idx_mapped]"
                 ),
                 containsString(
-                    "line 1:67: Cannot use field [partial_double] due to ambiguities being mapped as [2] incompatible types: "
-                        + "[keyword] due to loading from _source, [double] in [partial_idx]"
+                    "line 1:60: Cannot use field [partial_double] due to ambiguities being mapped as [2] incompatible types: "
+                        + "[keyword] due to loading from _source, [double] in [idx_mapped]"
                 )
             )
         );
@@ -1078,11 +1077,10 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         assumeTrue("Requires OPTIONAL_FIELDS_V5", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
 
         var esIndex = partialIndex(
-            "partial_idx",
             Map.of("partial_long", longField("partial_long"), "common", keywordField("common")),
             Set.of("partial_long")
         );
-        var plan = analyzer().addIndex(esIndex).statement(setUnmappedLoad("FROM partial_idx | KEEP common"));
+        var plan = analyzer().addIndex(esIndex).statement(setUnmappedLoad("FROM idx* | KEEP common"));
         var limit = as(plan, Limit.class);
         // partial_long must not appear in the output — only the non-PUNK field that was explicitly kept
         assertThat(Expressions.names(limit.output()), is(List.of("common")));
@@ -1138,8 +1136,8 @@ public class AnalyzerUnmappedTests extends ESTestCase {
     public void testAllowLoadFromOnlyWhenPartialNonKeywordUnused() {
         assumeTrue("Requires OPTIONAL_FIELDS_V5", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
 
-        var esIndex = partialIndex("partial_idx", Map.of("partial_long", longField("partial_long")), Set.of("partial_long"));
-        var plan = analyzer().addIndex(esIndex).statement(setUnmappedLoad("FROM partial_idx"));
+        var esIndex = partialIndex(Map.of("partial_long", longField("partial_long")), Set.of("partial_long"));
+        var plan = analyzer().addIndex(esIndex).statement(setUnmappedLoad("FROM idx*"));
         assertThat(plan, not(nullValue()));
     }
 
@@ -1147,7 +1145,6 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         assumeTrue("Requires OPTIONAL_FIELDS_V5", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
 
         var esIndex = partialIndex(
-            "partial_idx",
             Map.of("partial_long", longField("partial_long"), "common", keywordField("common")),
             Set.of("partial_long")
         );
@@ -1155,24 +1152,24 @@ public class AnalyzerUnmappedTests extends ESTestCase {
 
         assertUnmappedLoadError(
             analyzer,
-            "FROM partial_idx | RENAME partial_long AS pl",
+            "FROM idx* | RENAME partial_long AS pl",
             allOf(
                 containsString("Found 1 problem"),
                 containsString(
-                    "line 1:55: Cannot use field [partial_long] due to ambiguities being mapped as [2] incompatible types: "
-                        + "[keyword] due to loading from _source, [long] in [partial_idx]"
+                    "line 1:48: Cannot use field [partial_long] due to ambiguities being mapped as [2] incompatible types: "
+                        + "[keyword] due to loading from _source, [long] in [idx_mapped]"
                 )
             )
         );
 
         assertUnmappedLoadError(
             analyzer,
-            "FROM partial_idx | RENAME common as c, partial_long AS pl",
+            "FROM idx* | RENAME common as c, partial_long AS pl",
             allOf(
                 containsString("Found 1 problem"),
                 containsString(
-                    "line 1:68: Cannot use field [partial_long] due to ambiguities being mapped as [2] incompatible types: "
-                        + "[keyword] due to loading from _source, [long] in [partial_idx]"
+                    "line 1:61: Cannot use field [partial_long] due to ambiguities being mapped as [2] incompatible types: "
+                        + "[keyword] due to loading from _source, [long] in [idx_mapped]"
                 )
             )
         );
@@ -1181,15 +1178,15 @@ public class AnalyzerUnmappedTests extends ESTestCase {
     public void testDisallowLoadWithPartiallyMappedNonKeywordInWhere() {
         assumeTrue("Requires OPTIONAL_FIELDS_V5", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
 
-        var esIndex = partialIndex("partial_idx", Map.of("partial_long", longField("partial_long")), Set.of("partial_long"));
+        var esIndex = partialIndex(Map.of("partial_long", longField("partial_long")), Set.of("partial_long"));
         assertUnmappedLoadError(
             analyzer().addIndex(esIndex),
-            "FROM partial_idx | WHERE partial_long > 0",
+            "FROM idx* | WHERE partial_long > 0",
             allOf(
                 containsString("Found 1 problem"),
                 containsString(
-                    "line 1:54: Cannot use field [partial_long] due to ambiguities being mapped as [2] incompatible types: "
-                        + "[keyword] due to loading from _source, [long] in [partial_idx]"
+                    "line 1:47: Cannot use field [partial_long] due to ambiguities being mapped as [2] incompatible types: "
+                        + "[keyword] due to loading from _source, [long] in [idx_mapped]"
                 )
             )
         );
@@ -1198,15 +1195,15 @@ public class AnalyzerUnmappedTests extends ESTestCase {
     public void testDisallowLoadWithPartiallyMappedNonKeywordInSort() {
         assumeTrue("Requires OPTIONAL_FIELDS_V5", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
 
-        var esIndex = partialIndex("partial_idx", Map.of("partial_long", longField("partial_long")), Set.of("partial_long"));
+        var esIndex = partialIndex(Map.of("partial_long", longField("partial_long")), Set.of("partial_long"));
         assertUnmappedLoadError(
             analyzer().addIndex(esIndex),
-            "FROM partial_idx | SORT partial_long",
+            "FROM idx* | SORT partial_long",
             allOf(
                 containsString("Found 1 problem"),
                 containsString(
-                    "line 1:53: Cannot use field [partial_long] due to ambiguities being mapped as [2] incompatible types: "
-                        + "[keyword] due to loading from _source, [long] in [partial_idx]"
+                    "line 1:46: Cannot use field [partial_long] due to ambiguities being mapped as [2] incompatible types: "
+                        + "[keyword] due to loading from _source, [long] in [idx_mapped]"
                 )
             )
         );
@@ -1222,7 +1219,6 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         assumeTrue("Requires CHANGE_POINT", EsqlCapabilities.Cap.CHANGE_POINT.isEnabled());
 
         var esIndex = partialIndex(
-            "partial_idx",
             Map.of(
                 "partial_long",
                 longField("partial_long"),
@@ -1233,12 +1229,12 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         );
         assertUnmappedLoadError(
             analyzer().addIndex(esIndex),
-            "FROM partial_idx | CHANGE_POINT partial_long ON @timestamp AS type, pvalue",
+            "FROM idx* | CHANGE_POINT partial_long ON @timestamp AS type, pvalue",
             allOf(
                 containsString("Found 1 problem"),
                 containsString(
-                    "line 1:61: Cannot use field [partial_long] due to ambiguities being mapped as [2] incompatible types: "
-                        + "[keyword] due to loading from _source, [long] in [partial_idx]"
+                    "line 1:54: Cannot use field [partial_long] due to ambiguities being mapped as [2] incompatible types: "
+                        + "[keyword] due to loading from _source, [long] in [idx_mapped]"
                 )
             )
         );
@@ -1248,15 +1244,15 @@ public class AnalyzerUnmappedTests extends ESTestCase {
     public void testDisallowLoadWithPartiallyMappedNonKeywordInMvExpand() {
         assumeTrue("Requires OPTIONAL_FIELDS_V5", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
 
-        var esIndex = partialIndex("partial_idx", Map.of("partial_long", longField("partial_long")), Set.of("partial_long"));
+        var esIndex = partialIndex(Map.of("partial_long", longField("partial_long")), Set.of("partial_long"));
         assertUnmappedLoadError(
             analyzer().addIndex(esIndex),
-            "FROM partial_idx | MV_EXPAND partial_long",
+            "FROM idx* | MV_EXPAND partial_long",
             allOf(
                 containsString("Found 1 problem"),
                 containsString(
-                    "line 1:58: Cannot use field [partial_long] due to ambiguities being mapped as [2] incompatible types: "
-                        + "[keyword] due to loading from _source, [long] in [partial_idx]"
+                    "line 1:51: Cannot use field [partial_long] due to ambiguities being mapped as [2] incompatible types: "
+                        + "[keyword] due to loading from _source, [long] in [idx_mapped]"
                 )
             )
         );
@@ -1267,15 +1263,15 @@ public class AnalyzerUnmappedTests extends ESTestCase {
 
         var sub = longField("sub");
         var obj = new EsField("obj", DataType.OBJECT, Map.of("sub", sub), true, EsField.TimeSeriesFieldType.NONE);
-        var esIndex = partialIndex("partial_idx", Map.of("obj", obj), Set.of("obj.sub"));
+        var esIndex = partialIndex(Map.of("obj", obj), Set.of("obj.sub"));
         assertUnmappedLoadError(
             analyzer().addIndex(esIndex),
-            "FROM partial_idx | SORT `obj.sub`",
+            "FROM idx* | SORT `obj.sub`",
             allOf(
                 containsString("Found 1 problem"),
                 containsString(
-                    "line 1:53: Cannot use field [obj.sub] due to ambiguities being mapped as [2] incompatible types: "
-                        + "[keyword] due to loading from _source, [long] in [partial_idx]"
+                    "line 1:46: Cannot use field [obj.sub] due to ambiguities being mapped as [2] incompatible types: "
+                        + "[keyword] due to loading from _source, [long] in [idx_mapped]"
                 )
             )
         );
@@ -1326,22 +1322,21 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         assumeTrue("Requires OPTIONAL_FIELDS_V5", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
 
         var esIndex = partialIndex(
-            "partial_idx",
             Map.of("partial_long", longField("partial_long"), "common", keywordField("common")),
             Set.of("partial_long")
         );
         var analyzer = analyzer().addIndex(esIndex);
 
         String[] queries = new String[] {
-            "FROM partial_idx | KEEP common",
-            "FROM partial_idx | KEEP partial_long",
-            "FROM partial_idx | KEEP partial_long, common",
-            "FROM partial_idx | KEEP c*, p*",
-            "FROM partial_idx | DROP partial_long",
-            "FROM partial_idx | DROP common",
-            "FROM partial_idx | DROP c*",
-            "FROM partial_idx | DROP p*",
-            "FROM partial_idx | DROP partial_long | KEEP common", };
+            "FROM idx* | KEEP common",
+            "FROM idx* | KEEP partial_long",
+            "FROM idx* | KEEP partial_long, common",
+            "FROM idx* | KEEP c*, p*",
+            "FROM idx* | DROP partial_long",
+            "FROM idx* | DROP common",
+            "FROM idx* | DROP c*",
+            "FROM idx* | DROP p*",
+            "FROM idx* | DROP partial_long | KEEP common", };
         String suffix = randomFrom("", "| EVAL foo = 1", "| STATS count(*)", "| LIMIT 10");
         LogicalPlan plan;
         for (String query : queries) {
@@ -1354,19 +1349,18 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         assumeTrue("Requires OPTIONAL_FIELDS_V5", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
 
         var esIndex = partialIndex(
-            "partial_idx",
             Map.of("partial_type_keyword", keywordField("partial_type_keyword")),
             Set.of("partial_type_keyword")
         );
-        var plan = analyzer().addIndex(esIndex).statement(setUnmappedLoad("FROM partial_idx | KEEP partial_type_keyword"));
+        var plan = analyzer().addIndex(esIndex).statement(setUnmappedLoad("FROM idx* | KEEP partial_type_keyword"));
         assertThat(plan, not(nullValue()));
     }
 
     public void testNullifyWithPartiallyMappedNonKeywordDoesNotFail() {
         assumeTrue("Requires OPTIONAL_FIELDS_NULLIFY_TECH_PREVIEW", EsqlCapabilities.Cap.OPTIONAL_FIELDS_NULLIFY_TECH_PREVIEW.isEnabled());
 
-        var esIndex = partialIndex("partial_idx", Map.of("partial_long", longField("partial_long")), Set.of("partial_long"));
-        var plan = analyzer().addIndex(esIndex).statement(setUnmappedNullify("FROM partial_idx | WHERE partial_long IS NOT NULL"));
+        var esIndex = partialIndex(Map.of("partial_long", longField("partial_long")), Set.of("partial_long"));
+        var plan = analyzer().addIndex(esIndex).statement(setUnmappedNullify("FROM idx* | WHERE partial_long IS NOT NULL"));
         assertThat(plan, not(nullValue()));
     }
 
@@ -1377,15 +1371,15 @@ public class AnalyzerUnmappedTests extends ESTestCase {
     public void testPartiallyUnmappedNonKeywordIsRejectedWithLoad() {
         assumeTrue("Requires OPTIONAL_FIELDS_V5", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
 
-        var esIndex = partialIndex("partial_idx", Map.of("partial_long", longField("partial_long")), Set.of("partial_long"));
+        var esIndex = partialIndex(Map.of("partial_long", longField("partial_long")), Set.of("partial_long"));
         var ta = analyzer().addIndex(esIndex);
         ta.statementError(
-            "SET unmapped_fields=\"load\"; FROM partial_idx | WHERE partial_long > 0",
+            "SET unmapped_fields=\"load\"; FROM idx* | WHERE partial_long > 0",
             allOf(
                 containsString("Found 1 problem"),
                 containsString(
                     "Cannot use field [partial_long] due to ambiguities being mapped as [2] incompatible types: "
-                        + "[keyword] due to loading from _source, [long] in [partial_idx]"
+                        + "[keyword] due to loading from _source, [long] in [idx_mapped]"
                 )
             )
         );
@@ -1398,9 +1392,9 @@ public class AnalyzerUnmappedTests extends ESTestCase {
     public void testPartiallyUnmappedNonKeywordIsAllowedWithLoad_WhenNotReferenced() {
         assumeTrue("Requires OPTIONAL_FIELDS_V5", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
 
-        var esIndex = partialIndex("partial_idx", Map.of("partial_long", longField("partial_long")), Set.of("partial_long"));
+        var esIndex = partialIndex(Map.of("partial_long", longField("partial_long")), Set.of("partial_long"));
         // partial_long is in the index but not referenced in any downstream expression — no PUNK violation
-        assertNotNull(analyzer().addIndex(esIndex).statement("SET unmapped_fields=\"load\"; FROM partial_idx"));
+        assertNotNull(analyzer().addIndex(esIndex).statement("SET unmapped_fields=\"load\"; FROM idx*"));
     }
 
     private Matcher<String> unmappedLoadAndFlattenedSubfieldHelper(String... pairs) {
@@ -1444,10 +1438,10 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("Cannot use field [message]"));
     }
 
-    private static EsIndex partialIndex(String name, Map<String, EsField> mapping, Set<String> partialFieldNames) {
+    private static EsIndex partialIndex(Map<String, EsField> mapping, Set<String> partialFieldNames) {
         Map<String, Set<String>> fieldToUnmappedIndices = partialFieldNames.stream()
-            .collect(Collectors.toMap(f -> f, f -> Set.of(name + "_unmapped")));
-        return new EsIndex(name, mapping, Map.of(name, IndexMode.STANDARD), Map.of(), Map.of(), fieldToUnmappedIndices);
+            .collect(Collectors.toMap(f -> f, f -> Set.of("idx_unmapped")));
+        return new EsIndex("idx*", mapping, Map.of("idx_mapped", IndexMode.STANDARD), Map.of(), Map.of(), fieldToUnmappedIndices);
     }
 
     private static EsField longField(String name) {

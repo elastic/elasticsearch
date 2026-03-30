@@ -25,8 +25,11 @@ import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOSupplier;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
@@ -34,6 +37,7 @@ import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingHelper;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
@@ -103,12 +107,13 @@ public class FsRepositoryTests extends ESTestCase {
             int numDocs = indexDocs(directory);
             RepositoryMetadata metadata = new RepositoryMetadata("test", "fs", settings);
             final ProjectId projectId = randomProjectIdOrDefault();
+            final ClusterService clusterService = BlobStoreTestUtil.mockClusterService(projectId, metadata);
             FsRepository repository = new FsRepository(
                 projectId,
                 metadata,
                 new Environment(settings, null),
                 NamedXContentRegistry.EMPTY,
-                BlobStoreTestUtil.mockClusterService(),
+                clusterService,
                 MockBigArrays.NON_RECYCLING_INSTANCE,
                 new RecoverySettings(settings, new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS))
             );
@@ -116,6 +121,7 @@ public class FsRepositoryTests extends ESTestCase {
             repository.start();
             final Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_INDEX_UUID, "myindexUUID").build();
             IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("myindex", indexSettings);
+            createIndex(clusterService, projectId, idxSettings);
             ShardId shardId = new ShardId(idxSettings.getIndex(), 1);
             Store store = new Store(shardId, idxSettings, directory, new DummyShardLock(shardId));
             SnapshotId snapshotId = new SnapshotId("test", "test");
@@ -235,12 +241,13 @@ public class FsRepositoryTests extends ESTestCase {
             final AtomicBoolean shouldErrorForWriteMetadataBlob = new AtomicBoolean();
             final AtomicBoolean writeBlobErrored = new AtomicBoolean(false);
             final ProjectId projectId = randomProjectIdOrDefault();
+            final ClusterService clusterService = BlobStoreTestUtil.mockClusterService(projectId, metadata);
             final var repository = new FsRepository(
                 projectId,
                 metadata,
                 new Environment(settings, null),
                 NamedXContentRegistry.EMPTY,
-                BlobStoreTestUtil.mockClusterService(),
+                clusterService,
                 MockBigArrays.NON_RECYCLING_INSTANCE,
                 new RecoverySettings(settings, new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS))
             ) {
@@ -300,6 +307,7 @@ public class FsRepositoryTests extends ESTestCase {
                 "myindex",
                 Settings.builder().put(IndexMetadata.SETTING_INDEX_UUID, "myindexUUID").build()
             );
+            createIndex(clusterService, projectId, idxSettings);
             final ShardId shardId1 = new ShardId(idxSettings.getIndex(), 1);
             final Store store1 = new Store(shardId1, idxSettings, directory, new DummyShardLock(shardId1));
             final SnapshotId snapshotId = new SnapshotId("test", "test");
@@ -390,6 +398,24 @@ public class FsRepositoryTests extends ESTestCase {
             writer.commit();
             assertEquals(writer.getDocStats().numDocs, numDocs - 1);
         }
+    }
+
+    private static void createIndex(ClusterService clusterService, ProjectId projectId, IndexSettings indexSettings) {
+        clusterService.submitUnbatchedStateUpdateTask("create-index", new ClusterStateUpdateTask() {
+            @Override
+            public ClusterState execute(ClusterState currentState) {
+                return ClusterState.builder(currentState)
+                    .putProjectMetadata(
+                        ProjectMetadata.builder(currentState.metadata().getProject(projectId)).put(indexSettings.getIndexMetadata(), false)
+                    )
+                    .build();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                fail(e);
+            }
+        });
     }
 
     private int indexDocs(Directory directory) throws IOException {

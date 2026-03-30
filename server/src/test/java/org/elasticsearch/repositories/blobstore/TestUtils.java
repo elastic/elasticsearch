@@ -53,7 +53,7 @@ public class TestUtils {
         RepositoryMetadata repositoryMetadata = new RepositoryMetadata(randomAlphaOfLength(10), FsRepository.TYPE, settings);
         final ClusterService clusterService = BlobStoreTestUtil.mockClusterService(projectId, repositoryMetadata);
         if (indices != null && indices.length > 0) {
-            registerIndices(clusterService, projectId, indices);
+            createIndices(clusterService, projectId, indices);
         }
         final FsRepository repository = new FsRepository(
             projectId,
@@ -71,8 +71,8 @@ public class TestUtils {
         return new RepositoryAndClusterService(repository, clusterService);
     }
 
-    private static void registerIndices(ClusterService clusterService, ProjectId projectId, Index... indices) {
-        clusterService.submitUnbatchedStateUpdateTask("register-indices", new ClusterStateUpdateTask() {
+    private static void createIndices(ClusterService clusterService, ProjectId projectId, Index... indices) {
+        clusterService.submitUnbatchedStateUpdateTask("create-indices", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 var projectBuilder = ProjectMetadata.builder(currentState.metadata().getProject(projectId));

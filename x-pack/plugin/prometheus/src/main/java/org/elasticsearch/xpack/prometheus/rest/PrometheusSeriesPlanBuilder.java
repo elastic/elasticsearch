@@ -23,9 +23,9 @@ import java.util.List;
  * <p>The resulting plan has the shape:
  * <pre>
  * Limit(n)
- *   └── TsInfo
- *         └── Filter(timeCond AND OR(selectorConds...))
- *               └── UnresolvedRelation(index, TS)
+ *   \_TsInfo
+ *       \_Filter(timeCond AND OR(selectorConds...))
+ *           \_UnresolvedRelation(index, TS)
  * </pre>
  */
 final class PrometheusSeriesPlanBuilder {

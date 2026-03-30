@@ -145,7 +145,12 @@ class DlmFrozenTransitionService implements ClusterStateListener, Closeable {
     private void startThreadPools() {
         synchronized (this) {
             if (closing.get() == false) {
-                transitionExecutor = new DlmFrozenTransitionExecutor(maxConcurrency, maxQueueSize, clusterService.getSettings(), errorStore);
+                transitionExecutor = new DlmFrozenTransitionExecutor(
+                    maxConcurrency,
+                    maxQueueSize,
+                    clusterService.getSettings(),
+                    errorStore
+                );
                 schedulerThreadExecutor = Executors.newSingleThreadScheduledExecutor(
                     EsExecutors.daemonThreadFactory(clusterService.getSettings(), "dlm-frozen-transition-scheduler")
                 );

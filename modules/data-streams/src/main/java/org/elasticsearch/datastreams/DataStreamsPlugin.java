@@ -201,12 +201,7 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, Extensibl
         });
         components.add(updateTimeSeriesRangeService);
         dataStreamLifecycleErrorsPublisher.set(
-            new DataStreamLifecycleHealthInfoPublisher(
-                settings,
-                services.client(),
-                services.clusterService(),
-                services.dlmErrorStore()
-            )
+            new DataStreamLifecycleHealthInfoPublisher(settings, services.client(), services.clusterService(), services.dlmErrorStore())
         );
 
         dataLifecycleInitialisationService.set(

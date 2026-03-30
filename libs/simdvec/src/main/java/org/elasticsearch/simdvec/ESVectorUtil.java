@@ -518,6 +518,30 @@ public class ESVectorUtil {
     }
 
     /**
+     * Checks whether the byte sequence {@code term} appears as a contiguous subsequence
+     * within {@code value}.
+     *
+     * @param value       the byte array to search in
+     * @param valueOffset the starting index within value
+     * @param valueLength the number of bytes to search
+     * @param term        the byte array containing the term to search for
+     * @param termOffset  the starting index within term
+     * @param termLength  the number of bytes in the term
+     * @return true if term is found within value
+     */
+    public static boolean contains(byte[] value, int valueOffset, int valueLength, byte[] term, int termOffset, int termLength) {
+        Objects.checkFromIndexSize(valueOffset, valueLength, value.length);
+        Objects.checkFromIndexSize(termOffset, termLength, term.length);
+        if (termLength == 0) {
+            return true;
+        }
+        if (termLength > valueLength) {
+            return false;
+        }
+        return IMPL.contains(value, valueOffset, valueLength, term, termOffset, termLength);
+    }
+
+    /**
      * Count the number of Unicode code points in a utf-8 encoded string. Assumes that the input
      * string is correctly encoded. If the input string is incorrectly encoded, no errors will be
      * thrown, but invalid results will be returned.

@@ -297,9 +297,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {csv-spec:spatial_shapes.convertFromStringParseError}
   issue: https://github.com/elastic/elasticsearch/issues/144672
-- class: org.elasticsearch.repositories.gcs.GoogleCloudStorageBlobStoreRepositoryTests
-  method: testCopy
-  issue: https://github.com/elastic/elasticsearch/issues/144692
 - class: org.elasticsearch.index.store.StoreDirectoryMetricsIT
   method: testDirectoryMetrics
   issue: https://github.com/elastic/elasticsearch/issues/144702
@@ -369,6 +366,12 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
   method: test {csv-spec:approximation.Warn on max}
   issue: https://github.com/elastic/elasticsearch/issues/145218
+- class: org.elasticsearch.xpack.sql.qa.jdbc.single_node.SingleNodeJdbcResultSetIT
+  method: testGettingValidShortWithoutCasting
+  issue: https://github.com/elastic/elasticsearch/issues/145241
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundToTests
+  method: testCrankyEvaluateBlockWithoutNulls {TestCase=<int, 20 fixed-interval ints>}
+  issue: https://github.com/elastic/elasticsearch/issues/145245
 
 # Examples:
 #

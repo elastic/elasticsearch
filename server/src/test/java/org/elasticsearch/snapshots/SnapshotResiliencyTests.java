@@ -1040,6 +1040,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
     }
 
     public void testSuccessfulSnapshotWithConcurrentDynamicMappingUpdates() {
+
         setupTestCluster(randomFrom(1, 3, 5), randomIntBetween(2, 10));
 
         String repoName = "repo";

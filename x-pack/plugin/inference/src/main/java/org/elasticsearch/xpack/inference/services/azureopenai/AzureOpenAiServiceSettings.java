@@ -18,7 +18,6 @@ import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObjec
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
@@ -137,7 +136,7 @@ public abstract class AzureOpenAiServiceSettings extends FilteredXContentObject 
         }
 
         var validationException = new ValidationException();
-        var newOAuth2Settings = oAuth2Settings.updateServiceSettings(new HashMap<>(serviceSettings), validationException);
+        var newOAuth2Settings = oAuth2Settings.updateServiceSettings(serviceSettings, validationException);
 
         validationException.throwIfValidationErrorsExist();
 

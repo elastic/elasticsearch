@@ -594,6 +594,8 @@ public class SearchableSnapshotDirectoryTests extends AbstractSearchableSnapshot
                 );
 
                 final ProjectId projectId = randomProjectIdOrDefault();
+                final var clusterService = BlobStoreTestUtil.mockClusterService(projectId, repositoryMetadata);
+                BlobStoreTestUtil.createIndex(clusterService, projectId, indexSettings.getIndexMetadata());
                 final BlobStoreRepository repository = new FsRepository(
                     projectId,
                     repositoryMetadata,
@@ -606,7 +608,7 @@ public class SearchableSnapshotDirectoryTests extends AbstractSearchableSnapshot
                         null
                     ),
                     NamedXContentRegistry.EMPTY,
-                    BlobStoreTestUtil.mockClusterService(projectId, repositoryMetadata),
+                    clusterService,
                     MockBigArrays.NON_RECYCLING_INSTANCE,
                     new RecoverySettings(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS))
                 );

@@ -397,7 +397,7 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
                 SourceFilter filter,
                 Map<String, List<Object>> storedFields,
                 int docId,
-                LeafReader leafReader
+                MultiValuedSortedBinaryDocValues docValues
             ) {
                 return Map.of();
             }
@@ -419,7 +419,7 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
                 SourceFilter filter,
                 Map<String, List<Object>> storedFields,
                 int docId,
-                LeafReader leafReader
+                MultiValuedSortedBinaryDocValues docValues
             ) {
                 var ignoredStoredValues = storedFields.get(NAME);
                 if (ignoredStoredValues == null) {
@@ -454,7 +454,7 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
                 SourceFilter filter,
                 Map<String, List<Object>> storedFields,
                 int docId,
-                LeafReader leafReader
+                MultiValuedSortedBinaryDocValues docValues
             ) {
                 var ignoredStoredValues = storedFields.get(NAME);
                 if (ignoredStoredValues == null) {
@@ -532,10 +532,9 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
                 SourceFilter filter,
                 Map<String, List<Object>> storedFields,
                 int docId,
-                LeafReader leafReader
+                MultiValuedSortedBinaryDocValues docValues
             ) throws IOException {
-                MultiValuedSortedBinaryDocValues docValues = MultiValuedSortedBinaryDocValues.from(leafReader, NAME);
-                if (docValues == null || docValues.advanceExact(docId) == false) {
+                if (docValues.advanceExact(docId) == false) {
                     return Map.of();
                 }
                 Map<String, List<NameValue>> objectsWithIgnoredFields = new HashMap<>();
@@ -574,14 +573,14 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
          * @param filter       optional path filter; filtered paths are excluded from the result
          * @param storedFields pre-loaded stored fields for the document (used by stored-field-based formats)
          * @param docId        the Lucene doc ID within the current leaf
-         * @param leafReader   the leaf reader for the current segment (used by doc-values-based formats)
+         * @param docValues    doc values instance for accessing ignored source (used by doc-values-based formats)
          * @return map from parent field name to list of {@link NameValue}, or an empty map when no entries exist
          */
         public abstract Map<String, List<NameValue>> loadIgnoredFields(
             SourceFilter filter,
             Map<String, List<Object>> storedFields,
             int docId,
-            LeafReader leafReader
+            MultiValuedSortedBinaryDocValues docValues
         ) throws IOException;
 
         public abstract void writeIgnoredFields(Collection<NameValue> ignoredFieldValues);

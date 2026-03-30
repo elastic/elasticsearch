@@ -1,34 +1,42 @@
 Simple MMR diversification
 required_capability: mmr_v2
 
+// tag::simpleMMR[]
 FROM mmr_text_vector_keyword
 | SORT keyword_field
 | LIMIT 10
 | MMR ON text_vector LIMIT 3
 | DROP text_vector, byte_vector, bit_vector
+// end::simpleMMR[]
 ;
 
+// tag::simpleMMR-result-[]
 keyword_field:keyword | text_body:text     
 test1                 | first text
 test3                 | third text
 test6                 | sixth text
+// end::simpleMMR-result[]
 ;
 
 
 MMR with static query vector low lambda
 required_capability: mmr_v2
 
+// tag::simpleMMRWithQueryVector[]
 FROM mmr_text_vector_keyword
 | SORT keyword_field
 | LIMIT 10
 | MMR [0.1, 0.2, 0.3] ON text_vector LIMIT 3 WITH { "lambda": 0.1 }
 | DROP text_vector, byte_vector, bit_vector
+// end::simpleMMRWithQueryVector[]
 ;
 
+// tag::simpleMMRWithQueryVector-result-[]
 keyword_field:keyword | text_body:text     
 test3                 | third text
 test6                 | sixth text
 test8                 | eighth text
+// end::simpleMMRWithQueryVector-result[]
 ;
 
 
@@ -125,6 +133,7 @@ required_capability: dense_vector_field_type_released
 required_capability: knn_function_v5
 required_capability: mmr_v2
 
+// tag::simpleMMRWithTextEmbedding[]
 FROM dense_vector_text METADATA _score
 | EVAL query_embedding = TEXT_EMBEDDING("be excellent to each other", "test_dense_inference")
 | WHERE KNN(text_embedding_field, query_embedding)
@@ -132,12 +141,15 @@ FROM dense_vector_text METADATA _score
 | LIMIT 10
 | MMR TEXT_EMBEDDING("be excellent to each other", "test_dense_inference") ON text_embedding_field LIMIT 3 WITH { "lambda": 0.2 }
 | KEEP text_field, query_embedding
+// end::simpleMMRWithTextEmbedding[]
 ;
 
-text_field:text                                                      | query_embedding:dense_vector
+// tag::simpleMMRWithTextEmbedding-result-[]
+text_field:text                                                       | query_embedding:dense_vector
 be excellent to each other                                            | [45.0, 55.0, 54.0]          
 live long and prosper                                                 | [45.0, 55.0, 54.0]          
 all we have to decide is what to do with the time that is given to us | [45.0, 55.0, 54.0]       
+// end::simpleMMRWithTextEmbedding-result[]
 ;
 
 MMR with single dimension vector

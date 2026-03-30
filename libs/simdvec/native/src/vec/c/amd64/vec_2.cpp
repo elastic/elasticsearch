@@ -64,56 +64,49 @@ inline __m512i fma8(__m512i acc, const int8_t* p1, const int8_t* p2) {
 }
 
 static inline int32_t dot7u_inner_avx512(const int8_t* a, const int8_t* b, const int32_t dims) {
-    constexpr int stride8 = 8 * STRIDE_BYTES_LEN;
-    constexpr int stride4 = 4 * STRIDE_BYTES_LEN;
+    constexpr int batches = 8;
+    constexpr int half_batches = 4;
+    constexpr int stride8 = batches * STRIDE_BYTES_LEN;
+    constexpr int stride4 = half_batches * STRIDE_BYTES_LEN;
     const int8_t* p1 = a;
     const int8_t* p2 = b;
 
+
+
+    __m512i acc[batches];
     // Init accumulator(s) with 0
-    __m512i acc0 = _mm512_setzero_si512();
-    __m512i acc1 = _mm512_setzero_si512();
-    __m512i acc2 = _mm512_setzero_si512();
-    __m512i acc3 = _mm512_setzero_si512();
-    __m512i acc4 = _mm512_setzero_si512();
-    __m512i acc5 = _mm512_setzero_si512();
-    __m512i acc6 = _mm512_setzero_si512();
-    __m512i acc7 = _mm512_setzero_si512();
+    apply_indexed<batches>([&](auto I) {
+        acc[I] = _mm512_setzero_si512();
+    });
 
     const int8_t* p1End = a + (dims & ~(stride8 - 1));
     while (p1 < p1End) {
-        acc0 = fma8<0>(acc0, p1, p2);
-        acc1 = fma8<1>(acc1, p1, p2);
-        acc2 = fma8<2>(acc2, p1, p2);
-        acc3 = fma8<3>(acc3, p1, p2);
-        acc4 = fma8<4>(acc4, p1, p2);
-        acc5 = fma8<5>(acc5, p1, p2);
-        acc6 = fma8<6>(acc6, p1, p2);
-        acc7 = fma8<7>(acc7, p1, p2);
+        apply_indexed<batches>([&](auto I) {
+            acc[I] = fma8<I>(acc[I], p1, p2);
+        });
         p1 += stride8;
         p2 += stride8;
     }
 
     p1End = a + (dims & ~(stride4 - 1));
     while (p1 < p1End) {
-        acc0 = fma8<0>(acc0, p1, p2);
-        acc1 = fma8<1>(acc1, p1, p2);
-        acc2 = fma8<2>(acc2, p1, p2);
-        acc3 = fma8<3>(acc3, p1, p2);
+        apply_indexed<half_batches>([&](auto I) {
+            acc[I] = fma8<I>(acc[I], p1, p2);
+        });
         p1 += stride4;
         p2 += stride4;
     }
 
     p1End = a + (dims & ~(STRIDE_BYTES_LEN - 1));
     while (p1 < p1End) {
-        acc0 = fma8<0>(acc0, p1, p2);
+        acc[0] = fma8<0>(acc[0], p1, p2);
         p1 += STRIDE_BYTES_LEN;
         p2 += STRIDE_BYTES_LEN;
     }
 
     // reduce (accumulate all)
-    acc0 = _mm512_add_epi32(_mm512_add_epi32(acc0, acc1), _mm512_add_epi32(acc2, acc3));
-    acc4 = _mm512_add_epi32(_mm512_add_epi32(acc4, acc5), _mm512_add_epi32(acc6, acc7));
-    return _mm512_reduce_add_epi32(_mm512_add_epi32(acc0, acc4));
+    __m512i total_sum = tree_reduce<batches, __m512i, _mm512_add_epi32>(acc);
+    return _mm512_reduce_add_epi32(total_sum);
 }
 
 EXPORT int32_t vec_dot7u_2(const int8_t* a, const int8_t* b, const int32_t dims) {
@@ -139,57 +132,51 @@ static inline void dot7u_inner_bulk(
     const int32_t count,
     f32_t* results
 ) {
+    constexpr int batches = 4;
     const int blk = dims & ~(STRIDE_BYTES_LEN - 1);
     const int lines_to_fetch = dims / CACHE_LINE_SIZE + 1;
     int c = 0;
 
-    const int8_t* a0 = count > 0 ? mapper(a, 0, offsets, pitch) : nullptr;
-    const int8_t* a1 = count > 1 ? mapper(a, 1, offsets, pitch) : nullptr;
-    const int8_t* a2 = count > 2 ? mapper(a, 2, offsets, pitch) : nullptr;
-    const int8_t* a3 = count > 3 ? mapper(a, 3, offsets, pitch) : nullptr;
+    // Pointers to the current batch of input vectors, resolved via mapper.
+    // current_vecs[0] points to the vector for index 0, [1] for index 1, etc.
+    const int8_t* current_vecs[batches];
+    init_pointers<batches, int8_t, int8_t, mapper>(current_vecs, a, pitch, offsets, 0, count);
 
-    // Process a batch of 4 vectors at a time, after instructing the CPU to
-    // prefetch the next batch.
+    // Process a batch of `batches` vectors at a time, after instructing the
+    // CPU to prefetch the next batch.
     // Prefetching multiple memory locations while computing keeps the CPU
     // execution units busy.
-    for (; c + 7 < count; c += 4) {
-        const int8_t* next_a0 = mapper(a, c + 4, offsets, pitch);
-        const int8_t* next_a1 = mapper(a, c + 5, offsets, pitch);
-        const int8_t* next_a2 = mapper(a, c + 6, offsets, pitch);
-        const int8_t* next_a3 = mapper(a, c + 7, offsets, pitch);
+    for (; c + batches - 1 < count; c += batches) {
+        const int8_t* next_vecs[batches];
+        const bool has_next = c + 2 * batches - 1 < count;
+        if (has_next) {
+            apply_indexed<batches>([&](auto I) {
+                next_vecs[I] = mapper(a, c + batches + I, offsets, pitch);
+                prefetch(next_vecs[I], lines_to_fetch);
+            });
+        }
 
-        prefetch(next_a0, lines_to_fetch);
-        prefetch(next_a1, lines_to_fetch);
-        prefetch(next_a2, lines_to_fetch);
-        prefetch(next_a3, lines_to_fetch);
-
-        int32_t res0 = 0;
-        int32_t res1 = 0;
-        int32_t res2 = 0;
-        int32_t res3 = 0;
+        int32_t res[batches] = {};
         int i = 0;
         if (dims > STRIDE_BYTES_LEN) {
             i = blk;
-            res0 = dot7u_inner_avx512(a0, b, i);
-            res1 = dot7u_inner_avx512(a1, b, i);
-            res2 = dot7u_inner_avx512(a2, b, i);
-            res3 = dot7u_inner_avx512(a3, b, i);
+            apply_indexed<batches>([&](auto I) {
+                res[I] = dot7u_inner_avx512(current_vecs[I], b, i);
+            });
         }
         for (; i < dims; i++) {
             const int8_t bb = b[i];
-            res0 += a0[i] * bb;
-            res1 += a1[i] * bb;
-            res2 += a2[i] * bb;
-            res3 += a3[i] * bb;
+            apply_indexed<batches>([&](auto I) {
+                res[I] += current_vecs[I][i] * bb;
+            });
         }
-        results[c + 0] = (f32_t)res0;
-        results[c + 1] = (f32_t)res1;
-        results[c + 2] = (f32_t)res2;
-        results[c + 3] = (f32_t)res3;
-        a0 = next_a0;
-        a1 = next_a1;
-        a2 = next_a2;
-        a3 = next_a3;
+
+        apply_indexed<batches>([&](auto I) {
+            results[c + I] = (f32_t)res[I];
+        });
+        if (has_next) {
+            std::copy_n(next_vecs, batches, current_vecs);
+        }
     }
 
     // Tail-handling: remaining vectors
@@ -305,62 +292,51 @@ static inline void sqr7u_inner_bulk(
     const int32_t count,
     f32_t* results
 ) {
+    constexpr int batches = 4;
     const int blk = dims & ~(STRIDE_BYTES_LEN - 1);
     const int lines_to_fetch = dims / CACHE_LINE_SIZE + 1;
     int c = 0;
 
-    const int8_t* a0 = count > 0 ? mapper(a, 0, offsets, pitch) : nullptr;
-    const int8_t* a1 = count > 1 ? mapper(a, 1, offsets, pitch) : nullptr;
-    const int8_t* a2 = count > 2 ? mapper(a, 2, offsets, pitch) : nullptr;
-    const int8_t* a3 = count > 3 ? mapper(a, 3, offsets, pitch) : nullptr;
+    // Pointers to the current batch of input vectors, resolved via mapper.
+    const int8_t* current_vecs[batches];
+    init_pointers<batches, int8_t, int8_t, mapper>(current_vecs, a, pitch, offsets, 0, count);
 
-    // Process a batch of 4 vectors at a time, after instructing the CPU to
-    // prefetch the next batch.
+    // Process a batch of `batches` vectors at a time, after instructing the
+    // CPU to prefetch the next batch.
     // Prefetching multiple memory locations while computing keeps the CPU
     // execution units busy.
-    for (; c + 7 < count; c += 4) {
-        const int8_t* next_a0 = mapper(a, c + 4, offsets, pitch);
-        const int8_t* next_a1 = mapper(a, c + 5, offsets, pitch);
-        const int8_t* next_a2 = mapper(a, c + 6, offsets, pitch);
-        const int8_t* next_a3 = mapper(a, c + 7, offsets, pitch);
+    for (; c + batches - 1 < count; c += batches) {
+        const int8_t* next_vecs[batches];
+        const bool has_next = c + 2 * batches - 1 < count;
+        if (has_next) {
+            apply_indexed<batches>([&](auto I) {
+                next_vecs[I] = mapper(a, c + batches + I, offsets, pitch);
+                prefetch(next_vecs[I], lines_to_fetch);
+            });
+        }
 
-        prefetch(next_a0, lines_to_fetch);
-        prefetch(next_a1, lines_to_fetch);
-        prefetch(next_a2, lines_to_fetch);
-        prefetch(next_a3, lines_to_fetch);
-
-        int32_t res0 = 0;
-        int32_t res1 = 0;
-        int32_t res2 = 0;
-        int32_t res3 = 0;
+        int32_t res[batches] = {};
         int i = 0;
         if (dims > STRIDE_BYTES_LEN) {
             i = blk;
-            res0 = sqr7u_inner_avx512(a0, b, i);
-            res1 = sqr7u_inner_avx512(a1, b, i);
-            res2 = sqr7u_inner_avx512(a2, b, i);
-            res3 = sqr7u_inner_avx512(a3, b, i);
+            apply_indexed<batches>([&](auto I) {
+                res[I] = sqr7u_inner_avx512(current_vecs[I], b, i);
+            });
         }
         for (; i < dims; i++) {
             const int8_t bb = b[i];
-            int32_t dist0 = a0[i] - bb;
-            int32_t dist1 = a0[i] - bb;
-            int32_t dist2 = a0[i] - bb;
-            int32_t dist3 = a0[i] - bb;
-
-            res0 += dist0 * dist0;
-            res1 += dist1 * dist1;
-            res2 += dist2 * dist2;
-            res3 += dist3 * dist3;
+            apply_indexed<batches>([&](auto I) {
+                int32_t dist = current_vecs[I][i] - bb;
+                res[I] += dist * dist;
+            });
         }
-        results[c + 0] = (f32_t)res0;
-        results[c + 1] = (f32_t)res1;
-        results[c + 2] = (f32_t)res2;
-        results[c + 3] = (f32_t)res3;
-        a0 = next_a0;
-        a1 = next_a1;
-        a2 = next_a2;
-        a3 = next_a3;
+
+        apply_indexed<batches>([&](auto I) {
+            results[c + I] = (f32_t)res[I];
+        });
+        if (has_next) {
+            std::copy_n(next_vecs, batches, current_vecs);
+        }
     }
 
     // Tail-handling: remaining vectors

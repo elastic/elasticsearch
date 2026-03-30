@@ -9,13 +9,18 @@ package org.elasticsearch.xpack.dlm.frozen;
 
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockRequest;
-import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockResponse;
+import org.elasticsearch.action.admin.indices.readonly.TransportAddIndexBlockAction;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.datastreams.DataStreamsPlugin;
+import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.license.internal.XPackLicenseStatus;
@@ -23,10 +28,13 @@ import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotState;
-import org.elasticsearch.xcontent.XContentType;
 
 import java.time.Clock;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.APIBlock.WRITE;
 import static org.hamcrest.Matchers.equalTo;
@@ -63,11 +71,15 @@ public class DataStreamLifecycleConvertToFrozenSnapshotIT extends AbstractSnapsh
             indexName,
             Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
         );
-        indexDoc(indexName);
+        indexDoc(indexName, "some_id", "field", "value");
         flushAndRefresh(indexName);
 
+        // Mark the index with the frozen candidate repository metadata
+        setFrozenCandidateRepo(indexName, REPO_NAME);
+
         // Add write block to make the index read-only (as required before snapshot)
-        AcknowledgedResponse blockResp = client().admin().indices().addBlock(new AddIndexBlockRequest(WRITE, indexName)).actionGet();
+        AddIndexBlockResponse blockResp = client().execute(TransportAddIndexBlockAction.TYPE, new AddIndexBlockRequest(WRITE, indexName))
+            .actionGet();
         assertTrue(blockResp.isAcknowledged());
 
         ProjectState projectState = getProjectState();
@@ -89,7 +101,7 @@ public class DataStreamLifecycleConvertToFrozenSnapshotIT extends AbstractSnapsh
 
         List<SnapshotInfo> snapshots = getSnapshotsResponse.getSnapshots();
         assertThat(snapshots.size(), is(1));
-        SnapshotInfo snapshotInfo = snapshots.get(0);
+        SnapshotInfo snapshotInfo = snapshots.getFirst();
         assertThat(snapshotInfo.state(), is(SnapshotState.SUCCESS));
         assertThat(snapshotInfo.failedShards(), is(0));
         assertThat(snapshotInfo.snapshotId().getName(), is(expectedSnapshotName));
@@ -103,10 +115,13 @@ public class DataStreamLifecycleConvertToFrozenSnapshotIT extends AbstractSnapsh
             indexName,
             Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
         );
-        indexDoc(indexName);
+        indexDoc(indexName, "some_id", "field", "value");
         flushAndRefresh(indexName);
 
-        AcknowledgedResponse blockResp = client().admin().indices().addBlock(new AddIndexBlockRequest(WRITE, indexName)).actionGet();
+        setFrozenCandidateRepo(indexName, REPO_NAME);
+
+        AddIndexBlockResponse blockResp = client().execute(TransportAddIndexBlockAction.TYPE, new AddIndexBlockRequest(WRITE, indexName))
+            .actionGet();
         assertTrue(blockResp.isAcknowledged());
 
         // First call — creates the snapshot
@@ -140,13 +155,15 @@ public class DataStreamLifecycleConvertToFrozenSnapshotIT extends AbstractSnapsh
         assertThat(getSnapshotsResponse.getSnapshots().size(), is(1));
     }
 
-    public void testMaybeTakeSnapshotWithMissingRepoThrows() {
+    public void testMaybeTakeSnapshotWithMissingRepoThrows() throws Exception {
         // Don't create a repository — configure a default repo that doesn't exist
         String indexName = "test-index-no-repo";
         createIndex(
             indexName,
             Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
         );
+
+        setFrozenCandidateRepo(indexName, REPO_NAME);
 
         ProjectState projectState = getProjectState();
         DataStreamLifecycleConvertToFrozen converter = new DataStreamLifecycleConvertToFrozen(
@@ -177,10 +194,13 @@ public class DataStreamLifecycleConvertToFrozenSnapshotIT extends AbstractSnapsh
             indexName,
             Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
         );
-        indexDoc(indexName);
+        indexDoc(indexName, "some_id", "field", "value");
         flushAndRefresh(indexName);
 
-        AcknowledgedResponse blockResp = client().admin().indices().addBlock(new AddIndexBlockRequest(WRITE, indexName)).actionGet();
+        setFrozenCandidateRepo(indexName, REPO_NAME);
+
+        AddIndexBlockResponse blockResp = client().execute(TransportAddIndexBlockAction.TYPE, new AddIndexBlockRequest(WRITE, indexName))
+            .actionGet();
         assertTrue(blockResp.isAcknowledged());
 
         ProjectState projectState = getProjectState();
@@ -198,12 +218,13 @@ public class DataStreamLifecycleConvertToFrozenSnapshotIT extends AbstractSnapsh
             .setSnapshots(expectedSnapshotName)
             .get();
 
-        SnapshotInfo snapshotInfo = response.getSnapshots().get(0);
+        SnapshotInfo snapshotInfo = response.getSnapshots().getFirst();
         // Verify the snapshot does not include global state
         assertThat(snapshotInfo.includeGlobalState(), is(false));
         // Verify user metadata
-        assertThat(snapshotInfo.userMetadata(), is(notNullValue()));
-        assertThat(snapshotInfo.userMetadata().get("dlm-managed"), is(true));
+        Map<String, Object> userMetadata = snapshotInfo.userMetadata();
+        assertThat(userMetadata, is(notNullValue()));
+        assertThat(userMetadata.get("dlm-managed"), is(true));
     }
 
     private ProjectState getProjectState() {
@@ -211,7 +232,42 @@ public class DataStreamLifecycleConvertToFrozenSnapshotIT extends AbstractSnapsh
         return clusterState.projectState(Metadata.DEFAULT_PROJECT_ID);
     }
 
-    private void indexDoc(String indexName) {
-        client().index(new IndexRequest(indexName).source("{\"field\": \"value\"}", XContentType.JSON)).actionGet();
+    /**
+     * Sets the frozen candidate repository metadata on the given index via a cluster state update.
+     * This simulates what {@code MarkIndicesForFrozenTask} does during normal DLM operation.
+     */
+    private void setFrozenCandidateRepo(String indexName, String repoName) throws InterruptedException {
+        CountDownLatch latch = new CountDownLatch(1);
+        ClusterService clusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
+        clusterService.submitUnbatchedStateUpdateTask("set-frozen-candidate-repo", new ClusterStateUpdateTask() {
+            @Override
+            public ClusterState execute(ClusterState currentState) {
+                ProjectMetadata project = currentState.metadata().getProject(Metadata.DEFAULT_PROJECT_ID);
+                IndexMetadata indexMetadata = project.index(indexName);
+                Map<String, String> existingCustom = indexMetadata.getCustomData(DataStreamsPlugin.LIFECYCLE_CUSTOM_INDEX_METADATA_KEY);
+                Map<String, String> newCustom = existingCustom != null ? new HashMap<>(existingCustom) : new HashMap<>();
+                newCustom.put(DataStreamLifecycleService.FROZEN_CANDIDATE_REPOSITORY_METADATA_KEY, repoName);
+
+                IndexMetadata updatedIndexMetadata = IndexMetadata.builder(indexMetadata)
+                    .putCustom(DataStreamsPlugin.LIFECYCLE_CUSTOM_INDEX_METADATA_KEY, newCustom)
+                    .build();
+
+                ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(project).put(updatedIndexMetadata, true);
+                Metadata updatedMetadata = Metadata.builder(currentState.metadata()).put(projectBuilder).build();
+                return ClusterState.builder(currentState).metadata(updatedMetadata).build();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                fail("Failed to update cluster state: " + e.getMessage());
+                latch.countDown();
+            }
+
+            @Override
+            public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
+                latch.countDown();
+            }
+        });
+        assertTrue("Timed out waiting for cluster state update", latch.await(30, TimeUnit.SECONDS));
     }
 }

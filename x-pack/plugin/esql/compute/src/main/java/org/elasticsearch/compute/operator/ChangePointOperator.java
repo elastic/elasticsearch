@@ -96,7 +96,7 @@ public class ChangePointOperator extends CompleteInputCollectorOperator {
         }
         boolean tooManyValues = valuesCount > INPUT_VALUE_COUNT_LIMIT;
         if (tooManyValues) {
-            valuesCount = INPUT_VALUE_COUNT_LIMIT; // TODO Should this remain the total limit or limit per group?
+            valuesCount = INPUT_VALUE_COUNT_LIMIT;
         }
 
         List<Double> values = new ArrayList<>();

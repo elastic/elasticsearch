@@ -163,8 +163,7 @@ public class ChangePoint extends UnaryPlan
         OrderBy orderBy = new OrderBy(source(), child(), orders());
         Literal limitPlusOne = new Literal(Source.EMPTY, ChangePointOperator.INPUT_VALUE_COUNT_LIMIT + 1, DataType.INTEGER);
         Literal limitExact = new Literal(Source.EMPTY, ChangePointOperator.INPUT_VALUE_COUNT_LIMIT, DataType.INTEGER);
-        // The first Limit of N+1 data points is necessary to generate a possible warning. // TODO I don't get this. Should we limit 1001
-        // per group initially or?
+        // The first Limit of N+1 data points is necessary to generate a possible warning.
         LogicalPlan limited = grouping == null
             ? new Limit(source(), limitPlusOne, orderBy)
             : new LimitBy(source(), limitPlusOne, orderBy, List.of(grouping));

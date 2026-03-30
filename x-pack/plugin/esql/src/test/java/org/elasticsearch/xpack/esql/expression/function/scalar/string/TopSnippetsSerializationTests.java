@@ -52,21 +52,22 @@ public class TopSnippetsSerializationTests extends AbstractExpressionSerializati
             entries.add(Literal.keyword(Source.EMPTY, "num_words"));
             entries.add(new Literal(Source.EMPTY, randomIntBetween(0, 1000), DataType.INTEGER));
         }
-        if (randomBoolean()) {
+        boolean highlight = randomBoolean();
+        if (highlight) {
             entries.add(Literal.keyword(Source.EMPTY, "highlight"));
-            entries.add(new Literal(Source.EMPTY, randomBoolean(), DataType.BOOLEAN));
-        }
-        if (randomBoolean()) {
-            entries.add(Literal.keyword(Source.EMPTY, "pre_tags"));
-            entries.add(Literal.keyword(Source.EMPTY, randomFrom("<em>", "<b>", "<mark>")));
-        }
-        if (randomBoolean()) {
-            entries.add(Literal.keyword(Source.EMPTY, "post_tags"));
-            entries.add(Literal.keyword(Source.EMPTY, randomFrom("</em>", "</b>", "</mark>")));
-        }
-        if (randomBoolean()) {
-            entries.add(Literal.keyword(Source.EMPTY, "encoder"));
-            entries.add(Literal.keyword(Source.EMPTY, randomFrom("default", "html")));
+            entries.add(new Literal(Source.EMPTY, true, DataType.BOOLEAN));
+            if (randomBoolean()) {
+                entries.add(Literal.keyword(Source.EMPTY, "pre_tags"));
+                entries.add(Literal.keyword(Source.EMPTY, randomFrom("<em>", "<b>", "<mark>")));
+            }
+            if (randomBoolean()) {
+                entries.add(Literal.keyword(Source.EMPTY, "post_tags"));
+                entries.add(Literal.keyword(Source.EMPTY, randomFrom("</em>", "</b>", "</mark>")));
+            }
+            if (randomBoolean()) {
+                entries.add(Literal.keyword(Source.EMPTY, "encoder"));
+                entries.add(Literal.keyword(Source.EMPTY, randomFrom("default", "html")));
+            }
         }
         return new MapExpression(Source.EMPTY, entries);
     }

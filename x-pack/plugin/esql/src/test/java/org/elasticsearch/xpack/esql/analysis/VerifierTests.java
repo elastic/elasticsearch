@@ -3727,6 +3727,22 @@ public class VerifierTests extends ESTestCase {
             "from test | EVAL snippets = TOP_SNIPPETS(body, \"query\", {\"num_words\": -1})",
             equalTo("1:29: 'num_words' option must be a non-negative integer, found [-1]")
         );
+        fullText().error(
+            "from test | EVAL snippets = TOP_SNIPPETS(body, \"query\", {\"encoder\": \"xml\"})",
+            equalTo("1:29: 'encoder' option must be 'default' or 'html', found [xml]")
+        );
+        fullText().error(
+            "from test | EVAL snippets = TOP_SNIPPETS(body, \"query\", {\"pre_tags\": \"<b>\"})",
+            equalTo("1:29: 'pre_tags', 'post_tags', and 'encoder' options require 'highlight' to be true")
+        );
+        fullText().error(
+            "from test | EVAL snippets = TOP_SNIPPETS(body, \"query\", {\"post_tags\": \"</b>\"})",
+            equalTo("1:29: 'pre_tags', 'post_tags', and 'encoder' options require 'highlight' to be true")
+        );
+        fullText().error(
+            "from test | EVAL snippets = TOP_SNIPPETS(body, \"query\", {\"highlight\": false, \"encoder\": \"html\"})",
+            equalTo("1:29: 'pre_tags', 'post_tags', and 'encoder' options require 'highlight' to be true")
+        );
     }
 
     public void testTimeSeriesWithUnsupportedDataType() {

@@ -30,6 +30,7 @@ import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.MergeSchedulerConfig;
 import org.elasticsearch.index.SearchSlowLog;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
+import org.elasticsearch.index.codec.tsdb.TSDBSyntheticIdSegmentDetailsLogger;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -199,6 +200,9 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexSettings.LIFECYCLE_ORIGINATION_DATE_SETTING,
                 IndexSettings.LIFECYCLE_PARSE_ORIGINATION_DATE_SETTING,
                 IndexSettings.TIME_SERIES_ES87TSDB_CODEC_ENABLED_SETTING,
+                TSDBSyntheticIdSegmentDetailsLogger.INFO_THRESHOLD_SETTING,
+                TSDBSyntheticIdSegmentDetailsLogger.WARN_THRESHOLD_SETTING,
+                TSDBSyntheticIdSegmentDetailsLogger.ERROR_THRESHOLD_SETTING,
                 IndexSettings.LOGSDB_ROUTE_ON_SORT_FIELDS,
                 IndexSettings.LOGSDB_SORT_ON_HOST_NAME,
                 IndexSettings.LOGSDB_SORT_ON_MESSAGE_TEMPLATE,

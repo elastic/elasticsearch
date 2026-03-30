@@ -49,15 +49,16 @@ public class TSDBSyntheticIdFieldsProducer extends FieldsProducer {
     private final FieldInfos fieldInfos;
     private final int maxDocs;
 
-    public TSDBSyntheticIdFieldsProducer(SegmentReadState state, DocValuesProducer docValuesProducer) {
-        this(state.fieldInfos, docValuesProducer, state.segmentInfo.maxDoc());
-    }
-
-    private TSDBSyntheticIdFieldsProducer(FieldInfos fieldInfos, DocValuesProducer docValuesProducer, int maxDocs) {
-        assert assertFieldInfosExist(fieldInfos, SYNTHETIC_ID, TIMESTAMP, TS_ID);
+    public TSDBSyntheticIdFieldsProducer(
+        SegmentReadState state,
+        DocValuesProducer docValuesProducer,
+        TSDBSyntheticIdSegmentDetailsLogger logger
+    ) {
+        assert assertFieldInfosExist(state.fieldInfos, SYNTHETIC_ID, TIMESTAMP, TS_ID);
         this.docValuesProducer = Objects.requireNonNull(docValuesProducer);
-        this.fieldInfos = fieldInfos;
-        this.maxDocs = maxDocs;
+        this.fieldInfos = state.fieldInfos;
+        this.maxDocs = state.segmentInfo.maxDoc();
+        logger.maybeLogSegmentDetails(state, docValuesProducer);
     }
 
     @Override

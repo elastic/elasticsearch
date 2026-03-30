@@ -12,6 +12,7 @@ import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.VectorUtil;
+import org.elasticsearch.simdvec.internal.vectorization.JdkFeatures;
 
 import java.io.IOException;
 
@@ -138,7 +139,16 @@ public class ESNextOSQVectorsScorer {
     private long quantized4BitScorePacked(byte[] q) throws IOException {
         assert q.length == length * 2 : "length mismatch q " + q.length + " vs " + (length * 2);
         in.readBytes(packedScratch, 0, length);
-        return VectorUtil.int4DotProductSinglePacked(q, packedScratch);
+        if (JdkFeatures.SUPPORTS_HEAP_SEGMENTS) {
+            return VectorUtil.int4DotProductSinglePacked(q, packedScratch);
+        }
+        long score = 0;
+        for (int i = 0; i < length; i++) {
+            int packed = packedScratch[i] & 0xFF;
+            score += ((packed >>> 4) & 0x0F) * (q[i] & 0x0F);
+            score += (packed & 0x0F) * (q[i + length] & 0x0F);
+        }
+        return score;
     }
 
     private long quantized4BitScore2BitIndex(byte[] q) throws IOException {

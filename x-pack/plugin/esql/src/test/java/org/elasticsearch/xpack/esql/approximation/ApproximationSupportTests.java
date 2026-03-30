@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.DimensionValue
 import org.elasticsearch.xpack.esql.expression.function.aggregate.First;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FirstDocId;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FirstOverTime;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.FromPartial;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.HistogramMerge;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.HistogramMergeOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Idelta;
@@ -42,6 +43,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Present;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.PresentOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Scalar;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Sparkline;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialAggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialCentroid;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialExtent;
@@ -49,6 +51,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.StddevOverTime
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SumOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SumSerializationTests;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.TimeSeriesAggregateFunction;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.ToPartial;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Top;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.VarianceOverTime;
@@ -68,6 +71,7 @@ import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.NamedSubquery;
 import org.elasticsearch.xpack.esql.plan.logical.ParameterizedQuery;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
+import org.elasticsearch.xpack.esql.plan.logical.SparklineGenerateEmptyBuckets;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
@@ -176,6 +180,7 @@ public class ApproximationSupportTests extends ESTestCase {
         Keep.class,
         Rename.class,
         ResolvingProject.class,
+        SparklineGenerateEmptyBuckets.class,
 
         // PromQL plans are not supported yet.
         PromqlCommand.class,
@@ -219,6 +224,7 @@ public class ApproximationSupportTests extends ESTestCase {
         Absent.class,
         Present.class,
         Top.class,
+        Sparkline.class,
 
         // Spatial aggs are not supported for approximation.
         SpatialExtent.class,
@@ -237,6 +243,8 @@ public class ApproximationSupportTests extends ESTestCase {
         // These aggs don't occur in a correct query.
         SumSerializationTests.OldSum.class,
         AvgSerializationTests.OldAvg.class,
+        ToPartial.class,
+        FromPartial.class,
 
         // Time series aggregates are not supported yet.
         AbsentOverTime.class,

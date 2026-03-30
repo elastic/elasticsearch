@@ -51,8 +51,8 @@ import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.bfloat16V
 import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.getScorerFactoryOrDie;
 import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.supportsHeapSegments;
 import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.writeBFloat16VectorData;
-import static org.elasticsearch.benchmark.vector.scorer.ScalarOperations.dotProduct;
-import static org.elasticsearch.benchmark.vector.scorer.ScalarOperations.squareDistance;
+import static org.elasticsearch.nativeaccess.jdk.ScalarOperations.dotProduct;
+import static org.elasticsearch.nativeaccess.jdk.ScalarOperations.squareDistance;
 
 /**
  * Benchmark that compares bulk scoring of various bfloat16 vector similarity function

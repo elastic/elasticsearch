@@ -41,9 +41,7 @@ public record AzureAiStudioEmbeddingsRequestTaskSettings(@Nullable String user) 
 
         String user = extractOptionalString(map, USER_FIELD, ModelConfigurations.TASK_SETTINGS, validationException);
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new AzureAiStudioEmbeddingsRequestTaskSettings(user);
     }

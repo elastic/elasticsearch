@@ -20,6 +20,7 @@ import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
@@ -137,6 +138,11 @@ public class TSDBSyntheticIdFieldsProducer extends FieldsProducer {
          * Holds all doc values that composed the synthetic _id
          */
         private final TSDBSyntheticIdDocValuesHolder docValues;
+
+        /**
+         * Scratch buffer to avoid allocations when building synthetic IDs
+         */
+        private final BytesRefBuilder scratch = new BytesRefBuilder();
 
         /**
          * Current document ID the enum is positioned on. The value is -1 if the terms enum has not been seek ({@link #seekCeil(BytesRef)},
@@ -320,7 +326,7 @@ public class TSDBSyntheticIdFieldsProducer extends FieldsProducer {
             if (docTimestamp == null) {
                 docTimestamp = docValues.docTimestamp(docID);
             }
-            return docValues.docSyntheticId(docID, docTsIdOrd, docTimestamp);
+            return docValues.docSyntheticId(docID, docTsIdOrd, docTimestamp, scratch);
         }
 
         @Override

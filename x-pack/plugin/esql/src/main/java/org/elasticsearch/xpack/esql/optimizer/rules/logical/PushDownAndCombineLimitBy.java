@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
+import org.elasticsearch.xpack.esql.plan.GeneratingPlan;
 import org.elasticsearch.xpack.esql.plan.logical.CompoundOutputEval;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
@@ -31,7 +32,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-import static org.elasticsearch.xpack.esql.core.expression.Expressions.listSemanticEquals;
+import static org.elasticsearch.xpack.esql.core.expression.Expressions.listSemanticEqualsIgnoreOrder;
 
 /**
  * Push-down and combine rules specific to {@link LimitBy} (LIMIT N BY groupings).
@@ -44,7 +45,8 @@ public final class PushDownAndCombineLimitBy extends OptimizerRules.Parameterize
 
     @Override
     public LogicalPlan rule(LimitBy limitBy, LogicalOptimizerContext ctx) {
-        if (limitBy.child() instanceof LimitBy childLimitBy && listSemanticEquals(childLimitBy.groupings(), limitBy.groupings())) {
+        if (limitBy.child() instanceof LimitBy childLimitBy
+            && listSemanticEqualsIgnoreOrder(childLimitBy.groupings(), limitBy.groupings())) {
             return combineLimitBys(limitBy, childLimitBy, ctx.foldCtx());
         } else if (limitBy.child() instanceof UnaryPlan unary) {
             if (unary instanceof Eval
@@ -52,7 +54,7 @@ public final class PushDownAndCombineLimitBy extends OptimizerRules.Parameterize
                 || unary instanceof RegexExtract
                 || unary instanceof CompoundOutputEval<?>
                 || unary instanceof InferencePlan<?>) {
-                if (groupingsReferenceAttributeDefinedByChild(limitBy, unary)) {
+                if (groupingAttrsDefinedByChild(limitBy, unary)) {
                     return limitBy;
                 } else {
                     return unary.replaceChild(limitBy.replaceChild(unary.child()));
@@ -60,7 +62,7 @@ public final class PushDownAndCombineLimitBy extends OptimizerRules.Parameterize
             } else if (unary instanceof MvExpand) {
                 return duplicateLimitByAsFirstGrandchild(limitBy);
             } else if (unary instanceof Enrich enrich) {
-                if (groupingsReferenceAttributeDefinedByChild(limitBy, enrich)) {
+                if (groupingAttrsDefinedByChild(limitBy, enrich)) {
                     return limitBy;
                 }
                 if (enrich.mode() == Enrich.Mode.REMOTE) {
@@ -70,7 +72,7 @@ public final class PushDownAndCombineLimitBy extends OptimizerRules.Parameterize
                 }
             }
         } else if (limitBy.child() instanceof Join join && join.config().type() == JoinTypes.LEFT && join instanceof InlineJoin == false) {
-            if (groupingsReferenceAttributeNotInOutput(limitBy, join.left())) {
+            if (groupingAttrsNotInOutput(limitBy, join.left())) {
                 return limitBy;
             }
             return duplicateLimitByAsFirstGrandchild(limitBy);
@@ -93,15 +95,39 @@ public final class PushDownAndCombineLimitBy extends OptimizerRules.Parameterize
      * (i.e. present in the child's output but absent from the grandchild's output). Pushing a grouped limit
      * past such a child would leave the grouping attribute unresolved.
      */
-    private static boolean groupingsReferenceAttributeDefinedByChild(LimitBy limitBy, UnaryPlan child) {
-        return groupingsReferenceAttributeNotInOutput(limitBy, child.child());
+    private static boolean groupingAttrsDefinedByChild(LimitBy limitBy, UnaryPlan child) {
+        if (child instanceof GeneratingPlan<?> plan) {
+            return groupingAttrsDefinedBy(limitBy, plan);
+        }
+        // If the plan is not a GeneratingPlan we could still be generating new attributes in the child (e.g. a LOOKUP JOIN)
+        // The child introduces needed grouping attributes if there's any of those missing in the grandchild
+        return groupingAttrsNotInOutput(limitBy, child.child());
+    }
+
+    /**
+     * Returns {@code true} if any attribute referenced by the LimitBy's groupings is produced by the given
+     * {@link GeneratingPlan}. This directly checks the plan's generated attributes rather than comparing
+     * child vs grandchild output, which correctly handles the case where a generated attribute shadows
+     * (reuses the same {@link NameId} as) an attribute from the grandchild.
+     */
+    private static boolean groupingAttrsDefinedBy(LimitBy limitBy, GeneratingPlan<?> generatingPlan) {
+        Set<NameId> generatedIds = new HashSet<>();
+        for (Attribute a : generatingPlan.generatedAttributes()) {
+            generatedIds.add(a.id());
+        }
+        for (Expression g : limitBy.groupings()) {
+            if (g instanceof Attribute a && generatedIds.contains(a.id())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
      * Returns {@code true} if any attribute referenced by the LimitBy's groupings is absent from the given plan's output.
      * Duplicating the LimitBy below such a plan would leave the grouping attribute unresolved.
      */
-    private static boolean groupingsReferenceAttributeNotInOutput(LimitBy limitBy, LogicalPlan plan) {
+    private static boolean groupingAttrsNotInOutput(LimitBy limitBy, LogicalPlan plan) {
         Set<NameId> outputIds = new HashSet<>();
         for (Attribute a : plan.output()) {
             outputIds.add(a.id());

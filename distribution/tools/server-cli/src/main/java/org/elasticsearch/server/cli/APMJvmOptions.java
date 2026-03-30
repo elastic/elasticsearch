@@ -32,6 +32,8 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
 import java.util.StringJoiner;
+import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.telemetry.TelemetryProvider.OTEL_METRICS_ENABLED_SYSTEM_PROPERTY;
 
@@ -266,22 +268,19 @@ class APMJvmOptions {
     }
 
     /**
-     * Disables the APM agent hook that adds an exporter to application {@code SdkMeterProvider} instances.
-     * When Elasticsearch uses the in-process OTel SDK for metrics, that hook is redundant and can break export;
-     * traces still use the {@code opentelemetry} instrumentation (e.g. {@code GlobalOpenTelemetry} bridge).
+     * Disables the APM Agent hook that adds an exporter to application {@code SdkMeterProvider} instances.
+     * When Elasticsearch uses the OTel SDK for metrics, that hook is redundant and can break export;
+     * traces still use the APM Agent through {@code GlobalOpenTelemetry}.
      */
     static void disableMetricInstrumentation(Map<String, String> propertiesMap) {
         LinkedHashSet<String> parts = new LinkedHashSet<>();
         String existing = propertiesMap.get("disable_instrumentations");
-        if (existing != null && existing.isBlank() == false) {
-            for (String p : existing.split(",\\s*")) {
-                if (p.isBlank() == false) {
-                    parts.add(p.trim());
-                }
-            }
+        for (String p : Strings.splitStringByCommaToArray(existing)) {
+            parts.add(p.trim());
         }
         parts.add("opentelemetry-metrics");
-        propertiesMap.put("disable_instrumentations", String.join(",", parts));
+        String newValue = parts.stream().filter(Predicate.not(String::isBlank)).collect(Collectors.joining(","));
+        propertiesMap.put("disable_instrumentations", newValue);
     }
 
     private static StringJoiner extractGlobalLabels(String prefix, Map<String, String> propertiesMap, Settings settings) {

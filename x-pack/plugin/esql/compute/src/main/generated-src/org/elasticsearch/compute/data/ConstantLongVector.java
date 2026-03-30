@@ -13,6 +13,8 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.ReleasableIterator;
+
+import java.util.Arrays;
 // end generated imports
 
 /**
@@ -33,6 +35,11 @@ final class ConstantLongVector extends AbstractVector implements LongVector {
     @Override
     public long getLong(int position) {
         return value;
+    }
+
+    @Override
+    public void copyTo(int srcPosition, long[] dst, int dstPosition, int length) {
+        Arrays.fill(dst, dstPosition, dstPosition + length, value);
     }
 
     @Override

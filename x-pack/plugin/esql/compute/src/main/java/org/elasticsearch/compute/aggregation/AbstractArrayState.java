@@ -9,6 +9,8 @@ package org.elasticsearch.compute.aggregation;
 
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
+import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 
@@ -53,6 +55,13 @@ public abstract class AbstractArrayState implements Releasable, GroupingAggregat
     protected final boolean trackingGroupIds() {
         return seen != null;
     }
+
+    public abstract void toIntermediate(
+        Block[] blocks,
+        int offset,
+        IntVector selected,
+        org.elasticsearch.compute.operator.DriverContext driverContext
+    );
 
     @Override
     public void close() {

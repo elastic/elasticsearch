@@ -26,6 +26,7 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.test.StreamsUtils;
+import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.upgrades.FullClusterRestartUpgradeStatus;
 import org.elasticsearch.xcontent.ObjectPath;
@@ -208,6 +209,10 @@ public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCas
         }
     }
 
+    @TestIssueLogging(
+        value = "org.elasticsearch.xpack.restart.FullClusterRestartIT:DEBUG",
+        issueUrl = "https://github.com/elastic/elasticsearch/issues/131964"
+    )
     @SuppressWarnings("unchecked")
     public void testWatcherWithApiKey() throws Exception {
         final Request getWatchStatusRequest = new Request("GET", "/_watcher/watch/watch_with_api_key");
@@ -259,7 +264,6 @@ public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCas
 
             // Wait for watcher to actually start....
             startWatcher();
-
             try {
                 final Map<String, Object> getWatchStatusResponse = entityAsMap(client().performRequest(getWatchStatusRequest));
                 final Map<String, Object> status = (Map<String, Object>) getWatchStatusResponse.get("status");
@@ -276,8 +280,15 @@ public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCas
                     if (false == executed.get() && "executed".equals(newStatus.get("execution_state"))) {
                         executed.set(true);
                     }
+                    logger.debug("new watch status: {}", newStatus);
                     assertThat(
-                        "version increased: [" + versionIncreased.get() + "], executed: [" + executed.get() + "]",
+                        "version increased: ["
+                            + versionIncreased.get()
+                            + "], executed: ["
+                            + executed.get()
+                            + "], execution state: ["
+                            + newStatus.get("execution_state")
+                            + "]",
                         versionIncreased.get() && executed.get(),
                         is(true)
                     );

@@ -18,7 +18,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.common.model.Truncation;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalEnum;
@@ -61,7 +60,7 @@ public record AmazonBedrockEmbeddingsTaskSettings(@Nullable Truncation truncatio
 
     @Override
     public AmazonBedrockEmbeddingsTaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
-        var newTaskSettings = fromMap(new HashMap<>(newSettings));
+        var newTaskSettings = fromMap(newSettings);
 
         return new AmazonBedrockEmbeddingsTaskSettings(firstNonNullOrNull(newTaskSettings.truncation(), truncation()));
     }

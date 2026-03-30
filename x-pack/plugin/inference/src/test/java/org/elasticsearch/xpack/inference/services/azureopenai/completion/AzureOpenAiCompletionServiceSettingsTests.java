@@ -33,9 +33,6 @@ import static org.hamcrest.Matchers.is;
 
 public class AzureOpenAiCompletionServiceSettingsTests extends AzureOpenAiServiceSettingsTests<AzureOpenAiCompletionServiceSettings> {
 
-    /**
-     * Mirrors {@link AzureOpenAiCompletionServiceSettings} default RPM.
-     */
     private static final int DEFAULT_RATE_LIMIT = 120;
 
     @Override
@@ -52,19 +49,44 @@ public class AzureOpenAiCompletionServiceSettingsTests extends AzureOpenAiServic
     }
 
     @Override
-    protected void assertTaskSpecificAfterFullMap(AzureOpenAiCompletionServiceSettings serviceSettings, ConfigurationParseContext context) {
-        // completion has no task-specific fields beyond common settings
-    }
-
-    @Override
-    protected void assertTaskSpecificAfterRequiredOnlyMap(
+    protected void assertFromMap_RequiredFieldsOnly(
         AzureOpenAiCompletionServiceSettings serviceSettings,
         ConfigurationParseContext context
     ) {
-        // completion has no task-specific fields beyond common settings
+        super.assertFromMap_RequiredFieldsOnly(serviceSettings, context);
+        assertThat(serviceSettings.rateLimitSettings(), is(new RateLimitSettings(DEFAULT_RATE_LIMIT)));
     }
 
-    public void testToXContent_WritesAllValues() throws IOException {
+    @Override
+    protected Map<String, Object> buildRequiredFieldsServiceSettingsMap(ConfigurationParseContext context) {
+        return buildRequiredFieldsServiceSettingsMap(TEST_RESOURCE_NAME, TEST_DEPLOYMENT_ID, TEST_API_VERSION);
+    }
+
+    @Override
+    protected Map<String, Object> buildAllFieldsServiceSettingsMap(ConfigurationParseContext context) {
+        return buildAllFieldsServiceSettingsMap(
+            TEST_RESOURCE_NAME,
+            TEST_DEPLOYMENT_ID,
+            TEST_API_VERSION,
+            TEST_RATE_LIMIT,
+            OAuth2SettingsTests.TEST_CLIENT_ID,
+            OAuth2SettingsTests.TEST_SCOPES,
+            AzureOpenAiOAuth2SettingsTests.TEST_TENANT_ID
+        );
+    }
+
+    @Override
+    protected AzureOpenAiCompletionServiceSettings createServiceSettings(@Nullable AzureOpenAiOAuth2Settings oAuth2Settings) {
+        return new AzureOpenAiCompletionServiceSettings(
+            INITIAL_TEST_RESOURCE_NAME,
+            INITIAL_TEST_DEPLOYMENT_ID,
+            INITIAL_TEST_API_VERSION,
+            new RateLimitSettings(INITIAL_TEST_RATE_LIMIT),
+            oAuth2Settings
+        );
+    }
+
+    public void testToXContent_AllFields_Written() throws IOException {
         var entity = new AzureOpenAiCompletionServiceSettings(
             TEST_RESOURCE_NAME,
             TEST_DEPLOYMENT_ID,
@@ -111,7 +133,7 @@ public class AzureOpenAiCompletionServiceSettingsTests extends AzureOpenAiServic
         );
     }
 
-    public void testToXContent_WritesMandatoryAndDefaultValues() throws IOException {
+    public void testToXContent_MandatoryFieldsOnly_DefaultRateLimit_Written() throws IOException {
         var entity = new AzureOpenAiCompletionServiceSettings(TEST_RESOURCE_NAME, TEST_DEPLOYMENT_ID, TEST_API_VERSION, null);
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
@@ -150,35 +172,6 @@ public class AzureOpenAiCompletionServiceSettingsTests extends AzureOpenAiServic
 
     public static AzureOpenAiCompletionServiceSettings createRandomWithoutOAuth2() {
         return createRandom(null);
-    }
-
-    @Override
-    protected Map<String, Object> buildRequiredServiceSettingsMap(ConfigurationParseContext context) {
-        return buildRequiredServiceSettingsMap(TEST_RESOURCE_NAME, TEST_DEPLOYMENT_ID, TEST_API_VERSION);
-    }
-
-    @Override
-    protected Map<String, Object> buildFullServiceSettingsMap(ConfigurationParseContext context) {
-        return buildFullServiceSettingsMap(
-            TEST_RESOURCE_NAME,
-            TEST_DEPLOYMENT_ID,
-            TEST_API_VERSION,
-            TEST_RATE_LIMIT,
-            OAuth2SettingsTests.TEST_CLIENT_ID,
-            OAuth2SettingsTests.TEST_SCOPES,
-            AzureOpenAiOAuth2SettingsTests.TEST_TENANT_ID
-        );
-    }
-
-    @Override
-    protected AzureOpenAiCompletionServiceSettings createServiceSettings(@Nullable AzureOpenAiOAuth2Settings oAuth2Settings) {
-        return new AzureOpenAiCompletionServiceSettings(
-            INITIAL_TEST_RESOURCE_NAME,
-            INITIAL_TEST_DEPLOYMENT_ID,
-            INITIAL_TEST_API_VERSION,
-            new RateLimitSettings(INITIAL_TEST_RATE_LIMIT),
-            oAuth2Settings
-        );
     }
 
     @Override

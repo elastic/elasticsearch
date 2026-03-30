@@ -121,7 +121,7 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
     private static final String CONTENT_VALUE = "hello";
     private static final String ROLE_VALUE = "user";
     private static final String API_KEY_VALUE = "some_api_key";
-    private static final String INFERENCE_ENTITY_ID_VALUE = "inferenc_entity_id";
+    private static final String INFERENCE_ENTITY_ID_VALUE = "inference_entity_id";
 
     private final MockWebServer webServer = new MockWebServer();
     private ThreadPool threadPool;
@@ -162,7 +162,7 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
                 INFERENCE_ENTITY_ID_VALUE,
                 TaskType.TEXT_EMBEDDING,
                 getRequestConfigMap(
-                    AzureOpenAiServiceSettingsTests.buildRequiredServiceSettingsMap(
+                    AzureOpenAiServiceSettingsTests.buildRequiredFieldsServiceSettingsMap(
                         TEST_RESOURCE_NAME,
                         TEST_DEPLOYMENT_ID,
                         TEST_API_VERSION
@@ -195,7 +195,7 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
                 INFERENCE_ENTITY_ID_VALUE,
                 TaskType.TEXT_EMBEDDING,
                 getRequestConfigMap(
-                    AzureOpenAiServiceSettingsTests.buildRequiredServiceSettingsMap(
+                    AzureOpenAiServiceSettingsTests.buildRequiredFieldsServiceSettingsMap(
                         TEST_RESOURCE_NAME,
                         TEST_DEPLOYMENT_ID,
                         TEST_API_VERSION
@@ -229,7 +229,7 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
                 INFERENCE_ENTITY_ID_VALUE,
                 TaskType.TEXT_EMBEDDING,
                 getRequestConfigMap(
-                    AzureOpenAiServiceSettingsTests.buildRequiredServiceSettingsMap(
+                    AzureOpenAiServiceSettingsTests.buildRequiredFieldsServiceSettingsMap(
                         TEST_RESOURCE_NAME,
                         TEST_DEPLOYMENT_ID,
                         TEST_API_VERSION
@@ -256,7 +256,7 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
                 INFERENCE_ENTITY_ID_VALUE,
                 TaskType.SPARSE_EMBEDDING,
                 getRequestConfigMap(
-                    AzureOpenAiServiceSettingsTests.buildRequiredServiceSettingsMap(
+                    AzureOpenAiServiceSettingsTests.buildRequiredFieldsServiceSettingsMap(
                         TEST_RESOURCE_NAME,
                         TEST_DEPLOYMENT_ID,
                         TEST_API_VERSION
@@ -272,7 +272,11 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
     public void testParseRequestConfig_ThrowsWhenAnExtraKeyExistsInConfig() throws IOException {
         try (var service = createAzureOpenAiService()) {
             var config = getRequestConfigMap(
-                AzureOpenAiServiceSettingsTests.buildRequiredServiceSettingsMap(TEST_RESOURCE_NAME, TEST_DEPLOYMENT_ID, TEST_API_VERSION),
+                AzureOpenAiServiceSettingsTests.buildRequiredFieldsServiceSettingsMap(
+                    TEST_RESOURCE_NAME,
+                    TEST_DEPLOYMENT_ID,
+                    TEST_API_VERSION
+                ),
                 createRequestTaskSettingsMap(ROLE_VALUE),
                 getAzureOpenAiSecretSettingsMap(API_KEY_VALUE, null)
             );
@@ -295,7 +299,7 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
 
     public void testParseRequestConfig_ThrowsWhenAnExtraKeyExistsInServiceSettingsMap() throws IOException {
         try (var service = createAzureOpenAiService()) {
-            var serviceSettings = AzureOpenAiServiceSettingsTests.buildRequiredServiceSettingsMap(
+            var serviceSettings = AzureOpenAiServiceSettingsTests.buildRequiredFieldsServiceSettingsMap(
                 TEST_RESOURCE_NAME,
                 TEST_DEPLOYMENT_ID,
                 TEST_API_VERSION
@@ -308,12 +312,16 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
                 getAzureOpenAiSecretSettingsMap(API_KEY_VALUE, null)
             );
 
-            ActionListener<Model> modelVerificationListener = ActionListener.<Model>wrap((model) -> {
-                fail("Expected exception, but got model: " + model);
-            }, e -> {
-                assertThat(e, instanceOf(ElasticsearchStatusException.class));
-                assertThat(e.getMessage(), is("Configuration contains settings [{extra_key=value}] unknown to the [azureopenai] service"));
-            });
+            ActionListener<Model> modelVerificationListener = ActionListener.wrap(
+                model -> { fail("Expected exception, but got model: " + model); },
+                e -> {
+                    assertThat(e, instanceOf(ElasticsearchStatusException.class));
+                    assertThat(
+                        e.getMessage(),
+                        is("Configuration contains settings [{extra_key=value}] unknown to the [azureopenai] service")
+                    );
+                }
+            );
 
             service.parseRequestConfig(INFERENCE_ENTITY_ID_VALUE, TaskType.TEXT_EMBEDDING, config, modelVerificationListener);
         }
@@ -325,17 +333,22 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
             taskSettingsMap.put("extra_key", "value");
 
             var config = getRequestConfigMap(
-                AzureOpenAiServiceSettingsTests.buildRequiredServiceSettingsMap(TEST_RESOURCE_NAME, TEST_DEPLOYMENT_ID, TEST_API_VERSION),
+                AzureOpenAiServiceSettingsTests.buildRequiredFieldsServiceSettingsMap(
+                    TEST_RESOURCE_NAME,
+                    TEST_DEPLOYMENT_ID,
+                    TEST_API_VERSION
+                ),
                 taskSettingsMap,
                 getAzureOpenAiSecretSettingsMap(API_KEY_VALUE, null)
             );
 
-            ActionListener<Model> modelVerificationListener = ActionListener.<Model>wrap((model) -> {
-                fail("Expected exception, but got model: " + model);
-            }, e -> {
-                assertThat(e, instanceOf(XContentParseException.class));
-                assertThat(e.getMessage(), containsString("unknown field [extra_key]"));
-            });
+            ActionListener<Model> modelVerificationListener = ActionListener.wrap(
+                model -> { fail("Expected exception, but got model: " + model); },
+                e -> {
+                    assertThat(e, instanceOf(XContentParseException.class));
+                    assertThat(e.getMessage(), containsString("unknown field [extra_key]"));
+                }
+            );
 
             service.parseRequestConfig(INFERENCE_ENTITY_ID_VALUE, TaskType.TEXT_EMBEDDING, config, modelVerificationListener);
         }
@@ -347,17 +360,25 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
             secretSettingsMap.put("extra_key", "value");
 
             var config = getRequestConfigMap(
-                AzureOpenAiServiceSettingsTests.buildRequiredServiceSettingsMap(TEST_RESOURCE_NAME, TEST_DEPLOYMENT_ID, TEST_API_VERSION),
+                AzureOpenAiServiceSettingsTests.buildRequiredFieldsServiceSettingsMap(
+                    TEST_RESOURCE_NAME,
+                    TEST_DEPLOYMENT_ID,
+                    TEST_API_VERSION
+                ),
                 createRequestTaskSettingsMap(ROLE_VALUE),
                 secretSettingsMap
             );
 
-            ActionListener<Model> modelVerificationListener = ActionListener.<Model>wrap((model) -> {
-                fail("Expected exception, but got model: " + model);
-            }, e -> {
-                assertThat(e, instanceOf(ElasticsearchStatusException.class));
-                assertThat(e.getMessage(), is("Configuration contains settings [{extra_key=value}] unknown to the [azureopenai] service"));
-            });
+            ActionListener<Model> modelVerificationListener = ActionListener.wrap(
+                model -> { fail("Expected exception, but got model: " + model); },
+                e -> {
+                    assertThat(e, instanceOf(ElasticsearchStatusException.class));
+                    assertThat(
+                        e.getMessage(),
+                        is("Configuration contains settings [{extra_key=value}] unknown to the [azureopenai] service")
+                    );
+                }
+            );
 
             service.parseRequestConfig(INFERENCE_ENTITY_ID_VALUE, TaskType.TEXT_EMBEDDING, config, modelVerificationListener);
         }
@@ -382,7 +403,7 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
                 INFERENCE_ENTITY_ID_VALUE,
                 TaskType.TEXT_EMBEDDING,
                 getRequestConfigMap(
-                    AzureOpenAiServiceSettingsTests.buildRequiredServiceSettingsMap(
+                    AzureOpenAiServiceSettingsTests.buildRequiredFieldsServiceSettingsMap(
                         TEST_RESOURCE_NAME,
                         TEST_DEPLOYMENT_ID,
                         TEST_API_VERSION
@@ -518,7 +539,11 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
     public void testParsePersistedConfig_WithSecrets_ThrowsErrorTryingToParseInvalidModel() throws IOException {
         try (var service = createAzureOpenAiService()) {
             var persistedConfig = getPersistedConfigMap(
-                AzureOpenAiServiceSettingsTests.buildRequiredServiceSettingsMap(TEST_RESOURCE_NAME, TEST_DEPLOYMENT_ID, TEST_API_VERSION),
+                AzureOpenAiServiceSettingsTests.buildRequiredFieldsServiceSettingsMap(
+                    TEST_RESOURCE_NAME,
+                    TEST_DEPLOYMENT_ID,
+                    TEST_API_VERSION
+                ),
                 createRequestTaskSettingsMap(ROLE_VALUE),
                 getAzureOpenAiSecretSettingsMap(API_KEY_VALUE, null)
             );
@@ -843,7 +868,11 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
     public void testParsePersistedConfig_ThrowsErrorTryingToParseInvalidModel() throws IOException {
         try (var service = createAzureOpenAiService()) {
             var persistedConfig = getPersistedConfigMap(
-                AzureOpenAiServiceSettingsTests.buildRequiredServiceSettingsMap(TEST_RESOURCE_NAME, TEST_DEPLOYMENT_ID, TEST_API_VERSION),
+                AzureOpenAiServiceSettingsTests.buildRequiredFieldsServiceSettingsMap(
+                    TEST_RESOURCE_NAME,
+                    TEST_DEPLOYMENT_ID,
+                    TEST_API_VERSION
+                ),
                 createRequestTaskSettingsMap(ROLE_VALUE)
             );
 
@@ -1424,7 +1453,7 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
                             {
                               "error" : {
                                 "code" : "not_found",
-                                "message" : "Resource not found at [%s] for request from inference entity id [inferenceEntityId] status \
+                                "message" : "Resource not found at [%s] for request from inference entity id [inference_entity_id] status \
                             [404]. Error message: [{\\n    \\"error\\": {\\n        \\"code\\": \\"DeploymentNotFound\\",\\n        \
                             \\"message\\": \\"The API deployment for this resource does not exist. If you created the deployment within \
                             the last 5 minutes, please wait a moment and try again.\\"\\n    }\\n}\\n]",
@@ -1449,7 +1478,7 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
         testStreamError(XContentHelper.stripWhitespace("""
             {
                   "error": {
-                      "message": "Received an error response for request from inference entity id [inferenceEntityId].\
+                      "message": "Received an error response for request from inference entity id [inference_entity_id].\
              Error message: [{\\"error\\": {\\"message\\": \\"midstream error\\"}}]",
                       "type": "azure_openai_error"
                   }

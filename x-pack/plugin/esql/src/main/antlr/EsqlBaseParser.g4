@@ -45,7 +45,7 @@ sourceCommand
     | promqlCommand
     // in development
     | {this.isDevVersion()}? explainCommand
-    | {this.isDevVersion()}? externalCommand
+    | {this.isExternalDataSourcesEnabled()}? externalCommand
     ;
 
 processingCommand
@@ -117,7 +117,7 @@ indexPatternAndMetadataFields
 
 indexPatternOrSubquery
     : indexPattern
-    | {this.isDevVersion()}? subquery
+    | subquery
     ;
 
 subquery

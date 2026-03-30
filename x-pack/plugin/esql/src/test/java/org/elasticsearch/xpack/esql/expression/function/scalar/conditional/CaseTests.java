@@ -75,6 +75,7 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
                 DataType.UNDER_CONSTRUCTION.stream()
                     .filter(type -> type != DataType.DENSE_VECTOR)
                     .filter(type -> type != DataType.DATE_RANGE) // TODO(pr/133309): implement
+                    .filter(type -> type != DataType.PARTIAL_AGG)
                     .toList()
             );
         }
@@ -136,11 +137,12 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
                 )
             );
         }
-        FunctionAppliesTo histogramAppliesTo = appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.3.0", "", true);
+        FunctionAppliesTo histogramPreviewAppliesTo = appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.3.0", "", false);
+        FunctionAppliesTo histogramGaAppliesTo = appliesTo(FunctionAppliesToLifecycle.GA, "9.4.0", "", true);
         suppliers = TestCaseSupplier.mapTestCases(suppliers, tc -> tc.withData(tc.getData().stream().map(typedData -> {
             DataType type = typedData.type();
             if (type == DataType.HISTOGRAM || type == DataType.EXPONENTIAL_HISTOGRAM || type == DataType.TDIGEST) {
-                return typedData.withAppliesTo(histogramAppliesTo);
+                return typedData.withAppliesTo(histogramPreviewAppliesTo).withAppliesTo(histogramGaAppliesTo);
             }
             return typedData;
         }).toList()));

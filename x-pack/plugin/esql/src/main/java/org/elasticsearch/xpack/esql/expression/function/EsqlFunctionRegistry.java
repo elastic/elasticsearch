@@ -49,6 +49,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Present;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.PresentOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sample;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Sparkline;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialCentroid;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialExtent;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.StdDev;
@@ -68,6 +69,7 @@ import org.elasticsearch.xpack.esql.expression.function.fulltext.Score;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TBucket;
+import org.elasticsearch.xpack.esql.expression.function.grouping.TimeSeriesWithout;
 import org.elasticsearch.xpack.esql.expression.function.inference.TextEmbedding;
 import org.elasticsearch.xpack.esql.expression.function.scalar.Clamp;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
@@ -374,7 +376,8 @@ public class EsqlFunctionRegistry {
             new FunctionDefinition[] {
                 def(Bucket.class, Bucket::new, "bucket", "bin"),
                 def(Categorize.class, Categorize::new, "categorize"),
-                defTS(TBucket.class, TBucket::new, "tbucket") },
+                defTS(TBucket.class, TBucket::new, "tbucket"),
+                def(TimeSeriesWithout.class, TimeSeriesWithout::new, "without") },
             // aggregate functions
             // since they declare two public constructors - one with filter (for nested where) and one without
             // use casting to disambiguate between the two
@@ -613,7 +616,8 @@ public class EsqlFunctionRegistry {
                 def(Delay.class, Delay::new, "delay"),
                 // dense vector functions
                 def(Magnitude.class, Magnitude::new, "v_magnitude"),
-                def(ToDateRange.class, ToDateRange::new, "to_date_range", "to_daterange") } };
+                def(ToDateRange.class, ToDateRange::new, "to_date_range", "to_daterange"),
+                def(Sparkline.class, Sparkline::new, 0, "sparkline") } };
     }
 
     public EsqlFunctionRegistry snapshotRegistry() {
@@ -1134,7 +1138,7 @@ public class EsqlFunctionRegistry {
      * Build a {@linkplain FunctionDefinition} for multi-arg/n-ary function.
      */
     @SuppressWarnings("overloads") // These are ambiguous if you aren't using ctor references but we always do
-    protected <T extends Function> FunctionDefinition def(Class<T> function, NaryBuilder<T> ctorRef, String... names) {
+    protected static <T extends Function> FunctionDefinition def(Class<T> function, NaryBuilder<T> ctorRef, String... names) {
         FunctionBuilder builder = (source, children, cfg) -> { return ctorRef.build(source, children); };
         return def(function, builder, names);
     }

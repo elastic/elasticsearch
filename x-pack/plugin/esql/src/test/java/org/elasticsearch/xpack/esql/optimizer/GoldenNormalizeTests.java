@@ -18,10 +18,7 @@ public class GoldenNormalizeTests extends ESTestCase {
     }
 
     public void testSyntheticNameWithMultipleRepeatingSyntheticIds() {
-        assertThat(
-            normalizeString("$$alias$1$2#3 $$alias$4$5#6 $$alias$1$2#3"),
-            equalTo("$$alias$0#0 $$alias$1#1 $$alias$0#0")
-        );
+        assertThat(normalizeString("$$alias$1$2#3 $$alias$4$5#6 $$alias$1$2#3"), equalTo("$$alias$0#0 $$alias$1#1 $$alias$0#0"));
     }
 
     public void testSyntheticNameWithMultipleNumericSegments() {

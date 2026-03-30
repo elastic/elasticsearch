@@ -24,6 +24,15 @@ public sealed interface IntVector extends Vector permits ConstantIntVector, IntA
     ConstantNullVector, org.elasticsearch.compute.data.arrow.IntArrowBufVector {
     int getInt(int position);
 
+    /**
+     * Copies values from this vector into the destination array.
+     */
+    default void copyTo(int srcPosition, int[] dst, int dstPosition, int length) {
+        for (int i = 0; i < length; i++) {
+            dst[dstPosition + i] = getInt(srcPosition + i);
+        }
+    }
+
     @Override
     IntBlock asBlock();
 

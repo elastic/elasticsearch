@@ -21,6 +21,8 @@ import org.elasticsearch.compute.operator.topn.TopNQueue;
 import org.elasticsearch.compute.operator.topn.TopNRow;
 import org.elasticsearch.swisshash.BytesRefSwissHash;
 import org.elasticsearch.test.ListMatcher;
+import org.junit.After;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -41,18 +43,44 @@ import static org.hamcrest.Matchers.any;
 @TimeoutSuite(millis = 5 * TimeUnits.MINUTE)
 public class HeapAttackLimitByIT extends HeapAttackTestCase {
 
+    /**
+     * Lower the request circuit breaker to 40% of JVM heap (default is 60%). A tighter limit ensures
+     * the breaker fires well before the JVM runs out of memory.
+     *
+     * We want to have some headroom between what the circuit breaker sees and the real free JVM heap:
+     * <ul>
+     *   <li> We need to discount size of cached pages in {@code PageCacheRecycler}.
+     *        Those cached pages are invisible to the breaker but still consume heap. </li>
+     *   <li> ES classpath also takes up heap space </li>
+     *   <li> Memory fragmentation might cause the circuit breaker to think we can allocate
+     *        an array when it's not possible to find a big enough gap in heap </li>
+     * </ul>
+     */
+    @Before
+    public void lowerRequestBreakerLimit() throws IOException {
+        setRequestBreakerLimit("40%");
+    }
+
+    /**
+     * Restores circuit breaker default limit
+     */
+    @After
+    public void resetRequestBreakerLimit() throws IOException {
+        setRequestBreakerLimit(null);
+    }
+
     // -------------------------------------------------------------------------
     // LIMIT BY — GroupedLimitOperator
     // -------------------------------------------------------------------------
 
     /**
-     * This limits by 100 computed columns which should succeed. The GroupedLimitOperator stores group
-     * keys in a hash table; 100K unique groups with 105 columns each is well within the circuit breaker.
+     * This limits by 50 computed columns which should succeed. The GroupedLimitOperator stores group
+     * keys in a hash table; 100K unique groups with 55 columns each is well within the circuit breaker.
      */
-    public void testLimitBySomeLongs() throws IOException {
+    public void testLimitByManyGroupingColumns() throws IOException {
         assumeTrue("LIMIT BY requires snapshot builds", Build.current().isSnapshot());
         initManyLongs(10);
-        Map<String, Object> result = limitByManyLongs(100);
+        Map<String, Object> result = limitByManyLongs(50);
         ListMatcher columns = matchesList().item(matchesMap().entry("name", "MAX(a)").entry("type", "long"));
         ListMatcher values = matchesList().item(List.of(9));
         assertResultMap(result, columns, values);
@@ -63,10 +91,10 @@ public class HeapAttackLimitByIT extends HeapAttackTestCase {
      * fields (a,b,c,d,e) gives 100K unique groups; adding many computed columns widens each key
      * until the hash table trips the circuit breaker.
      */
-    public void testLimitByTooMuchMemory() throws IOException {
+    public void testLimitByManyGroupingColumnsTooMuchMemory() throws IOException {
         assumeTrue("LIMIT BY requires snapshot builds", Build.current().isSnapshot());
         initManyLongs(10);
-        assertCircuitBreaksVia(attempt -> limitByManyLongs(attempt * 1000), GroupedLimitOperator.class, bytesRefHashClass());
+        assertCircuitBreaksVia(attempt -> limitByManyLongs(attempt * 500), GroupedLimitOperator.class, bytesRefHashClass());
     }
 
     private Map<String, Object> limitByManyLongs(int count) throws IOException {
@@ -83,14 +111,19 @@ public class HeapAttackLimitByIT extends HeapAttackTestCase {
     }
 
     /**
-     * Grouping by 50 repeated 1MB strings should succeed. The {@code GroupKeyEncoder} scratch
-     * buffer grows to 50MB; combined with 50MB from REPEAT scratch buffers and 50MB of block
-     * storage, this stays comfortably within the circuit breaker.
+     * Grouping by 30 repeated 1 MB strings should succeed. With the breaker at 40 % of 512 MB
+     * (≈ 205 MB) and N = 30:
+     * <ul>
+     *   <li>REPEAT scratch buffers: ~34 MB (30 × 1.125 MB, oversized by 12.5 %)</li>
+     *   <li>keyword blocks: ~30 MB</li>
+     *   <li>keyEncoder scratch at peak grow: old ≈ 29 MB + new ≈ 34 MB</li>
+     * </ul>
+     * The peak tracked total (~127 MB) stays well within the 205 MB limit.
      */
     public void testLimitByKeyEncoderDoesNotCircuitBreak() throws IOException {
         assumeTrue("LIMIT BY requires snapshot builds", Build.current().isSnapshot());
         initSingleDocIndex();
-        Map<String, Object> result = limitByManyStrings(50);
+        Map<String, Object> result = limitByManyStrings(30);
         ListMatcher columns = matchesList().item(matchesMap().entry("name", "a").entry("type", "long"));
         assertResultMap(result, columns, matchesList().item(List.of(1)));
     }
@@ -101,19 +134,23 @@ public class HeapAttackLimitByIT extends HeapAttackTestCase {
      * and never released between rows. By grouping by many wide strings, the scratch accumulates
      * past the circuit breaker limit independently of how many rows or unique groups there are.
      * <p>
-     * Memory model with N columns of 1MB each (one document):
+     * Memory model with N columns of 1 MB each (one document):
      * <ul>
-     *   <li>N REPEAT scratch buffers (labeled {@code "repeat"}): N MB</li>
+     *   <li>N REPEAT scratch buffers (labeled {@code "repeat"}): ~1.125N MB (oversized by 12.5 %
+     *       due to {@link org.apache.lucene.util.ArrayUtil#oversize})</li>
      *   <li>N keyword blocks: N MB</li>
-     *   <li>keyEncoder scratch (accumulated during encoding): up to N MB</li>
+     *   <li>keyEncoder scratch (accumulated during encoding): up to ~1.125N MB (also oversized)</li>
      * </ul>
-     * EVAL succeeds while 2N &lt; limit, then the keyEncoder scratch pushes 2N + K over the limit
-     * on the K-th column encoded. The window 103 ≤ N ≤ 153 satisfies both constraints at once.
+     * EVAL succeeds while 2.125N &lt; limit (≈ 205 MB at 40 %), i.e. N ≤ 96.
+     * Then the keyEncoder scratch pushes the total over the limit on the K-th column encoded.
+     * During each grow the breaker sees both old and new array capacities (~2.25K), so the trip
+     * condition is 2.125N + 2.25K &gt; limit. We use N = k = 80 which leaves ample JVM headroom:
+     * at the trip point (~341 MB live heap) there are ~171 MB free in the 512 MB heap.
      */
     public void testLimitByKeyEncoderTooMuchMemory() throws IOException {
         assumeTrue("LIMIT BY requires snapshot builds", Build.current().isSnapshot());
         initSingleDocIndex();
-        assertCircuitBreaksVia(attempt -> limitByManyStrings(attempt * 110), GroupedLimitOperator.class, GroupKeyEncoder.class);
+        assertCircuitBreaksVia(attempt -> limitByManyStrings(attempt * 80), GroupedLimitOperator.class, GroupKeyEncoder.class);
     }
 
     private Map<String, Object> limitByManyStrings(int count) throws IOException {
@@ -148,7 +185,7 @@ public class HeapAttackLimitByIT extends HeapAttackTestCase {
      * This sorts by 500 columns then limits 1000 rows per group, which should succeed. The sort keys
      * are stored per row in the GroupedTopNOperator queues; 500 columns × 10K rows is within limits.
      */
-    public void testTopNBySomeLongs() throws IOException {
+    public void testTopNByManySortColumns() throws IOException {
         assumeTrue("SORT | LIMIT BY requires snapshot builds", Build.current().isSnapshot());
         initManyLongs(10);
         Map<String, Object> result = topNByManyLongs(500);
@@ -162,10 +199,10 @@ public class HeapAttackLimitByIT extends HeapAttackTestCase {
      * many columns means each stored row is very wide; with 1000 rows per group the total memory
      * trips the circuit breaker.
      */
-    public void testTopNByTooMuchMemory() throws IOException {
+    public void testTopNByManySortColumnsTooMuchMemory() throws IOException {
         assumeTrue("SORT | LIMIT BY requires snapshot builds", Build.current().isSnapshot());
         initManyLongs(10);
-        assertCircuitBreaksVia(attempt -> topNByManyLongs(attempt * 5000), GroupedTopNOperator.class, TopNRow.class);
+        assertCircuitBreaksVia(attempt -> topNByManyLongs(attempt * 10000), GroupedTopNOperator.class, TopNRow.class);
     }
 
     private Map<String, Object> topNByManyLongs(int count) throws IOException {
@@ -182,14 +219,14 @@ public class HeapAttackLimitByIT extends HeapAttackTestCase {
     }
 
     /**
-     * This sorts by 1 column then limits 1 row per group across 100K unique groups with 100 group
+     * This sorts by 1 column then limits 1 row per group across 50K unique groups with 100 group
      * key columns, which should succeed. The GroupedTopNOperator stores group keys in a hash table;
-     * 100K groups with 105-column keys is within the circuit breaker.
+     * 50K groups with 105-column keys is within the circuit breaker.
      */
-    public void testTopNByWideGroupKeySomeLongs() throws IOException {
+    public void testTopNByManyGroupingColumns() throws IOException {
         assumeTrue("SORT | LIMIT BY requires snapshot builds", Build.current().isSnapshot());
         initManyLongs(10);
-        Map<String, Object> result = topNByWideGroupKey(100);
+        Map<String, Object> result = topNByWideGroupKey(50);
         ListMatcher columns = matchesList().item(matchesMap().entry("name", "a").entry("type", "long"))
             .item(matchesMap().entry("name", "b").entry("type", "long"));
         assertResultMap(result, columns, any(List.class));
@@ -198,10 +235,10 @@ public class HeapAttackLimitByIT extends HeapAttackTestCase {
     /**
      * The GroupedTopNOperator stores group keys in a hash table ({@code keysHash}). Grouping by
      * all 5 original fields plus many computed columns widens each encoded group key until the
-     * hash table trips the circuit breaker. Unlike {@link #testTopNByTooMuchMemory} which stresses
+     * hash table trips the circuit breaker. Unlike {@link #testTopNByManySortColumns} which stresses
      * sort key row storage, this stresses the group key hash table.
      */
-    public void testTopNByWideGroupKeyTooMuchMemory() throws IOException {
+    public void testTopNByManyGroupingColumnsTooMuchMemory() throws IOException {
         assumeTrue("SORT | LIMIT BY requires snapshot builds", Build.current().isSnapshot());
         initManyLongs(10);
         assertCircuitBreaksVia(attempt -> topNByWideGroupKey(attempt * 1000), GroupedTopNOperator.class, bytesRefHashClass());
@@ -223,14 +260,14 @@ public class HeapAttackLimitByIT extends HeapAttackTestCase {
     }
 
     /**
-     * Grouping by 50 repeated 1MB strings with a preceding sort should succeed.
-     * Same memory model as {@link #testLimitByKeyEncoderDoesNotCircuitBreak} but with
-     * {@code GroupedTopNOperator} rather than {@code GroupedLimitOperator}.
+     * Grouping by 30 repeated 1 MB strings with a preceding sort should succeed.
+     * Same memory model as {@link #testLimitByKeyEncoderDoesNotCircuitBreak} (~127 MB peak)
+     * but with {@code GroupedTopNOperator} rather than {@code GroupedLimitOperator}.
      */
     public void testTopNByKeyEncoderDoesNotCircuitBreak() throws IOException {
         assumeTrue("SORT | LIMIT BY requires snapshot builds", Build.current().isSnapshot());
         initSingleDocIndex();
-        Map<String, Object> result = topNByManyStrings(50);
+        Map<String, Object> result = topNByManyStrings(30);
         ListMatcher columns = matchesList().item(matchesMap().entry("name", "a").entry("type", "long"));
         assertResultMap(result, columns, matchesList().item(List.of(1)));
     }
@@ -243,7 +280,7 @@ public class HeapAttackLimitByIT extends HeapAttackTestCase {
     public void testTopNByKeyEncoderTooMuchMemory() throws IOException {
         assumeTrue("SORT | LIMIT BY requires snapshot builds", Build.current().isSnapshot());
         initSingleDocIndex();
-        assertCircuitBreaksVia(attempt -> topNByManyStrings(attempt * 110), GroupedTopNOperator.class, GroupKeyEncoder.class);
+        assertCircuitBreaksVia(attempt -> topNByManyStrings(attempt * 80), GroupedTopNOperator.class, GroupKeyEncoder.class);
     }
 
     private Map<String, Object> topNByManyStrings(int count) throws IOException {
@@ -323,6 +360,7 @@ public class HeapAttackLimitByIT extends HeapAttackTestCase {
         List<String> classNames = Arrays.stream(classes).map(Class::getName).collect(Collectors.toList());
         int attempt = 1;
         while (attempt <= MAX_ATTEMPTS) {
+            logger.info("Attempt {} to circuit break via {}", attempt, classNames);
             try {
                 Map<String, Object> response = tryBreaking.attempt(attempt);
                 logger.warn("{}: should circuit broken but got {}", attempt, response);

@@ -17,6 +17,7 @@ import org.elasticsearch.test.AzureReactorThreadFilter;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
+import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.qa.rest.AbstractExternalSourceSpecTestCase;
 import org.junit.ClassRule;
@@ -77,6 +78,13 @@ public class ExternalDistributedSpecIT extends AbstractExternalSourceSpecTestCas
     @Override
     protected String getTestRestCluster() {
         return CLUSTER_INSTANCE.getHttpAddresses();
+    }
+
+    @Override
+    protected void createInferenceEndpointsIfSupported() throws IOException {
+        // Cluster has inference-service-test but not every task type (e.g. SPARSE_EMBEDDING); only register RERANK for
+        // external-basic.csv-spec.
+        CsvTestsDataLoader.createInferenceEndpoints(adminClient(), List.of("test_reranker"));
     }
 
     @ParametersFactory(argumentFormatting = "csv-spec:%2$s.%3$s [%7$s/%8$s]")

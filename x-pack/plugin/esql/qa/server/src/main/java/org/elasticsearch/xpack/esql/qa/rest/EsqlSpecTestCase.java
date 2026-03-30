@@ -177,9 +177,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         INGEST.protectedBlock(() -> {
             // Inference endpoints must be created before ingesting any datasets that rely on them (mapping of inference_id)
             // If multiple clusters are used, only create endpoints on the local cluster if it supports the inference test service.
-            if (supportsInferenceTestServiceOnLocalCluster()) {
-                createInferenceEndpoints(adminClient());
-            }
+            createInferenceEndpointsIfSupported();
             loadDataSetIntoEs(
                 client(),
                 supportsIndexModeLookup(),
@@ -327,6 +325,16 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
 
     protected boolean supportsInferenceTestServiceOnLocalCluster() {
         return true;
+    }
+
+    /**
+     * Creates inference test endpoints when {@link #supportsInferenceTestServiceOnLocalCluster()} is true.
+     * Subclasses may override to register a subset of endpoints for clusters that do not support all task types.
+     */
+    protected void createInferenceEndpointsIfSupported() throws IOException {
+        if (supportsInferenceTestServiceOnLocalCluster()) {
+            createInferenceEndpoints(adminClient());
+        }
     }
 
     protected boolean requiresSemanticTextInference() {

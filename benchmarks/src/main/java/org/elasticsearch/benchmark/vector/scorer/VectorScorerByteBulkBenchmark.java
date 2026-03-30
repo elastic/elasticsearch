@@ -19,6 +19,7 @@ import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.apache.lucene.util.hnsw.UpdateableRandomVectorScorer;
 import org.elasticsearch.benchmark.Utils;
+import org.elasticsearch.nativeaccess.jdk.ScalarOperations;
 import org.elasticsearch.simdvec.VectorScorerFactory;
 import org.elasticsearch.simdvec.VectorSimilarityType;
 import org.openjdk.jmh.annotations.Benchmark;
@@ -141,7 +142,7 @@ public class VectorScorerByteBulkBenchmark {
             return normalize(ScalarOperations.dotProduct(queryVector, values.vectorValue(ordinal)));
         }
 
-        private float normalize(int dotProduct) {
+        private float normalize(float dotProduct) {
             return 0.5f + dotProduct / denom;
         }
 

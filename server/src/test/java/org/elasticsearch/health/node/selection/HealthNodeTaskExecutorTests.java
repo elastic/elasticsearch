@@ -22,7 +22,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.persistent.ClusterPersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
-import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -33,7 +32,6 @@ import org.junit.Before;
 import java.util.Collections;
 
 import static org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.Type.SIGTERM;
-import static org.elasticsearch.test.ClusterServiceUtils.setState;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -46,12 +44,10 @@ public class HealthNodeTaskExecutorTests extends ESTestCase {
         ""
     );
 
-    private PersistentTasksService persistentTasksService;
     private ThreadPool threadPool;
 
     @Before
     public void setup() throws Exception {
-        persistentTasksService = mock(PersistentTasksService.class);
         threadPool = new TestThreadPool(HealthNodeTaskExecutorTests.class.getSimpleName());
     }
 
@@ -60,36 +56,11 @@ public class HealthNodeTaskExecutorTests extends ESTestCase {
         terminate(threadPool);
     }
 
-    public void testSettingsUpdateWiresToEnabledFlag() {
-        final boolean localEnabled = randomBoolean();
-        final var nodeSettings = Settings.builder().put(HealthNodeTaskExecutor.ENABLED_SETTING.getKey(), localEnabled).build();
-        final var clusterSettings = new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        final var localNode = DiscoveryNodeUtils.create(LOCAL_NODE_ID);
-        try (
-            ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool, localNode, nodeSettings, clusterSettings)
-        ) {
-            final var executor = new HealthNodeTaskExecutor(clusterService, persistentTasksService);
-            assertEquals(localEnabled, executor.isEnabled());
-
-            boolean enabled = localEnabled;
-            var state = clusterService.state();
-            final int cycles = randomIntBetween(2, 5);
-            for (int i = 0; i < cycles; i++) {
-                if (randomBoolean()) {
-                    enabled = randomBoolean();
-                    state = stateWithEnabledSetting(state, enabled);
-                }
-                setState(clusterService, state);
-                assertEquals(enabled, executor.isEnabled());
-            }
-        }
-    }
-
     public void testDoesNothingIfNodeShuttingDownButNotYetReassigned() {
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         final var state = initialState(randomBoolean());
         try (ClusterService clusterService = ClusterServiceUtils.createClusterService(state, threadPool, clusterSettings)) {
-            final HealthNodeTaskExecutor executor = new HealthNodeTaskExecutor(clusterService, persistentTasksService);
+            final HealthNodeTaskExecutor executor = new HealthNodeTaskExecutor(clusterService);
             final HealthNode task = mock(HealthNode.class);
             executor.nodeOperation(task, new HealthNodeTaskParams(), mock(PersistentTaskState.class));
 
@@ -137,13 +108,6 @@ public class HealthNodeTaskExecutorTests extends ESTestCase {
         );
         return ClusterState.builder(clusterState)
             .metadata(Metadata.builder(clusterState.metadata()).putCustom(NodesShutdownMetadata.TYPE, nodesShutdownMetadata).build())
-            .build();
-    }
-
-    private ClusterState stateWithEnabledSetting(ClusterState clusterState, boolean enabled) {
-        final var persistentSettings = Settings.builder().put(HealthNodeTaskExecutor.ENABLED_SETTING.getKey(), enabled).build();
-        return ClusterState.builder(clusterState)
-            .metadata(Metadata.builder(clusterState.metadata()).persistentSettings(persistentSettings))
             .build();
     }
 

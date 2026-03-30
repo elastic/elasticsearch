@@ -110,7 +110,9 @@ import org.elasticsearch.health.node.DiskHealthIndicatorService;
 import org.elasticsearch.health.node.HealthInfoCache;
 import org.elasticsearch.health.node.LocalHealthMonitor;
 import org.elasticsearch.health.node.ShardsCapacityHealthIndicatorService;
+import org.elasticsearch.health.node.selection.HealthNode;
 import org.elasticsearch.health.node.selection.HealthNodeTaskExecutor;
+import org.elasticsearch.health.node.selection.HealthNodeTaskParams;
 import org.elasticsearch.health.node.tracker.DiskHealthTracker;
 import org.elasticsearch.health.node.tracker.FileSettingsHealthTracker;
 import org.elasticsearch.health.node.tracker.HealthTracker;
@@ -164,6 +166,7 @@ import org.elasticsearch.monitor.metrics.NodeMetrics;
 import org.elasticsearch.monitor.metrics.SystemMetrics;
 import org.elasticsearch.node.internal.TerminationHandler;
 import org.elasticsearch.node.internal.TerminationHandlerProvider;
+import org.elasticsearch.persistent.PersistentTaskLifecycleManager;
 import org.elasticsearch.persistent.PersistentTasksClusterService;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.persistent.PersistentTasksExecutorRegistry;
@@ -1022,6 +1025,9 @@ class NodeConstruction {
 
         final CrossProjectModeDecider crossProjectModeDecider = new CrossProjectModeDecider(settings);
 
+        final var persistentTasksService = new PersistentTasksService(clusterService, threadPool, client);
+        final var taskLifecycleManager = new PersistentTaskLifecycleManager(persistentTasksService, clusterService);
+
         PluginServiceInstances pluginServices = new PluginServiceInstances(
             client,
             clusterService,
@@ -1050,7 +1056,8 @@ class NodeConstruction {
             linkedProjectConfigService,
             projectRoutingResolver,
             remoteTransportClient,
-            crossProjectModeDecider
+            crossProjectModeDecider,
+            taskLifecycleManager
         );
 
         Collection<?> pluginComponents = pluginsService.flatMap(plugin -> {
@@ -1307,7 +1314,16 @@ class NodeConstruction {
 
         final var shutdownPrepareService = new ShutdownPrepareService(settings, httpServerTransport, transportService, terminationHandler);
 
-        modules.add(loadPersistentTasksService(settingsModule, clusterService, threadPool, clusterModule.getIndexNameExpressionResolver()));
+        modules.add(
+            loadPersistentTasks(
+                settingsModule,
+                clusterService,
+                threadPool,
+                clusterModule.getIndexNameExpressionResolver(),
+                persistentTasksService,
+                taskLifecycleManager
+            )
+        );
 
         modules.add(
             loadPluginShutdownService(clusterService),
@@ -1812,14 +1828,21 @@ class NodeConstruction {
         return module;
     }
 
-    private Module loadPersistentTasksService(
+    private Module loadPersistentTasks(
         SettingsModule settingsModule,
         ClusterService clusterService,
         ThreadPool threadPool,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        PersistentTasksService persistentTasksService,
+        PersistentTaskLifecycleManager persistentTaskLifecycleManager
     ) {
-        PersistentTasksService persistentTasksService = new PersistentTasksService(clusterService, threadPool, client);
-        HealthNodeTaskExecutor healthNodeTaskExecutor = new HealthNodeTaskExecutor(clusterService, persistentTasksService);
+        HealthNodeTaskExecutor healthNodeTaskExecutor = new HealthNodeTaskExecutor(clusterService);
+        persistentTaskLifecycleManager.registerClusterTask(
+            HealthNode.TASK_NAME,
+            HealthNodeTaskExecutor.ENABLED_SETTING,
+            () -> HealthNodeTaskParams.INSTANCE,
+            TimeValue.THIRTY_SECONDS
+        );
         Stream<PersistentTasksExecutor<?>> builtinTaskExecutors = Stream.of(healthNodeTaskExecutor);
 
         Stream<PersistentTasksExecutor<?>> pluginTaskExecutors = pluginsService.filterPlugins(PersistentTaskPlugin.class)

@@ -13,15 +13,13 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
-import org.elasticsearch.persistent.PersistentTasksService;
-import org.elasticsearch.persistent.ToggleablePersistentTasksExecutor;
+import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -32,8 +30,10 @@ import java.util.Map;
 
 import static org.elasticsearch.health.node.selection.HealthNode.TASK_NAME;
 
-/// A [ToggleablePersistentTasksExecutor], enabled/disabled via the [ENABLED_SETTING][#ENABLED_SETTING]
-/// and responsible for the lifecycle of the [HealthNode] persistent task.
+/// [PersistentTasksExecutor] responsible for the lifecycle of the [HealthNode] persistent task.
+///
+/// The task lifecycle (start / stop) is managed externally by the [PersistentTaskLifecycleManager],
+/// which reconciles the desired state on every cluster state update based on [#isEnabled].
 ///
 /// Once the persistent task framework assigns the task to a node, that node becomes the health node. The
 /// [LocalHealthMonitor][org.elasticsearch.health.node.LocalHealthMonitor] and
@@ -44,10 +44,9 @@ import static org.elasticsearch.health.node.selection.HealthNode.TASK_NAME;
 /// @see org.elasticsearch.health.node.LocalHealthMonitor
 /// @see org.elasticsearch.health.metadata.HealthMetadataService
 ///
-public final class HealthNodeTaskExecutor extends ToggleablePersistentTasksExecutor<HealthNodeTaskParams> {
+public final class HealthNodeTaskExecutor extends PersistentTasksExecutor<HealthNodeTaskParams> {
 
     private static final Logger logger = LogManager.getLogger(HealthNodeTaskExecutor.class);
-    private final ClusterService clusterService;
 
     public static final Setting<Boolean> ENABLED_SETTING = Setting.boolSetting(
         "health.node.enabled",
@@ -56,27 +55,16 @@ public final class HealthNodeTaskExecutor extends ToggleablePersistentTasksExecu
         Setting.Property.NodeScope
     );
 
-    public HealthNodeTaskExecutor(ClusterService clusterService, PersistentTasksService persistentTasksService) {
-        super(
-            TASK_NAME,
-            clusterService.threadPool().executor(ThreadPool.Names.MANAGEMENT),
-            clusterService,
-            persistentTasksService,
-            ENABLED_SETTING.get(clusterService.getSettings()),
-            HealthNodeTaskParams::new
-        );
+    private final ClusterService clusterService;
+
+    public HealthNodeTaskExecutor(ClusterService clusterService) {
+        super(TASK_NAME, clusterService.threadPool().executor(ThreadPool.Names.MANAGEMENT));
         this.clusterService = clusterService;
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(ENABLED_SETTING, this::setEnabled);
     }
 
     @Override
     public Scope scope() {
         return Scope.CLUSTER;
-    }
-
-    @Override
-    protected TimeValue masterNodeTimeout() {
-        return TimeValue.THIRTY_SECONDS; /* TODO should this be configurable? longer by default? infinite? */
     }
 
     @Override

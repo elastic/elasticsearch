@@ -10,6 +10,7 @@
 package org.elasticsearch.persistent;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -20,9 +21,8 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.persistent.PersistentTasksExecutor.Scope;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -33,7 +33,9 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
 import static org.mockito.ArgumentMatchers.any;
@@ -44,9 +46,15 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
-public class ToggleablePersistentTasksExecutorTests extends ESTestCase {
+public class PersistentTaskLifecycleManagerTests extends ESTestCase {
     private static final String LOCAL_NODE_ID = "local";
-    private static final String TASK_NAME = "test_toggleable_task";
+    private static final String TASK_NAME = "test_lifecycle_task";
+    private static final Setting<Boolean> TASK_ENABLED_SETTING = Setting.boolSetting(
+        "test.task.enabled",
+        true,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
 
     private PersistentTasksService persistentTasksService;
     private ThreadPool threadPool;
@@ -54,7 +62,7 @@ public class ToggleablePersistentTasksExecutorTests extends ESTestCase {
     @Before
     public void setup() {
         persistentTasksService = mock(PersistentTasksService.class);
-        threadPool = new TestThreadPool(ToggleablePersistentTasksExecutorTests.class.getSimpleName());
+        threadPool = new TestThreadPool(PersistentTaskLifecycleManagerTests.class.getSimpleName());
     }
 
     @After
@@ -73,24 +81,25 @@ public class ToggleablePersistentTasksExecutorTests extends ESTestCase {
             ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool, localNode, nodeSettings, clusterSettings)
         ) {
             setState(clusterService, initialState);
-            final var executor = new TestToggleableExecutor(clusterService, persistentTasksService, Scope.CLUSTER, initiallyEnabled);
+            final var enabled = new AtomicBoolean(initiallyEnabled);
+            final var manager = new PersistentTaskLifecycleManager(persistentTasksService, clusterService);
+            manager.registerClusterTask(TASK_NAME, enabled::get, () -> TestParams.INSTANCE, MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT);
+
             int expectedStartRequests = 0;
             int expectedRemoveRequests = 0;
 
             final int cycles = randomIntBetween(5, 10);
-            var enabled = initiallyEnabled;
             for (int i = 0; i < cycles; i++) {
                 final boolean taskExists = randomBoolean();
                 final var state = taskExists ? stateWithClusterTask(initialState) : initialState;
                 if (randomBoolean()) {
-                    enabled = randomBoolean();
-                    executor.setEnabled(enabled, null);
+                    enabled.set(randomBoolean());
                 }
                 setState(clusterService, state);
-                if (enabled && taskExists == false) {
+                if (enabled.get() && taskExists == false) {
                     expectedStartRequests++;
                 }
-                if (enabled == false && taskExists) {
+                if (enabled.get() == false && taskExists) {
                     expectedRemoveRequests++;
                 }
             }
@@ -120,9 +129,15 @@ public class ToggleablePersistentTasksExecutorTests extends ESTestCase {
             ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool, localNode, nodeSettings, clusterSettings)
         ) {
             setState(clusterService, initialState);
-            final var executor = new TestToggleableExecutor(clusterService, persistentTasksService, Scope.PROJECT, initiallyEnabled);
-            final var taskId1 = executor.getProjectTaskId(projectId1);
-            final var taskId2 = executor.getProjectTaskId(projectId2);
+            final var enabled = new AtomicBoolean(initiallyEnabled);
+            final var manager = new PersistentTaskLifecycleManager(persistentTasksService, clusterService);
+            manager.registerProjectTask(
+                TASK_NAME,
+                projectId -> TASK_NAME,
+                enabled::get,
+                () -> TestParams.INSTANCE,
+                MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT
+            );
 
             final var expectedStartRequests = new HashMap<ProjectId, Integer>();
             final var expectedRemoveRequests = new HashMap<ProjectId, Integer>();
@@ -132,38 +147,29 @@ public class ToggleablePersistentTasksExecutorTests extends ESTestCase {
                 final boolean task1Exists = randomBoolean();
                 final boolean task2Exists = randomBoolean();
 
-                var state = task1Exists ? stateWithProjectTask(initialState, projectId1, taskId1) : initialState;
-                state = task2Exists ? stateWithProjectTask(state, projectId2, taskId2) : state;
-
-                var task1Enabled = initiallyEnabled;
-                var task2Enabled = initiallyEnabled;
+                var state = task1Exists ? stateWithProjectTask(initialState, projectId1, TASK_NAME) : initialState;
+                state = task2Exists ? stateWithProjectTask(state, projectId2, TASK_NAME) : state;
 
                 if (randomBoolean()) {
-                    task1Enabled = randomBoolean();
-                    executor.setEnabled(projectId1, task1Enabled);
-                }
-                if (randomBoolean()) {
-                    task2Enabled = randomBoolean();
-                    executor.setEnabled(projectId2, task2Enabled);
+                    enabled.set(randomBoolean());
                 }
                 setState(clusterService, state);
-                if (task1Enabled && task1Exists == false) {
+                if (enabled.get() && task1Exists == false) {
                     expectedStartRequests.merge(projectId1, 1, Integer::sum);
                 }
-                if (task2Enabled && task2Exists == false) {
+                if (enabled.get() && task2Exists == false) {
                     expectedStartRequests.merge(projectId2, 1, Integer::sum);
                 }
-                if (task1Enabled == false && task1Exists) {
+                if (enabled.get() == false && task1Exists) {
                     expectedRemoveRequests.merge(projectId1, 1, Integer::sum);
                 }
-                if (task2Enabled == false && task2Exists) {
+                if (enabled.get() == false && task2Exists) {
                     expectedRemoveRequests.merge(projectId2, 1, Integer::sum);
                 }
-                executor.wipeProjectsEnabled();
             }
             verify(persistentTasksService, times(expectedStartRequests.getOrDefault(projectId1, 0))).sendProjectStartRequest(
                 eq(projectId1),
-                eq(taskId1),
+                eq(TASK_NAME),
                 eq(TASK_NAME),
                 eq(TestParams.INSTANCE),
                 isNotNull(),
@@ -171,7 +177,7 @@ public class ToggleablePersistentTasksExecutorTests extends ESTestCase {
             );
             verify(persistentTasksService, times(expectedStartRequests.getOrDefault(projectId2, 0))).sendProjectStartRequest(
                 eq(projectId2),
-                eq(taskId2),
+                eq(TASK_NAME),
                 eq(TASK_NAME),
                 eq(TestParams.INSTANCE),
                 isNotNull(),
@@ -179,13 +185,13 @@ public class ToggleablePersistentTasksExecutorTests extends ESTestCase {
             );
             verify(persistentTasksService, times(expectedRemoveRequests.getOrDefault(projectId1, 0))).sendProjectRemoveRequest(
                 eq(projectId1),
-                eq(taskId1),
+                eq(TASK_NAME),
                 isNotNull(),
                 any()
             );
             verify(persistentTasksService, times(expectedRemoveRequests.getOrDefault(projectId2, 0))).sendProjectRemoveRequest(
                 eq(projectId2),
-                eq(taskId2),
+                eq(TASK_NAME),
                 isNotNull(),
                 any()
             );
@@ -194,35 +200,128 @@ public class ToggleablePersistentTasksExecutorTests extends ESTestCase {
         }
     }
 
+    public void testClusterTaskReconciliationFromSetting() {
+        final var nodeSettings = Settings.builder().put(TASK_ENABLED_SETTING.getKey(), false).build();
+        final var allSettings = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        allSettings.add(TASK_ENABLED_SETTING);
+        final var clusterSettings = new ClusterSettings(nodeSettings, allSettings);
+        final var localNode = DiscoveryNodeUtils.create(LOCAL_NODE_ID);
+
+        try (
+            ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool, localNode, nodeSettings, clusterSettings)
+        ) {
+            final var manager = new PersistentTaskLifecycleManager(persistentTasksService, clusterService);
+            manager.registerClusterTask(
+                TASK_NAME,
+                TASK_ENABLED_SETTING,
+                () -> TestParams.INSTANCE,
+                MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT
+            );
+
+            setState(clusterService, masterState());
+            verify(persistentTasksService, never()).sendClusterStartRequest(any(), any(), any(), any(), any());
+
+            setState(clusterService, stateWithPersistentSetting(masterState(), TASK_ENABLED_SETTING.getKey(), true));
+            verify(persistentTasksService, times(1)).sendClusterStartRequest(
+                eq(TASK_NAME),
+                eq(TASK_NAME),
+                eq(TestParams.INSTANCE),
+                isNotNull(),
+                any()
+            );
+
+            setState(clusterService, stateWithPersistentSetting(stateWithClusterTask(masterState()), TASK_ENABLED_SETTING.getKey(), false));
+            verify(persistentTasksService, times(1)).sendClusterRemoveRequest(eq(TASK_NAME), isNotNull(), any());
+        }
+    }
+
+    public void testProjectTaskReconciliationFromSetting() {
+        final var projectId = randomUniqueProjectId();
+        final var nodeSettings = Settings.builder().put(TASK_ENABLED_SETTING.getKey(), true).build();
+        final var allSettings = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        allSettings.add(TASK_ENABLED_SETTING);
+        final var clusterSettings = new ClusterSettings(nodeSettings, allSettings);
+        final var localNode = DiscoveryNodeUtils.create(LOCAL_NODE_ID);
+        final var stateWithProject = masterStateWithProjects(Set.of(projectId));
+
+        try (
+            ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool, localNode, nodeSettings, clusterSettings)
+        ) {
+            final var manager = new PersistentTaskLifecycleManager(persistentTasksService, clusterService);
+            manager.registerProjectTask(
+                TASK_NAME,
+                p -> TASK_NAME,
+                TASK_ENABLED_SETTING,
+                () -> TestParams.INSTANCE,
+                MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT
+            );
+
+            setState(clusterService, stateWithProject);
+            verify(persistentTasksService, times(1)).sendProjectStartRequest(
+                eq(projectId),
+                eq(TASK_NAME),
+                eq(TASK_NAME),
+                eq(TestParams.INSTANCE),
+                isNotNull(),
+                any()
+            );
+
+            setState(
+                clusterService,
+                stateWithPersistentSetting(
+                    stateWithProjectTask(stateWithProject, projectId, TASK_NAME),
+                    TASK_ENABLED_SETTING.getKey(),
+                    false
+                )
+            );
+            verify(persistentTasksService, times(1)).sendProjectRemoveRequest(eq(projectId), eq(TASK_NAME), isNotNull(), any());
+
+            setState(clusterService, stateWithPersistentSetting(stateWithProject, TASK_ENABLED_SETTING.getKey(), true));
+            verify(persistentTasksService, times(2)).sendProjectStartRequest(
+                eq(projectId),
+                eq(TASK_NAME),
+                eq(TASK_NAME),
+                eq(TestParams.INSTANCE),
+                isNotNull(),
+                any()
+            );
+        }
+    }
+
     public void testNonMasterNeverStartsOrStopsTask() {
         final var nodeSettings = Settings.builder().build();
         final var clusterSettings = new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         final var localNode = DiscoveryNodeUtils.create(LOCAL_NODE_ID);
-        final var scope = randomBoolean() ? Scope.PROJECT : Scope.CLUSTER;
-        final var initialState = switch (scope) {
-            case Scope.CLUSTER -> nonMasterState();
-            case Scope.PROJECT -> nonMasterStateWithProjects(Set.of(ProjectId.DEFAULT));
-        };
+        final boolean projectScoped = randomBoolean();
+        final var initialState = projectScoped ? nonMasterStateWithProjects(Set.of(ProjectId.DEFAULT)) : nonMasterState();
+
         try (
             ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool, localNode, nodeSettings, clusterSettings)
         ) {
-            final var executor = new TestToggleableExecutor(clusterService, persistentTasksService, scope, randomBoolean());
+            final var manager = new PersistentTaskLifecycleManager(persistentTasksService, clusterService);
+            if (projectScoped) {
+                manager.registerProjectTask(
+                    TASK_NAME,
+                    unused -> TASK_NAME,
+                    () -> randomBoolean(),
+                    () -> TestParams.INSTANCE,
+                    MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT
+                );
+            } else {
+                manager.registerClusterTask(
+                    TASK_NAME,
+                    () -> randomBoolean(),
+                    () -> TestParams.INSTANCE,
+                    MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT
+                );
+            }
+
             var state = initialState;
             if (randomBoolean()) {
-                final var enabled = randomBoolean();
-                switch (scope) {
-                    case Scope.CLUSTER -> executor.setEnabled(enabled, null);
-                    case Scope.PROJECT -> executor.setEnabled(enabled, ProjectId.DEFAULT);
-                }
-            }
-            if (randomBoolean()) {
-                switch (scope) {
-                    case Scope.CLUSTER -> state = stateWithClusterTask(state);
-                    case Scope.PROJECT -> state = stateWithProjectTask(
-                        state,
-                        ProjectId.DEFAULT,
-                        executor.getProjectTaskId(ProjectId.DEFAULT)
-                    );
+                if (projectScoped) {
+                    state = stateWithProjectTask(state, ProjectId.DEFAULT, TASK_NAME);
+                } else {
+                    state = stateWithClusterTask(state);
                 }
             }
             setState(clusterService, state);
@@ -231,6 +330,12 @@ public class ToggleablePersistentTasksExecutorTests extends ESTestCase {
             verify(persistentTasksService, never()).sendProjectStartRequest(any(), any(), any(), any(), any(), any());
             verify(persistentTasksService, never()).sendProjectRemoveRequest(any(), any(), any(), any());
         }
+    }
+
+    private static ClusterState stateWithPersistentSetting(ClusterState state, String key, boolean value) {
+        return ClusterState.builder(state)
+            .metadata(Metadata.builder(state.metadata()).persistentSettings(Settings.builder().put(key, value).build()))
+            .build();
     }
 
     private static ClusterState masterState() {
@@ -285,47 +390,6 @@ public class ToggleablePersistentTasksExecutorTests extends ESTestCase {
         final var projectMetadata = ProjectMetadata.builder(clusterState.metadata().getProject(projectId))
             .putCustom(PersistentTasksCustomMetadata.TYPE, tasks);
         return ClusterState.builder(clusterState).metadata(Metadata.builder(clusterState.metadata()).put(projectMetadata)).build();
-    }
-
-    static class TestToggleableExecutor extends ToggleablePersistentTasksExecutor<TestParams> {
-        private final Scope scope;
-
-        TestToggleableExecutor(
-            ClusterService clusterService,
-            PersistentTasksService persistentTasksService,
-            Scope scope,
-            boolean initialEnabled
-        ) {
-            super(
-                TASK_NAME,
-                clusterService.threadPool().executor(ThreadPool.Names.MANAGEMENT),
-                clusterService,
-                persistentTasksService,
-                initialEnabled,
-                () -> TestParams.INSTANCE
-            );
-            this.scope = scope;
-        }
-
-        @Override
-        public Scope scope() {
-            return scope;
-        }
-
-        void setEnabled(boolean enabled, @Nullable ProjectId projectId) {
-            if (projectId != null) {
-                setEnabled(projectId, enabled);
-            } else {
-                setEnabled(enabled);
-            }
-        }
-
-        void wipeProjectsEnabled() {
-            cleanupObsoleteProjectTracking(masterState());
-        }
-
-        @Override
-        protected void nodeOperation(AllocatedPersistentTask task, TestParams params, PersistentTaskState state) {}
     }
 
     static class TestParams implements PersistentTaskParams {

@@ -9,27 +9,17 @@
 
 package org.elasticsearch.ingest.geoip;
 
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
-import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
-import org.elasticsearch.cluster.project.ProjectResolver;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.ingest.PipelineConfiguration;
-import org.elasticsearch.persistent.PersistentTasksService;
-import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.threadpool.TestThreadPool;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -38,63 +28,9 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.Consumer;
 
-import static org.elasticsearch.test.ClusterServiceUtils.setState;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
-
 public class GeoIpDownloaderTaskExecutorTests extends ESTestCase {
-
-    public void testSettingsUpdateWiresToEnabledFlag() {
-        final boolean localEnabled = randomBoolean();
-        final var nodeSettings = Settings.builder().put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), localEnabled).build();
-        final var clusterSettings = new ClusterSettings(
-            nodeSettings,
-            Sets.union(
-                ClusterSettings.BUILT_IN_CLUSTER_SETTINGS,
-                Set.of(
-                    GeoIpDownloaderTaskExecutor.ENABLED_SETTING,
-                    GeoIpDownloaderTaskExecutor.POLL_INTERVAL_SETTING,
-                    GeoIpDownloaderTaskExecutor.EAGER_DOWNLOAD_SETTING
-                )
-            )
-        );
-        final var localNode = DiscoveryNodeUtils.create("local");
-        ThreadPool threadPool = new TestThreadPool(getTestName());
-        try (
-            ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool, localNode, nodeSettings, clusterSettings)
-        ) {
-            final var projectResolver = mock(ProjectResolver.class);
-            final var client = mock(org.elasticsearch.client.internal.Client.class);
-            when(projectResolver.supportsMultipleProjects()).thenReturn(false);
-            when(client.projectResolver()).thenReturn(projectResolver);
-
-            var executor = new GeoIpDownloaderTaskExecutor(
-                client,
-                mock(HttpClient.class),
-                clusterService,
-                threadPool,
-                mock(PersistentTasksService.class)
-            );
-            assertEquals(localEnabled, executor.isEnabled());
-
-            boolean enabled = localEnabled;
-            var state = clusterService.state();
-            final int cycles = randomIntBetween(2, 5);
-            for (int i = 0; i < cycles; i++) {
-                if (randomBoolean()) {
-                    enabled = randomBoolean();
-                    state = stateWithEnabledSetting(state, enabled);
-                }
-                setState(clusterService, state);
-                assertEquals(enabled, executor.isEnabled());
-            }
-        } finally {
-            terminate(threadPool);
-        }
-    }
 
     public void testHasAtLeastOneGeoipProcessorWhenDownloadDatabaseOnPipelineCreationIsFalse() throws IOException {
         for (String pipelineConfigJson : getPipelinesWithGeoIpProcessors(false)) {
@@ -435,13 +371,6 @@ public class GeoIpDownloaderTaskExecutorTests extends ESTestCase {
         return ProjectMetadata.builder(randomProjectIdOrDefault())
             .putCustom(IngestMetadata.TYPE, ingestMetadata)
             .put(indexMetadata, false)
-            .build();
-    }
-
-    private static ClusterState stateWithEnabledSetting(ClusterState clusterState, boolean enabled) {
-        final var persistentSettings = Settings.builder().put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), enabled).build();
-        return ClusterState.builder(clusterState)
-            .metadata(Metadata.builder(clusterState.metadata()).persistentSettings(persistentSettings))
             .build();
     }
 }

@@ -571,7 +571,16 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         assertTrue(stopDatafeedResponse.isStopped());
 
         // Check the job state is as expected
-        assertBusy(() -> assertEquals(jobState, getJobStats(jobId).get(0).getState()), 2, TimeUnit.SECONDS);
+        assertBusy(() -> {
+            JobState actualState = getJobStats(jobId).get(0).getState();
+            if (jobState == JobState.OPENED && actualState == JobState.CLOSED) {
+                // The lookback may have completed naturally before the stop was issued, causing auto-close.
+                // This is legitimate if all docs were processed.
+                assertEquals(numDocs, getDataCounts(jobId).getProcessedRecordCount());
+            } else {
+                assertEquals(jobState, actualState);
+            }
+        }, 2, TimeUnit.SECONDS);
     }
 
     public void testStopLookback_closeJobTrue() throws Exception {

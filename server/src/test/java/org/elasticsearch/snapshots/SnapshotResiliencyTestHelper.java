@@ -151,6 +151,9 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.search.fetch.FetchPhase;
+import org.elasticsearch.search.fetch.chunk.ActiveFetchPhaseTasks;
+import org.elasticsearch.search.fetch.chunk.TransportFetchPhaseCoordinationAction;
+import org.elasticsearch.search.fetch.chunk.TransportFetchPhaseResponseChunkAction;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.client.NoOpClient;
@@ -695,6 +698,8 @@ public class SnapshotResiliencyTestHelper {
                 );
 
                 final ActionFilters actionFilters = new ActionFilters(emptySet());
+                final ActiveFetchPhaseTasks activeFetchPhaseTasks = new ActiveFetchPhaseTasks();
+                new TransportFetchPhaseResponseChunkAction(transportService, activeFetchPhaseTasks, namedWriteableRegistry);
                 Map<ActionType<?>, TransportAction<?, ?>> actions = new HashMap<>();
 
                 // Inject initialization from subclass which may be needed by initializations after this point.
@@ -761,6 +766,7 @@ public class SnapshotResiliencyTestHelper {
                     client,
                     SearchExecutionStatsCollector.makeWrapper(responseCollectorService)
                 );
+                searchTransportService.setSearchService(searchService);
 
                 indicesClusterStateService = new IndicesClusterStateService(
                     settings,
@@ -951,6 +957,16 @@ public class SnapshotResiliencyTestHelper {
                         new IndicesServiceTests.TestActionActionLoggingFieldsProvider(),
                         ActivityLogWriterProvider.NOOP,
                         CrossProjectModeDecider.NOOP
+                    )
+                );
+                actions.put(
+                    TransportFetchPhaseCoordinationAction.TYPE,
+                    new TransportFetchPhaseCoordinationAction(
+                        transportService,
+                        actionFilters,
+                        activeFetchPhaseTasks,
+                        new NoneCircuitBreakerService(),
+                        namedWriteableRegistry
                     )
                 );
                 actions.put(

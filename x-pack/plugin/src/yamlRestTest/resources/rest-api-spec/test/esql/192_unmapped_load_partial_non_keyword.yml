@@ -7,49 +7,178 @@ setup:
           path: /_query
           parameters: [ ]
           capabilities: [ optional_fields_v5 ]
-      reason: "Loading a partially unmapped non-keyword field must fail when unmapped_fields=load"
+      reason: 'When unmapped_fields="load", loading a partially unmapped non-keyword field must fail, unless used in KEEP, or DROP, or a conversion function that can convert all types it is mapped as to a common type'
+  #
+  # The table below represents the field mappings for the three indices created in this test.
+  #
+  # | Field      | index1  |   index2   | index3  |
+  # |------------|---------|------------|---------|
+  # | alpha      | long    | integer    | -       |
+  # | lambda     | keyword | keyword    | -       |
+  # | tau        | date    | date_nanos | -       |
+  # | beta       | -       | double     | -       |
+  # | gamma      | -       | -          | boolean |
+  #
   - do:
       indices.create:
-        index: partial_load_yaml_1
+        index: index1
         body:
           mappings:
             dynamic: false
             properties:
-              partial_x:
+              alpha:
                 type: long
-              tag:
+              lambda:
                 type: keyword
+              tau:
+                type: date
   - do:
       indices.create:
-        index: partial_load_yaml_2
+        index: index2
         body:
           mappings:
             dynamic: false
             properties:
-              tag:
+              alpha:
+                type: integer
+              lambda:
                 type: keyword
+              tau:
+                type: date_nanos
+              beta:
+                type: double
+  - do:
+      indices.create:
+        index: index3
+        body:
+          mappings:
+            dynamic: false
+            properties:
+              gamma:
+                type: boolean
 
 ---
-"load rejects use of partially mapped non-KEYWORD field":
+"test 10":
   - do:
-      catch: bad_request
       allowed_warnings_regex:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'SET unmapped_fields="load"; FROM partial_load_yaml_* | WHERE partial_x > 0 | KEEP tag'
+          # [beta] is double in index2
+          # [gamma] is boolean in index3
+          # PUNKs should not be rejected in DROP
+          query: 'SET unmapped_fields="load"; FROM index2,index3 | DROP beta, gamma'
+  - length: { values: 0 }
+
+---
+"test 20":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          # [beta] is double in index2
+          # [gamma] is boolean in index3
+          # PUNKs should not be rejected in wildcard DROP
+          query: 'SET unmapped_fields="load"; FROM index2,index3 | DROP bet*, gam*'
+
+#---
+# Temporarily disabled
+#"test 30":
+#  - do:
+#      allowed_warnings_regex:
+#        - "No limit defined, adding default limit of \\[.*\\]"
+#      esql.query:
+#        body:
+#          # [beta] is double in index2
+#          # [gamma] is boolean in index3
+#          # PUNKs should not be rejected in KEEP
+#          query: 'SET unmapped_fields="load"; FROM index2,index3 | KEEP beta, gamma'
+
+#---
+# Temporarily disabled
+#"test 40":
+#  - do:
+#      allowed_warnings_regex:
+#        - "No limit defined, adding default limit of \\[.*\\]"
+#      esql.query:
+#        body:
+#          # [beta] is double in index2
+#          # PUNKs should not be rejected in wildcard KEEP
+#          query: 'SET unmapped_fields="load"; FROM index1,index2,index3 | KEEP beta*'
+
+#---
+# Temporarily disabled
+#"test 50":
+#  - do:
+#      allowed_warnings_regex:
+#        - "No limit defined, adding default limit of \\[.*\\]"
+#      esql.query:
+#        body:
+#          # [beta] is double in index2
+#          # PUNKs should be rejected in RENAME
+#          query: 'SET unmapped_fields="load"; FROM index1,index2,index3 | RENAME beta AS mu'
+
+---
+"test 60":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          # [beta] is double in index2
+          # [gamma] is boolean in index3
+          # PUNKs should not be rejected in conversion functions (e.g.: punk::TYPE or TO_TYPE(punk))
+          query: 'SET unmapped_fields="load"; FROM index1,index2,index3 | EVAL x = beta::long, y = gamma::boolean, m = TO_LONG(beta), n = TO_BOOLEAN(gamma) | SORT x ASC | KEEP y'
+
+---
+"test 70":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          # [tau] is date index1
+          # [tau] is date_nanos index2
+          # Field is mapped differently in both indices. DATE/DATE_NANOS types shouldn't fail.
+          query: 'SET unmapped_fields="load"; FROM index1,index2 | WHERE tau > 0::date'
+
+---
+"test 80":
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          # [tau] is date index1
+          # [tau] is date_nanos index2
+          # [tau] is unmapped in index3
+          query: 'SET unmapped_fields="load"; FROM index* | WHERE tau > 0::date'
   - match: { status: 400 }
   - match: { error.type: verification_exception }
   - contains: { error.reason: 'Found 1 problem' }
-  - contains: { error.reason: 'line 1:62: Cannot use field [partial_x] due to ambiguities being mapped as [2] incompatible types: [keyword] due to loading from _source, [long] in [partial_load_yaml_1]' }
+  - contains: { error.reason: 'line 1:49: Cannot use field [tau] due to ambiguities being mapped as [3] incompatible types: [keyword] due to loading from _source, [date_nanos] in [index2], [datetime] in [index1]' }
 
 ---
-"load allows query when partially mapped non-KEYWORD field is unused":
+"test 90":
   - do:
-      allowed_warnings_regex:
-        - "No limit defined, adding default limit of \\[.*\\]"
+      catch: bad_request
       esql.query:
         body:
-          query: 'SET unmapped_fields="load"; FROM partial_load_yaml_* | KEEP tag'
-  - match: { columns.0.name: "tag" }
-  - length: { values: 0 }
+          query: 'SET unmapped_fields="load"; FROM index1,index2 | SORT alpha DESC | WHERE alpha > 0'
+  - match: { status: 400 }
+  - match: { error.type: verification_exception }
+  - contains: { error.reason: 'Found 1 problem' }
+  - contains: { error.reason: 'line 1:55: Cannot use field [alpha] due to ambiguities being mapped as [2] incompatible types: [integer] in [index2], [long] in [index1]' }
+
+---
+"test 100":
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM index2,index3 | STATS x = AVG(beta::double), y = MIN(gamma)'
+  - match: { status: 400 }
+  - match: { error.type: verification_exception }
+  - contains: { error.reason: 'Found 1 problem' }
+  - contains: { error.reason: 'line 1:87: Cannot use field [gamma] due to ambiguities being mapped as [2] incompatible types: [keyword] due to loading from _source, [boolean] in [index3]' }
+

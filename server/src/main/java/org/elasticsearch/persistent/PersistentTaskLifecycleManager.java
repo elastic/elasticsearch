@@ -13,6 +13,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -21,14 +22,14 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -45,93 +46,94 @@ import java.util.function.Supplier;
 /// and one accepting a [Setting] whose value is watched for dynamic updates.
 /// Reconciliation runs independently for every project in the cluster state.
 ///
+/// At most one request is in flight at a time per task (per project for project-scoped tasks). If the
+/// enabled state changes while a request is in flight, the opposite request is sent immediately upon
+/// completion without waiting for the next cluster state update.
+///
 /// Tasks controlled by more complex logic (e.g. requiring per-project conditions or custom stop behavior)
-/// have separate classes managing their own lifecycle.
+/// should have separate classes managing their own lifecycle.
 ///
 public final class PersistentTaskLifecycleManager implements ClusterStateListener {
 
     private static final Logger logger = LogManager.getLogger(PersistentTaskLifecycleManager.class);
 
+    private enum InFlightRequest {
+        NONE,
+        START,
+        REMOVE,
+        STALE
+    }
+
     private final PersistentTasksService persistentTasksService;
+    private final ClusterService clusterService;
     private final ClusterSettings clusterSettings;
     private final List<ClusterTaskRegistration> clusterRegistrations = new ArrayList<>();
     private final List<ProjectTaskRegistration> projectRegistrations = new ArrayList<>();
 
     public PersistentTaskLifecycleManager(PersistentTasksService persistentTasksService, ClusterService clusterService) {
         this.persistentTasksService = persistentTasksService;
+        this.clusterService = clusterService;
         this.clusterSettings = clusterService.getClusterSettings();
         clusterService.addListener(this);
     }
 
     /// Registers a cluster-scoped task.
     ///
-    /// @param taskName         the task name, also used as the task ID in cluster state
-    /// @param enabled          called on each cluster state update to determine whether the task should be running
-    /// @param paramsSupplier   called only when a start request is needed
-    /// @param masterNodeTimeout timeout for start/remove requests sent to the master
-    public void registerClusterTask(
-        String taskName,
-        BooleanSupplier enabled,
-        Supplier<? extends PersistentTaskParams> paramsSupplier,
-        TimeValue masterNodeTimeout
-    ) {
-        clusterRegistrations.add(new ClusterTaskRegistration(taskName, enabled, paramsSupplier, masterNodeTimeout));
+    /// @param taskName       the task name, also used as the task ID in cluster state
+    /// @param enabled        called on each cluster state update to determine whether the task should be running
+    /// @param paramsSupplier called only when a start request is needed
+    public void registerClusterTask(String taskName, BooleanSupplier enabled, Supplier<? extends PersistentTaskParams> paramsSupplier) {
+        clusterRegistrations.add(new ClusterTaskRegistration(taskName, enabled, paramsSupplier));
     }
 
     /// Registers a cluster-scoped task whose enabled state is driven by a [Setting].
     /// The manager watches the setting for dynamic changes and reconciles accordingly.
     ///
-    /// @param taskName         the task name, also used as the task ID in cluster state
-    /// @param enabledSetting   setting that controls whether the task should be running
-    /// @param paramsSupplier   called only when a start request is needed
-    /// @param masterNodeTimeout timeout for start/remove requests sent to the master
+    /// @param taskName       the task name, also used as the task ID in cluster state
+    /// @param enabledSetting setting that controls whether the task should be running
+    /// @param paramsSupplier called only when a start request is needed
     public void registerClusterTask(
         String taskName,
         Setting<Boolean> enabledSetting,
-        Supplier<? extends PersistentTaskParams> paramsSupplier,
-        TimeValue masterNodeTimeout
+        Supplier<? extends PersistentTaskParams> paramsSupplier
     ) {
         final var enabled = new AtomicBoolean();
         clusterSettings.initializeAndWatch(enabledSetting, enabled::set);
-        registerClusterTask(taskName, enabled::get, paramsSupplier, masterNodeTimeout);
+        registerClusterTask(taskName, enabled::get, paramsSupplier);
     }
 
     /// Registers a project-scoped task.
     /// The task is reconciled independently for every project present in the cluster state.
     ///
-    /// @param taskName         the task name, used to identify the executor
-    /// @param taskIdFn         maps a [ProjectId] to the task ID stored in that project's task metadata
-    /// @param enabled          called on each reconciliation to determine whether the task should be running
-    /// @param paramsSupplier   called only when a start request is needed
-    /// @param masterNodeTimeout timeout for start/remove requests sent to the master
+    /// @param taskName       the task name, used to identify the executor
+    /// @param taskIdFn       maps a [ProjectId] to the task ID stored in that project's task metadata
+    /// @param enabled        called on each reconciliation to determine whether the task should be running
+    /// @param paramsSupplier called only when a start request is needed
     public void registerProjectTask(
         String taskName,
         Function<ProjectId, String> taskIdFn,
         BooleanSupplier enabled,
-        Supplier<? extends PersistentTaskParams> paramsSupplier,
-        TimeValue masterNodeTimeout
+        Supplier<? extends PersistentTaskParams> paramsSupplier
     ) {
-        projectRegistrations.add(new ProjectTaskRegistration(taskName, taskIdFn, enabled, paramsSupplier, masterNodeTimeout));
+        projectRegistrations.add(new ProjectTaskRegistration(taskName, taskIdFn, enabled, paramsSupplier));
     }
 
     /// Registers a project-scoped task whose enabled state is driven by a [Setting].
     /// The manager watches the setting for dynamic changes and reconciles accordingly.
     ///
-    /// @param taskName         the task name, used to identify the executor
-    /// @param taskIdFn         maps a [ProjectId] to the task ID stored in that project's task metadata
-    /// @param enabledSetting   setting that controls whether the task should be running
-    /// @param paramsSupplier   called only when a start request is needed
-    /// @param masterNodeTimeout timeout for start/remove requests sent to the master
+    /// @param taskName       the task name, used to identify the executor
+    /// @param taskIdFn       maps a [ProjectId] to the task ID stored in that project's task metadata
+    /// @param enabledSetting setting that controls whether the task should be running
+    /// @param paramsSupplier called only when a start request is needed
     public void registerProjectTask(
         String taskName,
         Function<ProjectId, String> taskIdFn,
         Setting<Boolean> enabledSetting,
-        Supplier<? extends PersistentTaskParams> paramsSupplier,
-        TimeValue masterNodeTimeout
+        Supplier<? extends PersistentTaskParams> paramsSupplier
     ) {
         final var enabled = new AtomicBoolean();
         clusterSettings.initializeAndWatch(enabledSetting, enabled::set);
-        registerProjectTask(taskName, taskIdFn, enabled::get, paramsSupplier, masterNodeTimeout);
+        registerProjectTask(taskName, taskIdFn, enabled::get, paramsSupplier);
     }
 
     @Override
@@ -149,8 +151,15 @@ public final class PersistentTaskLifecycleManager implements ClusterStateListene
         for (var reg : clusterRegistrations) {
             reconcileClusterTask(state, reg);
         }
+        final var projects = state.metadata().projects();
         for (var reg : projectRegistrations) {
-            for (var project : state.metadata().projects().values()) {
+            reg.inFlightRequests()
+                .entrySet()
+                .removeIf(
+                    e -> projects.containsKey(e.getKey()) == false
+                        && e.getValue().compareAndSet(InFlightRequest.NONE, InFlightRequest.STALE)
+                );
+            for (var project : projects.values()) {
                 reconcileProjectTask(project, reg);
             }
         }
@@ -160,74 +169,136 @@ public final class PersistentTaskLifecycleManager implements ClusterStateListene
         final boolean taskExists = ClusterPersistentTasksCustomMetadata.getTaskWithId(state, reg.taskName()) != null;
         final boolean enabled = reg.enabled().getAsBoolean();
         if (enabled && taskExists == false) {
-            persistentTasksService.sendClusterStartRequest(
-                reg.taskName(),
-                reg.taskName(),
-                reg.paramsSupplier().get(),
-                reg.masterNodeTimeout(),
-                ActionListener.wrap(
-                    r -> logger.debug("Created [{}] task", reg.taskName()),
-                    e -> handleStartFailure(reg.taskName(), null, e)
-                )
-            );
+            sendClusterTaskStartRequest(reg);
         } else if (enabled == false && taskExists) {
-            persistentTasksService.sendClusterRemoveRequest(
-                reg.taskName(),
-                reg.masterNodeTimeout(),
-                ActionListener.wrap(r -> logger.debug("Removed [{}] task", reg.taskName()), e -> handleStopFailure(reg.taskName(), null, e))
-            );
+            sendClusterTaskRemoveRequest(reg);
+        }
+    }
+
+    private void sendClusterTaskStartRequest(ClusterTaskRegistration reg) {
+        if (reg.inFlightRequest().compareAndSet(InFlightRequest.NONE, InFlightRequest.START) == false) {
+            return;
+        }
+        persistentTasksService.sendClusterStartRequest(
+            reg.taskName(),
+            reg.taskName(),
+            reg.paramsSupplier().get(),
+            MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT,
+            ActionListener.wrap(r -> onClusterTaskStartRequestComplete(reg), e -> {
+                final var t = ExceptionsHelper.unwrapCause(e);
+                if (t instanceof ResourceAlreadyExistsException) {
+                    onClusterTaskStartRequestComplete(reg);
+                } else {
+                    logger.warn(() -> "Failed to create [" + reg.taskName() + "] task", e);
+                    reg.inFlightRequest().set(InFlightRequest.NONE);
+                }
+            })
+        );
+    }
+
+    private void sendClusterTaskRemoveRequest(ClusterTaskRegistration reg) {
+        if (reg.inFlightRequest().compareAndSet(InFlightRequest.NONE, InFlightRequest.REMOVE) == false) {
+            return;
+        }
+        persistentTasksService.sendClusterRemoveRequest(
+            reg.taskName(),
+            MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT,
+            ActionListener.wrap(r -> onClusterTaskRemoveRequestComplete(reg), e -> {
+                final var t = ExceptionsHelper.unwrapCause(e);
+                if (t instanceof ResourceNotFoundException) {
+                    onClusterTaskRemoveRequestComplete(reg);
+                } else {
+                    logger.warn(() -> "Failed to remove [" + reg.taskName() + "] task", e);
+                    reg.inFlightRequest().set(InFlightRequest.NONE);
+                }
+            })
+        );
+    }
+
+    private void onClusterTaskStartRequestComplete(ClusterTaskRegistration reg) {
+        logger.debug("Created [{}] task", reg.taskName());
+        reg.inFlightRequest().set(InFlightRequest.NONE);
+        if (clusterService.state().nodes().isLocalNodeElectedMaster() && reg.enabled().getAsBoolean() == false) {
+            sendClusterTaskRemoveRequest(reg);
+        }
+    }
+
+    private void onClusterTaskRemoveRequestComplete(ClusterTaskRegistration reg) {
+        logger.debug("Removed [{}] task", reg.taskName());
+        reg.inFlightRequest().set(InFlightRequest.NONE);
+        if (clusterService.state().nodes().isLocalNodeElectedMaster() && reg.enabled().getAsBoolean()) {
+            sendClusterTaskStartRequest(reg);
         }
     }
 
     private void reconcileProjectTask(ProjectMetadata project, ProjectTaskRegistration reg) {
         final var projectId = project.id();
+        reg.inFlightRequests().computeIfAbsent(projectId, k -> new AtomicReference<>(InFlightRequest.NONE));
         final var taskId = reg.taskIdFn().apply(projectId);
         final boolean taskExists = PersistentTasksCustomMetadata.getTaskWithId(project, taskId) != null;
         final boolean enabled = reg.enabled().getAsBoolean();
         if (enabled && taskExists == false) {
-            persistentTasksService.sendProjectStartRequest(
-                projectId,
-                taskId,
-                reg.taskName(),
-                reg.paramsSupplier().get(),
-                reg.masterNodeTimeout(),
-                ActionListener.wrap(
-                    r -> logger.debug("Created [{}] task for project [{}]", reg.taskName(), projectId),
-                    e -> handleStartFailure(reg.taskName(), projectId, e)
-                )
-            );
+            sendProjectTaskStartRequest(reg, projectId, taskId);
         } else if (enabled == false && taskExists) {
-            persistentTasksService.sendProjectRemoveRequest(
-                projectId,
-                taskId,
-                reg.masterNodeTimeout(),
-                ActionListener.wrap(
-                    r -> logger.debug("Removed [{}] task for project [{}]", reg.taskName(), projectId),
-                    e -> handleStopFailure(reg.taskName(), projectId, e)
-                )
-            );
+            sendProjectTaskRemoveRequest(reg, projectId, taskId);
         }
     }
 
-    private void handleStartFailure(String taskName, @Nullable ProjectId projectId, Exception e) {
-        Throwable t = ExceptionsHelper.unwrapCause(e);
-        if (t instanceof ResourceAlreadyExistsException == false) {
-            if (projectId == null) {
-                logger.warn(() -> "Failed to create [" + taskName + "] task", e);
-            } else {
-                logger.warn(() -> "Failed to create [" + taskName + "] task for project [" + projectId + "]", e);
-            }
+    private void sendProjectTaskStartRequest(ProjectTaskRegistration reg, ProjectId projectId, String taskId) {
+        if (reg.inFlightRequests().get(projectId).compareAndSet(InFlightRequest.NONE, InFlightRequest.START) == false) {
+            return;
+        }
+        persistentTasksService.sendProjectStartRequest(
+            projectId,
+            taskId,
+            reg.taskName(),
+            reg.paramsSupplier().get(),
+            MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT,
+            ActionListener.wrap(r -> onProjectTaskStartRequestComplete(reg, projectId, taskId), e -> {
+                final var t = ExceptionsHelper.unwrapCause(e);
+                if (t instanceof ResourceAlreadyExistsException) {
+                    onProjectTaskStartRequestComplete(reg, projectId, taskId);
+                } else {
+                    logger.warn(() -> "Failed to create [" + reg.taskName() + "] task for project [" + projectId + "]", e);
+                    reg.inFlightRequests().get(projectId).set(InFlightRequest.NONE);
+                }
+            })
+        );
+    }
+
+    private void sendProjectTaskRemoveRequest(ProjectTaskRegistration reg, ProjectId projectId, String taskId) {
+        if (reg.inFlightRequests().get(projectId).compareAndSet(InFlightRequest.NONE, InFlightRequest.REMOVE) == false) {
+            return;
+        }
+        persistentTasksService.sendProjectRemoveRequest(
+            projectId,
+            taskId,
+            MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT,
+            ActionListener.wrap(r -> onProjectTaskRemoveRequestComplete(reg, projectId, taskId), e -> {
+                final var t = ExceptionsHelper.unwrapCause(e);
+                if (t instanceof ResourceNotFoundException) {
+                    onProjectTaskRemoveRequestComplete(reg, projectId, taskId);
+                } else {
+                    logger.warn(() -> "Failed to remove [" + reg.taskName() + "] task for project [" + projectId + "]", e);
+                    reg.inFlightRequests().get(projectId).set(InFlightRequest.NONE);
+                }
+            })
+        );
+    }
+
+    private void onProjectTaskStartRequestComplete(ProjectTaskRegistration reg, ProjectId projectId, String taskId) {
+        logger.debug("Created [{}] task for project [{}]", reg.taskName(), projectId);
+        reg.inFlightRequests().get(projectId).set(InFlightRequest.NONE);
+        if (clusterService.state().nodes().isLocalNodeElectedMaster() && reg.enabled().getAsBoolean() == false) {
+            sendProjectTaskRemoveRequest(reg, projectId, taskId);
         }
     }
 
-    private void handleStopFailure(String taskName, @Nullable ProjectId projectId, Exception e) {
-        Throwable t = ExceptionsHelper.unwrapCause(e);
-        if (t instanceof ResourceNotFoundException == false) {
-            if (projectId == null) {
-                logger.warn(() -> "Failed to remove [" + taskName + "] task", e);
-            } else {
-                logger.warn(() -> "Failed to remove [" + taskName + "] task for project [" + projectId + "]", e);
-            }
+    private void onProjectTaskRemoveRequestComplete(ProjectTaskRegistration reg, ProjectId projectId, String taskId) {
+        logger.debug("Removed [{}] task for project [{}]", reg.taskName(), projectId);
+        reg.inFlightRequests().get(projectId).set(InFlightRequest.NONE);
+        if (clusterService.state().nodes().isLocalNodeElectedMaster() && reg.enabled().getAsBoolean()) {
+            sendProjectTaskStartRequest(reg, projectId, taskId);
         }
     }
 
@@ -235,14 +306,27 @@ public final class PersistentTaskLifecycleManager implements ClusterStateListene
         String taskName,
         BooleanSupplier enabled,
         Supplier<? extends PersistentTaskParams> paramsSupplier,
-        TimeValue masterNodeTimeout
-    ) {}
+        AtomicReference<InFlightRequest> inFlightRequest
+    ) {
+        ClusterTaskRegistration(String taskName, BooleanSupplier enabled, Supplier<? extends PersistentTaskParams> paramsSupplier) {
+            this(taskName, enabled, paramsSupplier, new AtomicReference<>(InFlightRequest.NONE));
+        }
+    }
 
     private record ProjectTaskRegistration(
         String taskName,
         Function<ProjectId, String> taskIdFn,
         BooleanSupplier enabled,
         Supplier<? extends PersistentTaskParams> paramsSupplier,
-        TimeValue masterNodeTimeout
-    ) {}
+        ConcurrentHashMap<ProjectId, AtomicReference<InFlightRequest>> inFlightRequests
+    ) {
+        ProjectTaskRegistration(
+            String taskName,
+            Function<ProjectId, String> taskIdFn,
+            BooleanSupplier enabled,
+            Supplier<? extends PersistentTaskParams> paramsSupplier
+        ) {
+            this(taskName, taskIdFn, enabled, paramsSupplier, new ConcurrentHashMap<>());
+        }
+    }
 }

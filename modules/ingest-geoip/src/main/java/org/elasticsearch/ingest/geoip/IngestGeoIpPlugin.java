@@ -10,7 +10,6 @@
 package org.elasticsearch.ingest.geoip;
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -154,8 +153,7 @@ public class IngestGeoIpPlugin extends Plugin
                 GeoIpDownloader.GEOIP_DOWNLOADER,
                 geoIpDownloaderTaskExecutor::getTaskIdForProject,
                 GeoIpDownloaderTaskExecutor.ENABLED_SETTING,
-                GeoIpTaskParams::new,
-                MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT
+                GeoIpTaskParams::new
             );
         enterpriseGeoIpDownloaderTaskExecutor = new EnterpriseGeoIpDownloaderTaskExecutor(
             services.client(),

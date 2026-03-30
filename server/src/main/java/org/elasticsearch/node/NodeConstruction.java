@@ -1840,8 +1840,7 @@ class NodeConstruction {
         persistentTaskLifecycleManager.registerClusterTask(
             HealthNode.TASK_NAME,
             HealthNodeTaskExecutor.ENABLED_SETTING,
-            () -> HealthNodeTaskParams.INSTANCE,
-            TimeValue.THIRTY_SECONDS
+            () -> HealthNodeTaskParams.INSTANCE
         );
         Stream<PersistentTasksExecutor<?>> builtinTaskExecutors = Stream.of(healthNodeTaskExecutor);
 

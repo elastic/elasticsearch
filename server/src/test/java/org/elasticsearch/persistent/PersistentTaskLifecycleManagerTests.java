@@ -10,7 +10,7 @@
 package org.elasticsearch.persistent;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.action.support.master.MasterNodeRequest;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -23,6 +23,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -30,17 +31,18 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.junit.After;
 import org.junit.Before;
+import org.mockito.stubbing.Answer;
 
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNotNull;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -70,20 +72,23 @@ public class PersistentTaskLifecycleManagerTests extends ESTestCase {
         terminate(threadPool);
     }
 
-    public void testClusterTaskReconciliation() {
-        final boolean initiallyEnabled = randomBoolean();
+    public void testClusterTaskReconciliationNoInFlightRequests() {
+        // Each request completes immediately so inFlight should always be NONE between reconcile cycles.
+        doAnswer(completesImmediately(4)).when(persistentTasksService).sendClusterStartRequest(any(), any(), any(), any(), any());
+        doAnswer(completesImmediately(2)).when(persistentTasksService).sendClusterRemoveRequest(any(), any(), any());
+
         final var nodeSettings = Settings.EMPTY;
         final var clusterSettings = new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         final var localNode = DiscoveryNodeUtils.create(LOCAL_NODE_ID);
+        final var enabled = new AtomicBoolean(randomBoolean());
         final var initialState = masterState();
 
         try (
             ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool, localNode, nodeSettings, clusterSettings)
         ) {
             setState(clusterService, initialState);
-            final var enabled = new AtomicBoolean(initiallyEnabled);
             final var manager = new PersistentTaskLifecycleManager(persistentTasksService, clusterService);
-            manager.registerClusterTask(TASK_NAME, enabled::get, () -> TestParams.INSTANCE, MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT);
+            manager.registerClusterTask(TASK_NAME, enabled::get, () -> TestParams.INSTANCE);
 
             int expectedStartRequests = 0;
             int expectedRemoveRequests = 0;
@@ -103,6 +108,7 @@ public class PersistentTaskLifecycleManagerTests extends ESTestCase {
                     expectedRemoveRequests++;
                 }
             }
+
             verify(persistentTasksService, times(expectedStartRequests)).sendClusterStartRequest(
                 eq(TASK_NAME),
                 eq(TASK_NAME),
@@ -116,110 +122,22 @@ public class PersistentTaskLifecycleManagerTests extends ESTestCase {
         }
     }
 
-    public void testProjectTaskReconciliation() {
-        final boolean initiallyEnabled = randomBoolean();
-        final var nodeSettings = Settings.EMPTY;
-        final var clusterSettings = new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        final var localNode = DiscoveryNodeUtils.create(LOCAL_NODE_ID);
-        final var projectId1 = randomUniqueProjectId();
-        final var projectId2 = randomValueOtherThan(projectId1, ESTestCase::randomUniqueProjectId);
-        final var initialState = masterStateWithProjects(Set.of(projectId1, projectId2));
-
-        try (
-            ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool, localNode, nodeSettings, clusterSettings)
-        ) {
-            setState(clusterService, initialState);
-            final var enabled = new AtomicBoolean(initiallyEnabled);
-            final var manager = new PersistentTaskLifecycleManager(persistentTasksService, clusterService);
-            manager.registerProjectTask(
-                TASK_NAME,
-                projectId -> TASK_NAME,
-                enabled::get,
-                () -> TestParams.INSTANCE,
-                MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT
-            );
-
-            final var expectedStartRequests = new HashMap<ProjectId, Integer>();
-            final var expectedRemoveRequests = new HashMap<ProjectId, Integer>();
-
-            final int cycles = randomIntBetween(5, 10);
-            for (int i = 0; i < cycles; i++) {
-                final boolean task1Exists = randomBoolean();
-                final boolean task2Exists = randomBoolean();
-
-                var state = task1Exists ? stateWithProjectTask(initialState, projectId1, TASK_NAME) : initialState;
-                state = task2Exists ? stateWithProjectTask(state, projectId2, TASK_NAME) : state;
-
-                if (randomBoolean()) {
-                    enabled.set(randomBoolean());
-                }
-                setState(clusterService, state);
-                if (enabled.get() && task1Exists == false) {
-                    expectedStartRequests.merge(projectId1, 1, Integer::sum);
-                }
-                if (enabled.get() && task2Exists == false) {
-                    expectedStartRequests.merge(projectId2, 1, Integer::sum);
-                }
-                if (enabled.get() == false && task1Exists) {
-                    expectedRemoveRequests.merge(projectId1, 1, Integer::sum);
-                }
-                if (enabled.get() == false && task2Exists) {
-                    expectedRemoveRequests.merge(projectId2, 1, Integer::sum);
-                }
-            }
-            verify(persistentTasksService, times(expectedStartRequests.getOrDefault(projectId1, 0))).sendProjectStartRequest(
-                eq(projectId1),
-                eq(TASK_NAME),
-                eq(TASK_NAME),
-                eq(TestParams.INSTANCE),
-                isNotNull(),
-                any()
-            );
-            verify(persistentTasksService, times(expectedStartRequests.getOrDefault(projectId2, 0))).sendProjectStartRequest(
-                eq(projectId2),
-                eq(TASK_NAME),
-                eq(TASK_NAME),
-                eq(TestParams.INSTANCE),
-                isNotNull(),
-                any()
-            );
-            verify(persistentTasksService, times(expectedRemoveRequests.getOrDefault(projectId1, 0))).sendProjectRemoveRequest(
-                eq(projectId1),
-                eq(TASK_NAME),
-                isNotNull(),
-                any()
-            );
-            verify(persistentTasksService, times(expectedRemoveRequests.getOrDefault(projectId2, 0))).sendProjectRemoveRequest(
-                eq(projectId2),
-                eq(TASK_NAME),
-                isNotNull(),
-                any()
-            );
-            verify(persistentTasksService, never()).sendClusterStartRequest(any(), any(), any(), any(), any());
-            verify(persistentTasksService, never()).sendClusterRemoveRequest(any(), any(), any());
-        }
-    }
-
     public void testClusterTaskReconciliationFromSetting() {
+        doAnswer(completesImmediately(4)).when(persistentTasksService).sendClusterStartRequest(any(), any(), any(), any(), any());
+        doAnswer(completesImmediately(2)).when(persistentTasksService).sendClusterRemoveRequest(any(), any(), any());
+
         final var nodeSettings = Settings.builder().put(TASK_ENABLED_SETTING.getKey(), false).build();
-        final var allSettings = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        allSettings.add(TASK_ENABLED_SETTING);
+        final var allSettings = Sets.union(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS, Set.of(TASK_ENABLED_SETTING));
         final var clusterSettings = new ClusterSettings(nodeSettings, allSettings);
         final var localNode = DiscoveryNodeUtils.create(LOCAL_NODE_ID);
 
-        try (
-            ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool, localNode, nodeSettings, clusterSettings)
-        ) {
+        try (var clusterService = ClusterServiceUtils.createClusterService(threadPool, localNode, nodeSettings, clusterSettings)) {
             final var manager = new PersistentTaskLifecycleManager(persistentTasksService, clusterService);
-            manager.registerClusterTask(
-                TASK_NAME,
-                TASK_ENABLED_SETTING,
-                () -> TestParams.INSTANCE,
-                MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT
-            );
+            manager.registerClusterTask(TASK_NAME, TASK_ENABLED_SETTING, () -> TestParams.INSTANCE);
 
             setState(clusterService, masterState());
             verify(persistentTasksService, never()).sendClusterStartRequest(any(), any(), any(), any(), any());
+            verify(persistentTasksService, never()).sendClusterRemoveRequest(any(), any(), any());
 
             setState(clusterService, stateWithPersistentSetting(masterState(), TASK_ENABLED_SETTING.getKey(), true));
             verify(persistentTasksService, times(1)).sendClusterStartRequest(
@@ -235,26 +153,155 @@ public class PersistentTaskLifecycleManagerTests extends ESTestCase {
         }
     }
 
+    public void testClusterTaskReconciliationDeduplicatesInFlightRequests() {
+        final var listener = new AtomicReference<ActionListener<?>>();
+        doAnswer(inv -> {
+            assert listener.get() == null : "unexpected duplicate in flight responses";
+            listener.set(inv.getArgument(4));
+            return null;
+        }).when(persistentTasksService).sendClusterStartRequest(any(), any(), any(), any(), any());
+        doAnswer(inv -> {
+            assert listener.get() == null : "unexpected duplicate in flight responses";
+            listener.set(inv.getArgument(2));
+            return null;
+        }).when(persistentTasksService).sendClusterRemoveRequest(any(), any(), any());
+
+        final var enabled = new AtomicBoolean();
+        final var nodeSettings = Settings.EMPTY;
+        final var clusterSettings = new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        final var localNode = DiscoveryNodeUtils.create(LOCAL_NODE_ID);
+
+        try (var clusterService = ClusterServiceUtils.createClusterService(threadPool, localNode, nodeSettings, clusterSettings)) {
+            final var manager = new PersistentTaskLifecycleManager(persistentTasksService, clusterService);
+            manager.registerClusterTask(TASK_NAME, enabled::get, () -> TestParams.INSTANCE);
+
+            int expectedStartRequests = 0;
+            int expectedRemoveRequests = 0;
+
+            for (int cycle = 0; cycle < 10; cycle++) {
+                final boolean sendStart = randomBoolean();
+                enabled.set(sendStart);
+                final var state = sendStart ? masterState() : stateWithClusterTask(masterState());
+                setState(clusterService, state); // triggers the first request
+
+                if (sendStart) expectedStartRequests++;
+                else expectedRemoveRequests++;
+
+                // A request is still in flight -> no new requests should be sent.
+                for (int j = 0; j < 10; j++) {
+                    enabled.set(randomBoolean());
+                    setState(clusterService, randomBoolean() ? masterState() : stateWithClusterTask(masterState()));
+                }
+
+                verify(persistentTasksService, times(expectedStartRequests)).sendClusterStartRequest(any(), any(), any(), any(), any());
+                verify(persistentTasksService, times(expectedRemoveRequests)).sendClusterRemoveRequest(any(), any(), any());
+
+                final boolean postCompletionEnabled = randomBoolean();
+                enabled.set(postCompletionEnabled);
+                listener.getAndSet(null).onResponse(null); // clears inFlight
+
+                if (postCompletionEnabled != sendStart) {
+                    // The opposite request should have been sent immediately on completion.
+                    if (sendStart) expectedRemoveRequests++;
+                    else expectedStartRequests++;
+                    verify(persistentTasksService, times(expectedStartRequests)).sendClusterStartRequest(any(), any(), any(), any(), any());
+                    verify(persistentTasksService, times(expectedRemoveRequests)).sendClusterRemoveRequest(any(), any(), any());
+                    listener.getAndSet(null).onResponse(null);
+                }
+            }
+        }
+    }
+
+    public void testProjectTaskReconciliationNoInFlightRequests() {
+        // Each request completes immediately so inFlight is always NONE between reconcile cycles.
+        doAnswer(completesImmediately(5)).when(persistentTasksService).sendProjectStartRequest(any(), any(), any(), any(), any(), any());
+        doAnswer(completesImmediately(3)).when(persistentTasksService).sendProjectRemoveRequest(any(), any(), any(), any());
+
+        final var projectId1 = randomUniqueProjectId();
+        final var projectId2 = randomValueOtherThan(projectId1, ESTestCase::randomUniqueProjectId);
+        final var enabled = new AtomicBoolean(randomBoolean());
+        final var baseState = masterStateWithProjects(Set.of(projectId1, projectId2));
+        final var nodeSettings = Settings.EMPTY;
+        final var clusterSettings = new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        final var localNode = DiscoveryNodeUtils.create(LOCAL_NODE_ID);
+
+        try (var clusterService = ClusterServiceUtils.createClusterService(threadPool, localNode, nodeSettings, clusterSettings)) {
+            setState(clusterService, baseState);
+            final var manager = new PersistentTaskLifecycleManager(persistentTasksService, clusterService);
+            manager.registerProjectTask(TASK_NAME, p -> TASK_NAME, enabled::get, () -> TestParams.INSTANCE);
+
+            int expectedStartRequests1 = 0;
+            int expectedRemoveRequests1 = 0;
+            int expectedStartRequests2 = 0;
+            int expectedRemoveRequests2 = 0;
+
+            final int cycles = randomIntBetween(5, 10);
+            for (int i = 0; i < cycles; i++) {
+                final boolean taskExists1 = randomBoolean();
+                final boolean taskExists2 = randomBoolean();
+                if (randomBoolean()) {
+                    enabled.set(randomBoolean());
+                }
+                var state = taskExists1 ? stateWithProjectTask(baseState, projectId1, TASK_NAME) : baseState;
+                state = taskExists2 ? stateWithProjectTask(state, projectId2, TASK_NAME) : state;
+                setState(clusterService, state);
+                if (enabled.get() && taskExists1 == false) expectedStartRequests1++;
+                if (enabled.get() == false && taskExists1) expectedRemoveRequests1++;
+                if (enabled.get() && taskExists2 == false) expectedStartRequests2++;
+                if (enabled.get() == false && taskExists2) expectedRemoveRequests2++;
+            }
+
+            verify(persistentTasksService, times(expectedStartRequests1)).sendProjectStartRequest(
+                eq(projectId1),
+                eq(TASK_NAME),
+                eq(TASK_NAME),
+                eq(TestParams.INSTANCE),
+                isNotNull(),
+                any()
+            );
+            verify(persistentTasksService, times(expectedRemoveRequests1)).sendProjectRemoveRequest(
+                eq(projectId1),
+                eq(TASK_NAME),
+                isNotNull(),
+                any()
+            );
+            verify(persistentTasksService, times(expectedStartRequests2)).sendProjectStartRequest(
+                eq(projectId2),
+                eq(TASK_NAME),
+                eq(TASK_NAME),
+                eq(TestParams.INSTANCE),
+                isNotNull(),
+                any()
+            );
+            verify(persistentTasksService, times(expectedRemoveRequests2)).sendProjectRemoveRequest(
+                eq(projectId2),
+                eq(TASK_NAME),
+                isNotNull(),
+                any()
+            );
+            verify(persistentTasksService, never()).sendClusterStartRequest(any(), any(), any(), any(), any());
+            verify(persistentTasksService, never()).sendClusterRemoveRequest(any(), any(), any());
+        }
+    }
+
     public void testProjectTaskReconciliationFromSetting() {
+        doAnswer(completesImmediately(5)).when(persistentTasksService).sendProjectStartRequest(any(), any(), any(), any(), any(), any());
+        doAnswer(completesImmediately(3)).when(persistentTasksService).sendProjectRemoveRequest(any(), any(), any(), any());
+
         final var projectId = randomUniqueProjectId();
         final var nodeSettings = Settings.builder().put(TASK_ENABLED_SETTING.getKey(), true).build();
-        final var allSettings = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        allSettings.add(TASK_ENABLED_SETTING);
+        final var allSettings = Sets.union(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS, Set.of(TASK_ENABLED_SETTING));
         final var clusterSettings = new ClusterSettings(nodeSettings, allSettings);
         final var localNode = DiscoveryNodeUtils.create(LOCAL_NODE_ID);
         final var stateWithProject = masterStateWithProjects(Set.of(projectId));
 
-        try (
-            ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool, localNode, nodeSettings, clusterSettings)
-        ) {
+        try (var clusterService = ClusterServiceUtils.createClusterService(threadPool, localNode, nodeSettings, clusterSettings)) {
             final var manager = new PersistentTaskLifecycleManager(persistentTasksService, clusterService);
-            manager.registerProjectTask(
-                TASK_NAME,
-                p -> TASK_NAME,
-                TASK_ENABLED_SETTING,
-                () -> TestParams.INSTANCE,
-                MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT
-            );
+            manager.registerProjectTask(TASK_NAME, p -> TASK_NAME, TASK_ENABLED_SETTING, () -> TestParams.INSTANCE);
+
+            setState(clusterService, masterState());
+            verify(persistentTasksService, never()).sendProjectStartRequest(eq(projectId), any(), any(), any(), any(), any());
+            verify(persistentTasksService, never()).sendProjectRemoveRequest(eq(projectId), any(), any(), any());
 
             setState(clusterService, stateWithProject);
             verify(persistentTasksService, times(1)).sendProjectStartRequest(
@@ -275,61 +322,123 @@ public class PersistentTaskLifecycleManagerTests extends ESTestCase {
                 )
             );
             verify(persistentTasksService, times(1)).sendProjectRemoveRequest(eq(projectId), eq(TASK_NAME), isNotNull(), any());
+        }
+    }
 
-            setState(clusterService, stateWithPersistentSetting(stateWithProject, TASK_ENABLED_SETTING.getKey(), true));
-            verify(persistentTasksService, times(2)).sendProjectStartRequest(
-                eq(projectId),
-                eq(TASK_NAME),
-                eq(TASK_NAME),
-                eq(TestParams.INSTANCE),
-                isNotNull(),
-                any()
-            );
+    public void testProjectTaskReconciliationDeduplicatesInFlightRequests() {
+        final var projectId = randomUniqueProjectId();
+        final var listener = new AtomicReference<ActionListener<?>>();
+        doAnswer(inv -> {
+            assert listener.get() == null : "unexpected duplicate in flight responses";
+            listener.set(inv.getArgument(5));
+            return null;
+        }).when(persistentTasksService).sendProjectStartRequest(any(), any(), any(), any(), any(), any());
+        doAnswer(inv -> {
+            assert listener.get() == null : "unexpected duplicate in flight responses";
+            listener.set(inv.getArgument(3));
+            return null;
+        }).when(persistentTasksService).sendProjectRemoveRequest(any(), any(), any(), any());
+
+        final var enabled = new AtomicBoolean();
+        final var baseState = masterStateWithProjects(Set.of(projectId));
+        final var stateWithTask = stateWithProjectTask(baseState, projectId, TASK_NAME);
+        final var nodeSettings = Settings.EMPTY;
+        final var clusterSettings = new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        final var localNode = DiscoveryNodeUtils.create(LOCAL_NODE_ID);
+
+        try (var clusterService = ClusterServiceUtils.createClusterService(threadPool, localNode, nodeSettings, clusterSettings)) {
+            final var manager = new PersistentTaskLifecycleManager(persistentTasksService, clusterService);
+            manager.registerProjectTask(TASK_NAME, p -> TASK_NAME, enabled::get, () -> TestParams.INSTANCE);
+
+            int expectedStartRequests = 0;
+            int expectedRemoveRequests = 0;
+
+            for (int cycle = 0; cycle < 10; cycle++) {
+                final boolean sendStart = randomBoolean();
+                enabled.set(sendStart);
+                setState(clusterService, sendStart ? baseState : stateWithTask); // triggers the first request
+
+                if (sendStart) expectedStartRequests++;
+                else expectedRemoveRequests++;
+
+                // A request is still in flight -> no new requests should be sent.
+                for (int j = 0; j < 10; j++) {
+                    enabled.set(randomBoolean());
+                    setState(clusterService, randomBoolean() ? baseState : stateWithTask);
+                }
+
+                verify(persistentTasksService, times(expectedStartRequests)).sendProjectStartRequest(
+                    eq(projectId),
+                    any(),
+                    any(),
+                    any(),
+                    any(),
+                    any()
+                );
+                verify(persistentTasksService, times(expectedRemoveRequests)).sendProjectRemoveRequest(eq(projectId), any(), any(), any());
+
+                final boolean postCompletionEnabled = randomBoolean();
+                enabled.set(postCompletionEnabled);
+                listener.getAndSet(null).onResponse(null); // clears inFlight
+
+                if (postCompletionEnabled != sendStart) {
+                    // The opposite request should have been sent immediately on completion.
+                    if (sendStart) expectedRemoveRequests++;
+                    else expectedStartRequests++;
+                    verify(persistentTasksService, times(expectedStartRequests)).sendProjectStartRequest(
+                        eq(projectId),
+                        any(),
+                        any(),
+                        any(),
+                        any(),
+                        any()
+                    );
+                    verify(persistentTasksService, times(expectedRemoveRequests)).sendProjectRemoveRequest(
+                        eq(projectId),
+                        any(),
+                        any(),
+                        any()
+                    );
+                    listener.getAndSet(null).onResponse(null);
+                }
+            }
         }
     }
 
     public void testNonMasterNeverStartsOrStopsTask() {
-        final var nodeSettings = Settings.builder().build();
+        final var nodeSettings = Settings.EMPTY;
         final var clusterSettings = new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         final var localNode = DiscoveryNodeUtils.create(LOCAL_NODE_ID);
         final boolean projectScoped = randomBoolean();
         final var initialState = projectScoped ? nonMasterStateWithProjects(Set.of(ProjectId.DEFAULT)) : nonMasterState();
 
-        try (
-            ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool, localNode, nodeSettings, clusterSettings)
-        ) {
+        try (var clusterService = ClusterServiceUtils.createClusterService(threadPool, localNode, nodeSettings, clusterSettings)) {
             final var manager = new PersistentTaskLifecycleManager(persistentTasksService, clusterService);
             if (projectScoped) {
-                manager.registerProjectTask(
-                    TASK_NAME,
-                    unused -> TASK_NAME,
-                    () -> randomBoolean(),
-                    () -> TestParams.INSTANCE,
-                    MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT
-                );
+                manager.registerProjectTask(TASK_NAME, projectId -> TASK_NAME, () -> randomBoolean(), () -> TestParams.INSTANCE);
             } else {
-                manager.registerClusterTask(
-                    TASK_NAME,
-                    () -> randomBoolean(),
-                    () -> TestParams.INSTANCE,
-                    MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT
-                );
+                manager.registerClusterTask(TASK_NAME, () -> randomBoolean(), () -> TestParams.INSTANCE);
             }
 
             var state = initialState;
             if (randomBoolean()) {
-                if (projectScoped) {
-                    state = stateWithProjectTask(state, ProjectId.DEFAULT, TASK_NAME);
-                } else {
-                    state = stateWithClusterTask(state);
-                }
+                state = projectScoped ? stateWithProjectTask(state, ProjectId.DEFAULT, TASK_NAME) : stateWithClusterTask(state);
             }
             setState(clusterService, state);
+
             verify(persistentTasksService, never()).sendClusterStartRequest(any(), any(), any(), any(), any());
             verify(persistentTasksService, never()).sendClusterRemoveRequest(any(), any(), any());
             verify(persistentTasksService, never()).sendProjectStartRequest(any(), any(), any(), any(), any(), any());
             verify(persistentTasksService, never()).sendProjectRemoveRequest(any(), any(), any(), any());
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Answer<Void> completesImmediately(int listenerArgIndex) {
+        return inv -> {
+            ((ActionListener<Object>) inv.getArgument(listenerArgIndex)).onResponse(null);
+            return null;
+        };
     }
 
     private static ClusterState stateWithPersistentSetting(ClusterState state, String key, boolean value) {

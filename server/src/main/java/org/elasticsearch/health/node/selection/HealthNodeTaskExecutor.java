@@ -33,7 +33,7 @@ import static org.elasticsearch.health.node.selection.HealthNode.TASK_NAME;
 /// [PersistentTasksExecutor] responsible for the lifecycle of the [HealthNode] persistent task.
 ///
 /// The task lifecycle (start / stop) is managed externally by the [PersistentTaskLifecycleManager],
-/// which reconciles the desired state on every cluster state update based on [#isEnabled].
+/// which reconciles the desired state on every cluster state update based on [HealthNodeTaskExecutor#ENABLED_SETTING].
 ///
 /// Once the persistent task framework assigns the task to a node, that node becomes the health node. The
 /// [LocalHealthMonitor][org.elasticsearch.health.node.LocalHealthMonitor] and

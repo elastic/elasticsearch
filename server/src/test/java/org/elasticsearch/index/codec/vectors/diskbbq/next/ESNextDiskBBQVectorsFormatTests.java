@@ -322,11 +322,14 @@ public class ESNextDiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCas
     public void testIndexSortOnFlush() throws IOException {
         IndexWriterConfig config = newIndexWriterConfig().setCodec(TestUtil.alwaysKnnVectorsFormat(format))
             .setIndexSort(new Sort(new SortField("sort", SortField.Type.STRING)))
-            .setMergePolicy(NoMergePolicy.INSTANCE);
+            .setMergePolicy(NoMergePolicy.INSTANCE)
+            .setMaxBufferedDocs(10)
+            .setRAMBufferSizeMB(1);
+        ;
         try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, config)) {
-            float[] vectorA = new float[] { 0f, 3f };
-            float[] vectorB = new float[] { 0f, 2f };
-            float[] vectorC = new float[] { 0f, 1f };
+            float[] vectorA = new float[] { 3f, 3f };
+            float[] vectorB = new float[] { 0f, 0f };
+            float[] vectorC = new float[] { -3f, -3f };
             addSortedVectorDoc(w, "c", vectorC);
             addSortedVectorDoc(w, "a", vectorA);
             addSortedVectorDoc(w, "b", vectorB);

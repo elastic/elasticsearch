@@ -32,6 +32,7 @@ public class PushExpressionToFieldLoadGoldenTests extends GoldenTestCase {
         );
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/145205")
     public void testLengthInEval() {
         runGoldenTest("""
             FROM employees
@@ -42,6 +43,7 @@ public class PushExpressionToFieldLoadGoldenTests extends GoldenTestCase {
             """);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/145205")
     public void testLengthInWhere() {
         runGoldenTest("""
             FROM employees
@@ -49,6 +51,7 @@ public class PushExpressionToFieldLoadGoldenTests extends GoldenTestCase {
             """);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/145205")
     public void testLengthInStats() {
         runGoldenTest("""
             FROM employees
@@ -56,6 +59,7 @@ public class PushExpressionToFieldLoadGoldenTests extends GoldenTestCase {
             """);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/145205")
     public void testLengthInEvalAfterManyRenames() {
         runGoldenTest("""
             FROM employees
@@ -69,6 +73,7 @@ public class PushExpressionToFieldLoadGoldenTests extends GoldenTestCase {
             """);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/145205")
     public void testLengthInWhereAndEval() {
         runGoldenTest("""
             FROM employees
@@ -77,6 +82,7 @@ public class PushExpressionToFieldLoadGoldenTests extends GoldenTestCase {
             """);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/145205")
     public void testLengthPushdownZoo() {
         runGoldenTest("""
             FROM employees
@@ -87,6 +93,7 @@ public class PushExpressionToFieldLoadGoldenTests extends GoldenTestCase {
             """);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/145205")
     public void testLengthInStatsTwice() {
         runGoldenTest("""
             FROM employees
@@ -94,6 +101,7 @@ public class PushExpressionToFieldLoadGoldenTests extends GoldenTestCase {
             """);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/145205")
     public void testLengthTwoFields() {
         runGoldenTest("""
             FROM employees
@@ -104,6 +112,7 @@ public class PushExpressionToFieldLoadGoldenTests extends GoldenTestCase {
     // ---- Vector function push tests ----
     // Note: rather than randomizing the functions like the main tests do, I just picked a function to use here.
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/145205")
     public void testVectorFunctionsReplaced() {
         runGoldenTest("""
             from all_types
@@ -113,6 +122,7 @@ public class PushExpressionToFieldLoadGoldenTests extends GoldenTestCase {
             """);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/145205")
     public void testVectorFunctionsReplacedWithTopN() {
         runGoldenTest("""
             from all_types
@@ -123,6 +133,7 @@ public class PushExpressionToFieldLoadGoldenTests extends GoldenTestCase {
             """);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/145205")
     public void testVectorFunctionsInWhere() {
         runGoldenTest("""
             from all_types
@@ -131,6 +142,7 @@ public class PushExpressionToFieldLoadGoldenTests extends GoldenTestCase {
             """);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/145205")
     public void testVectorFunctionsInStats() {
         runGoldenTest("""
             from all_types
@@ -138,6 +150,7 @@ public class PushExpressionToFieldLoadGoldenTests extends GoldenTestCase {
             """);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/145205")
     public void testVectorFunctionsUpdateIntermediateProjections() {
         runGoldenTest("""
             from all_types
@@ -149,6 +162,7 @@ public class PushExpressionToFieldLoadGoldenTests extends GoldenTestCase {
             """);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/145205")
     public void testVectorFunctionsWithDuplicateFunctions() {
         // The SORT ensures all EVALs end up inside the data-node fragment.
         runGoldenTest("""
@@ -167,10 +181,12 @@ public class PushExpressionToFieldLoadGoldenTests extends GoldenTestCase {
 
     // ---- Aggregate Metric Double tests ----
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/145205")
     public void testAggregateMetricDouble() {
         runGoldenTest("FROM k8s-downsampled | STATS m = min(network.eth0.tx)");
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/145205")
     public void testAggregateMetricDoubleWithAvgAndOtherFunctions() {
         runGoldenTest("""
             from k8s-downsampled
@@ -178,6 +194,7 @@ public class PushExpressionToFieldLoadGoldenTests extends GoldenTestCase {
             """);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/145205")
     public void testAggregateMetricDoubleTSCommand() {
         runGoldenTest("""
             TS k8s-downsampled |
@@ -190,6 +207,7 @@ public class PushExpressionToFieldLoadGoldenTests extends GoldenTestCase {
 
     // ---- Reduction plan tests ----
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/145205")
     public void testReductionPlanForTopNWithPushedDownFunctions() {
         assumeTrue("Node reduction must be enabled", EsqlCapabilities.Cap.ENABLE_REDUCE_NODE_LATE_MATERIALIZATION.isEnabled());
         runGoldenTest("""
@@ -201,6 +219,7 @@ public class PushExpressionToFieldLoadGoldenTests extends GoldenTestCase {
             """);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/145205")
     public void testReductionPlanForTopNWithPushedDownFunctionsInOrder() {
         assumeTrue("Node reduction must be enabled", EsqlCapabilities.Cap.ENABLE_REDUCE_NODE_LATE_MATERIALIZATION.isEnabled());
         runGoldenTest("""

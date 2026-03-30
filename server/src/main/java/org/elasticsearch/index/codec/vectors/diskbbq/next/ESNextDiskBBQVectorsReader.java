@@ -92,7 +92,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
      * {@link org.elasticsearch.index.codec.vectors.diskbbq.IVFVectorsReader#search}.
      */
     static int computeInitialCentroidBatchSize(float centroidRatio, int numCentroids, FixedBitSet acceptCentroids) {
-        int target = (int) Math.min(Math.max(centroidRatio * numCentroids, 1f), numCentroids);
+        int target = (int) Math.clamp(centroidRatio * numCentroids, 1f, numCentroids);
         if (acceptCentroids != null) {
             int filtered = acceptCentroids.cardinality();
             if (filtered == 0) {
@@ -208,7 +208,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
             );
         }
         int initialCentroidBatch = computeInitialCentroidBatchSize(centroidRatioForBatch, numCentroids, acceptCentroids);
-        int docBits = ((NextFieldEntry) fieldEntry).quantEncoding.bits();
+        int docBits = fieldEntry.quantEncoding.bits();
         int ringPrefetchDepth = depthFromBudget(visitRatio, docBits);
         return getPostingListPrefetchIterator(centroidIterator, postingListSlice, initialCentroidBatch, ringPrefetchDepth);
     }

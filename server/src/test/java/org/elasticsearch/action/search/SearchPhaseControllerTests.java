@@ -377,6 +377,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
                 0,
                 true,
                 null,
+                new ArrayList<>(),
                 expectedSource,
                 expectedIndices
             );
@@ -1512,6 +1513,8 @@ public class SearchPhaseControllerTests extends ESTestCase {
                 topDocsStats,
                 0,
                 false,
+                null,
+                null,
                 null,
                 null
             );

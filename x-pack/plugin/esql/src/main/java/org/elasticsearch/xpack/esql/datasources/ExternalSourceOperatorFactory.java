@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -104,7 +105,16 @@ public class ExternalSourceOperatorFactory implements SourceOperator.SourceOpera
         }
 
         if (sliceQueue != null) {
-            return new SliceQueueSourceOperator(storageProvider, formatReader, projectedColumns, batchSize, sliceQueue);
+            return new SliceQueueSourceOperator(
+                storageProvider,
+                formatReader,
+                projectedColumns,
+                attributes,
+                batchSize,
+                rowLimit,
+                sliceQueue,
+                driverContext.blockFactory()
+            );
         }
 
         StorageObject storageObject = storageProvider.newObject(path);
@@ -205,8 +215,11 @@ public class ExternalSourceOperatorFactory implements SourceOperator.SourceOpera
         private final StorageProvider storageProvider;
         private final FormatReader formatReader;
         private final List<String> projectedColumns;
+        private final List<Attribute> attributes;
         private final int batchSize;
+        private final int rowLimit;
         private final ExternalSliceQueue sliceQueue;
+        private final BlockFactory blockFactory;
         private final ArrayDeque<ExternalSplit> pendingChildren = new ArrayDeque<>();
         private CloseableIterator<Page> currentPages;
         private StoragePath currentSplitPath;
@@ -216,14 +229,20 @@ public class ExternalSourceOperatorFactory implements SourceOperator.SourceOpera
             StorageProvider storageProvider,
             FormatReader formatReader,
             List<String> projectedColumns,
+            List<Attribute> attributes,
             int batchSize,
-            ExternalSliceQueue sliceQueue
+            int rowLimit,
+            ExternalSliceQueue sliceQueue,
+            BlockFactory blockFactory
         ) {
             this.storageProvider = storageProvider;
             this.formatReader = formatReader;
             this.projectedColumns = projectedColumns;
+            this.attributes = attributes;
             this.batchSize = batchSize;
+            this.rowLimit = rowLimit;
             this.sliceQueue = sliceQueue;
+            this.blockFactory = blockFactory;
         }
 
         @Override
@@ -286,7 +305,13 @@ public class ExternalSourceOperatorFactory implements SourceOperator.SourceOpera
                     .firstSplit(firstSplit)
                     .lastSplit(lastSplit)
                     .build();
-                return formatReader.read(obj, ctx);
+                CloseableIterator<Page> pages = formatReader.read(obj, ctx);
+
+                SchemaReconciliation.ColumnMapping columnMapping = fileSplit.columnMapping();
+                if (columnMapping != null && columnMapping.isIdentity() == false) {
+                    pages = new SchemaAdaptingIterator(pages, attributes, columnMapping, blockFactory);
+                }
+                return pages;
             }
             throw new IllegalArgumentException("Unsupported split type: " + split.getClass().getName());
         }

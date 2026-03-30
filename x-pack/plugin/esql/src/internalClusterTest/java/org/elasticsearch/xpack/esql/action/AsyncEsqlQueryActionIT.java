@@ -60,6 +60,11 @@ import static org.hamcrest.Matchers.notNullValue;
 public class AsyncEsqlQueryActionIT extends AbstractPausableIntegTestCase {
 
     @Override
+    protected boolean allowRandomSequenceNumberPruning() {
+        return false;   // updates require sequence numbers
+    }
+
+    @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         ArrayList<Class<? extends Plugin>> actions = new ArrayList<>(super.nodePlugins());
         actions.add(EsqlAsyncActionIT.LocalStateEsqlAsync.class);

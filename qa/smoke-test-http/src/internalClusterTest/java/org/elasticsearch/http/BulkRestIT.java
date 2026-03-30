@@ -34,6 +34,11 @@ import static org.hamcrest.Matchers.equalTo;
 public class BulkRestIT extends HttpSmokeTestCase {
 
     @Override
+    protected boolean allowRandomSequenceNumberPruning() {
+        return false;   // updates require sequence numbers
+    }
+
+    @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal, otherSettings))

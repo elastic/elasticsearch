@@ -33,6 +33,11 @@ public class BulkUpdateTests extends SecurityIntegTestCase {
     }
 
     @Override
+    protected boolean allowRandomSequenceNumberPruning() {
+        return false;   // updates require sequence numbers
+    }
+
+    @Override
     public Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal, otherSettings))

@@ -24,6 +24,11 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class DeleteByQueryConcurrentTests extends ReindexTestCase {
 
+    @Override
+    protected boolean allowRandomSequenceNumberPruning() {
+        return false;   // delete by query requires sequence numbers
+    }
+
     public void testConcurrentDeleteByQueriesOnDifferentDocs() throws Throwable {
         final int threadCount = scaledRandomIntBetween(2, 5);
         final long docs = randomIntBetween(1, 50);

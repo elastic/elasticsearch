@@ -114,6 +114,11 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
     }
 
     @Override
+    protected boolean allowRandomSequenceNumberPruning() {
+        return false;   // updates require sequence numbers
+    }
+
+    @Override
     protected String configUsers() {
         final String usersPasswHashed = new String(getFastStoredHashAlgoForTests().hash(USERS_PASSWD));
         return super.configUsers()

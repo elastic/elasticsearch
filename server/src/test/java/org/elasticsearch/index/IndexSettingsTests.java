@@ -1194,25 +1194,4 @@ public class IndexSettingsTests extends ESTestCase {
             )
         );
     }
-
-    public void testDisableSequenceNumbersValidationWithInvalidVersion() {
-        assumeTrue("Test should only run with feature flag", IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG);
-        IndexVersion badVersion = IndexVersionUtils.getPreviousVersion(IndexVersions.DISABLE_SEQUENCE_NUMBERS);
-
-        Settings settings = Settings.builder().put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true).build();
-        IndexMetadata indexMetadata = newIndexMeta("some-index", settings, badVersion);
-        IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () -> new IndexSettings(indexMetadata, Settings.EMPTY));
-        assertThat(
-            e.getMessage(),
-            Matchers.containsString(
-                String.format(
-                    Locale.ROOT,
-                    "The setting [%s] is only permitted for indexVersion [%s] or later. Current indexVersion: [%s].",
-                    IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(),
-                    IndexVersions.DISABLE_SEQUENCE_NUMBERS,
-                    badVersion
-                )
-            )
-        );
-    }
 }

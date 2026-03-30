@@ -31,6 +31,11 @@ public class UpdateByQueryWhileModifyingTests extends ReindexTestCase {
     private static final int MAX_MUTATIONS = 50;
     private static final int MAX_ATTEMPTS = 50;
 
+    @Override
+    protected boolean allowRandomSequenceNumberPruning() {
+        return false;   // updates require sequence numbers
+    }
+
     public void testUpdateWhileReindexing() throws Exception {
         AtomicReference<String> value = new AtomicReference<>(randomSimpleString(random()));
         indexRandom(true, prepareIndex("test").setId("test").setSource("test", value.get()));

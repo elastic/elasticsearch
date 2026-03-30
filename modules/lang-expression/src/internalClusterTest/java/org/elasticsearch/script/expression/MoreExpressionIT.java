@@ -60,6 +60,11 @@ public class MoreExpressionIT extends ESIntegTestCase {
         return Collections.singleton(ExpressionPlugin.class);
     }
 
+    @Override
+    protected boolean allowRandomSequenceNumberPruning() {
+        return false;   // updates require sequence numbers
+    }
+
     private SearchRequestBuilder buildRequest(String script, Object... params) {
         ensureGreen("test");
 

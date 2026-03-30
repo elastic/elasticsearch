@@ -70,6 +70,11 @@ public class ShardBulkInferenceActionFilterIT extends ESIntegTestCase {
         this.useSyntheticSource = useSyntheticSource;
     }
 
+    @Override
+    protected boolean allowRandomSequenceNumberPruning() {
+        return false;   // updates require sequence numbers
+    }
+
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws Exception {
         return List.of(

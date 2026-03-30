@@ -640,7 +640,7 @@ class FileCheckActions {
         Files.createFile(file);
     }
 
-    @EntitlementTest(expectedAccess = ALWAYS_DENIED)
+    @EntitlementTest(expectedAccess = ALWAYS_DENIED, expectedExceptionIfDenied = FileNotFoundException.class)
     static void javaDesktopFileAccess() throws Exception {
         // Test file access from a java.desktop class. We explicitly exclude that module from the "system modules", so we expect
         // any sensitive operation from java.desktop to fail.

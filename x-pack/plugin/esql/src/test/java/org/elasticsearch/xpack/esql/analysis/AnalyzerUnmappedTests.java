@@ -1329,6 +1329,39 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         assertThat(plan, not(nullValue()));
     }
 
+    /**
+     * Verifier rejects a reference to a partially unmapped non-KEYWORD field when {@code unmapped_fields=load}.
+     * This exercises the full analysis + verification pipeline, not just the unit-tested Verifier path.
+     */
+    public void testPartiallyUnmappedNonKeywordIsRejectedWithLoad() {
+        assumeTrue("Requires OPTIONAL_FIELDS_V5", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
+
+        var esIndex = partialIndex("partial_idx", Map.of("partial_long", longField("partial_long")), Set.of("partial_long"));
+        var ta = analyzer().addIndex(esIndex);
+        ta.statementError(
+            "SET unmapped_fields=\"load\"; FROM partial_idx | WHERE partial_long > 0",
+            allOf(
+                containsString("Found 1 problem"),
+                containsString(
+                    "Cannot use field [partial_long] due to ambiguities being mapped as [2] incompatible types: "
+                        + "[keyword] enforced by INSIST command, [long] in [partial_idx]"
+                )
+            )
+        );
+    }
+
+    /**
+     * With {@code unmapped_fields=load}, referencing a partially unmapped non-KEYWORD field only in {@code FROM} (not downstream)
+     * must succeed — the check fires only when the field is used outside the source relation.
+     */
+    public void testPartiallyUnmappedNonKeywordIsAllowedWithLoad_WhenNotReferenced() {
+        assumeTrue("Requires OPTIONAL_FIELDS_V5", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
+
+        var esIndex = partialIndex("partial_idx", Map.of("partial_long", longField("partial_long")), Set.of("partial_long"));
+        // partial_long is in the index but not referenced in any downstream expression — no PUNK violation
+        assertNotNull(analyzer().addIndex(esIndex).statement("SET unmapped_fields=\"load\"; FROM partial_idx"));
+    }
+
     private Matcher<String> unmappedLoadAndFlattenedSubfieldHelper(String... pairs) {
         assert pairs.length % 2 == 0;
         String errorMessage =

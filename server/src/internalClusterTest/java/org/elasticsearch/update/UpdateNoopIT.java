@@ -26,6 +26,12 @@ import static org.hamcrest.Matchers.notNullValue;
  * Tests for noop updates.
  */
 public class UpdateNoopIT extends ESIntegTestCase {
+
+    @Override
+    protected boolean allowRandomSequenceNumberPruning() {
+        return false;   // sequence numbers required for updates
+    }
+
     public void testSingleField() throws Exception {
         updateAndCheckSource(0, 1, fields("bar", "baz"));
         updateAndCheckSource(0, 1, fields("bar", "baz"));

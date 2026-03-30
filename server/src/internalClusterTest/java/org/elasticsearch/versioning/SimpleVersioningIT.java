@@ -40,6 +40,12 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class SimpleVersioningIT extends ESIntegTestCase {
+
+    @Override
+    protected boolean allowRandomSequenceNumberPruning() {
+        return false; // sequence numbers required for versioning
+    }
+
     public void testExternalVersioningInitialDelete() throws Exception {
         createIndex("test");
         ensureGreen();

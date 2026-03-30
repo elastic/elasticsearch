@@ -55,6 +55,11 @@ public class BulkIntegrationIT extends ESIntegTestCase {
         return Arrays.asList(IngestTestPlugin.class);
     }
 
+    @Override
+    protected boolean allowRandomSequenceNumberPruning() {
+        return false;
+    }
+
     public void testBulkIndexCreatesMapping() throws Exception {
         String bulkAction = copyToStringFromClasspath("/org/elasticsearch/action/bulk/bulk-log.json");
         BulkRequestBuilder bulkBuilder = client().prepareBulk();

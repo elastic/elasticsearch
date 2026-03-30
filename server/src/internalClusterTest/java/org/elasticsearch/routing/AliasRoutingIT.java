@@ -34,6 +34,11 @@ public class AliasRoutingIT extends ESIntegTestCase {
         return 2;
     }
 
+    @Override
+    protected boolean allowRandomSequenceNumberPruning() {
+        return false; // updates require sequence numbers
+    }
+
     public void testAliasCrudRouting() throws Exception {
         createIndex("test");
         ensureGreen();

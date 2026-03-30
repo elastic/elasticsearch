@@ -49,6 +49,11 @@ public class SimpleRoutingIT extends ESIntegTestCase {
         return 2;
     }
 
+    @Override
+    protected boolean allowRandomSequenceNumberPruning() {
+        return false; // updates require sequence numbers
+    }
+
     public String findNonMatchingRoutingValue(String index, String id) {
         ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).all().get().getState();
         IndexMetadata metadata = state.metadata().getProject().index(index);

@@ -47,6 +47,11 @@ import static org.hamcrest.Matchers.notNullValue;
 public class OperationsOnSeqNoDisabledIndicesIT extends ESIntegTestCase {
 
     @Override
+    protected boolean allowRandomSequenceNumberPruning() {
+        return false; // seq no pruning is controlled explicitly
+    }
+
+    @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return CollectionUtils.appendToCopyNoNullElements(super.nodePlugins(), DataStreamsPlugin.class);
     }

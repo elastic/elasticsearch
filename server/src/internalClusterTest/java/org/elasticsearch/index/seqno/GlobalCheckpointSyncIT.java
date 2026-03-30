@@ -41,6 +41,11 @@ public class GlobalCheckpointSyncIT extends ESIntegTestCase {
             .toList();
     }
 
+    @Override
+    protected boolean allowRandomSequenceNumberPruning() {
+        return false;
+    }
+
     public void testGlobalCheckpointSyncWithAsyncDurability() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(2);
         prepareCreate(

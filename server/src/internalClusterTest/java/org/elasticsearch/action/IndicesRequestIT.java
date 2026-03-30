@@ -124,6 +124,12 @@ public class IndicesRequestIT extends ESIntegTestCase {
     }
 
     @Override
+    protected boolean allowRandomSequenceNumberPruning() {
+        // updates require sequence numbers to be available
+        return false;
+    }
+
+    @Override
     protected Settings nodeSettings(int ordinal, Settings otherSettings) {
         // must set this independently of the plugin so it overrides MockTransportService
         return Settings.builder()

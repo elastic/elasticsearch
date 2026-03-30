@@ -63,6 +63,11 @@ public class IngestClientIT extends ESIntegTestCase {
         return List.of(ExtendedIngestTestPlugin.class);
     }
 
+    @Override
+    protected boolean allowRandomSequenceNumberPruning() {
+        return false;
+    }
+
     public void testSimulate() throws Exception {
         putJsonPipeline(
             "_id",

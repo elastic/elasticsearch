@@ -512,9 +512,14 @@ public abstract class ESIntegTestCase extends ESTestCase {
         if (randomBoolean()) {
             builder.put(IndexSettings.BLOOM_FILTER_ID_FIELD_ENABLED_SETTING.getKey(), randomBoolean());
         }
+        if (allowRandomSequenceNumberPruning()) {
+            builder.put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true);
+        }
+        /*
         if (randomBoolean()) {
             builder.put(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(), randomFrom(SeqNoFieldMapper.SeqNoIndexOptions.values()));
         }
+         */
         return builder;
     }
 
@@ -750,6 +755,10 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
     protected int numberOfReplicas() {
         return between(minimumNumberOfReplicas(), maximumNumberOfReplicas());
+    }
+
+    protected boolean allowRandomSequenceNumberPruning() {
+        return true;
     }
 
     public void setDisruptionScheme(ServiceDisruptionScheme scheme) {

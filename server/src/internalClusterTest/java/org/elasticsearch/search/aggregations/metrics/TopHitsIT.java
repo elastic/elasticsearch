@@ -314,6 +314,11 @@ public class TopHitsIT extends ESIntegTestCase {
         ensureSearchable();
     }
 
+    @Override
+    protected boolean allowRandomSequenceNumberPruning() {
+        return false;   // fetch features test requires sequence numbers
+    }
+
     private String key(Terms.Bucket bucket) {
         return bucket.getKeyAsString();
     }

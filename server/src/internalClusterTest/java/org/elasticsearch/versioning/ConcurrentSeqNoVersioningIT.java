@@ -115,6 +115,11 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
 
     private static final Pattern EXTRACT_VERSION = Pattern.compile("current document has seqNo \\[(\\d+)\\] and primary term \\[(\\d+)\\]");
 
+    @Override
+    protected boolean allowRandomSequenceNumberPruning() {
+        return false;   // sequence numbers required for these tests
+    }
+
     // Test info: disrupt network for up to 8s in a number of rounds and check that we only get true positive CAS results when running
     // multiple threads doing CAS updates.
     // Wait up to 1 minute (+10s in thread to ensure it does not time out) for threads to complete previous round before initiating next

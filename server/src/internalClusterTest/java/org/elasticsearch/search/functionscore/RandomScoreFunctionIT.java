@@ -81,6 +81,11 @@ public class RandomScoreFunctionIT extends ESIntegTestCase {
         }
     }
 
+    @Override
+    protected boolean allowRandomSequenceNumberPruning() {
+        return false; // sequence number pruning is explicitly handled
+    }
+
     public void testConsistentHitsWithSameSeed() throws Exception {
         createIndex("test");
         ensureGreen(); // make sure we are done otherwise preference could change?

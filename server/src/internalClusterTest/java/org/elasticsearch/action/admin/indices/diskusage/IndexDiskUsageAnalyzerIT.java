@@ -65,6 +65,7 @@ public class IndexDiskUsageAnalyzerIT extends ESIntegTestCase {
     protected Settings.Builder setRandomIndexSettings(Random random, Settings.Builder builder) {
         var b = super.setRandomIndexSettings(random, builder);
         b.remove(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey());
+        b.remove(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey());
         return b;
     }
 

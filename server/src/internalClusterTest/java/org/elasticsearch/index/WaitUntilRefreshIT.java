@@ -46,6 +46,11 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSear
 public class WaitUntilRefreshIT extends ESIntegTestCase {
 
     @Override
+    protected boolean allowRandomSequenceNumberPruning() {
+        return false;   // updates require sequence numbers
+    }
+
+    @Override
     public Settings indexSettings() {
         // Use a shorter refresh interval to speed up the tests. We'll be waiting on this interval several times.
         return Settings.builder().put(super.indexSettings()).put("index.refresh_interval", "40ms").build();

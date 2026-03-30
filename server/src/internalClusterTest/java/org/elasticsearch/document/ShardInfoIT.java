@@ -29,8 +29,14 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 public class ShardInfoIT extends ESIntegTestCase {
+
     private int numCopies;
     private int numNodes;
+
+    @Override
+    protected boolean allowRandomSequenceNumberPruning() {
+        return false;   // updates require sequence numbers
+    }
 
     public void testIndexAndDelete() throws Exception {
         prepareIndex(1);

@@ -139,6 +139,11 @@ public class UpdateIT extends ESIntegTestCase {
         return Arrays.asList(UpdateScriptsPlugin.class, InternalSettingsPlugin.class);
     }
 
+    @Override
+    protected boolean allowRandomSequenceNumberPruning() {
+        return false;   // sequence numbers are required for updates
+    }
+
     private void createTestIndex() throws Exception {
         logger.info("--> creating index test");
         assertAcked(prepareCreate("test").addAlias(new Alias("alias").writeIndex(randomFrom(true, null))));

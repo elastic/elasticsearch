@@ -124,6 +124,15 @@ public class Verifier {
 
         ConfigurationAware.verifyNoMarkerConfiguration(plan, failures);
 
+        // Partially-unmapped non-keyword field references are checked before the bail-out so that a query with both
+        // an unresolved attribute and a PUNK field produces both errors in one batch, consistent with the ESQL
+        // convention (see e.g. AnalyzerTests.testLookupJoinUnknownField).
+        // This is safe because checkPartiallyUnmappedNonKeywordReferences only visits resolved FieldAttribute nodes;
+        // any UnresolvedAttribute in the plan is skipped automatically.
+        if (unmappedResolution == UnmappedResolution.LOAD) {
+            checkPartiallyUnmappedNonKeywordReferences(plan, failures, context);
+        }
+
         // in case of failures bail-out as all other checks will be redundant
         if (failures.hasFailures()) {
             return failures.failures();
@@ -133,7 +142,6 @@ public class Verifier {
             checkLoadModeDisallowedCommands(plan, failures);
             checkLoadModeDisallowedFunctions(plan, failures);
             checkFlattenedSubFieldLoad(plan, failures);
-            checkPartiallyUnmappedNonKeywordReferences(plan, failures, context);
         }
 
         // collect plan checkers

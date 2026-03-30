@@ -45,6 +45,15 @@ $if(BytesRef)$
 
 $else$
     $type$ get$Type$(int position);
+
+    /**
+     * Copies values from this vector into the destination array.
+     */
+    default void copyTo(int srcPosition, $type$[] dst, int dstPosition, int length) {
+        for (int i = 0; i < length; i++) {
+            dst[dstPosition + i] = get$Type$(srcPosition + i);
+        }
+    }
 $endif$
 
     @Override

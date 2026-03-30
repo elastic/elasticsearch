@@ -26,6 +26,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 
 public class FlattenedFieldParserTests extends ESTestCase {
     private FlattenedFieldParser parser;
@@ -42,7 +43,8 @@ public class FlattenedFieldParserTests extends ESTestCase {
             Integer.MAX_VALUE,
             null,
             false,
-            true
+            true,
+            Map.of()
         );
     }
 
@@ -307,7 +309,8 @@ public class FlattenedFieldParserTests extends ESTestCase {
             Integer.MAX_VALUE,
             null,
             false,
-            true
+            true,
+            Map.of()
         );
 
         TestDocumentParserContext context = new TestDocumentParserContext(xContentParser);
@@ -333,7 +336,8 @@ public class FlattenedFieldParserTests extends ESTestCase {
             Integer.MAX_VALUE,
             null,
             false,
-            true
+            true,
+            Map.of()
         );
 
         TestDocumentParserContext context = new TestDocumentParserContext(xContentParser);
@@ -354,7 +358,8 @@ public class FlattenedFieldParserTests extends ESTestCase {
             10,
             null,
             false,
-            true
+            true,
+            Map.of()
         );
 
         TestDocumentParserContext context = new TestDocumentParserContext(xContentParser);
@@ -381,7 +386,8 @@ public class FlattenedFieldParserTests extends ESTestCase {
             Integer.MAX_VALUE,
             "placeholder",
             false,
-            true
+            true,
+            Map.of()
         );
 
         TestDocumentParserContext configuredContext = new TestDocumentParserContext(createXContentParser(input));

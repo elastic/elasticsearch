@@ -309,7 +309,8 @@ public class ExternalSourceOperatorFactory implements SourceOperator.SourceOpera
 
                 SchemaReconciliation.ColumnMapping columnMapping = fileSplit.columnMapping();
                 if (columnMapping != null && columnMapping.isIdentity() == false) {
-                    pages = new SchemaAdaptingIterator(pages, attributes, columnMapping, blockFactory);
+                    List<Attribute> dataColumns = attributes.subList(0, columnMapping.columnCount());
+                    pages = new SchemaAdaptingIterator(pages, dataColumns, columnMapping, blockFactory);
                 }
                 return pages;
             }

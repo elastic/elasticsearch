@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
@@ -16,6 +18,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
+import java.io.IOException;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -465,6 +468,99 @@ public class SchemaReconciliationTests extends ESTestCase {
         );
         assertFalse(mapping.isIdentity());
         assertTrue(mapping.hasCasts());
+    }
+
+    // === ColumnMapping serialization round-trip tests ===
+
+    public void testColumnMappingRoundTripNoCasts() throws IOException {
+        SchemaReconciliation.ColumnMapping original = new SchemaReconciliation.ColumnMapping(new int[] { 0, 1, 2 }, null);
+
+        SchemaReconciliation.ColumnMapping deserialized = roundTrip(original);
+
+        assertThat(deserialized.columnCount(), equalTo(3));
+        assertThat(deserialized.localIndex(0), equalTo(0));
+        assertThat(deserialized.localIndex(1), equalTo(1));
+        assertThat(deserialized.localIndex(2), equalTo(2));
+        assertFalse(deserialized.hasCasts());
+        assertTrue(deserialized.isIdentity());
+        assertThat(deserialized, equalTo(original));
+    }
+
+    public void testColumnMappingRoundTripWithCasts() throws IOException {
+        SchemaReconciliation.ColumnMapping original = new SchemaReconciliation.ColumnMapping(
+            new int[] { 0, 1, -1 },
+            new DataType[] { DataType.LONG, null, null }
+        );
+
+        SchemaReconciliation.ColumnMapping deserialized = roundTrip(original);
+
+        assertThat(deserialized.columnCount(), equalTo(3));
+        assertThat(deserialized.localIndex(0), equalTo(0));
+        assertThat(deserialized.localIndex(1), equalTo(1));
+        assertThat(deserialized.localIndex(2), equalTo(-1));
+        assertTrue(deserialized.hasCasts());
+        assertThat(deserialized.cast(0), equalTo(DataType.LONG));
+        assertThat(deserialized.cast(1), nullValue());
+        assertThat(deserialized.cast(2), nullValue());
+        assertThat(deserialized, equalTo(original));
+    }
+
+    public void testColumnMappingRoundTripAllCastTypes() throws IOException {
+        SchemaReconciliation.ColumnMapping original = new SchemaReconciliation.ColumnMapping(
+            new int[] { 0, 1, 2 },
+            new DataType[] { DataType.LONG, DataType.DOUBLE, DataType.DATE_NANOS }
+        );
+
+        SchemaReconciliation.ColumnMapping deserialized = roundTrip(original);
+
+        assertThat(deserialized.cast(0), equalTo(DataType.LONG));
+        assertThat(deserialized.cast(1), equalTo(DataType.DOUBLE));
+        assertThat(deserialized.cast(2), equalTo(DataType.DATE_NANOS));
+        assertThat(deserialized, equalTo(original));
+    }
+
+    public void testColumnMappingRoundTripEmpty() throws IOException {
+        SchemaReconciliation.ColumnMapping original = new SchemaReconciliation.ColumnMapping(new int[] {}, null);
+
+        SchemaReconciliation.ColumnMapping deserialized = roundTrip(original);
+
+        assertThat(deserialized.columnCount(), equalTo(0));
+        assertTrue(deserialized.isIdentity());
+        assertThat(deserialized, equalTo(original));
+    }
+
+    public void testColumnMappingLengthMismatchRejected() {
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new SchemaReconciliation.ColumnMapping(new int[] { 0, 1 }, new DataType[] { DataType.LONG })
+        );
+        assertThat(e.getMessage(), containsString("cast array length [1] must match index array length [2]"));
+    }
+
+    public void testColumnMappingRoundTripWithMissingColumnsAndCasts() throws IOException {
+        SchemaReconciliation.ColumnMapping original = new SchemaReconciliation.ColumnMapping(
+            new int[] { 1, -1, 0, -1 },
+            new DataType[] { null, null, DataType.DOUBLE, null }
+        );
+
+        SchemaReconciliation.ColumnMapping deserialized = roundTrip(original);
+
+        assertThat(deserialized.columnCount(), equalTo(4));
+        assertThat(deserialized.localIndex(0), equalTo(1));
+        assertThat(deserialized.localIndex(1), equalTo(-1));
+        assertThat(deserialized.localIndex(2), equalTo(0));
+        assertThat(deserialized.localIndex(3), equalTo(-1));
+        assertTrue(deserialized.hasMissingColumns());
+        assertTrue(deserialized.hasCasts());
+        assertThat(deserialized.cast(2), equalTo(DataType.DOUBLE));
+        assertThat(deserialized, equalTo(original));
+    }
+
+    private static SchemaReconciliation.ColumnMapping roundTrip(SchemaReconciliation.ColumnMapping mapping) throws IOException {
+        BytesStreamOutput out = new BytesStreamOutput();
+        mapping.writeTo(out);
+        StreamInput in = out.bytes().streamInput();
+        return new SchemaReconciliation.ColumnMapping(in);
     }
 
     // === Helpers ===

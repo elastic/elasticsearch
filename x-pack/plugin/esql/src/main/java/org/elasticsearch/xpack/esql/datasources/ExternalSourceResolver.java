@@ -211,7 +211,7 @@ public class ExternalSourceResolver {
         Map<StoragePath, SourceMetadata> allMetadata = readAllFileMetadata(fileSet, config);
         long durationMs = (System.nanoTime() - startNanos) / 1_000_000;
 
-        LOGGER.info("Schema reconciliation [{}]: scanned {} files in {}ms", schemaResolution, allMetadata.size(), durationMs);
+        LOGGER.debug("Schema reconciliation [{}]: scanned {} files in {}ms", schemaResolution, allMetadata.size(), durationMs);
 
         StoragePath firstFile = fileSet.files().get(0).path();
         SchemaReconciliation.Result result;

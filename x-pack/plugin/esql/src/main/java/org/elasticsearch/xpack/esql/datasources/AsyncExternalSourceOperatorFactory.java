@@ -402,6 +402,15 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         return cols;
     }
 
+    private CloseableIterator<Page> adaptSchema(CloseableIterator<Page> pages, FileSplit fileSplit, DriverContext driverContext) {
+        SchemaReconciliation.ColumnMapping mapping = fileSplit.columnMapping();
+        if (mapping == null || mapping.isIdentity()) {
+            return pages;
+        }
+        List<Attribute> dataColumns = attributes.subList(0, mapping.columnCount());
+        return new SchemaAdaptingIterator(pages, dataColumns, mapping, driverContext.blockFactory());
+    }
+
     private void startSliceQueueRead(AsyncExternalSourceBuffer buffer, DriverContext driverContext) {
         executor.execute(() -> {
             try {
@@ -462,8 +471,9 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                                     .build();
                                 pages = formatReader.read(obj, ctx);
                             }
-                            try (pages) {
-                                int consumed = drainPagesWithBudget(pages, buffer, injector);
+                            CloseableIterator<Page> adaptedPages = adaptSchema(pages, fileSplit, driverContext);
+                            try (adaptedPages) {
+                                int consumed = drainPagesWithBudget(adaptedPages, buffer, injector);
                                 if (rowLimit != FormatReader.NO_LIMIT) {
                                     rowsRemaining -= consumed;
                                 }

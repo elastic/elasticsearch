@@ -16,6 +16,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
@@ -37,7 +38,7 @@ class DlmFrozenTransitionExecutor implements Closeable {
     private static final Logger logger = getLogger(DlmFrozenTransitionExecutor.class);
     private static final String EXECUTOR_NAME = "dlm-frozen-transition";
 
-    private final ConcurrentHashMap<String, Boolean> submittedTransitions;
+    private final Map<String, Boolean> submittedTransitions;
     private final ExecutorService executor;
     private final int maxConcurrency;
     private final int maxQueueSize;
@@ -105,7 +106,9 @@ class DlmFrozenTransitionExecutor implements Closeable {
             final String indexName = task.getIndexName();
             try {
                 logger.debug("Starting transition for index [{}]", indexName);
-                submittedTransitions.put(indexName, true);
+                Boolean previousValue = submittedTransitions.put(indexName, true);
+                assert Boolean.FALSE.equals(previousValue)
+                    : "expected the previous value to exist and be false, but it was " + previousValue;
                 task.run();
                 logger.debug("Transition completed for index [{}]", indexName);
             } catch (Exception ex) {

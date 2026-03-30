@@ -77,6 +77,29 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
     }
 
     @Override
+    public float squareDistance(float[] a, float[] b, int offset, int length) {
+        if (offset == 0 && length == a.length) {
+            return squareDistance(a, b);
+        }
+        FloatVector acc = FloatVector.zero(FLOAT_SPECIES);
+        int i = offset;
+        final int end = offset + length;
+        final int vectorEnd = offset + FLOAT_SPECIES.loopBound(length);
+        for (; i < vectorEnd; i += FLOAT_SPECIES.length()) {
+            FloatVector av = FloatVector.fromArray(FLOAT_SPECIES, a, i);
+            FloatVector bv = FloatVector.fromArray(FLOAT_SPECIES, b, i);
+            FloatVector diff = av.sub(bv);
+            acc = fma(diff, diff, acc);
+        }
+        float distance = acc.reduceLanes(ADD);
+        for (; i < end; i++) {
+            float diff = a[i] - b[i];
+            distance = fma(diff, diff, distance);
+        }
+        return distance;
+    }
+
+    @Override
     public float cosine(byte[] a, byte[] b) {
         return SUPPORTS_NATIVE_VECTORS && SUPPORTS_HEAP_SEGMENTS
             ? Similarities.cosineI8(MemorySegment.ofArray(a), MemorySegment.ofArray(b), a.length)
@@ -862,13 +885,28 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
 
     @Override
     public void squareDistanceBulk(float[] query, float[] v0, float[] v1, float[] v2, float[] v3, float[] distances) {
+        squareDistanceBulk(query, 0, query.length, v0, v1, v2, v3, distances);
+    }
+
+    @Override
+    public void squareDistanceBulk(
+        float[] query,
+        int queryOffset,
+        int length,
+        float[] v0,
+        float[] v1,
+        float[] v2,
+        float[] v3,
+        float[] distances
+    ) {
         FloatVector sv0 = FloatVector.zero(FLOAT_SPECIES);
         FloatVector sv1 = FloatVector.zero(FLOAT_SPECIES);
         FloatVector sv2 = FloatVector.zero(FLOAT_SPECIES);
         FloatVector sv3 = FloatVector.zero(FLOAT_SPECIES);
-        final int limit = FLOAT_SPECIES.loopBound(query.length);
-        int i = 0;
-        for (; i < limit; i += FLOAT_SPECIES.length()) {
+        final int end = queryOffset + length;
+        final int vectorEnd = queryOffset + FLOAT_SPECIES.loopBound(length);
+        int i = queryOffset;
+        for (; i < vectorEnd; i += FLOAT_SPECIES.length()) {
             FloatVector qv = FloatVector.fromArray(FLOAT_SPECIES, query, i);
             FloatVector dv0 = FloatVector.fromArray(FLOAT_SPECIES, v0, i);
             FloatVector dv1 = FloatVector.fromArray(FLOAT_SPECIES, v1, i);
@@ -888,7 +926,7 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
         float distance2 = sv2.reduceLanes(VectorOperators.ADD);
         float distance3 = sv3.reduceLanes(VectorOperators.ADD);
 
-        for (; i < query.length; i++) {
+        for (; i < end; i++) {
             final float qValue = query[i];
             final float diff0 = qValue - v0[i];
             final float diff1 = qValue - v1[i];

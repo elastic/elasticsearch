@@ -88,6 +88,11 @@ final class IntArrayVector extends AbstractVector implements IntVector {
     }
 
     @Override
+    public void copyTo(int srcPosition, int[] dst, int dstPosition, int length) {
+        System.arraycopy(values, srcPosition, dst, dstPosition, length);
+    }
+
+    @Override
     public ElementType elementType() {
         return ElementType.INT;
     }

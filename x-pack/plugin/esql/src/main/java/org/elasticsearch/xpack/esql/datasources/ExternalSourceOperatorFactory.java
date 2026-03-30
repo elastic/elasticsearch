@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -103,15 +104,7 @@ public class ExternalSourceOperatorFactory implements SourceOperator.SourceOpera
         }
 
         if (sliceQueue != null) {
-            return new SliceQueueSourceOperator(
-                storageProvider,
-                formatReader,
-                projectedColumns,
-                attributes,
-                batchSize,
-                rowLimit,
-                sliceQueue
-            );
+            return new SliceQueueSourceOperator(storageProvider, formatReader, projectedColumns, batchSize, sliceQueue);
         }
 
         StorageObject storageObject = storageProvider.newObject(path);
@@ -122,9 +115,9 @@ public class ExternalSourceOperatorFactory implements SourceOperator.SourceOpera
                 .rowLimit(rowLimit)
                 .build();
             CloseableIterator<Page> pages = formatReader.read(storageObject, ctx);
-            return new ExternalSourceOperator(pages, driverContext);
+            return new ExternalSourceOperator(pages, path);
         } catch (Exception e) {
-            throw new RuntimeException("Failed to create external source operator for: " + path, e);
+            throw new ElasticsearchException("Failed to create external source operator for [" + path + "]", e);
         }
     }
 
@@ -146,10 +139,12 @@ public class ExternalSourceOperatorFactory implements SourceOperator.SourceOpera
         private static final Logger logger = LogManager.getLogger(ExternalSourceOperator.class);
 
         private final CloseableIterator<Page> pages;
+        private final StoragePath path;
         private boolean finished = false;
 
-        ExternalSourceOperator(CloseableIterator<Page> pages, DriverContext driverContext) {
+        ExternalSourceOperator(CloseableIterator<Page> pages, StoragePath path) {
             this.pages = pages;
+            this.path = path;
         }
 
         @Override
@@ -162,7 +157,7 @@ public class ExternalSourceOperatorFactory implements SourceOperator.SourceOpera
                 return pages.next();
             } catch (Exception e) {
                 finished = true;
-                throw new RuntimeException("Error reading from external source", e);
+                throw new ElasticsearchException("Error reading from external source [" + path + "]", e);
             }
         }
 
@@ -210,29 +205,24 @@ public class ExternalSourceOperatorFactory implements SourceOperator.SourceOpera
         private final StorageProvider storageProvider;
         private final FormatReader formatReader;
         private final List<String> projectedColumns;
-        private final List<Attribute> attributes;
         private final int batchSize;
-        private final int rowLimit;
         private final ExternalSliceQueue sliceQueue;
         private final ArrayDeque<ExternalSplit> pendingChildren = new ArrayDeque<>();
         private CloseableIterator<Page> currentPages;
+        private StoragePath currentSplitPath;
         private boolean finished = false;
 
         SliceQueueSourceOperator(
             StorageProvider storageProvider,
             FormatReader formatReader,
             List<String> projectedColumns,
-            List<Attribute> attributes,
             int batchSize,
-            int rowLimit,
             ExternalSliceQueue sliceQueue
         ) {
             this.storageProvider = storageProvider;
             this.formatReader = formatReader;
             this.projectedColumns = projectedColumns;
-            this.attributes = attributes;
             this.batchSize = batchSize;
-            this.rowLimit = rowLimit;
             this.sliceQueue = sliceQueue;
         }
 
@@ -247,6 +237,7 @@ public class ExternalSourceOperatorFactory implements SourceOperator.SourceOpera
                         return currentPages.next();
                     }
                     closeCurrentPages();
+                    currentSplitPath = null;
                     ExternalSplit next = nextLeafSplit();
                     if (next == null) {
                         finished = true;
@@ -256,7 +247,8 @@ public class ExternalSourceOperatorFactory implements SourceOperator.SourceOpera
                 }
             } catch (Exception e) {
                 finished = true;
-                throw new RuntimeException("Error reading from external source split", e);
+                String loc = currentSplitPath != null ? currentSplitPath.toString() : "unknown";
+                throw new ElasticsearchException("Error reading from external source split [" + loc + "]", e);
             }
         }
 
@@ -279,6 +271,7 @@ public class ExternalSourceOperatorFactory implements SourceOperator.SourceOpera
 
         private CloseableIterator<Page> openFileSplit(ExternalSplit split) throws IOException {
             if (split instanceof FileSplit fileSplit) {
+                currentSplitPath = fileSplit.path();
                 StorageObject obj = storageProvider.newObject(fileSplit.path(), fileSplit.length());
                 boolean firstSplit = true;
                 boolean lastSplit = "true".equals(fileSplit.config().get(FileSplitProvider.LAST_SPLIT_KEY));

@@ -25,6 +25,7 @@ import static org.apache.lucene.index.VectorSimilarityFunction.COSINE;
 import static org.apache.lucene.index.VectorSimilarityFunction.DOT_PRODUCT;
 import static org.apache.lucene.index.VectorSimilarityFunction.EUCLIDEAN;
 import static org.apache.lucene.index.VectorSimilarityFunction.MAXIMUM_INNER_PRODUCT;
+import static org.elasticsearch.simdvec.internal.vectorization.JdkFeatures.SUPPORTS_HEAP_SEGMENTS;
 
 // Scores pairs of indexed vectors (ordinal vs ordinal) for graph construction and segment merging.
 // These operations only run on writable, local segments backed by MMapDirectory, so the input is
@@ -37,8 +38,6 @@ public abstract sealed class ByteVectorScorerSupplier implements RandomVectorSco
     final MemorySegmentAccessInput input;
     final ByteVectorValues values;
     final VectorSimilarityFunction fallbackScorer;
-
-    static final boolean SUPPORTS_HEAP_SEGMENTS = Runtime.version().feature() >= 22;
 
     protected ByteVectorScorerSupplier(MemorySegmentAccessInput input, ByteVectorValues values, VectorSimilarityFunction fallbackScorer) {
         this.input = input;

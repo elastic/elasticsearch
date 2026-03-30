@@ -18,7 +18,7 @@ module org.elasticsearch.telemetry.apm {
     requires io.opentelemetry.sdk;
     requires io.opentelemetry.sdk.metrics;
     requires io.opentelemetry.exporter.otlp;
-    requires io.opentelemetry.instrumentation.runtime_telemetry_java17;
+    requires io.opentelemetry.instrumentation.runtime_telemetry;
     requires io.opentelemetry.sdk.common;
 
     exports org.elasticsearch.telemetry.apm;

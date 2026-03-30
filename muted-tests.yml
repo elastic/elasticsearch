@@ -219,9 +219,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlClientYamlIT
   method: test {p0=esql/160_union_types/suggested_type}
   issue: https://github.com/elastic/elasticsearch/issues/142525
-- class: org.elasticsearch.xpack.esql.datasources.GlobDiscoveryLocalTests
-  method: testRecursiveDoubleStarAllFiles
-  issue: https://github.com/elastic/elasticsearch/issues/142576
 - class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
   method: test {p0=esql/160_union_types/suggested_type}
   issue: https://github.com/elastic/elasticsearch/issues/142525

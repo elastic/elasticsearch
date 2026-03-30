@@ -46,6 +46,16 @@ final class SchemaAdaptingIterator implements CloseableIterator<Page> {
         SchemaReconciliation.ColumnMapping mapping,
         BlockFactory blockFactory
     ) {
+        if (unifiedSchema.size() != mapping.columnCount()) {
+            throw new IllegalArgumentException(
+                "Schema size ["
+                    + unifiedSchema.size()
+                    + "] does not match mapping column count ["
+                    + mapping.columnCount()
+                    + "]; callers must pass only data columns"
+                    + " (use attributes.subList(0, mapping.columnCount()) to exclude partition columns)"
+            );
+        }
         this.delegate = delegate;
         this.unifiedSchema = unifiedSchema;
         this.mapping = mapping;

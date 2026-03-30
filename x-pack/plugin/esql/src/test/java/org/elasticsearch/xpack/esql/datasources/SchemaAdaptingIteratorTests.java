@@ -236,6 +236,38 @@ public class SchemaAdaptingIteratorTests extends ESTestCase {
         }
     }
 
+    /**
+     * Verifies the constructor rejects a schema whose size doesn't match the mapping's
+     * column count. This guards against accidentally passing the full attributes list
+     * (including partition columns) instead of just the data column prefix.
+     */
+    public void testConstructorRejectsMismatchedSchemaSize() {
+        List<Attribute> threeColumnSchema = List.of(attr("a", DataType.INTEGER), attr("b", DataType.KEYWORD), attr("c", DataType.LONG));
+        SchemaReconciliation.ColumnMapping twoColumnMapping = new SchemaReconciliation.ColumnMapping(new int[] { 0, 1 }, null);
+
+        CloseableIterator<Page> emptyIter = new CloseableIterator<>() {
+            @Override
+            public boolean hasNext() {
+                return false;
+            }
+
+            @Override
+            public Page next() {
+                throw new NoSuchElementException();
+            }
+
+            @Override
+            public void close() {}
+        };
+
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> new SchemaAdaptingIterator(emptyIter, threeColumnSchema, twoColumnMapping, blockFactory)
+        );
+        assertThat(ex.getMessage(), containsString("Schema size [3] does not match mapping column count [2]"));
+        assertThat(ex.getMessage(), containsString("partition columns"));
+    }
+
     private static Attribute attr(String name, DataType type) {
         return new ReferenceAttribute(Source.EMPTY, null, name, type);
     }

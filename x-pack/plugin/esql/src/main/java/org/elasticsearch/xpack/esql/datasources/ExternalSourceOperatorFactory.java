@@ -298,8 +298,20 @@ public class ExternalSourceOperatorFactory implements SourceOperator.SourceOpera
                     obj = new RangeStorageObject(obj, fileSplit.offset(), fileSplit.length());
                     firstSplit = "true".equals(fileSplit.config().get(FileSplitProvider.FIRST_SPLIT_KEY));
                 }
+
+                SchemaReconciliation.ColumnMapping columnMapping = fileSplit.columnMapping();
+                List<String> effectiveProjection = projectedColumns;
+                List<Attribute> dataColumns = null;
+                if (columnMapping != null && columnMapping.columnCount() < attributes.size()) {
+                    dataColumns = attributes.subList(0, columnMapping.columnCount());
+                    effectiveProjection = new ArrayList<>(dataColumns.size());
+                    for (Attribute attr : dataColumns) {
+                        effectiveProjection.add(attr.name());
+                    }
+                }
+
                 FormatReadContext ctx = FormatReadContext.builder()
-                    .projectedColumns(projectedColumns)
+                    .projectedColumns(effectiveProjection)
                     .batchSize(batchSize)
                     .rowLimit(FormatReader.NO_LIMIT)
                     .firstSplit(firstSplit)
@@ -307,9 +319,10 @@ public class ExternalSourceOperatorFactory implements SourceOperator.SourceOpera
                     .build();
                 CloseableIterator<Page> pages = formatReader.read(obj, ctx);
 
-                SchemaReconciliation.ColumnMapping columnMapping = fileSplit.columnMapping();
                 if (columnMapping != null && columnMapping.isIdentity() == false) {
-                    List<Attribute> dataColumns = attributes.subList(0, columnMapping.columnCount());
+                    if (dataColumns == null) {
+                        dataColumns = attributes.subList(0, columnMapping.columnCount());
+                    }
                     pages = new SchemaAdaptingIterator(pages, dataColumns, columnMapping, blockFactory);
                 }
                 return pages;

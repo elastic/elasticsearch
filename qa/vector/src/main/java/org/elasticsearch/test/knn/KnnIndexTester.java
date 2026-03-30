@@ -227,7 +227,9 @@ public class KnnIndexTester {
                 String ivfFormat = args.ivfFormat() == null ? "esnext" : args.ivfFormat().toLowerCase(Locale.ROOT);
                 yield switch (ivfFormat) {
                     case "es940_legacy" -> {
-                        var encoding = ES940DiskBBQVectorsFormat.QuantEncoding.fromBits(quantizeBits.byteValue());
+                        var encoding = quantizeBits == 4
+                            ? ES940DiskBBQVectorsFormat.QuantEncoding.FOUR_BIT_SYMMETRIC_STRIPED
+                            : ES940DiskBBQVectorsFormat.QuantEncoding.fromBits(quantizeBits.byteValue());
                         yield new ES940DiskBBQVectorsFormat(
                             encoding,
                             args.ivfClusterSize(),
@@ -241,8 +243,7 @@ public class KnnIndexTester {
                             args.doPrecondition(),
                             args.preconditioningBlockDims(),
                             flatVectorThreshold,
-                            ES940DiskBBQVectorsFormat.VERSION_START,
-                            true
+                            ES940DiskBBQVectorsFormat.VERSION_START
                         );
                     }
                     case "es940" -> {
@@ -260,8 +261,7 @@ public class KnnIndexTester {
                             args.doPrecondition(),
                             args.preconditioningBlockDims(),
                             flatVectorThreshold,
-                            ES940DiskBBQVectorsFormat.VERSION_CURRENT,
-                            false
+                            ES940DiskBBQVectorsFormat.VERSION_CURRENT
                         );
                     }
                     case "esnext" -> {

@@ -12,6 +12,7 @@ package org.elasticsearch.benchmark.vector.scorer;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.Constants;
+import org.elasticsearch.nativeaccess.jdk.ScalarOperations;
 import org.elasticsearch.simdvec.VectorSimilarityType;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.AssumptionViolatedException;

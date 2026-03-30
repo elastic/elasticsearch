@@ -1145,6 +1145,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 if (docIds == null || docIds.length == 0) {
                     searchContext.rankFeatureResult().shardResult(EMPTY_RESULT);
                     searchContext.rankFeatureResult().incRef();
+                    searchContext.rankFeatureResult().setDirectoryMetrics(resolveDirectoryMetrics(metricsDelta, searchContext.searcher()));
                     return searchContext.rankFeatureResult();
                 }
                 RankFeatureShardPhase.prepareForFetch(searchContext, request);

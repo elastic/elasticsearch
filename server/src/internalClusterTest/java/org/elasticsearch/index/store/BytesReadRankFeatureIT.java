@@ -11,22 +11,41 @@ package org.elasticsearch.index.store;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.LatchedActionListener;
+import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.SearchShardTask;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.search.SearchPhaseResult;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.internal.AliasFilter;
+import org.elasticsearch.search.internal.ShardSearchContextId;
+import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.rank.FieldBasedRerankerIT;
+import org.elasticsearch.search.rank.feature.RankFeatureResult;
+import org.elasticsearch.search.rank.feature.RankFeatureShardRequest;
+import org.elasticsearch.search.rank.feature.RankFeatureShardResult;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Before;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -76,33 +95,101 @@ public class BytesReadRankFeatureIT extends ESIntegTestCase {
             ).rankBuilder(new FieldBasedRerankerIT.FieldBasedRankBuilder(10, "rankFeatureField")).size(5)
         );
 
+        long bytesRead = extractBytesReadHeader(request);
+        assertThat(bytesRead, greaterThan(0L));
+    }
+
+    public void testRankFeaturePhaseEmptyDocIdsStillReportsDirectoryMetrics() throws Exception {
+        final String indexName = randomIndexName();
+        assertAcked(
+            prepareCreate(indexName).setSettings(Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0))
+                .setMapping("rankFeatureField", "type=float", "searchField", "type=text")
+        );
+        indexRandom(
+            true,
+            prepareIndex(indexName).setId("1").setSource("rankFeatureField", 0.1, "searchField", "A"),
+            prepareIndex(indexName).setId("2").setSource("rankFeatureField", 0.2, "searchField", "B")
+        );
+
+        String dataNode = clusterService().state()
+            .nodes()
+            .get(clusterService().state().routingTable().index(indexName).shard(0).primaryShard().currentNodeId())
+            .getName();
+        SearchService searchService = internalCluster().getInstance(SearchService.class, dataNode);
+        IndicesService indicesService = internalCluster().getInstance(IndicesService.class, dataNode);
+        IndexService indexService = indicesService.indexServiceSafe(resolveIndex(indexName));
+        IndexShard indexShard = indexService.getShard(0);
+
+        SearchRequest searchRequest = new SearchRequest(indexName).allowPartialSearchResults(true)
+            .source(
+                new SearchSourceBuilder().query(QueryBuilders.matchAllQuery())
+                    .rankBuilder(new FieldBasedRerankerIT.FieldBasedRankBuilder(5, "rankFeatureField"))
+                    .size(5)
+            );
+        ShardSearchRequest shardRequest = new ShardSearchRequest(
+            OriginalIndices.NONE,
+            searchRequest,
+            indexShard.shardId(),
+            0,
+            1,
+            AliasFilter.EMPTY,
+            1.0f,
+            -1,
+            null
+        );
+        SearchShardTask task = new SearchShardTask(0, "", "", "", null, Map.of());
+
+        QuerySearchResult queryResult = null;
+        RankFeatureResult rankResult = null;
+        try {
+            PlainActionFuture<SearchPhaseResult> queryFuture = new PlainActionFuture<>();
+            searchService.executeQueryPhase(shardRequest, task, queryFuture);
+            queryResult = (QuerySearchResult) queryFuture.get();
+
+            RankFeatureShardRequest emptyDocIdsRequest = new RankFeatureShardRequest(
+                OriginalIndices.NONE,
+                queryResult.getContextId(),
+                shardRequest,
+                List.of()
+            );
+            PlainActionFuture<RankFeatureResult> rankFuture = new PlainActionFuture<>();
+            searchService.executeRankFeaturePhase(emptyDocIdsRequest, task, rankFuture);
+            rankResult = rankFuture.get();
+
+            assertThat(
+                "rank feature phase with empty docIds must still report directory metrics",
+                rankResult.getDirectoryMetrics().isEmpty(),
+                equalTo(false)
+            );
+        } finally {
+            if (queryResult != null) {
+                if (queryResult.hasReferences()) {
+                    queryResult.decRef();
+                }
+                searchService.freeReaderContext(queryResult.getContextId());
+            }
+            if (rankResult != null && rankResult.hasReferences()) {
+                rankResult.decRef();
+            }
+        }
+    }
+
+    private long extractBytesReadHeader(SearchRequest searchRequest) throws InterruptedException {
         SetOnce<Long> bytesRead = new SetOnce<>();
         CountDownLatch latch = new CountDownLatch(1);
 
         final Client client = client();
-        client.search(request, ActionListener.assertOnce(new ActionListener<>() {
-            @Override
-            public void onResponse(SearchResponse searchResponse) {
-                try {
-                    Map<String, List<String>> responseHeaders = client.threadPool().getThreadContext().getResponseHeaders();
-                    assertThat(responseHeaders, hasKey(StoreMetrics.BYTES_READ_RESPONSE_HEADER));
-                    List<String> values = responseHeaders.get(StoreMetrics.BYTES_READ_RESPONSE_HEADER);
-                    assertThat("expected a single accumulated header value", values.size(), equalTo(1));
-                    long total = Long.parseLong(values.get(0));
-                    assertThat(total, greaterThan(0L));
-                    bytesRead.set(total);
-                } finally {
-                    latch.countDown();
-                }
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                latch.countDown();
-                fail("no error expected");
-            }
-        }));
+        client.search(searchRequest, new LatchedActionListener<>(ActionListener.assertOnce(ActionListener.wrap(searchResponse -> {
+            Map<String, List<String>> responseHeaders = client.threadPool().getThreadContext().getResponseHeaders();
+            assertThat(responseHeaders, hasKey(StoreMetrics.BYTES_READ_RESPONSE_HEADER));
+            List<String> values = responseHeaders.get(StoreMetrics.BYTES_READ_RESPONSE_HEADER);
+            assertThat("expected a single accumulated header value", values.size(), equalTo(1));
+            long total = Long.parseLong(values.get(0));
+            assertThat(total, greaterThan(0L));
+            bytesRead.set(total);
+        }, e -> fail("no error expected"))), latch));
         assertTrue("search did not complete in time", latch.await(30, TimeUnit.SECONDS));
         assertThat(bytesRead.get(), notNullValue());
+        return bytesRead.get();
     }
 }

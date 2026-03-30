@@ -98,6 +98,10 @@ public abstract class VectorScorerBulkBenchmark {
             targetOrd = random.nextInt(numVectors);
         }
 
+        String vectorDataFile() {
+            return "vector.data";
+        }
+
         abstract void writeVectorData(Directory directory) throws IOException;
 
         static float[] randomFloatArray(Random random, int dims) {
@@ -120,7 +124,7 @@ public abstract class VectorScorerBulkBenchmark {
         ids = IntStream.range(0, numVectors).toArray();
         ordinals = vectorData.ordinals;
 
-        in = dir.openInput("vector.data", IOContext.DEFAULT);
+        in = dir.openInput(vectorData.vectorDataFile(), IOContext.DEFAULT);
         createScorers(in, vectorData);
 
         scorer.setScoringOrdinal(vectorData.targetOrd);

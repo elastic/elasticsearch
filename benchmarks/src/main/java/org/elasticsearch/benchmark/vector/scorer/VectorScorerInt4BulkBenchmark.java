@@ -15,25 +15,17 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.quantization.OptimizedScalarQuantizer;
 import org.elasticsearch.simdvec.VectorSimilarityType;
-import org.openjdk.jmh.annotations.BenchmarkMode;
-import org.openjdk.jmh.annotations.Fork;
-import org.openjdk.jmh.annotations.Measurement;
-import org.openjdk.jmh.annotations.Mode;
-import org.openjdk.jmh.annotations.OutputTimeUnit;
 import org.openjdk.jmh.annotations.Param;
-import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.Setup;
-import org.openjdk.jmh.annotations.State;
-import org.openjdk.jmh.annotations.Warmup;
 
 import java.io.IOException;
 import java.util.concurrent.ThreadLocalRandom;
-import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.getScorerFactoryOrDie;
 import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.lucene104ScoreSupplier;
 import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.lucene104Scorer;
 import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.supportsHeapSegments;
+import static org.elasticsearch.benchmark.vector.scorer.Int4BenchmarkUtils.VECTOR_DATA_FILE;
 import static org.elasticsearch.benchmark.vector.scorer.Int4BenchmarkUtils.createI4ScalarQueryScorer;
 import static org.elasticsearch.benchmark.vector.scorer.Int4BenchmarkUtils.createI4ScalarScorer;
 import static org.elasticsearch.benchmark.vector.scorer.Int4BenchmarkUtils.generateCentroid;
@@ -88,6 +80,11 @@ public class VectorScorerInt4BulkBenchmark extends VectorScorerBulkBenchmark {
         @Override
         void writeVectorData(Directory directory) throws IOException {
             writeI4VectorData(directory, packedVectors, corrections);
+        }
+
+        @Override
+        String vectorDataFile() {
+            return VECTOR_DATA_FILE;
         }
     }
 

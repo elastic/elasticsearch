@@ -110,6 +110,7 @@ public class ChangePointOperator extends CompleteInputCollectorOperator {
         boolean hasNulls = false;
         boolean hasMultivalued = false;
         boolean hasIndeterminableChangePoint = false;
+        boolean lastGroupHasRows = false;
         String indeterminableChangePointReason = "";
         for (Page inputPage : inputPages) {
             Block inputBlock = inputPage.getBlock(channel);
@@ -130,12 +131,14 @@ public class ChangePointOperator extends CompleteInputCollectorOperator {
                             }
                             values.clear();
                             bucketIndexes.clear();
+                            lastGroupHasRows = false;
                         }
                         previousGroupKey = currentGroupKey;
                     }
                 }
 
                 Object value = BlockUtils.toJavaObject(inputBlock, i);
+                lastGroupHasRows = true;
                 if (value == null) {
                     hasNulls = true;
                     valuesIndex++;
@@ -149,9 +152,9 @@ public class ChangePointOperator extends CompleteInputCollectorOperator {
             }
         }
 
-        // flush last (or only) group; for the flat (no-group) case this is unconditional so that
-        // an all-null input still runs the detector and produces an "indeterminable" warning.
-        if (values.isEmpty() == false || groupChannel == null) {
+        // flush last (or only) group; for "non-grouped" or "all-null" input this still
+        // runs  to produce an "indeterminable" warning.
+        if (values.isEmpty() == false || groupChannel == null || lastGroupHasRows) {
             var changeType = detectChangePoint(values, bucketIndexes);
             var changePointIndex = changeType.changePoint();
             if (changePointIndex >= 0) {

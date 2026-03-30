@@ -698,6 +698,21 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
             public void addNamedQuery(String name, Query query) {
                 source.addNamedQuery(name, query);
             }
+
+            @Override
+            public void addCircuitBreakerMemory(long bytes, String label) {
+                delegate.addCircuitBreakerMemory(bytes, label);
+            }
+
+            @Override
+            public long getQueryConstructionMemoryUsed() {
+                return delegate.getQueryConstructionMemoryUsed();
+            }
+
+            @Override
+            public void releaseQueryConstructionMemory() {
+                delegate.releaseQueryConstructionMemory();
+            }
         };
 
         // This means that fields in the query need to exist in the mapping prior to registering this query

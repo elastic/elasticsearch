@@ -1,0 +1,19 @@
+name: docs-deploy
+on:
+  workflow_run:
+    workflows: [docs-build]
+    types: [completed]
+permissions:
+  contents: read
+  deployments: write
+  id-token: write
+  pull-requests: write
+  actions: read
+jobs:
+  deploy:
+    uses: elastic/docs-actions/.github/workflows/docs-deploy.yml@v1
+    with:
+      enable-vale-linting: true
+      path-pattern: docs/**
+      path-pattern-ignore: docs/changelog/**/*.yaml
+      enable-cumulative-comment: true

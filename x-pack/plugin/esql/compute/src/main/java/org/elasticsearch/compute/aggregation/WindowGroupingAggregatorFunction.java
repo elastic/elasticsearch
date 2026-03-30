@@ -77,16 +77,8 @@ public record WindowGroupingAggregatorFunction(GroupingAggregatorFunction next, 
         IntVector selectedGroups,
         TimeSeriesGroupingAggregatorEvaluationContext ctx
     ) {
-        if (selected.getPositionCount() == 0) {
-            return next.prepareEvaluateFinal(selected, ctx);
-        }
-
-        // TODO: rewrite to NO_WINDOW in the planner if the bucket and the window are the same
-        int groupId = selected.getInt(0);
-        long startTime = ctx.rangeStartInMillis(groupId);
-        long endTime = ctx.rangeEndInMillis(groupId);
-        if (endTime - startTime == window.toMillis()) {
-            return next.prepareEvaluateFinal(selected, ctx);
+        if (selectedGroups.getPositionCount() == 0) {
+            return next.prepareEvaluateFinal(selectedGroups, ctx);
         }
 
         // TODO: rewrite to NO_WINDOW in the planner if the bucket and the window are the same
@@ -97,35 +89,28 @@ public record WindowGroupingAggregatorFunction(GroupingAggregatorFunction next, 
             return next.prepareEvaluateFinal(selectedGroups, ctx);
         }
 
-        // Output filtering keeps only output-aligned groups in selectedGroups.
-        // Window merges still need intermediate state for all groups.
-        IntVector allGroups = ctx.allGroupIds();
-        if (allGroups == null) {
-            allGroups = selectedGroups;
-        }
-
         int blockCount = next.intermediateBlockCount();
         List<Integer> channels = IntStream.range(0, blockCount).boxed().toList();
         GroupingAggregator.Factory aggregatorFactory = supplier.groupingAggregatorFactory(AggregatorMode.FINAL, channels);
         GroupingAggregator finalAgg = aggregatorFactory.apply(ctx.driverContext());
         try {
             Block[] intermediateBlocks = new Block[blockCount];
-            int[] backwards = new int[selected.getPositionCount()];
-            for (int i = 0; i < selected.getPositionCount(); i++) {
-                groupId = selected.getInt(i);
+            int[] backwards = new int[selectedGroups.getPositionCount()];
+            for (int i = 0; i < selectedGroups.getPositionCount(); i++) {
+                groupId = selectedGroups.getInt(i);
                 backwards = ArrayUtil.grow(backwards, groupId + 1);
                 backwards[groupId] = i;
             }
             try {
                 // TODO slice into pages
-                try (PreparedForEvaluation prepared = next.prepareEvaluateIntermediate(allGroups, ctx)) {
-                    prepared.evaluate(intermediateBlocks, 0, allGroups);
+                try (PreparedForEvaluation prepared = next.prepareEvaluateIntermediate(selectedGroups, ctx)) {
+                    prepared.evaluate(intermediateBlocks, 0, selectedGroups);
                 }
                 Page page = new Page(intermediateBlocks);
                 GroupingAggregatorFunction finalAggFunction = finalAgg.aggregatorFunction();
-                addInitialIntermediateInput(finalAggFunction, selected, page);
-                for (int i = 0; i < selected.getPositionCount(); i++) {
-                    groupId = selected.getInt(i);
+                addInitialIntermediateInput(finalAggFunction, selectedGroups, page);
+                for (int i = 0; i < selectedGroups.getPositionCount(); i++) {
+                    groupId = selectedGroups.getInt(i);
                     mergeBucketsFromWindow(groupId, backwards, page, finalAggFunction, ctx);
                 }
             } finally {
@@ -192,6 +177,7 @@ public record WindowGroupingAggregatorFunction(GroupingAggregatorFunction next, 
         GroupingAggregatorFunction fn,
         TimeSeriesGroupingAggregatorEvaluationContext context
     ) {
+        int[] singlePosition = new int[1];
         try (var oneGroup = context.driverContext().blockFactory().newConstantIntVector(startingGroupId, 1)) {
             context.forEachGroupInWindow(startingGroupId, window, groupId -> {
                 if (groupId == startingGroupId) {
@@ -199,63 +185,61 @@ public record WindowGroupingAggregatorFunction(GroupingAggregatorFunction next, 
                 }
                 int position = groupIdToPositions[groupId];
                 if (hasIntermediateState(page, position)) {
-                    addIntermediateInputAtPositions(fn, oneGroup, page, new int[] { position });
+                    singlePosition[0] = position;
+                    addIntermediateInputWithFilter(fn, page, singlePosition, oneGroup);
                 }
             });
         }
     }
 
     /**
-     * Adds the non-null positions of {@code page} as intermediate input to {@code fn}
+     * Adds the non-NULL positions of {@code page} as intermediate input to {@code fn}.
      */
     private static void addInitialIntermediateInput(GroupingAggregatorFunction fn, IntVector groups, Page page) {
-        boolean[] mightHaveNulls = new boolean[page.getBlockCount()];
-        boolean anyNullable = false;
-        for (int i = 0; i < page.getBlockCount(); i++) {
-            mightHaveNulls[i] = page.getBlock(i).mayHaveNulls();
-            anyNullable |= mightHaveNulls[i];
-        }
-        if (anyNullable == false) {
-            fn.addIntermediateInput(0, groups, page);
-            return;
-        }
-        int[] positions = new int[page.getPositionCount()];
+        final int positionCount = page.getPositionCount();
+
+        int[] positions = new int[positionCount];
         int count = 0;
-        for (int pos = 0; pos < page.getPositionCount(); pos++) {
-            boolean hasState = true;
-            for (int b = 0; b < page.getBlockCount(); b++) {
-                if (mightHaveNulls[b] && page.getBlock(b).isNull(pos)) {
-                    hasState = false;
-                    break;
-                }
-            }
-            if (hasState) {
-                positions[count++] = pos;
+        for (int p = 0; p < positionCount; p++) {
+            if (hasIntermediateState(page, p)) {
+                positions[count++] = p;
             }
         }
-        if (count == page.getPositionCount()) {
+
+        if (count == 0) {
+            return;
+        }
+
+        if (count == positionCount) {
             fn.addIntermediateInput(0, groups, page);
             return;
         }
-        if (count > 0) {
-            // TODO: Should we add a filter(boolean, int[] positions, int count) overload to Block/Vector to avoid this copy?
-            int[] validPositions = Arrays.copyOf(positions, count);
-            try (IntVector filteredGroups = groups.filter(false, validPositions)) {
-                addIntermediateInputAtPositions(fn, filteredGroups, page, validPositions);
-            }
+
+        final int[] validPositions = Arrays.copyOf(positions, count);
+        try (IntVector filteredGroups = groups.filter(false, validPositions)) {
+            addIntermediateInputWithFilter(fn, page, validPositions, filteredGroups);
         }
     }
 
-    private static void addIntermediateInputAtPositions(GroupingAggregatorFunction fn, IntVector groups, Page page, int[] positions) {
-        Block[] filteredBlocks = new Block[page.getBlockCount()];
+    private static void addIntermediateInputWithFilter(
+        GroupingAggregatorFunction fn,
+        Page page,
+        int[] keepPositions,
+        IntVector filteredGroups
+    ) {
+        final int blockCount = page.getBlockCount();
+        final Block[] filteredBlocks = new Block[blockCount];
         boolean success = false;
+
+        // TODO: Pass offset and length directly instead of copy:
+        // https://github.com/elastic/elasticsearch/pull/145195
         try {
-            for (int b = 0; b < filteredBlocks.length; b++) {
-                filteredBlocks[b] = page.getBlock(b).filter(false, positions);
+            for (int b = 0; b < blockCount; b++) {
+                filteredBlocks[b] = page.getBlock(b).filter(false, keepPositions);
             }
             success = true;
-            try (Page filteredPage = new Page(positions.length, filteredBlocks)) {
-                fn.addIntermediateInput(0, groups, filteredPage);
+            try (Page filteredPage = new Page(keepPositions.length, filteredBlocks)) {
+                fn.addIntermediateInput(0, filteredGroups, filteredPage);
             }
         } finally {
             if (success == false) {
@@ -317,8 +301,10 @@ public record WindowGroupingAggregatorFunction(GroupingAggregatorFunction next, 
     }
 
     private static boolean hasIntermediateState(Page page, int position) {
-        for (int i = 0; i < page.getBlockCount(); i++) {
-            if (page.getBlock(i).isNull(position)) {
+        final int blockCount = page.getBlockCount();
+        for (int b = 0; b < blockCount; b++) {
+            Block block = page.getBlock(b);
+            if (block.mayHaveNulls() && block.isNull(position)) {
                 return false;
             }
         }

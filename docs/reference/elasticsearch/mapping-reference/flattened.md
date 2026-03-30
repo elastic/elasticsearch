@@ -256,7 +256,7 @@ Sub-fields may not use `copy_to` or `fields` (multi-fields) parameters.
 
 ## Passthrough sub-fields [flattened-passthrough]
 
-The `passthrough_with_priority` parameter makes the typed sub-fields defined in `properties` queryable at the root level of the index, without prefixing them with the flattened field name. This behaves similarly to [pass-through object fields](/reference/elasticsearch/mapping-reference/passthrough.md).
+The `passthrough` parameter makes the typed sub-fields defined in `properties` queryable at the root level of the index, without prefixing them with the flattened field name. This behaves similarly to [pass-through object fields](/reference/elasticsearch/mapping-reference/passthrough.md).
 
 ```console
 PUT events
@@ -265,7 +265,7 @@ PUT events
     "properties": {
       "labels": {
         "type": "flattened",
-        "passthrough_with_priority": 10,
+        "passthrough": { "priority": 10 },
         "properties": {
           "status": { "type": "keyword" },
           "count":  { "type": "long" }
@@ -287,7 +287,7 @@ POST events/_search
 }
 ```
 
-The parameter value is a **priority** used to resolve conflicts when multiple passthrough sources (flattened fields or pass-through objects) expose sub-fields with the same leaf name. The source with the higher priority wins. Root-level concrete fields always take precedence over any passthrough alias, regardless of priority.
+The `priority` field inside the `passthrough` object is used to resolve conflicts when multiple passthrough sources (flattened fields or pass-through objects) expose sub-fields with the same leaf name. The source with the higher priority wins. Root-level concrete fields always take precedence over any passthrough alias, regardless of priority.
 
 ## Parameters for flattened object fields [flattened-params]
 
@@ -314,8 +314,8 @@ The following mapping parameters are accepted:
 [`null_value`](/reference/elasticsearch/mapping-reference/null-value.md)
 :   A string value which is substituted for any explicit `null` values within the flattened object field. Defaults to `null`, which means null fields are treated as if they were missing.
 
-`passthrough_with_priority`
-:   (Optional, integer) When set to a non-negative integer, the typed sub-fields defined in `properties` become queryable at the root level without a prefix. The value is the priority used to resolve conflicts when multiple passthrough sources expose a sub-field with the same name; the higher priority wins, and root-level concrete fields always take precedence. Omitting this parameter disables passthrough behavior. See [Passthrough sub-fields](#flattened-passthrough).
+`passthrough`
+:   (Optional, object) When set, the typed sub-fields defined in `properties` become queryable at the root level without a prefix. Requires a `priority` field (non-negative integer) used to resolve conflicts when multiple passthrough sources expose a sub-field with the same name; the higher priority wins, and root-level concrete fields always take precedence. Omitting this parameter disables passthrough behavior. See [Passthrough sub-fields](#flattened-passthrough).
 
 `properties`
 :   (Optional, object) A map of key names to field mappings. Allows specific keys within the flattened object to be mapped as typed sub-fields. Each entry maps a key (using dot notation for nested keys) to a leaf field type definition. See [Mapped sub-fields](#flattened-properties).

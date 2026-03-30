@@ -528,7 +528,8 @@ setup:
             properties:
               labels:
                 type: flattened
-                passthrough_with_priority: 10
+                passthrough:
+                  priority: 10
                 properties:
                   status:
                     type: keyword
@@ -596,7 +597,8 @@ setup:
             properties:
               labels:
                 type: flattened
-                passthrough_with_priority: 5
+                passthrough:
+                  priority: 5
                 properties:
                   env:
                     type: keyword
@@ -654,7 +656,8 @@ setup:
                 type: keyword
               labels:
                 type: flattened
-                passthrough_with_priority: 10
+                passthrough:
+                  priority: 10
                 properties:
                   status:
                     type: keyword

@@ -431,7 +431,7 @@ public class FieldTypeLookupTests extends ESTestCase {
     }
 
     private static FlattenedFieldMapper createFlattenedMapper(String fieldName, int priority, String... subFieldNames) {
-        var builder = new FlattenedFieldMapper.Builder(fieldName).passthroughWithPriority(priority);
+        var builder = new FlattenedFieldMapper.Builder(fieldName).passthrough(priority);
         for (String name : subFieldNames) {
             builder.property(name, new MockFieldMapper.Builder(name));
         }

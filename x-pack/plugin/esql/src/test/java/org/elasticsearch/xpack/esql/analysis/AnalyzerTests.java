@@ -2685,9 +2685,9 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testCoalesceDenseVectorImplicitCastingFromNumeric() {
-        var plan = analyze("""
+        var plan = denseVector().query("""
             from test | eval v = coalesce(float_vector, [0, 0, 0])
-            """, DENSE_VECTOR_MAPPING_FILE);
+            """);
 
         var limit = as(plan, Limit.class);
         var eval = as(limit.child(), Eval.class);
@@ -2702,9 +2702,9 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testCoalesceDenseVectorImplicitCastingFromHexString() {
-        var plan = analyze("""
+        var plan = denseVector().query("""
             from test | eval v = coalesce(float_vector, "3f8000003f8000003f800000")
-            """, DENSE_VECTOR_MAPPING_FILE);
+            """);
 
         var limit = as(plan, Limit.class);
         var eval = as(limit.child(), Eval.class);
@@ -2718,9 +2718,9 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testCoalesceDenseVectorImplicitCastingNullFirst() {
-        var plan = analyze("""
+        var plan = denseVector().query("""
             from test | eval v = coalesce(null, float_vector, [0, 0, 0])
-            """, DENSE_VECTOR_MAPPING_FILE);
+            """);
 
         var limit = as(plan, Limit.class);
         var eval = as(limit.child(), Eval.class);
@@ -2734,9 +2734,9 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testCoalesceDenseVectorImplicitCastingDenseVectorNotFirst() {
-        var plan = analyze("""
+        var plan = denseVector().query("""
             from test | eval v = coalesce([0, 0, 0], float_vector)
-            """, DENSE_VECTOR_MAPPING_FILE);
+            """);
 
         var limit = as(plan, Limit.class);
         var eval = as(limit.child(), Eval.class);
@@ -2751,9 +2751,9 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testCaseDenseVectorImplicitCastingFromNumeric() {
-        var plan = analyze("""
+        var plan = denseVector().query("""
             from test | eval v = case(id > 3, float_vector, [0, 0, 0])
-            """, DENSE_VECTOR_MAPPING_FILE);
+            """);
 
         var limit = as(plan, Limit.class);
         var eval = as(limit.child(), Eval.class);
@@ -2768,9 +2768,9 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testCaseDenseVectorImplicitCastingFromHexString() {
-        var plan = analyze("""
+        var plan = denseVector().query("""
             from test | eval v = case(id > 3, float_vector, "3f8000003f8000003f800000")
-            """, DENSE_VECTOR_MAPPING_FILE);
+            """);
 
         var limit = as(plan, Limit.class);
         var eval = as(limit.child(), Eval.class);

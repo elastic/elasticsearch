@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
+import org.elasticsearch.xpack.esql.expression.function.grouping.TimeSeriesWithout;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Neg;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
@@ -48,6 +49,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
+import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.session.FieldNameUtils;
@@ -155,6 +157,7 @@ public class Verifier {
             checkUnsupportedAttributeRenaming(p, failures);
             checkInsist(p, failures);
             checkLimitBeforeInlineStats(p, failures);
+            checkTimeSeriesWithoutOnlyInTimeSeriesAggregate(p, failures);
         });
 
         if (failures.hasFailures() == false) {
@@ -367,6 +370,19 @@ public class Verifier {
                         firstLimit.source().source().toString()
                     )
                 );
+            }
+        }
+    }
+
+    /**
+     * {@code WITHOUT(...)} is only supported on the time-series {@link TimeSeriesAggregate} path for now; relax when non-TS support lands.
+     */
+    private static void checkTimeSeriesWithoutOnlyInTimeSeriesAggregate(LogicalPlan p, Failures failures) {
+        if (p instanceof Aggregate agg && (p instanceof TimeSeriesAggregate) == false) {
+            for (Expression g : agg.groupings()) {
+                if (Alias.unwrap(g) instanceof TimeSeriesWithout) {
+                    failures.add(fail(g, "WITHOUT is only supported in time-series queries (i.e. TS | ...) at the moment"));
+                }
             }
         }
     }

@@ -332,7 +332,7 @@ public class CsvTests extends ESTestCase {
             );
             assumeFalseLogging(
                 "Can't simulate _source loading for unmapped fields in csv tests",
-                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.OPTIONAL_FIELDS_V4.capabilityName())
+                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.capabilityName())
             );
             assumeFalseLogging(
                 "can't use rereank in csv tests",

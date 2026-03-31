@@ -2743,10 +2743,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             Holder<IndexMode> indexMode = new Holder<>(IndexMode.STANDARD);
             plan.forEachUp(EsRelation.class, esRelation -> { indexMode.set(esRelation.indexMode()); });
             isTimeSeries = indexMode.get() == IndexMode.TIME_SERIES;
-            return plan.transformUp(LogicalPlan.class, p -> p.childrenResolved() == false ? p : doRule(p));
+            return plan.transformUp(LogicalPlan.class, this::doRule);
         }
 
         private LogicalPlan doRule(LogicalPlan plan) {
+            if (plan instanceof EsRelation || plan instanceof Project || plan.childrenResolved() == false) {
+                return plan;
+            }
             Map<String, FieldAttribute> unionFields = new HashMap<>();
             Holder<Boolean> aborted = new Holder<>(Boolean.FALSE);
             var newPlan = plan.transformExpressionsOnly(AggregateFunction.class, aggFunc -> {

@@ -1796,20 +1796,22 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
                 if (indices.contains(indexService.index().getName())) {
                     int nbVisitedShards = 0;
                     for (var indexShard : indexService) {
-                        var engine = indexShard.getEngineOrNull();
-                        if (engine != null) {
-                            assertThat(engine.config().getCodec().getName(), equalTo(ES94TSDBBestCompressionLucene104Codec.NAME));
-                            try (var searcher = engine.acquireSearcher("test_codec")) {
-                                for (var leaf : searcher.getLeafContexts()) {
-                                    var segInfo = Lucene.segmentReader(leaf.reader()).getSegmentInfo().info;
-                                    assertThat(
-                                        segInfo.getAttribute(Zstd814StoredFieldsFormat.MODE_KEY),
-                                        equalTo(Zstd814StoredFieldsFormat.Mode.BEST_COMPRESSION.name())
-                                    );
+                        nbVisitedShards += indexShard.withEngineOrNull(engine -> {
+                            if (engine != null) {
+                                assertThat(engine.config().getCodec().getName(), equalTo(ES94TSDBBestCompressionLucene104Codec.NAME));
+                                try (var searcher = engine.acquireSearcher("test_codec")) {
+                                    for (var leaf : searcher.getLeafContexts()) {
+                                        var segInfo = Lucene.segmentReader(leaf.reader()).getSegmentInfo().info;
+                                        assertThat(
+                                            segInfo.getAttribute(Zstd814StoredFieldsFormat.MODE_KEY),
+                                            equalTo(Zstd814StoredFieldsFormat.Mode.BEST_COMPRESSION.name())
+                                        );
+                                    }
                                 }
+                                return 1;
                             }
-                            nbVisitedShards++;
-                        }
+                            return 0;
+                        });
                     }
                     nbVisitedIndices++;
                     assertThat("Expected at least one shard to be verified for each index", nbVisitedShards, greaterThanOrEqualTo(1));

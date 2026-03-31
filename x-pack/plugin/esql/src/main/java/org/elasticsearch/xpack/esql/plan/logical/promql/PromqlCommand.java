@@ -55,7 +55,7 @@ public class PromqlCommand extends UnaryPlan
     /**
      * The name of the column containing the step value (aka time bucket) in range queries.
      */
-    public static final String STEP_COLUMN_NAME = "step";
+    private static final String STEP_COLUMN_NAME = "step";
 
     private final LogicalPlan promqlPlan;
     private final Literal start;
@@ -152,6 +152,9 @@ public class PromqlCommand extends UnaryPlan
     }
 
     public PromqlCommand withPromqlPlan(LogicalPlan newPromqlPlan) {
+        if (newPromqlPlan == promqlPlan) {
+            return this;
+        }
         return new PromqlCommand(
             source(),
             child(),
@@ -274,6 +277,14 @@ public class PromqlCommand extends UnaryPlan
         return stepId;
     }
 
+    public ReferenceAttribute valueAttribute() {
+        return new ReferenceAttribute(source(), null, valueColumnName, DataType.DOUBLE, Nullability.FALSE, valueId, false);
+    }
+
+    public ReferenceAttribute stepAttribute() {
+        return new ReferenceAttribute(source(), null, stepColumnName(), DataType.DATETIME, Nullability.FALSE, stepId, false);
+    }
+
     @Override
     public Expression timestamp() {
         return timestamp;
@@ -284,8 +295,8 @@ public class PromqlCommand extends UnaryPlan
         if (output == null) {
             List<Attribute> additionalOutput = promqlPlan.output();
             output = new ArrayList<>(additionalOutput.size() + 2);
-            output.add(new ReferenceAttribute(source(), null, valueColumnName, DataType.DOUBLE, Nullability.FALSE, valueId, false));
-            output.add(new ReferenceAttribute(source(), null, stepColumnName(), DataType.DATETIME, Nullability.FALSE, stepId, false));
+            output.add(valueAttribute());
+            output.add(stepAttribute());
             output.addAll(additionalOutput);
         }
         return output;
@@ -392,12 +403,27 @@ public class PromqlCommand extends UnaryPlan
                         }
                     }
                 }
-                case PromqlFunctionCall functionCall -> {
-                    if (functionCall instanceof AcrossSeriesAggregate asa) {
-                        if (asa.grouping() == AcrossSeriesAggregate.Grouping.WITHOUT) {
-                            failures.add(fail(asa, "'without' grouping is not supported at this time [{}]", asa.sourceText()));
+                case AcrossSeriesAggregate agg -> {
+                    if (agg.grouping() == AcrossSeriesAggregate.Grouping.WITHOUT && usesWithoutGrouping(agg.child())) {
+                        failures.add(fail(agg, "nested WITHOUT over WITHOUT is not supported at this time [{}]", agg.sourceText()));
+                    }
+                    // Reject labels whose name collides with the built-in step column.
+                    // If this proves too restrictive, we could add an option to rename the built-in step column.
+                    for (Attribute grouping : agg.groupings()) {
+                        if (stepColumnName().equals(grouping.name())) {
+                            failures.add(
+                                fail(
+                                    agg,
+                                    "label [{}] collides with the built-in [{}] output column [{}]",
+                                    stepColumnName(),
+                                    stepColumnName(),
+                                    agg.sourceText()
+                                )
+                            );
                         }
                     }
+                }
+                case PromqlFunctionCall functionCall -> {
                 }
                 case ScalarFunction scalarFunction -> {
                     // ok
@@ -439,6 +465,9 @@ public class PromqlCommand extends UnaryPlan
                     if (binaryOperator instanceof VectorBinarySet) {
                         failures.add(fail(lp, "set operators are not supported at this time [{}]", lp.sourceText()));
                     }
+                    if (usesWithoutGrouping(binaryOperator.left()) || usesWithoutGrouping(binaryOperator.right())) {
+                        failures.add(fail(lp, "binary expressions with WITHOUT are not supported at this time [{}]", lp.sourceText()));
+                    }
                 }
                 case PlaceholderRelation placeholderRelation -> {
                     // ok
@@ -449,5 +478,9 @@ public class PromqlCommand extends UnaryPlan
             }
             root.set(false);
         });
+    }
+
+    private static boolean usesWithoutGrouping(LogicalPlan plan) {
+        return plan.anyMatch(p -> p instanceof AcrossSeriesAggregate agg && agg.grouping() == AcrossSeriesAggregate.Grouping.WITHOUT);
     }
 }

@@ -108,6 +108,8 @@ public abstract class FieldMapper extends Mapper {
     protected final MappedFieldType mappedFieldType;
     protected final BuilderParams builderParams;
 
+    private SyntheticSourceMode syntheticSourceMode;
+
     /**
      * @param simpleName        the leaf name of the mapper
      * @param params            initialization params for this field mapper
@@ -116,6 +118,7 @@ public abstract class FieldMapper extends Mapper {
         super(simpleName);
         this.mappedFieldType = mappedFieldType;
         this.builderParams = params;
+        this.syntheticSourceMode = null;
 
         // could be blank but not empty on indices created < 8.6.0
         assert mappedFieldType.name().isEmpty() == false;
@@ -454,7 +457,7 @@ public abstract class FieldMapper extends Mapper {
      * </p>
      * @return {@link SyntheticSourceMode}
      */
-    final SyntheticSourceMode syntheticSourceMode() {
+    private SyntheticSourceMode calculateSyntheticSourceMode() {
         if (hasScript()) {
             return SyntheticSourceMode.NATIVE;
         }
@@ -467,6 +470,13 @@ public abstract class FieldMapper extends Mapper {
         }
 
         return syntheticSourceSupport().mode();
+    }
+
+    final SyntheticSourceMode syntheticSourceMode() {
+        if (syntheticSourceMode == null) {
+            this.syntheticSourceMode = calculateSyntheticSourceMode();
+        }
+        return syntheticSourceMode;
     }
 
     /**

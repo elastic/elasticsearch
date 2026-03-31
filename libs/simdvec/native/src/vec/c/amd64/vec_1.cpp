@@ -49,7 +49,7 @@ static inline int32_t doti7u_inner(const int8_t* a, const int8_t* b, const int32
 EXPORT int32_t vec_doti7u(const int8_t* a, const int8_t* b, const int32_t dims) {
     int32_t res = 0;
     int i = 0;
-    if (dims > STRIDE_BYTES_LEN) {
+    if (dims >= STRIDE_BYTES_LEN) {
         i += dims & ~(STRIDE_BYTES_LEN - 1);
         res = doti7u_inner(a, b, i);
     }
@@ -185,7 +185,7 @@ static inline int32_t sqri7u_inner(const int8_t* a, const int8_t* b, const int32
 EXPORT int32_t vec_sqri7u(const int8_t* a, const int8_t* b, const int32_t dims) {
     int32_t res = 0;
     int i = 0;
-    if (dims > STRIDE_BYTES_LEN) {
+    if (dims >= STRIDE_BYTES_LEN) {
         i += dims & ~(STRIDE_BYTES_LEN - 1);
         res = sqri7u_inner(a, b, i);
     }
@@ -271,7 +271,7 @@ static inline cosine_results_t cosi8_inner(const int8_t* a, const int8_t* b, con
 EXPORT f32_t vec_cosi8(const int8_t* a, const int8_t* b, const int32_t dims) {
     cosine_results_t res = cosine_results_t { 0, 0, 0 };
     int i = 0;
-    if (dims > sizeof(__m128i)) {
+    if (dims >= sizeof(__m128i)) {
         i += dims & ~(sizeof(__m128i) - 1);
         res = cosi8_inner(a, b, i);
     }
@@ -458,7 +458,7 @@ static inline int32_t doti8_inner(const int8_t* a, const int8_t* b, const int32_
 EXPORT f32_t vec_doti8(const int8_t* a, const int8_t* b, const int32_t dims) {
     int32_t res = 0;
     int i = 0;
-    if (dims > sizeof(__m128i)) {
+    if (dims >= sizeof(__m128i)) {
         i += dims & ~(sizeof(__m128i) - 1);
         res = doti8_inner(a, b, i);
     }
@@ -543,7 +543,7 @@ static inline int32_t sqri8_inner(const int8_t* a, const int8_t* b, const int32_
 EXPORT f32_t vec_sqri8(const int8_t* a, const int8_t* b, const int32_t dims) {
     int32_t res = 0;
     int i = 0;
-    if (dims > sizeof(__m128i)) {
+    if (dims >= sizeof(__m128i)) {
         i += dims & ~(sizeof(__m128i) - 1);
         res = sqri8_inner(a, b, i);
     }

@@ -119,7 +119,7 @@ static inline int32_t dot7u_inner_avx512(const int8_t* a, const int8_t* b, const
 EXPORT int32_t vec_dot7u_2(const int8_t* a, const int8_t* b, const int32_t dims) {
     int32_t res = 0;
     int i = 0;
-    if (dims > STRIDE_BYTES_LEN) {
+    if (dims >= STRIDE_BYTES_LEN) {
         i += dims & ~(STRIDE_BYTES_LEN - 1);
         res = dot7u_inner_avx512(a, b, i);
     }
@@ -175,7 +175,7 @@ static inline void dot7u_inner_bulk(
         int32_t res2 = 0;
         int32_t res3 = 0;
         int i = 0;
-        if (dims > STRIDE_BYTES_LEN) {
+        if (dims >= STRIDE_BYTES_LEN) {
             i = blk;
             res0 = dot7u_inner_avx512(a0, b, i);
             res1 = dot7u_inner_avx512(a1, b, i);
@@ -293,7 +293,7 @@ static inline int32_t sqr7u_inner_avx512(const int8_t* a, const int8_t* b, const
 EXPORT int32_t vec_sqr7u_2(const int8_t* a, const int8_t* b, const int32_t dims) {
     int32_t res = 0;
     int i = 0;
-    if (dims > STRIDE_BYTES_LEN) {
+    if (dims >= STRIDE_BYTES_LEN) {
         i += dims & ~(STRIDE_BYTES_LEN - 1);
         res = sqr7u_inner_avx512(a, b, i);
     }
@@ -350,7 +350,7 @@ static inline void sqr7u_inner_bulk(
         int32_t res2 = 0;
         int32_t res3 = 0;
         int i = 0;
-        if (dims > STRIDE_BYTES_LEN) {
+        if (dims >= STRIDE_BYTES_LEN) {
             i = blk;
             res0 = sqr7u_inner_avx512(a0, b, i);
             res1 = sqr7u_inner_avx512(a1, b, i);

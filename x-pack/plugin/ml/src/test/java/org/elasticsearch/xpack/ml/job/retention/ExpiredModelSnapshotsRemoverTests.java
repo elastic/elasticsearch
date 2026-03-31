@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.elasticsearch.xpack.ml.test.MockOriginSettingClient;
 import org.elasticsearch.xpack.ml.test.SearchHitBuilder;
+import org.elasticsearch.xpack.ml.test.SearchHitTestUtil;
 import org.junit.Before;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
@@ -187,6 +188,7 @@ public class ExpiredModelSnapshotsRemoverTests extends ESTestCase {
 
         listener.waitToCompletion();
         assertThat(listener.success, is(false));
+        SearchHitTestUtil.releaseUnusedPooledSearchResponses(searchResponses);
     }
 
     public void testRemove_GivenClientSearchRequestsFail() {
@@ -251,6 +253,7 @@ public class ExpiredModelSnapshotsRemoverTests extends ESTestCase {
             "expected ids related to [snapshots-1_2] but received [" + idsQueryBuilder.ids() + "]",
             idsQueryBuilder.ids().stream().allMatch(s -> s.contains("snapshots-1_2"))
         );
+        SearchHitTestUtil.releaseUnusedPooledSearchResponses(searchResponses);
     }
 
     @SuppressWarnings("unchecked")
@@ -385,7 +388,7 @@ public class ExpiredModelSnapshotsRemoverTests extends ESTestCase {
                 // Only the last search request should fail
                 if (shouldSearchRequestsSucceed || callCount.get() < (searchResponses.size() + snapshots.size())) {
                     SearchResponse response = searchResponses.get(callCount.getAndIncrement());
-                    listener.onResponse(response);
+                    SearchHitTestUtil.respondAndReleaseSearchResponse(listener, response);
                 } else {
                     listener.onFailure(new RuntimeException("search failed"));
                 }

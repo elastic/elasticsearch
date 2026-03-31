@@ -107,6 +107,10 @@ public class DataFrameDataExtractor {
         isCancelled = true;
     }
 
+    /**
+     * Each non-empty batch returns pooled {@link SearchHit}s with an extra ref retained for the caller.
+     * The caller must {@link SearchHit#decRef()} every hit in the array when finished (including on cancel or error).
+     */
     public Optional<SearchHit[]> next() throws IOException {
         if (hasNext() == false) {
             throw new NoSuchElementException();
@@ -253,7 +257,15 @@ public class DataFrameDataExtractor {
             hasNext = false;
             return null;
         }
-        return searchResponse.getHits().asUnpooled().getHits();
+        // Copy into a new array: tryRequestWithSearchResponse decRef's the response in a finally block,
+        // which releases SearchHits and nulls out the backing hit array. Returning that same array would
+        // leave callers with null slots and leak/ref bugs; asUnpooled() previously detached copies.
+        SearchHit[] fromResponse = searchResponse.getHits().getHits();
+        SearchHit[] hits = Arrays.copyOf(fromResponse, fromResponse.length);
+        for (SearchHit hit : hits) {
+            hit.mustIncRef();
+        }
+        return hits;
     }
 
     private String extractNonProcessedValues(SearchHit hit, SourceSupplier sourceSupplier, String organicFeature) {

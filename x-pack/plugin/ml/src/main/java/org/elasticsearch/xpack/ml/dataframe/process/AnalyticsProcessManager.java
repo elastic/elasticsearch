@@ -259,22 +259,33 @@ public class AnalyticsProcessManager {
         while (dataExtractor.hasNext()) {
             Optional<SearchHit[]> rows = dataExtractor.next();
             if (rows.isPresent()) {
-                for (SearchHit searchHit : rows.get()) {
-                    if (dataExtractor.isCancelled()) {
-                        break;
-                    }
-                    rowsProcessed++;
-                    DataFrameDataExtractor.Row row = dataExtractor.createRow(searchHit);
-                    if (row.shouldSkip()) {
-                        dataCountsTracker.incrementSkippedDocsCount();
-                    } else {
-                        String[] rowValues = row.getValues();
-                        System.arraycopy(rowValues, 0, record, 0, rowValues.length);
-                        record[record.length - 2] = String.valueOf(row.getChecksum());
-                        if (row.isTraining()) {
-                            dataCountsTracker.incrementTrainingDocsCount();
-                            process.writeRecord(record);
+                SearchHit[] batch = rows.get();
+                int nextToRelease = 0;
+                try {
+                    while (nextToRelease < batch.length) {
+                        SearchHit searchHit = batch[nextToRelease];
+                        if (dataExtractor.isCancelled()) {
+                            break;
                         }
+                        rowsProcessed++;
+                        DataFrameDataExtractor.Row row = dataExtractor.createRow(searchHit);
+                        if (row.shouldSkip()) {
+                            dataCountsTracker.incrementSkippedDocsCount();
+                        } else {
+                            String[] rowValues = row.getValues();
+                            System.arraycopy(rowValues, 0, record, 0, rowValues.length);
+                            record[record.length - 2] = String.valueOf(row.getChecksum());
+                            if (row.isTraining()) {
+                                dataCountsTracker.incrementTrainingDocsCount();
+                                process.writeRecord(record);
+                            }
+                        }
+                        searchHit.decRef();
+                        nextToRelease++;
+                    }
+                } finally {
+                    while (nextToRelease < batch.length) {
+                        batch[nextToRelease++].decRef();
                     }
                 }
                 progressTracker.updateLoadingDataProgress(rowsProcessed >= totalRows ? 100 : (int) (rowsProcessed * 100.0 / totalRows));

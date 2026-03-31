@@ -47,6 +47,7 @@ import org.elasticsearch.xpack.ml.extractor.ExtractedFields;
 import org.elasticsearch.xpack.ml.extractor.SourceField;
 import org.elasticsearch.xpack.ml.inference.loadingservice.LocalModel;
 import org.elasticsearch.xpack.ml.inference.loadingservice.ModelLoadingService;
+import org.elasticsearch.xpack.ml.test.SearchHitTestUtil;
 import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
@@ -155,14 +156,10 @@ public class InferenceRunnerTests extends ESTestCase {
     }
 
     private static Deque<SearchHit> buildSearchHits(List<Map<String, Object>> vals) {
-        return vals.stream().map(InferenceRunnerTests::fromMap).map(reference -> {
-            var pooled = SearchResponseUtils.searchHitFromMap(Map.of("_source", reference));
-            try {
-                return pooled.asUnpooled();
-            } finally {
-                pooled.decRef();
-            }
-        }).collect(Collectors.toCollection(ArrayDeque::new));
+        return vals.stream()
+            .map(InferenceRunnerTests::fromMap)
+            .map(reference -> SearchResponseUtils.searchHitFromMap(Map.of("_source", reference)))
+            .collect(Collectors.toCollection(ArrayDeque::new));
     }
 
     private static BytesReference fromMap(Map<String, Object> map) {
@@ -249,11 +246,13 @@ public class InferenceRunnerTests extends ESTestCase {
         when(threadpool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         when(client.threadPool()).thenReturn(threadpool);
 
-        Supplier<SearchResponse> withHits = () -> SearchResponseUtils.response(
-            SearchHits.unpooled(new SearchHit[] { SearchHit.unpooled(1) }, new TotalHits(1L, TotalHits.Relation.EQUAL_TO), 1.0f)
-        )
-            .aggregations(InternalAggregations.from(List.of(new Max(DestinationIndex.INCREMENTAL_ID, 1, DocValueFormat.RAW, Map.of()))))
-            .build();
+        Supplier<SearchResponse> withHits = () -> {
+            var pooledHits = new SearchHits(new SearchHit[] { new SearchHit(1) }, new TotalHits(1L, TotalHits.Relation.EQUAL_TO), 1.0f);
+            SearchResponse built = SearchResponseUtils.response(pooledHits)
+                .aggregations(InternalAggregations.from(List.of(new Max(DestinationIndex.INCREMENTAL_ID, 1, DocValueFormat.RAW, Map.of()))))
+                .build();
+            return SearchHitTestUtil.spySearchResponseDrainingPooledHits(built, pooledHits);
+        };
         Supplier<SearchResponse> withNoHits = () -> SearchResponseUtils.successfulResponse(SearchHits.EMPTY_WITH_TOTAL_HITS);
 
         when(client.search(any())).thenReturn(response(withHits)).thenReturn(response(withNoHits));

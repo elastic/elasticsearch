@@ -24,6 +24,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.ReleasableRef;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
@@ -46,6 +47,8 @@ import org.elasticsearch.xpack.core.ml.job.results.CategoryDefinition;
 import org.elasticsearch.xpack.core.ml.job.results.Influencer;
 import org.elasticsearch.xpack.core.ml.utils.ExponentialAverageCalculationContext;
 import org.elasticsearch.xpack.ml.job.persistence.InfluencersQueryBuilder.InfluencersQuery;
+import org.elasticsearch.xpack.ml.test.SearchHitTestUtil;
+import org.junit.After;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -69,6 +72,19 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 public class JobResultsProviderTests extends ESTestCase {
+
+    /** Mocked tests do not always trigger {@link SearchResponse#decRef()}; release pooled {@link SearchHits} after each test. */
+    private final List<SearchHits> searchHitsToRelease = new ArrayList<>();
+
+    @After
+    public void releaseSearchHitsCreatedForMocks() {
+        for (SearchHits hits : searchHitsToRelease) {
+            if (hits.hasReferences()) {
+                hits.decRef();
+            }
+        }
+        searchHitsToRelease.clear();
+    }
 
     public void testBuckets_OneBucketNoInterim() throws IOException {
         String jobId = "TestJobIdentification";
@@ -753,7 +769,7 @@ public class JobResultsProviderTests extends ESTestCase {
             randomNonNegativeLong()
         );
 
-        try {
+        try (var multiSearchResponseRef = ReleasableRef.of(multiSearchResponse)) {
             Client client = getBasicMockedClient();
             when(client.prepareMultiSearch()).thenReturn(new MultiSearchRequestBuilder(client));
             doAnswer(invocationOnMock -> {
@@ -764,7 +780,7 @@ public class JobResultsProviderTests extends ESTestCase {
                 @SuppressWarnings("unchecked")
                 ActionListener<MultiSearchResponse> actionListener = (ActionListener<MultiSearchResponse>) invocationOnMock
                     .getArguments()[1];
-                actionListener.onResponse(multiSearchResponse);
+                actionListener.onResponse(multiSearchResponseRef.get());
                 return null;
             }).when(client).multiSearch(any(), any());
             when(client.prepareSearch(AnomalyDetectorsIndex.jobResultsAliasedName("foo"))).thenReturn(
@@ -809,8 +825,6 @@ public class JobResultsProviderTests extends ESTestCase {
             verify(client).prepareSearch(AnomalyDetectorsIndex.jobResultsAliasedName("foo"));
             verify(client).prepareSearch(AnomalyDetectorsIndex.jobResultsAliasedName("bar"));
             verifyNoMoreInteractions(client);
-        } finally {
-            multiSearchResponse.decRef();
         }
     }
 
@@ -910,7 +924,7 @@ public class JobResultsProviderTests extends ESTestCase {
         return new JobResultsProvider(client, Settings.EMPTY, TestIndexNameExpressionResolver.newInstance());
     }
 
-    private static SearchResponse createSearchResponse(List<Map<String, Object>> source) throws IOException {
+    private SearchResponse createSearchResponse(List<Map<String, Object>> source) throws IOException {
         SearchResponse response = mock(SearchResponse.class);
         List<SearchHit> list = new ArrayList<>();
 
@@ -928,8 +942,9 @@ public class JobResultsProviderTests extends ESTestCase {
             list.add(hit);
         }
         SearchHits hits = new SearchHits(list.toArray(SearchHits.EMPTY), new TotalHits(source.size(), TotalHits.Relation.EQUAL_TO), 1);
-        when(response.getHits()).thenReturn(hits.asUnpooled());
-        hits.decRef();
+        when(response.getHits()).thenReturn(hits);
+        SearchHitTestUtil.stubSearchResponseDecRefsHits(response, hits);
+        searchHitsToRelease.add(hits);
 
         return response;
     }
@@ -963,7 +978,7 @@ public class JobResultsProviderTests extends ESTestCase {
             queryBuilderConsumer.accept(searchRequest.source().query());
             @SuppressWarnings("unchecked")
             ActionListener<SearchResponse> actionListener = (ActionListener<SearchResponse>) invocationOnMock.getArguments()[1];
-            actionListener.onResponse(response);
+            SearchHitTestUtil.respondAndReleaseSearchResponse(actionListener, response);
             return null;
         }).when(client).search(any(), any());
         return client;

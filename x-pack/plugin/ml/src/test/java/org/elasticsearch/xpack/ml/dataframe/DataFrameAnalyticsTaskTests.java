@@ -16,6 +16,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.ReleasableRef;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.PersistentTasksService;
@@ -249,10 +250,8 @@ public class DataFrameAnalyticsTaskTests extends ESTestCase {
             null,
             0.0f
         );
-        try {
-            testPersistProgress(hits, ".ml-state-dummy");
-        } finally {
-            hits.decRef();
+        try (var hitsRef = ReleasableRef.of(hits)) {
+            testPersistProgress(hitsRef.get(), ".ml-state-dummy");
         }
     }
 

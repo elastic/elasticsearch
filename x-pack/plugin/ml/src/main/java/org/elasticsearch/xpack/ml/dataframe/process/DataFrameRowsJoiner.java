@@ -101,8 +101,12 @@ class DataFrameRowsJoiner implements AutoCloseable {
                 }
                 RowResults result = currentResults.pop();
                 DataFrameDataExtractor.Row row = dataFrameRowsIterator.next();
-                checkChecksumsMatch(row, result);
-                bulkIndexer.addAndExecuteIfNeeded(createIndexRequest(result, row));
+                try {
+                    checkChecksumsMatch(row, result);
+                    bulkIndexer.addAndExecuteIfNeeded(createIndexRequest(result, row));
+                } finally {
+                    row.getHit().decRef();
+                }
             }
         }
 
@@ -150,6 +154,7 @@ class DataFrameRowsJoiner implements AutoCloseable {
             failure = "[" + analyticsId + "] Failed to join results: " + e.getMessage();
         } finally {
             try {
+                ((ResultMatchingDataFrameRows) dataFrameRowsIterator).releaseRemainingHitsInCurrentBatch();
                 consumeDataExtractor();
             } catch (Exception e) {
                 LOGGER.error(() -> "[" + analyticsId + "] Failed to consume data extractor", e);
@@ -160,7 +165,12 @@ class DataFrameRowsJoiner implements AutoCloseable {
     private void consumeDataExtractor() throws IOException {
         dataExtractor.cancel();
         while (dataExtractor.hasNext()) {
-            dataExtractor.next();
+            Optional<SearchHit[]> rows = dataExtractor.next();
+            if (rows.isPresent()) {
+                for (SearchHit hit : rows.get()) {
+                    hit.decRef();
+                }
+            }
         }
     }
 
@@ -180,12 +190,27 @@ class DataFrameRowsJoiner implements AutoCloseable {
             while (hasNoMatch(row) && hasNext()) {
                 advanceToNextBatchIfNecessary();
                 row = dataExtractor.createRow(currentDataFrameRows[currentDataFrameRowsIndex++]);
+                if (hasNoMatch(row)) {
+                    row.getHit().decRef();
+                }
             }
 
             if (hasNoMatch(row)) {
                 throw ExceptionsHelper.serverError("no more data frame rows could be found while joining results");
             }
             return row;
+        }
+
+        /**
+         * Releases pooled refs for hits in the current batch that were not consumed by {@link #next()}.
+         * Called when the joiner closes while the iterator may still point into a partially read batch.
+         */
+        void releaseRemainingHitsInCurrentBatch() {
+            while (currentDataFrameRowsIndex < currentDataFrameRows.length) {
+                currentDataFrameRows[currentDataFrameRowsIndex++].decRef();
+            }
+            currentDataFrameRows = SearchHits.EMPTY;
+            currentDataFrameRowsIndex = 0;
         }
 
         private static boolean hasNoMatch(DataFrameDataExtractor.Row row) {

@@ -203,23 +203,34 @@ public class InferenceRunner {
                     break;
                 }
 
-                Deque<SearchHit> batch = testDocsIterator.next();
+                Deque<SearchHit> batchDeque = testDocsIterator.next();
+                SearchHit[] batch = batchDeque.toArray(new SearchHit[0]);
 
                 if (totalDocCount == 0) {
                     totalDocCount = testDocsIterator.getTotalHits();
                 }
 
-                for (SearchHit doc : batch) {
-                    dataCountsTracker.incrementTestDocsCount();
-                    SourceSupplier sourceSupplier = new SourceSupplier(doc);
-                    InferenceResults inferenceResults = model.inferNoStats(featuresFromDoc(doc, sourceSupplier));
-                    bulkIndexer.addAndExecuteIfNeeded(
-                        createIndexRequest(doc, sourceSupplier, inferenceResults, config.getDest().getResultsField())
-                    );
+                int nextToRelease = 0;
+                try {
+                    while (nextToRelease < batch.length) {
+                        SearchHit doc = batch[nextToRelease];
+                        dataCountsTracker.incrementTestDocsCount();
+                        SourceSupplier sourceSupplier = new SourceSupplier(doc);
+                        InferenceResults inferenceResults = model.inferNoStats(featuresFromDoc(doc, sourceSupplier));
+                        bulkIndexer.addAndExecuteIfNeeded(
+                            createIndexRequest(doc, sourceSupplier, inferenceResults, config.getDest().getResultsField())
+                        );
 
-                    processedDocCount++;
-                    int progressPercent = Math.min((int) (processedDocCount * 100.0 / totalDocCount), MAX_PROGRESS_BEFORE_COMPLETION);
-                    progressTracker.updateInferenceProgress(progressPercent);
+                        processedDocCount++;
+                        int progressPercent = Math.min((int) (processedDocCount * 100.0 / totalDocCount), MAX_PROGRESS_BEFORE_COMPLETION);
+                        progressTracker.updateInferenceProgress(progressPercent);
+                        doc.decRef();
+                        nextToRelease++;
+                    }
+                } finally {
+                    while (nextToRelease < batch.length) {
+                        batch[nextToRelease++].decRef();
+                    }
                 }
             }
         }

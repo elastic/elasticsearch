@@ -405,6 +405,39 @@ public abstract class HeapAttackTestCase extends ESRestTestCase {
     }
 
     /**
+     * Like {@link #initManyLongs} but also adds a keyword field {@code f} containing a string
+     * of the given length. This produces wide group keys without needing many EVAL columns.
+     */
+    protected void initManyLongsAndString(int countPerLong, int stringLength) throws IOException {
+        logger.info("loading many documents with longs and a {}-char string", stringLength);
+        String f = "x".repeat(stringLength);
+        StringBuilder bulk = new StringBuilder();
+        int flush = 0;
+        long numDocs = (long) countPerLong * countPerLong * countPerLong * countPerLong * countPerLong;
+        for (int a = 0; a < countPerLong; a++) {
+            for (int b = 0; b < countPerLong; b++) {
+                for (int c = 0; c < countPerLong; c++) {
+                    for (int d = 0; d < countPerLong; d++) {
+                        for (int e = 0; e < countPerLong; e++) {
+                            bulk.append(String.format(Locale.ROOT, """
+                                {"create":{}}
+                                {"a":%d,"b":%d,"c":%d,"d":%d,"e":%d,"f":"%s"}
+                                """, a, b, c, d, e, f));
+                            flush++;
+                            if (flush % 10_000 == 0) {
+                                bulk("manylongsandstring", bulk.toString());
+                                bulk.setLength(0);
+                                logger.info("flushing {}/{} to manylongsandstring", flush, numDocs);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        initIndex("manylongsandstring", bulk.toString());
+    }
+
+    /**
      * Builds a query preamble that EVALs {@code count} computed long columns
      * ({@code i0, i1, ..., i(count-1)}) as running sums over {@code a} and {@code b}.
      */

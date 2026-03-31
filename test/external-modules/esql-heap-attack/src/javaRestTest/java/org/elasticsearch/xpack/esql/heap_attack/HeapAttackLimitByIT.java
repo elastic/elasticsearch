@@ -67,39 +67,45 @@ public class HeapAttackLimitByIT extends HeapAttackTestCase {
     // -------------------------------------------------------------------------
 
     /**
-     * This limits by 50 computed columns which should succeed. The GroupedLimitOperator stores group
-     * keys in a hash table; 100K unique groups with 55 columns each is well within the circuit breaker.
+     * Grouping by a,b,c,d,e plus a 100-char string should succeed. 100K unique groups with
+     * ~140-byte keys ≈ 10 MB in the hash table, well within the circuit breaker.
      */
-    public void testLimitByManyGroupingColumns() throws IOException {
+    public void testLimitByHighCardinality() throws IOException {
         assumeTrue("LIMIT BY requires snapshot builds", Build.current().isSnapshot());
-        initManyLongs(10);
-        Map<String, Object> result = limitByManyLongs(50);
+        initManyLongsAndString(10, 100);
+        Map<String, Object> result = limitByWideStringKey(1);
         ListMatcher columns = matchesList().item(matchesMap().entry("name", "MAX(a)").entry("type", "long"));
         ListMatcher values = matchesList().item(List.of(9));
         assertResultMap(result, columns, values);
     }
 
     /**
-     * The GroupedLimitOperator stores all group keys in a hash table. Grouping by all 5 original
-     * fields (a,b,c,d,e) gives 100K unique groups; adding many computed columns widens each key
-     * until the hash table trips the circuit breaker.
+     * The GroupedLimitOperator stores all group keys in a hash table. With 100K unique groups
+     * (a,b,c,d,e ∈ [0,9]) and a wide string column in the key, the hash table trips the circuit
+     * breaker. {@code REPEAT(f, scale)} widens the string per attempt without needing many EVAL
+     * columns: at scale=10 each key is ~4KB, so 100K groups ≈ 400 MB.
      */
-    public void testLimitByManyGroupingColumnsTooMuchMemory() throws IOException {
+    public void testLimitByHighCardinalityTooMuchMemory() throws IOException {
         assumeTrue("LIMIT BY requires snapshot builds", Build.current().isSnapshot());
-        initManyLongs(10);
-        assertCircuitBreaksVia(attempt -> limitByManyLongs(attempt * 1000), GroupedLimitOperator.class.getName(), bytesRefHashClassName());
+        initManyLongsAndString(10, 100);
+        assertCircuitBreaksVia(
+            attempt -> limitByWideStringKey(attempt * 40),
+            GroupedLimitOperator.class.getName(),
+            bytesRefHashClassName()
+        );
     }
 
-    private Map<String, Object> limitByManyLongs(int count) throws IOException {
-        logger.info("limit by {} group cols", count);
-        StringBuilder query = makeManyLongs(count);
-        // Group by all 5 original fields so there are 10^5 = 100K unique groups,
-        // then also include the computed fields to widen each group key.
-        query.append("| LIMIT 1 BY a, b, c, d, e, i0");
-        for (int i = 1; i < count; i++) {
-            query.append(", i").append(i);
+    private Map<String, Object> limitByWideStringKey(int repeatScale) throws IOException {
+        logger.info("limit by a,b,c,d,e + string repeated {}x", repeatScale);
+        StringBuilder query = startQuery();
+        query.append("FROM manylongsandstring\\n");
+        if (repeatScale > 1) {
+            query.append("| EVAL g = REPEAT(f, ").append(repeatScale).append(")\\n");
+            query.append("| LIMIT 1 BY a, b, c, d, e, g\\n");
+        } else {
+            query.append("| LIMIT 1 BY a, b, c, d, e, f\\n");
         }
-        query.append("\\n| STATS MAX(a)\"}");
+        query.append("| STATS MAX(a)\"}");
         return responseAsMap(query(query.toString(), null));
     }
 
@@ -239,43 +245,46 @@ public class HeapAttackLimitByIT extends HeapAttackTestCase {
     }
 
     /**
-     * This sorts by 1 column then limits 1 row per group across 100K unique groups with 55 group
-     * key computed columns, which should succeed. The GroupedTopNOperator stores group
-     * keys in a hash table. 100K groups with 55-column keys is within the circuit breaker.
+     * Same as {@link #testLimitByHighCardinality} but for {@code SORT | LIMIT BY}.
+     * Sorting by a single column keeps {@code TopNRow} narrow; the hash table stores the wide
+     * group keys. 100K groups with ~140-byte keys ≈ 10 MB, well within the circuit breaker.
      */
-    public void testTopNByManyGroupingColumns() throws IOException {
+    public void testTopNByHighCardinality() throws IOException {
         assumeTrue("SORT | LIMIT BY requires snapshot builds", Build.current().isSnapshot());
-        initManyLongs(10);
-        Map<String, Object> result = topNByWideGroupKey(50);
-        ListMatcher columns = matchesList().item(matchesMap().entry("name", "a").entry("type", "long"))
-            .item(matchesMap().entry("name", "b").entry("type", "long"));
-        assertResultMap(result, columns, any(List.class));
+        initManyLongsAndString(10, 100);
+        Map<String, Object> result = topNByWideStringKey(1);
+        ListMatcher columns = matchesList().item(matchesMap().entry("name", "MAX(a)").entry("type", "long"));
+        ListMatcher values = matchesList().item(List.of(9));
+        assertResultMap(result, columns, values);
     }
 
     /**
-     * The GroupedTopNOperator stores group keys in a hash table ({@code keysHash}). Grouping by
-     * all 5 original fields plus many computed columns widens each encoded group key until the
-     * hash table trips the circuit breaker. Unlike {@link #testTopNByManySortColumns} which stresses
-     * sort key row storage, this stresses the group key hash table.
+     * Same as {@link #testLimitByHighCardinalityTooMuchMemory} but for {@code SORT | LIMIT BY}.
+     * The {@code GroupedTopNOperator} stores group keys in a hash table ({@code keysHash}).
+     * {@code REPEAT(f, scale)} widens the string per attempt: at scale=40 each key is ~4 KB,
+     * so 100K groups ≈ 400 MB, tripping the circuit breaker.
      */
-    public void testTopNByManyGroupingColumnsTooMuchMemory() throws IOException {
+    public void testTopNByHighCardinalityTooMuchMemory() throws IOException {
         assumeTrue("SORT | LIMIT BY requires snapshot builds", Build.current().isSnapshot());
-        initManyLongs(10);
-        assertCircuitBreaksVia(attempt -> topNByWideGroupKey(attempt * 1000), GroupedTopNOperator.class.getName(), bytesRefHashClassName());
+        initManyLongsAndString(10, 100);
+        assertCircuitBreaksVia(
+            attempt -> topNByWideStringKey(attempt * 40),
+            GroupedTopNOperator.class.getName(),
+            bytesRefHashClassName()
+        );
     }
 
-    private Map<String, Object> topNByWideGroupKey(int count) throws IOException {
-        logger.info("topn by with {} group key cols", count);
-        StringBuilder query = makeManyLongs(count);
-        // Sort by a single column to keep TopNRow narrow; group by all 5 original fields
-        // plus computed columns to widen the composite group key stored in keysHash.
-        // 100K unique groups (a,b,c,d,e ∈ [0,9]) × wide encoded keys trips the circuit breaker.
-        query.append("| SORT a\\n");
-        query.append("| LIMIT 1 BY a, b, c, d, e, i0");
-        for (int i = 1; i < count; i++) {
-            query.append(", i").append(i);
+    private Map<String, Object> topNByWideStringKey(int repeatScale) throws IOException {
+        logger.info("topn by a,b,c,d,e + string repeated {}x", repeatScale);
+        StringBuilder query = startQuery();
+        query.append("FROM manylongsandstring\\n");
+        if (repeatScale > 1) {
+            query.append("| EVAL g = REPEAT(f, ").append(repeatScale).append(")\\n");
+            query.append("| SORT a\\n| LIMIT 1 BY a, b, c, d, e, g\\n");
+        } else {
+            query.append("| SORT a\\n| LIMIT 1 BY a, b, c, d, e, f\\n");
         }
-        query.append("\\n| KEEP a, b\"}");
+        query.append("| STATS MAX(a)\"}");
         return responseAsMap(query(query.toString(), null));
     }
 

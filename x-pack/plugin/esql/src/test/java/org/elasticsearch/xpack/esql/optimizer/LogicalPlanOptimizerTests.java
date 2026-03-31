@@ -9326,6 +9326,20 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertThat(timeSeriesAttrs.get(0).withoutFields(), equalTo(Set.of()));
     }
 
+    public void testTimeSeriesGroupByAllKeepsTimeSeriesIndexMode() {
+        assumeTrue("requires metrics group by all", EsqlCapabilities.Cap.METRICS_GROUP_BY_ALL.isEnabled());
+        var query = "TS k8s | STATS max_over_time(network.bytes_in)";
+        var plan = planMetrics(query);
+        Holder<EsRelation> relationHolder = new Holder<>();
+        plan.forEachDown(node -> {
+            if (node instanceof EsRelation rel) {
+                relationHolder.set(rel);
+            }
+        });
+        assertNotNull("expected an EsRelation in the plan", relationHolder.get());
+        assertThat(relationHolder.get().indexMode(), equalTo(IndexMode.TIME_SERIES));
+    }
+
     public void testTimeSeriesBareFieldWithBucketAndLimitZeroDoesNotFailVerifier() {
         var query = "TS k8s | STATS network.cost BY bucket(@timestamp, 1h) | LIMIT 0";
         var plan = planMetrics(query);

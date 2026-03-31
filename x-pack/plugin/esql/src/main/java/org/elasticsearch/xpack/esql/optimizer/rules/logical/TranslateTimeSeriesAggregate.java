@@ -299,8 +299,9 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
                 throw new EsqlIllegalArgumentException("expected named expression for grouping; got " + group);
             }
         }
+        boolean hasDimensionValues = firstPassAggs.stream().anyMatch(a -> Alias.unwrap(a) instanceof DimensionValues);
         LogicalPlan newChild = aggregate.child().transformUp(EsRelation.class, r -> {
-            IndexMode indexMode = requiredTimeSeriesSource.get() ? r.indexMode() : IndexMode.STANDARD;
+            IndexMode indexMode = (requiredTimeSeriesSource.get() || hasDimensionValues) ? r.indexMode() : IndexMode.STANDARD;
             if (r.output().contains(tsid.get()) == false) {
                 return r.withIndexMode(indexMode).withAttributes(CollectionUtils.combine(r.output(), tsid.get()));
             } else {

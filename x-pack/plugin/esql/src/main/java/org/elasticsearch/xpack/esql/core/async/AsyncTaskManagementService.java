@@ -85,7 +85,7 @@ public class AsyncTaskManagementService<
 
         default void onResponseAfterTimeout(Response response) {}
 
-        default void onFailureAfterTimeout(Exception exception) {}
+        default void onFailureAfterTimeout(Request request, Exception exception) {}
     }
 
     /**
@@ -194,7 +194,7 @@ public class AsyncTaskManagementService<
                 operation.execute(
                     request,
                     searchTask,
-                    wrapStoringListener(searchTask, waitForCompletionTimeout, keepOnCompletion, listener)
+                    wrapStoringListener(request, searchTask, waitForCompletionTimeout, keepOnCompletion, listener)
                 );
                 operationStarted = true;
             } finally {
@@ -207,6 +207,7 @@ public class AsyncTaskManagementService<
     }
 
     private ActionListener<Response> wrapStoringListener(
+        Request request,
         T searchTask,
         TimeValue waitForCompletionTimeout,
         boolean keepOnCompletion,
@@ -265,7 +266,7 @@ public class AsyncTaskManagementService<
                 }
             } else {
                 // We finished after timeout - saving exception
-                operation.onFailureAfterTimeout(e);
+                operation.onFailureAfterTimeout(request, e);
                 storeResults(searchTask, new StoredAsyncResponse<>(e, searchTask.getExpirationTimeMillis()));
             }
         });

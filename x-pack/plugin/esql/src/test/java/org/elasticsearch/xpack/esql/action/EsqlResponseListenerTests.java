@@ -120,6 +120,35 @@ public class EsqlResponseListenerTests extends ESTestCase {
         assertThat(logEvent.getThrown().getCause().getMessage(), equalTo("dummy"));
     }
 
+    public void testLogOnFailureServerError() {
+        EsqlQueryRequest request = new EsqlQueryRequest();
+        request.query("FROM index | STATS count()");
+        EsqlResponseListener.logOnFailure(new IllegalStateException("something broke"), request);
+
+        assertThat(appender.events, hasSize(1));
+        LogEvent logEvent = appender.events.get(0);
+        assertThat(logEvent.getLevel(), equalTo(Level.WARN));
+        assertThat(
+            logEvent.getMessage().getFormattedMessage(),
+            equalTo("ESQL request failed with status [INTERNAL_SERVER_ERROR] query [FROM index | STATS count()]: ")
+        );
+        assertThat(logEvent.getThrown().getMessage(), equalTo("something broke"));
+    }
+
+    public void testLogOnFailureClientError() {
+        EsqlQueryRequest request = new EsqlQueryRequest();
+        request.query("FROM index");
+        EsqlResponseListener.logOnFailure(new org.elasticsearch.ResourceNotFoundException("not found"), request);
+
+        assertThat(appender.events, hasSize(1));
+        LogEvent logEvent = appender.events.get(0);
+        assertThat(logEvent.getLevel(), equalTo(Level.DEBUG));
+        assertThat(
+            logEvent.getMessage().getFormattedMessage(),
+            equalTo("ESQL request failed with status [NOT_FOUND] query [FROM index]: ")
+        );
+    }
+
     private SearchShardTarget target(String clusterAlias, int shardId) {
         return new SearchShardTarget("node", new ShardId("idx", "uuid", shardId), clusterAlias);
     }

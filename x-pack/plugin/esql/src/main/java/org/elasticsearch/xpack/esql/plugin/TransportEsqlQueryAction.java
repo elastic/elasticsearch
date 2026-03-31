@@ -300,8 +300,8 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     }
 
     @Override
-    public void onFailureAfterTimeout(Exception exception) {
-        EsqlResponseListener.logOnFailure(exception);
+    public void onFailureAfterTimeout(EsqlQueryRequest request, Exception exception) {
+        EsqlResponseListener.logOnFailure(exception, request);
     }
 
     private void innerExecute(Task task, EsqlQueryRequest request, ActionListener<EsqlQueryResponse> listener) {

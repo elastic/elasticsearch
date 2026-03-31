@@ -407,7 +407,7 @@ public class AsyncTaskManagementServiceTests extends ESSingleNodeTestCase {
             }
 
             @Override
-            public void onFailureAfterTimeout(Exception exception) {
+            public void onFailureAfterTimeout(TestRequest request, Exception exception) {
                 callbackLatch.countDown();
             }
         });

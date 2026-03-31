@@ -185,9 +185,9 @@ public final class EsqlResponseListener extends RestRefCountedChunkedToXContentL
     /**
      * Log internal server errors all the time and log queries if debug is enabled.
      */
-    public ActionListener<EsqlQueryResponse> wrapWithLogging() {
+    public ActionListener<EsqlQueryResponse> wrapWithLogging(EsqlQueryRequest esqlRequest) {
         ActionListener<EsqlQueryResponse> listener = ActionListener.wrap(this::onResponse, ex -> {
-            logOnFailure(ex);
+            logOnFailure(ex, esqlRequest);
             onFailure(ex);
         });
         if (LOGGER.isDebugEnabled() == false) {
@@ -209,10 +209,14 @@ public final class EsqlResponseListener extends RestRefCountedChunkedToXContentL
         });
     }
 
-    public static void logOnFailure(Throwable throwable) {
+    public static void logOnFailure(Throwable throwable, EsqlQueryRequest esqlRequest) {
         RestStatus status = ExceptionsHelper.status(throwable);
         var level = status.getStatus() >= 500 ? Level.WARN : Level.DEBUG;
-        LOGGER.log(level, () -> "ESQL request failed with status [" + status + "]: ", throwable);
+        LOGGER.log(
+            level,
+            () -> String.format(Locale.ROOT, "ESQL request failed with status [%s] query [%s]: ", status, esqlRequest.queryDescription()),
+            throwable
+        );
     }
 
     /*

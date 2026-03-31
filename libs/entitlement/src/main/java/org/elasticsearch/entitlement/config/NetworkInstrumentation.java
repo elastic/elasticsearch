@@ -277,18 +277,26 @@ public class NetworkInstrumentation implements InstrumentationConfig {
         });
 
         builder.on(DatagramSocket.class, rule -> {
-            rule.callingStatic(DatagramSocket::new)
-                .enforce(Policies::allNetworkAccess)
-                .elseThrow(e -> new SocketException(e.getMessage(), e));
-            rule.callingStatic(DatagramSocket::new, Integer.class)
-                .enforce(Policies::allNetworkAccess)
-                .elseThrow(e -> new SocketException(e.getMessage(), e));
-            rule.callingStatic(DatagramSocket::new, Integer.class, InetAddress.class)
-                .enforce(Policies::allNetworkAccess)
-                .elseThrow(e -> new SocketException(e.getMessage(), e));
-            rule.callingStatic(DatagramSocket::new, SocketAddress.class)
-                .enforce(Policies::allNetworkAccess)
-                .elseThrow(e -> new SocketException(e.getMessage(), e));
+            rule.callingStatic(DatagramSocket::new).enforce(Policies::allNetworkAccess).elseThrow(e -> {
+                var ex = new SocketException(e.getMessage());
+                ex.initCause(e);
+                return ex;
+            });
+            rule.callingStatic(DatagramSocket::new, Integer.class).enforce(Policies::allNetworkAccess).elseThrow(e -> {
+                var ex = new SocketException(e.getMessage());
+                ex.initCause(e);
+                return ex;
+            });
+            rule.callingStatic(DatagramSocket::new, Integer.class, InetAddress.class).enforce(Policies::allNetworkAccess).elseThrow(e -> {
+                var ex = new SocketException(e.getMessage());
+                ex.initCause(e);
+                return ex;
+            });
+            rule.callingStatic(DatagramSocket::new, SocketAddress.class).enforce(Policies::allNetworkAccess).elseThrow(e -> {
+                var ex = new SocketException(e.getMessage());
+                ex.initCause(e);
+                return ex;
+            });
             rule.callingVoidStatic(DatagramSocket::setDatagramSocketImplFactory, DatagramSocketImplFactory.class)
                 .enforce(Policies::changeNetworkHandling)
                 .elseThrow(IOException::new);

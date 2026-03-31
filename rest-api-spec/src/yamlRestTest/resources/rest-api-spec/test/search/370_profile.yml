@@ -582,6 +582,10 @@ composite_id_parsed:
 
 ---
 profile includes coordinator request metadata:
+  - requires:
+      cluster_features: "search.profile.coordinator_request_metadata"
+      reason: profile.request is emitted when the cluster supports TransportVersion include_original_query_indices_in_search_profile_results
+
   - do:
       indices.put_alias:
         index: test

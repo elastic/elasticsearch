@@ -16,13 +16,22 @@ import java.util.Set;
 
 public final class SearchFeatures implements FeatureSpecification {
 
+    /**
+     * When profiling is enabled, search responses may include {@code profile.request} (coordinator indices and source)
+     * alongside {@code profile.shards}. Wired with the same rollout as
+     * {@link org.elasticsearch.search.profile.SearchProfileResults#originalQueryIndicesInProfileResults}.
+     */
+    public static final NodeFeature SEARCH_PROFILE_COORDINATOR_REQUEST_METADATA = new NodeFeature(
+        "search.profile.coordinator_request_metadata"
+    );
+
     public static final NodeFeature LUCENE_10_0_0_UPGRADE = new NodeFeature("lucene_10_upgrade");
     public static final NodeFeature LUCENE_10_1_0_UPGRADE = new NodeFeature("lucene_10_1_upgrade");
     public static final NodeFeature LUCENE_10_4_0_UPGRADE_TEST = new NodeFeature("lucene_10_4_upgrade");
 
     @Override
     public Set<NodeFeature> getFeatures() {
-        return Set.of(LUCENE_10_0_0_UPGRADE, LUCENE_10_1_0_UPGRADE);
+        return Set.of(LUCENE_10_0_0_UPGRADE, LUCENE_10_1_0_UPGRADE, SEARCH_PROFILE_COORDINATOR_REQUEST_METADATA);
     }
 
     public static final NodeFeature RETRIEVER_RESCORER_ENABLED = new NodeFeature("search.retriever.rescorer.enabled");

@@ -1108,12 +1108,13 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             node.indexingDirectory.getBlobStoreCacheDirectory().updateMetadata(blobFileRanges, randomNonNegativeLong());
 
             final PlainActionFuture<Void> future = new PlainActionFuture<>();
+            var type = randomFrom(INDEXING, SEARCH);
             node.warmingService.warmCacheRecovery(
-                INDEXING,
+                type,
                 mockIndexShard(node),
                 commit,
                 node.indexingDirectory.getBlobStoreCacheDirectory(),
-                null,
+                Map.of(), // don't do any warming besides the regular shard recovery kind
                 false,
                 future
             );
@@ -1192,16 +1193,15 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
         }
     }
 
-    public void testWarmFirstRegionInFullWithMinimizedRange() throws Exception {
+    // proves that range minimization is not effective when warming (for recovery) locations inside the first cache region
+    public void testWarmFirstRegionInFullEvenWithMinimizedRange() throws Exception {
         final long rangeSize = ByteSizeValue.ofMb(between(1, 16)).getBytes();
         final long stepSize = rangeSize / 4;
         try (var node = createFakeNodeForMinimisingRange(rangeSize, stepSize)) {
             final IndexShard indexShard = mockIndexShard(node);
             final var termAndGen = new PrimaryTermAndGeneration(randomNonNegativeLong(), randomLongBetween(3, 42));
 
-            // Always fully warm up region 0
-            final int region = 0;
-            final long fileLength = randomLongBetween(1, 100);
+            final long fileLength = randomLongBetween(1, rangeSize);
             final long offset = randomLongBetween(0, rangeSize - fileLength);
             final var blobLocation = new BlobLocation(
                 new BlobFile(StatelessCompoundCommit.blobNameFromGeneration(termAndGen.generation()), termAndGen),
@@ -1225,18 +1225,18 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             // Warm the cache and verify the range is fetched with minimization as expected
             final PlainActionFuture<Void> future = new PlainActionFuture<>();
             node.warmingService.warmCacheRecovery(
-                SEARCH, // needs to be search so that region 0 is not skipped by index warming with replicated content
+                randomValueOtherThanMany(t -> t.skipsWarmingForRegion0Locations, () -> randomFrom(Type.values())),
                 indexShard,
                 commit,
                 node.indexingDirectory.getBlobStoreCacheDirectory(),
-                null,
+                Map.of(), // don't do any warming besides the regular shard recovery kind
                 false,
                 future
             );
             safeGet(future);
             verify(node.sharedCacheService).maybeFetchRange(
                 any(),
-                eq(region),
+                eq(0),// Always fully warm up region 0
                 eq(ByteRange.of(0, rangeSize)),
                 anyLong(),
                 any(),

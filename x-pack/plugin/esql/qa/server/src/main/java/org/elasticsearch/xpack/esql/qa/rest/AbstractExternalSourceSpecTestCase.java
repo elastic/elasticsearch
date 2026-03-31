@@ -10,6 +10,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
+import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
 import org.elasticsearch.xpack.esql.SpecReader;
 import org.elasticsearch.xpack.esql.datasources.AzureFixtureUtils;
 import org.elasticsearch.xpack.esql.datasources.AzureFixtureUtils.DataSourcesAzureHttpFixture;
@@ -391,12 +392,20 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
 
     @Override
     protected List<String> indicesToLoad() {
-        return List.of("languages_lookup");
+        // languages: enrich policy source; languages_lookup: LOOKUP JOIN (see CsvTestsDataLoader.loadEnrichPoliciesForLoadedSourceIndices)
+        return List.of("languages", "languages_lookup");
     }
 
     @Override
     protected boolean supportsInferenceTestServiceOnLocalCluster() {
         return false;
+    }
+
+    @Override
+    protected void createInferenceEndpointsIfSupported() throws IOException {
+        // Register only RERANK: external-basic.csv-spec uses test_reranker; full INFERENCE_CONFIGS includes task types
+        // not supported on these minimal clusters (e.g. SPARSE_EMBEDDING). Test clusters must load inference-service-test.
+        CsvTestsDataLoader.createInferenceEndpoints(adminClient(), List.of("test_reranker"));
     }
 
     @Override

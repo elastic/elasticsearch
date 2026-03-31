@@ -11,11 +11,15 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hive.ql.exec.vector.BytesColumnVector;
 import org.apache.hadoop.hive.ql.exec.vector.ColumnVector;
+import org.apache.hadoop.hive.ql.exec.vector.Decimal64ColumnVector;
+import org.apache.hadoop.hive.ql.exec.vector.DecimalColumnVector;
 import org.apache.hadoop.hive.ql.exec.vector.DoubleColumnVector;
 import org.apache.hadoop.hive.ql.exec.vector.ListColumnVector;
 import org.apache.hadoop.hive.ql.exec.vector.LongColumnVector;
 import org.apache.hadoop.hive.ql.exec.vector.TimestampColumnVector;
 import org.apache.hadoop.hive.ql.exec.vector.VectorizedRowBatch;
+import org.apache.hadoop.hive.ql.io.sarg.PredicateLeaf;
+import org.apache.hadoop.hive.ql.io.sarg.SearchArgument;
 import org.apache.orc.ColumnStatistics;
 import org.apache.orc.DoubleColumnStatistics;
 import org.apache.orc.IntegerColumnStatistics;
@@ -27,6 +31,7 @@ import org.apache.orc.TypeDescription;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -34,7 +39,7 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Check;
-import org.elasticsearch.xpack.esql.datasources.CloseableIterator;
+import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnBlockConversions;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
@@ -48,6 +53,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
@@ -73,22 +79,55 @@ public class OrcFormatReader implements FormatReader {
     private static final long MILLIS_PER_DAY = Duration.ofDays(1).toMillis();
 
     private final BlockFactory blockFactory;
+    private final SearchArgument pushedFilter;
 
     public OrcFormatReader(BlockFactory blockFactory) {
+        this(blockFactory, null);
+    }
+
+    private OrcFormatReader(BlockFactory blockFactory, SearchArgument pushedFilter) {
         this.blockFactory = blockFactory;
+        this.pushedFilter = pushedFilter;
+    }
+
+    @Override
+    public FormatReader withPushedFilter(Object pushedFilter) {
+        if (pushedFilter == null) {
+            return this;
+        }
+        return new OrcFormatReader(this.blockFactory, (SearchArgument) pushedFilter);
     }
 
     @Override
     public SourceMetadata metadata(StorageObject object) throws IOException {
         OrcStorageObjectAdapter fs = new OrcStorageObjectAdapter(object);
         Path path = new Path(object.path().toString());
-        OrcFile.ReaderOptions options = OrcFile.readerOptions(new Configuration(false)).filesystem(fs);
+        OrcFile.ReaderOptions options = orcReaderOptions(fs);
         try (Reader reader = OrcFile.createReader(path, options)) {
             TypeDescription schema = reader.getSchema();
             List<Attribute> attributes = convertOrcSchemaToAttributes(schema);
             SourceStatistics statistics = extractStatistics(reader, schema);
             return new SimpleSourceMetadata(attributes, formatName(), object.path().toString(), statistics, null);
         }
+    }
+
+    /**
+     * Creates ORC reader options with consistent configuration.
+     * <p>
+     * Sets {@code useUTCTimestamp(true)} which is required for correct timestamp predicate
+     * pushdown. This is a reader-level flag (not per-column) that controls how SargApplier
+     * reads timestamp column statistics: {@code true} uses getMinimumUTC/getMaximumUTC,
+     * {@code false} uses getMinimum/getMaximum which applies a local-timezone shift. Without
+     * it, predicates against TIMESTAMP_INSTANT columns cause false stripe exclusions.
+     * <p>
+     * This is safe because the ORC files use TIMESTAMP_INSTANT (UTC-anchored) columns. If we
+     * ever support files with plain TIMESTAMP columns (writer-local timezone), this flag would
+     * incorrectly treat their statistics as UTC too — at that point we'd need per-column
+     * evaluation by bypassing SearchArgument and reading stripe statistics directly (the Trino
+     * approach).
+     */
+    private static OrcFile.ReaderOptions orcReaderOptions(OrcStorageObjectAdapter fs) {
+        return OrcFile.readerOptions(new Configuration(false)).filesystem(fs).useUTCTimestamp(true);
     }
 
     private static SourceStatistics extractStatistics(Reader reader, TypeDescription schema) {
@@ -182,7 +221,7 @@ public class OrcFormatReader implements FormatReader {
 
         OrcStorageObjectAdapter fs = new OrcStorageObjectAdapter(object);
         Path path = new Path(object.path().toString());
-        OrcFile.ReaderOptions readerOptions = OrcFile.readerOptions(new Configuration(false)).filesystem(fs);
+        OrcFile.ReaderOptions readerOptions = orcReaderOptions(fs);
         Reader reader = OrcFile.createReader(path, readerOptions);
 
         TypeDescription schema = reader.getSchema();
@@ -225,6 +264,14 @@ public class OrcFormatReader implements FormatReader {
         if (include != null) {
             readOptions.include(include);
         }
+        if (pushedFilter != null) {
+            List<PredicateLeaf> leaves = pushedFilter.getLeaves();
+            LinkedHashSet<String> nameSet = new LinkedHashSet<>(leaves.size());
+            for (PredicateLeaf leaf : leaves) {
+                nameSet.add(leaf.getColumnName());
+            }
+            readOptions.searchArgument(pushedFilter, nameSet.toArray(new String[0]));
+        }
         RecordReader rows = reader.rows(readOptions);
 
         CloseableIterator<Page> iter = new OrcPageIterator(reader, rows, schema, projectedAttributes, batchSize, blockFactory);
@@ -244,6 +291,11 @@ public class OrcFormatReader implements FormatReader {
                 includeColumnForType(include, child);
             }
         }
+    }
+
+    @Override
+    public AggregatePushdownSupport aggregatePushdownSupport() {
+        return new OrcAggregatePushdownSupport();
     }
 
     @Override
@@ -279,9 +331,10 @@ public class OrcFormatReader implements FormatReader {
             case BYTE, SHORT, INT -> DataType.INTEGER;
             case LONG -> DataType.LONG;
             case FLOAT, DOUBLE -> DataType.DOUBLE;
-            case STRING, VARCHAR, CHAR -> DataType.KEYWORD;
-            case BINARY -> DataType.KEYWORD;
-            case TIMESTAMP, TIMESTAMP_INSTANT, DATE -> DataType.DATETIME;
+            case STRING -> DataType.TEXT;
+            case VARCHAR, CHAR -> DataType.KEYWORD;
+            case TIMESTAMP, TIMESTAMP_INSTANT -> DataType.DATETIME;
+            case DATE -> DataType.DATETIME;
             case DECIMAL -> DataType.DOUBLE;
             case LIST -> convertOrcTypeToEsql(orcType.getChildren().get(0));
             default -> DataType.UNSUPPORTED;
@@ -501,7 +554,8 @@ public class OrcFormatReader implements FormatReader {
         }
 
         private Block createListDoubleBlock(ListColumnVector listCol, int rowCount) {
-            DoubleColumnVector child = (DoubleColumnVector) listCol.child;
+            ColumnVector child = listCol.child;
+            double d64ScaleFactor = child instanceof Decimal64ColumnVector d64 ? Math.pow(10, d64.scale) : 0;
             try (var builder = blockFactory.newDoubleBlockBuilder(rowCount)) {
                 for (int i = 0; i < rowCount; i++) {
                     if (listCol.noNulls == false && listCol.isNull[i]) {
@@ -515,7 +569,7 @@ public class OrcFormatReader implements FormatReader {
                             if (child.noNulls == false && child.isNull[idx]) {
                                 builder.appendDouble(0.0);
                             } else {
-                                builder.appendDouble(child.vector[idx]);
+                                builder.appendDouble(readDoubleFrom(child, idx, d64ScaleFactor));
                             }
                         }
                         builder.endPositionEntry();
@@ -523,6 +577,17 @@ public class OrcFormatReader implements FormatReader {
                 }
                 return builder.build();
             }
+        }
+
+        private static double readDoubleFrom(ColumnVector vector, int idx, double d64ScaleFactor) {
+            if (vector instanceof DoubleColumnVector dv) {
+                return dv.vector[idx];
+            } else if (vector instanceof DecimalColumnVector decV) {
+                return decV.vector[idx].doubleValue();
+            } else if (vector instanceof Decimal64ColumnVector d64) {
+                return d64.vector[idx] / d64ScaleFactor;
+            }
+            throw new QlIllegalArgumentException("Unsupported list element type: " + vector.getClass().getSimpleName());
         }
 
         private Block createListBooleanBlock(ListColumnVector listCol, int rowCount) {
@@ -576,7 +641,9 @@ public class OrcFormatReader implements FormatReader {
                                     millis = lv.vector[idx] * MILLIS_PER_DAY;
                                 }
                             } else {
-                                millis = 0L;
+                                throw new QlIllegalArgumentException(
+                                    "Unsupported list child type for DATETIME: " + child.getClass().getSimpleName()
+                                );
                             }
                             builder.appendLong(millis);
                         }
@@ -597,6 +664,11 @@ public class OrcFormatReader implements FormatReader {
                     doubleVector.isRepeating,
                     doubleVector.isNull
                 );
+            } else if (vector instanceof DecimalColumnVector decVector) {
+                return createDecimalDoubleBlock(decVector, rowCount);
+            } else if (vector instanceof Decimal64ColumnVector dec64Vector) {
+                // Decimal64ColumnVector extends LongColumnVector — must check before LongColumnVector
+                return createDecimal64DoubleBlock(dec64Vector, rowCount);
             } else if (vector instanceof LongColumnVector longVector) {
                 return ColumnBlockConversions.doubleColumnFromLongs(
                     blockFactory,
@@ -608,6 +680,54 @@ public class OrcFormatReader implements FormatReader {
                 );
             }
             throw new QlIllegalArgumentException("Unsupported column type: " + vector.getClass().getSimpleName());
+        }
+
+        /**
+         * Converts a {@link DecimalColumnVector} (arbitrary precision) to a double block.
+         * Each element is a {@code HiveDecimalWritable} whose {@code doubleValue()} returns the
+         * properly scaled value. Precision loss beyond ~15 significant digits is inherent to double.
+         */
+        private Block createDecimalDoubleBlock(DecimalColumnVector decVector, int rowCount) {
+            if (decVector.isRepeating) {
+                if (decVector.noNulls == false && decVector.isNull[0]) {
+                    return blockFactory.newConstantNullBlock(rowCount);
+                }
+                return blockFactory.newConstantDoubleBlockWith(decVector.vector[0].doubleValue(), rowCount);
+            }
+            try (var builder = blockFactory.newDoubleBlockBuilder(rowCount)) {
+                for (int i = 0; i < rowCount; i++) {
+                    if (decVector.noNulls == false && decVector.isNull[i]) {
+                        builder.appendNull();
+                    } else {
+                        builder.appendDouble(decVector.vector[i].doubleValue());
+                    }
+                }
+                return builder.build();
+            }
+        }
+
+        /**
+         * Converts a {@link Decimal64ColumnVector} (precision &le; 18) to a double block.
+         * Values are stored as unscaled longs; dividing by 10^scale recovers the decimal value.
+         */
+        private Block createDecimal64DoubleBlock(Decimal64ColumnVector dec64Vector, int rowCount) {
+            double scaleFactor = Math.pow(10, dec64Vector.scale);
+            if (dec64Vector.isRepeating) {
+                if (dec64Vector.noNulls == false && dec64Vector.isNull[0]) {
+                    return blockFactory.newConstantNullBlock(rowCount);
+                }
+                return blockFactory.newConstantDoubleBlockWith(dec64Vector.vector[0] / scaleFactor, rowCount);
+            }
+            try (var builder = blockFactory.newDoubleBlockBuilder(rowCount)) {
+                for (int i = 0; i < rowCount; i++) {
+                    if (dec64Vector.noNulls == false && dec64Vector.isNull[i]) {
+                        builder.appendNull();
+                    } else {
+                        builder.appendDouble(dec64Vector.vector[i] / scaleFactor);
+                    }
+                }
+                return builder.build();
+            }
         }
 
         private Block createBytesRefBlock(ColumnVector vector, int rowCount) {
@@ -731,11 +851,13 @@ public class OrcFormatReader implements FormatReader {
             Page page = delegate.next();
             int rows = page.getPositionCount();
             if (rows > remaining) {
-                int[] positions = new int[remaining];
-                for (int i = 0; i < remaining; i++) {
-                    positions[i] = i;
+                Page truncated;
+                try {
+                    truncated = page.slice(0, remaining);
+                } finally {
+                    page.releaseBlocks();
                 }
-                page = page.filter(false, positions);
+                page = truncated;
                 remaining = 0;
                 try {
                     delegate.close();

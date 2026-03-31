@@ -16,6 +16,8 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.ReleasableIterator;
+
+import java.util.Arrays;
 // end generated imports
 
 /**
@@ -50,6 +52,14 @@ $else$
         return value;
 $endif$
     }
+
+$if(BytesRef)$
+$else$
+    @Override
+    public void copyTo(int srcPosition, $type$[] dst, int dstPosition, int length) {
+        Arrays.fill(dst, dstPosition, dstPosition + length, value);
+    }
+$endif$
 
     @Override
     public $Type$Block asBlock() {
@@ -167,6 +177,15 @@ $elseif(boolean)$
         return value == false;
     }
 $endif$
+
+    @Override
+    public $Type$Vector slice(int beginInclusive, int endExclusive) {
+        if (beginInclusive == 0 && endExclusive == getPositionCount()) {
+            incRef();
+            return this;
+        }
+        return blockFactory().newConstant$Type$Vector(value, endExclusive - beginInclusive);
+    }
 
     @Override
     public ElementType elementType() {

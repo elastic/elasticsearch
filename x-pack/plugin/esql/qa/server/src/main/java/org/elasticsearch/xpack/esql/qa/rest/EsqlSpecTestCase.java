@@ -177,9 +177,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         INGEST.protectedBlock(() -> {
             // Inference endpoints must be created before ingesting any datasets that rely on them (mapping of inference_id)
             // If multiple clusters are used, only create endpoints on the local cluster if it supports the inference test service.
-            if (supportsInferenceTestServiceOnLocalCluster()) {
-                createInferenceEndpoints(adminClient());
-            }
+            createInferenceEndpointsIfSupported();
             loadDataSetIntoEs(
                 client(),
                 supportsIndexModeLookup(),
@@ -329,6 +327,16 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         return true;
     }
 
+    /**
+     * Creates inference test endpoints when {@link #supportsInferenceTestServiceOnLocalCluster()} is true.
+     * Subclasses may override to register a subset of endpoints for clusters that do not support all task types.
+     */
+    protected void createInferenceEndpointsIfSupported() throws IOException {
+        if (supportsInferenceTestServiceOnLocalCluster()) {
+            createInferenceEndpoints(adminClient());
+        }
+    }
+
     protected boolean requiresSemanticTextInference() {
         return testCase.requiredCapabilities.contains(SEMANTIC_TEXT_FIELD_CAPS.capabilityName());
     }
@@ -367,7 +375,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
             && testCase.expectedWarnings().isEmpty() // avoid shifting warnings positions in source query
             && testCase.expectedWarningsRegex().isEmpty() // regexp might also contain line/position
             && query.startsWith("SET") == false // avoid conflicts with provided settings
-                ? "SET unmapped_fields=\"nullify\"; " + query
+                ? "SET unmapped_fields=" + randomFrom("\"nullify\"; ", "\"default\"; ") + query
                 : query;
     }
 
@@ -391,7 +399,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
     }
 
     protected final void doTest(String query) throws Throwable {
-        if (query.trim().toUpperCase(Locale.ROOT).startsWith("EXTERNAL") && query.contains("{{")) {
+        if (query.trim().toUpperCase(Locale.ROOT).contains("EXTERNAL \"{{")) {
             Path path = getCsvDataPath();
             if (path != null) {
                 query = substituteTemplates(query, csvFileTemplateResolver(path));
@@ -460,6 +468,11 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         if (randomBoolean() && hasCapabilities(client(), List.of("periodic_emit_partial_aggregation_results"))) {
             pragma.put(PlannerSettings.PARTIAL_AGGREGATION_EMIT_KEYS_THRESHOLD.getKey(), between(10, 1000))
                 .put(PlannerSettings.PARTIAL_AGGREGATION_EMIT_UNIQUENESS_THRESHOLD.getKey(), randomDoubleBetween(0.1, 1.0, true));
+        }
+        if (enableRoundingDoubleValuesOnAsserting()
+            && hasCapabilities(client(), List.of("auto_partition_docs_threshold"))
+            && randomBoolean()) {
+            pragma.put(PlannerSettings.DOC_THRESHOLD_AUTO_PARTITIONING.getKey(), between(1, 1000));
         }
         if (randomBoolean() && hasCapabilities(client(), List.of("fork_no_implicit_limit"))) {
             pragma.put("fork_implicit_limit", false);

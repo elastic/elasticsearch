@@ -481,7 +481,6 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
 
         ChunkingSettings chunkingSettings = numWords > 0 ? new SentenceBoundaryChunkingSettings(numWords, 0) : null;
 
-        // TODO(mromaios): add Analyzer support
         MemoryIndexChunkScorer scorer = new MemoryIndexChunkScorer();
 
         return new TopSnippetsEvaluator.Factory(

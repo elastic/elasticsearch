@@ -28,7 +28,6 @@ import org.elasticsearch.ElasticsearchException;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
 
 /**
  * Utility class for scoring pre-determined chunks using an in-memory Lucene index.
@@ -40,16 +39,15 @@ public class MemoryIndexChunkScorer {
     private final Analyzer analyzer;
 
     public MemoryIndexChunkScorer() {
+        // TODO: Allow analyzer to be customizable and/or read from the field mapping
         this(new StandardAnalyzer());
     }
 
     /**
-     * @param analyzer the analyzer used for indexing chunks and parsing query text;
-     *                 callers should pass the same analyzer used at index time for the
-     *                 source field so that scoring and highlighting align.
+     * @param analyzer the analyzer used for indexing chunks and parsing query text.
      */
     public MemoryIndexChunkScorer(Analyzer analyzer) {
-        this.analyzer = Objects.requireNonNull(analyzer, "analyzer");
+        this.analyzer = (analyzer != null) ? analyzer : new StandardAnalyzer();
     }
 
     public Analyzer analyzer() {

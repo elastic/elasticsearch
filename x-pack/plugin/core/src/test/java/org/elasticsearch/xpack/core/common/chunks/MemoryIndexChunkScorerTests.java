@@ -103,6 +103,10 @@ public class MemoryIndexChunkScorerTests extends ESTestCase {
         assertThat(new MemoryIndexChunkScorer().analyzer(), instanceOf(StandardAnalyzer.class));
     }
 
+    public void testFallbackToStandardAnalyzer() {
+        assertThat(new MemoryIndexChunkScorer(null).analyzer(), instanceOf(StandardAnalyzer.class));
+    }
+
     public void testCustomAnalyzer() {
         var whitespace = new WhitespaceAnalyzer();
         var scorer = new MemoryIndexChunkScorer(whitespace);
@@ -110,10 +114,6 @@ public class MemoryIndexChunkScorerTests extends ESTestCase {
 
         List<ScoredChunk> results = scorer.scoreChunks(CHUNKS, "dogs play walk", 3, false);
         assertFalse(results.isEmpty());
-    }
-
-    public void testConstructorRejectsNullAnalyzer() {
-        expectThrows(NullPointerException.class, () -> new MemoryIndexChunkScorer(null));
     }
 
     public void testBuildQuery() {

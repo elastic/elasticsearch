@@ -3,9 +3,14 @@
 ### `unmapped_fields` [esql-unmapped_fields]
 ```{applies_to}
 serverless: preview
-stack: preview 9.4.0
+stack: preview 9.3.0
 ```
-Defines how unmapped fields are treated. Possible values are: "DEFAULT" (default) - standard ESQL queries fail when referencing unmapped fields, while other query types (e.g. PromQL) may treat them differently; "NULLIFY" - treats unmapped fields as null values. "LOAD" - attempts to load the fields from the source.
+Defines how unmapped fields are treated. Possible values are:
+
+- `DEFAULT` (default) - standard ESQL queries fail when referencing unmapped fields, while other query types (e.g. PromQL) may treat them differently;
+- `NULLIFY` - treats unmapped fields as null values.
+- `LOAD` - attempts to load the fields from the source. {applies_to}`stack: preview 9.4`
+
 
 **Type**: `keyword`
 

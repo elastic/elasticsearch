@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.esql.generator.command.pipe.SortGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.StatsGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.TimeSeriesStatsGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.UriPartsGenerator;
+import org.elasticsearch.xpack.esql.generator.command.pipe.UserAgentGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.WhereGenerator;
 import org.elasticsearch.xpack.esql.generator.command.source.FromGenerator;
 import org.elasticsearch.xpack.esql.generator.command.source.PromQLGenerator;
@@ -121,6 +122,7 @@ public class EsqlQueryGenerator {
         SortGenerator.INSTANCE,
         StatsGenerator.INSTANCE,
         UriPartsGenerator.INSTANCE,
+        UserAgentGenerator.INSTANCE,
         RegisteredDomainGenerator.INSTANCE,
         WhereGenerator.INSTANCE
     );

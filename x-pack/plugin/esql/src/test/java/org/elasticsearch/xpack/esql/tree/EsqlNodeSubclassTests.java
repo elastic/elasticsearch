@@ -218,6 +218,7 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
         T node = ctor.newInstance(nodeCtorArgs);
 
         Type[] argTypes = ctor.getGenericParameterTypes();
+
         // start at 1 because we can't change Location.
         for (int changedArgOffset = 1; changedArgOffset < ctor.getParameterCount(); changedArgOffset++) {
             Object originalArgValue = nodeCtorArgs[changedArgOffset];
@@ -261,6 +262,7 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
         T node = ctor.newInstance(nodeCtorArgs);
 
         Type[] argTypes = ctor.getGenericParameterTypes();
+
         // start at 1 because we can't change Location.
         for (int changedArgOffset = 1; changedArgOffset < ctor.getParameterCount(); changedArgOffset++) {
             Object originalArgValue = nodeCtorArgs[changedArgOffset];

@@ -26,7 +26,6 @@ import org.elasticsearch.compute.operator.topn.GroupedTopNOperator;
 import org.elasticsearch.compute.operator.topn.TopNEncoder;
 import org.elasticsearch.compute.operator.topn.TopNOperator;
 import org.elasticsearch.core.Releasables;
-import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
 import org.openjdk.jmh.annotations.Measurement;
@@ -256,7 +255,7 @@ public class GroupedTopNBenchmark {
         };
     }
 
-    @Benchmark
+    // @Benchmark - disabled temporarily, too slow (225 parameter combinations)
     @OperationsPerInvocation(NUM_PAGES * BLOCK_LENGTH)
     public void run() {
         run(data, topCount, groupCount, groupKeys, NUM_PAGES);

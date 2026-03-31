@@ -70,7 +70,7 @@ public class BulkByScrollResponseTests extends AbstractXContentTestCase<BulkBySc
                 parser.skipChildren();
             } else if (token == XContentParser.Token.START_OBJECT) {
                 switch (name) {
-                    case PaginatedHitSource.SearchFailure.REASON_FIELD -> searchExc = ElasticsearchException.fromXContent(parser);
+                    case PaginatedSearchFailure.REASON_FIELD -> searchExc = ElasticsearchException.fromXContent(parser);
                     case Failure.CAUSE_FIELD -> bulkExc = ElasticsearchException.fromXContent(parser);
                     default -> parser.skipChildren();
                 }
@@ -79,12 +79,12 @@ public class BulkByScrollResponseTests extends AbstractXContentTestCase<BulkBySc
                     // This field is the same as SearchFailure.index
                     case Failure.INDEX_FIELD -> index = parser.text();
                     case Failure.ID_FIELD -> id = parser.text();
-                    case PaginatedHitSource.SearchFailure.NODE_FIELD -> nodeId = parser.text();
+                    case PaginatedSearchFailure.NODE_FIELD -> nodeId = parser.text();
                 }
             } else if (token == XContentParser.Token.VALUE_NUMBER) {
                 switch (name) {
                     case Failure.STATUS_FIELD -> status = parser.intValue();
-                    case PaginatedHitSource.SearchFailure.SHARD_FIELD -> shardId = parser.intValue();
+                    case PaginatedSearchFailure.SHARD_FIELD -> shardId = parser.intValue();
                 }
             }
         }
@@ -92,9 +92,9 @@ public class BulkByScrollResponseTests extends AbstractXContentTestCase<BulkBySc
             return new Failure(index, id, bulkExc, RestStatus.fromCode(status));
         } else if (searchExc != null) {
             if (status == null) {
-                return new PaginatedHitSource.SearchFailure(searchExc, index, shardId, nodeId);
+                return new PaginatedSearchFailure(searchExc, index, shardId, nodeId);
             } else {
-                return new PaginatedHitSource.SearchFailure(searchExc, index, shardId, nodeId, RestStatus.fromCode(status));
+                return new PaginatedSearchFailure(searchExc, index, shardId, nodeId, RestStatus.fromCode(status));
             }
         } else {
             throw new ElasticsearchParseException("failed to parse failures array. At least one of {reason,cause} must be present");
@@ -111,7 +111,7 @@ public class BulkByScrollResponseTests extends AbstractXContentTestCase<BulkBySc
             : singletonList(new Failure(randomSimpleString(random()), randomSimpleString(random()), new IllegalArgumentException("test")));
     }
 
-    private List<PaginatedHitSource.SearchFailure> randomSearchFailures() {
+    private List<PaginatedSearchFailure> randomSearchFailures() {
         if (randomBoolean()) {
             return emptyList();
         }
@@ -128,7 +128,7 @@ public class BulkByScrollResponseTests extends AbstractXContentTestCase<BulkBySc
             new ElasticsearchException("foo"),
             new NoNodeAvailableException("baz")
         );
-        return singletonList(new PaginatedHitSource.SearchFailure(exception, index, shardId, nodeId));
+        return singletonList(new PaginatedSearchFailure(exception, index, shardId, nodeId));
     }
 
     public static void assertEqualBulkResponse(
@@ -149,8 +149,8 @@ public class BulkByScrollResponseTests extends AbstractXContentTestCase<BulkBySc
         }
         assertEquals(expected.getSearchFailures().size(), actual.getSearchFailures().size());
         for (int i = 0; i < expected.getSearchFailures().size(); i++) {
-            PaginatedHitSource.SearchFailure expectedFailure = expected.getSearchFailures().get(i);
-            PaginatedHitSource.SearchFailure actualFailure = actual.getSearchFailures().get(i);
+            PaginatedSearchFailure expectedFailure = expected.getSearchFailures().get(i);
+            PaginatedSearchFailure actualFailure = actual.getSearchFailures().get(i);
             assertEquals(expectedFailure.getIndex(), actualFailure.getIndex());
             assertEquals(expectedFailure.getShardId(), actualFailure.getShardId());
             assertEquals(expectedFailure.getNodeId(), actualFailure.getNodeId());

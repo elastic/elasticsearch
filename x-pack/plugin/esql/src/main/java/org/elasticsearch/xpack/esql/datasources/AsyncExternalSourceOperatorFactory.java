@@ -14,8 +14,6 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
@@ -61,8 +59,6 @@ import java.util.concurrent.Executor;
  * @see AsyncExternalSourceOperator
  */
 public class AsyncExternalSourceOperatorFactory implements SourceOperator.SourceOperatorFactory {
-
-    private static final Logger logger = LogManager.getLogger(AsyncExternalSourceOperatorFactory.class);
 
     private final StorageProvider storageProvider;
     private final FormatReader formatReader;
@@ -402,6 +398,18 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         return cols;
     }
 
+    private CloseableIterator<Page> adaptSchema(
+        CloseableIterator<Page> pages,
+        SchemaReconciliation.ColumnMapping mapping,
+        DriverContext driverContext
+    ) {
+        if (mapping == null || mapping.isIdentity()) {
+            return pages;
+        }
+        List<Attribute> dataColumns = attributes.subList(0, mapping.columnCount());
+        return new SchemaAdaptingIterator(pages, dataColumns, mapping, driverContext.blockFactory());
+    }
+
     private void startSliceQueueRead(AsyncExternalSourceBuffer buffer, DriverContext driverContext) {
         executor.execute(() -> {
             try {
@@ -462,8 +470,9 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                                     .build();
                                 pages = formatReader.read(obj, ctx);
                             }
-                            try (pages) {
-                                int consumed = drainPagesWithBudget(pages, buffer, injector);
+                            CloseableIterator<Page> adaptedPages = adaptSchema(pages, fileSplit.columnMapping(), driverContext);
+                            try (adaptedPages) {
+                                int consumed = drainPagesWithBudget(adaptedPages, buffer, injector);
                                 if (rowLimit != FormatReader.NO_LIMIT) {
                                     rowsRemaining -= consumed;
                                 }
@@ -488,6 +497,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         DriverContext driverContext,
         VirtualColumnInjector injector
     ) {
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaInfo = fileSet != null ? fileSet.fileSchemaInfo() : null;
+
         executor.execute(() -> {
             try {
                 int rowsRemaining = rowLimit;
@@ -518,8 +529,18 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                             .build();
                         pages = formatReader.read(obj, ctx);
                     }
-                    try (pages) {
-                        int consumed = drainPagesWithBudget(pages, buffer, injector);
+
+                    SchemaReconciliation.ColumnMapping mapping = null;
+                    if (schemaInfo != null) {
+                        SchemaReconciliation.FileSchemaInfo info = schemaInfo.get(entry.path());
+                        if (info != null) {
+                            mapping = info.mapping();
+                        }
+                    }
+                    CloseableIterator<Page> adaptedPages = adaptSchema(pages, mapping, driverContext);
+
+                    try (adaptedPages) {
+                        int consumed = drainPagesWithBudget(adaptedPages, buffer, injector);
                         if (rowLimit != FormatReader.NO_LIMIT) {
                             rowsRemaining -= consumed;
                         }

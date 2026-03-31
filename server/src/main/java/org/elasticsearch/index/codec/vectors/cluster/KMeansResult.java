@@ -11,6 +11,9 @@ package org.elasticsearch.index.codec.vectors.cluster;
 
 import org.elasticsearch.index.codec.vectors.diskbbq.CentroidSupplier;
 
+import java.util.Arrays;
+import java.util.List;
+
 /**
  * Output object for clustering (partitioning) a set of vectors
  */
@@ -79,5 +82,39 @@ public class KMeansResult {
 
     public int[] soarAssignments() {
         return soarAssignments;
+    }
+
+    public static KMeansResult merge(List<KMeansResult> results) {
+        int numCentroids = 0;
+        int numAssignments = 0;
+        for (KMeansResult result : results) {
+            numCentroids += result.centroids().length;
+            numAssignments += result.assignments().length;
+        }
+        float[][] centroids = new float[numCentroids][];
+        int[] assignments = new int[numAssignments];
+        int[] spillAssignments = new int[numAssignments];
+        int centroidOffset = 0;
+        int assignmentOffset = 0;
+        for (KMeansResult result : results) {
+            float[][] resultCentroids = result.centroids();
+            int[] resultAssignments = result.assignments();
+            int[] resultSoarAssignments = result.soarAssignments();
+            System.arraycopy(resultCentroids, 0, centroids, centroidOffset, resultCentroids.length);
+            for (int i = 0; i < resultAssignments.length; i++) {
+                assignments[assignmentOffset + i] = resultAssignments[i] + centroidOffset;
+            }
+            if (resultSoarAssignments.length > 0) {
+                for (int i = 0; i < resultAssignments.length; i++) {
+                    int soarAssignment = resultSoarAssignments[i];
+                    spillAssignments[assignmentOffset + i] = soarAssignment == -1 ? -1 : soarAssignment + centroidOffset;
+                }
+            } else {
+                Arrays.fill(spillAssignments, assignmentOffset, assignmentOffset + resultAssignments.length, -1);
+            }
+            centroidOffset += resultCentroids.length;
+            assignmentOffset += resultAssignments.length;
+        }
+        return new KMeansResult(centroids, assignments, spillAssignments);
     }
 }

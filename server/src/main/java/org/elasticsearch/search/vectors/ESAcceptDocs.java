@@ -39,6 +39,12 @@ import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
  */
 public abstract sealed class ESAcceptDocs extends AcceptDocs {
 
+    private final int sliceOrd;
+
+    protected ESAcceptDocs(int sliceOrd) {
+        this.sliceOrd = sliceOrd;
+    }
+
     /** Returns an approximate cost of the accepted documents.
      * This is generally much cheaper than {@link #cost()}, as implementations may
      * not fully evaluate filters to provide this estimate and may ignore deletions
@@ -47,7 +53,11 @@ public abstract sealed class ESAcceptDocs extends AcceptDocs {
      */
     public abstract int approximateCost() throws IOException;
 
-    private static BitSet createBitSet(DocIdSetIterator iterator, Bits liveDocs, int maxDoc) throws IOException {
+    public final int sliceOrd() {
+        return sliceOrd;
+    }
+
+    protected static BitSet createBitSet(DocIdSetIterator iterator, Bits liveDocs, int maxDoc) throws IOException {
         if (liveDocs == null && iterator instanceof BitSetIterator bitSetIterator) {
             // If we already have a BitSet and no deletions, reuse the BitSet
             return bitSetIterator.getBitSet();
@@ -73,9 +83,10 @@ public abstract sealed class ESAcceptDocs extends AcceptDocs {
 
     /** An AcceptDocs that accepts all documents. */
     public static final class ESAcceptDocsAll extends ESAcceptDocs {
-        public static final ESAcceptDocsAll INSTANCE = new ESAcceptDocsAll();
 
-        private ESAcceptDocsAll() {}
+        public ESAcceptDocsAll(int sliceOrd) {
+            super(sliceOrd);
+        }
 
         @Override
         public int approximateCost() throws IOException {
@@ -105,7 +116,8 @@ public abstract sealed class ESAcceptDocs extends AcceptDocs {
         private final int maxDoc;
         private final int approximateCost;
 
-        BitsAcceptDocs(Bits bits, int maxDoc) {
+        public BitsAcceptDocs(Bits bits, int maxDoc, int sliceOrd) {
+            super(sliceOrd);
             if (bits != null && bits.length() != maxDoc) {
                 throw new IllegalArgumentException("Bits length = " + bits.length() + " != maxDoc = " + maxDoc);
             }
@@ -160,7 +172,8 @@ public abstract sealed class ESAcceptDocs extends AcceptDocs {
         private final int maxDoc;
         private int cardinality = -1;
 
-        ScorerSupplierAcceptDocs(ScorerSupplier scorerSupplier, Bits liveDocs, int maxDoc) {
+        public ScorerSupplierAcceptDocs(ScorerSupplier scorerSupplier, Bits liveDocs, int maxDoc, int sliceOrd) {
+            super(sliceOrd);
             this.scorerSupplier = scorerSupplier;
             this.liveDocs = liveDocs;
             this.maxDoc = maxDoc;

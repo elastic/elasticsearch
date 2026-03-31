@@ -115,7 +115,7 @@ public class PromqlFunctionRegistry {
         ),
         withinSeries(
             "increase",
-            Increase::new,
+            Increase::createWithImplicitTemporality,
             "Calculates the increase in the time series in the range vector, adjusting for counter resets.",
             "increase(http_requests_total[5m])"
         ),

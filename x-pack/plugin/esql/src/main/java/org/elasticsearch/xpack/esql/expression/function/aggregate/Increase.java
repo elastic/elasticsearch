@@ -13,6 +13,7 @@ import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.RateDoubleGroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.RateIntGroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.RateLongGroupingAggregatorFunction;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -26,8 +27,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
-import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
-import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.expression.function.TemporalityAware;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
 import java.io.IOException;
@@ -43,10 +43,11 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
  * It is similar to the {@code rate()} function, but instead of calculating the per-second average rate of increase,
  * it calculates the total increase over the time window.
  */
-public class Increase extends TimeSeriesAggregateFunction implements OptionalArgument, ToAggregator, TimestampAware {
-    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Increase", Increase::new);
+public class Increase extends TimeSeriesAggregateFunction implements OptionalArgument, ToAggregator, TemporalityAware {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Increase", Increase::readFrom);
 
     private final Expression timestamp;
+    private final Expression temporality;
 
     @FunctionInfo(
         type = FunctionType.TIME_SERIES_AGGREGATE,
@@ -69,23 +70,37 @@ public class Increase extends TimeSeriesAggregateFunction implements OptionalArg
             description = "the time window over which to compute the increase over time",
             optional = true
         ) Expression window,
-        Expression timestamp
+        Expression timestamp,
+        @Nullable Expression temporality
     ) {
-        this(source, field, Literal.TRUE, Objects.requireNonNullElse(window, NO_WINDOW), timestamp);
+        this(source, field, Literal.TRUE, Objects.requireNonNullElse(window, NO_WINDOW), timestamp, temporality);
     }
 
-    public Increase(Source source, Expression field, Expression filter, Expression window, Expression timestamp) {
-        super(source, field, filter, window, List.of(timestamp));
+    public Increase(Source source, Expression field, Expression window, Expression timestamp) {
+        this(source, field, window, timestamp, null);
+    }
+
+    public static Increase createWithImplicitTemporality(Source source, Expression field, Expression window, Expression timestamp) {
+        return new Increase(source, field, window, timestamp, null);
+    }
+
+    public Increase(Source source, Expression field, Expression filter, Expression window, Expression timestamp, @Nullable Expression temporality) {
+        super(source, field, filter, window, temporality == null ? List.of(timestamp) : List.of(timestamp, temporality));
         this.timestamp = timestamp;
+        this.temporality = temporality;
     }
 
-    public Increase(StreamInput in) throws IOException {
-        this(
-            Source.readFrom((PlanStreamInput) in),
-            in.readNamedWriteable(Expression.class),
-            in.readNamedWriteable(Expression.class),
-            readWindow(in),
-            in.readNamedWriteableCollectionAsList(Expression.class).getFirst()
+    private static Increase readFrom(StreamInput in) throws IOException {
+        return readFrom(
+            in,
+            (source, field, filter, window, parameters) -> new Increase(
+                source,
+                field,
+                filter,
+                window,
+                parameters.getFirst(),
+                parameters.size() > 1 ? parameters.get(1) : null
+            )
         );
     }
 
@@ -96,17 +111,35 @@ public class Increase extends TimeSeriesAggregateFunction implements OptionalArg
 
     @Override
     protected NodeInfo<Increase> info() {
-        return NodeInfo.create(this, Increase::new, field(), filter(), window(), timestamp);
+        if (temporality != null) {
+            return NodeInfo.create(this, Increase::new, field(), filter(), window(), timestamp, temporality);
+        } else {
+            return NodeInfo.create(
+                this,
+                (source, field, filter, window, timestamp) -> new Increase(source, field, filter, window, timestamp, null),
+                field(),
+                filter(),
+                window(),
+                timestamp
+            );
+        }
     }
 
     @Override
     public Increase replaceChildren(List<Expression> newChildren) {
-        return new Increase(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2), newChildren.get(3));
+        return new Increase(
+            source(),
+            newChildren.get(0),
+            newChildren.get(1),
+            newChildren.get(2),
+            newChildren.get(3),
+            newChildren.size() > 4 ? newChildren.get(4) : null
+        );
     }
 
     @Override
     public Increase withFilter(Expression filter) {
-        return new Increase(source(), field(), filter, window(), timestamp);
+        return new Increase(source(), field(), filter, window(), timestamp, temporality);
     }
 
     @Override
@@ -139,12 +172,22 @@ public class Increase extends TimeSeriesAggregateFunction implements OptionalArg
 
     @Override
     public String toString() {
-        return "increase(" + field() + ", " + timestamp() + ")";
+        return "increase(" + field() + ", " + timestamp() + ", " + temporality() + ")";
     }
 
     @Override
     public Expression timestamp() {
         return timestamp;
+    }
+
+    @Override
+    public Expression temporality() {
+        return temporality;
+    }
+
+    @Override
+    public Increase withTemporality(Expression newTemporality) {
+        return new Increase(source(), field(), filter(), window(), timestamp, newTemporality);
     }
 
     @Override

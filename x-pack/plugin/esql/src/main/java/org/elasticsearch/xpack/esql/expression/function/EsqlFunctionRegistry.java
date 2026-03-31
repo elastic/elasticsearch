@@ -583,7 +583,7 @@ public class EsqlFunctionRegistry {
                 defTS3(Irate.class, Irate::new, "irate"),
                 defTS3(Idelta.class, Idelta::new, "idelta"),
                 defTS3(Delta.class, Delta::new, "delta"),
-                defTS3(Increase.class, Increase::new, "increase"),
+                defTS3(Increase.class, Increase::createWithImplicitTemporality, "increase"),
                 defTS3(Deriv.class, Deriv::new, "deriv"),
                 def(MaxOverTime.class, bi(MaxOverTime::new), "max_over_time"),
                 def(MinOverTime.class, bi(MinOverTime::new), "min_over_time"),

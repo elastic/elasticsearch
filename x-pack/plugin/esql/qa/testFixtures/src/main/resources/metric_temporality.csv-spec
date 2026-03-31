@@ -13,11 +13,9 @@ TS metric_temporality
  | SORT cluster
 ;
 
-warning: The aggregate function [rate(network.total_bytes_in)@2:32] operates on data that may contain unsupported temporality data; unsupported data will be filtered out, upgrade older nodes to support querying this data
-
 cluster:keyword | bytes_per_second:double | bytes:double
 prod-cumulative | 0.2928479               | 264.0
-prod-delta      | null                    | 173.0
+prod-delta      | 0.1919041               | 173.0
 prod-null       | 0.2928479               | 264.0
 ;
 
@@ -35,11 +33,9 @@ TS metric_temporality
  | SORT my_temporality
 ;
 
-warning: The aggregate function [rate(network.total_bytes_in)@2:32] operates on data that may contain unsupported temporality data; unsupported data will be filtered out, upgrade older nodes to support querying this data
-
 my_temporality:keyword | bytes_per_second:double
 cumulative             | 0.2928479
-delta                  | null
+delta                  | 0.1919041
 null                   | 0.2928479
 ;
 
@@ -57,19 +53,17 @@ TS metric_temporality
  | SORT bucket, cluster
 ;
 
-warning: The aggregate function [rate(network.total_bytes_in)@2:32] operates on data that may contain unsupported temporality data; unsupported data will be filtered out, upgrade older nodes to support querying this data
-
 bucket:datetime          | cluster:keyword | bytes_per_second:double | bytes:double
 2024-05-10T00:00:00.000Z | prod-cumulative | 0.33                    | 99.0
-2024-05-10T00:00:00.000Z | prod-delta      | null                    | 68.0
+2024-05-10T00:00:00.000Z | prod-delta      | 0.2266667               | 68.0
 2024-05-10T00:00:00.000Z | prod-null       | 0.33                    | 99.0
 2024-05-10T00:05:00.000Z | prod-cumulative | 0.2719509               | 81.5852785
-2024-05-10T00:05:00.000Z | prod-delta      | null                    | 50.8996611
+2024-05-10T00:05:00.000Z | prod-delta      | 0.1696655               | 50.8996611
 2024-05-10T00:05:00.000Z | prod-null       | 0.2719509               | 81.5852785
 2024-05-10T00:10:00.000Z | prod-cumulative | 0.2751714               | 82.5514065
-2024-05-10T00:10:00.000Z | prod-delta      | null                    | 53.237024
+2024-05-10T00:10:00.000Z | prod-delta      | 0.1774567               | 53.237024
 2024-05-10T00:10:00.000Z | prod-null       | 0.2751714               | 82.5514065
 2024-05-10T00:15:00.000Z | prod-cumulative | 0.5786293               | 0.863315
-2024-05-10T00:15:00.000Z | prod-delta      | null                    | 0.863315
+2024-05-10T00:15:00.000Z | prod-delta      | 0.5786293               | 0.863315
 2024-05-10T00:15:00.000Z | prod-null       | 0.5786293               | 0.863315
 ;

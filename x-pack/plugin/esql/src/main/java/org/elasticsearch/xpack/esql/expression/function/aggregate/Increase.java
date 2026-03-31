@@ -44,7 +44,11 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
  * it calculates the total increase over the time window.
  */
 public class Increase extends TimeSeriesAggregateFunction implements OptionalArgument, ToAggregator, TemporalityAware {
-    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Increase", Increase::readFrom);
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+        Expression.class,
+        "Increase",
+        Increase::readFrom
+    );
 
     private final Expression timestamp;
     private final Expression temporality;
@@ -84,7 +88,14 @@ public class Increase extends TimeSeriesAggregateFunction implements OptionalArg
         return new Increase(source, field, window, timestamp, null);
     }
 
-    public Increase(Source source, Expression field, Expression filter, Expression window, Expression timestamp, @Nullable Expression temporality) {
+    public Increase(
+        Source source,
+        Expression field,
+        Expression filter,
+        Expression window,
+        Expression timestamp,
+        @Nullable Expression temporality
+    ) {
         super(source, field, filter, window, temporality == null ? List.of(timestamp) : List.of(timestamp, temporality));
         this.timestamp = timestamp;
         this.temporality = temporality;

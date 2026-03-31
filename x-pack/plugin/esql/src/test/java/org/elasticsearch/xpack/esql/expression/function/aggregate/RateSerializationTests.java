@@ -7,17 +7,11 @@
 
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
-import org.elasticsearch.TransportVersion;
-import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.AbstractExpressionSerializationTests;
-import org.elasticsearch.xpack.esql.expression.function.TemporalityAware;
 
 import java.io.IOException;
-
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.sameInstance;
 
 public class RateSerializationTests extends AbstractExpressionSerializationTests<Rate> {
     @Override

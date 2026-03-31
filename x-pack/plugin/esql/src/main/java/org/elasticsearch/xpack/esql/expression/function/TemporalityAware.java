@@ -7,11 +7,8 @@
 
 package org.elasticsearch.xpack.esql.expression.function;
 
-import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.Literal;
-import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.TimeSeriesAggregateFunction;
 
 /**
@@ -22,7 +19,16 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.TimeSeriesAggr
  */
 public interface TemporalityAware extends TimestampAware {
 
+    /**
+     * The current value for the temporality argument of the function.
+     * If this is {@code null}, it will be injected automatically during local planning.
+     * @return the current value for the temporality argument
+     */
+    @Nullable
     Expression temporality();
 
-    TimeSeriesAggregateFunction withTemporality(Expression injectedTemporality);
+    /**
+     * Returns a copy of this function with the provided value as temporality argument.
+     */
+    TimeSeriesAggregateFunction withTemporality(Expression temporality);
 }

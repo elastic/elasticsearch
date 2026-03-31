@@ -145,7 +145,7 @@ public final class RateDoubleGroupingAggregatorFunction extends AbstractRateGrou
             assert false : "expected timestamp vector in time-series aggregation";
             throw new IllegalStateException("expected timestamp vector in time-series aggregation");
         }
-        //TODO: channels.get(2) provides the temporality, add support for it
+        // TODO: channels.get(2) provides the temporality, add support for it
         IntVector sliceIndices = ((IntBlock) page.getBlock(channels.get(3))).asVector();
         assert sliceIndices != null : "expected slice indices vector in time-series aggregation";
         LongVector futureMaxTimestamps = ((LongBlock) page.getBlock(channels.get(4))).asVector();

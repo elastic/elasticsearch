@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
@@ -96,7 +95,17 @@ public class Rate extends TimeSeriesAggregateFunction implements OptionalArgumen
     }
 
     private static Rate readFrom(StreamInput in) throws IOException {
-        return readFrom(in, (source, field, filter, window, parameters) -> new Rate(source, field, filter, window, parameters.getFirst(), parameters.size() > 1 ? parameters.get(1) : null));
+        return readFrom(
+            in,
+            (source, field, filter, window, parameters) -> new Rate(
+                source,
+                field,
+                filter,
+                window,
+                parameters.getFirst(),
+                parameters.size() > 1 ? parameters.get(1) : null
+            )
+        );
     }
 
     @Override

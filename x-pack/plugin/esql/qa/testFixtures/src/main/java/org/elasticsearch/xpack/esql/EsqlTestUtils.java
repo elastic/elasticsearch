@@ -77,6 +77,7 @@ import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.useragent.api.UserAgentParserRegistry;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.analytics.mapper.EncodedTDigest;
@@ -723,6 +724,7 @@ public final class EsqlTestUtils {
             mock(IndexNameExpressionResolver.class),
             null,
             new InferenceService(mock(Client.class), clusterService),
+            UserAgentParserRegistry.NOOP,
             new BlockFactoryProvider(PlannerUtils.NON_BREAKING_BLOCK_FACTORY),
             new PlannerSettings.Holder(clusterService),
             CrossProjectModeDecider.NOOP

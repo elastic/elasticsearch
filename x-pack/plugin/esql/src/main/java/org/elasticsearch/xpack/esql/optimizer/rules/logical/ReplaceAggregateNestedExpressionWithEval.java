@@ -78,7 +78,7 @@ public final class ReplaceAggregateNestedExpressionWithEval extends OptimizerRul
         // map to track common expressions
         Map<Expression, Attribute> expToAttribute = new HashMap<>();
         for (Alias a : evals) {
-            expToAttribute.put(a.child().canonical(), a.toAttribute());
+            expToAttribute.put(canonicalIfResolved(a.child()), a.toAttribute());
         }
 
         int[] counter = new int[] { 0 };
@@ -176,7 +176,7 @@ public final class ReplaceAggregateNestedExpressionWithEval extends OptimizerRul
         // if the field is a nested expression (not attribute or literal), replace it
         if (field instanceof Attribute == false && field.foldable() == false) {
             // create a new alias if one doesn't exist yet
-            Attribute attr = expToAttribute.computeIfAbsent(field.canonical(), k -> {
+            Attribute attr = expToAttribute.computeIfAbsent(canonicalIfResolved(field), k -> {
                 Alias newAlias = new Alias(k.source(), syntheticName(k, af, counter[0]++), k, null, true);
                 evals.add(newAlias);
                 return newAlias.toAttribute();
@@ -192,5 +192,9 @@ public final class ReplaceAggregateNestedExpressionWithEval extends OptimizerRul
 
     private static String syntheticName(Expression expression, Expression func, int counter) {
         return TemporaryNameGenerator.temporaryName(expression, func, counter);
+    }
+
+    private static Expression canonicalIfResolved(Expression expression) {
+        return expression.resolved() ? expression.canonical() : expression;
     }
 }

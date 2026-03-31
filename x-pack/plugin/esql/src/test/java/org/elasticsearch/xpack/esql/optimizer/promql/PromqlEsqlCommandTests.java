@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
@@ -237,5 +238,27 @@ public class PromqlEsqlCommandTests extends AbstractPromqlPlanOptimizerTests {
             """);
         TimeSeriesAggregate tsAggregate = plan.collect(TimeSeriesAggregate.class).getFirst();
         assertThat(tsAggregate.timeBucket().buckets().fold(FoldContext.small()), equalTo(Duration.ofMinutes(10)));
+    }
+
+    public void testPromqlTimeFunctionMissingTimestampDoesNotCrashWithUnresolvedStep() {
+        Exception e = assertThrows(Exception.class, () -> planPromqlWithoutTimestamp("""
+            PROMQL index=no_ts step=1m result=(time() - avg(network.bytes_in))
+            """));
+
+        assertThat(e.getMessage(), not(containsString("Invalid call to dataType on an unresolved object ?step")));
+        assertThat(
+            e.getMessage(),
+            org.hamcrest.Matchers.anyOf(
+                containsString("requires an @timestamp"),
+                containsString("Unknown column [@timestamp]"),
+                containsString("unresolved")
+            )
+        );
+    }
+
+    private LogicalPlan planPromqlWithoutTimestamp(String query) {
+        var noTimestampAnalyzer = org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer().addIndex("no_ts", "mapping-basic.json");
+        var analyzed = noTimestampAnalyzer.query(query);
+        return logicalOptimizer.optimize(analyzed);
     }
 }

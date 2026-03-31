@@ -209,6 +209,11 @@ Because `labels` is a `flattened` field type, the entire object is mapped as a s
 
 ## Mapped sub-fields [flattened-properties]
 
+```{applies_to}
+stack: ga 9.4.0
+serverless: all
+```
+
 By default, all keys in a flattened field are indexed as untyped keyword values. The `properties` parameter allows specific keys to be mapped as their own typed fields, such as `keyword`, `ip`, `long`, `date`, or any other leaf field type. Mapped keys are indexed exclusively through their sub-field and are excluded from the flattened field's representation.
 
 This is useful when certain keys within the flattened object need functionality that plain flattened indexing does not support, such as index sorting, field aliases, or typed queries (for example, IP range queries on an `ip` field).
@@ -255,6 +260,11 @@ Object, nested, and flattened types cannot be used as properties of a flattened 
 Sub-fields may not use `copy_to` or `fields` (multi-fields) parameters.
 
 ## Passthrough sub-fields [flattened-passthrough]
+
+```{applies_to}
+stack: ga 9.4.0
+serverless: all
+```
 
 The `passthrough` parameter makes the typed sub-fields defined in `properties` queryable at the root level of the index, without prefixing them with the flattened field name. This behaves similarly to [pass-through object fields](/reference/elasticsearch/mapping-reference/passthrough.md).
 

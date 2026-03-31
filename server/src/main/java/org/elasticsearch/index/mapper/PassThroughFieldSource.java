@@ -9,6 +9,8 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
+
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
@@ -19,7 +21,7 @@ import java.util.Map;
  * this interface, allowing {@link FieldTypeLookup} and {@link MappingLookup} to resolve passthrough
  * aliases in a unified, priority-based way.
  */
-public interface PassThroughFieldSource {
+public sealed interface PassThroughFieldSource permits PassThroughObjectMapper, FlattenedFieldMapper {
 
     /**
      * The non-negative priority used to resolve conflicts when multiple passthrough sources expose

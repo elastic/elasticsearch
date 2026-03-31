@@ -34,7 +34,7 @@ import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeIn
  * To resolve this, the pass-through spec specifies which object takes precedence through required parameter "priority"; non-negative
  * integer values are accepted, with the highest priority value winning in case of conflicting aliases.
  */
-public class PassThroughObjectMapper extends ObjectMapper implements PassThroughFieldSource {
+public final class PassThroughObjectMapper extends ObjectMapper implements PassThroughFieldSource {
     public static final String CONTENT_TYPE = "passthrough";
     public static final String PRIORITY_PARAM_NAME = "priority";
 

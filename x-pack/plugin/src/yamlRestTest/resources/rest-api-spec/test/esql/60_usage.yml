@@ -61,6 +61,7 @@ setup:
             - promql_command_v0
             - uri_parts_command
             - registered_domain_command
+            - user_agent_command
             - fn_json_extract
       reason: "Test that should only be executed on snapshot versions"
 
@@ -100,6 +101,7 @@ setup:
   - set: { esql.features.view: view_counter }
   - set: { esql.features.uri_parts: uri_parts_counter }
   - set: { esql.features.registered_domain: registered_domain_counter }
+  - set: { esql.features.user_agent: user_agent_counter }
   - set: { esql.features.mmr: mmr_counter }
   - length: { esql.queries: 3 }
   - set: { esql.queries.rest.total: rest_total_counter }
@@ -134,6 +136,7 @@ setup:
   - match: { esql.features.grok: $grok_counter }
   - match: { esql.features.uri_parts: $uri_parts_counter }
   - match: { esql.features.registered_domain: $registered_domain_counter }
+  - match: { esql.features.user_agent: $user_agent_counter }
   - gt: { esql.features.limit: $limit_counter }
   - gt: { esql.features.sort: $sort_counter }
   - gt: { esql.features.stats: $stats_counter }
@@ -189,6 +192,7 @@ setup:
   - match: { esql.features.grok: $grok_counter }
   - match: { esql.features.uri_parts: $uri_parts_counter }
   - match: { esql.features.registered_domain: $registered_domain_counter }
+  - match: { esql.features.user_agent: $user_agent_counter }
   - match: { esql.features.limit: $limit_counter }
   - match: { esql.features.sort: $sort_counter }
   - gt: { esql.features.stats: $stats_counter }
@@ -266,6 +270,7 @@ setup:
   - set: { esql.features.subquery: subquery_counter }
   - set: { esql.features.uri_parts: uri_parts_counter }
   - set: { esql.features.registered_domain: registered_domain_counter }
+  - set: { esql.features.user_agent: user_agent_counter }
   - set: { esql.features.mmr: mmr_counter }
   - length: { esql.queries: 3 }
   - set: { esql.queries.rest.total: rest_total_counter }
@@ -299,6 +304,7 @@ setup:
   - match: { esql.features.grok: $grok_counter }
   - match: { esql.features.uri_parts: $uri_parts_counter }
   - match: { esql.features.registered_domain: $registered_domain_counter }
+  - match: { esql.features.user_agent: $user_agent_counter }
   - gt: { esql.features.limit: $limit_counter }
   - gt: { esql.features.sort: $sort_counter }
   - gt: { esql.features.stats: $stats_counter }

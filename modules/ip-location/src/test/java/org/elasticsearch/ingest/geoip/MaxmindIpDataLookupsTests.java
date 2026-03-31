@@ -13,6 +13,7 @@ import org.apache.lucene.util.Constants;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.iplocation.api.IpLocationInfoMapCollector;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 import org.junit.Before;
@@ -139,8 +140,11 @@ public class MaxmindIpDataLookupsTests extends ESTestCase {
         String databaseName = "GeoLite2-Country.mmdb";
         String ip = "www.google.com";
         try (DatabaseReaderLazyLoader loader = loader(databaseName)) {
-            IpDataLookup lookup = new MaxmindIpDataLookups.Country(Database.Country.properties());
-            IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () -> lookup.getData(loader, ip));
+            InternalIpDataLookup lookup = new MaxmindIpDataLookups.Country(Database.Country.properties());
+            IllegalArgumentException e = assertThrows(
+                IllegalArgumentException.class,
+                () -> lookup.getData(loader, ip, new IpLocationInfoMapCollector())
+            );
             assertThat(e.getMessage(), containsString("not an IP string literal"));
         }
     }
@@ -314,9 +318,10 @@ public class MaxmindIpDataLookupsTests extends ESTestCase {
         return IpDataLookupFactories.getDatabase(MMDBUtil.getDatabaseType(tmpDir.resolve(databaseFile)));
     }
 
-    private void assertExpectedLookupResults(String databaseName, String ip, IpDataLookup lookup, Map<String, Object> expected) {
+    private void assertExpectedLookupResults(String databaseName, String ip, InternalIpDataLookup lookup, Map<String, Object> expected) {
         try (DatabaseReaderLazyLoader loader = loader(databaseName)) {
-            Map<String, Object> actual = lookup.getData(loader, ip);
+            IpLocationInfoMapCollector actual = new IpLocationInfoMapCollector();
+            lookup.getData(loader, ip, actual);
             assertThat(
                 "The set of keys in the result are not the same as the set of expected keys",
                 actual.keySet(),

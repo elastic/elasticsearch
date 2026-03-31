@@ -31,7 +31,6 @@ import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
@@ -105,7 +104,7 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
         DatabaseNodeService databaseNodeService
     ) {
         super(GEOIP_DOWNLOADER, threadPool.generic());
-        this.client = new OriginSettingClient(client, IngestService.INGEST_ORIGIN);
+        this.client = new OriginSettingClient(client, IngestGeoIpPlugin.ORIGIN);
         this.httpClient = httpClient;
         this.clusterService = clusterService;
         this.threadPool = threadPool;

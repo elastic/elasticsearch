@@ -82,7 +82,9 @@ public class IngestIpLocationPlugin extends Plugin implements IngestPlugin, Clus
             return;
         }
 
-        for (var projectMetadata : event.state().metadata().projects().values()) {
+        var currentProjects = event.state().metadata().projects();
+
+        for (var projectMetadata : currentProjects.values()) {
             ProjectId projectId = projectMetadata.id();
 
             boolean hasIngestChanges = event.customMetadataChanged(projectId, IngestMetadata.TYPE);
@@ -111,6 +113,20 @@ public class IngestIpLocationPlugin extends Plugin implements IngestPlugin, Clus
                 ipLocationService.cancelDownloadRequest(projectId.id());
             }
         }
+
+        // Cancel downloads for projects that have been removed from cluster state
+        var iterator = downloadRequestedByProject.entrySet().iterator();
+        while (iterator.hasNext()) {
+            var entry = iterator.next();
+            if (entry.getValue() && currentProjects.containsKey(entry.getKey()) == false) {
+                ipLocationService.cancelDownloadRequest(entry.getKey().id());
+                iterator.remove();
+            }
+        }
+    }
+
+    boolean isDownloadRequestedForProject(ProjectId projectId) {
+        return downloadRequestedByProject.getOrDefault(projectId, false);
     }
 
     static boolean hasAtLeastOneGeoipProcessor(ProjectMetadata projectMetadata) {

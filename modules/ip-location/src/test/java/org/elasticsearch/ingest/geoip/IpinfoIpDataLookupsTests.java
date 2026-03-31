@@ -21,6 +21,7 @@ import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.iplocation.api.IpLocationInfoMapCollector;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 import org.junit.Before;
@@ -497,14 +498,15 @@ public class IpinfoIpDataLookupsTests extends ESTestCase {
     private void assertExpectedLookupResults(
         String databaseName,
         String ip,
-        IpDataLookup lookup,
+        InternalIpDataLookup lookup,
         Map<String, Object> expected,
         Map<String, String> keyMappings,
         Set<String> knownAdditionalKeys,
         Set<String> knownMissingKeys
     ) {
         try (DatabaseReaderLazyLoader loader = loader(databaseName)) {
-            Map<String, Object> actual = lookup.getData(loader, ip);
+            IpLocationInfoMapCollector actual = new IpLocationInfoMapCollector();
+            lookup.getData(loader, ip, actual);
             assertThat(
                 "The set of keys in the result are not the same as the set of expected keys",
                 actual.keySet(),

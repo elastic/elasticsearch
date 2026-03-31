@@ -30,7 +30,7 @@ final class IpDataLookupFactories {
     }
 
     interface IpDataLookupFactory {
-        IpDataLookup create(List<String> properties);
+        InternalIpDataLookup create(List<String> properties);
     }
 
     /**
@@ -63,7 +63,7 @@ final class IpDataLookupFactories {
             throw new IllegalArgumentException("Unsupported database type [" + databaseType + "] for file [" + databaseFile + "]");
         }
 
-        final Function<Set<Database.Property>, IpDataLookup> factoryMethod;
+        final Function<Set<Database.Property>, InternalIpDataLookup> factoryMethod;
         final String databaseTypeLowerCase = databaseType.toLowerCase(Locale.ROOT);
         if (databaseTypeLowerCase.startsWith(IPINFO_PREFIX)) {
             factoryMethod = getIpinfoLookup(database);

@@ -68,7 +68,6 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.ingest.EnterpriseGeoIpTask.ENTERPRISE_GEOIP_DOWNLOADER;
-import static org.elasticsearch.ingest.IngestService.INGEST_ORIGIN;
 import static org.elasticsearch.ingest.geoip.GeoIpDownloader.DATABASES_INDEX;
 import static org.elasticsearch.ingest.geoip.GeoIpDownloader.DATABASES_INDEX_PATTERN;
 import static org.elasticsearch.ingest.geoip.GeoIpDownloader.GEOIP_DOWNLOADER;
@@ -82,6 +81,10 @@ public class IngestGeoIpPlugin extends Plugin
         PersistentTaskPlugin,
         ActionPlugin,
         ReloadablePlugin {
+
+    // Historically tied to the "ingest" origin for system index access authorization.
+    static final String ORIGIN = "ingest";
+
     public static final Setting<Long> CACHE_SIZE = Setting.longSetting("ingest.geoip.cache_size", 1000, 0, Setting.Property.NodeScope);
     private static final int GEOIP_INDEX_MAPPINGS_VERSION = 1;
     /**
@@ -276,7 +279,7 @@ public class IngestGeoIpPlugin extends Plugin
                     .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
                     .build()
             )
-            .setOrigin(INGEST_ORIGIN)
+            .setOrigin(ORIGIN)
             .setPrimaryIndex(DATABASES_INDEX)
             .setNetNew()
             .build();

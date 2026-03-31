@@ -383,7 +383,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
         });
 
         // 3. Request downloads — flag is set on all nodes but the downloader task is not bootstrapped
-        //    because ENABLED=false, so no downloads can occur
+        // because ENABLED=false, so no downloads can occur
         IpLocationTestHelper.requestDownloads(internalCluster(), projectId);
         for (DatabaseNodeService dns : internalCluster().getInstances(DatabaseNodeService.class)) {
             assertTrue("downloadRequested should be true after requestDownloads()", dns.isDownloadRequested(ProjectId.DEFAULT));

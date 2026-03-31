@@ -18,7 +18,6 @@ import org.elasticsearch.iplocation.api.IpLocationService;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.List;
-import java.util.Map;
 
 /**
  * Adapts an {@link IpDatabaseProvider} (used by the logstash-bridge) into
@@ -54,7 +53,7 @@ public final class IpLocationServiceAdapter implements IpLocationService {
         try {
             String dbType = database.getDatabaseType();
             IpDataLookupFactories.IpDataLookupFactory factory = IpDataLookupFactories.get(dbType, databaseFile);
-            IpDataLookup internalLookup = factory.create(propertyNames);
+            InternalIpDataLookup internalLookup = factory.create(propertyNames);
             IpDataLookupInfo info = new IpDataLookupInfoImpl(internalLookup.getProperties(), dbType);
             return new BridgeIpDataLookup(provider, pid, databaseFile, internalLookup, info);
         } catch (IOException e) {
@@ -111,14 +110,14 @@ public final class IpLocationServiceAdapter implements IpLocationService {
         private final IpDatabaseProvider provider;
         private final ProjectId projectId;
         private final String databaseFile;
-        private final IpDataLookup internalLookup;
+        private final InternalIpDataLookup internalLookup;
         private final IpDataLookupInfo info;
 
         BridgeIpDataLookup(
             IpDatabaseProvider provider,
             ProjectId projectId,
             String databaseFile,
-            IpDataLookup internalLookup,
+            InternalIpDataLookup internalLookup,
             IpDataLookupInfo info
         ) {
             this.provider = provider;
@@ -135,12 +134,8 @@ public final class IpLocationServiceAdapter implements IpLocationService {
                 return null;
             }
             try {
-                Map<String, Object> data = internalLookup.getData(database, ip);
-                if (data.isEmpty()) {
-                    return false;
-                }
-                IpDataLookupImpl.dispatchToCollector(collector, data);
-                return true;
+                boolean found = internalLookup.getData(database, ip, collector);
+                return found;
             } finally {
                 database.close();
             }

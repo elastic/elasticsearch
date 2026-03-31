@@ -20,20 +20,19 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.iplocation.api.IpLocationInfoCollector;
 
 import java.io.IOException;
 import java.net.InetAddress;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
- * A collection of {@link IpDataLookup} implementations for IPinfo databases
+ * A collection of {@link InternalIpDataLookup} implementations for IPinfo databases
  */
 final class IpinfoIpDataLookups {
 
@@ -112,7 +111,7 @@ final class IpinfoIpDataLookups {
     }
 
     @Nullable
-    static Function<Set<Database.Property>, IpDataLookup> getIpinfoLookup(final Database database) {
+    static Function<Set<Database.Property>, InternalIpDataLookup> getIpinfoLookup(final Database database) {
         return switch (database) {
             case AsnV2 -> IpinfoIpDataLookups.Asn::new;
             case CountryV2 -> IpinfoIpDataLookups.Country::new;
@@ -263,49 +262,32 @@ final class IpinfoIpDataLookups {
         }
 
         @Override
-        protected Map<String, Object> transform(final Result<AsnResult> result) {
+        protected void transform(final Result<AsnResult> result, final IpLocationInfoCollector collector) {
             AsnResult response = result.result();
-            Long asn = response.asn;
-            String organizationName = response.name;
-            String network = result.network();
 
-            Map<String, Object> data = new HashMap<>();
             for (Database.Property property : this.properties) {
                 switch (property) {
-                    case IP -> data.put("ip", result.ip());
+                    case IP -> collector.ip(result.ip());
                     case ASN -> {
-                        if (asn != null) {
-                            data.put("asn", asn);
-                        }
+                        if (response.asn != null) collector.asn(response.asn);
                     }
                     case ORGANIZATION_NAME -> {
-                        if (organizationName != null) {
-                            data.put("organization_name", organizationName);
-                        }
+                        if (response.name != null) collector.organizationName(response.name);
                     }
                     case NETWORK -> {
-                        if (network != null) {
-                            data.put("network", network);
-                        }
+                        if (result.network() != null) collector.network(result.network());
                     }
                     case COUNTRY_ISO_CODE -> {
-                        if (response.country != null) {
-                            data.put("country_iso_code", response.country);
-                        }
+                        if (response.country != null) collector.countryIsoCode(response.country);
                     }
                     case DOMAIN -> {
-                        if (response.domain != null) {
-                            data.put("domain", response.domain);
-                        }
+                        if (response.domain != null) collector.domain(response.domain);
                     }
                     case TYPE -> {
-                        if (response.type != null) {
-                            data.put("type", response.type);
-                        }
+                        if (response.type != null) collector.type(response.type);
                     }
                 }
             }
-            return data;
         }
     }
 
@@ -315,40 +297,26 @@ final class IpinfoIpDataLookups {
         }
 
         @Override
-        protected Map<String, Object> transform(final Result<CountryResult> result) {
+        protected void transform(final Result<CountryResult> result, final IpLocationInfoCollector collector) {
             CountryResult response = result.result();
 
-            Map<String, Object> data = new HashMap<>();
             for (Database.Property property : this.properties) {
                 switch (property) {
-                    case IP -> data.put("ip", result.ip());
+                    case IP -> collector.ip(result.ip());
                     case COUNTRY_ISO_CODE -> {
-                        String countryIsoCode = response.country;
-                        if (countryIsoCode != null) {
-                            data.put("country_iso_code", countryIsoCode);
-                        }
+                        if (response.country != null) collector.countryIsoCode(response.country);
                     }
                     case COUNTRY_NAME -> {
-                        String countryName = response.countryName;
-                        if (countryName != null) {
-                            data.put("country_name", countryName);
-                        }
+                        if (response.countryName != null) collector.countryName(response.countryName);
                     }
                     case CONTINENT_CODE -> {
-                        String continentCode = response.continent;
-                        if (continentCode != null) {
-                            data.put("continent_code", continentCode);
-                        }
+                        if (response.continent != null) collector.continentCode(response.continent);
                     }
                     case CONTINENT_NAME -> {
-                        String continentName = response.continentName;
-                        if (continentName != null) {
-                            data.put("continent_name", continentName);
-                        }
+                        if (response.continentName != null) collector.continentName(response.continentName);
                     }
                 }
             }
-            return data;
         }
     }
 
@@ -358,56 +326,34 @@ final class IpinfoIpDataLookups {
         }
 
         @Override
-        protected Map<String, Object> transform(final Result<GeolocationResult> result) {
+        protected void transform(final Result<GeolocationResult> result, final IpLocationInfoCollector collector) {
             GeolocationResult response = result.result();
 
-            Map<String, Object> data = new HashMap<>();
             for (Database.Property property : this.properties) {
                 switch (property) {
-                    case IP -> data.put("ip", result.ip());
+                    case IP -> collector.ip(result.ip());
                     case COUNTRY_ISO_CODE -> {
-                        String countryIsoCode = response.country;
-                        if (countryIsoCode != null) {
-                            data.put("country_iso_code", countryIsoCode);
-                        }
+                        if (response.country != null) collector.countryIsoCode(response.country);
                     }
                     case REGION_NAME -> {
-                        String subdivisionName = response.region;
-                        if (subdivisionName != null) {
-                            data.put("region_name", subdivisionName);
-                        }
+                        if (response.region != null) collector.regionName(response.region);
                     }
                     case CITY_NAME -> {
-                        String cityName = response.city;
-                        if (cityName != null) {
-                            data.put("city_name", cityName);
-                        }
+                        if (response.city != null) collector.cityName(response.city);
                     }
                     case TIMEZONE -> {
-                        String locationTimeZone = response.timezone;
-                        if (locationTimeZone != null) {
-                            data.put("timezone", locationTimeZone);
-                        }
+                        if (response.timezone != null) collector.timezone(response.timezone);
                     }
                     case POSTAL_CODE -> {
-                        String postalCode = response.postalCode;
-                        if (postalCode != null) {
-                            data.put("postal_code", postalCode);
-                        }
+                        if (response.postalCode != null) collector.postalCode(response.postalCode);
                     }
                     case LOCATION -> {
-                        Double latitude = response.lat;
-                        Double longitude = response.lng;
-                        if (latitude != null && longitude != null) {
-                            Map<String, Object> locationObject = new HashMap<>();
-                            locationObject.put("lat", latitude);
-                            locationObject.put("lon", longitude);
-                            data.put("location", locationObject);
+                        if (response.lat != null && response.lng != null) {
+                            collector.location(response.lat, response.lng);
                         }
                     }
                 }
             }
-            return data;
         }
     }
 
@@ -417,56 +363,42 @@ final class IpinfoIpDataLookups {
         }
 
         @Override
-        protected Map<String, Object> transform(final Result<PrivacyDetectionResult> result) {
+        protected void transform(final Result<PrivacyDetectionResult> result, final IpLocationInfoCollector collector) {
             PrivacyDetectionResult response = result.result();
 
-            Map<String, Object> data = new HashMap<>();
             for (Database.Property property : this.properties) {
                 switch (property) {
-                    case IP -> data.put("ip", result.ip());
+                    case IP -> collector.ip(result.ip());
                     case HOSTING -> {
-                        if (response.hosting != null) {
-                            data.put("hosting", response.hosting);
-                        }
+                        if (response.hosting != null) collector.hosting(response.hosting);
                     }
                     case TOR -> {
-                        if (response.tor != null) {
-                            data.put("tor", response.tor);
-                        }
+                        if (response.tor != null) collector.tor(response.tor);
                     }
                     case PROXY -> {
-                        if (response.proxy != null) {
-                            data.put("proxy", response.proxy);
-                        }
+                        if (response.proxy != null) collector.proxy(response.proxy);
                     }
                     case RELAY -> {
-                        if (response.relay != null) {
-                            data.put("relay", response.relay);
-                        }
+                        if (response.relay != null) collector.relay(response.relay);
                     }
                     case VPN -> {
-                        if (response.vpn != null) {
-                            data.put("vpn", response.vpn);
-                        }
+                        if (response.vpn != null) collector.vpn(response.vpn);
                     }
                     case SERVICE -> {
-                        if (Strings.hasText(response.service)) {
-                            data.put("service", response.service);
-                        }
+                        if (Strings.hasText(response.service)) collector.service(response.service);
                     }
                 }
             }
-            return data;
         }
     }
 
     /**
-     * The {@link IpinfoIpDataLookups.AbstractBase} is an abstract base implementation of {@link IpDataLookup} that
-     * provides common functionality for getting a {@link IpDataLookup.Result} that wraps a record from a {@link IpDatabase}.
+     * The {@link IpinfoIpDataLookups.AbstractBase} is an abstract base implementation of {@link InternalIpDataLookup} that
+     * provides common functionality for getting a {@link InternalIpDataLookup.Result} that wraps a record from a {@link IpDatabase}.
      *
      * @param <RESPONSE> the record type that will be wrapped and returned
      */
-    private abstract static class AbstractBase<RESPONSE> implements IpDataLookup {
+    private abstract static class AbstractBase<RESPONSE> implements InternalIpDataLookup {
 
         protected final Set<Database.Property> properties;
         protected final Class<RESPONSE> clazz;
@@ -482,9 +414,13 @@ final class IpinfoIpDataLookups {
         }
 
         @Override
-        public final Map<String, Object> getData(final IpDatabase ipDatabase, final String ipAddress) {
+        public final boolean getData(final IpDatabase ipDatabase, final String ipAddress, final IpLocationInfoCollector collector) {
             final Result<RESPONSE> response = ipDatabase.getResponse(ipAddress, this::lookup);
-            return (response == null || response.result() == null) ? Map.of() : transform(response);
+            if (response == null || response.result() == null) {
+                return false;
+            }
+            transform(response, collector);
+            return true;
         }
 
         @Nullable
@@ -496,11 +432,11 @@ final class IpinfoIpDataLookups {
         }
 
         /**
-         * Extract the configured properties from the retrieved response.
+         * Extract the configured properties from the retrieved response and push them to the collector.
          *
          * @param response the non-null response that was retrieved
-         * @return a mapping of properties for the ip from the response
+         * @param collector the collector to push results to
          */
-        protected abstract Map<String, Object> transform(Result<RESPONSE> response);
+        protected abstract void transform(Result<RESPONSE> response, IpLocationInfoCollector collector);
     }
 }

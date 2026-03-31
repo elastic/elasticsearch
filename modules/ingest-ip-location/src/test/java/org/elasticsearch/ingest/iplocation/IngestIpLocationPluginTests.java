@@ -9,16 +9,24 @@
 
 package org.elasticsearch.ingest.iplocation;
 
+import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.ingest.IngestMetadata;
+import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.ingest.PipelineConfiguration;
+import org.elasticsearch.ingest.Processor;
+import org.elasticsearch.iplocation.api.IpLocationService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
@@ -30,7 +38,107 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+
+@SuppressWarnings("resource")
 public class IngestIpLocationPluginTests extends ESTestCase {
+
+    /**
+     * Creates an IngestIpLocationPlugin wired with a mock IpLocationService, ready for clusterChanged() testing.
+     */
+    private static IngestIpLocationPlugin createPluginWithMocks() {
+        IngestIpLocationPlugin plugin = new IngestIpLocationPlugin();
+        IpLocationService ipLocationService = mock(IpLocationService.class);
+        IngestService ingestService = mock(IngestService.class);
+        ClusterService clusterService = mock(ClusterService.class);
+        when(ingestService.getClusterService()).thenReturn(clusterService);
+
+        Processor.Parameters params = new Processor.Parameters(
+            null, // env
+            null, // scriptService
+            null, // analysisRegistry
+            null, // threadContext
+            null, // relativeTimeSupplier
+            null, // scheduler
+            ingestService,
+            null, // client
+            null, // genericExecutor
+            null, // matcherWatchdog
+            null, // userAgentParserRegistry
+            ipLocationService
+        );
+        plugin.getProcessors(params);
+        return plugin;
+    }
+
+    private static ClusterState clusterStateWithProject(ProjectId projectId, ProjectMetadata projectMetadata) {
+        return ClusterState.builder(new ClusterName("test")).putProjectMetadata(projectMetadata).build();
+    }
+
+    private static ClusterState emptyClusterState() {
+        return ClusterState.builder(new ClusterName("test")).build();
+    }
+
+    public void testProjectRemovedAfterDownloadsRequested() throws IOException {
+        var plugin = createPluginWithMocks();
+        ProjectId projectId = randomProjectIdOrDefault();
+
+        // State 1: project has a geoip pipeline -> downloads should be requested
+        String pipelineJson = """
+            {"processors":[{"geoip":{"field":"ip"}}]}""";
+        var ingestMetadata = new IngestMetadata(
+            Map.of("_id1", new PipelineConfiguration("_id1", new BytesArray(pipelineJson), XContentType.JSON))
+        );
+        ProjectMetadata projectMeta = ProjectMetadata.builder(projectId).putCustom(IngestMetadata.TYPE, ingestMetadata).build();
+        ClusterState state1 = clusterStateWithProject(projectId, projectMeta);
+        plugin.clusterChanged(new ClusterChangedEvent("test", state1, emptyClusterState()));
+        assertTrue(plugin.isDownloadRequestedForProject(projectId));
+
+        // State 2: project is removed entirely -> downloads should be cancelled and entry cleaned up
+        ClusterState state2 = emptyClusterState();
+        plugin.clusterChanged(new ClusterChangedEvent("test", state2, state1));
+        assertFalse(plugin.isDownloadRequestedForProject(projectId));
+    }
+
+    public void testProjectRemovedBeforeDownloadsRequested() throws IOException {
+        var plugin = createPluginWithMocks();
+        ProjectId projectId = randomProjectIdOrDefault();
+
+        // State 1: project exists but has no geoip pipeline -> no downloads requested
+        ProjectMetadata projectMeta = ProjectMetadata.builder(projectId).build();
+        ClusterState state1 = clusterStateWithProject(projectId, projectMeta);
+        plugin.clusterChanged(new ClusterChangedEvent("test", state1, emptyClusterState()));
+        assertFalse(plugin.isDownloadRequestedForProject(projectId));
+
+        // State 2: project removed -> still no downloads requested (nothing to clean up)
+        ClusterState state2 = emptyClusterState();
+        plugin.clusterChanged(new ClusterChangedEvent("test", state2, state1));
+        assertFalse(plugin.isDownloadRequestedForProject(projectId));
+    }
+
+    public void testPipelineRemovedWithinProject() throws IOException {
+        var plugin = createPluginWithMocks();
+        ProjectId projectId = randomProjectIdOrDefault();
+
+        // State 1: project has a geoip pipeline -> downloads requested
+        String pipelineJson = """
+            {"processors":[{"geoip":{"field":"ip"}}]}""";
+        var ingestMetadata = new IngestMetadata(
+            Map.of("_id1", new PipelineConfiguration("_id1", new BytesArray(pipelineJson), XContentType.JSON))
+        );
+        ProjectMetadata projectMeta1 = ProjectMetadata.builder(projectId).putCustom(IngestMetadata.TYPE, ingestMetadata).build();
+        ClusterState state1 = clusterStateWithProject(projectId, projectMeta1);
+        plugin.clusterChanged(new ClusterChangedEvent("test", state1, emptyClusterState()));
+        assertTrue(plugin.isDownloadRequestedForProject(projectId));
+
+        // State 2: project still exists, but pipeline removed -> downloads cancelled
+        var emptyIngestMetadata = new IngestMetadata(Map.of());
+        ProjectMetadata projectMeta2 = ProjectMetadata.builder(projectId).putCustom(IngestMetadata.TYPE, emptyIngestMetadata).build();
+        ClusterState state2 = clusterStateWithProject(projectId, projectMeta2);
+        plugin.clusterChanged(new ClusterChangedEvent("test", state2, state1));
+        assertFalse(plugin.isDownloadRequestedForProject(projectId));
+    }
 
     public void testHasAtLeastOneGeoipProcessorWhenDownloadDatabaseOnPipelineCreationIsFalse() throws IOException {
         for (String pipelineConfigJson : getPipelinesWithGeoIpProcessors(false)) {

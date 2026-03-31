@@ -237,6 +237,8 @@ public final class GeoIpProcessor extends AbstractProcessor {
             boolean ignoreMissing = readBooleanProperty(type, processorTag, config, "ignore_missing", false);
             boolean firstOnly = readBooleanProperty(type, processorTag, config, "first_only", true);
 
+            // Consume the property to prevent "unknown property" validation error.
+            // The actual logic is handled by IngestIpLocationPlugin.hasAtLeastOneGeoipProcessor().
             readBooleanProperty(type, processorTag, config, "download_database_on_pipeline_creation", true);
 
             IpDataLookup lookup = ipLocationService.createIpDataLookup(projectId.id(), databaseFile, propertyNames);

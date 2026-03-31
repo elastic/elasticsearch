@@ -641,7 +641,7 @@ public final class DatabaseNodeService implements IpDatabaseProvider, IpLocation
         try {
             String dbType = loader.getDatabaseType();
             IpDataLookupFactory factory = IpDataLookupFactories.get(dbType, databaseFile);
-            IpDataLookup internalLookup = factory.create(propertyNames);
+            InternalIpDataLookup internalLookup = factory.create(propertyNames);
             IpDataLookupInfo info = new IpDataLookupInfoImpl(internalLookup.getProperties(), dbType);
             return new IpDataLookupImpl(this, pid, databaseFile, dbType, internalLookup, info);
         } catch (IOException e) {

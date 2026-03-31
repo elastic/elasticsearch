@@ -9,20 +9,22 @@
 
 package org.elasticsearch.ingest.geoip;
 
+import org.elasticsearch.iplocation.api.IpLocationInfoCollector;
+
 import java.io.IOException;
-import java.util.Map;
 import java.util.Set;
 
-interface IpDataLookup {
+interface InternalIpDataLookup {
     /**
-     * Gets data from the provided {@code ipDatabase} for the provided {@code ip}
+     * Gets data from the provided {@code ipDatabase} for the provided {@code ip} and pushes results to the collector.
      *
      * @param ipDatabase the database from which to lookup a result
      * @param ip the ip address
-     * @return a map of data corresponding to the configured properties
+     * @param collector the collector to push results to
+     * @return true if data was found, false if the IP was not found in the database
      * @throws IOException if the implementation encounters any problem while retrieving the response
      */
-    Map<String, Object> getData(IpDatabase ipDatabase, String ip) throws IOException;
+    boolean getData(IpDatabase ipDatabase, String ip, IpLocationInfoCollector collector) throws IOException;
 
     /**
      * @return the set of properties this lookup will provide

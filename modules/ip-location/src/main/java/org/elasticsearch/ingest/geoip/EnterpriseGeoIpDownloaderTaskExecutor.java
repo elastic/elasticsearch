@@ -26,7 +26,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.NotMultiProjectCapable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.ingest.EnterpriseGeoIpTask.EnterpriseGeoIpTaskParams;
-import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
@@ -75,7 +74,7 @@ public class EnterpriseGeoIpDownloaderTaskExecutor extends PersistentTasksExecut
 
     EnterpriseGeoIpDownloaderTaskExecutor(Client client, HttpClient httpClient, ClusterService clusterService, ThreadPool threadPool) {
         super(ENTERPRISE_GEOIP_DOWNLOADER, threadPool.generic());
-        this.client = new OriginSettingClient(client, IngestService.INGEST_ORIGIN);
+        this.client = new OriginSettingClient(client, IngestGeoIpPlugin.ORIGIN);
         this.httpClient = httpClient;
         this.clusterService = clusterService;
         this.threadPool = threadPool;

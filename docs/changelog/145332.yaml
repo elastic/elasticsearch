@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 145332
+summary: Guard unresolved canonicalization in aggregate rewrite
+type: bug

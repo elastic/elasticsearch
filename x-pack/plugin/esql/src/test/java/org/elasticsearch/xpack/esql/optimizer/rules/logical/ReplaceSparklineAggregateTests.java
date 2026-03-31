@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -29,6 +30,7 @@ import org.elasticsearch.xpack.esql.plan.logical.SparklineGenerateEmptyBuckets;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
+import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -43,6 +45,11 @@ import static org.hamcrest.Matchers.not;
 public class ReplaceSparklineAggregateTests extends AbstractLogicalPlanOptimizerTests {
 
     private static final String SPARKLINE_EXPR = "sparkline(count(*), hire_date, 10, \"2024-01-01\", \"2024-12-31\")";
+
+    @Before
+    public void skipIfNotSnapshot() {
+        assumeTrue("Sparkline is only available in snapshot builds", Build.current().isSnapshot());
+    }
 
     public void testNoSparklines() {
         LogicalPlan current = plan("from test | stats s = sum(salary) by last_name");

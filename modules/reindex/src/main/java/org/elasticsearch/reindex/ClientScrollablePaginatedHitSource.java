@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.index.reindex;
+package org.elasticsearch.reindex;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
@@ -27,6 +27,8 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
+import org.elasticsearch.index.reindex.PaginatedSearchFailure;
+import org.elasticsearch.index.reindex.RejectAwareActionListener;
 import org.elasticsearch.index.reindex.ResumeInfo.ScrollWorkerResumeInfo;
 import org.elasticsearch.index.reindex.ResumeInfo.WorkerResumeInfo;
 import org.elasticsearch.search.SearchHit;
@@ -143,14 +145,14 @@ public class ClientScrollablePaginatedHitSource extends PaginatedHitSource {
     }
 
     private static Response wrapSearchResponse(SearchResponse response) {
-        List<SearchFailure> failures;
+        List<PaginatedSearchFailure> failures;
         if (response.getShardFailures() == null) {
             failures = emptyList();
         } else {
             failures = new ArrayList<>(response.getShardFailures().length);
             for (ShardSearchFailure failure : response.getShardFailures()) {
                 String nodeId = failure.shard() == null ? null : failure.shard().getNodeId();
-                failures.add(new SearchFailure(failure.getCause(), failure.index(), failure.shardId(), nodeId));
+                failures.add(new PaginatedSearchFailure(failure.getCause(), failure.index(), failure.shardId(), nodeId));
             }
         }
         List<Hit> hits;

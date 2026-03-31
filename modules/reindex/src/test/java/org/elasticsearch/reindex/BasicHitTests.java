@@ -7,11 +7,11 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.index.reindex;
+package org.elasticsearch.reindex;
 
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.index.reindex.PaginatedHitSource.BasicHit;
+import org.elasticsearch.reindex.PaginatedHitSource.BasicHit;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -25,7 +25,7 @@ public class BasicHitTests extends ESTestCase {
         String index = randomAlphaOfLengthBetween(3, 10);
         String id = randomAlphaOfLengthBetween(3, 10);
         long version = randomNonNegativeLong();
-        PaginatedHitSource.BasicHit hit = new BasicHit(index, id, version);
+        BasicHit hit = new BasicHit(index, id, version);
 
         assertEquals(index, hit.getIndex());
         assertEquals(id, hit.getId());

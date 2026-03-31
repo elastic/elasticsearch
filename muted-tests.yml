@@ -403,7 +403,6 @@ tests:
   method: testEvaluate {TestCase=<long, 15 fixed-interval longs>}
   issue: https://github.com/elastic/elasticsearch/issues/145276
 - class: org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundToTests
-  method: testEvaluateInManyThreads {TestCase=<long, 20 fixed-interval longs>}
   issue: https://github.com/elastic/elasticsearch/issues/145277
 - class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
   method: test {csv-spec:approximation.Approximate stats by on large multi-valued data}

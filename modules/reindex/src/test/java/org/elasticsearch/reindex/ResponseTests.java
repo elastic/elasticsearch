@@ -7,12 +7,12 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.index.reindex;
+package org.elasticsearch.reindex;
 
-import org.elasticsearch.index.reindex.PaginatedHitSource.BasicHit;
-import org.elasticsearch.index.reindex.PaginatedHitSource.Hit;
-import org.elasticsearch.index.reindex.PaginatedHitSource.Response;
-import org.elasticsearch.index.reindex.PaginatedHitSource.SearchFailure;
+import org.elasticsearch.index.reindex.PaginatedSearchFailure;
+import org.elasticsearch.reindex.PaginatedHitSource.BasicHit;
+import org.elasticsearch.reindex.PaginatedHitSource.Hit;
+import org.elasticsearch.reindex.PaginatedHitSource.Response;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
@@ -26,7 +26,7 @@ public class ResponseTests extends ESTestCase {
      */
     public void testConstructor() {
         boolean timedOut = randomBoolean();
-        List<SearchFailure> failures = randomBoolean() ? Collections.emptyList() : randomFailures();
+        List<PaginatedSearchFailure> failures = randomBoolean() ? Collections.emptyList() : randomFailures();
         long totalHits = randomNonNegativeLong();
         List<PaginatedHitSource.Hit> hits = randomBoolean() ? Collections.emptyList() : randomHits();
         String scrollId = randomAlphaOfLengthBetween(3, 20);
@@ -43,19 +43,19 @@ public class ResponseTests extends ESTestCase {
      * Verifies that providing null values for optional collections is preserved and returned as-is by the getters.
      */
     public void testNullCollectionsArePreserved() {
-        List<SearchFailure> failures = null;
+        List<PaginatedSearchFailure> failures = null;
         List<Hit> hits = null;
         Response response = new Response(randomBoolean(), failures, randomNonNegativeLong(), hits, randomAlphaOfLengthBetween(3, 20));
         assertNull(response.getFailures());
         assertNull(response.getHits());
     }
 
-    private static List<SearchFailure> randomFailures() {
+    private static List<PaginatedSearchFailure> randomFailures() {
         int size = randomIntBetween(1, 5);
-        List<SearchFailure> failures = new ArrayList<>(size);
+        List<PaginatedSearchFailure> failures = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
             failures.add(
-                new SearchFailure(
+                new PaginatedSearchFailure(
                     new IllegalStateException(randomAlphaOfLengthBetween(5, 20)),
                     randomBoolean() ? randomAlphaOfLengthBetween(3, 10) : null,
                     randomBoolean() ? randomIntBetween(0, 10) : null,

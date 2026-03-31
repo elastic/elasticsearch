@@ -12,6 +12,7 @@ import io.netty.buffer.Unpooled;
 import io.netty.handler.codec.compression.Snappy;
 
 import org.apache.http.HttpHeaders;
+import org.apache.http.client.utils.URIBuilder;
 import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.http.util.EntityUtils;
@@ -31,6 +32,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -143,12 +145,28 @@ public class PrometheusSeriesRestIT extends ESRestTestCase {
         assertThat(data.getFirst().get("__name__"), equalTo("test_gauge_idx"));
     }
 
+    public void testGetWithMultipleMatchSelectorsReturnsCombinedSeries() throws Exception {
+        writeMetric("multi_series_selector_a", Map.of("job", "job_a"));
+        writeMetric("multi_series_selector_b", Map.of("job", "job_b"));
+        writeMetric("multi_series_selector_c", Map.of("job", "job_c")); // must not appear in results
+
+        // Use URIBuilder to send two match[] selectors in a single request, working around the
+        // test client's single-value-per-key restriction on Request.addParameter.
+        Request request = new Request(
+            "GET",
+            new URIBuilder("/_prometheus/api/v1/series").addParameter("match[]", "multi_series_selector_a")
+                .addParameter("match[]", "multi_series_selector_b")
+                .build()
+                .toString()
+        );
+        List<Map<String, Object>> data = seriesData(client().performRequest(request));
+
+        List<String> names = data.stream().map(s -> (String) s.get("__name__")).toList();
+        assertThat(names, containsInAnyOrder("multi_series_selector_a", "multi_series_selector_b"));
+    }
+
     // Helpers
 
-    /**
-     * Builds a series request with a single {@code match[]} parameter.
-     * TODO: support multiple {@code match[]} values once multi-value query param support lands.
-     */
     private static Request seriesRequest(String matcher) {
         return seriesRequest(null, matcher);
     }

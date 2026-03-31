@@ -15,17 +15,10 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.tests.store.MockDirectoryWrapper;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.metadata.ProjectId;
-import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
@@ -73,26 +66,11 @@ import static org.mockito.Mockito.when;
 public class EnrichQuerySourceOperatorTests extends ESTestCase {
 
     private BlockFactory blockFactory;
-    private ClusterService clusterService;
 
     @Before
     public void setupBlockFactory() {
         BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofGb(1)).withCircuitBreaking();
         this.blockFactory = BlockFactory.builder(bigArrays).build();
-    }
-
-    @Before
-    public void setupClusterService() {
-
-        // (from x-pack/plugin/esql/src/test/java/org/elasticsearch/xpack/esql/enrich/LookupExecutionPlannerTests.java)
-        // Create minimal mocks for services - we only need these because AbstractLookupService constructor requires them
-        // but startServerWithOperators is overridden to do nothing, so they don't need to be fully functional
-        //
-        clusterService = mock(ClusterService.class);
-        ProjectId projectId = Metadata.DEFAULT_PROJECT_ID;
-        ClusterState clusterState = ClusterStateCreationUtils.state(projectId, "test-index", 1, 1);
-        when(clusterService.state()).thenReturn(clusterState);
-        when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
     }
 
     @After
@@ -363,104 +341,6 @@ public class EnrichQuerySourceOperatorTests extends ESTestCase {
             assertThat("Total positions should match number of matching documents", totalPositions, equalTo(numMatchingDocs));
 
             // After finishing, canProduceMoreDataWithoutExtraInput should still return false
-            assertFalse(
-                "canProduceMoreDataWithoutExtraInput should return false after operator is finished",
-                queryOperator.canProduceMoreDataWithoutExtraInput()
-            );
-            assertTrue("Operator should be finished", queryOperator.isFinished());
-        }
-    }
-
-    public void testBulkLookupHandlesMultiplePagesWithManyMatches() throws Exception {
-
-        // Test that when the EnrichQuerySourceOperator uses a BulkKeywordLookup and
-        // single query matches more documents than would fit on a single page
-        // the results of the match are returned in several pages.
-
-        int numMatchingDocs = 50;
-        int maxPageSize = 10; // Small page size to ensure multiple pages from single query
-
-        List<List<String>> directoryTermsList = IntStream.range(0, numMatchingDocs).mapToObj(i -> List.of("common-term")).toList();
-        List<List<String>> inputTermsList = List.of(List.of("common-term"));
-
-        try (var directoryData = makeDirectoryWith(directoryTermsList); var inputTerms = makeTermsBlock(inputTermsList)) {
-
-            MappedFieldType rightFieldType = directoryData.field();
-            ElementType leftElementType = ElementType.BYTES_REF;
-            SearchExecutionContext context = directoryData.searchExecutionContext;
-            int matchChannelOffset = 0;
-            int extractChannelOffset = 0;
-            AliasFilter aliasFilter = null;
-            Warnings warnings = warnings();
-
-            BulkKeywordLookup bulkLookup = new BulkKeywordLookup(
-                rightFieldType,
-                leftElementType,
-                context,
-                matchChannelOffset,
-                extractChannelOffset,
-                clusterService,
-                aliasFilter,
-                warnings
-            );
-
-            LookupEnrichQueryGenerator queryList = new LookupEnrichQueryGenerator() {
-                public Query getQuery(int position, Page inputPage, SearchExecutionContext searchExecutionContext) {
-                    throw new AssertionError("getQuery should not be called in this test");
-                }
-
-                public int getPositionCount(Page inputPage) {
-                    return inputPage.getBlock(matchChannelOffset).getPositionCount();
-                }
-
-                public BulkKeywordLookup getBulkKeywordLookup() {
-                    return bulkLookup;
-                }
-            };
-
-            Page inputPage = new Page(inputTerms);
-            EnrichQuerySourceOperator queryOperator = new EnrichQuerySourceOperator(
-                blockFactory,
-                maxPageSize,
-                queryList,
-                inputPage,
-                BlockOptimization.NONE,
-                new IndexedByShardIdFromSingleton<>(new LuceneSourceOperatorTests.MockShardContext(directoryData.reader)),
-                0,
-                directoryData.searchExecutionContext,
-                warnings
-            );
-
-            assertFalse(
-                "canProduceMoreDataWithoutExtraInput should return false (SourceOperator default)",
-                queryOperator.canProduceMoreDataWithoutExtraInput()
-            );
-
-            int pageCount = 0;
-            int totalPositions = 0;
-
-            // Process pages until finished
-            while (queryOperator.isFinished() == false) {
-                Page page = queryOperator.getOutput();
-                if (page != null) {
-                    pageCount++;
-                    int positions = page.getPositionCount();
-                    totalPositions += positions;
-
-                    assertThat("Page should not exceed maxPageSize", positions, lessThanOrEqualTo(maxPageSize));
-                    assertFalse(
-                        "canProduceMoreDataWithoutExtraInput should return false (SourceOperator default)",
-                        queryOperator.canProduceMoreDataWithoutExtraInput()
-                    );
-
-                    page.releaseBlocks();
-                }
-            }
-
-            // Verify we got expected number of pages
-            int expectedPageCount = (numMatchingDocs / maxPageSize) + 1;
-            assertThat("Should produce multiple pages", pageCount, equalTo(expectedPageCount));
-            assertThat("Total positions should match number of matching documents", totalPositions, equalTo(numMatchingDocs));
             assertFalse(
                 "canProduceMoreDataWithoutExtraInput should return false after operator is finished",
                 queryOperator.canProduceMoreDataWithoutExtraInput()

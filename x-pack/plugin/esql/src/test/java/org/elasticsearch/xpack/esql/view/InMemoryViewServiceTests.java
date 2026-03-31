@@ -1179,9 +1179,26 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         addView("view_1_3", "FROM view_1, view_3");
         LogicalPlan plan = query("FROM view_1_*");
         // Without CPS: wildcard fully replaced
-        assertThat(replaceViews(plan), matchesPlan(query("FROM emp1,emp3,emp1,emp2")));
+        assertThat(replaceViews(plan), matchesPlan(query("FROM (FROM emp1,emp2),emp1,emp3")));
         // With CPS: wildcard preserved
-        assertThat(replaceViewsWithCPS(plan), matchesPlan(query("FROM emp1,emp3,emp1,emp2,view_1_*")));
+        assertThat(replaceViewsWithCPS(plan), matchesPlan(query("FROM (FROM emp1,emp2),emp1,emp3,view_1_*")));
+    }
+
+    /**
+     * When CPS is enabled and nested views use wildcards that match only views, wildcards are preserved.
+     */
+    public void testCPSNestedWildcardPreservedWithCompaction() {
+        addView("view_1", "FROM emp1");
+        addView("view_2", "FROM emp2");
+        addView("view_3", "FROM emp3");
+        addView("view_4", "FROM emp4");
+        addView("view_x1", "FROM view_1, view_2");
+        addView("view_x2", "FROM view_3, view_4");
+        LogicalPlan plan = query("FROM view_x*");
+        // Without CPS: wildcard fully replaced
+        assertThat(replaceViews(plan), matchesPlan(query("FROM emp1,emp2,emp3,emp4")));
+        // With CPS: wildcard preserved
+        assertThat(replaceViewsWithCPS(plan), matchesPlan(query("FROM emp1,emp2,emp3,emp4,view_x*")));
     }
 
     /*

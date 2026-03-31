@@ -88,7 +88,7 @@ class FlattenedDocValuesSyntheticFieldLoader implements SourceLoader.SyntheticFi
         Stream<Map.Entry<String, StoredFieldLoader>> flattenedLoaders = Stream.of(Map.entry(keyedIgnoredValuesFieldFullPath, (values) -> {
             ignoredStoredValues = new ArrayList<>();
             ignoredStoredValues.addAll(values);
-            }));
+        }));
         Stream<Map.Entry<String, StoredFieldLoader>> subFieldLoaders = mappedSubFieldLoaders.stream()
             .flatMap(SourceLoader.SyntheticFieldLoader::storedFieldLoaders);
         return Stream.concat(flattenedLoaders, subFieldLoaders);
@@ -110,7 +110,7 @@ class FlattenedDocValuesSyntheticFieldLoader implements SourceLoader.SyntheticFi
             final SortedSetDocValues dv = DocValues.getSortedSet(reader, keyedFieldFullPath);
             if (dv.getValueCount() > 0) {
                 docValues = new SortedSetFlattenedDocValues(dv);
-                allLoaders.add(loader);
+                allLoaders.add(docValues);
             } else {
                 docValues = NO_VALUES;
             }
@@ -174,7 +174,7 @@ class FlattenedDocValuesSyntheticFieldLoader implements SourceLoader.SyntheticFi
         return false;
     }
 
-    protected FlattenedFieldSyntheticWriterHelper getWriter() {
+    protected FlattenedFieldSyntheticWriterHelper getWriter() throws IOException {
         FlattenedFieldSyntheticWriterHelper.SortedKeyedValues sortedKeyedValues = docValues.getValues();
         TreeSet<BytesRef> ignoredValuesSet = collectIgnoredValues();
         if (ignoredValuesSet != null) {
@@ -231,7 +231,6 @@ class FlattenedDocValuesSyntheticFieldLoader implements SourceLoader.SyntheticFi
     @Override
     public void reset() {
         ignoredStoredValues = List.of();
-        ignoredValues = List.of();
         for (SourceLoader.SyntheticFieldLoader loader : mappedSubFieldLoaders) {
             loader.reset();
         }
@@ -246,7 +245,7 @@ class FlattenedDocValuesSyntheticFieldLoader implements SourceLoader.SyntheticFi
      * a uniform way to position on a document and read its keyed values. This allows the rest of the loaded to work with keyed doc values
      * without caring about the underlying storage format.
      */
-    protected interface FlattenedDocValues {
+    interface FlattenedDocValues extends DocValuesLoader {
         boolean advanceToDoc(int docId) throws IOException;
 
         int count();

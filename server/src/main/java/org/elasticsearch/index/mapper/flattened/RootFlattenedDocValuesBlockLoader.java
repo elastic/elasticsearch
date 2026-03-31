@@ -189,7 +189,15 @@ final class RootFlattenedDocValuesBlockLoader implements BlockLoader {
             List<SourceLoader.SyntheticFieldLoader> mappedSubFieldLoaders,
             boolean storeIgnoredFieldsInBinaryDocValues
         ) {
-            super(fieldFullPath, keyedFieldFullPath, keyedIgnoredValuesFieldFullPath, leafName, usesBinaryDocValues, mappedSubFieldLoaders, storeIgnoredFieldsInBinaryDocValues);
+            super(
+                fieldFullPath,
+                keyedFieldFullPath,
+                keyedIgnoredValuesFieldFullPath,
+                leafName,
+                usesBinaryDocValues,
+                mappedSubFieldLoaders,
+                storeIgnoredFieldsInBinaryDocValues
+            );
         }
 
         public void writeToBlock(BlockLoader.BytesRefBuilder builder) throws IOException {

@@ -28,8 +28,8 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -2111,7 +2111,15 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
         // storeIgnoredFieldsInBinaryDocValues=true requires usesBinaryDocValues=true
         AssertionError e = expectThrows(
             AssertionError.class,
-            () -> new FlattenedDocValuesSyntheticFieldLoader("field", "field._keyed", "field._keyed._ignored", "field", false, true)
+            () -> new FlattenedDocValuesSyntheticFieldLoader(
+                "field",
+                "field._keyed",
+                "field._keyed._ignored",
+                "field",
+                false,
+                List.of(),
+                true
+            )
         );
         assertThat(e.getMessage(), containsString("storeIgnoredFieldsInBinaryDocValues requires usesBinaryDocValues"));
     }

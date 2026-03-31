@@ -362,6 +362,7 @@ public class FlattenedFieldParserTests extends ESTestCase {
             null,
             true,
             true,
+            Map.of(),
             true
         );
 

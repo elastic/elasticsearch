@@ -143,6 +143,8 @@ public final class FlattenedFieldMapper extends FieldMapper {
     public static final String KEYED_IGNORED_VALUES_FIELD_SUFFIX = "._keyed._ignored";
     public static final String TIME_SERIES_DIMENSIONS_ARRAY_PARAM = "time_series_dimensions";
 
+    public static final NodeFeature FLATTENED_MAPPED_SUBFIELDS_FEATURE = new NodeFeature("mapper.flattened.mapped_subfields");
+
     private static class Defaults {
         public static final int DEPTH_LIMIT = 20;
     }
@@ -1164,7 +1166,13 @@ public final class FlattenedFieldMapper extends FieldMapper {
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
             if (hasDocValues() && (ignoreAbove.valuesPotentiallyIgnored() == false || isSyntheticSourceEnabled)) {
-                return new RootFlattenedDocValuesBlockLoader(name(), ignoreAbove, usesBinaryDocValues, toSubFieldLoaders(mappedSubFields), storeIgnoredFieldsInBinaryDocValues);
+                return new RootFlattenedDocValuesBlockLoader(
+                    name(),
+                    ignoreAbove,
+                    usesBinaryDocValues,
+                    toSubFieldLoaders(mappedSubFields),
+                    storeIgnoredFieldsInBinaryDocValues
+                );
             }
 
             SourceValueFetcher fetcher = new SourceValueFetcher(

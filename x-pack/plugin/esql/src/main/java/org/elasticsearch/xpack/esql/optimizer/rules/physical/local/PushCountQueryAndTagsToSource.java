@@ -20,6 +20,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.DateUtils;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.CountApproximate;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerRules;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
@@ -28,6 +30,8 @@ import org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
+import org.elasticsearch.xpack.esql.planner.AbstractPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 
 import java.util.List;
@@ -72,18 +76,45 @@ public class PushCountQueryAndTagsToSource extends PhysicalOptimizerRules.Optimi
             if (withFilter.isEmpty() || withFilter.stream().allMatch(PushCountQueryAndTagsToSource::shouldPush) == false) {
                 return aggregateExec;
             }
+            List<Attribute> statsOutput;
+            if (count instanceof CountApproximate ca) {
+                statsOutput = AbstractPhysicalOperationProviders.intermediateAttributes(
+                    List.of(alias.replaceChild(new Count(ca.source(), ca.field(), ca.filter(), ca.window()))),
+                    aggregateExec.groupings()
+                );
+            } else {
+                statsOutput = aggregateExec.output();
+            }
             EsStatsQueryExec statsQueryExec = new EsStatsQueryExec(
                 queryExec.source(),
                 queryExec.indexPattern(),
                 null, // query
                 queryExec.limit(),
-                aggregateExec.output(),
+                statsOutput,
                 new EsStatsQueryExec.ByStat(withFilter)
             );
             // Wrap with FilterExec to remove empty buckets (keep buckets where count > 0). This was automatically handled by the
             // AggregateExec, but since we removed it, we need to do it manually.
             Attribute countAttr = statsQueryExec.output().get(1);
-            return new FilterExec(Source.EMPTY, statsQueryExec, new GreaterThan(Source.EMPTY, countAttr, ZERO));
+            PhysicalPlan plan = new FilterExec(Source.EMPTY, statsQueryExec, new GreaterThan(Source.EMPTY, countAttr, ZERO));
+
+            if (count instanceof CountApproximate) {
+                Attribute originalCount = aggregateExec.output().get(1);
+                Attribute originalSeen = aggregateExec.output().get(2);
+                Attribute longCount = statsOutput.get(1);
+                Attribute longSeen = statsOutput.get(2);
+                plan = new EvalExec(
+                    plan.source(),
+                    plan,
+                    List.of(
+                        new Alias(longCount.source(), longCount.name(), new ToDouble(Source.EMPTY, longCount), originalCount.id()),
+                        new Alias(longSeen.source(), longSeen.name(), longSeen, originalSeen.id())
+                    )
+                );
+                plan = new ProjectExec(aggregateExec.source(), plan, aggregateExec.output());
+            }
+
+            return plan;
         }
         return aggregateExec;
     }

@@ -11,6 +11,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.CountApproximateAggregatorFunction;
+import org.elasticsearch.compute.aggregation.DenseVectorCountApproximateAggregatorFunction;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
@@ -82,6 +83,9 @@ public class CountApproximate extends Count {
 
     @Override
     public AggregatorFunctionSupplier supplier() {
+        if (field().dataType() == DataType.DENSE_VECTOR) {
+            return DenseVectorCountApproximateAggregatorFunction.supplier();
+        }
         return CountApproximateAggregatorFunction.supplier();
     }
 

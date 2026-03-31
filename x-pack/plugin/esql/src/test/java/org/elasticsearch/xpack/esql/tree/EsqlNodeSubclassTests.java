@@ -10,10 +10,12 @@ package org.elasticsearch.xpack.esql.tree;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.Build;
+import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.dissect.DissectParser;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
@@ -144,7 +146,11 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
     private static final Predicate<String> CLASSNAME_FILTER = className -> {
         boolean esqlCore = className.startsWith(ESQL_CORE_CLASS_PREFIX) != false;
         boolean esqlProper = className.startsWith(ESQL_CLASS_PREFIX) != false;
-        return (esqlCore || esqlProper);
+        if ((esqlCore || esqlProper) == false) {
+            return false;
+        }
+        int dollarIdx = className.indexOf('$');
+        return dollarIdx < 0 || false == className.substring(0, dollarIdx).endsWith("Tests");
     };
 
     /**
@@ -553,6 +559,10 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
 
         if (argClass == EsQueryExec.QueryBuilderAndTags.class) {
             return randomQueryBuildAndTags();
+        }
+
+        if (argClass == Rounding.Prepared.class) {
+            return Rounding.builder(TimeValue.timeValueHours(1)).build().prepareForUnknown();
         }
 
         try {

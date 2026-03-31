@@ -252,24 +252,9 @@ tests:
 - class: org.elasticsearch.repositories.azure.AzureBlobContainerRetriesTests
   method: testWriteBlobWithRetries
   issue: https://github.com/elastic/elasticsearch/issues/144025
-- class: org.elasticsearch.test.apmintegration.MetricsApmIT
-  method: testJvmMetrics {withOTel=true}
-  issue: https://github.com/elastic/elasticsearch/issues/144166
-- class: org.elasticsearch.test.apmintegration.MetricsApmIT
-  method: testJvmMetrics {withOTel=false}
-  issue: https://github.com/elastic/elasticsearch/issues/144167
-- class: org.elasticsearch.test.apmintegration.MetricsApmIT
-  method: testApmIntegration {withOTel=false}
-  issue: https://github.com/elastic/elasticsearch/issues/144282
 - class: org.elasticsearch.reindex.management.ReindexGetRelocationIT
   method: testGetReindexFollowsRelocation
   issue: https://github.com/elastic/elasticsearch/issues/144364
-- class: org.elasticsearch.server.cli.APMJvmOptionsTests
-  method: testAPMAgentMetricsDisabledWhenOtelMetricsEnabled
-  issue: https://github.com/elastic/elasticsearch/issues/144357
-- class: org.elasticsearch.server.cli.APMJvmOptionsTests
-  method: testAPMAgentAlwaysAttached
-  issue: https://github.com/elastic/elasticsearch/issues/144358
 - class: org.elasticsearch.xpack.application.OpenAiServiceUpgradeIT
   method: testOpenAiEmbeddings {upgradedNodes=3}
   issue: https://github.com/elastic/elasticsearch/issues/144440

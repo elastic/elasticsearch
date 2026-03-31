@@ -370,6 +370,11 @@ public class EsqlCapabilities {
         LOAD_FLATTENED_FIELD,
 
         /**
+         * Support for using {@code JSON_EXTRACT} on a {@code flattened} field root.
+         */
+        JSON_EXTRACT_FLATTENED_FIELD(LOAD_FLATTENED_FIELD.isEnabled()),
+
+        /**
          * Optimization for ST_CENTROID changed some results in cartesian data. #108713
          */
         ST_CENTROID_AGG_OPTIMIZED,

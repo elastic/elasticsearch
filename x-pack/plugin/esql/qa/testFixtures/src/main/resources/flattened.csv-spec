@@ -1,6 +1,6 @@
 flattened root fields
 required_capability: load_flattened_field
-required_capability: load_flattened_field_root_values
+required_capability: json_extract_flattened_field
 
 FROM flattened_otel_logs
 | SORT @timestamp ASC
@@ -15,7 +15,7 @@ FROM flattened_otel_logs
 // ----------------------------------------------------
 flattened KEEP root field
 required_capability: load_flattened_field
-required_capability: load_flattened_field_root_values
+required_capability: json_extract_flattened_field
 
 FROM flattened_otel_logs
 | KEEP @timestamp, resource.attributes
@@ -33,7 +33,7 @@ FROM flattened_otel_logs
 flattened JSON_EXTRACT subfield
 required_capability: fn_json_extract
 required_capability: load_flattened_field
-required_capability: load_flattened_field_root_values
+required_capability: json_extract_flattened_field
 
 FROM flattened_otel_logs
 | EVAL host_name = JSON_EXTRACT(resource.attributes, "host.name")
@@ -58,7 +58,7 @@ FROM flattened_otel_logs
 flattened KEEP subfield
 required_capability: fn_json_extract
 required_capability: load_flattened_field
-required_capability: load_flattened_field_root_values
+required_capability: json_extract_flattened_field
 
 FROM flattened_otel_logs
 | EVAL `resource.attributes.host.name` = JSON_EXTRACT(resource.attributes, "host.name")
@@ -83,7 +83,7 @@ FROM flattened_otel_logs
 flattened DROP subfield
 required_capability: fn_json_extract
 required_capability: load_flattened_field
-required_capability: load_flattened_field_root_values
+required_capability: json_extract_flattened_field
 
 FROM flattened_otel_logs
 | EVAL `resource.attributes.host.name` = JSON_EXTRACT(resource.attributes, "host.name"), `resource.attributes.agent.type` = JSON_EXTRACT(resource.attributes, "agent.type")
@@ -109,7 +109,7 @@ FROM flattened_otel_logs
 flattened DROP subfield after KEEP
 required_capability: fn_json_extract
 required_capability: load_flattened_field
-required_capability: load_flattened_field_root_values
+required_capability: json_extract_flattened_field
 
 FROM flattened_otel_logs
 | EVAL `resource.attributes.host.name` = JSON_EXTRACT(resource.attributes, "host.name"), `resource.attributes.agent.type` = JSON_EXTRACT(resource.attributes, "agent.type")
@@ -135,7 +135,7 @@ FROM flattened_otel_logs
 flattened subfield with WHERE
 required_capability: fn_json_extract
 required_capability: load_flattened_field
-required_capability: load_flattened_field_root_values
+required_capability: json_extract_flattened_field
 
 FROM flattened_otel_logs
 | EVAL `resource.attributes.host.name` = JSON_EXTRACT(resource.attributes, "host.name")
@@ -152,7 +152,7 @@ FROM flattened_otel_logs
 flattened subfield with WHERE and KEEP *
 required_capability: fn_json_extract
 required_capability: load_flattened_field
-required_capability: load_flattened_field_root_values
+required_capability: json_extract_flattened_field
 
 FROM flattened_otel_logs
 | EVAL `resource.attributes.host.name` = JSON_EXTRACT(resource.attributes, "host.name")
@@ -170,7 +170,7 @@ FROM flattened_otel_logs
 flattened subfield with WHERE and KEEP specific subfields
 required_capability: fn_json_extract
 required_capability: load_flattened_field
-required_capability: load_flattened_field_root_values
+required_capability: json_extract_flattened_field
 
 FROM flattened_otel_logs
 | EVAL `resource.attributes.host.name` = JSON_EXTRACT(resource.attributes, "host.name")
@@ -188,7 +188,7 @@ FROM flattened_otel_logs
 flattened subfield with EVAL TO_UPPER
 required_capability: fn_json_extract
 required_capability: load_flattened_field
-required_capability: load_flattened_field_root_values
+required_capability: json_extract_flattened_field
 
 FROM flattened_otel_logs
 | EVAL upper_host = TO_UPPER(JSON_EXTRACT(resource.attributes, "host.name"))
@@ -213,7 +213,7 @@ FROM flattened_otel_logs
 flattened subfield with EVAL LENGTH
 required_capability: fn_json_extract
 required_capability: load_flattened_field
-required_capability: load_flattened_field_root_values
+required_capability: json_extract_flattened_field
 
 FROM flattened_otel_logs
 | EVAL host_length = LENGTH(JSON_EXTRACT(resource.attributes, "host.name"))
@@ -238,7 +238,7 @@ FROM flattened_otel_logs
 SORT on flattened subfield
 required_capability: fn_json_extract
 required_capability: load_flattened_field
-required_capability: load_flattened_field_root_values
+required_capability: json_extract_flattened_field
 
 FROM flattened_otel_logs
 | EVAL `resource.attributes.host.name` = JSON_EXTRACT(resource.attributes, "host.name")
@@ -263,7 +263,7 @@ FROM flattened_otel_logs
 RENAME flattened subfield
 required_capability: fn_json_extract
 required_capability: load_flattened_field
-required_capability: load_flattened_field_root_values
+required_capability: json_extract_flattened_field
 
 FROM flattened_otel_logs
 | EVAL `resource.attributes.host.name` = JSON_EXTRACT(resource.attributes, "host.name")
@@ -289,7 +289,7 @@ FROM flattened_otel_logs
 flattened subfield with STATS count
 required_capability: fn_json_extract
 required_capability: load_flattened_field
-required_capability: load_flattened_field_root_values
+required_capability: json_extract_flattened_field
 
 FROM flattened_otel_logs
 | EVAL `resource.attributes.agent.type` = JSON_EXTRACT(resource.attributes, "agent.type")
@@ -304,7 +304,7 @@ count(*):long | resource.attributes.agent.type:keyword
 flattened subfield with STATS count_distinct
 required_capability: fn_json_extract
 required_capability: load_flattened_field
-required_capability: load_flattened_field_root_values
+required_capability: json_extract_flattened_field
 
 FROM flattened_otel_logs
 | STATS count_distinct(JSON_EXTRACT(resource.attributes, "host.name"))
@@ -318,7 +318,7 @@ count_distinct(JSON_EXTRACT(resource.attributes, "host.name")):long
 flattened subfield with INLINE STATS
 required_capability: fn_json_extract
 required_capability: load_flattened_field
-required_capability: load_flattened_field_root_values
+required_capability: json_extract_flattened_field
 
 FROM flattened_otel_logs
 | EVAL `resource.attributes.host.name` = JSON_EXTRACT(resource.attributes, "host.name")
@@ -340,7 +340,7 @@ FROM flattened_otel_logs
 flattened JSON_EXTRACT array subfield returns JSON text
 required_capability: fn_json_extract
 required_capability: load_flattened_field
-required_capability: load_flattened_field_root_values
+required_capability: json_extract_flattened_field
 
 FROM flattened_otel_logs
 | EVAL ip_json = JSON_EXTRACT(resource.attributes, "host.ip")

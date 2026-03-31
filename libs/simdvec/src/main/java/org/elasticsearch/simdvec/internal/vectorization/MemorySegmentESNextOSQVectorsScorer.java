@@ -30,11 +30,12 @@ import java.nio.ByteOrder;
 
 import static org.apache.lucene.index.VectorSimilarityFunction.EUCLIDEAN;
 import static org.apache.lucene.index.VectorSimilarityFunction.MAXIMUM_INNER_PRODUCT;
+import static org.elasticsearch.simdvec.internal.vectorization.JdkFeatures.SUPPORTS_HEAP_SEGMENTS;
 
 /** Panamized scorer for quantized vectors stored as a {@link MemorySegment}. */
 public final class MemorySegmentESNextOSQVectorsScorer extends ESNextOSQVectorsScorer {
 
-    private static final boolean USE_NATIVE = MemorySegmentScorer.NATIVE_SUPPORTED && MemorySegmentScorer.SUPPORTS_HEAP_SEGMENTS;
+    private static final boolean USE_NATIVE = MemorySegmentScorer.NATIVE_SUPPORTED && SUPPORTS_HEAP_SEGMENTS;
 
     enum QuantEncoding {
         D1Q4,
@@ -236,7 +237,6 @@ public final class MemorySegmentESNextOSQVectorsScorer extends ESNextOSQVectorsS
         MSDibitToInt4ESNextOSQVectorsScorer, MSInt4SymmetricESNextOSQVectorsScorer, MSD7Q7ESNextOSQVectorsScorer {
 
         static final boolean NATIVE_SUPPORTED = NativeAccess.instance().getVectorSimilarityFunctions().isPresent();
-        static final boolean SUPPORTS_HEAP_SEGMENTS = Runtime.version().feature() >= 22;
 
         static final float ONE_BIT_SCALE = ESNextOSQVectorsScorer.BIT_SCALES[0];
         static final float TWO_BIT_SCALE = ESNextOSQVectorsScorer.BIT_SCALES[1];

@@ -12,6 +12,7 @@ import io.netty.buffer.Unpooled;
 import io.netty.handler.codec.compression.Snappy;
 
 import org.apache.http.HttpHeaders;
+import org.apache.http.client.utils.URIBuilder;
 import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.entity.ContentType;
 import org.elasticsearch.client.Request;
@@ -30,6 +31,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
@@ -133,6 +135,25 @@ public class PrometheusLabelValuesRestIT extends ESRestTestCase {
 
         assertThat(values, hasItem("filtered_job"));
         assertThat(values, not(hasItem("other_job")));
+    }
+
+    public void testGetWithMultipleMatchSelectorsReturnsCombinedValues() throws Exception {
+        writeMetric("multi_selector_metric_a", Map.of("job", "multi_job_a"));
+        writeMetric("multi_selector_metric_b", Map.of("job", "multi_job_b"));
+        writeMetric("multi_selector_metric_c", Map.of("job", "multi_job_c")); // must not appear in results
+
+        // Use URIBuilder to send two match[] selectors in a single request, working around the
+        // test client's single-value-per-key restriction on Request.addParameter.
+        Request request = new Request(
+            "GET",
+            new URIBuilder("/_prometheus/api/v1/label/job/values").addParameter("match[]", "multi_selector_metric_a")
+                .addParameter("match[]", "multi_selector_metric_b")
+                .build()
+                .toString()
+        );
+        List<String> values = labelValuesData(client().performRequest(request));
+
+        assertThat(values, containsInAnyOrder("multi_job_a", "multi_job_b"));
     }
 
     public void testGetValuesAreSorted() throws Exception {

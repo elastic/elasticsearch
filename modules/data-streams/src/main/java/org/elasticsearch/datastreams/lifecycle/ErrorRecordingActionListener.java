@@ -12,6 +12,7 @@ package org.elasticsearch.datastreams.lifecycle;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.dlm.DataStreamLifecycleErrorStore;
 
 import static org.apache.logging.log4j.LogManager.getLogger;
 

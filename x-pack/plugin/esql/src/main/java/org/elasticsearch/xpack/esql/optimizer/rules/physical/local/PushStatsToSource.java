@@ -187,12 +187,7 @@ public class PushStatsToSource extends PhysicalOptimizerRules.ParameterizedOptim
                 if (stat != null) {
                     NamedExpression aggForIntermediate = agg;
                     if (agg instanceof Alias as && as.child() instanceof CountApproximate ca) {
-                        aggForIntermediate = new Alias(
-                            as.source(),
-                            as.name(),
-                            new Count(ca.source(), ca.field(), ca.filter(), ca.window()),
-                            as.id()
-                        );
+                        aggForIntermediate = as.replaceChild(new Count(ca.source(), ca.field(), ca.filter(), ca.window()));
                     }
                     List<Attribute> intermediateAttributes = AbstractPhysicalOperationProviders.intermediateAttributes(
                         singletonList(aggForIntermediate),

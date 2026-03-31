@@ -157,7 +157,18 @@ public abstract class JdbcIntegrationTestCase extends ESRestTestCase {
         return (Integer) stats.get("open_contexts");
     }
 
-    static void assertNoSearchContexts() throws IOException {
+    protected static void assertNoSearchContexts() throws IOException {
+        try {
+            assertBusy(JdbcIntegrationTestCase::assertNoSearchContextsOnce);
+        } catch (Exception e) {
+            if (e instanceof IOException ioe) {
+                throw ioe;
+            }
+            throw new AssertionError("unexpected exception while checking search contexts", e);
+        }
+    }
+
+    private static void assertNoSearchContextsOnce() throws IOException {
         Map<String, Object> stats = searchStats();
         @SuppressWarnings("unchecked")
         Map<String, Object> indicesStats = (Map<String, Object>) stats.get("indices");

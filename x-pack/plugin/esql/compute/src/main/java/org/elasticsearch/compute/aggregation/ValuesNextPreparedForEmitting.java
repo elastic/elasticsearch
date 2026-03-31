@@ -71,8 +71,23 @@ public class ValuesNextPreparedForEmitting implements Releasable {
         this.max = selected.max();
     }
 
-    public int nextValuesEnd(int group, int nextValuesStart) {
-        return selectedCounts != null ? selectedCounts[group - min] : nextValuesStart;
+    public int nextValuesStart(int group) {
+        if (selectedCounts == null) {
+            // There aren't any multivalued results
+            return 0;
+        }
+        if (group == min) {
+            return 0;
+        }
+        return selectedCounts[group - min - 1];
+    }
+
+    public int nextValuesEnd(int group) {
+        if (selectedCounts == null) {
+            // There aren't any multivalued results
+            return 0;
+        }
+        return selectedCounts[group - min];
     }
 
     @Override

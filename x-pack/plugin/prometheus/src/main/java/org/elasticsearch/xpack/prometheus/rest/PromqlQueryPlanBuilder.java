@@ -77,7 +77,7 @@ class PromqlQueryPlanBuilder {
         );
 
         // TO_LONG converts the step datetime to epoch millis, avoiding the need to parse a date string in the response listener.
-        Alias stepAlias = new Alias(Source.EMPTY, PromqlCommand.STEP_COLUMN_NAME, new ToLong(Source.EMPTY, promqlCommand.stepAttribute()));
+        Alias stepAlias = new Alias(Source.EMPTY, promqlCommand.stepColumnName(), new ToLong(Source.EMPTY, promqlCommand.stepAttribute()));
         // Eval's mergeOutputAttributes drops step(datetime) and appends step_alias(long) at the end,
         // producing [value, ...dimensions, step(long)] — the order the response listener expects.
         Eval eval = new Eval(Source.EMPTY, promqlCommand, List.of(stepAlias));

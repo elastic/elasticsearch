@@ -219,6 +219,7 @@ public class IndexVersions {
     public static final IndexVersion TEXT_FIELDS_STORED_IN_IGNORED_SOURCE_FIX = def(9_058_0_00, Version.LUCENE_10_3_2);
     public static final IndexVersion DEFAULT_HNSW_EARLY_TERMINATION = def(9_059_0_00, Version.LUCENE_10_3_2);
     public static final IndexVersion PATTERN_TEXT_ARGS_IN_BINARY_DOC_VALUES = def(9_060_0_00, Version.LUCENE_10_3_2);
+    public static final IndexVersion DENSE_VECTOR_BFLOAT16_DEFAULT_INDEX_OPTIONS_BACKPORT = def(9_060_0_01, Version.LUCENE_10_3_2);
     public static final IndexVersion KEYWORD_FIELDS_KEEP_DUPLICATES_IN_BINARY_DOC_VALUES = def(9_061_0_00, Version.LUCENE_10_3_2);
     public static final IndexVersion STORE_FALLBACK_TEXT_FIELDS_IN_BINARY_DOC_VALUES = def(9_062_0_00, Version.LUCENE_10_3_2);
     public static final IndexVersion STORE_FALLBACK_MOT_FIELDS_IN_BINARY_DOC_VALUES = def(9_063_0_00, Version.LUCENE_10_3_2);
@@ -244,6 +245,8 @@ public class IndexVersions {
     public static final IndexVersion WRITE_TSID_PREFIX_PARTITION = def(9_083_0_00, Version.LUCENE_10_4_0);
     public static final IndexVersion SEMANTIC_TEXT_DEFAULTS_TO_JINA_V5 = def(9_084_0_00, Version.LUCENE_10_4_0);
     public static final IndexVersion TIME_SERIES_DISABLE_SEQUENCE_NUMBERS = def(9_085_0_00, Version.LUCENE_10_4_0);
+    public static final IndexVersion DENSE_VECTOR_BFLOAT16_DEFAULT_INDEX_OPTIONS = def(9_086_0_00, Version.LUCENE_10_4_0);
+
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _

@@ -18,6 +18,7 @@ import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.dlm.DataStreamLifecycleErrorStore;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.license.XPackLicenseState;
@@ -76,14 +77,21 @@ class DlmFrozenTransitionService implements ClusterStateListener, Closeable {
     private final int maxConcurrency;
     private final int maxQueueSize;
     private final long initialDelayMillis;
+    private final DataStreamLifecycleErrorStore errorStore;
 
     private final BiFunction<String, ProjectId, DlmFrozenTransitionRunnable> transitionRunnableFactory;
 
-    DlmFrozenTransitionService(ClusterService clusterService, Client client, XPackLicenseState licenseState) {
+    DlmFrozenTransitionService(
+        ClusterService clusterService,
+        Client client,
+        XPackLicenseState licenseState,
+        DataStreamLifecycleErrorStore errorStore
+    ) {
         this(
             clusterService,
             (index, pid) -> new DataStreamLifecycleConvertToFrozen(index, pid, client, clusterService, licenseState),
-            POLL_INTERVAL_SETTING.get(clusterService.getSettings()).millis()
+            POLL_INTERVAL_SETTING.get(clusterService.getSettings()).millis(),
+            errorStore
         );
     }
 
@@ -92,13 +100,14 @@ class DlmFrozenTransitionService implements ClusterStateListener, Closeable {
         ClusterService clusterService,
         BiFunction<String, ProjectId, DlmFrozenTransitionRunnable> transitionRunnableFactory
     ) {
-        this(clusterService, transitionRunnableFactory, 0);
+        this(clusterService, transitionRunnableFactory, 0, new DataStreamLifecycleErrorStore(System::currentTimeMillis));
     }
 
     private DlmFrozenTransitionService(
         ClusterService clusterService,
         BiFunction<String, ProjectId, DlmFrozenTransitionRunnable> transitionRunnableFactory,
-        long initialDelayMillis
+        long initialDelayMillis,
+        DataStreamLifecycleErrorStore errorStore
     ) {
         this.clusterService = clusterService;
         this.pollInterval = POLL_INTERVAL_SETTING.get(clusterService.getSettings());
@@ -106,6 +115,7 @@ class DlmFrozenTransitionService implements ClusterStateListener, Closeable {
         this.maxQueueSize = MAX_QUEUE_SIZE.get(clusterService.getSettings());
         this.transitionRunnableFactory = transitionRunnableFactory;
         this.initialDelayMillis = initialDelayMillis;
+        this.errorStore = errorStore;
     }
 
     /**
@@ -135,7 +145,12 @@ class DlmFrozenTransitionService implements ClusterStateListener, Closeable {
     private void startThreadPools() {
         synchronized (this) {
             if (closing.get() == false) {
-                transitionExecutor = new DlmFrozenTransitionExecutor(maxConcurrency, maxQueueSize, clusterService.getSettings());
+                transitionExecutor = new DlmFrozenTransitionExecutor(
+                    maxConcurrency,
+                    maxQueueSize,
+                    clusterService.getSettings(),
+                    errorStore
+                );
                 schedulerThreadExecutor = Executors.newSingleThreadScheduledExecutor(
                     EsExecutors.daemonThreadFactory(clusterService.getSettings(), "dlm-frozen-transition-scheduler")
                 );

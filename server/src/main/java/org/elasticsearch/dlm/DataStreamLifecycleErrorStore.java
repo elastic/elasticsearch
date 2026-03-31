@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.datastreams.lifecycle;
+package org.elasticsearch.dlm;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.Message;

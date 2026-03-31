@@ -7,9 +7,7 @@
 
 package org.elasticsearch.xpack.esql.parser;
 
-import org.elasticsearch.Build;
 import org.elasticsearch.common.lucene.BytesRefs;
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;

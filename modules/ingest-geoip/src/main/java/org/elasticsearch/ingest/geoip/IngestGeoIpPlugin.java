@@ -153,7 +153,8 @@ public class IngestGeoIpPlugin extends Plugin
                 GeoIpDownloader.GEOIP_DOWNLOADER,
                 geoIpDownloaderTaskExecutor::getTaskIdForProject,
                 GeoIpDownloaderTaskExecutor.ENABLED_SETTING,
-                GeoIpTaskParams::new
+                GeoIpTaskParams::new,
+                geoIpDownloaderTaskExecutor::deleteGeoIpDatabasesIndex
             );
         enterpriseGeoIpDownloaderTaskExecutor = new EnterpriseGeoIpDownloaderTaskExecutor(
             services.client(),

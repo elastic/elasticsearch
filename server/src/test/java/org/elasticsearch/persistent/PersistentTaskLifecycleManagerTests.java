@@ -33,7 +33,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.junit.After;
 import org.junit.Before;
-import org.mockito.stubbing.Answer;
 
 import java.io.IOException;
 import java.util.Set;
@@ -41,13 +40,14 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNotNull;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 public class PersistentTaskLifecycleManagerTests extends ESTestCase {
@@ -79,9 +79,18 @@ public class PersistentTaskLifecycleManagerTests extends ESTestCase {
     }
 
     public void testClusterTaskReconciliationNoInFlightRequests() {
-        // Each request completes immediately so inFlight should always be NONE between reconcile cycles.
-        doAnswer(completesImmediately(4)).when(persistentTasksService).sendClusterStartRequest(any(), any(), any(), any(), any());
-        doAnswer(completesImmediately(2)).when(persistentTasksService).sendClusterRemoveRequest(any(), any(), any());
+        final var startListener = new AtomicReference<ActionListener<?>>();
+        final var removeListener = new AtomicReference<ActionListener<?>>();
+        doAnswer(inv -> {
+            assertThat("unexpected duplicate in flight cluster task start request", startListener.get(), nullValue());
+            startListener.set(inv.getArgument(4));
+            return null;
+        }).when(persistentTasksService).sendClusterStartRequest(eq(TASK_NAME), eq(TASK_NAME), eq(TestParams.INSTANCE), isNotNull(), any());
+        doAnswer(inv -> {
+            assertThat("unexpected duplicate in flight cluster task remove request", removeListener.get(), nullValue());
+            removeListener.set(inv.getArgument(2));
+            return null;
+        }).when(persistentTasksService).sendClusterRemoveRequest(eq(TASK_NAME), isNotNull(), any());
 
         final var nodeSettings = Settings.EMPTY;
         final var clusterSettings = new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
@@ -94,9 +103,6 @@ public class PersistentTaskLifecycleManagerTests extends ESTestCase {
             final var manager = new PersistentTaskLifecycleManager(persistentTasksService, clusterService);
             manager.registerClusterTask(TASK_NAME, enabled::get, () -> TestParams.INSTANCE);
 
-            int expectedStartRequests = 0;
-            int expectedRemoveRequests = 0;
-
             final int cycles = randomIntBetween(5, 10);
             for (int i = 0; i < cycles; i++) {
                 final boolean taskExists = randomBoolean();
@@ -105,30 +111,38 @@ public class PersistentTaskLifecycleManagerTests extends ESTestCase {
                     enabled.set(randomBoolean());
                 }
                 setState(clusterService, state);
+
                 if (enabled.get() && taskExists == false) {
-                    expectedStartRequests++;
+                    setState(clusterService, stateWithClusterTask(clusterService.state()));
+                    assertThat("expected in flight cluster task start request", startListener.get(), notNullValue());
+                    startListener.getAndSet(null).onResponse(null);
                 }
                 if (enabled.get() == false && taskExists) {
-                    expectedRemoveRequests++;
+                    assertThat("expected in flight cluster task remove request", removeListener.get(), notNullValue());
+                    setState(clusterService, stateWithoutClusterTask(clusterService.state()));
+                    removeListener.getAndSet(null).onResponse(null);
                 }
+                assertThat("unexpected in flight cluster task start request", startListener.get(), nullValue());
+                assertThat("unexpected in flight cluster task remove request", removeListener.get(), nullValue());
             }
-
-            verify(persistentTasksService, times(expectedStartRequests)).sendClusterStartRequest(
-                eq(TASK_NAME),
-                eq(TASK_NAME),
-                eq(TestParams.INSTANCE),
-                isNotNull(),
-                any()
-            );
-            verify(persistentTasksService, times(expectedRemoveRequests)).sendClusterRemoveRequest(eq(TASK_NAME), isNotNull(), any());
             verify(persistentTasksService, never()).sendProjectStartRequest(any(), any(), any(), any(), any(), any());
             verify(persistentTasksService, never()).sendProjectRemoveRequest(any(), any(), any(), any());
         }
     }
 
     public void testSettingsCorrectlyPropagatedToClusterTaskReconciliation() {
-        doAnswer(completesImmediately(4)).when(persistentTasksService).sendClusterStartRequest(any(), any(), any(), any(), any());
-        doAnswer(completesImmediately(2)).when(persistentTasksService).sendClusterRemoveRequest(any(), any(), any());
+        final var startListener = new AtomicReference<ActionListener<?>>();
+        final var removeListener = new AtomicReference<ActionListener<?>>();
+        doAnswer(inv -> {
+            assertThat("unexpected duplicate in flight cluster task start request", startListener.get(), nullValue());
+            startListener.set(inv.getArgument(4));
+            return null;
+        }).when(persistentTasksService).sendClusterStartRequest(eq(TASK_NAME), eq(TASK_NAME), eq(TestParams.INSTANCE), isNotNull(), any());
+        doAnswer(inv -> {
+            assertThat("unexpected duplicate in flight cluster task remove request", removeListener.get(), nullValue());
+            removeListener.set(inv.getArgument(2));
+            return null;
+        }).when(persistentTasksService).sendClusterRemoveRequest(eq(TASK_NAME), isNotNull(), any());
 
         final var nodeSettings = Settings.builder().put(TASK_ENABLED_SETTING.getKey(), false).build();
         final var allSettings = Sets.union(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS, Set.of(TASK_ENABLED_SETTING));
@@ -139,32 +153,31 @@ public class PersistentTaskLifecycleManagerTests extends ESTestCase {
             manager.registerClusterTask(TASK_NAME, TASK_ENABLED_SETTING, () -> TestParams.INSTANCE);
 
             setState(clusterService, masterState());
-            verify(persistentTasksService, never()).sendClusterStartRequest(any(), any(), any(), any(), any());
-            verify(persistentTasksService, never()).sendClusterRemoveRequest(any(), any(), any());
+            assertThat("unexpected in flight cluster task start request", startListener.get(), nullValue());
+            assertThat("unexpected in flight cluster task remove request", removeListener.get(), nullValue());
 
             setState(clusterService, stateWithPersistentSetting(masterState(), TASK_ENABLED_SETTING.getKey(), true));
-            verify(persistentTasksService, times(1)).sendClusterStartRequest(
-                eq(TASK_NAME),
-                eq(TASK_NAME),
-                eq(TestParams.INSTANCE),
-                isNotNull(),
-                any()
-            );
+            assertThat("expected in flight cluster task start request", startListener.get(), notNullValue());
+            assertThat("unexpected in flight cluster task remove request", removeListener.get(), nullValue());
+            setState(clusterService, stateWithClusterTask(clusterService.state()));
+            startListener.getAndSet(null).onResponse(null);
 
             setState(clusterService, stateWithPersistentSetting(stateWithClusterTask(masterState()), TASK_ENABLED_SETTING.getKey(), false));
-            verify(persistentTasksService, times(1)).sendClusterRemoveRequest(eq(TASK_NAME), isNotNull(), any());
+            assertThat("expected in flight cluster task remove request", removeListener.get(), notNullValue());
+            assertThat("unexpected in flight cluster task start request", startListener.get(), nullValue());
+            removeListener.getAndSet(null).onResponse(null);
         }
     }
 
     public void testClusterTaskReconciliationDeduplicatesInFlightRequests() {
         final var listener = new AtomicReference<ActionListener<?>>();
         doAnswer(inv -> {
-            assert listener.get() == null : "unexpected duplicate in flight responses";
+            assertThat("unexpected duplicate in flight cluster task start request", listener.get(), nullValue());
             listener.set(inv.getArgument(4));
             return null;
         }).when(persistentTasksService).sendClusterStartRequest(any(), any(), any(), any(), any());
         doAnswer(inv -> {
-            assert listener.get() == null : "unexpected duplicate in flight responses";
+            assertThat("unexpected duplicate in flight cluster task remove request", listener.get(), nullValue());
             listener.set(inv.getArgument(2));
             return null;
         }).when(persistentTasksService).sendClusterRemoveRequest(any(), any(), any());
@@ -177,64 +190,74 @@ public class PersistentTaskLifecycleManagerTests extends ESTestCase {
             final var manager = new PersistentTaskLifecycleManager(persistentTasksService, clusterService);
             manager.registerClusterTask(TASK_NAME, enabled::get, () -> TestParams.INSTANCE);
 
-            int expectedStartRequests = 0;
-            int expectedRemoveRequests = 0;
-
             for (int cycle = 0; cycle < 10; cycle++) {
                 final boolean sendStart = randomBoolean();
                 enabled.set(sendStart);
-                final var state = sendStart ? masterState() : stateWithClusterTask(masterState());
-                setState(clusterService, state); // triggers the first request
+                setState(clusterService, sendStart ? masterState() : stateWithClusterTask(masterState()));
+                assertThat("expected in flight cluster task start/stop request", listener.get(), notNullValue());
 
-                if (sendStart) expectedStartRequests++;
-                else expectedRemoveRequests++;
-
-                // A request is still in flight -> no new requests should be sent.
+                // A request is still in flight -> no new requests should be sent. The doAnswer guard ensures this.
                 for (int j = 0; j < 10; j++) {
                     enabled.set(randomBoolean());
                     setState(clusterService, randomBoolean() ? masterState() : stateWithClusterTask(masterState()));
                 }
 
-                verify(persistentTasksService, times(expectedStartRequests)).sendClusterStartRequest(any(), any(), any(), any(), any());
-                verify(persistentTasksService, times(expectedRemoveRequests)).sendClusterRemoveRequest(any(), any(), any());
-
                 final boolean postCompletionEnabled = randomBoolean();
                 enabled.set(postCompletionEnabled);
-                listener.getAndSet(null).onResponse(null); // clears inFlight
+                setState(clusterService, sendStart ? stateWithClusterTask(masterState()) : masterState());
+                listener.getAndSet(null).onResponse(null);
 
                 if (postCompletionEnabled != sendStart) {
                     // The opposite request should have been sent immediately on completion.
-                    if (sendStart) expectedRemoveRequests++;
-                    else expectedStartRequests++;
-                    verify(persistentTasksService, times(expectedStartRequests)).sendClusterStartRequest(any(), any(), any(), any(), any());
-                    verify(persistentTasksService, times(expectedRemoveRequests)).sendClusterRemoveRequest(any(), any(), any());
+                    assertThat("expected opposite cluster task in flight request", listener.get(), notNullValue());
+                    setState(clusterService, sendStart ? masterState() : stateWithClusterTask(masterState()));
                     listener.getAndSet(null).onResponse(null);
+                } else {
+                    assertThat("unexpected in flight cluster task request after completion", listener.get(), nullValue());
                 }
             }
         }
     }
 
     public void testProjectTaskReconciliationNoInFlightRequests() {
-        // Each request completes immediately so inFlight is always NONE between reconcile cycles.
-        doAnswer(completesImmediately(5)).when(persistentTasksService).sendProjectStartRequest(any(), any(), any(), any(), any(), any());
-        doAnswer(completesImmediately(3)).when(persistentTasksService).sendProjectRemoveRequest(any(), any(), any(), any());
-
         final var projectId1 = randomUniqueProjectId();
         final var projectId2 = randomValueOtherThan(projectId1, ESTestCase::randomUniqueProjectId);
         final var enabled = new AtomicBoolean(randomBoolean());
-        final var baseState = masterStateWithProjects(Set.of(projectId1, projectId2));
         final var nodeSettings = Settings.EMPTY;
         final var clusterSettings = new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
 
-        try (var clusterService = ClusterServiceUtils.createClusterService(threadPool, LOCAL_NODE, nodeSettings, clusterSettings)) {
-            setState(clusterService, baseState);
-            final var manager = new PersistentTaskLifecycleManager(persistentTasksService, clusterService);
-            manager.registerProjectTask(TASK_NAME, p -> TASK_NAME, enabled::get, () -> TestParams.INSTANCE);
+        final var startListener1 = new AtomicReference<ActionListener<?>>();
+        final var startListener2 = new AtomicReference<ActionListener<?>>();
+        final var removeListener1 = new AtomicReference<ActionListener<?>>();
+        final var removeListener2 = new AtomicReference<ActionListener<?>>();
 
-            int expectedStartRequests1 = 0;
-            int expectedRemoveRequests1 = 0;
-            int expectedStartRequests2 = 0;
-            int expectedRemoveRequests2 = 0;
+        doAnswer(inv -> {
+            assertThat("unexpected duplicate in flight project1 task start request", startListener1.get(), nullValue());
+            startListener1.set(inv.getArgument(5));
+            return null;
+        }).when(persistentTasksService)
+            .sendProjectStartRequest(eq(projectId1), eq(TASK_NAME), eq(TASK_NAME), eq(TestParams.INSTANCE), isNotNull(), any());
+        doAnswer(inv -> {
+            assertThat("unexpected duplicate in flight project2 task start request", startListener2.get(), nullValue());
+            startListener2.set(inv.getArgument(5));
+            return null;
+        }).when(persistentTasksService)
+            .sendProjectStartRequest(eq(projectId2), eq(TASK_NAME), eq(TASK_NAME), eq(TestParams.INSTANCE), isNotNull(), any());
+        doAnswer(inv -> {
+            assertThat("unexpected duplicate in flight project1 task remove request", removeListener1.get(), nullValue());
+            removeListener1.set(inv.getArgument(3));
+            return null;
+        }).when(persistentTasksService).sendProjectRemoveRequest(eq(projectId1), eq(TASK_NAME), isNotNull(), any());
+        doAnswer(inv -> {
+            assertThat("unexpected duplicate in flight project2 task remove request", removeListener2.get(), nullValue());
+            removeListener2.set(inv.getArgument(3));
+            return null;
+        }).when(persistentTasksService).sendProjectRemoveRequest(eq(projectId2), eq(TASK_NAME), isNotNull(), any());
+
+        try (var clusterService = ClusterServiceUtils.createClusterService(threadPool, LOCAL_NODE, nodeSettings, clusterSettings)) {
+            setState(clusterService, masterStateWithProjects(Set.of(projectId1, projectId2)));
+            final var manager = new PersistentTaskLifecycleManager(persistentTasksService, clusterService);
+            manager.registerProjectTask(TASK_NAME, p -> TASK_NAME, enabled::get, () -> TestParams.INSTANCE, p -> {});
 
             final int cycles = randomIntBetween(5, 10);
             for (int i = 0; i < cycles; i++) {
@@ -244,53 +267,56 @@ public class PersistentTaskLifecycleManagerTests extends ESTestCase {
                     enabled.set(randomBoolean());
                 }
                 var state = masterStateWithProjects(Set.of(projectId1, projectId2));
-                state = taskExists1 ? stateWithProjectTask(state, projectId1, TASK_NAME) : state;
-                state = taskExists2 ? stateWithProjectTask(state, projectId2, TASK_NAME) : state;
+                if (taskExists1) state = stateWithProjectTask(state, projectId1, TASK_NAME);
+                if (taskExists2) state = stateWithProjectTask(state, projectId2, TASK_NAME);
                 setState(clusterService, state);
-                if (enabled.get() && taskExists1 == false) expectedStartRequests1++;
-                if (enabled.get() == false && taskExists1) expectedRemoveRequests1++;
-                if (enabled.get() && taskExists2 == false) expectedStartRequests2++;
-                if (enabled.get() == false && taskExists2) expectedRemoveRequests2++;
+
+                if (enabled.get() && taskExists1 == false) {
+                    assertThat("expected in flight start request for project1", startListener1.get(), notNullValue());
+                    setState(clusterService, stateWithProjectTask(clusterService.state(), projectId1, TASK_NAME));
+                    startListener1.getAndSet(null).onResponse(null);
+                } else if (enabled.get() == false && taskExists1) {
+                    assertThat("expected in flight remove request for project1", removeListener1.get(), notNullValue());
+                    setState(clusterService, stateWithoutProjectTask(clusterService.state(), projectId1, TASK_NAME));
+                    removeListener1.getAndSet(null).onResponse(null);
+                }
+                assertThat("unexpected in flight start request for project1", startListener1.get(), nullValue());
+                assertThat("unexpected in flight remove request for project1", removeListener1.get(), nullValue());
+
+                if (enabled.get() && taskExists2 == false) {
+                    assertThat("expected in flight start request for project2", startListener2.get(), notNullValue());
+                    setState(clusterService, stateWithProjectTask(clusterService.state(), projectId2, TASK_NAME));
+                    startListener2.getAndSet(null).onResponse(null);
+                } else if (enabled.get() == false && taskExists2) {
+                    assertThat("expected in flight remove request for project2", removeListener2.get(), notNullValue());
+                    setState(clusterService, stateWithoutProjectTask(clusterService.state(), projectId2, TASK_NAME));
+                    removeListener2.getAndSet(null).onResponse(null);
+                }
+                assertThat("unexpected in flight start request for project2", startListener2.get(), nullValue());
+                assertThat("unexpected in flight remove request for project2", removeListener2.get(), nullValue());
             }
 
-            verify(persistentTasksService, times(expectedStartRequests1)).sendProjectStartRequest(
-                eq(projectId1),
-                eq(TASK_NAME),
-                eq(TASK_NAME),
-                eq(TestParams.INSTANCE),
-                isNotNull(),
-                any()
-            );
-            verify(persistentTasksService, times(expectedRemoveRequests1)).sendProjectRemoveRequest(
-                eq(projectId1),
-                eq(TASK_NAME),
-                isNotNull(),
-                any()
-            );
-            verify(persistentTasksService, times(expectedStartRequests2)).sendProjectStartRequest(
-                eq(projectId2),
-                eq(TASK_NAME),
-                eq(TASK_NAME),
-                eq(TestParams.INSTANCE),
-                isNotNull(),
-                any()
-            );
-            verify(persistentTasksService, times(expectedRemoveRequests2)).sendProjectRemoveRequest(
-                eq(projectId2),
-                eq(TASK_NAME),
-                isNotNull(),
-                any()
-            );
             verify(persistentTasksService, never()).sendClusterStartRequest(any(), any(), any(), any(), any());
             verify(persistentTasksService, never()).sendClusterRemoveRequest(any(), any(), any());
         }
     }
 
     public void testSettingsCorrectlyPropagatedToProjectTaskReconciliation() {
-        doAnswer(completesImmediately(5)).when(persistentTasksService).sendProjectStartRequest(any(), any(), any(), any(), any(), any());
-        doAnswer(completesImmediately(3)).when(persistentTasksService).sendProjectRemoveRequest(any(), any(), any(), any());
-
         final var projectId = randomUniqueProjectId();
+        final var startListener = new AtomicReference<ActionListener<?>>();
+        final var removeListener = new AtomicReference<ActionListener<?>>();
+        doAnswer(inv -> {
+            assertThat("unexpected duplicate in flight project task start request", startListener.get(), nullValue());
+            startListener.set(inv.getArgument(5));
+            return null;
+        }).when(persistentTasksService)
+            .sendProjectStartRequest(eq(projectId), eq(TASK_NAME), eq(TASK_NAME), eq(TestParams.INSTANCE), isNotNull(), any());
+        doAnswer(inv -> {
+            assertThat("unexpected duplicate in flight project task remove request", removeListener.get(), nullValue());
+            removeListener.set(inv.getArgument(3));
+            return null;
+        }).when(persistentTasksService).sendProjectRemoveRequest(eq(projectId), eq(TASK_NAME), isNotNull(), any());
+
         final var nodeSettings = Settings.builder().put(TASK_ENABLED_SETTING.getKey(), true).build();
         final var allSettings = Sets.union(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS, Set.of(TASK_ENABLED_SETTING));
         final var clusterSettings = new ClusterSettings(nodeSettings, allSettings);
@@ -301,18 +327,13 @@ public class PersistentTaskLifecycleManagerTests extends ESTestCase {
             manager.registerProjectTask(TASK_NAME, p -> TASK_NAME, TASK_ENABLED_SETTING, () -> TestParams.INSTANCE);
 
             setState(clusterService, masterState());
-            verify(persistentTasksService, never()).sendProjectStartRequest(eq(projectId), any(), any(), any(), any(), any());
-            verify(persistentTasksService, never()).sendProjectRemoveRequest(eq(projectId), any(), any(), any());
+            assertThat("unexpected in flight project task start request", startListener.get(), nullValue());
+            assertThat("unexpected in flight project task remove request", removeListener.get(), nullValue());
 
             setState(clusterService, stateWithProject);
-            verify(persistentTasksService, times(1)).sendProjectStartRequest(
-                eq(projectId),
-                eq(TASK_NAME),
-                eq(TASK_NAME),
-                eq(TestParams.INSTANCE),
-                isNotNull(),
-                any()
-            );
+            assertThat("expected in flight project task start request", startListener.get(), notNullValue());
+            setState(clusterService, stateWithProjectTask(clusterService.state(), projectId, TASK_NAME));
+            startListener.getAndSet(null).onResponse(null);
 
             setState(
                 clusterService,
@@ -322,7 +343,8 @@ public class PersistentTaskLifecycleManagerTests extends ESTestCase {
                     false
                 )
             );
-            verify(persistentTasksService, times(1)).sendProjectRemoveRequest(eq(projectId), eq(TASK_NAME), isNotNull(), any());
+            assertThat("expected in flight project task remove request", removeListener.get(), notNullValue());
+            removeListener.getAndSet(null).onResponse(null);
         }
     }
 
@@ -330,12 +352,12 @@ public class PersistentTaskLifecycleManagerTests extends ESTestCase {
         final var projectId = randomUniqueProjectId();
         final var listener = new AtomicReference<ActionListener<?>>();
         doAnswer(inv -> {
-            assert listener.get() == null : "unexpected duplicate in flight responses";
+            assertThat("unexpected duplicate in flight project task start request", listener.get(), nullValue());
             listener.set(inv.getArgument(5));
             return null;
         }).when(persistentTasksService).sendProjectStartRequest(any(), any(), any(), any(), any(), any());
         doAnswer(inv -> {
-            assert listener.get() == null : "unexpected duplicate in flight responses";
+            assertThat("unexpected duplicate in flight project task remove request", listener.get(), nullValue());
             listener.set(inv.getArgument(3));
             return null;
         }).when(persistentTasksService).sendProjectRemoveRequest(any(), any(), any(), any());
@@ -346,62 +368,99 @@ public class PersistentTaskLifecycleManagerTests extends ESTestCase {
 
         try (var clusterService = ClusterServiceUtils.createClusterService(threadPool, LOCAL_NODE, nodeSettings, clusterSettings)) {
             final var manager = new PersistentTaskLifecycleManager(persistentTasksService, clusterService);
-            manager.registerProjectTask(TASK_NAME, p -> TASK_NAME, enabled::get, () -> TestParams.INSTANCE);
-
-            int expectedStartRequests = 0;
-            int expectedRemoveRequests = 0;
+            manager.registerProjectTask(TASK_NAME, p -> TASK_NAME, enabled::get, () -> TestParams.INSTANCE, p -> {});
 
             for (int cycle = 0; cycle < 10; cycle++) {
                 final boolean sendStart = randomBoolean();
                 enabled.set(sendStart);
                 final var initialState = masterStateWithProjects(Set.of(projectId));
                 setState(clusterService, sendStart ? initialState : stateWithProjectTask(initialState, projectId, TASK_NAME));
+                assertThat("expected in flight request", listener.get(), notNullValue());
 
-                if (sendStart) expectedStartRequests++;
-                else expectedRemoveRequests++;
-
-                // A request is still in flight -> no new requests should be sent.
+                // A request is still in flight -> no new requests should be sent. The doAnswer guard ensures this.
                 for (int j = 0; j < 10; j++) {
                     enabled.set(randomBoolean());
                     final var newState = masterStateWithProjects(Set.of(projectId));
                     setState(clusterService, randomBoolean() ? newState : stateWithProjectTask(newState, projectId, TASK_NAME));
                 }
+                assertThat("no new project request should have been sent while one was in flight", listener.get(), notNullValue());
 
-                verify(persistentTasksService, times(expectedStartRequests)).sendProjectStartRequest(
-                    eq(projectId),
-                    any(),
-                    any(),
-                    any(),
-                    any(),
-                    any()
-                );
-                verify(persistentTasksService, times(expectedRemoveRequests)).sendProjectRemoveRequest(eq(projectId), any(), any(), any());
+                enabled.set(randomBoolean());
+                final var baseProjectState = masterStateWithProjects(Set.of(projectId));
+                setState(clusterService, sendStart ? stateWithProjectTask(baseProjectState, projectId, TASK_NAME) : baseProjectState);
+                listener.getAndSet(null).onResponse(null);
 
-                final boolean postCompletionEnabled = randomBoolean();
-                enabled.set(postCompletionEnabled);
-                listener.getAndSet(null).onResponse(null); // clears inFlight
-
-                if (postCompletionEnabled != sendStart) {
+                if (enabled.get() != sendStart) {
                     // The opposite request should have been sent immediately on completion.
-                    if (sendStart) expectedRemoveRequests++;
-                    else expectedStartRequests++;
-                    verify(persistentTasksService, times(expectedStartRequests)).sendProjectStartRequest(
-                        eq(projectId),
-                        any(),
-                        any(),
-                        any(),
-                        any(),
-                        any()
-                    );
-                    verify(persistentTasksService, times(expectedRemoveRequests)).sendProjectRemoveRequest(
-                        eq(projectId),
-                        any(),
-                        any(),
-                        any()
-                    );
+                    assertThat("expected opposite project task in flight request", listener.get(), notNullValue());
+                    setState(clusterService, sendStart ? baseProjectState : stateWithProjectTask(baseProjectState, projectId, TASK_NAME));
                     listener.getAndSet(null).onResponse(null);
+                } else {
+                    assertThat("unexpected in flight project task request after completion", listener.get(), nullValue());
                 }
             }
+        }
+    }
+
+    public void testClusterTaskStartStopRetriesOnFailure() {
+        final var listener = new AtomicReference<ActionListener<?>>();
+        doAnswer(inv -> {
+            assertThat("unexpected duplicate in flight cluster task request", listener.get(), nullValue());
+            listener.set(inv.getArgument(4));
+            return null;
+        }).when(persistentTasksService).sendClusterStartRequest(any(), any(), any(), any(), any());
+        doAnswer(inv -> {
+            assertThat("unexpected duplicate in flight cluster task request", listener.get(), nullValue());
+            listener.set(inv.getArgument(2));
+            return null;
+        }).when(persistentTasksService).sendClusterRemoveRequest(any(), any(), any());
+
+        final var enabled = new AtomicBoolean(randomBoolean());
+        final var nodeSettings = Settings.EMPTY;
+        final var clusterSettings = new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+
+        try (var clusterService = ClusterServiceUtils.createClusterService(threadPool, LOCAL_NODE, nodeSettings, clusterSettings)) {
+            final var manager = new PersistentTaskLifecycleManager(persistentTasksService, clusterService);
+            manager.registerClusterTask(TASK_NAME, enabled::get, () -> TestParams.INSTANCE);
+
+            setState(clusterService, enabled.get() ? masterState() : stateWithClusterTask(masterState()));
+            assertThat("expected in flight cluster task request", listener.get(), notNullValue());
+            listener.getAndSet(null).onFailure(new RuntimeException("transient"));
+            assertThat("expected retry cluster task request after failure", listener.get(), notNullValue());
+            setState(clusterService, enabled.get() ? stateWithClusterTask(masterState()) : masterState());
+            listener.getAndSet(null).onResponse(null);
+        }
+    }
+
+    public void testProjectTaskStartStopRetriesOnFailure() {
+        final var projectId = randomUniqueProjectId();
+        final var listener = new AtomicReference<ActionListener<?>>();
+        doAnswer(inv -> {
+            assertThat("unexpected duplicate in flight project task request", listener.get(), nullValue());
+            listener.set(inv.getArgument(5));
+            return null;
+        }).when(persistentTasksService).sendProjectStartRequest(any(), any(), any(), any(), any(), any());
+        doAnswer(inv -> {
+            assertThat("unexpected duplicate in flight project task request", listener.get(), nullValue());
+            listener.set(inv.getArgument(3));
+            return null;
+        }).when(persistentTasksService).sendProjectRemoveRequest(any(), any(), any(), any());
+
+        final var enabled = new AtomicBoolean(randomBoolean());
+        final var nodeSettings = Settings.EMPTY;
+        final var clusterSettings = new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+
+        try (var clusterService = ClusterServiceUtils.createClusterService(threadPool, LOCAL_NODE, nodeSettings, clusterSettings)) {
+            final var manager = new PersistentTaskLifecycleManager(persistentTasksService, clusterService);
+            manager.registerProjectTask(TASK_NAME, p -> TASK_NAME, enabled::get, () -> TestParams.INSTANCE, p -> {});
+
+            final var baseState = masterStateWithProjects(Set.of(projectId));
+            setState(clusterService, enabled.get() ? baseState : stateWithProjectTask(baseState, projectId, TASK_NAME));
+            assertThat("expected in flight project task request", listener.get(), notNullValue());
+            listener.getAndSet(null).onFailure(new RuntimeException("transient"));
+            assertThat("expected retry project task request after failure", listener.get(), notNullValue());
+            setState(clusterService, enabled.get() ? stateWithProjectTask(baseState, projectId, TASK_NAME) : baseState);
+            listener.getAndSet(null).onResponse(null);
         }
     }
 
@@ -411,8 +470,12 @@ public class PersistentTaskLifecycleManagerTests extends ESTestCase {
             listener.set(inv.getArgument(4));
             return null;
         }).when(persistentTasksService).sendClusterStartRequest(any(), any(), any(), any(), any());
+        doAnswer(inv -> {
+            listener.set(inv.getArgument(2));
+            return null;
+        }).when(persistentTasksService).sendClusterRemoveRequest(any(), any(), any());
 
-        final var enabled = new AtomicBoolean(true);
+        final var enabled = new AtomicBoolean(randomBoolean());
         final var nodeSettings = Settings.EMPTY;
         final var clusterSettings = new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
 
@@ -420,13 +483,12 @@ public class PersistentTaskLifecycleManagerTests extends ESTestCase {
             final var manager = new PersistentTaskLifecycleManager(persistentTasksService, clusterService);
             manager.registerClusterTask(TASK_NAME, enabled::get, () -> TestParams.INSTANCE);
 
-            setState(clusterService, masterState());
-            verify(persistentTasksService, times(1)).sendClusterStartRequest(any(), any(), any(), any(), any());
+            setState(clusterService, enabled.get() ? masterState() : stateWithClusterTask(masterState()));
+            assertThat("expected in flight cluster task request", listener.get(), notNullValue());
 
             listener.getAndSet(null).onFailure(new NodeClosedException(LOCAL_NODE));
 
-            verify(persistentTasksService, times(1)).sendClusterStartRequest(any(), any(), any(), any(), any());
-            verify(persistentTasksService, never()).sendClusterRemoveRequest(any(), any(), any());
+            assertThat("unexpected retry cluster task request after NodeClosedException", listener.get(), nullValue());
         }
     }
 
@@ -437,22 +499,52 @@ public class PersistentTaskLifecycleManagerTests extends ESTestCase {
             listener.set(inv.getArgument(5));
             return null;
         }).when(persistentTasksService).sendProjectStartRequest(any(), any(), any(), any(), any(), any());
+        doAnswer(inv -> {
+            listener.set(inv.getArgument(3));
+            return null;
+        }).when(persistentTasksService).sendProjectRemoveRequest(any(), any(), any(), any());
 
-        final var enabled = new AtomicBoolean(true);
+        final var enabled = new AtomicBoolean(randomBoolean());
         final var nodeSettings = Settings.EMPTY;
         final var clusterSettings = new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
 
         try (var clusterService = ClusterServiceUtils.createClusterService(threadPool, LOCAL_NODE, nodeSettings, clusterSettings)) {
             final var manager = new PersistentTaskLifecycleManager(persistentTasksService, clusterService);
-            manager.registerProjectTask(TASK_NAME, p -> TASK_NAME, enabled::get, () -> TestParams.INSTANCE);
+            manager.registerProjectTask(TASK_NAME, p -> TASK_NAME, enabled::get, () -> TestParams.INSTANCE, p -> {});
 
-            setState(clusterService, masterStateWithProjects(Set.of(projectId)));
-            verify(persistentTasksService, times(1)).sendProjectStartRequest(any(), any(), any(), any(), any(), any());
+            final var baseState = masterStateWithProjects(Set.of(projectId));
+            setState(clusterService, enabled.get() ? baseState : stateWithProjectTask(baseState, projectId, TASK_NAME));
+            assertThat("expected in flight project task request", listener.get(), notNullValue());
 
             listener.getAndSet(null).onFailure(new NodeClosedException(LOCAL_NODE));
 
-            verify(persistentTasksService, times(1)).sendProjectStartRequest(any(), any(), any(), any(), any(), any());
-            verify(persistentTasksService, never()).sendProjectRemoveRequest(any(), any(), any(), any());
+            assertThat("unexpected retry project task request after NodeClosedException", listener.get(), nullValue());
+        }
+    }
+
+    public void testProjectTaskOnRemoveCallbackIsInvoked() {
+        final var projectId = randomUniqueProjectId();
+        final var removeListener = new AtomicReference<ActionListener<?>>();
+        doAnswer(inv -> {
+            removeListener.set(inv.getArgument(3));
+            return null;
+        }).when(persistentTasksService).sendProjectRemoveRequest(any(), any(), any(), any());
+
+        final var onRemove = new AtomicReference<ProjectId>();
+        final var enabled = new AtomicBoolean(false);
+        final var nodeSettings = Settings.EMPTY;
+        final var clusterSettings = new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+
+        try (var clusterService = ClusterServiceUtils.createClusterService(threadPool, LOCAL_NODE, nodeSettings, clusterSettings)) {
+            final var manager = new PersistentTaskLifecycleManager(persistentTasksService, clusterService);
+            manager.registerProjectTask(TASK_NAME, p -> TASK_NAME, enabled::get, () -> TestParams.INSTANCE, onRemove::set);
+
+            setState(clusterService, stateWithProjectTask(masterStateWithProjects(Set.of(projectId)), projectId, TASK_NAME));
+            assertThat("expected in flight project task remove request", removeListener.get(), notNullValue());
+            assertThat("onRemove should not be called before request completes", onRemove.get(), nullValue());
+
+            removeListener.getAndSet(null).onResponse(null);
+            assertThat("onRemove should be called after successful remove", onRemove.get(), notNullValue());
         }
     }
 
@@ -465,7 +557,13 @@ public class PersistentTaskLifecycleManagerTests extends ESTestCase {
         try (var clusterService = ClusterServiceUtils.createClusterService(threadPool, LOCAL_NODE, nodeSettings, clusterSettings)) {
             final var manager = new PersistentTaskLifecycleManager(persistentTasksService, clusterService);
             if (projectScoped) {
-                manager.registerProjectTask(TASK_NAME, projectId -> TASK_NAME, ESTestCase::randomBoolean, () -> TestParams.INSTANCE);
+                manager.registerProjectTask(
+                    TASK_NAME,
+                    projectId -> TASK_NAME,
+                    ESTestCase::randomBoolean,
+                    () -> TestParams.INSTANCE,
+                    p -> {}
+                );
             } else {
                 manager.registerClusterTask(TASK_NAME, ESTestCase::randomBoolean, () -> TestParams.INSTANCE);
             }
@@ -481,14 +579,6 @@ public class PersistentTaskLifecycleManagerTests extends ESTestCase {
             verify(persistentTasksService, never()).sendProjectStartRequest(any(), any(), any(), any(), any(), any());
             verify(persistentTasksService, never()).sendProjectRemoveRequest(any(), any(), any(), any());
         }
-    }
-
-    @SuppressWarnings("unchecked")
-    private static Answer<Void> completesImmediately(int listenerArgIndex) {
-        return inv -> {
-            ((ActionListener<Object>) inv.getArgument(listenerArgIndex)).onResponse(null);
-            return null;
-        };
     }
 
     private static ClusterState stateWithPersistentSetting(ClusterState state, String key, boolean value) {
@@ -543,6 +633,22 @@ public class PersistentTaskLifecycleManagerTests extends ESTestCase {
         final var projectMetadata = ProjectMetadata.builder(clusterState.metadata().getProject(projectId))
             .putCustom(PersistentTasksCustomMetadata.TYPE, tasks);
         return ClusterState.builder(clusterState).metadata(Metadata.builder(clusterState.metadata()).put(projectMetadata)).build();
+    }
+
+    private static ClusterState stateWithoutClusterTask(ClusterState state) {
+        final var metadata = Metadata.builder(state.metadata()).removeCustom(ClusterPersistentTasksCustomMetadata.TYPE);
+        return ClusterState.builder(state).metadata(metadata).build();
+    }
+
+    private static ClusterState stateWithoutProjectTask(ClusterState state, ProjectId projectId, String taskId) {
+        final var project = state.metadata().getProject(projectId);
+        final var existingTasks = (PersistentTasksCustomMetadata) project.custom(PersistentTasksCustomMetadata.TYPE);
+        if (existingTasks == null) {
+            return state;
+        }
+        final var tasks = PersistentTasksCustomMetadata.builder(existingTasks).removeTask(taskId).build();
+        final var projectMetadata = ProjectMetadata.builder(project).putCustom(PersistentTasksCustomMetadata.TYPE, tasks);
+        return ClusterState.builder(state).metadata(Metadata.builder(state.metadata()).put(projectMetadata)).build();
     }
 
     static class TestParams implements PersistentTaskParams {

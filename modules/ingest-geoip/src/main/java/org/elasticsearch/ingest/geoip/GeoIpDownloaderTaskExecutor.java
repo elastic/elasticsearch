@@ -17,7 +17,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterChangedEvent;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -203,8 +202,7 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
 
     /// On each cluster state update, tracks per-project geoip processor presence and cleans up obsolete task data.
     ///
-    /// On master nodes: also detects when the task is removed from cluster state and deletes the databases index.
-    /// The task lifecycle (start/stop) is handled by the [PersistentTaskLifecycleManager].
+    /// The task lifecycle (start/stop) and databases index cleanup are handled by [PersistentTaskLifecycleManager].
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
         if (event.state().nodes().getMasterNode() == null || event.state().clusterRecovered() == false) {
@@ -215,19 +213,6 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
         }
 
         final var projects = event.state().metadata().projects();
-
-        // On master: detect task removal and clean up databases index
-        if (event.localNodeMaster()) {
-            for (var projectId : projects.keySet()) {
-                String taskId = getTaskIdForProject(projectId);
-                ProjectMetadata prevProject = event.previousState().metadata().projects().get(projectId);
-                boolean taskExistedBefore = prevProject != null && PersistentTasksCustomMetadata.getTaskWithId(prevProject, taskId) != null;
-                boolean taskExistsNow = PersistentTasksCustomMetadata.getTaskWithId(projects.get(projectId), taskId) != null;
-                if (taskExistedBefore && taskExistsNow == false) {
-                    deleteGeoIpDatabasesIndex(projectId, event.state());
-                }
-            }
-        }
 
         // Runs on all nodes: track geoip processor presence and schedule downloader
         for (var projectMetadata : projects.values()) {
@@ -271,8 +256,8 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
             );
     }
 
-    private void deleteGeoIpDatabasesIndex(ProjectId projectId, ClusterState state) {
-        ProjectMetadata project = state.metadata().projects().get(projectId);
+    void deleteGeoIpDatabasesIndex(ProjectId projectId) {
+        ProjectMetadata project = clusterService.state().metadata().projects().get(projectId);
         if (project == null) {
             return;
         }

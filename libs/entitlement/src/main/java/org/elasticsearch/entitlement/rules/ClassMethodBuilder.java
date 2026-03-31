@@ -77,6 +77,7 @@ public class ClassMethodBuilder<T> {
      * @return a builder for configuring the constructor rule
      */
     public VoidMethodRuleBuilder<T> protectedCtor() {
+        validateConstructorExists();
         MethodKey methodKey = getConstructorMethodKey();
         return new VoidMethodRuleBuilder<>(registry, clazz, methodKey);
     }
@@ -89,6 +90,7 @@ public class ClassMethodBuilder<T> {
      * @return a builder for configuring the constructor rule
      */
     public <A> VoidMethodRuleBuilder.VoidMethodRuleBuilder1<T, A> protectedCtor(Class<A> arg0) {
+        validateConstructorExists(arg0);
         MethodKey methodKey = getConstructorMethodKey(arg0);
         return new VoidMethodRuleBuilder.VoidMethodRuleBuilder1<>(registry, clazz, methodKey);
     }
@@ -103,6 +105,7 @@ public class ClassMethodBuilder<T> {
      * @return a builder for configuring the constructor rule
      */
     public <A, B> VoidMethodRuleBuilder.VoidMethodRuleBuilder2<T, A, B> protectedCtor(Class<A> arg0, Class<B> arg1) {
+        validateConstructorExists(arg0, arg1);
         MethodKey methodKey = getConstructorMethodKey(arg0, arg1);
         return new VoidMethodRuleBuilder.VoidMethodRuleBuilder2<>(registry, clazz, methodKey);
     }
@@ -1197,6 +1200,19 @@ public class ClassMethodBuilder<T> {
         }
 
         throw new NoSuchMethodException("Method " + methodName + " not found on class hierarchy of " + clazz.getName());
+    }
+
+    private void validateConstructorExists(Class<?>... args) {
+        Class<?>[] resolvedArgs = Arrays.stream(args).map(TypeUtils::toPrimitive).toArray(Class[]::new);
+        try {
+            clazz.getDeclaredConstructor(resolvedArgs);
+        } catch (NoSuchMethodException e) {
+            throw new IllegalArgumentException(
+                "No constructor found on " + clazz.getName()
+                    + " with parameter types " + Arrays.stream(args).map(Class::getName).toList(),
+                e
+            );
+        }
     }
 
     private MethodKey getConstructorMethodKey(Class<?>... args) {

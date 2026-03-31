@@ -1202,6 +1202,7 @@ public class ClassMethodBuilder<T> {
         throw new NoSuchMethodException("Method " + methodName + " not found on class hierarchy of " + clazz.getName());
     }
 
+    @SuppressForbidden(reason = "relies on reflection")
     private void validateConstructorExists(Class<?>... args) {
         Class<?>[] resolvedArgs = Arrays.stream(args).map(TypeUtils::toPrimitive).toArray(Class[]::new);
         try {

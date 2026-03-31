@@ -22,12 +22,14 @@ import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.ingest.IngestMetadata;
@@ -75,7 +77,6 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
         ENABLED_DEFAULT,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope,
-        // Until ProjectScopedSettings#get is implemented, this is just a placeholder
         Setting.Property.ProjectScope
     );
 
@@ -94,7 +95,7 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
         Setting.Property.NodeScope
     );
 
-    private static final Logger logger = LogManager.getLogger(GeoIpDownloaderTaskExecutor.class);
+    private static final Logger logger = LogManager.getLogger(GeoIpDownloader.class);
 
     private final Client client;
     private final HttpClient httpClient;
@@ -130,7 +131,6 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
     }
 
     /// Returns the task ID used for the geoip downloader task within a given project.
-    /// TODO: no need to include project id in the task id, we should just use the same name for all tasks
     public String getTaskIdForProject(ProjectId projectId) {
         return getTaskId(projectId, projectResolver.supportsMultipleProjects());
     }
@@ -168,7 +168,9 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
         GeoIpTaskState geoIpTaskState = (state == null) ? GeoIpTaskState.EMPTY : (GeoIpTaskState) state;
         downloader.setState(geoIpTaskState);
         tasks.put(projectResolver.getProjectId(), downloader);
-        downloader.restartPeriodicRun();
+        if (ENABLED_SETTING.get(clusterService.state().metadata().settings(), settings)) {
+            downloader.restartPeriodicRun();
+        }
     }
 
     @Override
@@ -208,7 +210,14 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
     /// `.geoip_databases` index when appropriate.
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
-        if (event.state().nodes().getMasterNode() == null || event.state().clusterRecovered() == false) {
+        if (event.state().blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
+            // wait for state recovered
+            return;
+        }
+
+        DiscoveryNode masterNode = event.state().nodes().getMasterNode();
+        if (masterNode == null) {
+            // no master yet
             return;
         }
         if (event.metadataChanged() == false) {

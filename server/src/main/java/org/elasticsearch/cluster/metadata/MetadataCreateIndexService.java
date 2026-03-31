@@ -788,7 +788,6 @@ public class MetadataCreateIndexService {
                 indexMetadata.getNumberOfShards(),
                 indexMetadata.getNumberOfReplicas()
             );
-            logger.info("--> creating index [{}], settings: [{}], mapping: [{}]", request.index(), request.settings(), request.mappings());
 
             indexService.getIndexEventListener().beforeIndexAddedToCluster(indexMetadata.getIndex(), indexMetadata.getSettings());
 

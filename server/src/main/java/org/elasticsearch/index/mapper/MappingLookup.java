@@ -66,6 +66,10 @@ public final class MappingLookup {
     private final int totalFieldsCount;
     private final IndexMode indexMode;
 
+    // cached booleans from the _source field mapper
+    private final boolean isSourceEnabled;
+    private final boolean isSourceSynthetic;
+
     /**
      * Creates a new {@link MappingLookup} instance by parsing the provided mapping and extracting its field definitions.
      *
@@ -231,6 +235,11 @@ public final class MappingLookup {
 
         runtimeFields.stream().flatMap(RuntimeField::asMappedFieldTypes).map(MappedFieldType::name).forEach(this::validateDoesNotShadow);
         assert assertMapperNamesInterned(this.fieldMappers, this.objectMappers);
+
+        // cache these properties of the _source field for instantaneous access
+        SourceFieldMapper sfm = mapping.getMetadataMapperByClass(SourceFieldMapper.class);
+        this.isSourceEnabled = sfm != null && sfm.enabled();
+        this.isSourceSynthetic = sfm != null && sfm.isSynthetic();
     }
 
     private static boolean assertMapperNamesInterned(Map<String, Mapper> mappers, Map<String, ObjectMapper> objectMappers) {
@@ -501,16 +510,14 @@ public final class MappingLookup {
      * Will there be {@code _source}.
      */
     public boolean isSourceEnabled() {
-        SourceFieldMapper sfm = mapping.getMetadataMapperByClass(SourceFieldMapper.class);
-        return sfm != null && sfm.enabled();
+        return isSourceEnabled;
     }
 
     /**
      * Does the source need to be rebuilt on the fly?
      */
     public boolean isSourceSynthetic() {
-        SourceFieldMapper sfm = mapping.getMetadataMapperByClass(SourceFieldMapper.class);
-        return sfm != null && sfm.isSynthetic();
+        return isSourceSynthetic;
     }
 
     /**

@@ -1182,17 +1182,17 @@ public class EsqlCapabilities {
         /**
          * Support non-correlated subqueries in the FROM clause.
          */
-        SUBQUERY_IN_FROM_COMMAND(Build.current().isSnapshot()),
+        SUBQUERY_IN_FROM_COMMAND,
 
         /**
          * Support non-correlated subqueries in the FROM clause without implicit limit.
          */
-        SUBQUERY_IN_FROM_COMMAND_WITHOUT_IMPLICIT_LIMIT(Build.current().isSnapshot()),
+        SUBQUERY_IN_FROM_COMMAND_WITHOUT_IMPLICIT_LIMIT,
 
         /**
          * Append an implicit limit to unbounded sorts in subqueries in the FROM clause.
          */
-        SUBQUERY_IN_FROM_COMMAND_APPEND_IMPLICIT_LIMIT_TO_UNBOUNDED_SORT_IN_SUBQUERY(Build.current().isSnapshot()),
+        SUBQUERY_IN_FROM_COMMAND_APPEND_IMPLICIT_LIMIT_TO_UNBOUNDED_SORT_IN_SUBQUERY,
 
         /**
          * Support for views in cluster state (and REST API).
@@ -1979,10 +1979,10 @@ public class EsqlCapabilities {
         PROMQL_WITHOUT_GROUPING,
 
         /**
-         * Support for {@code TIME_SERIES_WITHOUT_GROUPING} capability for the
-         * grouping function that excludes specific dimensions from time-series grouping.
+         * Support for`WITHOUT` grouping function
+         * that excludes specific dimensions from time-series grouping.
          */
-        TIME_SERIES_WITHOUT_GROUPING,
+        ESQL_WITHOUT_GROUPING,
 
         /**
          * KNN function adds support for k and visit_percentage options
@@ -2131,7 +2131,7 @@ public class EsqlCapabilities {
         /**
          * Support query approximation.
          */
-        APPROXIMATION_V5(Build.current().isSnapshot()),
+        APPROXIMATION_V6(Build.current().isSnapshot()),
 
         /**
          * Create a ScoreOperator only when shard contexts are available
@@ -2234,12 +2234,12 @@ public class EsqlCapabilities {
         /**
          * Support for the EXTERNAL command (datasource access).
          */
-        EXTERNAL_COMMAND(Build.current().isSnapshot()),
+        EXTERNAL_COMMAND(EsqlFeatureFlags.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
 
         /**
          * Support for the EXTERNAL command (datasource access).
          */
-        EXTERNAL_CSV_IP_SUPPORT(Build.current().isSnapshot()),
+        EXTERNAL_CSV_IP_SUPPORT(EsqlFeatureFlags.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
 
         /**
          * https://github.com/elastic/elasticsearch/issues/142219
@@ -2368,6 +2368,11 @@ public class EsqlCapabilities {
         CHANGE_POINT_SUPPORT_NULL_COLUMN,
 
         /**
+         * MMR fixes for constant folding
+         */
+        MMR_FOLDABLE_QUERY_VECTOR_FIX,
+
+        /**
          * Support CHANGE_POINT arguments in any order
          */
         CHANGE_POINT_ARGS_ANY_ORDER,
@@ -2398,6 +2403,11 @@ public class EsqlCapabilities {
         FIX_SUM_OF_NULL_OPTIMIZATION,
 
         PROPAGATE_EMPTY_RELATION_PAST_JOINS,
+
+        /**
+         * Supports the {@code USER_AGENT} command.
+         */
+        USER_AGENT_COMMAND,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

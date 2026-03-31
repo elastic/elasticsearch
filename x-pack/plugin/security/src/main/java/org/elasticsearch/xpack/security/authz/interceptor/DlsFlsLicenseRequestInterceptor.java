@@ -19,13 +19,10 @@ import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationInfo;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
-import org.elasticsearch.xpack.core.security.authz.permission.Role;
-import org.elasticsearch.xpack.security.authz.RBACEngine;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.security.SecurityField.DOCUMENT_LEVEL_SECURITY_FEATURE;
 import static org.elasticsearch.xpack.core.security.SecurityField.FIELD_LEVEL_SECURITY_FEATURE;
-import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.AUTHORIZATION_INFO_VALUE;
 import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.INDICES_PERMISSIONS_VALUE;
 
 public class DlsFlsLicenseRequestInterceptor implements RequestInterceptor {
@@ -45,61 +42,60 @@ public class DlsFlsLicenseRequestInterceptor implements RequestInterceptor {
         AuthorizationEngine authorizationEngine,
         AuthorizationInfo authorizationInfo
     ) {
-        if (requestInfo.getRequest() instanceof IndicesRequest && false == TransportActionProxy.isProxyAction(requestInfo.getAction())) {
-            final Role role = RBACEngine.maybeGetRBACEngineRole(AUTHORIZATION_INFO_VALUE.get(threadContext));
-            // Checking whether role has FLS or DLS first before checking indicesAccessControl for efficiency because indicesAccessControl
-            // can contain a long list of indices
-            // But if role is null, it means a custom authorization engine is in use and we have to directly go check indicesAccessControl
-            if (role == null || role.hasFieldOrDocumentLevelSecurity()) {
-                logger.trace("Role has DLS or FLS. Checking for whether the request touches any indices that have DLS or FLS configured");
-                final IndicesAccessControl indicesAccessControl = INDICES_PERMISSIONS_VALUE.get(threadContext);
-                if (indicesAccessControl != null) {
-                    final XPackLicenseState frozenLicenseState = licenseState.copyCurrentLicenseState();
-                    if (logger.isDebugEnabled()) {
-                        final IndicesAccessControl.DlsFlsUsage dlsFlsUsage = indicesAccessControl.getFieldAndDocumentLevelSecurityUsage();
-                        if (dlsFlsUsage.hasFieldLevelSecurity()) {
-                            logger.debug(
-                                () -> format(
-                                    "User [%s] has field level security on [%s]",
-                                    requestInfo.getAuthentication(),
-                                    indicesAccessControl.getIndicesWithFieldLevelSecurity()
-                                )
-                            );
-                        }
-                        if (dlsFlsUsage.hasDocumentLevelSecurity()) {
-                            logger.debug(
-                                () -> format(
-                                    "User [%s] has document level security on [%s]",
-                                    requestInfo.getAuthentication(),
-                                    indicesAccessControl.getIndicesWithDocumentLevelSecurity()
-                                )
-                            );
-                        }
-                    }
-                    if (false == DOCUMENT_LEVEL_SECURITY_FEATURE.checkWithoutTracking(frozenLicenseState)
-                        || false == FIELD_LEVEL_SECURITY_FEATURE.checkWithoutTracking(frozenLicenseState)) {
-                        boolean incompatibleLicense = false;
-                        IndicesAccessControl.DlsFlsUsage dlsFlsUsage = indicesAccessControl.getFieldAndDocumentLevelSecurityUsage();
-                        if (dlsFlsUsage.hasDocumentLevelSecurity() && false == DOCUMENT_LEVEL_SECURITY_FEATURE.check(frozenLicenseState)) {
-                            incompatibleLicense = true;
-                        }
-                        if (dlsFlsUsage.hasFieldLevelSecurity() && false == FIELD_LEVEL_SECURITY_FEATURE.check(frozenLicenseState)) {
-                            incompatibleLicense = true;
-                        }
+        if (requestInfo.getRequest() instanceof IndicesRequest && false == TransportActionProxy.isProxyAction(requestInfo.getAction())
+        // Checking whether role has FLS or DLS first before checking indicesAccessControl for efficiency
+        // because indicesAccessControl can contain a long list of indices
+            && DlsFlsInterceptorUtils.isCurrentRoleNullOrHasDlsFlsPermissions(threadContext)) {
 
-                        if (incompatibleLicense) {
-                            final ElasticsearchSecurityException licenseException = LicenseUtils.newComplianceException(
-                                "field and document level security"
-                            );
-                            licenseException.addMetadata(
-                                "es.indices_with_dls_or_fls",
-                                indicesAccessControl.getIndicesWithFieldOrDocumentLevelSecurity()
-                            );
-                            return SubscribableListener.newFailed(licenseException);
-                        }
+            logger.trace("Role has DLS or FLS. Checking for whether the request touches any indices that have DLS or FLS configured");
+            final IndicesAccessControl indicesAccessControl = INDICES_PERMISSIONS_VALUE.get(threadContext);
+            if (indicesAccessControl != null) {
+                final XPackLicenseState frozenLicenseState = licenseState.copyCurrentLicenseState();
+                if (logger.isDebugEnabled()) {
+                    final IndicesAccessControl.DlsFlsUsage dlsFlsUsage = indicesAccessControl.getFieldAndDocumentLevelSecurityUsage();
+                    if (dlsFlsUsage.hasFieldLevelSecurity()) {
+                        logger.debug(
+                            () -> format(
+                                "User [%s] has field level security on [%s]",
+                                requestInfo.getAuthentication(),
+                                indicesAccessControl.getIndicesWithFieldLevelSecurity()
+                            )
+                        );
+                    }
+                    if (dlsFlsUsage.hasDocumentLevelSecurity()) {
+                        logger.debug(
+                            () -> format(
+                                "User [%s] has document level security on [%s]",
+                                requestInfo.getAuthentication(),
+                                indicesAccessControl.getIndicesWithDocumentLevelSecurity()
+                            )
+                        );
+                    }
+                }
+                if (false == DOCUMENT_LEVEL_SECURITY_FEATURE.checkWithoutTracking(frozenLicenseState)
+                    || false == FIELD_LEVEL_SECURITY_FEATURE.checkWithoutTracking(frozenLicenseState)) {
+                    boolean incompatibleLicense = false;
+                    IndicesAccessControl.DlsFlsUsage dlsFlsUsage = indicesAccessControl.getFieldAndDocumentLevelSecurityUsage();
+                    if (dlsFlsUsage.hasDocumentLevelSecurity() && false == DOCUMENT_LEVEL_SECURITY_FEATURE.check(frozenLicenseState)) {
+                        incompatibleLicense = true;
+                    }
+                    if (dlsFlsUsage.hasFieldLevelSecurity() && false == FIELD_LEVEL_SECURITY_FEATURE.check(frozenLicenseState)) {
+                        incompatibleLicense = true;
+                    }
+
+                    if (incompatibleLicense) {
+                        final ElasticsearchSecurityException licenseException = LicenseUtils.newComplianceException(
+                            "field and document level security"
+                        );
+                        licenseException.addMetadata(
+                            "es.indices_with_dls_or_fls",
+                            indicesAccessControl.getIndicesWithFieldOrDocumentLevelSecurity()
+                        );
+                        return SubscribableListener.newFailed(licenseException);
                     }
                 }
             }
+
         }
         return SubscribableListener.nullSuccess();
     }

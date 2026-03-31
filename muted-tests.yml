@@ -51,9 +51,6 @@ tests:
 - class: org.elasticsearch.action.admin.cluster.node.tasks.CancellableTasksIT
   method: testChildrenTasksCancelledOnTimeout
   issue: https://github.com/elastic/elasticsearch/issues/123568
-- class: org.elasticsearch.xpack.searchablesnapshots.FrozenSearchableSnapshotsIntegTests
-  method: testCreateAndRestorePartialSearchableSnapshot
-  issue: https://github.com/elastic/elasticsearch/issues/123773
 - class: org.elasticsearch.xpack.restart.MLModelDeploymentFullClusterRestartIT
   method: testDeploymentSurvivesRestart {cluster=OLD}
   issue: https://github.com/elastic/elasticsearch/issues/124160
@@ -225,9 +222,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.spatial.SpatialPushDownGeoShapeIT
   method: testQuantizedXY
   issue: https://github.com/elastic/elasticsearch/issues/141234
-- class: org.elasticsearch.xpack.esql.tree.EsqlNodeSubclassTests
-  method: testTransform {class org.elasticsearch.xpack.esql.plan.logical.MMR}
-  issue: https://github.com/elastic/elasticsearch/issues/142674
 - class: org.elasticsearch.packaging.test.DebMetadataTests
   method: test05CheckLintian
   issue: https://github.com/elastic/elasticsearch/issues/142819
@@ -393,9 +387,6 @@ tests:
 - class: org.elasticsearch.xpack.sql.qa.jdbc.single_node.SingleNodeJdbcResultSetIT
   method: testNoInfiniteRecursiveGetObjectCalls
   issue: https://github.com/elastic/elasticsearch/issues/145269
-- class: org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilterIT
-  method: testRestart {p0=true p1=true}
-  issue: https://github.com/elastic/elasticsearch/issues/145273
 - class: org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundToTests
   method: testEvaluateInManyThreads {TestCase=<int, 20 fixed-interval ints>}
   issue: https://github.com/elastic/elasticsearch/issues/145275
@@ -422,6 +413,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundToTests
   method: testEvaluateBlockWithoutNulls {TestCase=<long, 11 fixed-interval longs>}
   issue: https://github.com/elastic/elasticsearch/issues/145289
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundToTests
+  method: testEvaluateBlockWithNulls {TestCase=<int, 11 fixed-interval ints>}
+  issue: https://github.com/elastic/elasticsearch/issues/145257
 
 # Examples:
 #

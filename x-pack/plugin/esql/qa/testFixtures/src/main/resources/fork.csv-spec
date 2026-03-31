@@ -292,7 +292,8 @@ required_capability: fork_v9
 
 FROM k8s-downsampled, k8s
 | FORK (WHERE TRUE) (WHERE TRUE)
-| SORT @timestamp
+| WHERE client.ip == "10.10.20.34"
+| SORT @timestamp, cluster, pod
 | KEEP network.eth*
 | LIMIT 1
 ;

@@ -76,7 +76,7 @@ public class RateDoubleGroupingAggregatorFunctionTests extends ComputeTestCase {
         }
         // values, timestamps, temporality, slice, future_timestamps
         AggregatorMode aggregatorMode = AggregatorMode.INITIAL;
-        var aggregatorFactory = new RateDoubleGroupingAggregatorFunction.FunctionSupplier(false, false).groupingAggregatorFactory(
+        var aggregatorFactory = new RateDoubleGroupingAggregatorFunction.FunctionSupplier(false, false, null).groupingAggregatorFactory(
             aggregatorMode,
             List.of(1, 2, 3, 4, 5)
         );

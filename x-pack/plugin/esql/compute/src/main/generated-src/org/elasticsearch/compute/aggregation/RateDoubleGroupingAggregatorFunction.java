@@ -36,10 +36,13 @@ public final class RateDoubleGroupingAggregatorFunction extends AbstractRateGrou
         // Overriding constructor to support isRateOverTime flag
         private final boolean isRateOverTime;
         private final boolean isDateNanos;
+        // if not null, all values are assumed to have this temporality. Otherwise assumes that a block is passed in for temporality
+        private final Temporality constantTemporality;
 
-        public FunctionSupplier(boolean isRateOverTime, boolean isDateNanos) {
+        public FunctionSupplier(boolean isRateOverTime, boolean isDateNanos, Temporality constantTemporality) {
             this.isRateOverTime = isRateOverTime;
             this.isDateNanos = isDateNanos;
+            this.constantTemporality = constantTemporality;
         }
 
         @Override
@@ -59,7 +62,7 @@ public final class RateDoubleGroupingAggregatorFunction extends AbstractRateGrou
 
         @Override
         public RateDoubleGroupingAggregatorFunction groupingAggregator(DriverContext driverContext, List<Integer> channels) {
-            return new RateDoubleGroupingAggregatorFunction(channels, driverContext, isRateOverTime, isDateNanos);
+            return new RateDoubleGroupingAggregatorFunction(channels, driverContext, isRateOverTime, isDateNanos, constantTemporality);
         }
 
         @Override
@@ -82,6 +85,7 @@ public final class RateDoubleGroupingAggregatorFunction extends AbstractRateGrou
     private ObjectArray<ReducedState> reducedStates;
     private final boolean isRateOverTime;
     private final double dateFactor;
+    private final Temporality constantTemporality;
 
     // track lastSliceIndex to allow flushing the raw buffer when the slice index changed
     private int lastSliceIndex = -1;
@@ -90,13 +94,15 @@ public final class RateDoubleGroupingAggregatorFunction extends AbstractRateGrou
         List<Integer> channels,
         DriverContext driverContext,
         boolean isRateOverTime,
-        boolean isDateNanos
+        boolean isDateNanos,
+        Temporality constantTemporality
     ) {
         this.channels = channels;
         this.driverContext = driverContext;
         this.isRateOverTime = isRateOverTime;
         this.bigArrays = driverContext.bigArrays();
         this.dateFactor = isDateNanos ? 1_000_000_000.0 : 1000.0;
+        this.constantTemporality = constantTemporality;
         DoubleRawBuffer buffer = null;
         try {
             buffer = new DoubleRawBuffer(driverContext.breaker());
@@ -115,7 +121,8 @@ public final class RateDoubleGroupingAggregatorFunction extends AbstractRateGrou
 
     @Override
     public AddInput prepareProcessRawInputPage(SeenGroupIds seenGroupIds, Page page) {
-        DoubleBlock valuesBlock = page.getBlock(channels.get(0));
+        int channelPos = 0;
+        DoubleBlock valuesBlock = page.getBlock(channels.get(channelPos++));
         if (valuesBlock.areAllValuesNull()) {
             return new AddInput() {
                 @Override
@@ -139,16 +146,19 @@ public final class RateDoubleGroupingAggregatorFunction extends AbstractRateGrou
                 }
             };
         }
-        LongBlock timestampsBlock = page.getBlock(channels.get(1));
+        LongBlock timestampsBlock = page.getBlock(channels.get(channelPos++));
         LongVector timestampsVector = timestampsBlock.asVector();
         if (timestampsVector == null) {
             assert false : "expected timestamp vector in time-series aggregation";
             throw new IllegalStateException("expected timestamp vector in time-series aggregation");
         }
-        // TODO: channels.get(2) provides the temporality, add support for it
-        IntVector sliceIndices = ((IntBlock) page.getBlock(channels.get(3))).asVector();
+        if (constantTemporality == null) {
+            // TODO: channels.get(channelPos) provides the temporality, add support for it
+            channelPos++;
+        }
+        IntVector sliceIndices = ((IntBlock) page.getBlock(channels.get(channelPos++))).asVector();
         assert sliceIndices != null : "expected slice indices vector in time-series aggregation";
-        LongVector futureMaxTimestamps = ((LongBlock) page.getBlock(channels.get(4))).asVector();
+        LongVector futureMaxTimestamps = ((LongBlock) page.getBlock(channels.get(channelPos++))).asVector();
         assert futureMaxTimestamps != null : "expected future max timestamps vector in time-series aggregation";
         int sliceIndex = sliceIndices.getInt(0);
         if (sliceIndex > lastSliceIndex) {

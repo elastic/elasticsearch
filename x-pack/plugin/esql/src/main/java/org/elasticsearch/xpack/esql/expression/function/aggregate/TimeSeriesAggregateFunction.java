@@ -6,9 +6,13 @@
  */
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.compute.aggregation.Temporality;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
@@ -72,5 +76,33 @@ public abstract class TimeSeriesAggregateFunction extends AggregateFunction impl
         } else {
             return super.aggregateInputReferences(inputAttributes);
         }
+    }
+
+    /**
+     * Utility method for potentially folding the temporality parameter of a
+     * {@link org.elasticsearch.xpack.esql.expression.function.TimestampAware} if it is foldable.
+     *
+     * @param temporalityExpr the temporality expression to maybe fold
+     * @param defaultTemporality the default temporality to assume in case the expression is null or folds to null
+     * @return null, if the expression is not foldable. Otherwise the folded temporality.
+     */
+    protected static Temporality maybeFoldTemporality(@Nullable Expression temporalityExpr, Temporality defaultTemporality) {
+        if (temporalityExpr == null) {
+            return defaultTemporality;
+        }
+        if (temporalityExpr.foldable()) {
+            BytesRef value = (BytesRef) temporalityExpr.fold(FoldContext.small());
+            if (value == null) {
+                return defaultTemporality;
+            }
+            if (Temporality.DELTA.bytesRef().equals(value)) {
+                return Temporality.DELTA;
+            }
+            if (Temporality.CUMULATIVE.bytesRef().equals(value)) {
+                return Temporality.CUMULATIVE;
+            }
+            throw new IllegalArgumentException("Unknown temporality: " + value.utf8ToString());
+        }
+        return null;
     }
 }

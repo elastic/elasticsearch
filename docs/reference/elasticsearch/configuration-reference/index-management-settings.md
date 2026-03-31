@@ -91,7 +91,7 @@ The following settings can be used to customize the [OTLP endpoint](docs-content
     Valid values are:
 
 * `histogram`: Map histograms as T-Digests using the `histogram` field type (Default on {applies_to}`stack: preview =9.3`)
-* `exponential_histogram`: Map histograms as exponential histograms using the `exponential_histogram` field type (Default on {applies_to}`stack: ga 9.4+`)
+* `exponential_histogram`: Map histograms as exponential histograms using the `exponential_histogram` field type (Default on {applies_to}`stack: ga 9.4+` {applies_to}`serverless: ga`)
 
 ## Reindex settings [reindex-settings]
 

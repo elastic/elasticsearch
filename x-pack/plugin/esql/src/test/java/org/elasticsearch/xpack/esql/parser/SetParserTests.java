@@ -198,17 +198,7 @@ public class SetParserTests extends AbstractStatementParserTests {
         return query.settings().get(position).value().fold(FoldContext.small());
     }
 
-    public void testSetUnmappedFields_snapshot() {
-        assumeTrue("OPTIONAL_FIELDS_V4 option required", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V4.isEnabled());
-
-        var modes = List.of("DEFAULT", "NULLIFY", "LOAD");
-        verifySetUnmappedFields(modes);
-        assertThat(modes.size(), is(UnmappedResolution.values().length));
-    }
-
-    public void testSetUnmappedFields_nonSnapshot() {
-        assumeFalse("Requires no snapshot", Build.current().isSnapshot());
-
+    public void testSetUnmappedFields() {
         verifySetUnmappedFields(List.of("DEFAULT", "NULLIFY", "LOAD"));
     }
 
@@ -225,15 +215,12 @@ public class SetParserTests extends AbstractStatementParserTests {
             v -> Arrays.stream(UnmappedResolution.values()).anyMatch(x -> x.name().equalsIgnoreCase(v)),
             () -> randomAlphaOfLengthBetween(0, 10)
         );
-        var values = EsqlCapabilities.Cap.OPTIONAL_FIELDS_V4.isEnabled()
-            ? UnmappedResolution.values()
-            : Arrays.stream(UnmappedResolution.values()).filter(e -> e != UnmappedResolution.LOAD).toArray();
         expectValidationError(
             "SET unmapped_fields=\"" + mode + "\"; row a = 1",
             "Error validating setting [unmapped_fields]: Invalid unmapped_fields resolution ["
                 + mode
                 + "], must be one of "
-                + Arrays.toString(values)
+                + Arrays.toString(UnmappedResolution.values())
         );
     }
 }

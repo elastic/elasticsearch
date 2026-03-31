@@ -95,18 +95,10 @@ public class QuerySettings {
         (value) -> {
             String resolution = Foldables.stringLiteralValueOf(value, "Unexpected value");
             try {
-                UnmappedResolution res = UnmappedResolution.valueOf(resolution.toUpperCase(Locale.ROOT));
-                if (res == UnmappedResolution.LOAD && EsqlCapabilities.Cap.OPTIONAL_FIELDS_V4.isEnabled() == false) {
-                    throw new IllegalArgumentException("'LOAD' is only supported in snapshot builds");
-                }
-                return res;
+                return UnmappedResolution.valueOf(resolution.toUpperCase(Locale.ROOT));
             } catch (Exception exc) {
-                var values = EsqlCapabilities.Cap.OPTIONAL_FIELDS_V4.isEnabled()
-                    ? UnmappedResolution.values()
-                    : Arrays.stream(UnmappedResolution.values()).filter(e -> e != UnmappedResolution.LOAD).toArray();
-
                 throw new IllegalArgumentException(
-                    "Invalid unmapped_fields resolution [" + value + "], must be one of " + Arrays.toString(values)
+                    "Invalid unmapped_fields resolution [" + value + "], must be one of " + Arrays.toString(UnmappedResolution.values())
                 );
             }
         },

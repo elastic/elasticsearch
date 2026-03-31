@@ -67,20 +67,20 @@ public final class SchemaReconciliation {
      * Handles both planning-time use (with {@link DataType} references) and wire
      * serialization (via {@link Writeable}), so there is no separate "wire" class.
      * <p>
-     * Cast types are encoded as single-byte {@link CastType} ordinals on the wire,
-     * not strings. No field names are transferred — only positional indices and cast
-     * ordinals.
+     * Cast types are serialized via {@link StreamOutput#writeEnum}/{@link StreamInput#readEnum}
+     * (ordinal-based). The ordinal mapping is pinned by an {@code assertEnumSerialization} test
+     * so any reordering or insertion is caught at test time.
      * <p>
      * <b>Coordinator sharing:</b> {@code FileSplitProvider} passes the same instance
      * to all splits from the same file. A dedup cache ensures files with content-equal
      * mappings share a single object. Duplication only occurs during wire serialization.
      * <p>
      * <b>Wire-size analysis:</b> for a file split into K chunks with N unified columns,
-     * the overhead is {@code K * (4*N + N)} bytes when casts are present, or
-     * {@code K * 4*N} when no casts are needed. For typical schemas (N &lt; 200) and split
-     * counts (K &lt; 50), this is well under 50 KB total — negligible next to the data
-     * payload. See {@link CoalescedSplit} for approaches to eliminate per-split duplication
-     * on the wire for very wide schemas.
+     * the overhead is {@code K * (4*N + N)} bytes when casts are present (one VInt ordinal
+     * per cast), or {@code K * 4*N} when no casts are needed. For typical schemas
+     * (N &lt; 200) and split counts (K &lt; 50), this is well under 50 KB total — negligible
+     * next to the data payload. See {@link CoalescedSplit} for approaches to eliminate
+     * per-split duplication on the wire for very wide schemas.
      * <p>
      * <b>Bitset alternative:</b> the {@code int[]} currently encodes both "missing" ({@code -1})
      * and "local index" for present columns. A bitset could represent missing-column flags
@@ -92,8 +92,9 @@ public final class SchemaReconciliation {
 
         /**
          * Supported widening cast targets.
-         * Ordinal values are used on the wire (one byte each), so new entries
-         * must be appended at the end to preserve backward compatibility.
+         * Serialized via {@link StreamOutput#writeEnum}/{@link StreamInput#readEnum} (ordinal-based).
+         * New entries must only be appended at the end; reordering or inserting breaks the wire
+         * protocol. The ordinal mapping is pinned by {@code SchemaReconciliationTests#testCastTypeEnumSerialization}.
          */
         public enum CastType {
             NONE(null),
@@ -121,13 +122,6 @@ public final class SchemaReconciliation {
                 }
                 throw new IllegalArgumentException("Unsupported cast target type: " + type.typeName());
             }
-
-            public static CastType fromOrdinal(byte ordinal) {
-                if (ordinal < 0 || ordinal >= VALUES.length) {
-                    throw new IllegalArgumentException("Unknown cast ordinal: " + ordinal);
-                }
-                return VALUES[ordinal];
-            }
         }
 
         private final int[] globalToLocalIndex;
@@ -153,11 +147,9 @@ public final class SchemaReconciliation {
                         "cast array length [" + castLen + "] must match index array length [" + globalToLocalIndex.length + "]"
                     );
                 }
-                byte[] ordinals = new byte[castLen];
-                in.readBytes(ordinals, 0, castLen);
                 this.casts = new DataType[castLen];
                 for (int i = 0; i < castLen; i++) {
-                    this.casts[i] = CastType.fromOrdinal(ordinals[i]).toDataType();
+                    this.casts[i] = in.readEnum(CastType.class).toDataType();
                 }
             } else {
                 this.casts = null;
@@ -168,12 +160,10 @@ public final class SchemaReconciliation {
         public void writeTo(StreamOutput out) throws IOException {
             out.writeIntArray(globalToLocalIndex);
             if (casts != null) {
-                byte[] ordinals = new byte[casts.length];
-                for (int i = 0; i < casts.length; i++) {
-                    ordinals[i] = (byte) CastType.fromDataType(casts[i]).ordinal();
+                out.writeVInt(casts.length);
+                for (DataType cast : casts) {
+                    out.writeEnum(CastType.fromDataType(cast));
                 }
-                out.writeVInt(ordinals.length);
-                out.writeBytes(ordinals);
             } else {
                 out.writeVInt(0);
             }

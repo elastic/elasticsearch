@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasources;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.EnumSerializationTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -561,6 +562,16 @@ public class SchemaReconciliationTests extends ESTestCase {
         mapping.writeTo(out);
         StreamInput in = out.bytes().streamInput();
         return new SchemaReconciliation.ColumnMapping(in);
+    }
+
+    public void testCastTypeEnumSerialization() {
+        EnumSerializationTestUtils.assertEnumSerialization(
+            SchemaReconciliation.ColumnMapping.CastType.class,
+            SchemaReconciliation.ColumnMapping.CastType.NONE,
+            SchemaReconciliation.ColumnMapping.CastType.LONG,
+            SchemaReconciliation.ColumnMapping.CastType.DOUBLE,
+            SchemaReconciliation.ColumnMapping.CastType.DATE_NANOS
+        );
     }
 
     // === Helpers ===

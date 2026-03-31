@@ -1,0 +1,6 @@
+pr: 145290
+summary: Reject reindex with op_type create and non-internal version_type
+area: Reindex
+type: bug
+issues:
+ - 37855

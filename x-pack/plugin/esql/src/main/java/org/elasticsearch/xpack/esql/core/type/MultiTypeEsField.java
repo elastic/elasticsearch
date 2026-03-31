@@ -23,13 +23,13 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
- * During IndexResolution it could occur that the same field is mapped to different types in different indices.
- * The class MultiTypeEfField.UnresolvedField holds that information and allows for later resolution of the field
- * to a single type during LogicalPlanOptimization.
- * If the plan contains conversion expressions for the different types, the resolution will be done using the conversion expressions,
- * in which case a MultiTypeEsField will be created to encapsulate the type resolution capabilities.
- * This class can be communicated to the data nodes and used during physical planning to influence field extraction so that
- * type conversion is done at the data node level.
+ * During IndexResolution it can occur that the same field is mapped to different types in different indices.
+ * An {@link InvalidMappedField} holds that information and allows for later resolution of the field
+ * to a single type in {@code ResolveUnionTypes}.
+ * If the plan contains a converted field attribute with mapping conflict, like {@code EVAL x = x::long}, this conversion
+ * is fused into the {@link org.elasticsearch.xpack.esql.core.expression.FieldAttribute} and represented by an instance of
+ * this class instead of the {@link InvalidMappedField}.
+ * This class is sent to the data nodes to inform them that they have to convert the type directly during field extraction.
  */
 public class MultiTypeEsField extends EsField {
     private static final TransportVersion POTENTIALLY_UNMAPPED_EXPRESSION = TransportVersion.fromName(

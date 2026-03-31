@@ -21,11 +21,12 @@ import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.reindex.PaginatedHitSource;
 import org.elasticsearch.index.reindex.RejectAwareActionListener;
 import org.elasticsearch.index.reindex.RemoteInfo;
 import org.elasticsearch.index.reindex.ResumeInfo.ScrollWorkerResumeInfo;
 import org.elasticsearch.index.reindex.ResumeInfo.WorkerResumeInfo;
+import org.elasticsearch.reindex.ClientScrollablePaginatedHitSource;
+import org.elasticsearch.reindex.PaginatedHitSource;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -45,7 +46,7 @@ import static org.elasticsearch.reindex.remote.RemoteResponseParsers.RESPONSE_PA
  * initial search. It is no longer recommended for deep pagination due to resource costs and limits on open scrolls.
  * <p>
  * This implementation is a scrollable source of hits from a <i>remote</i> {@linkplain Client} instance. For local
- * clients, please use {@link org.elasticsearch.index.reindex.ClientScrollablePaginatedHitSource}
+ * clients, please use {@link ClientScrollablePaginatedHitSource}
  */
 public class RemoteScrollablePaginatedHitSource extends PaginatedHitSource {
     private final RestClient client;

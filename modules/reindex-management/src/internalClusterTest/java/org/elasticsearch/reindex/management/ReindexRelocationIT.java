@@ -607,6 +607,15 @@ public class ReindexRelocationIT extends ESIntegTestCase {
             completions.getFirst().attributes().get(ReindexMetrics.ATTRIBUTE_NAME_SLICING_MODE),
             equalTo(slicingMode.name().toLowerCase(Locale.ROOT))
         );
+        final List<Measurement> durations = plugin.getLongHistogramMeasurement(ReindexMetrics.REINDEX_TIME_HISTOGRAM);
+        assertThat(durations.size(), equalTo(1));
+        final Measurement duration = durations.getFirst();
+        assertThat(duration.getLong(), greaterThanOrEqualTo(0L));
+        assertThat(duration.attributes().get(ReindexMetrics.ATTRIBUTE_NAME_SOURCE), equalTo(expectedSource));
+        assertThat(
+            duration.attributes().get(ReindexMetrics.ATTRIBUTE_NAME_SLICING_MODE),
+            equalTo(slicingMode.name().toLowerCase(Locale.ROOT))
+        );
     }
 
     private void assertExpectedNumberOfDocumentsInDestinationIndex() throws IOException {

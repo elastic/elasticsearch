@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.querylog;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.logging.activity.ActivityLoggerContext;
 import org.elasticsearch.common.logging.activity.QueryLoggerContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.tasks.Task;
@@ -24,10 +23,12 @@ import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
-public class EsqlLogContext extends ActivityLoggerContext implements QueryLoggerContext {
+public class EsqlLogContext extends QueryLoggerContext {
     public static final String TYPE = "esql";
     private final EsqlQueryRequest request;
     private final @Nullable EsqlQueryResponse response;
+    // Cached index names
+    private String[] indexNames = null;
 
     EsqlLogContext(Task task, EsqlQueryRequest request, EsqlQueryResponse response) {
         super(task, TYPE, response.getExecutionInfo().overallTook().nanos());
@@ -79,7 +80,10 @@ public class EsqlLogContext extends ActivityLoggerContext implements QueryLogger
         if (response == null) {
             return null;
         }
-        return response.getExecutionInfo()
+        if (indexNames != null) {
+            return indexNames;
+        }
+        indexNames = response.getExecutionInfo()
             .getClusters()
             .values()
             .stream()
@@ -88,6 +92,7 @@ public class EsqlLogContext extends ActivityLoggerContext implements QueryLogger
                     .map(ind -> RemoteClusterAware.buildRemoteIndexName(cluster.getClusterAlias(), ind))
             )
             .toArray(String[]::new);
+        return indexNames;
     }
 
     // CCS stuff

@@ -74,6 +74,7 @@ public class StatelessSigtermPlugin extends ShutdownPlugin {
 
         NodeSeenService nodeSeenService = new NodeSeenService(clusterService);
         SigtermShutdownCleanupService shutdownCleanupService = new SigtermShutdownCleanupService(clusterService, services.rerouteService());
+        clusterService.addListener(shutdownCleanupService);
         return List.of(nodeSeenService, shutdownCleanupService);
     }
 

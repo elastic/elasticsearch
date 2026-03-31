@@ -23,10 +23,18 @@ import static org.elasticsearch.xpack.esql.analysis.Analyzer.ESQL_LOOKUP_JOIN_FU
 public class LookupGoldenTests extends GoldenTestCase {
     private static final EnumSet<Stage> STAGES = EnumSet.of(Stage.LOOKUP_LOGICAL_OPTIMIZATION, Stage.LOOKUP_PHYSICAL_OPTIMIZATION);
 
+    /**
+     * Simple lookup with no filters.
+     */
     public void testSimpleLookup() {
         runGoldenTest("FROM employees | LOOKUP JOIN test_lookup ON emp_no", STAGES);
     }
 
+    /**
+     * WHERE clause with a pushable right-only filter (equality on a keyword field).
+     * The logical optimizer pushes it into the join's right side, and the lookup physical optimizer
+     * pushes it down to ParameterizedQueryExec.query().
+     */
     public void testLookupWithPushableFilter() {
         runGoldenTest("""
             FROM employees
@@ -36,6 +44,11 @@ public class LookupGoldenTests extends GoldenTestCase {
             """, STAGES);
     }
 
+    /**
+     * WHERE clause with a non-pushable right-only filter (LENGTH function comparison).
+     * The logical optimizer pushes it into the join's right side, but the lookup physical optimizer
+     * cannot push it to Lucene, so it stays as a FilterExec.
+     */
     public void testLookupWithNonPushableFilter() {
         runGoldenTest("""
             FROM employees
@@ -45,6 +58,10 @@ public class LookupGoldenTests extends GoldenTestCase {
             """, STAGES);
     }
 
+    /**
+     * WHERE clause with both pushable and non-pushable right-only filters.
+     * The pushable part goes to ParameterizedQueryExec.query(), the non-pushable stays as a FilterExec.
+     */
     public void testLookupWithMixedFilters() {
         runGoldenTest("""
             FROM employees
@@ -54,6 +71,10 @@ public class LookupGoldenTests extends GoldenTestCase {
             """, STAGES);
     }
 
+    /**
+     * Two consecutive LOOKUP JOINs: first on test_lookup (by emp_no), then on languages_lookup (by language_code).
+     * Each join's right side is independently planned on its respective lookup node.
+     */
     public void testTwoLookupJoins() {
         runGoldenTest("""
             FROM employees
@@ -63,6 +84,12 @@ public class LookupGoldenTests extends GoldenTestCase {
             """, STAGES);
     }
 
+    /**
+     * Filter that becomes always-true due to missing field stats should be pruned.
+     * {@code language_name IS NULL} with language_name missing becomes {@code null IS NULL} which folds to true,
+     * so the filter is removed. The null Eval from ReplaceFieldWithConstantOrNull is pruned by the
+     * physical optimizer since the field is not needed for extraction.
+     */
     public void testFilterOnMissingFieldFoldedToTrue() {
         SearchStats stats = new EsqlTestUtils.TestConfigurableSearchStats().exclude(
             EsqlTestUtils.TestConfigurableSearchStats.Config.EXISTS,
@@ -76,6 +103,11 @@ public class LookupGoldenTests extends GoldenTestCase {
             """).stages(STAGES).searchStats(stats).run();
     }
 
+    /**
+     * Filter on a missing field with equality (e.g. {@code language_name == "English"}) folds to
+     * {@code null == "English"} which evaluates to null, marking the ParameterizedQueryExec as
+     * {@code emptyResult=true} instead of collapsing the plan.
+     */
     public void testFilterOnMissingFieldFoldedToEmpty() {
         SearchStats stats = new EsqlTestUtils.TestConfigurableSearchStats().exclude(
             EsqlTestUtils.TestConfigurableSearchStats.Config.EXISTS,
@@ -89,6 +121,11 @@ public class LookupGoldenTests extends GoldenTestCase {
             """).stages(STAGES).searchStats(stats).run();
     }
 
+    /**
+     * Constant field matching the filter value: {@code language_name} is a constant {@code "English"},
+     * and the filter is {@code WHERE language_name == "English"}. The constant replaces the field reference,
+     * the filter folds to {@code true} and is pruned.
+     */
     public void testConstantFieldMatchingFilter() {
         SearchStats stats = new EsqlTestUtils.TestConfigurableSearchStats().withConstantValue("language_name", "English");
         builder("""
@@ -99,6 +136,10 @@ public class LookupGoldenTests extends GoldenTestCase {
             """).stages(STAGES).searchStats(stats).run();
     }
 
+    /**
+     * ON expression with a pushable right-only filter combined with a non-pushable WHERE clause.
+     * The ON equality filter is pushed to ParameterizedQueryExec.query(), while LENGTH stays as a FilterExec.
+     */
     public void testOnExpressionFilterWithWhereClause() {
         assumeTrue("Requires LOOKUP JOIN on expression", EsqlCapabilities.Cap.LOOKUP_JOIN_WITH_FULL_TEXT_FUNCTION.isEnabled());
         builder("""
@@ -108,6 +149,11 @@ public class LookupGoldenTests extends GoldenTestCase {
             """).stages(STAGES).transportVersion(ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION).run();
     }
 
+    /**
+     * When a missing field is dropped from the output, it never appears in the lookup plan's addedFields,
+     * so no null Eval is needed. Uses expression-based join so that language_code remains as an
+     * extractable added field after dropping language_name.
+     */
     public void testDropMissingFieldPrunesEval() {
         assumeTrue("Requires LOOKUP JOIN on expression", EsqlCapabilities.Cap.LOOKUP_JOIN_WITH_FULL_TEXT_FUNCTION.isEnabled());
         SearchStats stats = new EsqlTestUtils.TestConfigurableSearchStats().exclude(

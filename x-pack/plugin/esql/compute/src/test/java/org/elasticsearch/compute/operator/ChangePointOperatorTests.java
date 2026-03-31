@@ -297,6 +297,32 @@ public class ChangePointOperatorTests extends OperatorTestCase {
         }
     }
 
+    public void testGroupedTooManyValuesPerGroupWarning() {
+        DriverContext ctx = driverContext();
+        BlockFactory blockFactory = ctx.blockFactory();
+
+        // Group A: [0x500, 1x501] -> should detect step change and produce warning
+        // Group B: [0x500, 1x501] -> should detect step change
+        List<String> groupsColumn = Stream.concat(nCopies(1001, "A").stream(), nCopies(1001, "B").stream()).toList();
+        List<Long> valuesColumn = Stream.concat(
+            Stream.of(nCopies(500, 0L), nCopies(501, 1L)).flatMap(List::stream),
+            Stream.of(nCopies(500, 0L), nCopies(501, 1L)).flatMap(List::stream)
+        ).toList();
+        List<Page> pages = buildPages(blockFactory, List.of(1001), valuesColumn, groupsColumn);
+
+        List<Page> outputPages = invokeChangePoint(ctx, pages);
+        try {
+            assertChangePointAt(outputPages.get(0), 500);
+            assertChangePointAt(outputPages.get(1), 500);
+            assertWarnings(
+                "Line 1:1: warnings during evaluation of [null]. Only first 20 failures recorded.",
+                "Line 1:1: java.lang.IllegalArgumentException: too many values; keeping only first 1000 values"
+            );
+        } finally {
+            outputPages.forEach(Page::releaseBlocks);
+        }
+    }
+
     public void testGroupedNoInputPages() {
         DriverContext ctx = driverContext();
         List<Page> outputPages = invokeChangePoint(ctx, List.of(), 1, 0);

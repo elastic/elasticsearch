@@ -90,19 +90,11 @@ public class ChangePointOperator extends CompleteInputCollectorOperator {
     }
 
     private void createOutputPages() {
-        int valuesCount = 0;
-        for (Page page : inputPages) {
-            valuesCount += page.getPositionCount();
-        }
-        boolean tooManyValues = valuesCount > INPUT_VALUE_COUNT_LIMIT;
-        if (tooManyValues) {
-            valuesCount = INPUT_VALUE_COUNT_LIMIT;
-        }
-
         List<Double> values = new ArrayList<>();
         List<Integer> bucketIndexes = new ArrayList<>();
         ArrayDeque<DetectedChangePoint> detectedChangePoints = new ArrayDeque<>();
         int valuesIndex = 0;
+        int currentGroupRowCount = 0;
         Object previousGroupKey = groupChannel != null && inputPages.isEmpty() == false
             ? BlockUtils.toJavaObject(inputPages.peek().getBlock(groupChannel), 0)
             : null;
@@ -110,12 +102,13 @@ public class ChangePointOperator extends CompleteInputCollectorOperator {
         boolean hasNulls = false;
         boolean hasMultivalued = false;
         boolean hasIndeterminableChangePoint = false;
+        boolean tooManyValues = false;
         boolean lastGroupHasRows = false;
         String indeterminableChangePointReason = "";
         for (Page inputPage : inputPages) {
             Block inputBlock = inputPage.getBlock(channel);
             Block groupBlock = groupChannel != null ? inputPage.getBlock(groupChannel) : null;
-            for (int i = 0; i < inputBlock.getPositionCount() && valuesIndex < valuesCount; i++) {
+            for (int i = 0; i < inputBlock.getPositionCount(); i++) {
                 if (groupBlock != null) {
                     Object currentGroupKey = BlockUtils.toJavaObject(groupBlock, i);
                     if (Objects.equals(currentGroupKey, previousGroupKey) == false) {
@@ -134,11 +127,19 @@ public class ChangePointOperator extends CompleteInputCollectorOperator {
                             lastGroupHasRows = false;
                         }
                         previousGroupKey = currentGroupKey;
+                        currentGroupRowCount = 0;
                     }
+                }
+
+                if (currentGroupRowCount >= INPUT_VALUE_COUNT_LIMIT) {
+                    tooManyValues = true;
+                    valuesIndex++;
+                    continue;
                 }
 
                 Object value = BlockUtils.toJavaObject(inputBlock, i);
                 lastGroupHasRows = true;
+                currentGroupRowCount++;
                 if (value == null) {
                     hasNulls = true;
                     valuesIndex++;

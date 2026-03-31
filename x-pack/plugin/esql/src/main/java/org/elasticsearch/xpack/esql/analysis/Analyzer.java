@@ -351,7 +351,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             attributes.addAll(metadata.stream().map(NamedExpression::toAttribute).toList());
 
             if (context.unmappedResolution() == UnmappedResolution.LOAD) {
-                loadPartiallyMappedKeywordFields(attributes, esIndex, plan.indexMode());
+                loadPartiallyMappedKeywordFields(attributes, esIndex);
             }
 
             return new EsRelation(
@@ -370,11 +370,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          * {@link PotentiallyUnmappedKeywordEsField} so they are loaded from {@code _source} on shards where they are unmapped.
          * Non-keyword fields are left unchanged (they will return null on unmapped shards, consistent with their default behavior).
          */
-        private static void loadPartiallyMappedKeywordFields(List<Attribute> attributes, EsIndex esIndex, IndexMode indexMode) {
+        private static void loadPartiallyMappedKeywordFields(List<Attribute> attributes, EsIndex esIndex) {
             for (int i = 0; i < attributes.size(); i++) {
                 if (attributes.get(i) instanceof FieldAttribute fa
                     && fa.dataType() == KEYWORD
-                    && esIndex.isPartiallyUnmappedField(fa.name())) {
+                    && esIndex.isPartiallyUnmappedField(fa.fieldName().string())) {
                     attributes.set(i, ResolveRefs.insistKeyword(fa));
                 }
             }

@@ -3378,6 +3378,14 @@ public class FieldNameUtilsTests extends ESTestCase {
             | keep rd.registered_domain""", Set.of("_index", "first_name", "first_name.*"));
     }
 
+    public void testUserAgentResolvesOnlyInput() {
+        assumeTrue("requires user_agent command capability", EsqlCapabilities.Cap.USER_AGENT_COMMAND.isEnabled());
+        assertFieldNames("""
+            from employees
+            | user_agent ua = first_name WITH { "extract_device_type": true }
+            | keep ua.name""", Set.of("_index", "first_name", "first_name.*"));
+    }
+
     private void assertFieldNames(String query, Set<String> expected) {
         assertFieldNames(query, false, expected, Set.of());
     }

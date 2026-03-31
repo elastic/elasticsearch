@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -108,7 +109,11 @@ public class FileSplitProvider implements SplitProvider {
         PartitionMetadata partitionInfo = context.partitionInfo();
         Map<String, Object> config = context.config();
         List<Expression> filterHints = context.filterHints();
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaInfo = fileSet.fileSchemaInfo();
         List<ExternalSplit> splits = new ArrayList<>();
+        // Dedup cache: files with content-equal mappings share the same ColumnMapping
+        // instance on the coordinator, avoiding redundant allocations.
+        Map<SchemaReconciliation.ColumnMapping, SchemaReconciliation.ColumnMapping> mappingCache = new HashMap<>();
 
         for (StorageEntry entry : fileSet.files()) {
             StoragePath filePath = entry.path();
@@ -138,14 +143,22 @@ public class FileSplitProvider implements SplitProvider {
 
             long fileLength = entry.length();
 
+            SchemaReconciliation.ColumnMapping columnMapping = null;
+            if (schemaInfo != null) {
+                SchemaReconciliation.FileSchemaInfo info = schemaInfo.get(filePath);
+                if (info != null && info.mapping() != null && info.mapping().isIdentity() == false) {
+                    columnMapping = mappingCache.computeIfAbsent(info.mapping(), k -> k);
+                }
+            }
+
             // Try block-aligned splitting for splittable compressed files (e.g. .ndjson.bz2).
             // This is independent of targetSplitSizeBytes — compressed files with splittable
             // codecs are always split at block boundaries when possible.
-            if (tryBlockAlignedSplits(filePath, fileLength, format, config, partitionValues, splits)) {
+            if (tryBlockAlignedSplits(filePath, fileLength, format, config, partitionValues, columnMapping, splits)) {
                 continue;
             }
 
-            if (tryRangeAwareSplits(filePath, fileLength, format, config, partitionValues, splits)) {
+            if (tryRangeAwareSplits(filePath, fileLength, format, config, partitionValues, columnMapping, splits)) {
                 continue;
             }
 
@@ -153,11 +166,11 @@ public class FileSplitProvider implements SplitProvider {
                 long offset = 0;
                 while (offset < fileLength) {
                     long chunkLength = Math.min(targetSplitSizeBytes, fileLength - offset);
-                    splits.add(new FileSplit("file", filePath, offset, chunkLength, format, config, partitionValues));
+                    splits.add(new FileSplit("file", filePath, offset, chunkLength, format, config, partitionValues, columnMapping));
                     offset += chunkLength;
                 }
             } else {
-                splits.add(new FileSplit("file", filePath, 0, fileLength, format, config, partitionValues));
+                splits.add(new FileSplit("file", filePath, 0, fileLength, format, config, partitionValues, columnMapping));
             }
         }
 
@@ -182,6 +195,7 @@ public class FileSplitProvider implements SplitProvider {
         String format,
         Map<String, Object> config,
         Map<String, Object> partitionValues,
+        @Nullable SchemaReconciliation.ColumnMapping columnMapping,
         List<ExternalSplit> splits
     ) {
         if (codecRegistry == null || storageRegistry == null || format == null) {
@@ -193,7 +207,7 @@ public class FileSplitProvider implements SplitProvider {
         // Prefer IndexedDecompressionCodec (e.g. zstd seekable) over SplittableDecompressionCodec
         // (e.g. bzip2) when an index is available, since index-based splitting avoids scanning.
         if (codec instanceof IndexedDecompressionCodec indexedCodec) {
-            if (tryIndexedSplits(indexedCodec, filePath, fileLength, format, config, partitionValues, splits)) {
+            if (tryIndexedSplits(indexedCodec, filePath, fileLength, format, config, partitionValues, columnMapping, splits)) {
                 return true;
             }
         }
@@ -219,7 +233,7 @@ public class FileSplitProvider implements SplitProvider {
             long[] boundaries = splittableCodec.findBlockBoundaries(object, 0, fileLength);
 
             if (boundaries.length == 0) {
-                splits.add(new FileSplit("file", filePath, 0, fileLength, format, config, partitionValues));
+                splits.add(new FileSplit("file", filePath, 0, fileLength, format, config, partitionValues, columnMapping));
                 return true;
             }
 
@@ -251,7 +265,7 @@ public class FileSplitProvider implements SplitProvider {
                 if (isLastMacroSplit) {
                     splitConfig.put(LAST_SPLIT_KEY, "true");
                 }
-                splits.add(new FileSplit("file", filePath, start, end - start, format, splitConfig, partitionValues));
+                splits.add(new FileSplit("file", filePath, start, end - start, format, splitConfig, partitionValues, columnMapping));
             }
             return true;
         } catch (IOException e) {
@@ -271,6 +285,7 @@ public class FileSplitProvider implements SplitProvider {
         String format,
         Map<String, Object> config,
         Map<String, Object> partitionValues,
+        @Nullable SchemaReconciliation.ColumnMapping columnMapping,
         List<ExternalSplit> splits
     ) {
         if (formatRegistry == null || storageRegistry == null || format == null) {
@@ -310,7 +325,7 @@ public class FileSplitProvider implements SplitProvider {
             for (long[] range : ranges) {
                 long offset = range[0];
                 long length = range[1];
-                splits.add(new FileSplit("file", filePath, offset, length, format, splitConfig, partitionValues));
+                splits.add(new FileSplit("file", filePath, offset, length, format, splitConfig, partitionValues, columnMapping));
             }
             return true;
         } catch (IOException e) {
@@ -326,6 +341,7 @@ public class FileSplitProvider implements SplitProvider {
         String format,
         Map<String, Object> config,
         Map<String, Object> partitionValues,
+        @Nullable SchemaReconciliation.ColumnMapping columnMapping,
         List<ExternalSplit> splits
     ) {
         try {
@@ -344,7 +360,7 @@ public class FileSplitProvider implements SplitProvider {
             FrameIndex index = indexedCodec.readIndex(object);
             List<FrameIndex.FrameEntry> frames = index.frames();
             if (frames.isEmpty()) {
-                splits.add(new FileSplit("file", filePath, 0, fileLength, format, config, partitionValues));
+                splits.add(new FileSplit("file", filePath, 0, fileLength, format, config, partitionValues, columnMapping));
                 return true;
             }
 
@@ -367,7 +383,18 @@ public class FileSplitProvider implements SplitProvider {
                     if (isLast) {
                         splitConfig.put(LAST_SPLIT_KEY, "true");
                     }
-                    splits.add(new FileSplit("file", filePath, groupStart, groupEnd - groupStart, format, splitConfig, partitionValues));
+                    splits.add(
+                        new FileSplit(
+                            "file",
+                            filePath,
+                            groupStart,
+                            groupEnd - groupStart,
+                            format,
+                            splitConfig,
+                            partitionValues,
+                            columnMapping
+                        )
+                    );
                     splitCount++;
                     accumulated = 0;
                     if (isLast == false) {

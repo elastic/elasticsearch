@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.prometheus.rest;
 
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.RequestParams;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
@@ -73,9 +74,10 @@ public class PrometheusLabelValuesRestAction extends BaseRestHandler {
         String labelName = PrometheusLabelNameUtils.decodeLabelName(rawName);
         String index = request.param(INDEX_PARAM, "*");
 
-        // TODO: support multiple match[] selectors once multi-value param support is added
-        String matchSelector = request.param(MATCH_PARAM);
-        List<String> matchSelectors = matchSelector != null ? List.of(matchSelector) : List.of();
+        // Consume the parameter; re-parse from the raw URI to handle repeated match[] params,
+        // since request processing currently keeps only the last value for repeated parameters.
+        request.repeatedParamAsList(MATCH_PARAM);
+        List<String> matchSelectors = RequestParams.fromUri(request.uri()).getAll(MATCH_PARAM);
 
         // Time range
         String endParam = request.param(END_PARAM);

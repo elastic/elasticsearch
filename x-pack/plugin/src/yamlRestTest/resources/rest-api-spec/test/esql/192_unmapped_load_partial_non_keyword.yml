@@ -7,9 +7,10 @@ setup:
           path: /_query
           parameters: [ ]
           capabilities: [ optional_fields_v5 ]
-      reason: 'When unmapped_fields="load", loading a partially unmapped non-keyword field must fail, unless used in KEEP, or DROP, or a conversion function that can convert all types it is mapped as to a common type'
+      reason: 'requires SET unmapped_fields="load"'
   #
   # The table below represents the field mappings for the three indices created in this test.
+  # In `FROM index*`, all the fields except lambda are PUNKs: partially unmapped non-keyword fields.
   #
   # | Field      | index1  |   index2   | index3  |
   # |------------|---------|------------|---------|
@@ -17,7 +18,7 @@ setup:
   # | lambda     | keyword | keyword    | -       |
   # | tau        | date    | date_nanos | -       |
   # | beta       | -       | double     | -       |
-  # | gamma      | -       | -          | boolean |
+  # | a.b.c.d    | -       | -          | boolean |
   #
   - do:
       indices.create:
@@ -54,85 +55,101 @@ setup:
           mappings:
             dynamic: false
             properties:
-              gamma:
-                type: boolean
+              a:
+                properties:
+                   b:
+                     properties:
+                       c:
+                         properties:
+                            d:
+                              type: boolean
 
 ---
-"test 10":
+no-command-punks:
   - do:
       allowed_warnings_regex:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
           # [beta] is double in index2
-          # [gamma] is boolean in index3
+          # [a.b.c.d] is boolean in index3
           # PUNKs should not be rejected in DROP
-          query: 'SET unmapped_fields="load"; FROM index2,index3 | DROP beta, gamma'
+          query: 'SET unmapped_fields="load"; FROM index*'
   - length: { values: 0 }
 
 ---
-"test 20":
+drop-punks:
   - do:
       allowed_warnings_regex:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
           # [beta] is double in index2
-          # [gamma] is boolean in index3
+          # [a.b.c.d] is boolean in index3
+          # PUNKs should not be rejected in DROP
+          query: 'SET unmapped_fields="load"; FROM index2,index3 | DROP beta, a.b.c.d'
+  - length: { values: 0 }
+
+---
+drop-punks-wildcard:
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          # [beta] is double in index2
+          # [a.b.c.d] is boolean in index3
           # PUNKs should not be rejected in wildcard DROP
-          query: 'SET unmapped_fields="load"; FROM index2,index3 | DROP bet*, gam*'
-
-#---
-# Temporarily disabled
-#"test 30":
-#  - do:
-#      allowed_warnings_regex:
-#        - "No limit defined, adding default limit of \\[.*\\]"
-#      esql.query:
-#        body:
-#          # [beta] is double in index2
-#          # [gamma] is boolean in index3
-#          # PUNKs should not be rejected in KEEP
-#          query: 'SET unmapped_fields="load"; FROM index2,index3 | KEEP beta, gamma'
-
-#---
-# Temporarily disabled
-#"test 40":
-#  - do:
-#      allowed_warnings_regex:
-#        - "No limit defined, adding default limit of \\[.*\\]"
-#      esql.query:
-#        body:
-#          # [beta] is double in index2
-#          # PUNKs should not be rejected in wildcard KEEP
-#          query: 'SET unmapped_fields="load"; FROM index1,index2,index3 | KEEP beta*'
-
-#---
-# Temporarily disabled
-#"test 50":
-#  - do:
-#      allowed_warnings_regex:
-#        - "No limit defined, adding default limit of \\[.*\\]"
-#      esql.query:
-#        body:
-#          # [beta] is double in index2
-#          # PUNKs should be rejected in RENAME
-#          query: 'SET unmapped_fields="load"; FROM index1,index2,index3 | RENAME beta AS mu'
+          query: 'SET unmapped_fields="load"; FROM index2,index3 | DROP bet*, a.b*'
 
 ---
-"test 60":
+keep-punks:
   - do:
       allowed_warnings_regex:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
           # [beta] is double in index2
-          # [gamma] is boolean in index3
-          # PUNKs should not be rejected in conversion functions (e.g.: punk::TYPE or TO_TYPE(punk))
-          query: 'SET unmapped_fields="load"; FROM index1,index2,index3 | EVAL x = beta::long, y = gamma::boolean, m = TO_LONG(beta), n = TO_BOOLEAN(gamma) | SORT x ASC | KEEP y'
+          # [a.b.c.d] is boolean in index3
+          # PUNKs should not be rejected in KEEP
+          query: 'SET unmapped_fields="load"; FROM index2,index3 | KEEP beta, a.b.c.d'
 
 ---
-"test 70":
+keep-punks-wildcard:
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          # [beta] is double in index2
+          # PUNKs should not be rejected in wildcard KEEP
+          query: 'SET unmapped_fields="load"; FROM index1,index2,index3 | KEEP beta*'
+
+---
+rename-punks:
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          # [beta] is double in index2
+          # PUNKs should be rejected in RENAME
+          query: 'SET unmapped_fields="load"; FROM index1,index2,index3 | RENAME beta AS mu'
+
+---
+convert-punks:
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          # [beta] is double in index2
+          # [a.b.c.d] is boolean in index3
+          # PUNKs should not be rejected in conversion functions (e.g.: punk::TYPE or TO_TYPE(punk))
+          query: 'SET unmapped_fields="load"; FROM index1,index2,index3 | EVAL x = beta::long, y = a.b.c.d::boolean, m = TO_LONG(beta), n = TO_BOOLEAN(a.b.c.d) | SORT x ASC | KEEP y'
+
+---
+date-nanos:
   - do:
       allowed_warnings_regex:
         - "No limit defined, adding default limit of \\[.*\\]"
@@ -140,11 +157,11 @@ setup:
         body:
           # [tau] is date index1
           # [tau] is date_nanos index2
-          # Field is mapped differently in both indices. DATE/DATE_NANOS types shouldn't fail.
+          # Field is mapped differently in both indices. DATE/DATE_NANOS types shouldn't fail because we auto-cast.
           query: 'SET unmapped_fields="load"; FROM index1,index2 | WHERE tau > 0::date'
 
 ---
-"test 80":
+date-nanos-punks:
   - do:
       catch: bad_request
       esql.query:
@@ -152,33 +169,60 @@ setup:
           # [tau] is date index1
           # [tau] is date_nanos index2
           # [tau] is unmapped in index3
-          query: 'SET unmapped_fields="load"; FROM index* | WHERE tau > 0::date'
+          query: 'SET unmapped_fields="load"; FROM index* | WHERE tau > "2026-04-07"::date'
   - match: { status: 400 }
   - match: { error.type: verification_exception }
   - contains: { error.reason: 'Found 1 problem' }
   - contains: { error.reason: 'line 1:49: Cannot use field [tau] due to ambiguities being mapped as [3] incompatible types: [keyword] due to loading from _source, [date_nanos] in [index2], [datetime] in [index1]' }
 
 ---
-"test 90":
+date-nanos-punks-2:
   - do:
       catch: bad_request
       esql.query:
         body:
-          query: 'SET unmapped_fields="load"; FROM index1,index2 | SORT alpha DESC | WHERE alpha > 0'
+          # [tau] is date index1
+          # [tau] is date_nanos index2
+          # [tau] is unmapped in index3
+          query: 'SET unmapped_fields="load"; FROM index* | WHERE tau > "2026-04-07"::date_nanos'
+  - match: { status: 400 }
+  - match: { error.type: verification_exception }
+  - contains: { error.reason: 'Found 1 problem' }
+  - contains: { error.reason: 'line 1:49: Cannot use field [tau] due to ambiguities being mapped as [3] incompatible types: [keyword] due to loading from _source, [date_nanos] in [index2], [datetime] in [index1]' }
+
+---
+sort-punks:
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM index1,index2 | SORT alpha DESC'
   - match: { status: 400 }
   - match: { error.type: verification_exception }
   - contains: { error.reason: 'Found 1 problem' }
   - contains: { error.reason: 'line 1:55: Cannot use field [alpha] due to ambiguities being mapped as [2] incompatible types: [integer] in [index2], [long] in [index1]' }
 
 ---
-"test 100":
+where-punks:
   - do:
       catch: bad_request
       esql.query:
         body:
-          query: 'SET unmapped_fields="load"; FROM index2,index3 | STATS x = AVG(beta::double), y = MIN(gamma)'
+          query: 'SET unmapped_fields="load"; FROM index1,index2 | WHERE alpha > 0'
   - match: { status: 400 }
   - match: { error.type: verification_exception }
   - contains: { error.reason: 'Found 1 problem' }
-  - contains: { error.reason: 'line 1:87: Cannot use field [gamma] due to ambiguities being mapped as [2] incompatible types: [keyword] due to loading from _source, [boolean] in [index3]' }
+  - contains: { error.reason: 'line 1:56: Cannot use field [alpha] due to ambiguities being mapped as [2] incompatible types: [integer] in [index2], [long] in [index1]' }
+
+---
+stats-punks:
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM index2,index3 | STATS x = AVG(beta::double), y = MIN(a.b.c.d)'
+  - match: { status: 400 }
+  - match: { error.type: verification_exception }
+  - contains: { error.reason: 'Found 1 problem' }
+  - contains: { error.reason: 'line 1:87: Cannot use field [a.b.c.d] due to ambiguities being mapped as [2] incompatible types: [keyword] due to loading from _source, [boolean] in [index3]' }
 

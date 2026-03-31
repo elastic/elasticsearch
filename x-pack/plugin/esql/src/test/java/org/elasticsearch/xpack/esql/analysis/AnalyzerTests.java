@@ -111,6 +111,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UriParts;
+import org.elasticsearch.xpack.esql.plan.logical.UserAgent;
 import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.FuseScoreEval;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
@@ -3379,7 +3380,7 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(attribute.name(), is("message"));
 
         String expected = "Cannot use field [message] due to ambiguities being mapped as [2] incompatible types: "
-            + "[keyword] enforced by INSIST command, [long] in [foo]";
+            + "[keyword] due to loading from _source, [long] in [foo]";
         assertThat(attribute.unresolvedMessage(), is(expected));
     }
 
@@ -3401,7 +3402,7 @@ public class AnalyzerTests extends ESTestCase {
         var attr = (UnsupportedAttribute) EsqlTestUtils.singleValue(insist.output());
 
         String expected = "Cannot use field [message] due to ambiguities being mapped as [3] incompatible types: "
-            + "[keyword] enforced by INSIST command, [datetime] in [bar], [long] in [foo]";
+            + "[keyword] due to loading from _source, [datetime] in [bar], [long] in [foo]";
         assertThat(attr.unresolvedMessage(), is(expected));
     }
 
@@ -3424,7 +3425,7 @@ public class AnalyzerTests extends ESTestCase {
         var attr = (UnsupportedAttribute) EsqlTestUtils.singleValue(insist.output());
 
         String expected = "Cannot use field [message] due to ambiguities being mapped as [3] incompatible types: "
-            + "[datetime] in [bar], [keyword] enforced by INSIST command and in [bazz], [long] in [foo]";
+            + "[datetime] in [bar], [keyword] due to loading from _source and in [bazz], [long] in [foo]";
         assertThat(attr.unresolvedMessage(), is(expected));
     }
 
@@ -6373,6 +6374,32 @@ public class AnalyzerTests extends ESTestCase {
         basic().error(
             "ROW fqdn=123 | registered_domain rd = fqdn",
             containsString("Input for REGISTERED_DOMAIN must be of type [string] but is [integer]")
+        );
+    }
+
+    public void testUserAgent() {
+        assumeTrue("requires user_agent command capability", EsqlCapabilities.Cap.USER_AGENT_COMMAND.isEnabled());
+        LogicalPlan plan = basic().query("ROW ua=\"Mozilla/5.0\" | user_agent p = ua WITH { \"extract_device_type\": true }");
+
+        Limit limit = as(plan, Limit.class);
+        UserAgent userAgent = as(limit.child(), UserAgent.class);
+
+        final List<Attribute> attributes = userAgent.generatedAttributes();
+
+        assertThrows(UnsupportedOperationException.class, () -> attributes.add(new UnresolvedAttribute(EMPTY, "test")));
+
+        assertContainsAttribute(attributes, "p.name", DataType.KEYWORD);
+        assertContainsAttribute(attributes, "p.version", DataType.KEYWORD);
+        assertContainsAttribute(attributes, "p.os.name", DataType.KEYWORD);
+        assertContainsAttribute(attributes, "p.os.version", DataType.KEYWORD);
+        assertContainsAttribute(attributes, "p.os.full", DataType.KEYWORD);
+        assertContainsAttribute(attributes, "p.device.name", DataType.KEYWORD);
+        assertContainsAttribute(attributes, "p.device.type", DataType.KEYWORD);
+        assertEquals(7, attributes.size());
+
+        basic().error(
+            "ROW ua=123 | user_agent p = ua WITH { \"extract_device_type\": true }",
+            containsString("Input for USER_AGENT must be of type [string] but is [integer]")
         );
     }
 

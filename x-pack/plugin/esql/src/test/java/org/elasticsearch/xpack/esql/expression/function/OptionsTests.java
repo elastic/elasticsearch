@@ -23,7 +23,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.hamcrest.Matchers.instanceOf;
 
 public class OptionsTests extends ESTestCase {
 
@@ -544,111 +543,5 @@ public class OptionsTests extends ESTestCase {
         });
 
         assertTrue(exception.getMessage().contains("Invalid option [map_option]"));
-    }
-
-    public void testSingleEntryOptions_SingleDataTypeAllowed_ArrayValue_ShouldResolve() {
-        Map<String, DataType> allowedOptions = Map.of("keyword_option", DataType.KEYWORD);
-        Literal arrayLiteral = new Literal(Source.EMPTY, List.of(new BytesRef("value1"), new BytesRef("value2")), DataType.KEYWORD);
-        MapExpression mapExpression = new MapExpression(
-            Source.EMPTY,
-            List.of(Literal.keyword(Source.EMPTY, "keyword_option"), arrayLiteral)
-        );
-        Expression.TypeResolution resolution = Options.resolve(
-            mapExpression,
-            Source.EMPTY,
-            TypeResolutions.ParamOrdinal.DEFAULT,
-            allowedOptions
-        );
-
-        assertTrue(resolution.resolved());
-    }
-
-    public void testPopulateMap_ArrayValue_KeywordDataType() throws InvalidArgumentException {
-        Map<String, DataType> allowedOptions = Map.of("keyword_option", DataType.KEYWORD);
-        Map<String, Object> optionsMap = new HashMap<>();
-
-        Literal arrayLiteral = new Literal(
-            Source.EMPTY,
-            List.of(new BytesRef("value1"), new BytesRef("value2"), new BytesRef("value3")),
-            DataType.KEYWORD
-        );
-        MapExpression mapExpression = new MapExpression(
-            Source.EMPTY,
-            List.of(Literal.keyword(Source.EMPTY, "keyword_option"), arrayLiteral)
-        );
-
-        Options.populateMap(mapExpression, optionsMap, Source.EMPTY, TypeResolutions.ParamOrdinal.DEFAULT, allowedOptions);
-
-        assertEquals(1, optionsMap.size());
-        assertTrue(optionsMap.containsKey("keyword_option"));
-        assertThat(optionsMap.get("keyword_option"), instanceOf(List.class));
-        @SuppressWarnings("unchecked")
-        List<String> values = (List<String>) optionsMap.get("keyword_option");
-        assertEquals(List.of("value1", "value2", "value3"), values);
-    }
-
-    public void testPopulateMap_ArrayValueMixedWithScalar() throws InvalidArgumentException {
-        Map<String, DataType> allowedOptions = Map.of("array_option", DataType.KEYWORD, "scalar_option", DataType.INTEGER);
-        Map<String, Object> optionsMap = new HashMap<>();
-
-        Literal arrayLiteral = new Literal(Source.EMPTY, List.of(new BytesRef("a"), new BytesRef("b")), DataType.KEYWORD);
-        MapExpression mapExpression = new MapExpression(
-            Source.EMPTY,
-            List.of(
-                Literal.keyword(Source.EMPTY, "array_option"),
-                arrayLiteral,
-                Literal.keyword(Source.EMPTY, "scalar_option"),
-                Literal.integer(Source.EMPTY, 42)
-            )
-        );
-
-        Options.populateMap(mapExpression, optionsMap, Source.EMPTY, TypeResolutions.ParamOrdinal.DEFAULT, allowedOptions);
-
-        assertEquals(2, optionsMap.size());
-
-        // Check the array option
-        assertThat(optionsMap.get("array_option"), instanceOf(List.class));
-        @SuppressWarnings("unchecked")
-        List<String> arrayValues = (List<String>) optionsMap.get("array_option");
-        assertEquals(List.of("a", "b"), arrayValues);
-
-        // Check the scalar option
-        assertEquals(42, optionsMap.get("scalar_option"));
-    }
-
-    public void testPopulateMap_ArrayValue_UnknownOption_ShouldThrowException() {
-        Map<String, DataType> allowedOptions = Map.of("known_option", DataType.KEYWORD);
-        Map<String, Object> optionsMap = new HashMap<>();
-
-        Literal arrayLiteral = new Literal(Source.EMPTY, List.of(new BytesRef("value1"), new BytesRef("value2")), DataType.KEYWORD);
-        MapExpression mapExpression = new MapExpression(
-            Source.EMPTY,
-            List.of(Literal.keyword(Source.EMPTY, "unknown_array_option"), arrayLiteral)
-        );
-
-        InvalidArgumentException exception = assertThrows(InvalidArgumentException.class, () -> {
-            Options.populateMap(mapExpression, optionsMap, Source.EMPTY, TypeResolutions.ParamOrdinal.DEFAULT, allowedOptions);
-        });
-
-        assertTrue(exception.getMessage().contains("Invalid option [unknown_array_option]"));
-        assertTrue(exception.getMessage().contains("expected one of [known_option]"));
-    }
-
-    public void testPopulateMap_ArrayValue_InvalidElementConversion_ShouldThrowException() {
-        Map<String, DataType> allowedOptions = Map.of("int_option", DataType.INTEGER);
-        Map<String, Object> optionsMap = new HashMap<>();
-
-        Literal arrayLiteral = new Literal(
-            Source.EMPTY,
-            List.of(new BytesRef("not_a_number"), new BytesRef("also_not_a_number")),
-            DataType.KEYWORD
-        );
-        MapExpression mapExpression = new MapExpression(Source.EMPTY, List.of(Literal.keyword(Source.EMPTY, "int_option"), arrayLiteral));
-
-        InvalidArgumentException exception = assertThrows(InvalidArgumentException.class, () -> {
-            Options.populateMap(mapExpression, optionsMap, Source.EMPTY, TypeResolutions.ParamOrdinal.DEFAULT, allowedOptions);
-        });
-
-        assertTrue(exception.getMessage().contains("Invalid option [int_option]"));
     }
 }

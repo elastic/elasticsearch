@@ -172,8 +172,8 @@ public class TopSnippetsTests extends AbstractScalarFunctionTestCase {
         Integer numSnippets,
         Integer numWords,
         Boolean highlight,
-        String preTags,
-        String postTags,
+        String preTag,
+        String postTag,
         String encoder
     ) {
         List<Expression> optionsMap = new ArrayList<>();
@@ -193,14 +193,14 @@ public class TopSnippetsTests extends AbstractScalarFunctionTestCase {
             optionsMap.add(new Literal(Source.EMPTY, highlight, DataType.BOOLEAN));
         }
 
-        if (Objects.nonNull(preTags)) {
-            optionsMap.add(Literal.keyword(Source.EMPTY, "pre_tags"));
-            optionsMap.add(Literal.keyword(Source.EMPTY, preTags));
+        if (Objects.nonNull(preTag)) {
+            optionsMap.add(Literal.keyword(Source.EMPTY, "pre_tag"));
+            optionsMap.add(Literal.keyword(Source.EMPTY, preTag));
         }
 
-        if (Objects.nonNull(postTags)) {
-            optionsMap.add(Literal.keyword(Source.EMPTY, "post_tags"));
-            optionsMap.add(Literal.keyword(Source.EMPTY, postTags));
+        if (Objects.nonNull(postTag)) {
+            optionsMap.add(Literal.keyword(Source.EMPTY, "post_tag"));
+            optionsMap.add(Literal.keyword(Source.EMPTY, postTag));
         }
 
         if (Objects.nonNull(encoder)) {
@@ -409,11 +409,11 @@ public class TopSnippetsTests extends AbstractScalarFunctionTestCase {
         int numSnippets,
         int numWords,
         Boolean highlight,
-        String preTags,
-        String postTags,
+        String preTag,
+        String postTag,
         String encoder
     ) {
-        MapExpression optionsMap = createOptions(numSnippets, numWords, highlight, preTags, postTags, encoder);
+        MapExpression optionsMap = createOptions(numSnippets, numWords, highlight, preTag, postTag, encoder);
 
         try (
             ExpressionEvaluator eval = evaluator(

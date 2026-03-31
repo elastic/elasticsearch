@@ -3732,16 +3732,16 @@ public class VerifierTests extends ESTestCase {
             equalTo("1:29: 'encoder' option must be 'default' or 'html', found [xml]")
         );
         fullText().error(
-            "from test | EVAL snippets = TOP_SNIPPETS(body, \"query\", {\"pre_tags\": \"<b>\"})",
-            equalTo("1:29: 'pre_tags', 'post_tags', and 'encoder' options require 'highlight' to be true")
+            "from test | EVAL snippets = TOP_SNIPPETS(body, \"query\", {\"pre_tag\": \"<b>\"})",
+            equalTo("1:29: 'pre_tag', 'post_tag', and 'encoder' options require 'highlight' to be true")
         );
         fullText().error(
-            "from test | EVAL snippets = TOP_SNIPPETS(body, \"query\", {\"post_tags\": \"</b>\"})",
-            equalTo("1:29: 'pre_tags', 'post_tags', and 'encoder' options require 'highlight' to be true")
+            "from test | EVAL snippets = TOP_SNIPPETS(body, \"query\", {\"post_tag\": \"</b>\"})",
+            equalTo("1:29: 'pre_tag', 'post_tag', and 'encoder' options require 'highlight' to be true")
         );
         fullText().error(
             "from test | EVAL snippets = TOP_SNIPPETS(body, \"query\", {\"highlight\": false, \"encoder\": \"html\"})",
-            equalTo("1:29: 'pre_tags', 'post_tags', and 'encoder' options require 'highlight' to be true")
+            equalTo("1:29: 'pre_tag', 'post_tag', and 'encoder' options require 'highlight' to be true")
         );
     }
 

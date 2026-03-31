@@ -16,12 +16,12 @@ useful when the text has already been chunked externally.
 Defaults to false.
 
 
-`pre_tags`
+`pre_tag`
 :   (keyword) Opening tag for highlighted terms. Only applies when highlight is true.
 Defaults to `<em>`.
 
 
-`post_tags`
+`post_tag`
 :   (keyword) Closing tag for highlighted terms. Only applies when highlight is true.
 Defaults to `</em>`.
 

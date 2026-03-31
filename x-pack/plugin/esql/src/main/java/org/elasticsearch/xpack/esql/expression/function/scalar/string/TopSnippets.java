@@ -97,20 +97,20 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
     private static final String NUM_SNIPPETS = "num_snippets";
     private static final String NUM_WORDS = "num_words";
     private static final String HIGHLIGHT = "highlight";
-    private static final String PRE_TAGS = "pre_tags";
-    private static final String POST_TAGS = "post_tags";
+    private static final String PRE_TAG = "pre_tag";
+    private static final String POST_TAG = "post_tag";
     private static final String ENCODER = "encoder";
 
-    static final String DEFAULT_PRE_TAGS = "<em>";
-    static final String DEFAULT_POST_TAGS = "</em>";
+    static final String DEFAULT_PRE_TAG = "<em>";
+    static final String DEFAULT_POST_TAG = "</em>";
     static final String DEFAULT_ENCODER = "default";
 
     public static final Map<String, DataType> ALLOWED_OPTIONS = Map.ofEntries(
         entry(NUM_SNIPPETS, DataType.INTEGER),
         entry(NUM_WORDS, DataType.INTEGER),
         entry(HIGHLIGHT, DataType.BOOLEAN),
-        entry(PRE_TAGS, DataType.KEYWORD),
-        entry(POST_TAGS, DataType.KEYWORD),
+        entry(PRE_TAG, DataType.KEYWORD),
+        entry(POST_TAG, DataType.KEYWORD),
         entry(ENCODER, DataType.KEYWORD)
     );
 
@@ -167,11 +167,11 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
                     When true, wraps matched query terms in the returned snippets with markup tags.
                     Defaults to false.
                     """, valueHint = { "true" }),
-                @MapParam.MapParamEntry(name = "pre_tags", type = "keyword", description = """
+                @MapParam.MapParamEntry(name = "pre_tag", type = "keyword", description = """
                     Opening tag for highlighted terms. Only applies when highlight is true.
                     Defaults to `<em>`.
                     """, valueHint = { "<em>" }),
-                @MapParam.MapParamEntry(name = "post_tags", type = "keyword", description = """
+                @MapParam.MapParamEntry(name = "post_tag", type = "keyword", description = """
                     Closing tag for highlighted terms. Only applies when highlight is true.
                     Defaults to `</em>`.
                     """, valueHint = { "</em>" }),
@@ -283,11 +283,11 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
     private static void validateHighlightOnlyOptions(Map<String, Object> options) {
         boolean highlight = Boolean.TRUE.equals(options.get(HIGHLIGHT));
         if (highlight == false) {
-            if (options.containsKey(PRE_TAGS) || options.containsKey(POST_TAGS) || options.containsKey(ENCODER)) {
+            if (options.containsKey(PRE_TAG) || options.containsKey(POST_TAG) || options.containsKey(ENCODER)) {
                 throw new InvalidArgumentException(
                     "'{}', '{}', and '{}' options require '{}' to be true",
-                    PRE_TAGS,
-                    POST_TAGS,
+                    PRE_TAG,
+                    POST_TAG,
                     ENCODER,
                     HIGHLIGHT
                 );
@@ -338,22 +338,6 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
     private int extractIntegerOption(Map<String, Object> options, String option, int defaultValue) {
         Object value = options.get(option);
         return value != null ? ((Number) value).intValue() : defaultValue;
-    }
-
-    /**
-     * Normalises an option value produced by {@link Options#populateMap} into a {@code List<String>}.
-     * After the populateMap change, a KEYWORD option may arrive as either a plain {@code String}
-     * (scalar literal) or a {@code List<String>} (array literal such as {@code ["<b>","<em>"]}).
-     */
-    @SuppressWarnings("unchecked")
-    private static List<String> toStringList(Object value, String defaultValue) {
-        if (value == null) {
-            return List.of(defaultValue);
-        }
-        if (value instanceof List<?>) {
-            return (List<String>) value;
-        }
-        return List.of((String) value);
     }
 
     @Evaluator(warnExceptions = { IllegalArgumentException.class })
@@ -484,14 +468,11 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
             numSnippets = numSnippets(opts);
             numWords = numWords(opts);
             if (Boolean.TRUE.equals(opts.get(HIGHLIGHT))) {
-                List<String> preTags = toStringList(opts.get(PRE_TAGS), DEFAULT_PRE_TAGS);
-                List<String> postTags = toStringList(opts.get(POST_TAGS), DEFAULT_POST_TAGS);
-                // TODO(mromaios): the array complicates things, AFAIU the current DefaultHighlighter also just gets the first tag to use
-                // do we really need multiple tags support here? Maybe not, but only have this in the HIGHLIGHT cmd
+                String preTag = opts.containsKey(PRE_TAG) ? (String) opts.get(PRE_TAG) : DEFAULT_PRE_TAG;
+                String postTag = opts.containsKey(POST_TAG) ? (String) opts.get(POST_TAG) : DEFAULT_POST_TAG;
                 String encoderType = opts.containsKey(ENCODER) ? (String) opts.get(ENCODER) : DEFAULT_ENCODER;
                 Encoder encoder = "html".equals(encoderType) ? new SimpleHTMLEncoder() : new DefaultEncoder();
-                // TODO(mromaios): We could use HighlightUtils.Encoders.HTML, but it's under search/phase/subphase which feels weird.
-                highlightFormatter = new CustomPassageFormatter(preTags.getFirst(), postTags.getFirst(), encoder, 0);
+                highlightFormatter = new CustomPassageFormatter(preTag, postTag, encoder, 0);
             }
         } else {
             numSnippets = DEFAULT_NUM_SNIPPETS;

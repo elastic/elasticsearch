@@ -225,7 +225,7 @@ topSnippetsHighlightCustomTags
 required_capability: top_snippets_highlight
 
 ROW content = "Sauron, the Dark Lord, has gathered to him all the Rings of Power."
-| EVAL snippets = TOP_SNIPPETS(content, "rings", { "highlight": true, "pre_tags": "<b>", "post_tags": "</b>" })
+| EVAL snippets = TOP_SNIPPETS(content, "rings", { "highlight": true, "pre_tag": "<b>", "post_tag": "</b>" })
 | KEEP snippets
 ;
 

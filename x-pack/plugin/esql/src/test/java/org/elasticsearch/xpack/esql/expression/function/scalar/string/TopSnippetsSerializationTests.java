@@ -57,11 +57,11 @@ public class TopSnippetsSerializationTests extends AbstractExpressionSerializati
             entries.add(Literal.keyword(Source.EMPTY, "highlight"));
             entries.add(new Literal(Source.EMPTY, true, DataType.BOOLEAN));
             if (randomBoolean()) {
-                entries.add(Literal.keyword(Source.EMPTY, "pre_tags"));
+                entries.add(Literal.keyword(Source.EMPTY, "pre_tag"));
                 entries.add(Literal.keyword(Source.EMPTY, randomFrom("<em>", "<b>", "<mark>")));
             }
             if (randomBoolean()) {
-                entries.add(Literal.keyword(Source.EMPTY, "post_tags"));
+                entries.add(Literal.keyword(Source.EMPTY, "post_tag"));
                 entries.add(Literal.keyword(Source.EMPTY, randomFrom("</em>", "</b>", "</mark>")));
             }
             if (randomBoolean()) {

@@ -111,6 +111,12 @@ public final class QueryPragmas implements Writeable {
     public static final Setting<Boolean> FORK_IMPLICIT_LIMIT = Setting.boolSetting("fork_implicit_limit", true);
 
     /**
+     * The number of branches to execute in parallel. This is a safeguard to avoid overloading the cluster with too many parallel branches.
+     * This applies to forks and subqueries.
+     */
+    public static final Setting<Integer> BRANCH_PARALLEL_DEGREE = Setting.intSetting("branch_parallel_degree", 2, 1);
+
+    /**
      * Number of parallel parser threads for intra-file text format parsing (CSV, NDJSON).
      * Defaults to allocated processors. Set to 1 to disable parallel parsing.
      */
@@ -274,6 +280,10 @@ public final class QueryPragmas implements Writeable {
         return PARSING_PARALLELISM.get(settings);
     }
 
+    public int branchParallelDegree() {
+        return BRANCH_PARALLEL_DEGREE.get(settings);
+    }
+
     /**
      * Returns the effective doc-sequence threshold. When {@link #FORCE_DOC_SEQUENCE} is
      * {@code true}, returns {@code 0} so that all non-single-segment pages use
@@ -296,6 +306,13 @@ public final class QueryPragmas implements Writeable {
     public double partialAggregationEmitUniquenessThreshold(double defaultThreshold) {
         if (settings.hasValue(PlannerSettings.PARTIAL_AGGREGATION_EMIT_UNIQUENESS_THRESHOLD.getKey())) {
             return PlannerSettings.PARTIAL_AGGREGATION_EMIT_UNIQUENESS_THRESHOLD.get(settings);
+        }
+        return defaultThreshold;
+    }
+
+    public int docsThresholdForAutoPartitioning(int defaultThreshold) {
+        if (settings.hasValue(PlannerSettings.DOC_THRESHOLD_AUTO_PARTITIONING.getKey())) {
+            return PlannerSettings.DOC_THRESHOLD_AUTO_PARTITIONING.get(settings);
         }
         return defaultThreshold;
     }

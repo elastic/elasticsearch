@@ -43,6 +43,7 @@ import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.useragent.UserAgentPlugin;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -83,7 +84,10 @@ import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.URL;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
@@ -101,6 +105,7 @@ import static org.elasticsearch.xpack.esql.CsvTestUtils.isEnabled;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.loadCsvSpecValues;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.CSV_DATASET;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.INFERENCE_CONFIGS;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.classpathResources;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.greaterThan;
@@ -116,6 +121,9 @@ import static org.hamcrest.Matchers.hasSize;
 public class CsvIT extends ESTestCase {
 
     private static final Logger logger = LogManager.getLogger(CsvIT.class);
+    private static final EsqlCapabilities ENABLED_CAPS = EsqlCapabilities.capabilities(TEST_FUNCTION_REGISTRY, false);
+    private static final EsqlCapabilities ALL_CAPS = EsqlCapabilities.capabilities(TEST_FUNCTION_REGISTRY, true);
+    private static final int BULK_INDEX_BATCH_SIZE = 10_000;
 
     private static InternalTestCluster cluster;
     private static String currentGroupName = null;
@@ -150,8 +158,11 @@ public class CsvIT extends ESTestCase {
         return SpecReader.readScriptSpec(urls, specParser());
     }
 
+    private static java.nio.file.Path nodeConfigDir;
+
     @BeforeClass
     public static void setupCluster() throws Exception {
+        nodeConfigDir = createConfigDir();
         long start = System.currentTimeMillis();
         logger.info("Creating test cluster");
         cluster = new InternalTestCluster(
@@ -173,7 +184,7 @@ public class CsvIT extends ESTestCase {
 
                 @Override
                 public java.nio.file.Path nodeConfigPath(int nodeOrdinal) {
-                    return null;
+                    return nodeConfigDir;
                 }
             },
             0,
@@ -191,6 +202,7 @@ public class CsvIT extends ESTestCase {
                 MapperExtrasPlugin.class,
                 SpatialPlugin.class,
                 UnsignedLongMapperPlugin.class,
+                UserAgentPlugin.class,
                 VersionFieldPlugin.class,
                 Wildcard.class
             ),
@@ -218,6 +230,7 @@ public class CsvIT extends ESTestCase {
             "CSV tests cannot handle EXTERNAL sources (requires QA integration tests)",
             testCase.query.trim().toUpperCase(java.util.Locale.ROOT).startsWith("EXTERNAL")
         );
+        checkTestCapabilities();
 
         currentGroupName = groupName;
         // verify no prior failures
@@ -258,6 +271,10 @@ public class CsvIT extends ESTestCase {
             t.setStackTrace(prependSpec(t.getStackTrace()));
             throw t;
         }
+    }
+
+    private void checkTestCapabilities() {
+        CsvTestUtils.checkTestCapabilities(ALL_CAPS, ENABLED_CAPS, testCase.requiredCapabilities);
     }
 
     private StackTraceElement[] prependSpec(StackTraceElement[] original) {
@@ -405,6 +422,14 @@ public class CsvIT extends ESTestCase {
                             .setId(document.id())
                             .setSource(document.json().toString(), XContentType.JSON)
                     );
+                    if (bulk.numberOfActions() >= BULK_INDEX_BATCH_SIZE) {
+                        var result = bulk.get();
+                        assertFalse(
+                            "Must load dataset [" + dataset.indexName() + "] successfully: " + result.buildFailureMessage(),
+                            result.hasFailures()
+                        );
+                        bulk = cluster.client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+                    }
                 }
                 if (bulk.numberOfActions() > 0) {
                     var result = bulk.get();
@@ -520,6 +545,20 @@ public class CsvIT extends ESTestCase {
                 throw new RuntimeException("Resource loading failure", failure);
             }
         }
+    }
+
+    private static Path createConfigDir() throws IOException {
+        Path configDir = createTempDir();
+
+        // create a subdir for the user-agent with custom regex files so we can test the USER_AGENT with the regex_file option
+        Path userAgentDir = configDir.resolve("user-agent");
+        Files.createDirectories(userAgentDir);
+        try (InputStream is = CsvIT.class.getResourceAsStream("/custom-regexes.yml")) {
+            assert is != null : "custom-regexes.yml not found on classpath";
+            Files.copy(is, userAgentDir.resolve("custom-regexes.yml"));
+        }
+
+        return configDir;
     }
 
     private static class ResponseListener extends PlainActionFuture<EsqlQueryResponse> {

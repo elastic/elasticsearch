@@ -144,7 +144,9 @@ public class CommandLicenseTests extends ESTestCase {
             "MetricsInfo",
             "METRICS_INFO",
             "TsInfo",
-            "TS_INFO"
+            "TS_INFO",
+            "UserAgent",
+            "USER_AGENT"
         );
         Map<String, String> commandPackageMapper = Map.of("Rerank", planPackage + ".inference", "LookupJoin", planPackage + ".join");
         Set<String> ignoredClasses = Set.of("Processing", "TimeSeries", "Completion", "Source", "From", "Row");

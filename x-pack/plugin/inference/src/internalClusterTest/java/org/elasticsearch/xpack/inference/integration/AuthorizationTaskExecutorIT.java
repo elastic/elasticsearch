@@ -11,6 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequestBuilder;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequestBuilder;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.AdminClient;
 import org.elasticsearch.common.Strings;
@@ -27,6 +28,8 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
+import org.elasticsearch.xpack.inference.InferenceIndex;
+import org.elasticsearch.xpack.inference.InferenceSecretsIndex;
 import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService;
@@ -58,6 +61,7 @@ import static org.elasticsearch.xpack.inference.services.elastic.response.Elasti
 import static org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityTests.createAuthorizedEndpoint;
 import static org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityTests.getEisRainbowSprinklesAuthorizationResponse;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
@@ -94,6 +98,7 @@ public class AuthorizationTaskExecutorIT extends ESSingleNodeTestCase {
 
         // Wait for inference indices to be created
         assertBusy(() -> getEisEndpoints());
+        ensureNoInitializingShards();
     }
 
     @After
@@ -103,12 +108,16 @@ public class AuthorizationTaskExecutorIT extends ESSingleNodeTestCase {
 
     static void removeEisPreconfiguredEndpoints(ModelRegistry modelRegistry) {
         // Delete all the eis preconfigured endpoints
+        deleteEndpoints(modelRegistry, EIS_PRECONFIGURED_ENDPOINT_IDS);
+    }
+
+    static void deleteEndpoints(ModelRegistry modelRegistry, Set<String> idsToDelete) {
         var listener = new PlainActionFuture<Boolean>();
-        modelRegistry.deleteModels(EIS_PRECONFIGURED_ENDPOINT_IDS, listener);
+        modelRegistry.deleteModels(idsToDelete, listener);
         try {
             listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT);
         } catch (Exception e) {
-            logger.atWarn().withThrowable(e).log("Failed to delete eis preconfigured endpoints");
+            logger.atWarn().withThrowable(e).log("Failed to delete eis endpoints: " + idsToDelete);
         }
     }
 
@@ -220,8 +229,15 @@ public class AuthorizationTaskExecutorIT extends ESSingleNodeTestCase {
         var listener = new PlainActionFuture<List<UnparsedModel>>();
         modelRegistry.getAllModels(true, listener);
 
-        var endpoints = listener.actionGet(TimeValue.THIRTY_SECONDS);
-        return endpoints.stream().filter(m -> m.service().equals(ElasticInferenceService.NAME)).toList();
+        try {
+            var endpoints = listener.actionGet(TimeValue.THIRTY_SECONDS);
+            return endpoints.stream().filter(m -> m.service().equals(ElasticInferenceService.NAME)).toList();
+        } catch (SearchPhaseExecutionException e) {
+            // This can happen if the internal inference indices shards have not been initialized yet.
+            // We fail so that when this is called in assertBusy we can retry.
+            fail();
+            return List.of();
+        }
     }
 
     private void restartPollingTaskAndWaitForAuthResponse() throws Exception {
@@ -346,6 +362,9 @@ public class AuthorizationTaskExecutorIT extends ESSingleNodeTestCase {
         restartPollingTaskAndWaitForAuthResponse();
         assertWebServerReceivedRequest();
 
+        // Wait for the text embedding endpoint to be created
+        assertBusy(() -> assertThat(getEisEndpoints(), hasSize(2)));
+
         var eisEndpoints = getEisEndpoints().stream().collect(Collectors.toMap(UnparsedModel::inferenceEntityId, Function.identity()));
         assertThat(eisEndpoints.size(), is(2));
 
@@ -384,6 +403,10 @@ public class AuthorizationTaskExecutorIT extends ESSingleNodeTestCase {
 
         assertBusy(() -> assertThat(getEisEndpoints(modelRegistry).size(), is(1)));
 
+        // As the poller has gotten the initial authorization response, the inference indices should be created.
+        // But we should also wait for all their shards to be initialized in order for the shutdown to succeed.
+        ensureGreen(InferenceIndex.INDEX_NAME, InferenceSecretsIndex.INDEX_NAME);
+
         var eisEndpoints = getEisEndpoints(modelRegistry);
         assertThat(eisEndpoints.size(), is(1));
         var endpoint = eisEndpoints.get(0);
@@ -408,6 +431,7 @@ public class AuthorizationTaskExecutorIT extends ESSingleNodeTestCase {
             assertThat(updated.endpointMetadata().internal().fingerprint(), is(updatedFingerprint));
         });
 
+        deleteEndpoints(modelRegistry, Set.of(endpointId));
     }
 
     public void testRestartsTaskAfterAbort() throws Exception {

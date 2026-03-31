@@ -95,6 +95,16 @@ public final class GcdCodecStage implements NumericCodecStage {
         }
     }
 
+    public static void encodeStatic(final GcdCodecStage stage, final long[] values, int valueCount, final EncodingContext context)
+        throws IOException {
+        stage.encode(values, valueCount, context);
+    }
+
+    public static void decodeStatic(final GcdCodecStage stage, final long[] values, int valueCount, final DecodingContext context)
+        throws IOException {
+        stage.decode(values, valueCount, context);
+    }
+
     private static void multiplyByGcd(final long[] values, final int valueCount, final long gcd) {
         if ((gcd & (gcd - 1)) == 0) {
             final int shift = Long.numberOfTrailingZeros(gcd);

@@ -49,6 +49,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Present;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.PresentOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sample;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Sparkline;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialCentroid;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialExtent;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.StdDev;
@@ -615,7 +616,8 @@ public class EsqlFunctionRegistry {
                 def(Delay.class, Delay::new, "delay"),
                 // dense vector functions
                 def(Magnitude.class, Magnitude::new, "v_magnitude"),
-                def(ToDateRange.class, ToDateRange::new, "to_date_range", "to_daterange") } };
+                def(ToDateRange.class, ToDateRange::new, "to_date_range", "to_daterange"),
+                def(Sparkline.class, Sparkline::new, 0, "sparkline") } };
     }
 
     public EsqlFunctionRegistry snapshotRegistry() {

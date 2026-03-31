@@ -7,13 +7,12 @@
 
 package org.elasticsearch.xpack.sql.logging;
 
-import org.elasticsearch.common.logging.activity.ActivityLoggerContext;
 import org.elasticsearch.common.logging.activity.QueryLoggerContext;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.sql.action.SqlQueryRequest;
 import org.elasticsearch.xpack.sql.action.SqlQueryResponse;
 
-public class SqlLogContext extends ActivityLoggerContext implements QueryLoggerContext {
+public class SqlLogContext extends QueryLoggerContext {
     public static final String TYPE = "sql";
     private final SqlQueryRequest request;
     private final SqlQueryResponse response;

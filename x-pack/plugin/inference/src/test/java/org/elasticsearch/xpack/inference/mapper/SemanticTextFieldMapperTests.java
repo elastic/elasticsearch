@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.mapper;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat;
 import org.apache.lucene.document.FeatureField;
 import org.apache.lucene.index.FieldInfo;
@@ -37,8 +38,10 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.codec.vectors.diskbbq.es94.ES940DiskBBQVectorsFormat;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -62,6 +65,7 @@ import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapperTests;
 import org.elasticsearch.index.mapper.vectors.SparseVectorFieldTypeTests;
 import org.elasticsearch.index.mapper.vectors.TokenPruningConfig;
+import org.elasticsearch.index.mapper.vectors.VectorsFormatProvider;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.search.ESToParentBlockJoinQuery;
 import org.elasticsearch.inference.ChunkingSettings;
@@ -74,6 +78,7 @@ import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.metadata.EndpointMetadata;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.internal.InternalVectorFormatProviderPlugin;
 import org.elasticsearch.search.LeafNestedDocuments;
 import org.elasticsearch.search.NestedDocuments;
 import org.elasticsearch.search.SearchHit;
@@ -102,10 +107,12 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.index.IndexVersions.DEFAULT_DENSE_VECTOR_TO_BBQ_DISK;
 import static org.elasticsearch.index.IndexVersions.NEW_SPARSE_VECTOR;
 import static org.elasticsearch.index.IndexVersions.SEMANTIC_TEXT_DEFAULTS_TO_BFLOAT16;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldTypeTests.randomIndexOptionsAll;
@@ -139,6 +146,33 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 public class SemanticTextFieldMapperTests extends MapperTestCase {
+    private static class TrialLicenseStateDiskBBQPlugin extends Plugin implements InternalVectorFormatProviderPlugin {
+        @Override
+        public VectorsFormatProvider getVectorsFormatProvider() {
+            return new VectorsFormatProvider() {
+                @Override
+                public KnnVectorsFormat getKnnVectorsFormat(
+                    IndexSettings indexSettings,
+                    DenseVectorFieldMapper.DenseVectorIndexOptions indexOptions,
+                    DenseVectorFieldMapper.VectorSimilarity similarity,
+                    DenseVectorFieldMapper.ElementType elementType,
+                    ExecutorService mergingExecutorService,
+                    int maxMergingWorkers
+                ) {
+                    return null;
+                }
+
+                @Override
+                public boolean isVectorIndexTypeAllowed(
+                    IndexVersion indexVersionCreated,
+                    DenseVectorFieldMapper.VectorIndexType indexType
+                ) {
+                    return true;
+                }
+            };
+        }
+    }
+
     private final boolean useLegacyFormat;
 
     private TestThreadPool threadPool;
@@ -181,7 +215,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             protected Supplier<ModelRegistry> getModelRegistry() {
                 return () -> globalModelRegistry;
             }
-        }, new XPackClientPlugin());
+        }, new XPackClientPlugin(), new TrialLicenseStateDiskBBQPlugin());
     }
 
     private void registerDefaultEisEndpoint() {
@@ -2004,10 +2038,35 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         return new DenseVectorFieldMapper.BBQHnswIndexOptions(m, efConstruction, false, rescoreVector, -1);
     }
 
+    private static DenseVectorFieldMapper.DenseVectorIndexOptions defaultBbqDiskDenseVectorIndexOptions(
+        IndexVersion indexVersionCreated,
+        int dims
+    ) {
+        int bits = dims < DenseVectorFieldMapper.BBQ_DIMS_DEFAULT_THRESHOLD ? 4 : 1;
+        return new DenseVectorFieldMapper.BBQIVFIndexOptions(
+            ES940DiskBBQVectorsFormat.DEFAULT_VECTORS_PER_CLUSTER,
+            -1,
+            0d,
+            false,
+            new DenseVectorFieldMapper.RescoreVector(DenseVectorFieldMapper.DEFAULT_OVERSAMPLE),
+            indexVersionCreated,
+            false,
+            bits,
+            true
+        );
+    }
+
     private static SemanticTextIndexOptions defaultBbqHnswSemanticTextIndexOptions() {
         return new SemanticTextIndexOptions(
             SemanticTextIndexOptions.SupportedIndexOptions.DENSE_VECTOR,
             defaultBbqHnswDenseVectorIndexOptions()
+        );
+    }
+
+    private static SemanticTextIndexOptions defaultBbqDiskSemanticTextIndexOptions(IndexVersion indexVersionCreated, int dims) {
+        return new SemanticTextIndexOptions(
+            SemanticTextIndexOptions.SupportedIndexOptions.DENSE_VECTOR,
+            defaultBbqDiskDenseVectorIndexOptions(indexVersionCreated, dims)
         );
     }
 
@@ -2063,8 +2122,13 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             case TEXT_EMBEDDING -> {
                 boolean floatFamilyElementType = elementType == DenseVectorFieldMapper.ElementType.FLOAT
                     || elementType == DenseVectorFieldMapper.ElementType.BFLOAT16;
-                if (floatFamilyElementType
-                    && SemanticTextFieldMapper.indexVersionDefaultsToBbqHnsw(indexVersion)
+                if (indexVersion.after(DEFAULT_DENSE_VECTOR_TO_BBQ_DISK)) {
+                    // TODO: validate dimensions, we might get hnsw index
+                    // IndexVersions.SEMANTIC_TEXT_DEFAULTS_TO_BBQ_DISK: default to bbq_disk
+                    yield defaultBbqDiskSemanticTextIndexOptions(indexVersion, dimensions);
+                }
+                else if (floatFamilyElementType
+                    && SemanticTextFieldMapper.setExplicitIndexOptionsForSemanticText(indexVersion)
                     && dimensions >= DenseVectorFieldMapper.BBQ_MIN_DIMS) {
                     yield defaultBbqHnswSemanticTextIndexOptions();
                 } else if (elementType == DenseVectorFieldMapper.ElementType.FLOAT) {

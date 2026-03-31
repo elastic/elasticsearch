@@ -113,8 +113,9 @@ public abstract class RestCompatTestTransformTask extends DefaultTask {
         getTransformations().add(new InjectHeaders(headers, Sets.newHashSet(RestCompatTestTransformTask::doesNotHaveCatOperation)));
         // Prior-minor YAML still asserts length on top-level profile keys; current versions add profile.request next to
         // profile.shards (SearchProfileResults + TransportVersion include_original_query_indices_in_search_profile_results).
-        getTransformations()
-            .add(new ReplaceValueInLength("profile", SerializableJsonNode.of(2, NumericNode.class), "Test that parameters can be used"));
+        getTransformations().add(
+            new ReplaceValueInLength("profile", SerializableJsonNode.of(2, NumericNode.class), "Test that parameters can be used")
+        );
     }
 
     @Inject

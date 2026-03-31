@@ -95,14 +95,11 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         "long overflow", // https://github.com/elastic/elasticsearch/issues/135759
         "can't find input for", // https://github.com/elastic/elasticsearch/issues/136596
         "optimized incorrectly due to missing references", // https://github.com/elastic/elasticsearch/issues/138231
+        // https://github.com/elastic/elasticsearch/issues/142537 for null arguments in clamp() function
         "'field' must not be null in clamp\\(\\)", // clamp/clamp_min/clamp_max reject NULL field from unmapped fields
         "must be \\[boolean, date, ip, string or numeric except unsigned_long or counter types\\]", // type mismatch in top() arguments
-        "unsupported logical plan node \\[Join\\]", // https://github.com/elastic/elasticsearch/issues/141978
-        "Unsupported right plan for lookup join \\[Eval\\]", // https://github.com/elastic/elasticsearch/issues/141870
         "Does not support yet aggregations over constants", // https://github.com/elastic/elasticsearch/issues/118292
         "found value \\[.*\\] type \\[unsupported\\]", // https://github.com/elastic/elasticsearch/issues/142761
-        "change point value \\[.*\\] must be numeric", // https://github.com/elastic/elasticsearch/issues/142858
-        "illegal query_string option \\[boost\\]", // https://github.com/elastic/elasticsearch/issues/142758
         "Field \\[.*\\] of type \\[.*\\] does not support match.* queries",
         "JOIN left field \\[.*\\] of type \\[NULL\\] is incompatible with right", // https://github.com/elastic/elasticsearch/issues/141827
         // https://github.com/elastic/elasticsearch/issues/141827

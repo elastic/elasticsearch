@@ -2404,6 +2404,11 @@ public class EsqlCapabilities {
 
         PROPAGATE_EMPTY_RELATION_PAST_JOINS,
 
+        /**
+         * Supports the {@code USER_AGENT} command.
+         */
+        USER_AGENT_COMMAND,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

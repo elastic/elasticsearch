@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.qa.mixed;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.Version;
+import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.xpack.esql.CsvTestUtils;
 
 import java.nio.file.Path;
@@ -31,7 +32,8 @@ public class Clusters {
             .withNode(node -> node.version(Version.CURRENT))
             .setting("xpack.security.enabled", "false")
             .setting("xpack.license.self_generated.type", "trial")
-            .setting("path.repo", csvDataPath::toString);
+            .setting("path.repo", csvDataPath::toString)
+            .configFile("user-agent/custom-regexes.yml", Resource.fromClasspath("custom-regexes.yml"));
         if (supportRetryOnShardFailures(oldVersion) == false) {
             cluster.setting("cluster.routing.rebalance.enable", "none");
         }

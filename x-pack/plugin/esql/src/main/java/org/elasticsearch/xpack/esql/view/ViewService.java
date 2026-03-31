@@ -25,7 +25,6 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xpack.core.esql.EsqlFeatureFlags;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
 
@@ -88,11 +87,6 @@ public class ViewService {
      * Adds or modifies a view by name.
      */
     public void putView(ProjectId projectId, PutViewAction.Request request, ActionListener<AcknowledgedResponse> listener) {
-        if (viewsFeatureEnabled() == false) {
-            listener.onFailure(new IllegalArgumentException("ESQL views are not enabled"));
-            return;
-        }
-
         final View view = request.view();
         final ProjectMetadata metadata = clusterService.state().metadata().getProject(projectId);
         try {
@@ -133,10 +127,6 @@ public class ViewService {
      */
     public void deleteView(ProjectId projectId, DeleteViewAction.Request request, ActionListener<AcknowledgedResponse> listener) {
         // TODO this should support wildcard deletion if action.destructive_requires_name = false
-        if (viewsFeatureEnabled() == false) {
-            listener.onFailure(new IllegalArgumentException("ESQL views are not enabled"));
-            return;
-        }
         final String name = request.name();
         final ProjectMetadata metadata = clusterService.state().metadata().getProject(projectId);
         final ViewMetadata viewMetadata = metadata.custom(ViewMetadata.TYPE, ViewMetadata.EMPTY);
@@ -205,17 +195,13 @@ public class ViewService {
         if (Strings.hasText(name) == false) {
             throw new IllegalArgumentException("name is missing or empty");
         }
-        return viewsFeatureEnabled() ? getMetadata(projectId).getView(name) : null;
+        return getMetadata(projectId).getView(name);
     }
 
     /**
      * List all current view names.
      */
     public Set<String> list(ProjectId projectId) {
-        return viewsFeatureEnabled() ? getMetadata(projectId).views().keySet() : Set.of();
-    }
-
-    protected boolean viewsFeatureEnabled() {
-        return EsqlFeatureFlags.ESQL_VIEWS_FEATURE_FLAG.isEnabled();
+        return getMetadata(projectId).views().keySet();
     }
 }

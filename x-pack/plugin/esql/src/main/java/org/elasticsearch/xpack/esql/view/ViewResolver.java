@@ -21,7 +21,6 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
-import org.elasticsearch.xpack.core.esql.EsqlFeatureFlags;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlResolveViewAction;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
@@ -92,8 +91,9 @@ public class ViewResolver {
         return clusterService.state().metadata().getProject(projectResolver.getProjectId()).custom(ViewMetadata.TYPE, ViewMetadata.EMPTY);
     }
 
+    // TODO: Remove this function entirely if we no longer need to do micro-benchmarks on views enabled/disabled
     protected boolean viewsFeatureEnabled() {
-        return EsqlFeatureFlags.ESQL_VIEWS_FEATURE_FLAG.isEnabled();
+        return true;
     }
 
     /**

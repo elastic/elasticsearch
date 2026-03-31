@@ -312,14 +312,14 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return plan.unresolvedMessage().equals(indexResolutionMessage)
                     ? plan
                     : new UnresolvedRelation(
-                    plan.source(),
-                    plan.indexPattern(),
-                    plan.frozen(),
-                    metadata,
-                    plan.indexMode(),
-                    indexResolutionMessage,
-                    plan.telemetryLabel()
-                );
+                        plan.source(),
+                        plan.indexPattern(),
+                        plan.frozen(),
+                        metadata,
+                        plan.indexMode(),
+                        indexResolutionMessage,
+                        plan.telemetryLabel()
+                    );
             }
             // assert indexResolution.matches(plan.indexPattern().indexPattern()) : "Expected index resolution to match the index pattern";
             IndexPattern table = plan.indexPattern();
@@ -821,14 +821,14 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     resolved,
                     resolved.resolved()
                         ? new ReferenceAttribute(
-                        resolved.source(),
-                        resolved.qualifier(),
-                        resolved.name(),
-                        resolved.dataType(),
-                        resolved.nullable(),
-                        null,
-                        false
-                    )
+                            resolved.source(),
+                            resolved.qualifier(),
+                            resolved.name(),
+                            resolved.dataType(),
+                            resolved.nullable(),
+                            null,
+                            false
+                        )
                         : resolved
                 );
             }
@@ -1102,7 +1102,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 // forkColumns do not contain NO_FIELD because Fork.outputUnion removes it.
                 if (logicalPlan instanceof Project == false
                     || (subPlanColumns.equals(forkColumns) == false
-                    && subqueryReferencingIndexWithEmptyMapping(fork, logicalPlan, forkColumns) == false)) {
+                        && subqueryReferencingIndexWithEmptyMapping(fork, logicalPlan, forkColumns) == false)) {
                     changed = true;
                     List<Attribute> newOutput = new ArrayList<>();
                     for (String attrName : forkColumns) {
@@ -1621,10 +1621,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return unmappedResolution == UnmappedResolution.DEFAULT
                 ? new Project(rename.source(), rename.child(), projectionsForRename(rename, rename.child().output(), log))
                 : new ResolvingProject(
-                rename.source(),
-                rename.child(),
-                inputAttributes -> projectionsForRename(rename, inputAttributes, log)
-            );
+                    rename.source(),
+                    rename.child(),
+                    inputAttributes -> projectionsForRename(rename, inputAttributes, log)
+                );
         }
 
         /**
@@ -2353,10 +2353,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return isTemporalAmount(target)
                     ? castStringLiteralToTemporalAmount(from)
                     : new Literal(
-                    from.source(),
-                    EsqlDataTypeConverter.convert(from.fold(FoldContext.small() /* TODO remove me */), target, configuration),
-                    target
-                );
+                        from.source(),
+                        EsqlDataTypeConverter.convert(from.fold(FoldContext.small() /* TODO remove me */), target, configuration),
+                        target
+                    );
             } catch (Exception e) {
                 return unresolvedAttribute(from, target.toString(), e);
             }
@@ -2515,50 +2515,50 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             } else if (convert.field() instanceof FieldAttribute fa
                 && fa.synthetic() == false // MultiTypeEsField in EsRelation created by DateMillisToNanosInEsRelation has synthetic = false
                 && fa.field() instanceof MultiTypeEsField mtf) {
-                // This is an explicit casting of a union typed field that has been converted to MultiTypeEsField in EsRelation by
-                // DateMillisToNanosInEsRelation, it is not necessary to cast it again to the same type, replace the implicit casting
-                // with explicit casting. However, it is useful to differentiate implicit and explicit casting in some cases, for
-                // example, an expression like multiTypeEsField(synthetic=false, date_nanos)::date_nanos::datetime is rewritten to
-                // multiTypeEsField(synthetic=true, date_nanos)::datetime, the implicit casting is overwritten by explicit casting and
-                // the multiTypeEsField is not casted to datetime directly.
-                if (((Expression) convert).dataType() == mtf.getDataType()) {
-                    return createIfDoesNotAlreadyExist(fa, mtf, unionFieldAttributes);
-                }
+                    // This is an explicit casting of a union typed field that has been converted to MultiTypeEsField in EsRelation by
+                    // DateMillisToNanosInEsRelation, it is not necessary to cast it again to the same type, replace the implicit casting
+                    // with explicit casting. However, it is useful to differentiate implicit and explicit casting in some cases, for
+                    // example, an expression like multiTypeEsField(synthetic=false, date_nanos)::date_nanos::datetime is rewritten to
+                    // multiTypeEsField(synthetic=true, date_nanos)::datetime, the implicit casting is overwritten by explicit casting and
+                    // the multiTypeEsField is not casted to datetime directly.
+                    if (((Expression) convert).dataType() == mtf.getDataType()) {
+                        return createIfDoesNotAlreadyExist(fa, mtf, unionFieldAttributes);
+                    }
 
-                // Data type is different between implicit(date_nanos) and explicit casting, if the conversion is supported, create a
-                // new MultiTypeEsField with explicit casting type, and add it to unionFieldAttributes.
-                Set<DataType> supportedTypes = convert.supportedTypes();
-                if (supportedTypes.contains(fa.dataType()) && canConvertOriginalTypes(mtf, supportedTypes)) {
-                    // Build the mapping between index name and conversion expressions
-                    Map<String, Expression> indexToConversionExpressions = new HashMap<>();
-                    for (Map.Entry<String, Expression> entry : mtf.getIndexToConversionExpressions().entrySet()) {
-                        String indexName = entry.getKey();
-                        AbstractConvertFunction originalConversionFunction = (AbstractConvertFunction) entry.getValue();
-                        Expression originalField = originalConversionFunction.field();
-                        Expression newConvertFunction = convertExpression.replaceChildren(Collections.singletonList(originalField));
-                        indexToConversionExpressions.put(indexName, newConvertFunction);
+                    // Data type is different between implicit(date_nanos) and explicit casting, if the conversion is supported, create a
+                    // new MultiTypeEsField with explicit casting type, and add it to unionFieldAttributes.
+                    Set<DataType> supportedTypes = convert.supportedTypes();
+                    if (supportedTypes.contains(fa.dataType()) && canConvertOriginalTypes(mtf, supportedTypes)) {
+                        // Build the mapping between index name and conversion expressions
+                        Map<String, Expression> indexToConversionExpressions = new HashMap<>();
+                        for (Map.Entry<String, Expression> entry : mtf.getIndexToConversionExpressions().entrySet()) {
+                            String indexName = entry.getKey();
+                            AbstractConvertFunction originalConversionFunction = (AbstractConvertFunction) entry.getValue();
+                            Expression originalField = originalConversionFunction.field();
+                            Expression newConvertFunction = convertExpression.replaceChildren(Collections.singletonList(originalField));
+                            indexToConversionExpressions.put(indexName, newConvertFunction);
+                        }
+                        // The only code that creates MultiTypeEsField with synthetic=false (reaching this branch) is
+                        // DateMillisToNanosInEsRelation, which runs in the "Initialize" batch before ResolveUnmapped. At that point,
+                        // unmapped fields haven't been detected yet, so potentiallyUnmappedExpression is always null.
+                        if (mtf.getPotentiallyUnmappedExpression() != null) {
+                            throw new IllegalStateException("Unexpected potentially unmapped expression for [" + fa.fieldName() + "]");
+                        }
+                        MultiTypeEsField multiTypeEsField = new MultiTypeEsField(
+                            fa.fieldName().string(),
+                            convertExpression.dataType(),
+                            false,
+                            indexToConversionExpressions,
+                            fa.field().getTimeSeriesFieldType(),
+                            null
+                        );
+                        return createIfDoesNotAlreadyExist(fa, multiTypeEsField, unionFieldAttributes);
                     }
-                    // The only code that creates MultiTypeEsField with synthetic=false (reaching this branch) is
-                    // DateMillisToNanosInEsRelation, which runs in the "Initialize" batch before ResolveUnmapped. At that point,
-                    // unmapped fields haven't been detected yet, so potentiallyUnmappedExpression is always null.
-                    if (mtf.getPotentiallyUnmappedExpression() != null) {
-                        throw new IllegalStateException("Unexpected potentially unmapped expression for [" + fa.fieldName() + "]");
-                    }
-                    MultiTypeEsField multiTypeEsField = new MultiTypeEsField(
-                        fa.fieldName().string(),
-                        convertExpression.dataType(),
-                        false,
-                        indexToConversionExpressions,
-                        fa.field().getTimeSeriesFieldType(),
-                        null
+                } else if (convert.field() instanceof AbstractConvertFunction subConvert) {
+                    return convertExpression.replaceChildren(
+                        Collections.singletonList(resolveConvertFunction(subConvert, unionFieldAttributes))
                     );
-                    return createIfDoesNotAlreadyExist(fa, multiTypeEsField, unionFieldAttributes);
                 }
-            } else if (convert.field() instanceof AbstractConvertFunction subConvert) {
-                return convertExpression.replaceChildren(
-                    Collections.singletonList(resolveConvertFunction(subConvert, unionFieldAttributes))
-                );
-            }
             return convertExpression;
         }
 
@@ -3004,11 +3004,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 UnionAll.class,
                 unionAll -> unionAll.resolved()
                     ? implicitCastingUnionAllOutput(
-                    unionAll,
-                    planWithConvertFunctionsReplaced,
-                    updatedUnionAllOutput,
-                    context.configuration()
-                )
+                        unionAll,
+                        planWithConvertFunctionsReplaced,
+                        updatedUnionAllOutput,
+                        context.configuration()
+                    )
                     : unionAll
             );
 

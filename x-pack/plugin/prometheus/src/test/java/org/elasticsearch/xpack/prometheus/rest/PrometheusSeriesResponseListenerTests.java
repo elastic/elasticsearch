@@ -23,9 +23,7 @@ import static org.hamcrest.Matchers.not;
 
 public class PrometheusSeriesResponseListenerTests extends ESTestCase {
 
-    // -------------------------------------------------------------------------
     // parseDimensions tests
-    // -------------------------------------------------------------------------
 
     public void testParseDimensionsStripsLabelsPrefix() {
         String json = "{\"labels.__name__\":\"up\",\"labels.job\":\"prometheus\",\"labels.instance\":\"localhost:9090\"}";
@@ -61,9 +59,7 @@ public class PrometheusSeriesResponseListenerTests extends ESTestCase {
         assertThat(labels.size(), is(1));
     }
 
-    // -------------------------------------------------------------------------
     // Error response tests
-    // -------------------------------------------------------------------------
 
     public void testOnFailureBadRequest() throws Exception {
         FakeRestRequest fakeRequest = new FakeRestRequest();
@@ -102,9 +98,7 @@ public class PrometheusSeriesResponseListenerTests extends ESTestCase {
         assertThat(body, containsString("invalid parameter"));
     }
 
-    // -------------------------------------------------------------------------
     // Truncation / limit tests
-    // -------------------------------------------------------------------------
 
     public void testNoWarningWhenResultsLessThanLimitPlusOne() throws Exception {
         // limit=2, 2 rows returned → not truncated (sentinel threshold is 3)
@@ -134,9 +128,7 @@ public class PrometheusSeriesResponseListenerTests extends ESTestCase {
         assertThat(body, not(containsString("warnings")));
     }
 
-    // -------------------------------------------------------------------------
     // buildLabelMap / metric_name fallback tests (Change 3)
-    // -------------------------------------------------------------------------
 
     public void testBuildLabelMapUsesMetricNameAsFallback() {
         Map<String, String> labels = PrometheusSeriesResponseListener.buildLabelMap("cpu_usage", "{}");

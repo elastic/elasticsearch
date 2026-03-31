@@ -143,7 +143,7 @@ public class NeighborQueue {
     }
 
     /**
-     * if the new element is the new top then return its node id. Otherwise,
+     * if the new element is the new top then return its raw value. Otherwise,
      * removes the current top element, returns its node id and adds the new element
      * to the queue.
      * */

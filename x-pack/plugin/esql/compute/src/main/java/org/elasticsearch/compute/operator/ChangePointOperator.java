@@ -239,11 +239,11 @@ public class ChangePointOperator extends CompleteInputCollectorOperator {
             warnings(false).registerException(new IllegalArgumentException(indeterminableReason));
         }
         if (hasNulls) {
-            logger.debug("Values contain nulls; skipping them");
+            logger.debug(() -> "Values contain nulls; skipping them");
             warnings(true).registerException(new IllegalArgumentException("values contain nulls; skipping them"));
         }
         if (hasMultivalued) {
-            logger.debug("Values contain multivalued entries; skipping them");
+            logger.debug(() -> "Values contain multivalued entries; skipping them");
             warnings(true).registerException(
                 new IllegalArgumentException(
                     "values contains multivalued entries; skipping them (please consider reducing them with e.g. MV_AVG or MV_SUM)"

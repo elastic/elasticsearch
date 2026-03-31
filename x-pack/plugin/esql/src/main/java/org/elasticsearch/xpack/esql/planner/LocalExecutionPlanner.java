@@ -1357,7 +1357,7 @@ public class LocalExecutionPlanner {
         int instanceCount = 1;
 
         /*
-         * Data nodes don't have a resolved GenericFileList (it isn't serialized), so they must rely on explicit splits.
+         * Data nodes don't have a resolved FileList (it isn't serialized), so they must rely on explicit splits.
          * If we received a single coalesced split, we still need to route execution through the slice queue so
          * the operator can expand it into its leaf FileSplits. Otherwise we'd fall back to opening the original
          * (potentially globbed) source path as a single object.

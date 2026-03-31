@@ -12,7 +12,6 @@ import org.elasticsearch.xpack.esql.datasources.PartitionMetadata;
 
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 
 /**
  * Context passed to {@link SplitProvider#discoverSplits} containing all information
@@ -26,7 +25,9 @@ public record SplitDiscoveryContext(
     List<Expression> filterHints
 ) {
     public SplitDiscoveryContext {
-        Objects.requireNonNull(fileList, "fileList cannot be null");
+        if (fileList == null) {
+            throw new IllegalArgumentException("fileList cannot be null");
+        }
         config = config != null ? Map.copyOf(config) : Map.of();
         filterHints = filterHints != null ? List.copyOf(filterHints) : List.of();
     }

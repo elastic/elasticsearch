@@ -9,15 +9,129 @@ package org.elasticsearch.xpack.esql.datasources.spi;
 
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.datasources.PartitionMetadata;
+import org.elasticsearch.xpack.esql.datasources.SchemaReconciliation;
+
+import java.util.Map;
 
 /**
- * Indexed view over a set of files. Implemented by {@link org.elasticsearch.xpack.esql.datasources.GenericFileList} (full objects),
- * {@link org.elasticsearch.xpack.esql.datasources.cache.DictionaryFileList} (segment dictionary), and
- * {@link org.elasticsearch.xpack.esql.datasources.cache.HiveFileList} (partition-grouped).
- * Downstream consumers (FileSplitProvider, etc.) use this interface instead of
- * accessing GenericFileList directly, enabling compact cached representations.
+ * Indexed view over a resolved set of files from an external data source.
+ * Implementations are package-private within the {@code datasources.glob} package;
+ * consumers should depend only on this interface.
+ * <p>
+ * Two sentinel instances encode distinct states:
+ * <ul>
+ *   <li>{@link #UNRESOLVED} — glob not yet expanded ({@code isResolved() == false, isEmpty() == false})</li>
+ *   <li>{@link #EMPTY} — glob expanded but matched zero files ({@code isResolved() == true, isEmpty() == true})</li>
+ * </ul>
  */
 public interface FileList {
+
+    /** Sentinel: single-file path, glob not yet applied ({@code isResolved() == false}). */
+    FileList UNRESOLVED = new FileList() {
+        @Override
+        public int fileCount() {
+            return 0;
+        }
+
+        @Override
+        public StoragePath path(int i) {
+            return null;
+        }
+
+        @Override
+        public long size(int i) {
+            return 0;
+        }
+
+        @Override
+        public long lastModifiedMillis(int i) {
+            return 0;
+        }
+
+        @Override
+        public String originalPattern() {
+            return null;
+        }
+
+        @Override
+        public PartitionMetadata partitionMetadata() {
+            return null;
+        }
+
+        @Override
+        public boolean isResolved() {
+            return false;
+        }
+
+        @Override
+        public boolean isEmpty() {
+            return false;
+        }
+
+        @Override
+        public long estimatedBytes() {
+            return 0;
+        }
+
+        @Override
+        public String toString() {
+            return "FileList[UNRESOLVED]";
+        }
+    };
+
+    /** Sentinel: glob expanded but matched zero files ({@code isResolved() == true, isEmpty() == true}). */
+    FileList EMPTY = new FileList() {
+        @Override
+        public int fileCount() {
+            return 0;
+        }
+
+        @Override
+        public StoragePath path(int i) {
+            return null;
+        }
+
+        @Override
+        public long size(int i) {
+            return 0;
+        }
+
+        @Override
+        public long lastModifiedMillis(int i) {
+            return 0;
+        }
+
+        @Override
+        public String originalPattern() {
+            return null;
+        }
+
+        @Override
+        public PartitionMetadata partitionMetadata() {
+            return null;
+        }
+
+        @Override
+        public boolean isResolved() {
+            return true;
+        }
+
+        @Override
+        public boolean isEmpty() {
+            return true;
+        }
+
+        @Override
+        public long estimatedBytes() {
+            return 0;
+        }
+
+        @Override
+        public String toString() {
+            return "FileList[EMPTY]";
+        }
+    };
+
     int fileCount();
 
     StoragePath path(int i);
@@ -37,4 +151,13 @@ public interface FileList {
     boolean isEmpty();
 
     long estimatedBytes();
+
+    /**
+     * Per-file schema info from schema reconciliation, or {@code null} when reconciliation
+     * was not performed (e.g. first-file-wins mode or compact file lists).
+     */
+    @Nullable
+    default Map<StoragePath, SchemaReconciliation.FileSchemaInfo> fileSchemaInfo() {
+        return null;
+    }
 }

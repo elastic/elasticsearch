@@ -110,7 +110,7 @@ public class FileSplitProvider implements SplitProvider {
         PartitionMetadata partitionInfo = context.partitionInfo();
         Map<String, Object> config = context.config();
         List<Expression> filterHints = context.filterHints();
-        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaInfo = fileSet.fileSchemaInfo();
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaInfo = fileList.fileSchemaInfo();
         List<ExternalSplit> splits = new ArrayList<>();
         // Dedup cache: files with content-equal mappings share the same ColumnMapping
         // instance on the coordinator, avoiding redundant allocations.

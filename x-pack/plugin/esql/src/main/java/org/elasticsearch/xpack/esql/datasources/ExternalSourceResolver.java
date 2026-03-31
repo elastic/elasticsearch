@@ -23,10 +23,10 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService;
-import org.elasticsearch.xpack.esql.datasources.cache.HiveFileList;
 import org.elasticsearch.xpack.esql.datasources.cache.ListingCacheKey;
 import org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheEntry;
 import org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheKey;
+import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
@@ -166,7 +166,7 @@ public class ExternalSourceResolver {
 
         SourceMetadata metadata = resolveSingleSource(path, config);
         ExternalSourceMetadata extMetadata = wrapAsExternalSourceMetadata(metadata, config);
-        return new ExternalSourceResolution.ResolvedSource(extMetadata, GenericFileList.UNRESOLVED);
+        return new ExternalSourceResolution.ResolvedSource(extMetadata, FileList.UNRESOLVED);
     }
 
     private ExternalSourceResolution.ResolvedSource resolveMultiFileSource(
@@ -180,8 +180,11 @@ public class ExternalSourceResolver {
         FormatReader.SchemaResolution schemaResolution = parseSchemaResolution(config);
 
         if (schemaResolution != FormatReader.SchemaResolution.FIRST_FILE_WINS) {
-            GenericFileList raw = expandRaw(path, config, hints, hivePartitioning, storagePath);
-            if (raw.isEmpty()) {
+            StorageProvider provider = resolveProvider(storagePath, config);
+            FileList raw = path.indexOf(',') >= 0
+                ? GlobExpander.expandCommaSeparated(path, provider, hints, hivePartitioning)
+                : GlobExpander.expandGlob(path, provider, hints, hivePartitioning);
+            if (raw.fileCount() == 0) {
                 throw new IllegalArgumentException("Glob pattern matched no files: " + path);
             }
             return resolveMultiFileWithReconciliation(raw, config, schemaResolution);
@@ -247,30 +250,16 @@ public class ExternalSourceResolver {
         boolean hivePartitioning,
         StoragePath storagePath
     ) throws Exception {
-        GenericFileList raw = expandRaw(path, config, hints, hivePartitioning, storagePath);
-        String basePath = storagePath.patternPrefix().toString();
-        return HiveFileList.from(basePath, raw);
+        StorageProvider provider = resolveProvider(storagePath, config);
+        return GlobExpander.expandAndCompact(path, provider, hints, hivePartitioning, storagePath);
     }
 
-    private GenericFileList expandRaw(
-        String path,
-        Map<String, Object> config,
-        @Nullable List<PartitionFilterHintExtractor.PartitionFilterHint> hints,
-        boolean hivePartitioning,
-        StoragePath storagePath
-    ) throws Exception {
+    private StorageProvider resolveProvider(StoragePath storagePath, Map<String, Object> config) {
         StorageProviderRegistry registry = dataSourceModule.storageProviderRegistry();
-        StorageProvider provider;
         if (config != null && config.isEmpty() == false) {
-            provider = registry.createProvider(storagePath.scheme(), settings, config);
-        } else {
-            provider = registry.provider(storagePath);
+            return registry.createProvider(storagePath.scheme(), settings, config);
         }
-        if (path.indexOf(',') >= 0) {
-            return GlobExpander.expandCommaSeparated(path, provider, hints, hivePartitioning);
-        } else {
-            return GlobExpander.expandGlob(path, provider, hints, hivePartitioning);
-        }
+        return registry.provider(storagePath);
     }
 
     private static String detectFormatType(StoragePath path) {
@@ -316,7 +305,7 @@ public class ExternalSourceResolver {
     }
 
     private ExternalSourceResolution.ResolvedSource resolveMultiFileWithReconciliation(
-        GenericFileList fileList,
+        FileList fileList,
         Map<String, Object> config,
         FormatReader.SchemaResolution schemaResolution
     ) throws Exception {
@@ -326,7 +315,7 @@ public class ExternalSourceResolver {
 
         LOGGER.debug("Schema reconciliation [{}]: scanned {} files in {}ms", schemaResolution, allMetadata.size(), durationMs);
 
-        StoragePath firstFile = fileList.files().get(0).path();
+        StoragePath firstFile = fileList.path(0);
         SchemaReconciliation.Result result;
         if (schemaResolution == FormatReader.SchemaResolution.STRICT) {
             result = SchemaReconciliation.reconcileStrict(firstFile, allMetadata);
@@ -343,20 +332,19 @@ public class ExternalSourceResolver {
             extMetadata = enrichSchemaWithPartitionColumns(extMetadata, partitionMetadata);
         }
 
-        GenericFileList enrichedFileList = fileList.withSchemaInfo(result.perFileInfo());
-        return new ExternalSourceResolution.ResolvedSource(extMetadata, enrichedFileList);
+        FileList enriched = GlobExpander.withSchemaInfo(fileList, result.perFileInfo());
+        return new ExternalSourceResolution.ResolvedSource(extMetadata, enriched);
     }
 
     /**
      * Reads metadata from all files in parallel with bounded concurrency.
      * Uses a semaphore to cap the number of concurrent metadata reads.
      */
-    private Map<StoragePath, SourceMetadata> readAllFileMetadata(GenericFileList fileList, Map<String, Object> config) throws Exception {
-        List<StorageEntry> files = fileList.files();
-        int fileCount = files.size();
+    private Map<StoragePath, SourceMetadata> readAllFileMetadata(FileList fileList, Map<String, Object> config) throws Exception {
+        int fileCount = fileList.fileCount();
 
         if (fileCount == 1) {
-            StoragePath filePath = files.get(0).path();
+            StoragePath filePath = fileList.path(0);
             SourceMetadata meta = resolveSingleSource(filePath.toString(), config);
             return Map.of(filePath, meta);
         }
@@ -368,7 +356,7 @@ public class ExternalSourceResolver {
         CompletableFuture<Map.Entry<StoragePath, SourceMetadata>>[] futures = new CompletableFuture[fileCount];
 
         for (int i = 0; i < fileCount; i++) {
-            StoragePath filePath = files.get(i).path();
+            StoragePath filePath = fileList.path(i);
             futures[i] = CompletableFuture.supplyAsync(() -> {
                 if (failed.get()) {
                     return null;

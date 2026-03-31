@@ -16,10 +16,10 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.datasources.FileSplit;
-import org.elasticsearch.xpack.esql.datasources.GenericFileList;
 import org.elasticsearch.xpack.esql.datasources.SplitDiscoveryPhase;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
+import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -101,7 +101,7 @@ public class DataNodeComputeHandlerExternalErrorTests extends ESTestCase {
             Map.of(),
             null,
             null,
-            GenericFileList.UNRESOLVED
+            FileList.UNRESOLVED
         );
 
         SplitProvider failingProvider = ctx -> { throw new UncheckedIOException(new IOException("connection reset")); };

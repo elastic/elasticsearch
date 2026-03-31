@@ -97,7 +97,7 @@ public final class SplitDiscoveryPhase {
 
         SplitDiscoveryContext context = new SplitDiscoveryContext(
             null,
-            fileList != null ? fileList : GenericFileList.UNRESOLVED,
+            fileList != null ? fileList : FileList.UNRESOLVED,
             exec.config(),
             partitionInfo,
             ancestorFilters

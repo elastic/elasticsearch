@@ -11,8 +11,9 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.datasources.GenericFileList;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
+import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
+import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 
@@ -50,7 +51,7 @@ public class AnalyzerExternalTests extends ESTestCase {
             new StorageEntry(StoragePath.of("s3://bucket/data/f1.parquet"), 100, Instant.EPOCH),
             new StorageEntry(StoragePath.of("s3://bucket/data/f2.parquet"), 200, Instant.EPOCH)
         );
-        var fileList = new GenericFileList(entries, "s3://bucket/data/*.parquet");
+        var fileList = GlobExpander.fileListOf(entries, "s3://bucket/data/*.parquet");
 
         List<Attribute> schema = List.of(referenceAttribute("id", LONG), referenceAttribute("name", KEYWORD));
 
@@ -81,7 +82,7 @@ public class AnalyzerExternalTests extends ESTestCase {
         var externalRelation = externalRelations.get(0);
 
         assertFalse(externalRelation.fileList().isResolved());
-        assertSame(GenericFileList.UNRESOLVED, externalRelation.fileList());
+        assertSame(FileList.UNRESOLVED, externalRelation.fileList());
     }
 
     /**

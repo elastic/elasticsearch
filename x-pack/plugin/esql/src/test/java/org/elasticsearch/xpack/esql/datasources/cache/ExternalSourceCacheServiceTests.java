@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources.cache;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -14,9 +15,9 @@ import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.datasources.GenericFileList;
 import org.elasticsearch.xpack.esql.datasources.PartitionMetadata;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
+import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
@@ -29,8 +30,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
-
-import static org.hamcrest.Matchers.instanceOf;
 
 public class ExternalSourceCacheServiceTests extends ESTestCase {
 
@@ -95,7 +94,9 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
             });
             assertNotNull(listing1);
             assertEquals(1, loaderCalls.get());
-            assertThat(listing1, instanceOf(DictionaryFileList.class));
+            assertNotNull(listing1);
+            assertEquals(10, listing1.fileCount());
+            assertNull(listing1.partitionMetadata());
 
             FileList listing2 = service.getOrComputeListing(key, k -> {
                 loaderCalls.incrementAndGet();
@@ -277,16 +278,17 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
 
     public void testListingCacheStoresHiveFileList() throws Exception {
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
-            ListingCacheKey key = ListingCacheKey.build("s3", "bucket", "/data/**/*.parquet", Map.of());
+            ListingCacheKey key = ListingCacheKey.build("s3", "bucket", "/data/*" + "*/*.parquet", Map.of());
             FileList listing = service.getOrComputeListing(key, k -> testCompactHiveFileList());
-            assertThat(listing, instanceOf(HiveFileList.class));
+            assertNotNull(listing.partitionMetadata());
+            assertFalse(listing.partitionMetadata().isEmpty());
             assertEquals(12, listing.fileCount());
         }
     }
 
     public void testDictionaryFileListRoundTrip() {
-        GenericFileList raw = testGenericFileList();
-        FileList compact = DictionaryFileList.from("s3://bucket/data/", raw);
+        FileList raw = testGenericFileList();
+        FileList compact = GlobExpander.compact(raw, "s3://bucket/data/");
         assertNotNull(compact);
         assertEquals(raw.fileCount(), compact.fileCount());
         for (int i = 0; i < raw.fileCount(); i++) {
@@ -299,8 +301,8 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
     }
 
     public void testHiveFileListRoundTrip() {
-        GenericFileList raw = testHiveGenericFileList();
-        FileList compact = HiveFileList.from("s3://bucket/data/", raw);
+        FileList raw = testHiveGenericFileList();
+        FileList compact = GlobExpander.compact(raw, "s3://bucket/data/");
         assertNotNull(compact);
         assertEquals(raw.fileCount(), compact.fileCount());
         for (int i = 0; i < raw.fileCount(); i++) {
@@ -352,26 +354,26 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         return SchemaCacheEntry.from(schema, "parquet", "s3://bucket/data/file.parquet", Map.of());
     }
 
-    private static GenericFileList testGenericFileList() {
+    private static FileList testGenericFileList() {
         Instant now = Instant.now();
         List<StorageEntry> entries = new ArrayList<>();
         for (int i = 0; i < 10; i++) {
             entries.add(
-                new StorageEntry(StoragePath.of("s3://bucket/data/part-" + String.format("%05d", i) + ".parquet"), 1024L * (i + 1), now)
+                new StorageEntry(StoragePath.of("s3://bucket/data/part-" + Strings.format("%05d", i) + ".parquet"), 1024L * (i + 1), now)
             );
         }
-        return new GenericFileList(entries, "s3://bucket/data/*.parquet");
+        return GlobExpander.fileListOf(entries, "s3://bucket/data/*.parquet");
     }
 
     private static FileList testCompactFileList() {
-        return DictionaryFileList.from("s3://bucket/data/", testGenericFileList());
+        return GlobExpander.compact(testGenericFileList(), "s3://bucket/data/");
     }
 
     private static FileList testCompactHiveFileList() {
-        return HiveFileList.from("s3://bucket/data/", testHiveGenericFileList());
+        return GlobExpander.compact(testHiveGenericFileList(), "s3://bucket/data/");
     }
 
-    private static GenericFileList testHiveGenericFileList() {
+    private static FileList testHiveGenericFileList() {
         Instant now = Instant.now();
         List<StorageEntry> entries = new ArrayList<>();
         Map<StoragePath, Map<String, Object>> filePartitions = new LinkedHashMap<>();
@@ -383,7 +385,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
             for (String month : months) {
                 for (int f = 0; f < 2; f++) {
                     StoragePath path = StoragePath.of(
-                        "s3://bucket/data/year=" + year + "/month=" + month + "/part-" + String.format("%05d", fileIdx) + ".parquet"
+                        "s3://bucket/data/year=" + year + "/month=" + month + "/part-" + Strings.format("%05d", fileIdx) + ".parquet"
                     );
                     entries.add(new StorageEntry(path, 1024L * (fileIdx + 1), now));
                     Map<String, Object> pv = new LinkedHashMap<>();
@@ -400,6 +402,6 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         partitionColumns.put("month", DataType.KEYWORD);
         PartitionMetadata pm = new PartitionMetadata(partitionColumns, filePartitions);
 
-        return new GenericFileList(entries, "s3://bucket/data/**/*.parquet", pm);
+        return GlobExpander.fileListOf(entries, "s3://bucket/data/*" + "*/*.parquet", pm);
     }
 }

@@ -13,7 +13,6 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.NodeUtils;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.datasources.GenericFileList;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
@@ -82,7 +81,7 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
     }
 
     public ExternalRelation(Source source, String sourcePath, SourceMetadata metadata, List<Attribute> output) {
-        this(source, sourcePath, metadata, output, GenericFileList.UNRESOLVED);
+        this(source, sourcePath, metadata, output, FileList.UNRESOLVED);
     }
 
     private static ExternalRelation readFrom(StreamInput in) throws IOException {
@@ -95,7 +94,7 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
         @SuppressWarnings("unchecked")
         Map<String, Object> sourceMetadata = (Map<String, Object>) in.readGenericValue();
         var metadata = new SimpleSourceMetadata(output, sourceType, sourcePath, null, null, sourceMetadata, config);
-        return new ExternalRelation(source, sourcePath, metadata, output, GenericFileList.UNRESOLVED);
+        return new ExternalRelation(source, sourcePath, metadata, output, FileList.UNRESOLVED);
     }
 
     @Override

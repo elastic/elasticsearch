@@ -12,8 +12,9 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
-import org.elasticsearch.xpack.esql.datasources.GenericFileList;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
+import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
+import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
@@ -23,16 +24,16 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Tests for ExternalRelation and ExternalSourceExec GenericFileList threading.
- * Verifies that GenericFileList is correctly threaded through constructors, toPhysicalExec(),
+ * Tests for ExternalRelation and ExternalSourceExec FileList threading.
+ * Verifies that FileList is correctly threaded through constructors, toPhysicalExec(),
  * withPushedFilter(), withEstimatedRowSize(), equals/hashCode, and info().
  */
 public class ExternalRelationTests extends ESTestCase {
 
     // ===== ExternalRelation tests =====
 
-    public void testConstructorWithGenericFileList() {
-        GenericFileList fileList = createGenericFileList();
+    public void testConstructorWithFileList() {
+        FileList fileList = createFileList();
         ExternalRelation relation = createRelation(fileList);
 
         assertSame(fileList, relation.fileList());
@@ -40,18 +41,18 @@ public class ExternalRelationTests extends ESTestCase {
         assertEquals(2, relation.fileList().fileCount());
     }
 
-    public void testConstructorWithoutGenericFileListDefaultsToUnresolved() {
+    public void testConstructorWithoutFileListDefaultsToUnresolved() {
         SourceMetadata metadata = createMetadata();
         List<Attribute> output = createAttributes();
 
         ExternalRelation relation = new ExternalRelation(Source.EMPTY, "s3://bucket/data.parquet", metadata, output);
 
-        assertSame(GenericFileList.UNRESOLVED, relation.fileList());
+        assertSame(FileList.UNRESOLVED, relation.fileList());
         assertFalse(relation.fileList().isResolved());
     }
 
-    public void testToPhysicalExecThreadsGenericFileList() {
-        GenericFileList fileList = createGenericFileList();
+    public void testToPhysicalExecThreadsFileList() {
+        FileList fileList = createFileList();
         ExternalRelation relation = createRelation(fileList);
 
         ExternalSourceExec exec = relation.toPhysicalExec();
@@ -62,8 +63,8 @@ public class ExternalRelationTests extends ESTestCase {
         assertEquals(2, exec.fileList().fileCount());
     }
 
-    public void testWithAttributesPreservesGenericFileList() {
-        GenericFileList fileList = createGenericFileList();
+    public void testWithAttributesPreservesFileList() {
+        FileList fileList = createFileList();
         ExternalRelation relation = createRelation(fileList);
 
         List<Attribute> newAttrs = List.of(attr("new_col", DataType.LONG));
@@ -74,9 +75,9 @@ public class ExternalRelationTests extends ESTestCase {
         assertEquals("new_col", updated.output().get(0).name());
     }
 
-    public void testEqualsAndHashCodeIncludeGenericFileList() {
-        GenericFileList fileList1 = createGenericFileList();
-        GenericFileList fileList2 = new GenericFileList(
+    public void testEqualsAndHashCodeIncludeFileList() {
+        FileList fileList1 = createFileList();
+        FileList fileList2 = GlobExpander.fileListOf(
             List.of(new StorageEntry(StoragePath.of("s3://bucket/data/other.parquet"), 999, Instant.EPOCH)),
             "s3://bucket/data/other*.parquet"
         );
@@ -93,8 +94,8 @@ public class ExternalRelationTests extends ESTestCase {
         assertNotEquals(relation1, relation3);
     }
 
-    public void testInfoRoundTripsGenericFileList() {
-        GenericFileList fileList = createGenericFileList();
+    public void testInfoRoundTripsFileList() {
+        FileList fileList = createFileList();
         ExternalRelation relation = createRelation(fileList);
 
         var info = relation.info();
@@ -102,10 +103,10 @@ public class ExternalRelationTests extends ESTestCase {
         assertSame(fileList, relation.fileList());
     }
 
-    // ===== ExternalSourceExec GenericFileList threading tests =====
+    // ===== ExternalSourceExec FileList threading tests =====
 
-    public void testExecWithPushedFilterPreservesGenericFileList() {
-        GenericFileList fileList = createGenericFileList();
+    public void testExecWithPushedFilterPreservesFileList() {
+        FileList fileList = createFileList();
         ExternalSourceExec exec = createExec(fileList);
 
         ExternalSourceExec filtered = exec.withPushedFilter("some_filter_object");
@@ -114,8 +115,8 @@ public class ExternalRelationTests extends ESTestCase {
         assertEquals("some_filter_object", filtered.pushedFilter());
     }
 
-    public void testExecConstructorWithEstimatedRowSizePreservesGenericFileList() {
-        GenericFileList fileList = createGenericFileList();
+    public void testExecConstructorWithEstimatedRowSizePreservesFileList() {
+        FileList fileList = createFileList();
         List<Attribute> attrs = createAttributes();
 
         ExternalSourceExec exec = new ExternalSourceExec(
@@ -134,7 +135,7 @@ public class ExternalRelationTests extends ESTestCase {
         assertEquals(Integer.valueOf(256), exec.estimatedRowSize());
     }
 
-    public void testExecWithoutGenericFileListHasNullGenericFileList() {
+    public void testExecWithoutFileListHasNullFileList() {
         List<Attribute> attrs = createAttributes();
         ExternalSourceExec exec = new ExternalSourceExec(
             Source.EMPTY,
@@ -149,8 +150,8 @@ public class ExternalRelationTests extends ESTestCase {
 
         assertNull(exec.fileList());
 
-        GenericFileList fileList = createGenericFileList();
-        ExternalSourceExec execWithGenericFileList = new ExternalSourceExec(
+        FileList fileList = createFileList();
+        ExternalSourceExec execWithFileList = new ExternalSourceExec(
             Source.EMPTY,
             "s3://bucket/data.parquet",
             "parquet",
@@ -162,12 +163,12 @@ public class ExternalRelationTests extends ESTestCase {
             fileList
         );
 
-        assertSame(fileList, execWithGenericFileList.fileList());
+        assertSame(fileList, execWithFileList.fileList());
     }
 
-    public void testExecEqualsAndHashCodeIncludeGenericFileList() {
-        GenericFileList fileList1 = createGenericFileList();
-        GenericFileList fileList2 = new GenericFileList(
+    public void testExecEqualsAndHashCodeIncludeFileList() {
+        FileList fileList1 = createFileList();
+        FileList fileList2 = GlobExpander.fileListOf(
             List.of(new StorageEntry(StoragePath.of("s3://bucket/data/other.parquet"), 999, Instant.EPOCH)),
             "s3://bucket/data/other*.parquet"
         );
@@ -223,8 +224,8 @@ public class ExternalRelationTests extends ESTestCase {
         return List.of(attr("id", DataType.LONG), attr("name", DataType.KEYWORD));
     }
 
-    private static GenericFileList createGenericFileList() {
-        return new GenericFileList(
+    private static FileList createFileList() {
+        return GlobExpander.fileListOf(
             List.of(
                 new StorageEntry(StoragePath.of("s3://bucket/data/f1.parquet"), 100, Instant.EPOCH),
                 new StorageEntry(StoragePath.of("s3://bucket/data/f2.parquet"), 200, Instant.EPOCH)
@@ -262,11 +263,11 @@ public class ExternalRelationTests extends ESTestCase {
         };
     }
 
-    private static ExternalRelation createRelation(GenericFileList fileList) {
+    private static ExternalRelation createRelation(FileList fileList) {
         return new ExternalRelation(Source.EMPTY, "s3://bucket/data.parquet", createMetadata(), createAttributes(), fileList);
     }
 
-    private static ExternalSourceExec createExec(GenericFileList fileList) {
+    private static ExternalSourceExec createExec(FileList fileList) {
         return new ExternalSourceExec(
             Source.EMPTY,
             "s3://bucket/data.parquet",

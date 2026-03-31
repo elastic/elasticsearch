@@ -499,7 +499,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         DriverContext driverContext,
         VirtualColumnInjector injector
     ) {
-        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaInfo = fileSet != null ? fileSet.fileSchemaInfo() : null;
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaInfo = fileList != null ? fileList.fileSchemaInfo() : null;
 
         executor.execute(() -> {
             try {
@@ -538,7 +538,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
 
                     SchemaReconciliation.ColumnMapping mapping = null;
                     if (schemaInfo != null) {
-                        SchemaReconciliation.FileSchemaInfo info = schemaInfo.get(entry.path());
+                        SchemaReconciliation.FileSchemaInfo info = schemaInfo.get(fileList.path(i));
                         if (info != null) {
                             mapping = info.mapping();
                         }

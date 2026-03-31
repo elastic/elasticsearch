@@ -21,7 +21,9 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
+import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
@@ -355,7 +357,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
             new StorageEntry(StoragePath.of("s3://bucket/data/f2.parquet"), 200, Instant.EPOCH),
             new StorageEntry(StoragePath.of("s3://bucket/data/f3.parquet"), 300, Instant.EPOCH)
         );
-        GenericFileList fileList = new GenericFileList(entries, "s3://bucket/data/*.parquet");
+        FileList fileList = GlobExpander.fileListOf(entries, "s3://bucket/data/*.parquet");
 
         FormatReader formatReader = new PageCountingFormatReader(readCount);
         StubMultiFileStorageProvider storageProvider = new StubMultiFileStorageProvider();
@@ -463,7 +465,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
             new StorageEntry(StoragePath.of("s3://bucket/data/bad.parquet"), 200, Instant.EPOCH),
             new StorageEntry(StoragePath.of("s3://bucket/data/never.parquet"), 300, Instant.EPOCH)
         );
-        GenericFileList fileList = new GenericFileList(entries, "s3://bucket/data/*.parquet");
+        FileList fileList = GlobExpander.fileListOf(entries, "s3://bucket/data/*.parquet");
 
         FormatReader formatReader = new FailOnSecondFileFormatReader();
         StubMultiFileStorageProvider storageProvider = new StubMultiFileStorageProvider();
@@ -520,7 +522,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
             new StorageEntry(StoragePath.of("s3://bucket/a.parquet"), 10, Instant.EPOCH),
             new StorageEntry(StoragePath.of("s3://bucket/b.parquet"), 20, Instant.EPOCH)
         );
-        GenericFileList fileList = new GenericFileList(entries, "s3://bucket/*.parquet");
+        FileList fileList = GlobExpander.fileListOf(entries, "s3://bucket/*.parquet");
 
         StorageProvider storageProvider = mock(StorageProvider.class);
         FormatReader formatReader = mock(FormatReader.class);

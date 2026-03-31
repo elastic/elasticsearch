@@ -689,6 +689,17 @@ public class MachineLearning extends Plugin
         Setting.Property.NodeScope
     );
 
+    /**
+     * When {@code false}, the PyTorch native process is started with graph validation disabled. Intended as an
+     * operator-controlled escape hatch when a model fails validation unexpectedly.
+     */
+    public static final Setting<Boolean> MODEL_GRAPH_VALIDATION_ENABLED = Setting.boolSetting(
+        "xpack.ml.model_graph_validation_enabled",
+        true,
+        Property.OperatorDynamic,
+        Property.NodeScope
+    );
+
     // Undocumented setting for integration test purposes
     public static final Setting<ByteSizeValue> MIN_DISK_SPACE_OFF_HEAP = Setting.byteSizeSetting(
         "xpack.ml.min_disk_space_off_heap",
@@ -862,6 +873,7 @@ public class MachineLearning extends Plugin
             ALLOCATED_PROCESSORS_SCALE,
             MachineLearningField.AUTODETECT_PROCESS,
             PROCESS_CONNECT_TIMEOUT,
+            MODEL_GRAPH_VALIDATION_ENABLED,
             CONCURRENT_JOB_ALLOCATIONS,
             MachineLearningField.MAX_MODEL_MEMORY_LIMIT,
             MachineLearningField.MAX_LAZY_ML_NODES,
@@ -877,7 +889,6 @@ public class MachineLearning extends Plugin
             NIGHTLY_MAINTENANCE_REQUESTS_PER_SECOND,
             RESULTS_INDEX_ROLLOVER_MAX_SIZE,
             MachineLearningField.USE_AUTO_MACHINE_MEMORY_PERCENT,
-            MachineLearningField.MODEL_GRAPH_VALIDATION_ENABLED,
             MAX_ML_NODE_SIZE,
             DELAYED_DATA_CHECK_FREQ,
             JOB_OPEN_RETRY_TIMEOUT,

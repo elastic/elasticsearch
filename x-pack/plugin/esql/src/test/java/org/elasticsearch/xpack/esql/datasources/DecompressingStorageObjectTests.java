@@ -71,6 +71,20 @@ public class DecompressingStorageObjectTests extends ESTestCase {
         }
     }
 
+    public void testSplittableCodecNewStreamPositionLengthBzip2() throws IOException {
+        byte[] original = "hello,world\n1,2".getBytes(StandardCharsets.UTF_8);
+        byte[] compressed = bzip2(original);
+
+        StorageObject rawObject = new BytesStorageObject(compressed, StoragePath.of("file:///data.csv.bz2"));
+        DecompressionCodec codec = new org.elasticsearch.xpack.esql.datasource.bzip2.Bzip2DecompressionCodec();
+        DecompressingStorageObject decompressing = new DecompressingStorageObject(rawObject, codec);
+
+        try (InputStream stream = decompressing.newStream(0, compressed.length)) {
+            byte[] decompressed = stream.readAllBytes();
+            assertArrayEquals(original, decompressed);
+        }
+    }
+
     public void testNewStreamPositionLengthThrows() throws IOException {
         StorageObject rawObject = new BytesStorageObject(new byte[0], StoragePath.of("file:///data.csv.gz"));
         DecompressionCodec codec = new org.elasticsearch.xpack.esql.datasource.gzip.GzipDecompressionCodec();

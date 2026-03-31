@@ -23,6 +23,7 @@ import java.util.Locale;
 import java.util.concurrent.ExecutorService;
 
 import static java.lang.String.format;
+import static org.apache.lucene.tests.util.TestUtil.alwaysKnnVectorsFormat;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
@@ -62,18 +63,19 @@ public class ES93HnswBinaryQuantizedBFloat16VectorsFormatTests extends BaseHnswB
 
     public void testToString() {
         String expected = "ES93HnswBinaryQuantizedVectorsFormat("
-            + "name=ES93HnswBinaryQuantizedVectorsFormat, maxConn=10, beamWidth=20, flatVectorFormat=%s)";
+            + "name=ES93HnswBinaryQuantizedVectorsFormat, maxConn=10, beamWidth=20, hnswGraphThreshold=300, flatVectorFormat=%s)";
         expected = format(
             Locale.ROOT,
             expected,
             "ES93BinaryQuantizedVectorsFormat(name=ES93BinaryQuantizedVectorsFormat, rawVectorFormat=%s,"
-                + " scorer=ES818BinaryFlatVectorsScorer(nonQuantizedDelegate={}()))"
+                + " scorer=ES818BinaryFlatVectorsScorer(nonQuantizedDelegate=ES93GenericFlatVectorScorer(delegate={}())))"
         );
         expected = format(Locale.ROOT, expected, "ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format=%s)");
         expected = format(
             Locale.ROOT,
             expected,
-            "ES93BFloat16FlatVectorsFormat(name=ES93BFloat16FlatVectorsFormat, flatVectorScorer={}())"
+            "ES93BFloat16FlatVectorsFormat(name=ES93BFloat16FlatVectorsFormat,"
+                + " flatVectorScorer=ES93GenericFlatVectorScorer(delegate={}()))"
         );
         String defaultScorer = expected.replaceAll("\\{}", "DefaultFlatVectorScorer");
         String memSegScorer = expected.replaceAll("\\{}", "Lucene99MemorySegmentFlatVectorsScorer");
@@ -96,6 +98,17 @@ public class ES93HnswBinaryQuantizedBFloat16VectorsFormatTests extends BaseHnswB
 
     public void testSimpleOffHeapSizeImpl(Directory dir, IndexWriterConfig config, boolean expectVecOffHeap) throws IOException {
         float[] vector = randomVector(random().nextInt(12, 500));
+        // Use threshold=0 to ensure HNSW graph is always built
+        var format = new ES93HnswBinaryQuantizedVectorsFormat(
+            16,
+            100,
+            DenseVectorFieldMapper.ElementType.BFLOAT16,
+            random().nextBoolean(),
+            1,
+            null,
+            0
+        );
+        config.setCodec(alwaysKnnVectorsFormat(format));
         var matcher = expectVecOffHeap
             ? allOf(
                 aMapWithSize(3),

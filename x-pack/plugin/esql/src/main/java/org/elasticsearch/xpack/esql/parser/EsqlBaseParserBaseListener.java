@@ -517,6 +517,18 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
+  @Override public void enterLimitByGroupKey(EsqlBaseParser.LimitByGroupKeyContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitLimitByGroupKey(EsqlBaseParser.LimitByGroupKeyContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
   @Override public void enterSortCommand(EsqlBaseParser.SortCommandContext ctx) { }
   /**
    * {@inheritDoc}
@@ -752,6 +764,18 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    * <p>The default implementation does nothing.</p>
    */
   @Override public void exitChangePointCommand(EsqlBaseParser.ChangePointCommandContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterChangePointConfiguration(EsqlBaseParser.ChangePointConfigurationContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitChangePointConfiguration(EsqlBaseParser.ChangePointConfigurationContext ctx) { }
   /**
    * {@inheritDoc}
    *

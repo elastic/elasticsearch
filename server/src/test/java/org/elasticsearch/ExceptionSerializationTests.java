@@ -53,7 +53,9 @@ import org.elasticsearch.env.ShardLockObtainFailedException;
 import org.elasticsearch.health.node.action.HealthNodeNotDiscoveredException;
 import org.elasticsearch.http.HttpHeadersValidationException;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.engine.OCCNotSupportedException;
 import org.elasticsearch.index.engine.RecoveryEngineException;
+import org.elasticsearch.index.engine.UpdateNotSupportedException;
 import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.seqno.RetentionLeaseAlreadyExistsException;
@@ -876,6 +878,10 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(186, IndexLimitExceededException.class);
         ids.put(187, StaleRequestException.class);
         ids.put(188, SearchContextMissingNodesException.class);
+        ids.put(189, OCCNotSupportedException.class);
+        ids.put(190, UpdateNotSupportedException.class);
+        ids.put(191, org.elasticsearch.action.fieldcaps.RemoteViewNotSupportedException.class);
+        ids.put(192, org.elasticsearch.search.crossproject.InvalidProjectRoutingException.class);
 
         Map<Class<? extends ElasticsearchException>, Integer> reverse = new HashMap<>();
         for (Map.Entry<Integer, Class<? extends ElasticsearchException>> entry : ids.entrySet()) {

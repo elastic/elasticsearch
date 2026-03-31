@@ -64,7 +64,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.query.AbstractQueryBuilder;
+import org.elasticsearch.index.query.LeafQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -72,6 +72,7 @@ import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.search.stats.SearchStats;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.index.shard.ShardId;
@@ -166,6 +167,7 @@ import static org.elasticsearch.search.SearchService.QUERY_PHASE_PARALLEL_COLLEC
 import static org.elasticsearch.search.SearchService.SEARCH_WORKER_THREADS_ENABLED;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -414,7 +416,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
                                 null/* not a scroll */
                             );
                             PlainActionFuture<FetchSearchResult> listener = new PlainActionFuture<>();
-                            service.executeFetchPhase(req, new SearchShardTask(123L, "", "", "", null, emptyMap()), listener);
+                            service.executeFetchPhase(req, new SearchShardTask(123L, "", "", "", null, emptyMap()), null, listener);
                             listener.get();
                             if (useScroll) {
                                 // have to free context since this test does not remove the index from IndicesService.
@@ -625,7 +627,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
                     throw new AssertionError("No failure should have been raised", e);
                 }
             };
-            service.executeFetchPhase(fetchRequest, searchTask, fetchListener);
+            service.executeFetchPhase(fetchRequest, searchTask, null, fetchListener);
             fetchListener.get();
         } catch (Exception ex) {
             if (queryResult != null) {
@@ -779,7 +781,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
                 for (SearchHit hit : hits.getHits()) {
                     assertEquals(hit.getRank(), 3 + index);
                     assertTrue(hit.getScore() >= 0);
-                    assertEquals(hit.getFields().get(fetchFieldName).getValue(), fetchFieldValue + "_" + hit.docId());
+                    assertEquals(hit.getFields().get(fetchFieldName).getValue(), fetchFieldValue + "_" + hit.getId());
                     index++;
                 }
             }
@@ -2898,6 +2900,22 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
         }
     }
 
+    public void testSeqNoAndPrimaryTermReturnsSentinelsWhenSequenceNumbersDisabled() {
+        assumeTrue("Test should only run with feature flag", IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG);
+        final Settings settings = Settings.builder()
+            .put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true)
+            .put(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(), "doc_values_only")
+            .build();
+        createIndex("test-no-seqno", settings);
+        prepareIndex("test-no-seqno").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
+
+        assertNoFailuresAndResponse(client().prepareSearch("test-no-seqno").seqNoAndPrimaryTerm(true), response -> {
+            assertHitCount(response, 1);
+            assertEquals(SequenceNumbers.UNASSIGNED_SEQ_NO, response.getHits().getAt(0).getSeqNo());
+            assertEquals(SequenceNumbers.UNASSIGNED_PRIMARY_TERM, response.getHits().getAt(0).getPrimaryTerm());
+        });
+    }
+
     private static ReaderContext createReaderContext(IndexService indexService, IndexShard indexShard) {
         return new ReaderContext(
             new ShardSearchContextId(UUIDs.randomBase64UUID(), randomNonNegativeLong()),
@@ -2916,7 +2934,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
         return fieldValues;
     }
 
-    private static class TestRewriteCounterQueryBuilder extends AbstractQueryBuilder<TestRewriteCounterQueryBuilder> {
+    private static class TestRewriteCounterQueryBuilder extends LeafQueryBuilder<TestRewriteCounterQueryBuilder> {
 
         final int asyncRewriteCount;
         final Supplier<Boolean> fetched;

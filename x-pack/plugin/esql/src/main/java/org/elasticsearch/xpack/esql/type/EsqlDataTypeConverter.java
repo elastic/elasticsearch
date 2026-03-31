@@ -60,6 +60,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDateRan
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatetime;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDenseVector;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToExponentialHistogram;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGeoPoint;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGeoShape;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGeohash;
@@ -69,6 +70,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToIpLeadingZerosRejected;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToTDigest;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToTimeDuration;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToUnsignedLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToVersion;
@@ -105,6 +107,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_RANGE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.EXPONENTIAL_HISTOGRAM;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEOHASH;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEOHEX;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEOTILE;
@@ -115,6 +118,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
+import static org.elasticsearch.xpack.esql.core.type.DataType.TDIGEST;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TIME_DURATION;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
@@ -155,6 +159,7 @@ public class EsqlDataTypeConverter {
         // ToDegrees, typeless
         Map.entry(DENSE_VECTOR, ToDenseVector::new),
         Map.entry(DOUBLE, ToDouble::new),
+        Map.entry(EXPONENTIAL_HISTOGRAM, ToExponentialHistogram::new),
         Map.entry(GEO_POINT, ToGeoPoint::new),
         Map.entry(GEO_SHAPE, ToGeoShape::new),
         Map.entry(GEOHASH, ToGeohash::new),
@@ -164,6 +169,7 @@ public class EsqlDataTypeConverter {
         Map.entry(IP, ToIpLeadingZerosRejected::new),
         Map.entry(LONG, ToLong::new),
         // ToRadians, typeless
+        Map.entry(TDIGEST, ToTDigest::new),
         Map.entry(UNSIGNED_LONG, ToUnsignedLong::new),
         Map.entry(VERSION, ToVersion::new),
         Map.entry(DATE_PERIOD, ToDatePeriod::new),
@@ -859,7 +865,7 @@ public class EsqlDataTypeConverter {
     }
 
     public static String tDigestBlockToString(TDigestBlock tDigestBlock, int index) {
-        TDigestHolder digest = tDigestBlock.getTDigestHolder(index);
+        TDigestHolder digest = tDigestBlock.getTDigestHolder(index, new TDigestHolder());
         return tDigestToString(digest);
     }
 

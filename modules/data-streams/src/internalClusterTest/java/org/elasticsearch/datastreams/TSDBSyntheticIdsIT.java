@@ -9,6 +9,9 @@
 
 package org.elasticsearch.datastreams;
 
+import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.StoredFieldVisitor;
+import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.DocWriteRequest;
@@ -21,13 +24,18 @@ import org.elasticsearch.action.admin.indices.diskusage.IndexDiskUsageStats;
 import org.elasticsearch.action.admin.indices.diskusage.TransportAnalyzeIndexDiskUsageAction;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
+import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.routing.RecoverySource;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -38,7 +46,12 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.codec.CodecService;
+import org.elasticsearch.index.codec.storedfields.TSDBStoredFieldsFormat;
+import org.elasticsearch.index.codec.tsdb.TSDBSyntheticIdStoredFieldsReader;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
@@ -66,8 +79,11 @@ import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.InternalTestCluster;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
+import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -83,23 +99,28 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_SETTING;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING;
 import static org.elasticsearch.common.time.FormatNames.STRICT_DATE_OPTIONAL_TIME;
+import static org.elasticsearch.index.engine.EngineTestCase.generateNewSeqNo;
 import static org.elasticsearch.index.shard.IndexShardTestCase.getTranslog;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertCheckedResponse;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -185,8 +206,9 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
 
     public void testSyntheticId() throws Exception {
         assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
+        final boolean useNestedDocs = rarely();
         final var dataStreamName = randomIdentifier();
-        putDataStreamTemplate(dataStreamName, randomIntBetween(1, 5), 0);
+        putDataStreamTemplate(dataStreamName, randomIntBetween(1, 5), 0, useNestedDocs);
 
         final var docs = new HashMap<String, String>();
         final var unit = randomFrom(ChronoUnit.SECONDS, ChronoUnit.MINUTES);
@@ -199,21 +221,21 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         var results = createDocuments(
             dataStreamName,
             // t + 0s
-            document(timestamp, "vm-dev01", "cpu-load", 0),
-            document(timestamp, "vm-dev02", "cpu-load", 1),
+            document(timestamp, "vm-dev01", "cpu-load", 0, useNestedDocs),
+            document(timestamp, "vm-dev02", "cpu-load", 1, useNestedDocs),
             // t + 1s
-            document(timestamp.plus(1, unit), "vm-dev01", "cpu-load", 2),
-            document(timestamp.plus(1, unit), "vm-dev02", "cpu-load", 3),
+            document(timestamp.plus(1, unit), "vm-dev01", "cpu-load", 2, useNestedDocs),
+            document(timestamp.plus(1, unit), "vm-dev02", "cpu-load", 3, useNestedDocs),
             // t + 0s out-of-order doc
-            document(timestamp, "vm-dev03", "cpu-load", 4),
+            document(timestamp, "vm-dev03", "cpu-load", 4, useNestedDocs),
             // t + 2s
-            document(timestamp.plus(2, unit), "vm-dev01", "cpu-load", 5),
-            document(timestamp.plus(2, unit), "vm-dev02", "cpu-load", 6),
+            document(timestamp.plus(2, unit), "vm-dev01", "cpu-load", 5, useNestedDocs),
+            document(timestamp.plus(2, unit), "vm-dev02", "cpu-load", 6, useNestedDocs),
             // t - 1s out-of-order doc
-            document(timestamp.minus(1, unit), "vm-dev01", "cpu-load", 7),
+            document(timestamp.minus(1, unit), "vm-dev01", "cpu-load", 7, useNestedDocs),
             // t + 3s
-            document(timestamp.plus(3, unit), "vm-dev01", "cpu-load", 8),
-            document(timestamp.plus(3, unit), "vm-dev02", "cpu-load", 9)
+            document(timestamp.plus(3, unit), "vm-dev01", "cpu-load", 8, useNestedDocs),
+            document(timestamp.plus(3, unit), "vm-dev02", "cpu-load", 9, useNestedDocs)
         );
 
         // Verify that documents are created
@@ -285,7 +307,7 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
                     if (--nbDocs < 0) {
                         break;
                     }
-                    arrayOfDocs[nbDocs] = document(t, host, "cpu-load", randomInt(10));
+                    arrayOfDocs[nbDocs] = document(t, host, "cpu-load", randomInt(10), useNestedDocs);
                 }
                 // always use seconds, otherwise the doc might fell outside of the timestamps window of the datastream
                 t = t.plus(1, ChronoUnit.SECONDS);
@@ -315,6 +337,39 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
                 );
             }
         });
+
+        if (useNestedDocs) {
+            assertCheckedResponse(
+                client().prepareSearch(dataStreamName)
+                    .setTrackTotalHits(true)
+                    .setQuery(QueryBuilders.nestedQuery("tags", QueryBuilders.existsQuery("tags.key"), ScoreMode.None)),
+                searchResponse -> {
+                    assertHitCount(searchResponse, docs.size() - deletedDocs.size());
+                    for (var hit : searchResponse.getHits()) {
+                        assertThat(
+                            "Nested query returned deleted doc [" + hit.getId() + "]",
+                            deletedDocs.contains(hit.getId()),
+                            equalTo(false)
+                        );
+                    }
+                }
+            );
+
+            for (var deletedDocId : deletedDocs) {
+                var deletedDocIndex = docs.get(deletedDocId);
+                assertHitCount(
+                    client().prepareSearch(deletedDocIndex)
+                        .setTrackTotalHits(true)
+                        .setSize(0)
+                        .setQuery(
+                            QueryBuilders.boolQuery()
+                                .must(QueryBuilders.termQuery(IdFieldMapper.NAME, deletedDocId))
+                                .must(QueryBuilders.nestedQuery("tags", QueryBuilders.existsQuery("tags.key"), ScoreMode.None))
+                        ),
+                    0L
+                );
+            }
+        }
 
         // Search by synthetic _id
         var otherDocs = randomSubsetOf(Sets.difference(docs.keySet(), Sets.newHashSet(deletedDocs)));
@@ -357,21 +412,21 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         var bulkResponses = createDocumentsWithoutValidatingTheResponse(
             dataStreamName,
             // t + 0s
-            document(timestamp, "vm-dev01", "cpu-load", 0),
-            document(timestamp, "vm-dev02", "cpu-load", 1),
+            document(timestamp, "vm-dev01", "cpu-load", 0, useNestedDocs),
+            document(timestamp, "vm-dev02", "cpu-load", 1, useNestedDocs),
             // t + 1s
-            document(timestamp.plus(1, unit), "vm-dev01", "cpu-load", 2),
-            document(timestamp.plus(1, unit), "vm-dev02", "cpu-load", 3),
+            document(timestamp.plus(1, unit), "vm-dev01", "cpu-load", 2, useNestedDocs),
+            document(timestamp.plus(1, unit), "vm-dev02", "cpu-load", 3, useNestedDocs),
             // t + 0s out-of-order doc
-            document(timestamp, "vm-dev03", "cpu-load", 4),
+            document(timestamp, "vm-dev03", "cpu-load", 4, useNestedDocs),
             // t + 2s
-            document(timestamp.plus(2, unit), "vm-dev01", "cpu-load", 5),
-            document(timestamp.plus(2, unit), "vm-dev02", "cpu-load", 6),
+            document(timestamp.plus(2, unit), "vm-dev01", "cpu-load", 5, useNestedDocs),
+            document(timestamp.plus(2, unit), "vm-dev02", "cpu-load", 6, useNestedDocs),
             // t - 1s out-of-order doc
-            document(timestamp.minus(1, unit), "vm-dev01", "cpu-load", 7),
+            document(timestamp.minus(1, unit), "vm-dev01", "cpu-load", 7, useNestedDocs),
             // t + 3s
-            document(timestamp.plus(3, unit), "vm-dev01", "cpu-load", 8),
-            document(timestamp.plus(3, unit), "vm-dev02", "cpu-load", 9)
+            document(timestamp.plus(3, unit), "vm-dev01", "cpu-load", 8, useNestedDocs),
+            document(timestamp.plus(3, unit), "vm-dev02", "cpu-load", 9, useNestedDocs)
         );
 
         var successfulRequests = Arrays.stream(bulkResponses).filter(response -> response.isFailed() == false).toList();
@@ -391,12 +446,15 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
             assertThat("_id field should not have postings on disk", diskUsageIdField.getInvertedIndexBytes(), equalTo(0L));
             assertThat("_id field should have bloom filter usage", diskUsageIdField.getBloomFilterBytes(), greaterThan(0L));
         }
+
+        assertShardsHaveNoIdStoredFieldValuesOnDisk(indices);
     }
 
     public void testGetFromTranslogBySyntheticId() throws Exception {
         assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
+        final boolean useNestedDocs = rarely();
         final var dataStreamName = randomIdentifier();
-        putDataStreamTemplate(dataStreamName, 1, 0);
+        putDataStreamTemplate(dataStreamName, 1, 0, useNestedDocs);
 
         final var docs = new HashMap<String, String>();
         final var unit = randomFrom(ChronoUnit.SECONDS, ChronoUnit.MINUTES);
@@ -408,13 +466,13 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         var results = createDocuments(
             dataStreamName,
             // t + 0s
-            document(timestamp, "vm-dev01", "cpu-load", 0),
-            document(timestamp, "vm-dev02", "cpu-load", 1),
+            document(timestamp, "vm-dev01", "cpu-load", 0, useNestedDocs),
+            document(timestamp, "vm-dev02", "cpu-load", 1, useNestedDocs),
             // t + 1s
-            document(timestamp.plus(1, unit), "vm-dev01", "cpu-load", 2),
-            document(timestamp.plus(1, unit), "vm-dev02", "cpu-load", 3),
+            document(timestamp.plus(1, unit), "vm-dev01", "cpu-load", 2, useNestedDocs),
+            document(timestamp.plus(1, unit), "vm-dev02", "cpu-load", 3, useNestedDocs),
             // t + 0s out-of-order doc
-            document(timestamp, "vm-dev03", "cpu-load", 4)
+            document(timestamp, "vm-dev03", "cpu-load", 4, useNestedDocs)
         );
 
         // Verify that documents are created
@@ -446,13 +504,13 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         results = createDocuments(
             dataStreamName,
             // t + 2s
-            document(timestamp.plus(2, unit), "vm-dev01", "cpu-load", metricOffset),
-            document(timestamp.plus(2, unit), "vm-dev02", "cpu-load", metricOffset + 1),
+            document(timestamp.plus(2, unit), "vm-dev01", "cpu-load", metricOffset, useNestedDocs),
+            document(timestamp.plus(2, unit), "vm-dev02", "cpu-load", metricOffset + 1, useNestedDocs),
             // t - 1s out-of-order doc
-            document(timestamp.minus(1, unit), "vm-dev01", "cpu-load", metricOffset + 2),
+            document(timestamp.minus(1, unit), "vm-dev01", "cpu-load", metricOffset + 2, useNestedDocs),
             // t + 3s
-            document(timestamp.plus(3, unit), "vm-dev01", "cpu-load", metricOffset + 3),
-            document(timestamp.plus(3, unit), "vm-dev02", "cpu-load", metricOffset + 4)
+            document(timestamp.plus(3, unit), "vm-dev01", "cpu-load", metricOffset + 3, useNestedDocs),
+            document(timestamp.plus(3, unit), "vm-dev02", "cpu-load", metricOffset + 4, useNestedDocs)
         );
 
         // Verify that documents are created
@@ -495,6 +553,18 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
             assertThat(asInstanceOf(Integer.class, source.get("value")), equalTo(metricOffset + doc.getItemId()));
         }
 
+        assertHitCount(client().prepareSearch(dataStreamName).setSize(0), 10L);
+
+        if (useNestedDocs) {
+            assertHitCount(
+                client().prepareSearch(dataStreamName)
+                    .setTrackTotalHits(true)
+                    .setSize(0)
+                    .setQuery(QueryBuilders.nestedQuery("tags", QueryBuilders.existsQuery("tags.key"), ScoreMode.None)),
+                10L
+            );
+        }
+
         // Check that synthetic _id field have no postings on disk but has bloom filter usage
         var indices = new HashSet<>(docs.values());
         for (var index : indices) {
@@ -504,18 +574,19 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
             assertThat("_id field should have bloom filter usage", diskUsageIdField.getBloomFilterBytes(), greaterThan(0L));
         }
 
-        assertHitCount(client().prepareSearch(dataStreamName).setSize(0), 10L);
+        assertShardsHaveNoIdStoredFieldValuesOnDisk(indices);
     }
 
     public void testRecoveredOperations() throws Exception {
         assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
+        final boolean useNestedDocs = rarely();
 
         // ensure a couple of nodes to have some operations coordinated
         internalCluster().ensureAtLeastNumDataNodes(2);
 
         final var dataStreamName = randomIdentifier();
         final int numShards = randomIntBetween(1, 10);
-        putDataStreamTemplate(dataStreamName, numShards, 0);
+        putDataStreamTemplate(dataStreamName, numShards, 0, useNestedDocs);
 
         final var docsIndices = new HashSet<String>();
         final var docsIndicesById = new HashMap<String, String>();
@@ -532,7 +603,7 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
             var client = client();
             var bulkRequest = client.prepareBulk();
             for (int j = 0; j < nbDocsPerBulk; j++) {
-                var doc = document(timestamp, randomFrom("vm-dev01", "vm-dev02", "vm-dev03", "vm-dev04"), "cpu-load", i);
+                var doc = document(timestamp, randomFrom("vm-dev01", "vm-dev02", "vm-dev03", "vm-dev04"), "cpu-load", i, useNestedDocs);
                 bulkRequest.add(client.prepareIndex(dataStreamName).setOpType(DocWriteRequest.OpType.CREATE).setSource(doc));
                 timestamp = timestamp.plusMillis(1);
             }
@@ -590,7 +661,8 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
                                     indexShard.mapperService().documentMapper(),
                                     operation,
                                     docsIdsBySeqNo::get,
-                                    docsIndicesById::get
+                                    docsIndicesById::get,
+                                    useNestedDocs
                                 );
                             }
                         }
@@ -617,7 +689,8 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
                                         indexShard.mapperService().documentMapper(),
                                         operation,
                                         docsIdsBySeqNo::get,
-                                        docsIndicesById::get
+                                        docsIndicesById::get,
+                                        useNestedDocs
                                     );
                                 }
                             }
@@ -693,6 +766,16 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         final var nonDeletedDocs = Sets.difference(docsIndicesById.keySet(), Set.copyOf(deletedDocs));
         assertHitCount(client(targetNode).prepareSearch(dataStreamName).setTrackTotalHits(true).setSize(0), nonDeletedDocs.size());
 
+        if (useNestedDocs) {
+            assertHitCount(
+                client(targetNode).prepareSearch(dataStreamName)
+                    .setTrackTotalHits(true)
+                    .setSize(0)
+                    .setQuery(QueryBuilders.nestedQuery("tags", QueryBuilders.existsQuery("tags.key"), ScoreMode.None)),
+                nonDeletedDocs.size()
+            );
+        }
+
         var randomDocIds = randomSubsetOf(nonDeletedDocs);
         for (var docId : randomDocIds) {
             if (randomBoolean()) {
@@ -741,6 +824,7 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
 
     public void testRecoverOperationsFromLocalTranslog() throws Exception {
         assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
+        final boolean useNestedDocs = rarely();
 
         final var dataStreamName = randomIdentifier();
         putDataStreamTemplate(
@@ -750,7 +834,8 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
             Settings.builder()
                 .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.REQUEST)
                 .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), ByteSizeValue.of(1, ByteSizeUnit.PB))
-                .build()
+                .build(),
+            useNestedDocs
         );
 
         final var docsIndices = new HashSet<String>();
@@ -766,7 +851,7 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         var client = client();
         var bulkRequest = client.prepareBulk();
         for (int i = 0; i < nbDocs; i++) {
-            var doc = document(timestamp, randomFrom("vm-dev01", "vm-dev02", "vm-dev03", "vm-dev04"), "cpu-load", i);
+            var doc = document(timestamp, randomFrom("vm-dev01", "vm-dev02", "vm-dev03", "vm-dev04"), "cpu-load", i, useNestedDocs);
             bulkRequest.add(client.prepareIndex(dataStreamName).setOpType(DocWriteRequest.OpType.CREATE).setSource(doc));
             timestamp = timestamp.plusMillis(1);
         }
@@ -838,7 +923,8 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
                     primary.mapperService().documentMapper(),
                     operation,
                     docsIdsBySeqNo::get,
-                    docsIndicesById::get
+                    docsIndicesById::get,
+                    useNestedDocs
                 );
             }
         }
@@ -870,6 +956,16 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
 
         final var nonDeletedDocs = Sets.difference(docsIndicesById.keySet(), Set.copyOf(deletedDocs));
         assertHitCount(client().prepareSearch(dataStreamName).setTrackTotalHits(true).setSize(0), nonDeletedDocs.size());
+
+        if (useNestedDocs) {
+            assertHitCount(
+                client().prepareSearch(dataStreamName)
+                    .setTrackTotalHits(true)
+                    .setSize(0)
+                    .setQuery(QueryBuilders.nestedQuery("tags", QueryBuilders.existsQuery("tags.key"), ScoreMode.None)),
+                nonDeletedDocs.size()
+            );
+        }
 
         for (var docId : randomSubsetOf(nonDeletedDocs)) {
             if (randomBoolean()) {
@@ -920,7 +1016,8 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         DocumentMapper documentMapper,
         Translog.Operation operation,
         Function<Long, String> expectedDocIdSupplier,
-        Function<String, String> expectedDocIndexSupplier
+        Function<String, String> expectedDocIndexSupplier,
+        boolean useNestedDocs
     ) {
         final String expectedDocId;
         final BytesRef expectedDocIdEncoded;
@@ -948,9 +1045,13 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
                 );
                 assertThat(parsedDocument.id(), equalTo(expectedDocId));
                 assertThat(parsedDocument.routing(), nullValue());
-                assertThat(parsedDocument.docs(), hasSize(1));
+                if (useNestedDocs) {
+                    assertThat(parsedDocument.docs(), hasSize(greaterThan(1)));
+                } else {
+                    assertThat(parsedDocument.docs(), hasSize(1));
+                }
 
-                var luceneDocument = parsedDocument.docs().get(0);
+                var luceneDocument = parsedDocument.rootDoc();
                 assertThat(
                     "Lucene document [" + expectedDocId + "] has wrong value for _id field",
                     luceneDocument.getField(IdFieldMapper.NAME).binaryValue(),
@@ -977,6 +1078,36 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
                         )
                     )
                 );
+
+                for (int i = 0; i < parsedDocument.docs().size() - 1; i++) {
+                    var nestedDoc = parsedDocument.docs().get(i);
+                    assertThat(
+                        "Nested document [" + i + "] of [" + expectedDocId + "] has wrong _id field",
+                        nestedDoc.getField(IdFieldMapper.NAME).binaryValue(),
+                        equalTo(expectedDocIdEncoded)
+                    );
+                    assertThat(
+                        "Nested document [" + i + "] of [" + expectedDocId + "] has wrong _tsid field",
+                        nestedDoc.getField(TimeSeriesIdFieldMapper.NAME).binaryValue(),
+                        equalTo(TsidExtractingIdFieldMapper.extractTimeSeriesIdFromSyntheticId(expectedDocIdEncoded))
+                    );
+                    assertThat(
+                        "Nested document [" + i + "] of [" + expectedDocId + "] has wrong @timestamp field",
+                        nestedDoc.getField(DataStreamTimestampFieldMapper.DEFAULT_PATH).numericValue().longValue(),
+                        equalTo(TsidExtractingIdFieldMapper.extractTimestampFromSyntheticId(expectedDocIdEncoded))
+                    );
+                    assertThat(
+                        "Nested document [" + i + "] of [" + expectedDocId + "] has wrong _ts_routing_hash field",
+                        nestedDoc.getField(TimeSeriesRoutingHashFieldMapper.NAME).binaryValue(),
+                        equalTo(
+                            Uid.encodeId(
+                                TimeSeriesRoutingHashFieldMapper.encode(
+                                    TsidExtractingIdFieldMapper.extractRoutingHashFromSyntheticId(expectedDocIdEncoded)
+                                )
+                            )
+                        )
+                    );
+                }
                 break;
 
             case DELETE:
@@ -1001,11 +1132,12 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
      */
     public void testCreateSnapshot() throws IOException {
         assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
+        final boolean useNestedDocs = rarely();
 
         // create index
         final var dataStreamName = randomIdentifier();
         int shards = randomIntBetween(1, 5);
-        putDataStreamTemplate(dataStreamName, shards, 0);
+        putDataStreamTemplate(dataStreamName, shards, 0, useNestedDocs);
 
         final var unit = randomFrom(ChronoUnit.SECONDS, ChronoUnit.MINUTES);
         final var timestamp = Instant.now();
@@ -1014,21 +1146,21 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         var bulkItemResponses = createDocuments(
             dataStreamName,
             // t + 0s
-            document(timestamp, "vm-dev01", "cpu-load", 0),
-            document(timestamp, "vm-dev02", "cpu-load", 1),
+            document(timestamp, "vm-dev01", "cpu-load", 0, useNestedDocs),
+            document(timestamp, "vm-dev02", "cpu-load", 1, useNestedDocs),
             // t + 1s
-            document(timestamp.plus(1, unit), "vm-dev01", "cpu-load", 2),
-            document(timestamp.plus(1, unit), "vm-dev02", "cpu-load", 3),
+            document(timestamp.plus(1, unit), "vm-dev01", "cpu-load", 2, useNestedDocs),
+            document(timestamp.plus(1, unit), "vm-dev02", "cpu-load", 3, useNestedDocs),
             // t + 0s out-of-order doc
-            document(timestamp, "vm-dev03", "cpu-load", 4),
+            document(timestamp, "vm-dev03", "cpu-load", 4, useNestedDocs),
             // t + 2s
-            document(timestamp.plus(2, unit), "vm-dev01", "cpu-load", 5),
-            document(timestamp.plus(2, unit), "vm-dev02", "cpu-load", 6),
+            document(timestamp.plus(2, unit), "vm-dev01", "cpu-load", 5, useNestedDocs),
+            document(timestamp.plus(2, unit), "vm-dev02", "cpu-load", 6, useNestedDocs),
             // t - 1s out-of-order doc
-            document(timestamp.minus(1, unit), "vm-dev01", "cpu-load", 7),
+            document(timestamp.minus(1, unit), "vm-dev01", "cpu-load", 7, useNestedDocs),
             // t + 3s
-            document(timestamp.plus(3, unit), "vm-dev01", "cpu-load", 8),
-            document(timestamp.plus(3, unit), "vm-dev02", "cpu-load", 9)
+            document(timestamp.plus(3, unit), "vm-dev01", "cpu-load", 8, useNestedDocs),
+            document(timestamp.plus(3, unit), "vm-dev02", "cpu-load", 9, useNestedDocs)
         );
 
         // Verify that documents are created
@@ -1106,6 +1238,197 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         // All documents should be there
         Map<String, Map<String, Object>> documentSourcesAfterRestore = documentSourcesAsMaps(dataStreamName, docsToVerify);
         assertThat(documentSourcesAfterRestore, equalTo(documentSourcesBeforeSnapshot));
+
+        if (useNestedDocs) {
+            assertHitCount(
+                client().prepareSearch(dataStreamName)
+                    .setTrackTotalHits(true)
+                    .setSize(0)
+                    .setQuery(QueryBuilders.nestedQuery("tags", QueryBuilders.existsQuery("tags.key"), ScoreMode.None)),
+                docIdToIndex.size()
+            );
+        }
+    }
+
+    public void testMerge() throws Exception {
+        assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
+
+        final var dataStreamName = randomIdentifier();
+        putDataStreamTemplate(dataStreamName, 1, 0, rarely());
+
+        final var docsIndexByIds = new ConcurrentHashMap<String, String>();
+        var timestamp = Instant.now();
+
+        final int nbBulks = randomIntBetween(12, 20);
+        final int nbDocs = randomIntBetween(100, 1_000);
+
+        for (int i = 0; i < nbBulks; i++) {
+            var client = client();
+            var bulkRequest = client.prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+            for (int j = 0; j < nbDocs; j++) {
+                bulkRequest.add(
+                    client.prepareIndex(dataStreamName).setOpType(DocWriteRequest.OpType.CREATE).setSource(String.format(Locale.ROOT, """
+                        {"@timestamp": "%s", "hostname": "%s", "metric": {"field": "metric_%d", "value": %d}}
+                        """, timestamp, "vm-test-" + randomIntBetween(0, 4), randomIntBetween(0, 1), randomInt()), XContentType.JSON)
+                );
+                timestamp = timestamp.plusMillis(10);
+            }
+
+            var bulkResponse = bulkRequest.get();
+            assertNoFailures(bulkResponse);
+            for (var result : bulkResponse.getItems()) {
+                assertThat(result.getResponse().getResult(), equalTo(DocWriteResponse.Result.CREATED));
+                assertThat(result.getVersion(), equalTo(1L));
+                docsIndexByIds.put(result.getId(), result.getIndex());
+            }
+        }
+
+        var indices = new HashSet<>(docsIndexByIds.values());
+        for (var index : indices) {
+            long segmentsCount = indicesAdmin().prepareStats(index).clear().setSegments(true).get().getPrimaries().getSegments().getCount();
+            assertThat("index [" + index + "] has " + segmentsCount + " segments", segmentsCount, greaterThan(1L));
+        }
+
+        var forceMerge = indicesAdmin().prepareForceMerge(docsIndexByIds.values().toArray(String[]::new)).setMaxNumSegments(1).get();
+        assertThat(forceMerge.getFailedShards(), equalTo(0));
+
+        for (var index : indices) {
+            long segmentsCount = indicesAdmin().prepareStats(index).clear().setSegments(true).get().getPrimaries().getSegments().getCount();
+            assertThat("index [" + index + "] has " + segmentsCount + " segments", segmentsCount, equalTo(1L));
+        }
+
+        assertShardsHaveNoIdStoredFieldValuesOnDisk(indices);
+    }
+
+    public void testDefaultSetting() throws Exception {
+        assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
+
+        String indexName = randomIndexName();
+
+        // Don't set IndexSettings.SYNTHETIC_ID to test default behavior.
+        // Use default codec so the SYNTHETIC_ID default is true
+        // (codec will be randomised by ESIntegTestCase.randomIndexTemplate if not explicitly set)
+        Settings.Builder settingsBuilder = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "hostname")
+            .put(EngineConfig.INDEX_CODEC_SETTING.getKey(), CodecService.DEFAULT_CODEC);
+        final var mapping = """
+            {
+                "properties": {
+                    "@timestamp": {
+                        "type": "date"
+                    },
+                    "hostname": {
+                        "type": "keyword",
+                        "time_series_dimension": true
+                    },
+                    "metric": {
+                        "properties": {
+                            "field": {
+                                "type": "keyword"
+                            },
+                            "value": {
+                                "type": "integer",
+                                "time_series_metric": "counter"
+                            }
+                        }
+                    }
+                }
+            }
+            """;
+        assertAcked(client().admin().indices().prepareCreate(indexName).setSettings(settingsBuilder).setMapping(mapping).get());
+
+        var timestamp = Instant.now();
+        createDocuments(
+            indexName,
+            document(timestamp, "vm-dev01", "cpu-load", 0),
+            document(timestamp.plus(1, ChronoUnit.SECONDS), "vm-dev02", "cpu-load", 1)
+        );
+        ensureGreen(indexName);
+        flushAndRefresh(indexName);
+
+        GetSettingsResponse getSettingsResponse = client().admin().indices().prepareGetSettings(TEST_REQUEST_TIMEOUT, indexName).get();
+        String versionSetting = getSettingsResponse.getSetting(indexName, IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey());
+        IndexVersion version = IndexVersion.fromId(Integer.parseInt(versionSetting));
+        assertTrue(version.onOrAfter(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_DEFAULT));
+        String syntheticIdSetting = getSettingsResponse.getSetting(indexName, IndexSettings.SYNTHETIC_ID.getKey());
+        assertThat(syntheticIdSetting, Matchers.nullValue());
+
+        var diskUsage = diskUsage(indexName);
+        var diskUsageIdField = AnalyzeIndexDiskUsageTestUtils.getPerFieldDiskUsage(diskUsage, IdFieldMapper.NAME);
+        assertThat("_id field should not have postings on disk", diskUsageIdField.getInvertedIndexBytes(), equalTo(0L));
+        assertThat("_id field should have bloom filter usage", diskUsageIdField.getBloomFilterBytes(), greaterThan(0L));
+
+        var indices = new HashSet<String>();
+        indices.add(indexName);
+        assertShardsHaveNoIdStoredFieldValuesOnDisk(indices);
+    }
+
+    /**
+     * This test verifies that index with synthetic id cannot be created
+     * if index version is too low. Imagine a mixed cluster where node A has
+     * support for synthetic id (post 9.4) but node B has not (pre 9.4).
+     * If node A is master we don't want it to allow creation of index with
+     * synthetic id until node B has been upgraded.
+     */
+    public void testIndexCreationIsBlockByIndexVersion() {
+        assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
+        String indexName = randomIndexName();
+        // IndexVersion is too low for synthetic id to be allowed
+        IndexVersion tooLowIndexVersion = IndexVersionUtils.randomPreviousCompatibleWriteVersion(
+            IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_94
+        );
+        Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "hostname")
+            .put(EngineConfig.INDEX_CODEC_SETTING.getKey(), CodecService.DEFAULT_CODEC)
+            .put(IndexSettings.SYNTHETIC_ID.getKey(), true)
+            // In reality, we cannot set SETTING_INDEX_VERSION_CREATED explicitly (it has Property.PrivateIndex).
+            // But we are lucky because the setting validation for SYNTHETIC_ID happens before SETTING_INDEX_VERSION_CREATED.
+            // This is a hack but testing this in a real mixed cluster is hard because we don't have control
+            // over which node is master.
+            .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), tooLowIndexVersion)
+            .build();
+        final var mapping = """
+            {
+                "properties": {
+                    "@timestamp": {
+                        "type": "date"
+                    },
+                    "hostname": {
+                        "type": "keyword",
+                        "time_series_dimension": true
+                    },
+                    "metric": {
+                        "properties": {
+                            "field": {
+                                "type": "keyword"
+                            },
+                            "value": {
+                                "type": "integer",
+                                "time_series_metric": "counter"
+                            }
+                        }
+                    }
+                }
+            }
+            """;
+        IllegalArgumentException e = assertThrows(
+            IllegalArgumentException.class,
+            () -> indicesAdmin().prepareCreate(indexName).setSettings(settings).setMapping(mapping).get()
+        );
+        assertThat(
+            e.getMessage(),
+            Matchers.containsString(
+                String.format(
+                    Locale.ROOT,
+                    "The setting [%s] is only permitted for indexVersion [%d] or later. Current indexVersion: [%d].",
+                    IndexSettings.SYNTHETIC_ID.getKey(),
+                    IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_94.id(),
+                    tooLowIndexVersion.id()
+                )
+            )
+        );
     }
 
     private static long documentCount(String dataStreamName) {
@@ -1168,6 +1491,16 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
 
     private static XContentBuilder document(Instant timestamp, String hostName, String metricField, Integer metricValue)
         throws IOException {
+        return document(timestamp, hostName, metricField, metricValue, false);
+    }
+
+    private static XContentBuilder document(
+        Instant timestamp,
+        String hostName,
+        String metricField,
+        Integer metricValue,
+        boolean useNestedDocs
+    ) throws IOException {
         var source = XContentFactory.jsonBuilder();
         source.startObject();
         {
@@ -1177,9 +1510,19 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
             {
                 source.field("field", metricField);
                 source.field("value", metricValue);
-
             }
             source.endObject();
+            if (useNestedDocs) {
+                int nbTags = randomIntBetween(1, 3);
+                source.startArray("tags");
+                for (int i = 0; i < nbTags; i++) {
+                    source.startObject();
+                    source.field("key", randomFrom("env", "team", "region", "service"));
+                    source.field("value", randomAlphaOfLength(5));
+                    source.endObject();
+                }
+                source.endArray();
+            }
         }
         source.endObject();
         return source;
@@ -1207,23 +1550,48 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         return bulkResponse.getItems();
     }
 
-    private static void putDataStreamTemplate(String indexPattern, int primaries, int replicas) throws IOException {
-        putDataStreamTemplate(indexPattern, primaries, replicas, Settings.EMPTY);
+    private static void putDataStreamTemplate(String indexPattern, int primaries, int replicas, boolean useNestedDocs) throws IOException {
+        putDataStreamTemplate(indexPattern, primaries, replicas, Settings.EMPTY, useNestedDocs);
     }
 
-    private static void putDataStreamTemplate(String indexPattern, int primaries, int replicas, Settings extraSettings) throws IOException {
+    private static void putDataStreamTemplate(
+        String indexPattern,
+        int primaries,
+        int replicas,
+        Settings extraSettings,
+        boolean useNestedDocs
+    ) throws IOException {
         final var settings = indexSettings(primaries, replicas).put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
             .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
-            .put(IndexSettings.SYNTHETIC_ID.getKey(), true);
+            .put(IndexSettings.SYNTHETIC_ID.getKey(), true)
+            .put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), false);  // Sequence numbers are needed for id validation.
         if (randomBoolean()) {
             settings.put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.SYNTHETIC);
             settings.put(IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE_SETTING.getKey(), randomBoolean());
         } else if (rarely()) {
             settings.put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.STORED);
         }
+        if (rarely()) {
+            settings.put(IndexSettings.USE_DOC_VALUES_SKIPPER.getKey(), false);
+        }
         settings.put(extraSettings);
 
-        final var mappings = """
+        final String nestedMapping = useNestedDocs ? """
+                        ,
+                        "tags": {
+                            "type": "nested",
+                            "properties": {
+                                "key": {
+                                    "type": "keyword"
+                                },
+                                "value": {
+                                    "type": "keyword"
+                                }
+                            }
+                        }
+            """ : "";
+
+        final var mappings = Strings.format("""
             {
                 "_doc": {
                     "properties": {
@@ -1245,10 +1613,10 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
                                     "time_series_metric": "counter"
                                 }
                             }
-                        }
+                        }%s
                     }
                 }
-            }""";
+            }""", nestedMapping);
 
         var putTemplateRequest = new TransportPutComposableIndexTemplateAction.Request(getTestClass().getName().toLowerCase(Locale.ROOT))
             .indexTemplate(
@@ -1270,5 +1638,399 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         var indexDiskUsageStats = AnalyzeIndexDiskUsageTestUtils.getIndexStats(diskUsageResponse, indexName);
         assertNotNull(indexDiskUsageStats);
         return indexDiskUsageStats;
+    }
+
+    /**
+     * Tests that no-op tombstones are correctly handled in TSDB indices with synthetic ids.
+     * <p>
+     * This test creates a gap in sequence numbers on the primary shard and verifies that {@link Engine#fillSeqNoGaps}
+     * correctly fills the gaps with noop tombstones in three scenarios:
+     * <ol>
+     *   <li><b>Primary promotion</b>: After stopping the primary node, the replica is promoted to primary and fills
+     *       the gaps via {@link IndexShard#updateShardState}.</li>
+     *   <li><b>Snapshot restore</b>: The backing index is restored from a snapshot, and gaps are filled via
+     *       {@link org.elasticsearch.index.shard.StoreRecovery#recoverFromRepository}.</li>
+     *   <li><b>Peer recovery</b>: A new replica is added after restore, recovering from a primary that already has
+     *       NOOP tombstones in Lucene.</li>
+     * </ol>
+     * The test verifies that operations (including noops) can be correctly read from the Lucene index using
+     * {@link IndexShard#newChangesSnapshot}, and that GET/search by synthetic _id work correctly after each scenario.
+     */
+    public void testNoopTombstones() throws Exception {
+        assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
+        internalCluster().startDataOnlyNodes(2);
+
+        final boolean useNestedDocs = rarely();
+        final var dataStreamName = randomIdentifier();
+        putDataStreamTemplate(
+            dataStreamName,
+            1,
+            1,  // 1 replica
+            Settings.builder()
+                .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.REQUEST)
+                .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), ByteSizeValue.of(1, ByteSizeUnit.PB))
+                .build(),
+            useNestedDocs
+        );
+
+        var timestamp = Instant.now();
+        logger.info("--> timestamp is {} (epoch: {})", timestamp, timestamp.toEpochMilli());
+
+        // Index first batch of documents
+        final int nbDocsFirstBatch = randomIntBetween(1, 25);
+        final var docsIdsBySeqNo = new HashMap<Long, String>();
+        final var docsIndicesById = new HashMap<String, String>();
+
+        var client = client();
+        var bulkRequest = client.prepareBulk();
+        for (int i = 0; i < nbDocsFirstBatch; i++) {
+            var doc = document(timestamp, randomFrom("vm-dev01", "vm-dev02"), "cpu-load", i, useNestedDocs);
+            bulkRequest.add(client.prepareIndex(dataStreamName).setOpType(DocWriteRequest.OpType.CREATE).setSource(doc));
+            timestamp = timestamp.plusMillis(1);
+        }
+        var bulkResponse = bulkRequest.get();
+        assertNoFailures(bulkResponse);
+
+        String backingIndex = null;
+        for (var result : bulkResponse.getItems()) {
+            assertThat(result.getResponse().getResult(), equalTo(DocWriteResponse.Result.CREATED));
+            docsIdsBySeqNo.put(result.getResponse().getSeqNo(), result.getId());
+            docsIndicesById.put(result.getId(), result.getIndex());
+            backingIndex = result.getIndex();
+        }
+
+        ensureGreen(dataStreamName);
+
+        // Find the primary shard
+        final var shardId = new ShardId(resolveIndex(backingIndex), 0);
+        final var primaryShard = findPrimaryShard(shardId);
+        assertThat(primaryShard, notNullValue());
+
+        var clusterState = clusterService().state();
+        final var primaryNodeName = clusterState.nodes().get(primaryShard.routingEntry().currentNodeId()).getName();
+        var replicaRouting = clusterState.routingTable().index(shardId.getIndex()).shard(shardId.id()).replicaShards().get(0);
+        final var replicaNodeName = clusterState.nodes().get(replicaRouting.currentNodeId()).getName();
+
+        // When {@code flushBeforeSeqNoGaps} is true, documents are flushed before creating sequence number gaps, resulting in a segment
+        // containing only no-op tombstones after failover. When false, documents and no-ops are mixed in the same segment(s).
+        final boolean flushBeforeSeqNoGaps = randomBoolean();
+        if (flushBeforeSeqNoGaps) {
+            // Flush first batch to isolate documents in their own segment
+            flush(backingIndex);
+        }
+
+        // Generate sequence number gaps (without indexing documents)
+        final int nbGaps = randomIntBetween(1, 25);
+        primaryShard.withEngine(engine -> {
+            for (int i = 0; i < nbGaps; i++) {
+                generateNewSeqNo(engine);
+            }
+            return null;
+        });
+
+        // Index second batch of documents to propagate the higher sequence numbers to the replica
+        final int nbDocsSecondBatch = randomIntBetween(1, 25);
+        bulkRequest = client.prepareBulk();
+        for (int i = 0; i < nbDocsSecondBatch; i++) {
+            var doc = document(timestamp, randomFrom("vm-dev01", "vm-dev02"), "cpu-load", nbDocsFirstBatch + i, useNestedDocs);
+            bulkRequest.add(client.prepareIndex(dataStreamName).setOpType(DocWriteRequest.OpType.CREATE).setSource(doc));
+            timestamp = timestamp.plusMillis(1);
+        }
+        bulkResponse = bulkRequest.get();
+        assertNoFailures(bulkResponse);
+
+        for (var result : bulkResponse.getItems()) {
+            assertThat(result.getResponse().getResult(), equalTo(DocWriteResponse.Result.CREATED));
+            docsIdsBySeqNo.put(result.getResponse().getSeqNo(), result.getId());
+            docsIndicesById.put(result.getId(), result.getIndex());
+        }
+
+        final int totalDocs = nbDocsFirstBatch + nbDocsSecondBatch;
+
+        final var repository = randomIdentifier("repo-");
+        createRepository(repository);
+
+        final var snapshot = randomIdentifier("snapshot-");
+        var createSnapshotResponse = clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repository, snapshot)
+            .setIncludeGlobalState(false)
+            .setWaitForCompletion(true)
+            .setIndices(dataStreamName)
+            .get();
+        assertThat(createSnapshotResponse.getSnapshotInfo().state(), equalTo(SnapshotState.SUCCESS));
+
+        if (flushBeforeSeqNoGaps) {
+            // Flush second batch to isolate them in their own segment before failover
+            flush(backingIndex);
+        }
+
+        var replicaShard = internalCluster().getInstance(IndicesService.class, replicaNodeName).getShardOrNull(shardId);
+        assertThat(replicaShard, notNullValue());
+        long expectedMaxSeqNo = totalDocs - 1 + nbGaps;
+        assertThat(replicaShard.withEngine(engine -> engine.getSeqNoStats(-1).getMaxSeqNo()), equalTo(expectedMaxSeqNo));
+
+        // Stop the primary node: this triggers failover to the replica which will fill gaps in sequence numbers with NoOp tombstone
+        // operations in IndexShard.updateShardState
+        internalCluster().stopNode(primaryNodeName);
+
+        // Wait for the replica to be promoted to primary and fill the gaps
+        ensureYellow(backingIndex);
+
+        // Find the new primary (former replica)
+        IndexShard newPrimary = internalCluster().getInstance(IndicesService.class, replicaNodeName).getShardOrNull(shardId);
+        assertThat(newPrimary, notNullValue());
+        assertThat(newPrimary.routingEntry().primary(), equalTo(true));
+
+        // The new primary should have filled the gaps with noops
+        assertBusy(() -> {
+            newPrimary.withEngine(engine -> {
+                assertThat(
+                    "Local checkpoint should equal max seq no after filling gaps",
+                    engine.getSeqNoStats(-1).getLocalCheckpoint(),
+                    equalTo(engine.getSeqNoStats(-1).getMaxSeqNo())
+                );
+                return null;
+            });
+        });
+
+        // Flush to ensure all operations (including noops) are in Lucene
+        flushAndRefresh(backingIndex);
+
+        // Check that the promoted replica has the correct number of NoOp operations
+        assertNoOpTombstones(newPrimary, totalDocs, nbGaps, "primary promotion", seqNo -> docsIdsBySeqNo.get(seqNo));
+
+        // Verify GET and search by synthetic _id after peer recovery
+        assertGetAndSearchById(docsIndicesById, backingIndex, useNestedDocs);
+
+        // Rollover the datastream
+        var rolloverResponse = indicesAdmin().prepareRolloverIndex(dataStreamName).get();
+        assertTrue(rolloverResponse.isShardsAcknowledged());
+        assertTrue(rolloverResponse.isRolledOver());
+
+        // Delete backing index before restore
+        assertAcked(indicesAdmin().prepareDelete(backingIndex));
+
+        // Restore the backing index from snapshot, gaps will be filled with NoOp operations in StoreRecovery.recoverFromRepository
+        var restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, repository, snapshot)
+            .setWaitForCompletion(true)
+            .setRestoreGlobalState(false)
+            .setIndexSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0))
+            .get();
+        assertNotNull(restoreSnapshotResponse.getRestoreInfo());
+
+        ensureGreen(backingIndex);
+
+        // Verify: fillSeqNoGaps was called during snapshot restore
+        final var restoredShardId = new ShardId(resolveIndex(backingIndex), 0);
+        final var restoredShard = findPrimaryShard(restoredShardId);
+        assertNoOpTombstones(restoredShard, totalDocs, nbGaps, "after restore", seqNo -> docsIdsBySeqNo.get(seqNo));
+
+        // Verify GET and search by synthetic _id after snapshot restore
+        assertGetAndSearchById(docsIndicesById, backingIndex, useNestedDocs);
+
+        internalCluster().startDataOnlyNode();
+
+        // Add a replica to test peer recovery from a primary with NOOP tombstones in Lucene
+        updateIndexSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1), backingIndex);
+        ensureGreen(backingIndex);
+
+        // Find the replica shard after restore
+        clusterState = clusterService().state();
+        replicaRouting = clusterState.routingTable().index(restoredShardId.getIndex()).shard(restoredShardId.id()).replicaShards().get(0);
+
+        final var replicaShardAfterRestore = internalCluster().getInstance(
+            IndicesService.class,
+            clusterState.nodes().get(replicaRouting.currentNodeId()).getName()
+        ).getShardOrNull(restoredShardId);
+        assertThat(replicaShardAfterRestore, notNullValue());
+        assertThat(replicaShardAfterRestore.routingEntry().primary(), equalTo(false));
+
+        // Verify the replica has the correct number of documents and NOOP tombstones
+        assertNoOpTombstones(replicaShardAfterRestore, totalDocs, nbGaps, "peer recovery with NOOPs", seqNo -> docsIdsBySeqNo.get(seqNo));
+
+        // Verify GET and search by synthetic _id on the replica
+        assertGetAndSearchById(docsIndicesById, backingIndex, useNestedDocs);
+    }
+
+    private static void assertShardsHaveNoIdStoredFieldValuesOnDisk(Set<String> indices) {
+        int nbVisitedShards = 0;
+        for (var indicesServices : internalCluster().getDataNodeInstances(IndicesService.class)) {
+            for (var indexService : indicesServices) {
+                if (indices.contains(indexService.index().getName())) {
+                    for (var indexShard : indexService) {
+                        long size = indexShard.withEngineOrNull(engine -> {
+                            if (engine != null) {
+                                try (var searcher = engine.acquireSearcher("assert_no_id_stored_field")) {
+                                    long segmentsTotalSize = 0L;
+
+                                    for (var leaf : searcher.getLeafContexts()) {
+                                        var leafReader = leaf.reader();
+                                        // Get the underlying stored fields reader
+                                        var tsdbStoredFieldsReader = asInstanceOf(
+                                            TSDBStoredFieldsFormat.TSDBStoredFieldsReader.class,
+                                            Lucene.segmentReader(leafReader).getFieldsReader()
+                                        );
+
+                                        // Extract the real (ie, non-synthetic id) stored field reader
+                                        final var defaultStoredFields = tsdbStoredFieldsReader.getStoredFieldsReader();
+                                        assertThat(defaultStoredFields, not(instanceOf(TSDBSyntheticIdStoredFieldsReader.class)));
+
+                                        final var fieldInfo = leafReader.getFieldInfos().fieldInfo(IdFieldMapper.NAME);
+                                        assertThat(fieldInfo, notNullValue());
+
+                                        // Visit the "_id" field and compute its total size accross all documents
+                                        final var visitor = new StoredFieldVisitor() {
+                                            long segmentSize = 0L;
+                                            int visitedDocs = -1;
+
+                                            @Override
+                                            public Status needsField(FieldInfo fieldInfo) throws IOException {
+                                                return IdFieldMapper.NAME.equals(fieldInfo.getName())
+                                                    ? StoredFieldVisitor.Status.YES
+                                                    : Status.NO;
+                                            }
+
+                                            @Override
+                                            public void binaryField(FieldInfo fieldInfo, byte[] value) throws IOException {
+                                                segmentSize += value.length;
+                                                if (visitedDocs == -1) {
+                                                    visitedDocs = 1;
+                                                } else {
+                                                    visitedDocs++;
+                                                }
+                                            }
+                                        };
+
+                                        for (int docID = 0; docID < leafReader.maxDoc(); docID++) {
+                                            defaultStoredFields.document(docID, visitor);
+                                        }
+                                        assertThat(visitor.visitedDocs, anyOf(equalTo(leafReader.maxDoc() - 1), equalTo(-1)));
+                                        segmentsTotalSize += visitor.segmentSize;
+                                    }
+                                    return segmentsTotalSize;
+                                } catch (IOException ioe) {
+                                    throw new AssertionError(ioe);
+                                }
+                            }
+                            return 0L;
+                        });
+
+                        assertThat(
+                            "Found non-zero total size for [_id] stored field values on shard " + indexShard.routingEntry(),
+                            size,
+                            equalTo(0L)
+                        );
+                        nbVisitedShards++;
+                    }
+                }
+            }
+        }
+        assertThat("Expect at least 1 shard per index to be verified", nbVisitedShards, greaterThanOrEqualTo(indices.size()));
+    }
+
+    private static IndexShard findPrimaryShard(ShardId shardId) {
+        for (String node : internalCluster().getNodeNames()) {
+            var indicesService = internalCluster().getInstance(IndicesService.class, node);
+            var indexService = indicesService.indexService(shardId.getIndex());
+            if (indexService != null) {
+                IndexShard shard = indexService.getShardOrNull(shardId.getId());
+                if (shard != null && shard.isActive() && shard.routingEntry().primary()) {
+                    return shard;
+                }
+            }
+        }
+        throw new AssertionError("IndexShard instance not found for shard " + shardId);
+    }
+
+    private static void assertNoOpTombstones(
+        IndexShard indexShard,
+        int totalDocs,
+        int nbGaps,
+        String reason,
+        Function<Long, String> seqNoToDocId
+    ) throws IOException {
+        // Read operations from Lucene using newChangesSnapshot
+        try (
+            var luceneSnapshot = indexShard.newChangesSnapshot(
+                reason,
+                0,
+                Long.MAX_VALUE,
+                false,
+                true,
+                true,
+                randomLongBetween(1, ByteSizeValue.ofMb(32).getBytes())
+            )
+        ) {
+            assertThat(luceneSnapshot.totalOperations(), equalTo(totalDocs + nbGaps));
+
+            Translog.Operation operation;
+            int indexOps = 0;
+            int noopOps = 0;
+            while ((operation = luceneSnapshot.next()) != null) {
+                switch (operation.opType()) {
+                    case INDEX:
+                        final var index = asInstanceOf(Translog.Index.class, operation);
+                        String expectedDocId = seqNoToDocId.apply(index.seqNo());
+                        assertThat(
+                            "Index operation seqNo=" + index.seqNo() + " should have expected id",
+                            Uid.decodeId(index.uid()),
+                            equalTo(expectedDocId)
+                        );
+                        indexOps++;
+                        break;
+                    case NO_OP:
+                        noopOps++;
+                        break;
+                    default:
+                        fail("Unexpected operation type: " + operation.opType());
+                }
+            }
+            assertThat("Should have read all index operations", indexOps, equalTo(totalDocs));
+            assertThat("Should have read all noop operations (filled gaps)", noopOps, equalTo(nbGaps));
+        }
+    }
+
+    private void assertGetAndSearchById(Map<String, String> docsIndicesById, String backingIndex, boolean useNestedDocs)
+        throws IOException {
+        refresh(backingIndex);
+
+        // Verify total hit count
+        assertHitCount(client().prepareSearch(backingIndex).setTrackTotalHits(true).setSize(0), docsIndicesById.size());
+
+        // Random GET/search by synthetic _id
+        var randomDocIds = randomSubsetOf(docsIndicesById.keySet());
+        for (var docId : randomDocIds) {
+            if (randomBoolean()) {
+                // GET by synthetic _id
+                var getResponse = client().prepareGet(docsIndicesById.get(docId), docId)
+                    .setRealtime(randomBoolean())
+                    .setFetchSource(randomBoolean())
+                    .execute()
+                    .actionGet();
+                assertThat(getResponse.isExists(), equalTo(true));
+                assertThat(getResponse.getVersion(), equalTo(1L));
+            } else {
+                // Search by synthetic _id
+                assertCheckedResponse(
+                    client().prepareSearch(docsIndicesById.get(docId))
+                        .setSource(new SearchSourceBuilder().query(new TermQueryBuilder(IdFieldMapper.NAME, docId))),
+                    searchResponse -> {
+                        assertHitCount(searchResponse, 1L);
+                        assertThat(searchResponse.getHits().getHits(), arrayWithSize(1));
+                        assertThat(searchResponse.getHits().getHits()[0].getId(), equalTo(docId));
+                    }
+                );
+            }
+        }
+
+        // Nested query verification
+        if (useNestedDocs) {
+            assertHitCount(
+                client().prepareSearch(backingIndex)
+                    .setTrackTotalHits(true)
+                    .setSize(0)
+                    .setQuery(QueryBuilders.nestedQuery("tags", QueryBuilders.existsQuery("tags.key"), ScoreMode.None)),
+                docsIndicesById.size()
+            );
+        }
     }
 }

@@ -21,20 +21,15 @@ import org.elasticsearch.dissect.DissectParser;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.transport.RemoteClusterAware;
-import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
-import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
-import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.EmptyAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
-import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
@@ -47,7 +42,6 @@ import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
-import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.BinaryLogic;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
@@ -71,6 +65,7 @@ import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Insist;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
+import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.MMR;
@@ -102,7 +97,6 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -115,7 +109,6 @@ import java.util.Set;
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION;
 import static org.elasticsearch.xpack.esql.core.util.StringUtils.WILDCARD;
-import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputExpressions;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.typedParsing;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.visitList;
 import static org.elasticsearch.xpack.esql.plan.logical.Enrich.Mode;
@@ -181,16 +174,12 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     @Override
     public LogicalPlan visitSingleStatement(EsqlBaseParser.SingleStatementContext ctx) {
-        var plan = plan(ctx.query());
-        telemetryAccounting(plan);
-        return plan;
+        return plan(ctx.query());
     }
 
     @Override
     public QuerySetting visitSetCommand(EsqlBaseParser.SetCommandContext ctx) {
-        var field = visitSetField(ctx.setField());
-        context.telemetry().setting(field.name());
-        return new QuerySetting(source(ctx), field);
+        return new QuerySetting(source(ctx), visitSetField(ctx.setField()));
     }
 
     @Override
@@ -217,19 +206,11 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         }
         try {
             LogicalPlan input = plan(ctx.query());
-            telemetryAccounting(input);
             PlanFactory makePlan = typedParsing(this, ctx.processingCommand(), PlanFactory.class);
             return makePlan.apply(input);
         } finally {
             queryDepth--;
         }
-    }
-
-    private LogicalPlan telemetryAccounting(LogicalPlan node) {
-        if (node instanceof TelemetryAware ma) {
-            this.context.telemetry().command(ma);
-        }
-        return node;
     }
 
     @Override
@@ -360,9 +341,8 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     }
 
     @Override
-    @SuppressWarnings("unchecked")
     public LogicalPlan visitRowCommand(EsqlBaseParser.RowCommandContext ctx) {
-        return new Row(source(ctx), (List<Alias>) (List) mergeOutputExpressions(visitFields(ctx.fields()), List.of()));
+        return new Row(source(ctx), visitFields(ctx.fields()));
     }
 
     private LogicalPlan visitRelation(Source source, SourceCommand command, EsqlBaseParser.IndexPatternAndMetadataFieldsContext ctx) {
@@ -404,7 +384,6 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             List<LogicalPlan> mainQueryAndSubqueries = new ArrayList<>(subqueries.size() + 1);
             if (table.indexPattern().isEmpty() == false) {
                 mainQueryAndSubqueries.add(unresolvedRelation);
-                telemetryAccounting(unresolvedRelation);
             }
             mainQueryAndSubqueries.addAll(subqueries);
 
@@ -440,10 +419,8 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         LogicalPlan plan = visitFromCommand(fromCtx);
         List<PlanFactory> processingCommands = visitList(this, ctx.processingCommand(), PlanFactory.class);
         for (PlanFactory processingCommand : processingCommands) {
-            telemetryAccounting(plan);
             plan = processingCommand.apply(plan);
         }
-        telemetryAccounting(plan);
         return plan;
     }
 
@@ -504,7 +481,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     @Override
     public PlanFactory visitStatsCommand(EsqlBaseParser.StatsCommandContext ctx) {
-        final Stats stats = stats(source(ctx), ctx.grouping, ctx.stats);
+        final ParserUtils.Stats stats = stats(source(ctx), ctx.grouping, ctx.stats);
         // Only the first STATS command in a TS query is treated as the time-series aggregation.
         // After METRICS_INFO or TS_INFO, the output is metadata, not time series data, so use regular Aggregate.
         return input -> {
@@ -517,52 +494,25 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 return new TimeSeriesAggregate(
                     source(ctx),
                     input,
-                    stats.groupings,
-                    stats.aggregates,
+                    stats.groupings(),
+                    stats.aggregates(),
                     null,
                     new UnresolvedTimestamp(source(ctx))
                 );
             } else {
-                return new Aggregate(source(ctx), input, stats.groupings, stats.aggregates);
+                return new Aggregate(source(ctx), input, stats.groupings(), stats.aggregates());
             }
         };
     }
 
-    private record Stats(List<Expression> groupings, List<? extends NamedExpression> aggregates) {}
-
-    private Stats stats(Source source, EsqlBaseParser.FieldsContext groupingsCtx, EsqlBaseParser.AggFieldsContext aggregatesCtx) {
+    private ParserUtils.Stats stats(
+        Source source,
+        EsqlBaseParser.FieldsContext groupingsCtx,
+        EsqlBaseParser.AggFieldsContext aggregatesCtx
+    ) {
         List<NamedExpression> groupings = visitGrouping(groupingsCtx);
         List<NamedExpression> aggregates = new ArrayList<>(visitAggFields(aggregatesCtx));
-
-        if (aggregates.isEmpty() && groupings.isEmpty()) {
-            throw new ParsingException(source, "At least one aggregation or grouping expression required in [{}]", source.text());
-        }
-        // grouping keys are automatically added as aggregations however the user is not allowed to specify them
-        if (groupings.isEmpty() == false && aggregates.isEmpty() == false) {
-            var groupNames = new LinkedHashSet<>(Expressions.names(groupings));
-            var groupRefNames = new LinkedHashSet<>(Expressions.names(Expressions.references(groupings)));
-
-            for (NamedExpression aggregate : aggregates) {
-                Expression e = Alias.unwrap(aggregate);
-                if (e.resolved() == false && e instanceof UnresolvedFunction == false) {
-                    String name = e.sourceText();
-                    if (groupNames.contains(name)) {
-                        fail(e, "grouping key [{}] already specified in the STATS BY clause", name);
-                    } else if (groupRefNames.contains(name)) {
-                        fail(e, "Cannot specify grouping expression [{}] as an aggregate", name);
-                    }
-                }
-            }
-        }
-        // since groupings are aliased, add refs to it in the aggregates
-        for (Expression group : groupings) {
-            aggregates.add(Expressions.attribute(group));
-        }
-        return new Stats(new ArrayList<>(groupings), aggregates);
-    }
-
-    private void fail(Expression exp, String message, Object... args) {
-        throw new VerificationException(Collections.singletonList(Failure.fail(exp, message, args)));
+        return ParserUtils.buildStats(source, new ArrayList<>(groupings), aggregates);
     }
 
     @Override
@@ -596,7 +546,20 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     public PlanFactory visitLimitCommand(EsqlBaseParser.LimitCommandContext ctx) {
         Source source = source(ctx);
         Object val = expression(ctx.constant()).fold(FoldContext.small() /* TODO remove me */);
+
         if (val instanceof Integer i && i >= 0) {
+            List<Expression> groupings;
+
+            var limitByGroupKey = ctx.limitByGroupKey();
+            if (limitByGroupKey != null) {
+                var booleanExpressions = limitByGroupKey.booleanExpression();
+                groupings = new ArrayList<>(booleanExpressions.size());
+                for (var boolExpr : booleanExpressions) {
+                    groupings.add(expression(boolExpr));
+                }
+                return input -> new LimitBy(source, new Literal(source, i, DataType.INTEGER), input, groupings);
+            }
+
             return input -> new Limit(source, new Literal(source, i, DataType.INTEGER), input);
         }
 
@@ -710,32 +673,72 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     public PlanFactory visitChangePointCommand(EsqlBaseParser.ChangePointCommandContext ctx) {
         Source src = source(ctx);
         Attribute value = visitQualifiedName(ctx.value);
-        Attribute key = ctx.key == null ? new UnresolvedAttribute(src, "@timestamp") : visitQualifiedName(ctx.key);
+        Attribute key = visitChangePointOn(ctx.changePointConfiguration(), src);
 
-        UnresolvedAttribute parsedTargetTypeColumn = visitQualifiedName(ctx.targetType);
-        UnresolvedAttribute parsedTargetPvalueColumn = visitQualifiedName(ctx.targetPvalue);
+        Tuple<Attribute, Attribute> asAttributes = visitChangePointAs(ctx.changePointConfiguration(), src);
+        Attribute targetType = asAttributes.v1();
+        Attribute targetPvalue = asAttributes.v2();
 
-        if (parsedTargetTypeColumn != null && parsedTargetTypeColumn.qualifier() != null) {
-            throw qualifiersUnsupportedInFieldDefinitions(parsedTargetTypeColumn.source(), ctx.targetType.getText());
+        return child -> new ChangePoint(src, child, value, key, targetType, targetPvalue);
+    }
+
+    private Attribute visitChangePointOn(List<EsqlBaseParser.ChangePointConfigurationContext> changePointOptionsContexts, Source src) {
+        Attribute key = null;
+        for (EsqlBaseParser.ChangePointConfigurationContext changePointContext : changePointOptionsContexts) {
+            if (changePointContext.key != null) {
+                if (key != null) {
+                    throw new ParsingException(source(changePointContext), "CHANGE_POINT supports only one ON clause");
+                }
+                key = visitQualifiedName(changePointContext.key);
+            }
         }
+        return key == null ? new UnresolvedAttribute(src, "@timestamp") : key;
+    }
 
-        if (parsedTargetPvalueColumn != null && parsedTargetPvalueColumn.qualifier() != null) {
-            throw qualifiersUnsupportedInFieldDefinitions(parsedTargetPvalueColumn.source(), ctx.targetPvalue.getText());
+    private Tuple<Attribute, Attribute> visitChangePointAs(
+        List<EsqlBaseParser.ChangePointConfigurationContext> changePointOptionsContexts,
+        Source src
+    ) {
+        UnresolvedAttribute unresolvedTargetValue = null;
+        UnresolvedAttribute unresolvedTargetPvalue = null;
+        boolean optionResolved = false;
+        for (EsqlBaseParser.ChangePointConfigurationContext changePointContext : changePointOptionsContexts) {
+            if (changePointContext.targetType != null) {
+                if (optionResolved) {
+                    throw new ParsingException(source(changePointContext), "CHANGE_POINT supports only one AS clause");
+                }
+                optionResolved = true;
+
+                unresolvedTargetValue = visitQualifiedName(changePointContext.targetType);
+                unresolvedTargetPvalue = visitQualifiedName(changePointContext.targetPvalue);
+
+                if (unresolvedTargetValue != null && unresolvedTargetValue.qualifier() != null) {
+                    throw qualifiersUnsupportedInFieldDefinitions(unresolvedTargetValue.source(), changePointContext.targetType.getText());
+                }
+                if (unresolvedTargetPvalue != null && unresolvedTargetPvalue.qualifier() != null) {
+                    throw qualifiersUnsupportedInFieldDefinitions(
+                        unresolvedTargetPvalue.source(),
+                        changePointContext.targetPvalue.getText()
+                    );
+                }
+
+            }
         }
 
         Attribute targetType = new ReferenceAttribute(
             src,
             null,
-            parsedTargetTypeColumn == null ? "type" : parsedTargetTypeColumn.name(),
+            unresolvedTargetValue == null ? "type" : unresolvedTargetValue.name(),
             DataType.KEYWORD
         );
         Attribute targetPvalue = new ReferenceAttribute(
             src,
             null,
-            parsedTargetPvalueColumn == null ? "pvalue" : parsedTargetPvalueColumn.name(),
+            unresolvedTargetPvalue == null ? "pvalue" : unresolvedTargetPvalue.name(),
             DataType.DOUBLE
         );
-        return child -> new ChangePoint(src, child, value, key, targetType, targetPvalue);
+
+        return new Tuple<>(targetType, targetPvalue);
     }
 
     private Tuple<Mode, String> parsePolicyName(EsqlBaseParser.EnrichPolicyNameContext ctx) {
@@ -1015,28 +1018,16 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     @Override
     public List<PlanFactory> visitForkSubQueries(EsqlBaseParser.ForkSubQueriesContext ctx) {
-        ArrayList<PlanFactory> list = new ArrayList<>();
+        ArrayList<PlanFactory> list = new ArrayList<>(ctx.forkSubQuery().size());
         int count = 1; // automatic fork branch ids start at 1
-        NameId firstForkNameId = null;  // stores the id of the first _fork
 
         for (var subQueryCtx : ctx.forkSubQuery()) {
             var subQuery = visitForkSubQuery(subQueryCtx);
             var literal = Literal.keyword(source(ctx), "fork" + count++);
-
-            // align _fork id across all fork branches
-            Alias alias = null;
-            if (firstForkNameId == null) {
-                alias = new Alias(source(ctx), Fork.FORK_FIELD, literal);
-                firstForkNameId = alias.id();
-            } else {
-                alias = new Alias(source(ctx), Fork.FORK_FIELD, literal, firstForkNameId);
-            }
-
-            var finalAlias = alias;
-            PlanFactory eval = p -> new Eval(source(ctx), subQuery.apply(p), List.of(finalAlias));
+            PlanFactory eval = p -> new Eval(source(ctx), subQuery.apply(p), List.of(new Alias(source(ctx), Fork.FORK_FIELD, literal)));
             list.add(eval);
         }
-        return List.copyOf(list);
+        return list;
     }
 
     @Override
@@ -1299,21 +1290,47 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         );
 
         // TODO: Perform type and value validation
-        var queryCtx = ctx.promqlQueryPart();
-        if (queryCtx == null || queryCtx.isEmpty()) {
-            throw new ParsingException(source, "PromQL expression cannot be empty");
-        }
+        final String promqlQuery;
+        final int promqlStartLine;
+        final int promqlStartColumn;
+        if (ctx.NAMED_OR_POSITIONAL_PARAM() != null) {
+            // PromQL expression supplied as a query parameter, e.g. value=(?query)
+            QueryParam param = paramByNameOrPosition(ctx.NAMED_OR_POSITIONAL_PARAM());
+            if (param == null) {
+                throw new ParsingException(source, "No value found for parameter [{}]", ctx.NAMED_OR_POSITIONAL_PARAM().getText());
+            }
+            if (param.value() instanceof String s) {
+                promqlQuery = s;
+            } else {
+                throw new ParsingException(
+                    source,
+                    "Parameter [{}] in PromQL expression must be a string",
+                    ctx.NAMED_OR_POSITIONAL_PARAM().getText()
+                );
+            }
+            if (promqlQuery.isBlank()) {
+                throw new ParsingException(source, "PromQL expression cannot be empty");
+            }
+            Token paramToken = ctx.NAMED_OR_POSITIONAL_PARAM().getSymbol();
+            promqlStartLine = paramToken.getLine();
+            promqlStartColumn = paramToken.getCharPositionInLine();
+        } else {
+            var queryCtx = ctx.promqlQueryPart();
+            if (queryCtx == null || queryCtx.isEmpty()) {
+                throw new ParsingException(source, "PromQL expression cannot be empty");
+            }
 
-        Token startToken = queryCtx.getFirst().start;
-        Token stopToken = queryCtx.getLast().stop;
-        // copy the query verbatim to avoid missing tokens interpreted by the enclosing lexer
-        String promqlQuery = source(startToken, stopToken).text();
-        if (promqlQuery.isBlank()) {
-            throw new ParsingException(source, "PromQL expression cannot be empty");
-        }
+            Token startToken = queryCtx.getFirst().start;
+            Token stopToken = queryCtx.getLast().stop;
+            // copy the query verbatim to avoid missing tokens interpreted by the enclosing lexer
+            promqlQuery = source(startToken, stopToken).text();
+            if (promqlQuery.isBlank()) {
+                throw new ParsingException(source, "PromQL expression cannot be empty");
+            }
 
-        int promqlStartLine = startToken.getLine();
-        int promqlStartColumn = startToken.getCharPositionInLine();
+            promqlStartLine = startToken.getLine();
+            promqlStartColumn = startToken.getCharPositionInLine();
+        }
 
         PromqlParser promqlParser = new PromqlParser();
         LogicalPlan promqlPlan;
@@ -1502,7 +1519,16 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     }
 
     private IndexPattern parseIndexPattern(EsqlBaseParser.PromqlParamValueContext ctx) {
-        if (ctx.promqlIndexPattern().isEmpty()) {
+        if (ctx.NAMED_OR_POSITIONAL_PARAM() != null) {
+            QueryParam param = paramByNameOrPosition(ctx.NAMED_OR_POSITIONAL_PARAM());
+            if (param == null) {
+                throw new ParsingException(source(ctx), "No value found for parameter [{}]", ctx.NAMED_OR_POSITIONAL_PARAM().getText());
+            }
+            if (param.value() instanceof String s) {
+                return new IndexPattern(source(ctx), s);
+            }
+            throw new ParsingException(source(ctx), "Parameter [{}] for index must be a string", ctx.NAMED_OR_POSITIONAL_PARAM().getText());
+        } else if (ctx.promqlIndexPattern().isEmpty()) {
             // Default to all indices if no index pattern is provided
             return new IndexPattern(source(ctx), "*");
         } else {

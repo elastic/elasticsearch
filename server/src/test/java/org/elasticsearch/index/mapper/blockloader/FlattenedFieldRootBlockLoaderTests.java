@@ -14,9 +14,8 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.datageneration.Mapping;
-import org.elasticsearch.datageneration.datasource.ASCIIStringsHandler;
 import org.elasticsearch.datageneration.matchers.source.FlattenedFieldMatcher;
-import org.elasticsearch.index.mapper.BlockLoaderTestCase;
+import org.elasticsearch.index.mapper.BinaryDVBlockLoaderTestCase;
 import org.elasticsearch.index.mapper.BlockLoaderTestRunner;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -31,10 +30,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-public class FlattenedFieldRootBlockLoaderTests extends BlockLoaderTestCase {
+public class FlattenedFieldRootBlockLoaderTests extends BinaryDVBlockLoaderTestCase {
 
     public FlattenedFieldRootBlockLoaderTests(Params params) {
-        super("flattened", List.of(new ASCIIStringsHandler()), params);
+        super("flattened", params);
     }
 
     @Override
@@ -99,7 +98,19 @@ public class FlattenedFieldRootBlockLoaderTests extends BlockLoaderTestCase {
     @Override
     protected Object expected(Map<String, Object> fieldMapping, Object value, TestContext testContext) {
         var nullValue = (String) fieldMapping.get("null_value");
-        return nullValue == null ? value : applyFlattenedNullValue(value, nullValue);
+        if (nullValue == null) {
+            return value;
+        }
+
+        var ignoreAbove = fieldMapping.get("ignore_above");
+
+        boolean hasDocValues = hasDocValues(fieldMapping, true);
+        boolean usesDocValues = hasDocValues && (ignoreAbove == null || params.syntheticSource());
+        if (usesDocValues) {
+            return applyFlattenedNullValue(value, nullValue);
+        }
+
+        return value;
     }
 
     /**

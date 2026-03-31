@@ -269,10 +269,20 @@ public class RemoteFailure {
             }
             String name = parser.getText();
             token = parser.nextToken();
-            if (token != JsonToken.VALUE_STRING) {
+            String value;
+            if (token == JsonToken.VALUE_STRING) {
+                value = parser.getText();
+            } else if (token == JsonToken.START_ARRAY) {
+                List<String> values = new ArrayList<>();
+                while ((token = parser.nextToken()) != JsonToken.END_ARRAY) {
+                    if (token == JsonToken.VALUE_STRING) {
+                        values.add(parser.getText());
+                    }
+                }
+                value = String.join(", ", values);
+            } else {
                 throw new IOException("expected header value but was [" + token + "][" + parser.getText() + "]");
             }
-            String value = parser.getText();
             headers.put(name, value);
         }
 

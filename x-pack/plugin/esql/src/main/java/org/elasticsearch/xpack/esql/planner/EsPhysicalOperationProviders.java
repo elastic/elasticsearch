@@ -16,13 +16,15 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
-import org.elasticsearch.compute.lucene.query.DataPartitioning.AutoStrategy;
+import org.elasticsearch.compute.lucene.query.DataPartitioning;
 import org.elasticsearch.compute.lucene.query.LuceneCountOperator;
 import org.elasticsearch.compute.lucene.query.LuceneOperator;
 import org.elasticsearch.compute.lucene.query.LuceneSliceQueue;
@@ -30,6 +32,7 @@ import org.elasticsearch.compute.lucene.query.LuceneSourceOperator;
 import org.elasticsearch.compute.lucene.query.LuceneTopNSourceOperator;
 import org.elasticsearch.compute.lucene.query.TimeSeriesSourceOperator;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.operator.TimeSeriesAggregationOperator;
@@ -46,6 +49,7 @@ import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.NestedLookup;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
@@ -73,13 +77,17 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.TemporalityAttribute;
+import org.elasticsearch.xpack.esql.core.expression.TimeSeriesMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.FunctionEsField;
 import org.elasticsearch.xpack.esql.core.type.KeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
+import org.elasticsearch.xpack.esql.expression.function.BlockLoaderWarnings;
 import org.elasticsearch.xpack.esql.expression.function.blockloader.BlockLoaderExpression;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec.Sort;
 import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
@@ -98,7 +106,6 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
-import java.util.function.IntFunction;
 
 import static org.elasticsearch.common.lucene.search.Queries.newNonNestedFilter;
 import static org.elasticsearch.compute.lucene.query.LuceneSourceOperator.NO_LIMIT;
@@ -195,6 +202,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             )
         );
         boolean reuseColumnLoaders = fieldExtractExec.attributesToExtract().size() <= plannerSettings.reuseColumnLoadersThreshold();
+        int docSequenceThreshold = context.queryPragmas()
+            .docSequenceBytesRefFieldThreshold(plannerSettings.docSequenceBytesRefFieldThreshold());
         return source.with(
             new ValuesSourceReaderOperator.Factory(
                 plannerSettings.valuesLoadingJumboSize(),
@@ -202,7 +211,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 readers,
                 reuseColumnLoaders,
                 docChannel,
-                plannerSettings.sourceReservationFactor()
+                plannerSettings.sourceReservationFactor(),
+                docSequenceThreshold
             ),
             layout.build()
         );
@@ -214,22 +224,30 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
     }
 
     private ValuesSourceReaderOperator.LoaderAndConverter blockLoaderAndConverter(
+        DriverContext.WarningsMode warningsMode,
         int shardId,
         Attribute attr,
         MappedFieldType.FieldExtractPreference fieldExtractPreference
     ) {
         DefaultShardContext shardContext = (DefaultShardContext) shardContexts.get(shardId);
         if (attr instanceof FieldAttribute fa && fa.field() instanceof PotentiallyUnmappedKeywordEsField kf) {
-            shardContext = new DefaultShardContextForUnmappedField(shardContext, kf);
+            shardContext = wrapWithUnmappedFieldContext(shardContext, kf);
         }
 
         // Apply any block loader function if present
+
         BlockLoaderFunctionConfig functionConfig = null;
-        if (attr instanceof FieldAttribute fieldAttr && fieldAttr.field() instanceof FunctionEsField functionEsField) {
+        BlockLoaderWarnings warnings = new BlockLoaderWarnings(warningsMode, attr.source());
+        String fieldName = getFieldName(attr);
+        if (attr instanceof TimeSeriesMetadataAttribute timeSeriesMetadataAttribute) {
+            functionConfig = new BlockLoaderFunctionConfig.TimeSeriesMetadata(false, timeSeriesMetadataAttribute.withoutFields());
+            fieldName = SourceFieldMapper.NAME;
+        } else if (attr instanceof TemporalityAttribute) {
+            return resolveTemporalitySource(shardContext, warnings, fieldExtractPreference);
+        } else if (attr instanceof FieldAttribute fieldAttr && fieldAttr.field() instanceof FunctionEsField functionEsField) {
             functionConfig = functionEsField.functionConfig();
         }
         boolean isUnsupported = attr.dataType() == DataType.UNSUPPORTED;
-        String fieldName = getFieldName(attr);
         MultiTypeEsField unionTypes = findUnionTypes(attr);
         if (unionTypes == null) {
             BlockLoader blockLoader = shardContext.blockLoader(
@@ -237,6 +255,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 isUnsupported,
                 fieldExtractPreference,
                 functionConfig,
+                warnings,
                 plannerSettings.blockLoaderSizeOrdinals(),
                 plannerSettings.blockLoaderSizeScript()
             );
@@ -246,7 +265,13 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         String indexName = shardContext.ctx.getFullyQualifiedIndex().getName();
         Expression conversion = unionTypes.getConversionExpressionForIndex(indexName);
         if (conversion == null) {
-            return ValuesSourceReaderOperator.LOAD_CONSTANT_NULLS;
+            Expression potentiallyUnmapped = unionTypes.getPotentiallyUnmappedExpression();
+            if (!(potentiallyUnmapped instanceof AbstractConvertFunction convert)) {
+                return ValuesSourceReaderOperator.LOAD_CONSTANT_NULLS;
+            }
+            fieldName = getFieldName((Attribute) convert.field());
+            shardContext = wrapWithUnmappedFieldContext(shardContext, new PotentiallyUnmappedKeywordEsField(fieldName));
+            conversion = potentiallyUnmapped;
         }
         if (conversion instanceof BlockLoaderExpression ble) {
             BlockLoaderExpression.PushedBlockLoaderExpression e = ble.tryPushToFieldLoading(SearchStats.EMPTY);
@@ -257,6 +282,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                         isUnsupported,
                         fieldExtractPreference,
                         e.config(),
+                        warnings,
                         plannerSettings.blockLoaderSizeOrdinals(),
                         plannerSettings.blockLoaderSizeScript()
                     )
@@ -268,10 +294,66 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             isUnsupported,
             fieldExtractPreference,
             functionConfig,
+            warnings,
             plannerSettings.blockLoaderSizeOrdinals(),
             plannerSettings.blockLoaderSizeScript()
         );
         return ValuesSourceReaderOperator.loadAndConvert(blockLoader, new TypeConverter((EsqlScalarFunction) conversion));
+    }
+
+    private ValuesSourceReaderOperator.LoaderAndConverter resolveTemporalitySource(
+        DefaultShardContext shardContext,
+        BlockLoaderWarnings warnings,
+        MappedFieldType.FieldExtractPreference fieldExtractPreference
+    ) {
+        Settings indexSettings = shardContext.indexSettings().getSettings();
+        String temporalityFieldName = IndexSettings.TIME_SERIES_TEMPORALITY_FIELD.get(indexSettings);
+        if (temporalityFieldName == null || temporalityFieldName.isEmpty()) {
+            // index does not have a temporality field configured, return constant nulls
+            return ValuesSourceReaderOperator.LOAD_CONSTANT_NULLS;
+        }
+        MappedFieldType temporalityFieldType = shardContext.fieldType(temporalityFieldName);
+        if (temporalityFieldType == null) {
+            // configured field does not exist in this index, return constant nulls
+            return ValuesSourceReaderOperator.LOAD_CONSTANT_NULLS;
+        }
+        if (KeywordFieldMapper.CONTENT_TYPE.equals(temporalityFieldType.typeName()) == false) {
+            warnings.registerException(
+                IllegalArgumentException.class,
+                "configured temporality field ["
+                    + temporalityFieldName
+                    + "] has type ["
+                    + temporalityFieldType.typeName()
+                    + "], expected ["
+                    + KeywordFieldMapper.CONTENT_TYPE
+                    + "]; assuming default temporality for all values"
+            );
+            return ValuesSourceReaderOperator.LOAD_CONSTANT_NULLS;
+        }
+        if (temporalityFieldType.isDimension() == false) {
+            warnings.registerException(
+                IllegalArgumentException.class,
+                "configured temporality field ["
+                    + temporalityFieldName
+                    + "] must be a time-series dimension; assuming default temporality for all values"
+            );
+            return ValuesSourceReaderOperator.LOAD_CONSTANT_NULLS;
+        }
+        return ValuesSourceReaderOperator.load(
+            shardContext.blockLoader(
+                temporalityFieldName,
+                false,
+                fieldExtractPreference,
+                null,
+                warnings,
+                plannerSettings.blockLoaderSizeOrdinals(),
+                plannerSettings.blockLoaderSizeScript()
+            )
+        );
+    }
+
+    static DefaultShardContext wrapWithUnmappedFieldContext(DefaultShardContext ctx, PotentiallyUnmappedKeywordEsField unmappedField) {
+        return new DefaultShardContextForUnmappedField(ctx, unmappedField);
     }
 
     /** A hack to pretend an unmapped field still exists. */
@@ -347,6 +429,11 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         int rowEstimatedSize = esQueryExec.estimatedRowSize();
         int limit = esQueryExec.limit() != null ? (Integer) esQueryExec.limit().fold(context.foldCtx()) : NO_LIMIT;
         boolean scoring = esQueryExec.hasScoring();
+        int taskConcurrency = context.queryPragmas().taskConcurrency();
+        if (context.timeSeries()) {
+            // Time-series aggregation is CPU-bound and cache-sensitive; cap concurrency at the number of processors.
+            taskConcurrency = Math.min(taskConcurrency, Math.max(EsExecutors.allocatedProcessors(context.settings()), 2));
+        }
         if (sorts != null && sorts.isEmpty() == false) {
             List<SortBuilder<?>> sortBuilders = new ArrayList<>(sorts.size());
             long estimatedPerRowSortSize = 0;
@@ -367,7 +454,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 querySupplier(esQueryExec.query()),
                 context.queryPragmas().dataPartitioning(plannerSettings.defaultDataPartitioning()),
                 topNAutoStrategy(),
-                context.queryPragmas().taskConcurrency(),
+                taskConcurrency,
                 context.pageSize(esQueryExec, rowEstimatedSize),
                 limit,
                 sortBuilders,
@@ -378,7 +465,9 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             luceneFactory = new TimeSeriesSourceOperator.Factory(
                 shardContexts,
                 querySupplier(esQueryExec.queryBuilderAndTags()),
-                context.queryPragmas().taskConcurrency(),
+                context.queryPragmas().dataPartitioning(plannerSettings.defaultDataPartitioning()),
+                context.queryPragmas().docsThresholdForAutoPartitioning(plannerSettings.docsThresholdForAutoPartitioning()),
+                taskConcurrency,
                 context.pageSize(esQueryExec, rowEstimatedSize),
                 limit
             );
@@ -388,7 +477,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 querySupplier(esQueryExec.queryBuilderAndTags()),
                 context.queryPragmas().dataPartitioning(plannerSettings.defaultDataPartitioning()),
                 context.autoPartitioningStrategy(),
-                context.queryPragmas().taskConcurrency(),
+                context.queryPragmas().docsThresholdForAutoPartitioning(plannerSettings.docsThresholdForAutoPartitioning()),
+                taskConcurrency,
                 context.pageSize(esQueryExec, rowEstimatedSize),
                 limit,
                 scoring
@@ -401,7 +491,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         return PhysicalOperation.fromSource(luceneFactory, layout.build());
     }
 
-    private static AutoStrategy topNAutoStrategy() {
+    private static DataPartitioning.AutoStrategy topNAutoStrategy() {
         return unusedLimit -> query -> LuceneSliceQueue.PartitioningStrategy.SEGMENT;
     }
 
@@ -419,14 +509,15 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             DataType dataType = attr.dataType();
             var fieldExtractPreference = fieldExtractExec.fieldExtractPreference(attr);
             ElementType elementType = PlannerUtils.toElementType(dataType, fieldExtractPreference);
-            IntFunction<ValuesSourceReaderOperator.LoaderAndConverter> loaderAndConverter = s -> blockLoaderAndConverter(
+            ValuesSourceReaderOperator.BuildLoader buildLoader = (warningsMode, s) -> blockLoaderAndConverter(
+                warningsMode,
                 s,
                 attr,
                 fieldExtractPreference
             );
             String fieldName = getFieldName(attr);
             boolean nullsFiltered = nullsFilteredFields.contains(fieldName);
-            fieldInfos.add(new ValuesSourceReaderOperator.FieldInfo(fieldName, elementType, nullsFiltered, loaderAndConverter));
+            fieldInfos.add(new ValuesSourceReaderOperator.FieldInfo(fieldName, elementType, nullsFiltered, buildLoader));
         }
         return fieldInfos;
     }
@@ -469,6 +560,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             shardContexts,
             queryFunction,
             context.queryPragmas().dataPartitioning(plannerSettings.defaultDataPartitioning()),
+            LuceneOperator.SMALL_INDEX_BOUNDARY,
             context.queryPragmas().taskConcurrency(),
             tagTypes,
             limit == null ? NO_LIMIT : (Integer) limit.fold(context.foldCtx())
@@ -481,7 +573,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         AggregatorMode aggregatorMode,
         List<GroupingAggregator.Factory> aggregatorFactories,
         List<BlockHash.GroupSpec> groupSpecs,
-        LocalExecutionPlannerContext context
+        LocalExecutionPlannerContext context,
+        int maxPageSize
     ) {
         return new TimeSeriesAggregationOperator.Factory(
             ts.timeBucketRounding(context.foldCtx()),
@@ -583,6 +676,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             boolean asUnsupportedSource,
             MappedFieldType.FieldExtractPreference fieldExtractPreference,
             BlockLoaderFunctionConfig blockLoaderFunctionConfig,
+            org.elasticsearch.index.mapper.blockloader.Warnings warnings,
             ByteSizeValue blockLoaderSizeOrdinals,
             ByteSizeValue blockLoaderSizeScript
         ) {
@@ -599,6 +693,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                     ctx,
                     fieldExtractPreference,
                     blockLoaderFunctionConfig,
+                    warnings,
                     blockLoaderSizeOrdinals,
                     blockLoaderSizeScript
                 )

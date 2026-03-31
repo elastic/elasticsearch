@@ -17,6 +17,7 @@ public class AggregateWritables {
         return List.of(
             Avg.ENTRY,
             Count.ENTRY,
+            CountApproximate.ENTRY,
             CountDistinct.ENTRY,
             First.ENTRY,
             Max.ENTRY,
@@ -55,7 +56,10 @@ public class AggregateWritables {
             AbsentOverTime.ENTRY,
             DimensionValues.ENTRY,
             HistogramMerge.ENTRY,
-            HistogramMergeOverTime.ENTRY
+            HistogramMergeOverTime.ENTRY,
+            Sparkline.ENTRY,
+            ToPartial.ENTRY,
+            FromPartial.ENTRY
         );
     }
 }

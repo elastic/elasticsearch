@@ -130,30 +130,32 @@ final class BytesRefArrayVector extends AbstractVector implements BytesRefVector
     }
 
     /**
-     * Estimates the RAM usage using default overestimate settings.
-     * See {@link BlockFactory#DEFAULT_BYTES_REF_RAM_OVERESTIMATE_THRESHOLD} and
-     * {@link BlockFactory#DEFAULT_BYTES_REF_RAM_OVERESTIMATE_FACTOR}.
-     */
-    public static long ramBytesEstimated(BytesRefArray values) {
-        return ramBytesEstimated(
-            values,
-            BlockFactory.DEFAULT_BYTES_REF_RAM_OVERESTIMATE_THRESHOLD,
-            BlockFactory.DEFAULT_BYTES_REF_RAM_OVERESTIMATE_FACTOR
-        );
-    }
-
-    /**
      * Estimates the RAM usage of this vector, applying an overestimate multiplier when the
-     * underlying byte data exceeds {@code overestimateThreshold}. This compensates for heap
+     * average value length exceeds {@code overestimateThreshold}. This compensates for heap
      * overhead that {@link RamUsageEstimator} does not track, such as page-level waste in
      * {@link BytesRefArray} when loading large text fields from {@code _source}.
      */
     public static long ramBytesEstimated(BytesRefArray values, long overestimateThreshold, double overestimateFactor) {
         long valuesSize = RamUsageEstimator.sizeOf(values);
-        if (valuesSize > overestimateThreshold) {
+        if (values.size() > 0 && valuesSize / values.size() > overestimateThreshold) {
             valuesSize = Math.round(valuesSize * overestimateFactor);
         }
         return BASE_RAM_BYTES_USED + valuesSize;
+    }
+
+    @Override
+    public BytesRefVector slice(int beginInclusive, int endExclusive) {
+        if (beginInclusive == 0 && endExclusive == getPositionCount()) {
+            incRef();
+            return this;
+        }
+        var scratch = new BytesRef();
+        try (BytesRefVector.Builder builder = blockFactory().newBytesRefVectorBuilder(endExclusive - beginInclusive)) {
+            for (int i = beginInclusive; i < endExclusive; i++) {
+                builder.appendBytesRef(getBytesRef(i, scratch));
+            }
+            return builder.build();
+        }
     }
 
     @Override

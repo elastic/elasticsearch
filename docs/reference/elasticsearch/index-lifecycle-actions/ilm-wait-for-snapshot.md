@@ -7,7 +7,9 @@ mapped_pages:
 
 Phases allowed: delete.
 
-Waits for the specified {{slm-init}} policy to be executed before removing the index. This ensures that a snapshot of the deleted index is available.
+Waits for the specified {{slm-init}} policy to be executed before removing the index.
+This only checks that an SLM policy has had a successful execution at some point after the wait action has started.
+It does not ensure that a snapshot of the index is available before deletion.
 
 ## Options [ilm-wait-for-snapshot-options]
 

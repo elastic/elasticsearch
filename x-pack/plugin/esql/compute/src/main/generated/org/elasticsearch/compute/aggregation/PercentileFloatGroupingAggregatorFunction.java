@@ -38,17 +38,12 @@ public final class PercentileFloatGroupingAggregatorFunction implements Grouping
 
   private final double percentile;
 
-  public PercentileFloatGroupingAggregatorFunction(List<Integer> channels,
-      QuantileStates.GroupingState state, DriverContext driverContext, double percentile) {
-    this.channels = channels;
-    this.state = state;
-    this.driverContext = driverContext;
+  PercentileFloatGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext,
+      double percentile) {
     this.percentile = percentile;
-  }
-
-  public static PercentileFloatGroupingAggregatorFunction create(List<Integer> channels,
-      DriverContext driverContext, double percentile) {
-    return new PercentileFloatGroupingAggregatorFunction(channels, PercentileFloatAggregator.initGrouping(driverContext, percentile), driverContext, percentile);
+    this.channels = channels;
+    this.state = PercentileFloatAggregator.initGrouping(driverContext, percentile);
+    this.driverContext = driverContext;
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -290,14 +285,24 @@ public final class PercentileFloatGroupingAggregatorFunction implements Grouping
   }
 
   @Override
-  public void evaluateIntermediate(Block[] blocks, int offset, IntVector selected) {
-    state.toIntermediate(blocks, offset, selected, driverContext);
+  public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateIntermediate(
+      IntVector selected, GroupingAggregatorEvaluationContext ctx) {
+    return this::evaluateIntermediate;
+  }
+
+  private void evaluateIntermediate(Block[] blocks, int offset, IntVector selectedInPage) {
+    state.toIntermediate(blocks, offset, selectedInPage, driverContext);
   }
 
   @Override
-  public void evaluateFinal(Block[] blocks, int offset, IntVector selected,
+  public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateFinal(IntVector selected,
       GroupingAggregatorEvaluationContext ctx) {
-    blocks[offset] = PercentileFloatAggregator.evaluateFinal(state, selected, ctx);
+    return (blocks, offset, selectedInPage) -> evaluateFinal(blocks, offset, selectedInPage, ctx);
+  }
+
+  private void evaluateFinal(Block[] blocks, int offset, IntVector selectedInPage,
+      GroupingAggregatorEvaluationContext ctx) {
+    blocks[offset] = PercentileFloatAggregator.evaluateFinal(state, selectedInPage, ctx);
   }
 
   @Override

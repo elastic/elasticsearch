@@ -16,7 +16,6 @@ import org.elasticsearch.action.bulk.IncrementalBulkService;
 import org.elasticsearch.action.bulk.WriteAckDelay;
 import org.elasticsearch.action.datastreams.autosharding.DataStreamAutoShardingService;
 import org.elasticsearch.action.ingest.SimulatePipelineTransportAction;
-import org.elasticsearch.action.search.SearchLogProducer;
 import org.elasticsearch.action.search.SearchTaskWatchdog;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.AutoCreateIndex;
@@ -69,7 +68,7 @@ import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.logging.activity.ActivityLogger;
+import org.elasticsearch.common.logging.activity.QueryLogger;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.network.ThreadWatchdog;
@@ -340,6 +339,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
         HttpTransportSettings.SETTING_CORS_ALLOW_HEADERS,
         HttpTransportSettings.SETTING_HTTP_DETAILED_ERRORS_ENABLED,
         HttpTransportSettings.SETTING_HTTP_MAX_CONTENT_LENGTH,
+        HttpTransportSettings.SETTING_HTTP_MAX_PROTOBUF_CONTENT_LENGTH,
         HttpTransportSettings.SETTING_HTTP_MAX_CHUNK_SIZE,
         HttpTransportSettings.SETTING_HTTP_MAX_HEADER_SIZE,
         HttpTransportSettings.SETTING_HTTP_MAX_WARNING_HEADER_COUNT,
@@ -566,6 +566,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
         SearchModule.SCRIPTED_METRICS_AGG_ALLOWED_STORED_SCRIPTS,
         SearchService.SEARCH_WORKER_THREADS_ENABLED,
         SearchService.QUERY_PHASE_PARALLEL_COLLECTION_ENABLED,
+        SearchService.FETCH_PHASE_CHUNKED_ENABLED,
+        SearchService.FETCH_PHASE_MAX_IN_FLIGHT_CHUNKS,
         SearchService.MEMORY_ACCOUNTING_BUFFER_SIZE,
         ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING,
         ThreadPool.LATE_TIME_INTERVAL_WARN_THRESHOLD_SETTING,
@@ -672,9 +674,9 @@ public final class ClusterSettings extends AbstractScopedSettings {
         TransportGetAllocationStatsAction.CACHE_TTL_SETTING,
         WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ENABLED_SETTING,
         WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_SHARD_WRITE_LOAD_TYPE_SETTING,
-        WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_HIGH_UTILIZATION_THRESHOLD_SETTING,
-        WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_HIGH_UTILIZATION_DURATION_SETTING,
+        WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ALLOCATION_UTILIZATION_THRESHOLD_SETTING,
         WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_QUEUE_LATENCY_THRESHOLD_SETTING,
+        WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_HOTSPOT_UTILIZATION_THRESHOLD_SETTING,
         WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_REROUTE_INTERVAL_SETTING,
         ShardWriteLoadDistributionMetrics.SHARD_WRITE_LOAD_METRICS_ENABLED_SETTING,
         IndexBalanceConstraintSettings.INDEX_BALANCE_DECIDER_ENABLED_SETTING,
@@ -683,10 +685,10 @@ public final class ClusterSettings extends AbstractScopedSettings {
         BlobStoreRepository.MAX_HEAP_SIZE_FOR_SNAPSHOT_DELETION_SETTING,
         ShardsCapacityHealthIndicatorService.SETTING_SHARD_CAPACITY_UNHEALTHY_THRESHOLD_YELLOW,
         ShardsCapacityHealthIndicatorService.SETTING_SHARD_CAPACITY_UNHEALTHY_THRESHOLD_RED,
-        ActivityLogger.ACTIVITY_LOGGER_ENABLED,
-        ActivityLogger.ACTIVITY_LOGGER_THRESHOLD,
-        ActivityLogger.ACTIVITY_LOGGER_LEVEL,
-        ActivityLogger.ACTIVITY_LOGGER_INCLUDE_USER,
-        SearchLogProducer.SEARCH_LOGGER_LOG_SYSTEM
+        QueryLogger.QUERY_LOGGER_ENABLED,
+        QueryLogger.QUERY_LOGGER_THRESHOLD,
+        QueryLogger.QUERY_LOGGER_LEVEL,
+        QueryLogger.QUERY_LOGGER_INCLUDE_USER,
+        QueryLogger.QUERY_LOGGER_LOG_SYSTEM
     );
 }

@@ -24,6 +24,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.SimpleRefCounted;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.RescoreDocIds;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -38,6 +39,8 @@ import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.transport.LeakTracker;
 
 import java.io.IOException;
+import java.util.Collection;
+import java.util.concurrent.ConcurrentLinkedQueue;
 
 import static org.elasticsearch.common.lucene.Lucene.readTopDocs;
 import static org.elasticsearch.common.lucene.Lucene.writeTopDocs;
@@ -82,6 +85,12 @@ public final class QuerySearchResult extends SearchPhaseResult {
     @Nullable
     private Long timeRangeFilterFromMillis;
 
+    /**
+     * SearchHits from top_hits that must be released when this result is released. Eagerly allocated so
+     * concurrent {@link #registerTopHitsForRelease} calls cannot race on lazy queue creation.
+     */
+    private final ConcurrentLinkedQueue<SearchHits> topHitsToReleaseQueue = new ConcurrentLinkedQueue<>();
+
     public QuerySearchResult() {
         this(false);
     }
@@ -103,7 +112,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
                 : new ShardSearchContextId(in);
             readFromWithId(id, in, delayedAggregations);
         }
-        refCounted = null;
+        refCounted = isNull ? null : LeakTracker.wrap(new SimpleRefCounted());
         aggsContextReleased = null;
     }
 
@@ -291,6 +300,11 @@ public final class QuerySearchResult extends SearchPhaseResult {
         assert this.aggregations == null : "aggregations already set to [" + this.aggregations + "]";
         this.aggregations = aggregations == null ? null : DelayableWriteable.referencing(aggregations);
         hasAggs = aggregations != null;
+        // On the shard, register top_hits for release when there was no partial reduce (list empty).
+        // When there was a partial reduce, the reduce context already registered merged refs here.
+        if (aggregations != null && topHitsToReleaseQueue.isEmpty()) {
+            InternalAggregations.addTopHitsToReleaseList(aggregations, topHitsToReleaseCollector());
+        }
         releaseAggsContext();
     }
 
@@ -439,6 +453,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
                     aggregations = DelayableWriteable.delayed(InternalAggregations::readFrom, in);
                 } else {
                     aggregations = DelayableWriteable.referencing(InternalAggregations::readFrom, in);
+                    InternalAggregations.addTopHitsToReleaseList(aggregations.expand(), topHitsToReleaseCollector());
                 }
             }
             if (in.readBoolean()) {
@@ -555,15 +570,52 @@ public final class QuerySearchResult extends SearchPhaseResult {
         return super.tryIncRef();
     }
 
+    /**
+     * Register SearchHits from a top_hits aggregation so they are released when this result is released.
+     * Takes a new reference ({@link SearchHits#incRef()}) so the SearchHits stay valid until this
+     * result is serialized and released (the fetch phase may release its reference before the query
+     * result is serialized).
+     * <p>
+     * SearchHits can flow along two paths: the SearchResponse path and this QuerySearchResult path
+     * (used in the aggregation fetch phase). Both need a reference; the SearchResponse path holds
+     * the default one for all cases. This method adds a ref for the flow where this result is used
+     * (e.g. partial reduction on the shard). An alternative would be to incRef here and decRef in
+     * the caller (e.g. InternalTopHits reducer), but that would add more volatile access. Release
+     * timings for SearchContext and SearchResponse are not correlated, so both paths must keep a
+     * ref count. For the reduce path that does not go through this result, use
+     * {@link org.elasticsearch.search.aggregations.AggregationReduceContext#transferTopHitsForRelease}
+     * instead (caller keeps the ref, no extra incRef).
+     */
+    public void registerTopHitsForRelease(SearchHits searchHits) {
+        searchHits.incRef();
+        topHitsToReleaseQueue.add(searchHits);
+    }
+
+    /**
+     * Returns the collection used to collect SearchHits that must be released when this result is released.
+     * Used when building the aggregation reduce context for partial reduction on the shard, so that
+     * merged top_hits from InternalTopHits.reduce are registered here and released in decRef().
+     */
+    public Collection<SearchHits> topHitsToReleaseCollector() {
+        return topHitsToReleaseQueue;
+    }
+
     @Override
     public boolean decRef() {
         if (refCounted != null) {
             if (refCounted.decRef()) {
-                aggsContextReleased.onResponse(null);
+                for (SearchHits h : topHitsToReleaseQueue) {
+                    h.decRef();
+                }
+                topHitsToReleaseQueue.clear();
+                if (aggsContextReleased != null) {
+                    aggsContextReleased.onResponse(null);
+                }
                 return true;
             }
             return false;
         }
+        assert topHitsToReleaseQueue.isEmpty() : "topHitsToReleaseQueue not empty on unmanaged QuerySearchResult";
         return super.decRef();
     }
 

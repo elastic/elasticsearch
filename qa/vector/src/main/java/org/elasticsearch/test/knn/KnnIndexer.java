@@ -448,7 +448,7 @@ class KnnIndexer {
 
         synchronized void next(byte[] dest) throws IOException {
             readNext();
-            bytes.get(dest);
+            bytes.get(dest).position(0);
         }
     }
 }

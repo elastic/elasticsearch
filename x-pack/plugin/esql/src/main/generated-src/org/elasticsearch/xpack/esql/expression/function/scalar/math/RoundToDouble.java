@@ -24,7 +24,7 @@ import java.util.Arrays;
  */
 class RoundToDouble {
     static final RoundTo.Build BUILD = (source, field, points) -> {
-        double[] f = points.stream().mapToDouble(p -> ((Number) p).doubleValue()).toArray();
+        double[] f = points.stream().mapToDouble(p -> p.doubleValue()).toArray();
         return switch (f.length) {
             // TODO should be a consistent way to do the 0 version - is CASE(MV_COUNT(f) == 1, f[0])
             case 1 -> new RoundToDouble1Evaluator.Factory(source, field, f[0]);
@@ -44,7 +44,9 @@ class RoundToDouble {
              * Break point of 10 experimentally derived on Nik's laptop (13th Gen Intel(R) Core(TM) i7-1370P)
              * on 2025-05-22.
              */
-            default -> new RoundToDoubleBinarySearchEvaluator.Factory(source, field, f);
+            default -> {
+                yield new RoundToDoubleBinarySearchEvaluator.Factory(source, field, f);
+            }
         };
     };
 

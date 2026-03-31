@@ -10,7 +10,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -46,8 +45,8 @@ public class RestEqlSearchAction extends BaseRestHandler {
     private static final String SEARCH_PATH = "/{index}/_eql/search";
     private final CrossProjectModeDecider crossProjectModeDecider;
 
-    public RestEqlSearchAction(Settings settings) {
-        this.crossProjectModeDecider = new CrossProjectModeDecider(settings);
+    public RestEqlSearchAction(CrossProjectModeDecider crossProjectModeDecider) {
+        this.crossProjectModeDecider = crossProjectModeDecider;
     }
 
     @Override

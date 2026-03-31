@@ -8,45 +8,54 @@
 package org.elasticsearch.xpack.esql.analysis.promql;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.analysis.Analyzer;
-import org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils;
+import org.elasticsearch.xpack.esql.TestAnalyzer;
+import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtractor.TimestampBounds;
+import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
+import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
-import static org.elasticsearch.xpack.esql.analysis.VerifierTests.error;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 
 public class PromqlVerifierTests extends ESTestCase {
 
-    private final Analyzer tsdb = AnalyzerTestUtils.analyzer(AnalyzerTestUtils.tsdbIndexResolution());
+    private final TestAnalyzer tsdb = analyzer().addIndex("test", "tsdb-mapping.json").stripErrorPrefix(true);
 
     public void testPromqlRangeVector() {
-        assertThat(
-            error("PROMQL index=test step=5m network.bytes_in[5m]", tsdb),
+        tsdb.error(
+            "PROMQL index=test step=5m network.bytes_in[5m]",
             equalTo("1:27: invalid expression type \"range vector\" for range query, must be scalar or instant vector")
         );
     }
 
     public void testPromqlRangeVectorBinaryExpression() {
-        assertThat(
-            error("PROMQL index=test step=5m max(network.bytes_in[5m] / network.bytes_in[5m])", tsdb),
+        tsdb.error(
+            "PROMQL index=test step=5m max(network.bytes_in[5m] / network.bytes_in[5m])",
             equalTo("1:31: binary expression must contain only scalar and instant vector types")
         );
     }
 
     public void testPromqlIllegalNameLabelMatcher() {
-        assertThat(error("PROMQL index=test step=5m (avg({__name__=~\"*.foo.*\"}))", tsdb), containsString("Unknown column [__name__]"));
+        tsdb.error(
+            "PROMQL index=test step=5m (avg({__name__=~\"*.foo.*\"}))",
+            containsString("regex label selectors on __name__ are not supported at this time")
+        );
     }
 
     public void testPromqlSubquery() {
-        assertThat(
-            error("PROMQL index=test step=5m (avg(rate(network.bytes_in[5m:])))", tsdb),
+        tsdb.error(
+            "PROMQL index=test step=5m (avg(rate(network.bytes_in[5m:])))",
             equalTo("1:37: Subquery queries are not supported at this time [network.bytes_in[5m:]]")
         );
-        assertThat(
-            error("PROMQL index=test step=5m (avg(rate(network.bytes_in[5m:1m])))", tsdb),
+        tsdb.error(
+            "PROMQL index=test step=5m (avg(rate(network.bytes_in[5m:1m])))",
             equalTo("1:37: Subquery queries are not supported at this time [network.bytes_in[5m:1m]]")
         );
     }
@@ -56,94 +65,124 @@ public class PromqlVerifierTests extends ESTestCase {
             + "[ValueExpressionContext] given; expected Expression but found InstantSelector"
     )
     public void testPromqlVectorMatching() {
-        assertThat(
-            error(
-                "PROMQL index=test step=5m (method_code_http_errors_rate5m{code=\"500\"} / ignoring(code) method_http_requests_rate5m)",
-                tsdb
-            ),
+        tsdb.error(
+            "PROMQL index=test step=5m (method_code_http_errors_rate5m{code=\"500\"} / ignoring(code) method_http_requests_rate5m)",
             equalTo("")
         );
-        assertThat(
-            error(
-                "PROMQL index=test step=5m (method_code_http_errors_rate5m / ignoring(code) group_left method_http_requests_rate5m)",
-                tsdb
-            ),
+        tsdb.error(
+            "PROMQL index=test step=5m (method_code_http_errors_rate5m / ignoring(code) group_left method_http_requests_rate5m)",
             equalTo("")
         );
     }
 
     public void testPromqlModifier() {
-        assertThat(
-            error("PROMQL index=test step=5m (avg(rate(network.bytes_in[5m] offset 5m)))", tsdb),
+        tsdb.error(
+            "PROMQL index=test step=5m (avg(rate(network.bytes_in[5m] offset 5m)))",
             equalTo("1:37: offset modifiers are not supported at this time [network.bytes_in[5m] offset 5m]")
         );
-        assertThat(
-            error("PROMQL index=test step=5m start=0 end=1 (avg(foo @ start()))", tsdb),
+        tsdb.error(
+            "PROMQL index=test step=5m start=0 end=1 (avg(foo @ start()))",
             equalTo("1:46: @ modifiers are not supported at this time [foo @ start()]")
         );
     }
 
     public void testLogicalSetBinaryOperators() {
         List.of("and", "or", "unless").forEach(op -> {
-            assertThat(
-                error("PROMQL index=test step=5m foo " + op + " bar", tsdb),
-                containsString("set operators are not supported at this time")
-            );
+            tsdb.error("PROMQL index=test step=5m foo " + op + " bar", containsString("set operators are not supported at this time"));
         });
     }
 
     public void testPromqlInstantQuery() {
-        assertThat(
-            error("PROMQL index=test time=\"2025-10-31T00:00:00Z\" (avg(foo))", tsdb),
+        tsdb.error(
+            "PROMQL index=test time=\"2025-10-31T00:00:00Z\" (avg(foo))",
             containsString("unable to create a bucket; provide either [step] or all of [start], [end], and [buckets]")
         );
     }
 
     public void testPromqlMissingBucketParameters() {
-        assertThat(
-            error("PROMQL index=test avg(foo)", tsdb),
+        tsdb.error(
+            "PROMQL index=test avg(foo)",
             containsString("unable to create a bucket; provide either [step] or all of [start], [end], and [buckets]")
         );
     }
 
     public void testPromqlBucketsWithoutRange() {
-        assertThat(
-            error("PROMQL index=test buckets=10 avg(foo)", tsdb),
+        tsdb.error(
+            "PROMQL index=test buckets=10 avg(foo)",
             containsString("unable to create a bucket; provide either [step] or all of [start], [end], and [buckets]")
         );
     }
 
+    public void testPromqlBucketsWithTimestampBoundsFromContext() {
+        var now = Instant.now();
+        var bounds = new TimestampBounds(now.minus(1, ChronoUnit.HOURS), now);
+        var plan = analyzer().addIndex("test", "tsdb-mapping.json")
+            .timestampBounds(bounds)
+            .query("PROMQL index=test buckets=10 avg(network.bytes_in)");
+        assertTrue("Plan should be resolved after timestamp bounds injection", plan.resolved());
+    }
+
+    public void testQueryOnEmptyIndexReturnsEmptyLocalRelation() {
+        // When the index pattern resolves to zero concrete indices (e.g. the data stream hasn't been created yet),
+        // the PROMQL command should be short-circuited to a Limit(0) -> LocalRelation rather than leaving
+        // series attributes unresolved, which would cause a VerificationException.
+        var plan = analyzer().addEmptyIndex().query("PROMQL index=empty_index step=5m test_metric");
+        var localRelations = plan.collect(LocalRelation.class);
+        assertThat(localRelations, hasSize(1));
+        assertThat(localRelations.get(0).supplier(), equalTo(EmptyLocalSupplier.EMPTY));
+    }
+
+    public void testQueryOnEmptyIndexWithGroupingReturnsEmptyLocalRelation() {
+        // A `by` clause would normally add dimension columns to the PROMQL output. With an empty index
+        // those columns are absent from the short-circuited LocalRelation, but should not cause errors.
+        var plan = analyzer().addEmptyIndex().query("PROMQL index=empty_index step=5m avg(test_metric) by (job)");
+        var localRelations = plan.collect(LocalRelation.class);
+        assertThat(localRelations, hasSize(1));
+        assertThat(localRelations.get(0).supplier(), equalTo(EmptyLocalSupplier.EMPTY));
+    }
+
+    public void testAbsentMetricWithSimilarNameReturnsEmptyResult() {
+        // Prometheus returns empty results for non-existent metrics, not errors.
+        // It uses the load_unmapped="nullify" functionality to do that.
+        // There was a bug in this mechanism where it would throw an exception if the metric name was similar enough to an existing field,
+        // due to a "did you mean" message being left in the plan after resolution.
+        // This test ensures that the fix for that bug is working correctly.
+        var plan = tsdb.query("PROMQL index=test step=5m network.bites_in");
+        assertTrue("Plan should be resolved even when the metric is absent", plan.resolved());
+    }
+
+    public void testSimilarFieldInNonPromqlQueryFailsWithDidYouMean() {
+        // Showcases the did you mean message for non PROMQL queries.
+        tsdb.error(
+            "FROM test | WHERE network.bites_in > 0",
+            allOf(containsString("Unknown column [network.bites_in], did you mean any of ["), containsString("network.bytes_in"))
+        );
+    }
+
     public void testNoMetricNameMatcherNotSupported() {
-        assertThat(
-            error("PROMQL index=test step=5m {foo=\"bar\"}", tsdb),
+        tsdb.error(
+            "PROMQL index=test step=5m {foo=\"bar\"}",
             containsString("__name__ label selector is required at this time [{foo=\"bar\"}]")
         );
     }
 
-    public void testWithoutNotSupported() {
-        assertThat(
-            error("PROMQL index=test step=5m avg(foo) without (bar)", tsdb),
-            containsString("'without' grouping is not supported at this time")
-        );
-    }
-
-    public void groupModifiersNotSupported() {
-        assertThat(
-            error("PROMQL index=test step=5m foo / on(bar) baz", tsdb),
+    public void testGroupModifiersNotSupported() {
+        tsdb.error(
+            "PROMQL index=test step=5m foo / on(bar) baz",
             containsString("queries with group modifiers are not supported at this time")
         );
     }
 
     public void testNonScalarComparison() {
-        assertThat(
-            error("PROMQL index=test step=5m foo > bar", tsdb),
+        tsdb.error(
+            "PROMQL index=test step=5m foo > bar",
             containsString("comparison operators with non-literal right-hand side are not supported at this time")
         );
     }
 
     public void testNestedComparisons() {
-        assertThat(
-            error("PROMQL index=test step=5m avg(foo > 5)", tsdb),
+        tsdb.error(
+            "PROMQL index=test step=5m avg(foo > 5)",
             containsString("comparison operators are only supported at the top-level at this time")
         );
     }

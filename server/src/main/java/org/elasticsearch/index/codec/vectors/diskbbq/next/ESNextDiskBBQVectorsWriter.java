@@ -92,6 +92,11 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
             useDirectIOReads,
             rawVectorDelegate,
             ESNextDiskBBQVectorsFormat.VERSION_CURRENT,
+            ESNextDiskBBQVectorsFormat.NAME,
+            ESNextDiskBBQVectorsFormat.IVF_META_EXTENSION,
+            ESNextDiskBBQVectorsFormat.CENTROID_EXTENSION,
+            ESNextDiskBBQVectorsFormat.CLUSTER_EXTENSION,
+            true,
             flatVectorThreshold
         );
         this.vectorPerCluster = vectorPerCluster;
@@ -167,6 +172,11 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
         return new FloatVectorValues() {
             final float[] preconditionedVectorValue = new float[vectors.dimension()];
             int cachedOrd = -1;
+
+            @Override
+            public int getVectorByteLength() {
+                return vectors.getVectorByteLength();
+            }
 
             @Override
             public float[] vectorValue(int ord) throws IOException {

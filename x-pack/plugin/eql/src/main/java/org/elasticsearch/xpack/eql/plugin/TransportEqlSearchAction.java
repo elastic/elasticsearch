@@ -19,6 +19,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.logging.activity.ActivityLogWriterProvider;
 import org.elasticsearch.common.logging.activity.ActivityLogger;
+import org.elasticsearch.common.logging.activity.QueryLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.util.BigArrays;
@@ -115,8 +116,7 @@ public final class TransportEqlSearchAction extends HandledTransportAction<EqlSe
             threadPool,
             bigArrays
         );
-        this.activityLogger = new ActivityLogger<>(
-            EqlLogContext.TYPE,
+        this.activityLogger = new QueryLogger<>(
             clusterService.getClusterSettings(),
             new EqlLogProducer(),
             logWriterProvider,
@@ -150,7 +150,7 @@ public final class TransportEqlSearchAction extends HandledTransportAction<EqlSe
 
     @Override
     public void execute(EqlSearchRequest request, EqlSearchTask task, ActionListener<EqlSearchResponse> listener) {
-        operation(planExecutor, task, request, username(securityContext), transportService, clusterService, listener);
+        operation(planExecutor, task, request, username(securityContext), transportService, clusterService, activityLogger, listener);
     }
 
     @Override
@@ -173,7 +173,6 @@ public final class TransportEqlSearchAction extends HandledTransportAction<EqlSe
 
     @Override
     protected void doExecute(Task task, EqlSearchRequest request, ActionListener<EqlSearchResponse> listener) {
-        listener = activityLogger.wrap(listener, new EqlLogContextBuilder(task, request));
         if (requestIsAsync(request)) {
             asyncTaskManagementService.asyncExecute(
                 request,
@@ -183,7 +182,16 @@ public final class TransportEqlSearchAction extends HandledTransportAction<EqlSe
                 listener
             );
         } else {
-            operation(planExecutor, (EqlSearchTask) task, request, username(securityContext), transportService, clusterService, listener);
+            operation(
+                planExecutor,
+                (EqlSearchTask) task,
+                request,
+                username(securityContext),
+                transportService,
+                clusterService,
+                activityLogger,
+                listener
+            );
         }
     }
 
@@ -194,8 +202,10 @@ public final class TransportEqlSearchAction extends HandledTransportAction<EqlSe
         String username,
         TransportService transportService,
         ClusterService clusterService,
-        ActionListener<EqlSearchResponse> listener
+        ActivityLogger<EqlLogContext> activityLogger,
+        ActionListener<EqlSearchResponse> operationListener
     ) {
+        final ActionListener<EqlSearchResponse> listener = activityLogger.wrap(operationListener, new EqlLogContextBuilder(task, request));
         String nodeId = clusterService.localNode().getId();
         String clusterName = clusterName(clusterService);
         // TODO: these should be sent by the client
@@ -240,6 +250,7 @@ public final class TransportEqlSearchAction extends HandledTransportAction<EqlSe
 
             EqlConfiguration cfg = new EqlConfiguration(
                 request.indices(),
+                request.originalIndices(),
                 zoneId,
                 username,
                 clusterName,

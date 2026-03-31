@@ -13,7 +13,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsOptions;
 import org.elasticsearch.xpack.core.inference.chunking.SentenceBoundaryChunkingSettings;
@@ -218,7 +218,7 @@ public class ChunkTests extends AbstractScalarFunctionTestCase {
         MapExpression optionsMap = chunkingSettings == null ? null : createChunkingSettings(chunkingSettings);
 
         try (
-            EvalOperator.ExpressionEvaluator eval = evaluator(new Chunk(Source.EMPTY, field("field", DataType.KEYWORD), optionsMap)).get(
+            ExpressionEvaluator eval = evaluator(new Chunk(Source.EMPTY, field("field", DataType.KEYWORD), optionsMap)).get(
                 driverContext()
             );
             Block block = eval.eval(row(List.of(new BytesRef(str))))

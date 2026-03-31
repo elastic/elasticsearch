@@ -105,6 +105,8 @@ tasks {
         // warnings about failing to change access for FileDescriptor.fd
         // that org.elasticsearch.preallocate does
         jvmArgs("--add-opens=java.base/java.io=ALL-UNNAMED")
+        // A small write buffer size to avoid OOM when many nodes run in the same JVM
+        systemProperty("es.searchable.snapshot.shared_cache.write_buffer.size", "256kb")
     }
 
     yamlRestTest {

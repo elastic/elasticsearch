@@ -3380,7 +3380,7 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(attribute.name(), is("message"));
 
         String expected = "Cannot use field [message] due to ambiguities being mapped as [2] incompatible types: "
-            + "[keyword] enforced by INSIST command, [long] in [foo]";
+            + "[keyword] due to [unmapped_fields=\"load\"], [long] in [foo]";
         assertThat(attribute.unresolvedMessage(), is(expected));
     }
 
@@ -3402,7 +3402,7 @@ public class AnalyzerTests extends ESTestCase {
         var attr = (UnsupportedAttribute) EsqlTestUtils.singleValue(insist.output());
 
         String expected = "Cannot use field [message] due to ambiguities being mapped as [3] incompatible types: "
-            + "[keyword] enforced by INSIST command, [datetime] in [bar], [long] in [foo]";
+            + "[keyword] due to [unmapped_fields=\"load\"], [datetime] in [bar], [long] in [foo]";
         assertThat(attr.unresolvedMessage(), is(expected));
     }
 
@@ -3425,7 +3425,7 @@ public class AnalyzerTests extends ESTestCase {
         var attr = (UnsupportedAttribute) EsqlTestUtils.singleValue(insist.output());
 
         String expected = "Cannot use field [message] due to ambiguities being mapped as [3] incompatible types: "
-            + "[datetime] in [bar], [keyword] enforced by INSIST command and in [bazz], [long] in [foo]";
+            + "[datetime] in [bar], [keyword] due to [unmapped_fields=\"load\"] and in [bazz], [long] in [foo]";
         assertThat(attr.unresolvedMessage(), is(expected));
     }
 

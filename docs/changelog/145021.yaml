@@ -1,0 +1,6 @@
+area: Mapping
+issues:
+ - 144969
+pr: 145021
+summary: Don't serialize endpoint metadata in semantic text mappings
+type: bug

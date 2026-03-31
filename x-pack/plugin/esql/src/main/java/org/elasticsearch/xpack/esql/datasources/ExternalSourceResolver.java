@@ -23,18 +23,24 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Resolver for external data sources (Iceberg tables, Parquet files, etc.).
@@ -60,6 +66,10 @@ import java.util.concurrent.Executor;
 public class ExternalSourceResolver {
 
     private static final Logger LOGGER = LogManager.getLogger(ExternalSourceResolver.class);
+
+    static final String CONFIG_SCHEMA_RESOLUTION = "schema_resolution";
+
+    private static final int MAX_PARALLEL_METADATA_READS = 16;
 
     private final Executor executor;
     private final DataSourceModule dataSourceModule;
@@ -169,6 +179,16 @@ public class ExternalSourceResolver {
             throw new IllegalArgumentException("Glob pattern matched no files: " + path);
         }
 
+        FormatReader.SchemaResolution schemaResolution = parseSchemaResolution(config);
+
+        if (schemaResolution == FormatReader.SchemaResolution.FIRST_FILE_WINS) {
+            return resolveMultiFileFirstFileWins(fileSet, config);
+        }
+        return resolveMultiFileWithReconciliation(fileSet, config, schemaResolution);
+    }
+
+    private ExternalSourceResolution.ResolvedSource resolveMultiFileFirstFileWins(FileSet fileSet, Map<String, Object> config)
+        throws Exception {
         StoragePath firstFile = fileSet.files().get(0).path();
         SourceMetadata metadata = resolveSingleSource(firstFile.toString(), config);
 
@@ -180,6 +200,170 @@ public class ExternalSourceResolver {
         }
 
         return new ExternalSourceResolution.ResolvedSource(extMetadata, fileSet);
+    }
+
+    private ExternalSourceResolution.ResolvedSource resolveMultiFileWithReconciliation(
+        FileSet fileSet,
+        Map<String, Object> config,
+        FormatReader.SchemaResolution schemaResolution
+    ) throws Exception {
+        long startNanos = System.nanoTime();
+        Map<StoragePath, SourceMetadata> allMetadata = readAllFileMetadata(fileSet, config);
+        long durationMs = (System.nanoTime() - startNanos) / 1_000_000;
+
+        LOGGER.debug("Schema reconciliation [{}]: scanned {} files in {}ms", schemaResolution, allMetadata.size(), durationMs);
+
+        StoragePath firstFile = fileSet.files().get(0).path();
+        SchemaReconciliation.Result result;
+        if (schemaResolution == FormatReader.SchemaResolution.STRICT) {
+            result = SchemaReconciliation.reconcileStrict(firstFile, allMetadata);
+        } else {
+            result = SchemaReconciliation.reconcileUnionByName(allMetadata);
+        }
+
+        List<Attribute> unifiedSchema = result.unifiedSchema();
+        SourceMetadata firstMeta = allMetadata.get(firstFile);
+        ExternalSourceMetadata extMetadata = buildUnifiedMetadata(firstMeta, unifiedSchema, config);
+
+        PartitionMetadata partitionMetadata = fileSet.partitionMetadata();
+        if (partitionMetadata != null && partitionMetadata.isEmpty() == false) {
+            extMetadata = enrichSchemaWithPartitionColumns(extMetadata, partitionMetadata);
+        }
+
+        FileSet enrichedFileSet = fileSet.withSchemaInfo(result.perFileInfo());
+        return new ExternalSourceResolution.ResolvedSource(extMetadata, enrichedFileSet);
+    }
+
+    /**
+     * Reads metadata from all files in parallel with bounded concurrency.
+     * Uses a semaphore to cap the number of concurrent metadata reads.
+     */
+    private Map<StoragePath, SourceMetadata> readAllFileMetadata(FileSet fileSet, Map<String, Object> config) throws Exception {
+        List<StorageEntry> files = fileSet.files();
+        int fileCount = files.size();
+
+        if (fileCount == 1) {
+            StoragePath filePath = files.get(0).path();
+            SourceMetadata meta = resolveSingleSource(filePath.toString(), config);
+            return Map.of(filePath, meta);
+        }
+
+        Semaphore semaphore = new Semaphore(Math.min(fileCount, MAX_PARALLEL_METADATA_READS));
+        AtomicBoolean failed = new AtomicBoolean(false);
+
+        @SuppressWarnings("unchecked")
+        CompletableFuture<Map.Entry<StoragePath, SourceMetadata>>[] futures = new CompletableFuture[fileCount];
+
+        for (int i = 0; i < fileCount; i++) {
+            StoragePath filePath = files.get(i).path();
+            futures[i] = CompletableFuture.supplyAsync(() -> {
+                if (failed.get()) {
+                    return null;
+                }
+                try {
+                    semaphore.acquire();
+                    try {
+                        SourceMetadata meta = resolveSingleSource(filePath.toString(), config);
+                        return Map.entry(filePath, meta);
+                    } finally {
+                        semaphore.release();
+                    }
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new RuntimeException("Interrupted while reading metadata from [" + filePath + "]", e);
+                } catch (Exception e) {
+                    failed.set(true);
+                    throw new RuntimeException("Failed to read metadata from [" + filePath + "]: " + e.getMessage(), e);
+                }
+            }, executor);
+        }
+
+        try {
+            CompletableFuture.allOf(futures).join();
+        } catch (CompletionException e) {
+            Throwable cause = e.getCause();
+            if (cause instanceof RuntimeException rte) {
+                throw rte;
+            }
+            throw new RuntimeException("Failed to read file metadata in parallel", cause != null ? cause : e);
+        }
+
+        Map<StoragePath, SourceMetadata> result = new LinkedHashMap<>();
+        for (CompletableFuture<Map.Entry<StoragePath, SourceMetadata>> future : futures) {
+            Map.Entry<StoragePath, SourceMetadata> entry = future.get();
+            if (entry != null) {
+                result.put(entry.getKey(), entry.getValue());
+            }
+        }
+        return result;
+    }
+
+    private ExternalSourceMetadata buildUnifiedMetadata(
+        SourceMetadata referenceMeta,
+        List<Attribute> unifiedSchema,
+        Map<String, Object> queryConfig
+    ) {
+        Map<String, Object> mergedConfig = mergeConfigs(referenceMeta.config(), queryConfig);
+        List<Attribute> schema = List.copyOf(unifiedSchema);
+        return new ExternalSourceMetadata() {
+            @Override
+            public String location() {
+                return referenceMeta.location();
+            }
+
+            @Override
+            public List<Attribute> schema() {
+                return schema;
+            }
+
+            @Override
+            public String sourceType() {
+                return referenceMeta.sourceType();
+            }
+
+            @Override
+            public Map<String, Object> sourceMetadata() {
+                return referenceMeta.sourceMetadata();
+            }
+
+            @Override
+            public Map<String, Object> config() {
+                return mergedConfig;
+            }
+        };
+    }
+
+    static FormatReader.SchemaResolution parseSchemaResolution(@Nullable Map<String, Object> config) {
+        if (config == null) {
+            return FormatReader.SchemaResolution.FIRST_FILE_WINS;
+        }
+        Object value = config.get(CONFIG_SCHEMA_RESOLUTION);
+        if (value == null) {
+            return FormatReader.SchemaResolution.FIRST_FILE_WINS;
+        }
+        return switch (value.toString().toLowerCase(Locale.ROOT)) {
+            case "first_file_wins" -> FormatReader.SchemaResolution.FIRST_FILE_WINS;
+            case "strict" -> FormatReader.SchemaResolution.STRICT;
+            case "union_by_name" -> FormatReader.SchemaResolution.UNION_BY_NAME;
+            default -> throw new IllegalArgumentException(
+                "Unknown schema_resolution value [" + value + "]. Valid values are: first_file_wins, strict, union_by_name"
+            );
+        };
+    }
+
+    private static Map<String, Object> mergeConfigs(
+        @Nullable Map<String, Object> metadataConfig,
+        @Nullable Map<String, Object> queryConfig
+    ) {
+        if (metadataConfig == null || metadataConfig.isEmpty()) {
+            return queryConfig != null ? queryConfig : Map.of();
+        }
+        if (queryConfig == null || queryConfig.isEmpty()) {
+            return metadataConfig;
+        }
+        Map<String, Object> merged = new HashMap<>(metadataConfig);
+        merged.putAll(queryConfig);
+        return merged;
     }
 
     private static boolean isHivePartitioningEnabled(Map<String, Object> config) {

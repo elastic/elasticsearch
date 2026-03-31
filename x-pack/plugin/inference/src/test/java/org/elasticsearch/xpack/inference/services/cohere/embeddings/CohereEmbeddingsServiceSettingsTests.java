@@ -42,7 +42,8 @@ import static org.hamcrest.Matchers.is;
  * {@link CohereServiceSettings} accepts a model identifier under either:
  * <ul>
  *     <li>{@link ServiceFields#MODEL_ID} ({@code "model_id"}) — current field name</li>
- *     <li>{@link CohereServiceSettings#OLD_MODEL_ID_FIELD} ({@code "model"}) — legacy / deprecated key, still accepted for persisted configs</li>
+ *     <li>{@link CohereServiceSettings#OLD_MODEL_ID_FIELD} ({@code "model"}) — legacy / deprecated key, still accepted for
+ *         persisted configs</li>
  * </ul>
  * When both appear, {@code model_id} is used. Several {@code testFromMap_*} methods below spell out which key(s) each scenario uses.
  * <p>
@@ -212,8 +213,9 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractWireSerializin
     }
 
     /**
-     * {@link ConfigurationParseContext#REQUEST}: same as {@link #testFromMap_Persistent_LegacyModelFieldOnly} (legacy {@code model} key only),
-     * but request parsing defaults the Cohere API version to {@link CohereServiceSettings.CohereApiVersion#V2}.
+     * {@link ConfigurationParseContext#REQUEST}: same as {@link #testFromMap_Persistent_LegacyModelFieldOnly}
+     * (legacy {@code model} key only), but request parsing defaults the Cohere API version to
+     * {@link CohereServiceSettings.CohereApiVersion#V2}.
      */
     public void testFromMap_Request_LegacyModelFieldOnly() {
         var serviceSettings = CohereEmbeddingsServiceSettings.fromMap(
@@ -556,7 +558,8 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractWireSerializin
     }
 
     /**
-     * Map uses only the legacy {@link CohereServiceSettings#OLD_MODEL_ID_FIELD} ({@code "model"}); {@link ServiceFields#MODEL_ID} is omitted.
+     * Map uses only the legacy {@link CohereServiceSettings#OLD_MODEL_ID_FIELD} ({@code "model"});
+     * {@link ServiceFields#MODEL_ID} is omitted.
      */
     private static HashMap<String, Object> buildServiceSettingsMapWithLegacyModelFieldOnly(String embeddingTypeString) {
         return buildServiceSettingsMap(

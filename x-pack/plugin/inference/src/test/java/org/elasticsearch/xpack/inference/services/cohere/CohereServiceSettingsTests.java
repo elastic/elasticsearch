@@ -238,8 +238,9 @@ public class CohereServiceSettingsTests extends AbstractBWCWireSerializationTest
     }
 
     /**
-     * {@link ConfigurationParseContext#REQUEST}: same as {@link #testFromMap_Persistent_LegacyModelFieldOnly} (legacy {@code model} key only),
-     * but request parsing defaults the Cohere API version to {@link CohereServiceSettings.CohereApiVersion#V2}.
+     * {@link ConfigurationParseContext#REQUEST}: same as {@link #testFromMap_Persistent_LegacyModelFieldOnly}
+     * (legacy {@code model} key only), but request parsing defaults the Cohere API version to
+     * {@link CohereServiceSettings.CohereApiVersion#V2}.
      */
     public void testFromMap_Request_LegacyModelFieldOnly() {
         var serviceSettings = CohereServiceSettings.fromMap(
@@ -298,7 +299,8 @@ public class CohereServiceSettingsTests extends AbstractBWCWireSerializationTest
     }
 
     /**
-     * {@link ConfigurationParseContext#PERSISTENT}: map uses {@link ServiceFields#MODEL_ID} and explicit {@link CohereServiceSettings#API_VERSION}.
+     * {@link ConfigurationParseContext#PERSISTENT}: map uses {@link ServiceFields#MODEL_ID} and explicit
+     * {@link CohereServiceSettings#API_VERSION}.
      */
     public void testFromMap_Persistent_ModelIdFieldOnly() {
         var serviceSettings = CohereServiceSettings.fromMap(
@@ -500,7 +502,8 @@ public class CohereServiceSettingsTests extends AbstractBWCWireSerializationTest
     }
 
     /**
-     * Map uses only the legacy {@link CohereServiceSettings#OLD_MODEL_ID_FIELD} ({@code "model"}); {@link ServiceFields#MODEL_ID} is omitted.
+     * Map uses only the legacy {@link CohereServiceSettings#OLD_MODEL_ID_FIELD} ({@code "model"});
+     * {@link ServiceFields#MODEL_ID} is omitted.
      */
     private static HashMap<String, Object> buildServiceSettingsMapWithLegacyModelFieldOnly() {
         return buildServiceSettingsMap(

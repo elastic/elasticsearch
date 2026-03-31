@@ -7,7 +7,6 @@
 
 package org.elasticsearch.upgrades;
 
-import org.elasticsearch.Build;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
@@ -31,8 +30,6 @@ public class DiskBBQVectorSearchIT extends AbstractUpgradeTestCase {
     private static final int[] SUPPORTED_BITS = new int[] { 1, 2, 4, 7 };
 
     public void testSingleBitDiskBBQVectorSearch() throws Exception {
-        // because of any dev changes in ESNextDiskBBQVectorsFormat, enabled for snapshot builds, may make this test fail
-        assumeTrue("DiskBBQ rolling upgrade test runs for non-snapshot builds", Build.current().isSnapshot() == false);
         if (CLUSTER_TYPE == ClusterType.OLD) {
             assumeTrue("DiskBBQ vector format is not supported on this version", clusterSupportsFeature(BBQ_DISK_SUPPORT_FEATURE));
             String mapping = """
@@ -51,7 +48,7 @@ public class DiskBBQVectorSearchIT extends AbstractUpgradeTestCase {
                 }
                 """;
             // create index and index 10 random floating point vectors
-            createIndex(DISK_BBQ_INDEX_NAME, Settings.EMPTY, mapping);
+            createIndexWithDenseVectorSettings(DISK_BBQ_INDEX_NAME, mapping);
             indexVectors(DISK_BBQ_INDEX_NAME);
             // force merge the index
             client().performRequest(new Request("POST", "/" + DISK_BBQ_INDEX_NAME + "/_forcemerge?max_num_segments=1"));
@@ -62,8 +59,6 @@ public class DiskBBQVectorSearchIT extends AbstractUpgradeTestCase {
     }
 
     public void testDiskBBQVectorSearchWithExplicitBits() throws Exception {
-        // because of any dev changes in ESNextDiskBBQVectorsFormat, enabled for snapshot builds, may make this test fail
-        assumeTrue("DiskBBQ rolling upgrade test runs for non-snapshot builds", Build.current().isSnapshot() == false);
         if (CLUSTER_TYPE == ClusterType.OLD) {
             assumeTrue("DiskBBQ bits are not supported on this version", clusterSupportsFeature(ES940_DISK_BBQ_FEATURE));
             for (int bits : SUPPORTED_BITS) {
@@ -85,7 +80,7 @@ public class DiskBBQVectorSearchIT extends AbstractUpgradeTestCase {
                     """.formatted(bits);
                 String indexName = diskBbqBitsIndexName(bits);
                 // create index and index 10 random floating point vectors
-                createIndex(indexName, Settings.EMPTY, mapping);
+                createIndexWithDenseVectorSettings(indexName, mapping);
                 indexVectors(indexName);
                 // force merge the index
                 client().performRequest(new Request("POST", "/" + indexName + "/_forcemerge?max_num_segments=1"));
@@ -191,6 +186,24 @@ public class DiskBBQVectorSearchIT extends AbstractUpgradeTestCase {
             }
             throw e;
         }
+    }
+
+    private void createIndexWithDenseVectorSettings(String indexName, String mapping) throws IOException {
+        Settings settings = Settings.builder().put("index.dense_vector.experimental_features", false).build();
+        try {
+            createIndex(indexName, settings, mapping);
+        } catch (ResponseException e) {
+            if (isUnknownDenseVectorSetting(e)) {
+                createIndex(indexName, Settings.EMPTY, mapping);
+            } else {
+                throw e;
+            }
+        }
+    }
+
+    private static boolean isUnknownDenseVectorSetting(ResponseException e) {
+        String message = e.getMessage();
+        return message != null && message.contains("unknown setting") && message.contains("index.dense_vector.experimental_features");
     }
 
     @SuppressWarnings("unchecked")

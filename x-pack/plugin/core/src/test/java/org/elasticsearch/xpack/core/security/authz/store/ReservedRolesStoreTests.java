@@ -1004,7 +1004,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
         // Kibana Security Solution EDR workflows team
         // - indexes in support of Elastic Defend Scripts library
-        Arrays.asList(".endpoint-script-file-meta-default", ".endpoint-script-file-data-default").forEach((index) -> {
+        Arrays.asList(".endpoint-fleetfiles-script-meta", ".endpoint-fleetfiles-script-data").forEach((index) -> {
             final IndexAbstraction indexAbstraction = mockIndexAbstraction(index);
             assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:foo").test(indexAbstraction), is(false));
             assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:bar").test(indexAbstraction), is(false));

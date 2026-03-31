@@ -754,7 +754,7 @@ class NodeConstruction {
         FailureStoreMetrics failureStoreMetrics = new FailureStoreMetrics(telemetryProvider.getMeterRegistry());
         MatcherWatchdog matcherWatchdog = IngestService.createGrokThreadWatchdog(environment, threadPool);
         UserAgentParserRegistry userAgentParserRegistry = getSinglePlugin(UserAgentParserRegistryProvider.class).map(
-            p -> p.createUserAgentParserRegistry(environment)
+            p -> p.createRegistry(environment)
         ).orElse(UserAgentParserRegistry.NOOP);
         IpLocationService ipLocationService = getSinglePlugin(IpLocationServiceProvider.class).map(
             p -> p.createIpLocationService(environment, client, threadPool.generic()::execute, clusterService, projectResolver)
@@ -1376,6 +1376,7 @@ class NodeConstruction {
             b.bind(BigArrays.class).toInstance(bigArrays);
             b.bind(PageCacheRecycler.class).toInstance(pageCacheRecycler);
             b.bind(IngestService.class).toInstance(ingestService);
+            b.bind(UserAgentParserRegistry.class).toInstance(userAgentParserRegistry);
             b.bind(IpLocationService.class).toInstance(ipLocationService);
             b.bind(IndexingPressure.class).toInstance(indexingLimits);
             b.bind(IncrementalBulkService.class).toInstance(incrementalBulkService);

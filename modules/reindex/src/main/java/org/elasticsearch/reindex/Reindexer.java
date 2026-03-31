@@ -57,7 +57,7 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.BulkByScrollTask;
-import org.elasticsearch.index.reindex.PaginatedHitSource;
+import org.elasticsearch.index.reindex.PaginatedSearchFailure;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.index.reindex.RejectAwareActionListener;
@@ -435,7 +435,7 @@ public class Reindexer {
                     var searchExceptionSample = Optional.ofNullable(bulkByScrollResponse.getSearchFailures())
                         .stream()
                         .flatMap(List::stream)
-                        .map(PaginatedHitSource.SearchFailure::getReason)
+                        .map(PaginatedSearchFailure::getReason)
                         .findFirst();
                     var bulkExceptionSample = Optional.ofNullable(bulkByScrollResponse.getBulkFailures())
                         .stream()
@@ -748,7 +748,7 @@ public class Reindexer {
         protected void finishHim(
             Exception failure,
             List<BulkItemResponse.Failure> indexingFailures,
-            List<PaginatedHitSource.SearchFailure> searchFailures,
+            List<PaginatedSearchFailure> searchFailures,
             boolean timedOut
         ) {
             super.finishHim(failure, indexingFailures, searchFailures, timedOut);

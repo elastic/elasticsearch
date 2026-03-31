@@ -107,10 +107,10 @@ public class BulkKeywordLookup {
                 if (postings == null) {
                     postings = termsEnum.postings(null, 0);
                     postingsCache[leafOrd] = postings;
+                } else {
+                    // Reset the postings to the current term (reuse the cached PostingsEnum)
+                    postings = termsEnum.postings(postings, 0);
                 }
-
-                // Reset the postings to the current term (reuse the cached PostingsEnum)
-                postings = termsEnum.postings(postings, 0);
 
                 Bits liveDocs = leafContext.reader().getLiveDocs();
                 int docId;

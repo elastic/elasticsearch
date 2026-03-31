@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.settings.Settings;
@@ -112,7 +113,7 @@ public class ExternalSourceResolver {
                         String exceptionMessage = e.getMessage();
                         String errorDetail = exceptionMessage != null ? exceptionMessage : e.getClass().getSimpleName();
                         String errorMessage = String.format(Locale.ROOT, "Failed to resolve external source [%s]: %s", path, errorDetail);
-                        listener.onFailure(new RuntimeException(errorMessage, e));
+                        listener.onFailure(new ElasticsearchException(errorMessage, e));
                         return;
                     }
                 }

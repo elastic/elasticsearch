@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.expression.TimeSeriesMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -3056,6 +3057,313 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             from test
             | eval a = 1, b = a + 1, c = b + a
             | where c > 10
+            """);
+
+        var local = as(plan, LocalRelation.class);
+        assertThat(local.supplier(), is(EmptyLocalSupplier.EMPTY));
+    }
+
+    /**
+     * Expected:
+     * <pre>{@code
+     * Limit[1000[INTEGER],false,false]
+     * \_LocalRelation[[count{r}#4],Page{blocks=[LongVectorBlock[vector=ConstantLongVector[positions=1, value=0]]]}]
+     * }</pre>
+     */
+    public void testPropagateEmptyRelationWithUngroupedStats() {
+        var plan = optimizedPlan("""
+            from test
+            | where false
+            | stats count = count(*)
+            """);
+
+        var limit = as(plan, Limit.class);
+        var local = as(limit.child(), LocalRelation.class);
+        assertThat(local.supplier(), not(is(EmptyLocalSupplier.EMPTY)));
+    }
+
+    /**
+     * Expected:
+     * <pre>{@code
+     * Limit[1000[INTEGER],false,false]
+     * \_LocalRelation[[s{r}#5],Page{blocks=[LongArrayBlock[positions=1, mvOrdering=UNORDERED, vector=LongArrayVector[positions=1, val
+     * ues=[0]]]]}]
+     * }</pre>
+     *
+     * sum() on empty input produces null (not 0), unlike count().
+     */
+    public void testPropagateEmptyRelationWithUngroupedNonCountStats() {
+        var plan = optimizedPlan("""
+            from test
+            | where false
+            | stats s = sum(salary)
+            """);
+
+        var limit = as(plan, Limit.class);
+        var local = as(limit.child(), LocalRelation.class);
+        assertThat(local.supplier(), not(is(EmptyLocalSupplier.EMPTY)));
+    }
+
+    /**
+     * Expected:
+     * <pre>{@code
+     * Project[[c{r}#4, s{r}#7]]
+     * \_Eval[[$$SUM$s$0{r$}#19 / $$COUNT$s$1{r$}#20 AS s#7]]
+     *   \_Limit[1000[INTEGER],false,false]
+     *     \_LocalRelation[[c{r}#4, $$SUM$s$0{r$}#19, $$COUNT$s$1{r$}#20],Page{blocks=[LongVectorBlock[vector=ConstantLongVector[positions
+     * =1, value=0]], LongArrayBlock[positions=1, mvOrdering=UNORDERED, vector=LongArrayVector[positions=1, values=[0]]],
+     * LongVectorBlock[vector=ConstantLongVector[positions=1, value=0]]]}]
+     * }</pre>
+     *
+     * avg(salary) is decomposed into sum(salary)/count(salary) during the substitutions phase, producing the
+     * Eval + Project above the Limit. PropagateEmptyRelation then folds only the raw sub-aggregates (count, sum)
+     * into the LocalRelation; the division is computed by the Eval.
+     */
+    public void testPropagateEmptyRelationWithUngroupedMixedStats() {
+        var plan = optimizedPlan("""
+            from test
+            | where false
+            | stats c = count(*), s = avg(salary)
+            """);
+
+        var project = as(plan, Project.class);
+        var eval = as(project.child(), Eval.class);
+        var limit = as(eval.child(), Limit.class);
+        var local = as(limit.child(), LocalRelation.class);
+        assertThat(local.supplier(), not(is(EmptyLocalSupplier.EMPTY)));
+    }
+
+    /**
+     * Expected:
+     * <pre>{@code
+     * LocalRelation[[c{r}#5, languages{f}#9],EMPTY]
+     * }</pre>
+     *
+     * Grouped aggregates on empty input produce zero groups, so the entire plan collapses to an empty LocalRelation.
+     * This differs from ungrouped aggregates, which always produce exactly one row (e.g., count=0).
+     */
+    public void testPropagateEmptyRelationWithGroupedStats() {
+        var plan = optimizedPlan("""
+            from test
+            | where false
+            | stats c = count(*) by languages
+            """);
+
+        var local = as(plan, LocalRelation.class);
+        assertThat(local.supplier(), is(EmptyLocalSupplier.EMPTY));
+    }
+
+    /**
+     * Expected:
+     * <pre>{@code
+     * Limit[1000[INTEGER],false,false]
+     * \_LocalRelation[[count{r}#14],Page{blocks=[LongVectorBlock[vector=ConstantLongVector[positions=1, value=0]]]}]
+     * }</pre>
+     *
+     * Same result as testPropagateEmptyRelationWithUngroupedStats but the empty relation is produced by
+     * PropagateEvalFoldables + ConstantFolding (a=1, b=2, c=2, c > 10 folds to false) rather than a literal
+     * WHERE false.
+     */
+    public void testPropagateEmptyRelationWithImpossibleFilterAndStats() {
+        var plan = optimizedPlan("""
+            from test
+            | eval a = 1, b = a + 1, c = b + a
+            | where c > 10
+            | stats count = count(*)
+            """);
+
+        var limit = as(plan, Limit.class);
+        var local = as(limit.child(), LocalRelation.class);
+        assertThat(local.supplier(), not(is(EmptyLocalSupplier.EMPTY)));
+    }
+
+    /**
+     * Expected:
+     * <pre>{@code
+     * Limit[1000[INTEGER],false,false]
+     * \_LocalRelation[[count{r}#7],Page{blocks=[LongVectorBlock[vector=ConstantLongVector[positions=1, value=0]]]}]
+     * }</pre>
+     *
+     * Same final plan as testPropagateEmptyRelationWithUngroupedStats but requires two fixed-point iterations:
+     * first the Eval over empty LocalRelation is collapsed, then the Aggregate over empty LocalRelation is folded.
+     */
+    public void testPropagateEmptyRelationWithInterveningEvalAndStats() {
+        var plan = optimizedPlan("""
+            from test
+            | where false
+            | eval x = salary + 1
+            | stats count = count(*)
+            """);
+
+        var limit = as(plan, Limit.class);
+        var local = as(limit.child(), LocalRelation.class);
+        assertThat(local.supplier(), not(is(EmptyLocalSupplier.EMPTY)));
+    }
+
+    /**
+     * Expected:
+     * <pre>{@code
+     * LocalRelation[[_meta_field{f}#24, emp_no{f}#18, first_name{f}#19, gender{f}#20, hire_date{f}#25, job{f}#26, job.raw{f}#27, l
+     * anguages{f}#21, last_name{f}#22, long_noidx{f}#28, salary{f}#23, a{r}#4, b{r}#7, c{r}#11, language_code{r}#15, language_name{f}#30],
+     * EMPTY]
+     * }</pre>
+     */
+    public void testPropagateEmptyRelationThroughLookupJoin() {
+        var plan = optimizedPlan("""
+            from test
+            | eval a = 1, b = a + 1, c = b + a
+            | where c > 10
+            | eval language_code = languages
+            | lookup join languages_lookup on language_code
+            | where emp_no > 100
+            """);
+
+        var local = as(plan, LocalRelation.class);
+        assertThat(local.supplier(), is(EmptyLocalSupplier.EMPTY));
+    }
+
+    /**
+     * Expected:
+     * <pre>{@code
+     * LocalRelation[[emp_no{f}#9, language_name{f}#21],EMPTY]
+     * }</pre>
+     */
+    public void testPropagateEmptyRelationThroughLookupJoinWithWhereAfterJoin() {
+        var plan = optimizedPlan("""
+            from test
+            | where false
+            | eval language_code = languages
+            | lookup join languages_lookup on language_code
+            | keep emp_no, language_name
+            """);
+
+        var local = as(plan, LocalRelation.class);
+        assertThat(local.supplier(), is(EmptyLocalSupplier.EMPTY));
+    }
+
+    /**
+     * Expected:
+     * <pre>{@code
+     * Limit[1000[INTEGER],false,false]
+     * \_LocalRelation[[count{r}#8],Page{blocks=[LongVectorBlock[vector=ConstantLongVector[positions=1, value=0]]]}]
+     * }</pre>
+     */
+    public void testPropagateEmptyRelationThroughLookupJoinWithStatsAfterJoin() {
+        var plan = optimizedPlan("""
+            from test
+            | where false
+            | eval language_code = languages
+            | lookup join languages_lookup on language_code
+            | stats count = count(*)
+            """);
+
+        var limit = as(plan, Limit.class);
+        var local = as(limit.child(), LocalRelation.class);
+        assertThat(local.supplier(), not(is(EmptyLocalSupplier.EMPTY)));
+    }
+
+    /**
+     * Expected:
+     * <pre>{@code
+     * LocalRelation[[emp_no{f}#5, language_code{r}#14, language_name{f}#17],EMPTY]
+     * }</pre>
+     *
+     * WHERE null is folded to WHERE false, then PropagateEmptyRelation collapses the entire plan.
+     */
+    public void testPropagateEmptyRelationWithWhereNullThroughLookupJoin() {
+        var plan = optimizedPlan("""
+            from test
+            | where null
+            | eval language_code = languages
+            | lookup join languages_lookup on language_code
+            | keep emp_no, language_code, language_name
+            """);
+
+        var local = as(plan, LocalRelation.class);
+        assertThat(local.supplier(), is(EmptyLocalSupplier.EMPTY));
+    }
+
+    /**
+     * Expected:
+     * <pre>{@code
+     * LocalRelation[[emp_no{f}#5, language_code{r}#17, language_name{f}#20],EMPTY]
+     * }</pre>
+     *
+     * EVAL x = null | WHERE x::int > 0 folds to an empty relation via FoldNull + constant folding,
+     * then PropagateEmptyRelation collapses the join.
+     */
+    public void testPropagateEmptyRelationWithEvalNullFilterThroughLookupJoin() {
+        var plan = optimizedPlan("""
+            from test
+            | eval x = null
+            | where x::int > 0
+            | eval language_code = languages
+            | lookup join languages_lookup on language_code
+            | keep emp_no, language_code, language_name
+            """);
+
+        var local = as(plan, LocalRelation.class);
+        assertThat(local.supplier(), is(EmptyLocalSupplier.EMPTY));
+    }
+
+    /**
+     * Expected:
+     * <pre>{@code
+     * Limit[1000[INTEGER],false,false]
+     * \_LocalRelation[[count{r}#6],Page{blocks=[LongVectorBlock[vector=ConstantLongVector[positions=1, value=0]]]}]
+     * }</pre>
+     *
+     * WHERE null collapses the driving side; ungrouped COUNT(*) on empty input returns 0.
+     */
+    public void testPropagateEmptyRelationWithWhereNullThroughLookupJoinAndStats() {
+        var plan = optimizedPlan("""
+            from test
+            | where null
+            | eval language_code = languages
+            | lookup join languages_lookup on language_code
+            | stats count = count(*)
+            """);
+
+        var limit = as(plan, Limit.class);
+        var local = as(limit.child(), LocalRelation.class);
+        assertThat(local.supplier(), not(is(EmptyLocalSupplier.EMPTY)));
+    }
+
+    /**
+     * Expected:
+     * <pre>{@code
+     * Limit[1000[INTEGER],false,false]
+     * \_LocalRelation[[count{r}#4],Page{blocks=[LongVectorBlock[vector=ConstantLongVector[positions=1, value=0]]]}]
+     * }</pre>
+     *
+     * WHERE null folds to WHERE false, producing an empty relation that is folded into
+     * an ungrouped COUNT(*) returning 0.
+     */
+    public void testPropagateEmptyRelationWithWhereNull() {
+        var plan = optimizedPlan("""
+            from test
+            | where null
+            | stats count = count(*)
+            """);
+
+        var limit = as(plan, Limit.class);
+        var local = as(limit.child(), LocalRelation.class);
+        assertThat(local.supplier(), not(is(EmptyLocalSupplier.EMPTY)));
+    }
+
+    /**
+     * Expected:
+     * <pre>{@code
+     * LocalRelation[[{e}#2],EMPTY]
+     * }</pre>
+     *
+     * WHERE 1 + null > 0 folds the null arithmetic to null, then the comparison to null (false),
+     * producing an empty relation.
+     */
+    public void testPropagateEmptyRelationWithNullArithmeticFilter() {
+        var plan = optimizedPlan("""
+            from test
+            | where 1 + null > 0
             """);
 
         var local = as(plan, LocalRelation.class);
@@ -8948,6 +9256,76 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertThat(local.supplier(), instanceOf(EmptyLocalSupplier.class));
     }
 
+    public void testWithoutGroupingWithRegularAggregates() {
+        assumeTrue("requires WITHOUT grouping", EsqlCapabilities.Cap.ESQL_WITHOUT_GROUPING.isEnabled());
+        var query = "TS k8s | STATS avg(network.cost) BY WITHOUT(pod)";
+        var plan = planMetrics(query);
+        // Verify plan contains a TimeSeriesAggregate
+        var tsAggregates = plan.collect(TimeSeriesAggregate.class);
+        assertThat(tsAggregates, hasSize(1));
+        var tsAgg = tsAggregates.get(0);
+        // After TranslateTimeSeriesAggregate, the TS aggregate groups by _tsid.
+        // The WITHOUT exclusion is encoded in the EsRelation's _timeseries attribute.
+        var esRelations = tsAgg.collect(EsRelation.class);
+        assertThat(esRelations, hasSize(1));
+        var timeSeriesAttrs = esRelations.get(0)
+            .output()
+            .stream()
+            .filter(a -> a instanceof TimeSeriesMetadataAttribute)
+            .map(a -> (TimeSeriesMetadataAttribute) a)
+            .toList();
+        assertThat(timeSeriesAttrs, hasSize(1));
+        assertThat(timeSeriesAttrs.get(0).withoutFields(), equalTo(Set.of("pod")));
+    }
+
+    public void testWithoutGroupingExcludesMultipleDimensions() {
+        assumeTrue("requires WITHOUT grouping", EsqlCapabilities.Cap.ESQL_WITHOUT_GROUPING.isEnabled());
+        var query = "TS k8s | STATS avg(network.cost) BY WITHOUT(pod, region)";
+        var plan = planMetrics(query);
+        var tsAggregates = plan.collect(TimeSeriesAggregate.class);
+        assertThat(tsAggregates, hasSize(1));
+        var esRelations = tsAggregates.get(0).collect(EsRelation.class);
+        assertThat(esRelations, hasSize(1));
+        var timeSeriesAttrs = esRelations.get(0)
+            .output()
+            .stream()
+            .filter(a -> a instanceof TimeSeriesMetadataAttribute)
+            .map(a -> (TimeSeriesMetadataAttribute) a)
+            .toList();
+        assertThat(timeSeriesAttrs, hasSize(1));
+        assertThat(timeSeriesAttrs.get(0).withoutFields(), equalTo(Set.of("pod", "region")));
+    }
+
+    public void testWithoutGroupingNoDuplicateWithTsAggFunction() {
+        assumeTrue("requires WITHOUT grouping", EsqlCapabilities.Cap.ESQL_WITHOUT_GROUPING.isEnabled());
+        assumeTrue("requires metrics group by all", EsqlCapabilities.Cap.METRICS_GROUP_BY_ALL.isEnabled());
+        var query = "TS k8s | STATS avg_over_time(network.cost) BY WITHOUT(pod)";
+        var plan = planMetrics(query);
+        // Should have exactly one TimeSeriesMetadataAttribute in the EsRelation (no duplicates)
+        var esRelations = plan.collect(EsRelation.class);
+        assertThat(esRelations, hasSize(1));
+        var timeSeriesAttrs = esRelations.get(0).output().stream().filter(a -> a instanceof TimeSeriesMetadataAttribute).toList();
+        assertThat("Expected exactly one _timeseries attribute", timeSeriesAttrs, hasSize(1));
+    }
+
+    public void testWithoutGroupingEmptyExcludesNothing() {
+        assumeTrue("requires WITHOUT grouping", EsqlCapabilities.Cap.ESQL_WITHOUT_GROUPING.isEnabled());
+        var query = "TS k8s | STATS avg(network.cost) BY WITHOUT()";
+        var plan = planMetrics(query);
+        var tsAggregates = plan.collect(TimeSeriesAggregate.class);
+        assertThat(tsAggregates, hasSize(1));
+        var esRelations = tsAggregates.get(0).collect(EsRelation.class);
+        assertThat(esRelations, hasSize(1));
+        var timeSeriesAttrs = esRelations.get(0)
+            .output()
+            .stream()
+            .filter(a -> a instanceof TimeSeriesMetadataAttribute)
+            .map(a -> (TimeSeriesMetadataAttribute) a)
+            .toList();
+        assertThat(timeSeriesAttrs, hasSize(1));
+        assertThat(timeSeriesAttrs.get(0).withoutFields(), equalTo(Set.of()));
+    }
+
     public void testTimeSeriesBareFieldWithBucketAndLimitZeroDoesNotFailVerifier() {
         var query = "TS k8s | STATS network.cost BY bucket(@timestamp, 1h) | LIMIT 0";
         var plan = planMetrics(query);
@@ -10677,7 +11055,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             Map.of("ts_index", IndexMode.TIME_SERIES, "standard_index", IndexMode.STANDARD),
             Map.of(),
             Map.of(),
-            Set.of()
+            Map.of()
         );
         var testAnalyzer = EsqlTestUtils.analyzer().addIndex(IndexResolution.valid(mixedIndex));
         var plan = logicalOptimizerWithLatestVersion.optimize(testAnalyzer.query("TS * | STATS count(events_received)"));

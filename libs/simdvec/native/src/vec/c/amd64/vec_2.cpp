@@ -13,7 +13,6 @@
 
 #include <stddef.h>
 #include <stdint.h>
-#include <math.h>
 
 // Force the preprocessor to pick up AVX-512 intrinsics, and the compiler to emit AVX-512 code
 #ifdef __clang__

@@ -3,19 +3,16 @@
 #define VEC_COMMON_H
 
 #include <stdint.h>
-#include <assert.h>
 #include <type_traits>
 #include <utility>
 
 template <uintptr_t align>
 static inline uintptr_t align_downwards(const void* ptr) {
     static_assert(align > 0 && (align & (align - 1)) == 0, "Align must be a power of 2");
-    assert(ptr != 0);
 
     uintptr_t addr = (uintptr_t)ptr;
     // Round down to align-byte boundary
     addr &= -align;
-    assert(addr <= (uintptr_t)ptr);
     return addr;
 }
 

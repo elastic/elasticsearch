@@ -7,16 +7,11 @@
 package org.elasticsearch.compute.aggregation;
 
 // begin generated imports
+
 import org.apache.lucene.util.ArrayUtil;
-import org.apache.lucene.util.PriorityQueue;
-import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.DoubleArray;
-import org.elasticsearch.common.util.IntArray;
-import org.elasticsearch.common.util.LongArray;
-import org.elasticsearch.common.util.LongObjectPagedHashMap;
 import org.elasticsearch.common.util.ObjectArray;
-import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DoubleBlock;
@@ -26,12 +21,10 @@ import org.elasticsearch.compute.data.IntArrayBlock;
 import org.elasticsearch.compute.data.IntBigArrayBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
-import org.elasticsearch.compute.data.LocalCircuitBreaker;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 
 import java.util.List;
@@ -85,7 +78,6 @@ public final class RateIntGroupingAggregatorFunction extends AbstractRateGroupin
     private final IntRawBuffer rawBuffer;
     private final List<Integer> channels;
     private final DriverContext driverContext;
-    private final LocalCircuitBreaker.SingletonService localCircuitBreakerService;
     private final BigArrays bigArrays;
     private ObjectArray<ReducedState> reducedStates;
     private final boolean isRateOverTime;
@@ -103,23 +95,16 @@ public final class RateIntGroupingAggregatorFunction extends AbstractRateGroupin
         this.channels = channels;
         this.driverContext = driverContext;
         this.isRateOverTime = isRateOverTime;
-        LocalCircuitBreaker.SingletonService localCircuitBreakerService = new LocalCircuitBreaker.SingletonService(
-            driverContext.bigArrays().breakerService(),
-            driverContext.localBreakerSettings()
-        );
-        this.bigArrays = driverContext.bigArrays().withBreakerService(localCircuitBreakerService);
+        this.bigArrays = driverContext.bigArrays();
         this.dateFactor = isDateNanos ? 1_000_000_000.0 : 1000.0;
         IntRawBuffer buffer = null;
         try {
-            buffer = new IntRawBuffer(bigArrays);
+            buffer = new IntRawBuffer(driverContext.breaker());
             this.reducedStates = bigArrays.newObjectArray(256);
-
             this.rawBuffer = buffer;
-            this.localCircuitBreakerService = localCircuitBreakerService;
             buffer = null;
-            localCircuitBreakerService = null;
         } finally {
-            Releasables.close(buffer, localCircuitBreakerService);
+            Releasables.close(buffer);
         }
     }
 
@@ -369,8 +354,8 @@ public final class RateIntGroupingAggregatorFunction extends AbstractRateGroupin
     private void evaluateIntermediate(Block[] blocks, int offset, IntVector selectedInPage) {
         BlockFactory blockFactory = driverContext.blockFactory();
         int positionCount = selectedInPage.getPositionCount();
+        var flushQueues = rawBuffer.prepareForFlush();
         try (
-            var flushQueues = rawBuffer.prepareForFlush();
             var timestamps = blockFactory.newLongBlockBuilder(positionCount * 2);
             var values = blockFactory.newIntBlockBuilder(positionCount * 2);
             var sampleCounts = blockFactory.newLongVectorFixedBuilder(positionCount);
@@ -409,7 +394,7 @@ public final class RateIntGroupingAggregatorFunction extends AbstractRateGroupin
 
     @Override
     public void close() {
-        Releasables.close(reducedStates, rawBuffer, localCircuitBreakerService);
+        Releasables.close(reducedStates, rawBuffer);
     }
 
     void flushRawBuffers() {
@@ -417,31 +402,28 @@ public final class RateIntGroupingAggregatorFunction extends AbstractRateGroupin
             return;
         }
         reducedStates = bigArrays.grow(reducedStates, rawBuffer.maxGroupId + 1);
-        try (var flushQueues = rawBuffer.prepareForFlush()) {
-            for (int groupId = rawBuffer.minGroupId; groupId <= rawBuffer.maxGroupId; groupId++) {
-                var flushQueue = flushQueues.getFlushQueue(groupId);
-                if (flushQueue != null) {
-                    ReducedState state = reducedStates.get(groupId);
-                    if (state == null) {
-                        state = new ReducedState();
-                        reducedStates.set(groupId, state);
-                    }
-                    flushGroup(state, rawBuffer, flushQueue);
+        var flushQueues = rawBuffer.prepareForFlush();
+        for (int groupId = flushQueues.minGroupId(); groupId <= flushQueues.maxGroupId(); groupId++) {
+            var flushQueue = flushQueues.getFlushQueue(groupId);
+            if (flushQueue != null) {
+                ReducedState state = reducedStates.get(groupId);
+                if (state == null) {
+                    state = new ReducedState();
+                    reducedStates.set(groupId, state);
                 }
+                flushGroup(state, rawBuffer, flushQueue);
             }
         }
-        rawBuffer.minGroupId = Integer.MAX_VALUE;
-        rawBuffer.maxGroupId = Integer.MIN_VALUE;
     }
 
     static final class IntRawBuffer extends RawBuffer {
-        private IntArray values;
+        private final IntBuffer values;
 
-        IntRawBuffer(BigArrays bigArrays) {
-            super(bigArrays);
+        IntRawBuffer(CircuitBreaker breaker) {
+            super(breaker);
             boolean success = false;
             try {
-                this.values = bigArrays.newIntArray(PageCacheRecycler.DOUBLE_PAGE_SIZE, false);
+                this.values = new IntBuffer(breaker, PAGE_SIZE);
                 success = true;
             } finally {
                 if (success == false) {
@@ -453,8 +435,8 @@ public final class RateIntGroupingAggregatorFunction extends AbstractRateGroupin
         void prepareForAppend(int groupId, int count, long firstTimestamp) {
             prepareSlicesOnly(groupId, firstTimestamp);
             int newSize = valueCount + count;
-            timestamps = bigArrays.grow(timestamps, newSize);
-            values = bigArrays.grow(values, newSize);
+            timestamps.ensureCapacity(newSize);
+            values.ensureCapacity(newSize);
         }
 
         void appendWithoutResize(long timestamp, int value) {
@@ -464,17 +446,16 @@ public final class RateIntGroupingAggregatorFunction extends AbstractRateGroupin
         }
 
         void maybeResizeAndAppend(long timestamp, int value) {
-            timestamps = bigArrays.grow(timestamps, valueCount + 1);
-            values = bigArrays.grow(values, valueCount + 1);
+            timestamps.ensureCapacity(valueCount + 1);
+            values.ensureCapacity(valueCount + 1);
             appendWithoutResize(timestamp, value);
         }
 
         void appendRange(int fromPosition, int toPosition, IntVector valueVector, LongVector timestampVector) {
-            for (int p = fromPosition; p < toPosition; p++) {
-                values.set(valueCount, valueVector.getInt(p));
-                timestamps.set(valueCount, timestampVector.getLong(p));
-                valueCount++;
-            }
+            int count = toPosition - fromPosition;
+            timestamps.appendRange(valueCount, timestampVector, fromPosition, count);
+            values.appendRange(valueCount, valueVector, fromPosition, count);
+            valueCount += count;
         }
 
         void appendRange(int fromPosition, int toPosition, IntBlock valueBlock, LongVector timestampVector) {
@@ -578,7 +559,8 @@ public final class RateIntGroupingAggregatorFunction extends AbstractRateGroupin
     private void evaluateFinal(Block[] blocks, int offset, IntVector selectedInPage, GroupingAggregatorEvaluationContext ctx) {
         BlockFactory blockFactory = driverContext.blockFactory();
         int positionCount = selectedInPage.getPositionCount();
-        try (var flushQueues = rawBuffer.prepareForFlush(); var rates = blockFactory.newDoubleBlockBuilder(positionCount)) {
+        var flushQueues = rawBuffer.prepareForFlush();
+        try (var rates = blockFactory.newDoubleBlockBuilder(positionCount)) {
             for (int p = 0; p < positionCount; p++) {
                 int group = selectedInPage.getInt(p);
                 var state = group < reducedStates.size() ? reducedStates.get(group) : null;
@@ -768,7 +750,8 @@ public final class RateIntGroupingAggregatorFunction extends AbstractRateGroupin
             return Double.NaN;
         }
         final double increase = lastValue - firstValue;
-        assert increase >= 0 : "increase must be non-negative, got " + lastValue + " - " + firstValue;
+        // Interpolation might introduce precision errors, so we try to account for that.
+        assert increase >= -0.00000000000001 : "increase must be non-negative, got " + lastValue + " - " + firstValue;
         return (isRateOverTime) ? increase / (lastTsSec - firstTsSec) : increase;
     }
 

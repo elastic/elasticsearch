@@ -1379,8 +1379,10 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         // (codec will be randomised by ESIntegTestCase.randomIndexTemplate if not explicitly set)
         Settings.Builder settingsBuilder = Settings.builder()
             .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
-            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "hostname")
-            .put(EngineConfig.INDEX_CODEC_SETTING.getKey(), randomValidCodec());
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "hostname");
+        if (randomBoolean()) {
+            settingsBuilder.put(EngineConfig.INDEX_CODEC_SETTING.getKey(), randomValidCodec());
+        }
         final var mapping = """
             {
                 "properties": {
@@ -1632,8 +1634,10 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
     ) throws IOException {
         final var settings = indexSettings(primaries, replicas).put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
             .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
-            .put(IndexSettings.SYNTHETIC_ID.getKey(), true)
-            .put(EngineConfig.INDEX_CODEC_SETTING.getKey(), randomValidCodec());
+            .put(IndexSettings.SYNTHETIC_ID.getKey(), true);
+        if (randomBoolean()) {
+            settings.put(EngineConfig.INDEX_CODEC_SETTING.getKey(), randomValidCodec());
+        }
         if (randomBoolean()) {
             settings.put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.SYNTHETIC);
             settings.put(IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE_SETTING.getKey(), randomBoolean());
@@ -1816,7 +1820,6 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
     }
 
     private static String randomValidCodec() {
-        // Also include null to exercise the default value for codec setting
-        return randomFrom(CodecService.DEFAULT_CODEC, CodecService.BEST_COMPRESSION_CODEC, null);
+        return randomFrom(CodecService.DEFAULT_CODEC, CodecService.BEST_COMPRESSION_CODEC);
     }
 }

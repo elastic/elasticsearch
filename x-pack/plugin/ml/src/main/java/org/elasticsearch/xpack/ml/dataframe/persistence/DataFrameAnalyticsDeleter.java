@@ -12,8 +12,8 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse;
-import org.elasticsearch.action.delete.DeleteAction;
 import org.elasticsearch.action.delete.DeleteRequest;
+import org.elasticsearch.action.delete.TransportDeleteAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -107,7 +107,7 @@ public class DataFrameAnalyticsDeleter {
         DeleteRequest deleteRequest = new DeleteRequest(MlConfigIndex.indexName());
         deleteRequest.id(DataFrameAnalyticsConfig.documentId(id));
         deleteRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-        executeAsyncWithOrigin(client, ML_ORIGIN, DeleteAction.INSTANCE, deleteRequest, ActionListener.wrap(deleteResponse -> {
+        executeAsyncWithOrigin(client, ML_ORIGIN, TransportDeleteAction.TYPE, deleteRequest, ActionListener.wrap(deleteResponse -> {
             if (deleteResponse.getResult() == DocWriteResponse.Result.NOT_FOUND) {
                 listener.onFailure(ExceptionsHelper.missingDataFrameAnalytics(id));
                 return;
@@ -126,14 +126,13 @@ public class DataFrameAnalyticsDeleter {
     }
 
     private void deleteState(DataFrameAnalyticsConfig config, TimeValue timeout, ActionListener<BulkByScrollResponse> listener) {
-        ActionListener<Boolean> deleteModelStateListener = ActionListener.wrap(
-            r -> executeDeleteByQuery(
+        ActionListener<Boolean> deleteModelStateListener = listener.delegateFailureAndWrap(
+            (l, r) -> executeDeleteByQuery(
                 AnomalyDetectorsIndex.jobStateIndexPattern(),
                 QueryBuilders.idsQuery().addIds(StoredProgress.documentId(config.getId())),
                 timeout,
-                listener
-            ),
-            listener::onFailure
+                l
+            )
         );
 
         deleteModelState(config, timeout, 1, deleteModelStateListener);
@@ -146,13 +145,18 @@ public class DataFrameAnalyticsDeleter {
         }
 
         IdsQueryBuilder query = QueryBuilders.idsQuery().addIds(config.getAnalysis().getStateDocIdPrefix(config.getId()) + docNum);
-        executeDeleteByQuery(AnomalyDetectorsIndex.jobStateIndexPattern(), query, timeout, ActionListener.wrap(response -> {
-            if (response.getDeleted() > 0) {
-                deleteModelState(config, timeout, docNum + 1, listener);
-                return;
-            }
-            listener.onResponse(true);
-        }, listener::onFailure));
+        executeDeleteByQuery(
+            AnomalyDetectorsIndex.jobStateIndexPattern(),
+            query,
+            timeout,
+            listener.delegateFailureAndWrap((l, response) -> {
+                if (response.getDeleted() > 0) {
+                    deleteModelState(config, timeout, docNum + 1, l);
+                    return;
+                }
+                l.onResponse(true);
+            })
+        );
     }
 
     private void deleteStats(String jobId, TimeValue timeout, ActionListener<BulkByScrollResponse> listener) {

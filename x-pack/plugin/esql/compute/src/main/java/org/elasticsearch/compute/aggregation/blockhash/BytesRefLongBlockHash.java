@@ -7,49 +7,54 @@
 
 package org.elasticsearch.compute.aggregation.blockhash;
 
-import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
-import org.elasticsearch.common.util.BytesRefHash;
-import org.elasticsearch.common.util.LongLongHash;
+import org.elasticsearch.common.util.BytesRefArray;
+import org.elasticsearch.common.util.LongLongHashTable;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.SeenGroupIds;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
-import org.elasticsearch.compute.data.IntArrayVector;
+import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
+import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.mvdedupe.IntLongBlockAdd;
+import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 
 /**
  * Maps a {@link LongBlock} column paired with a {@link BytesRefBlock} column to group ids.
  */
-final class BytesRefLongBlockHash extends BlockHash {
-    private final int channel1;
-    private final int channel2;
+public final class BytesRefLongBlockHash extends BlockHash {
+    private final int bytesChannel;
+    private final int longsChannel;
     private final boolean reverseOutput;
     private final int emitBatchSize;
-    private final BytesRefHash bytesHash;
-    private final LongLongHash finalHash;
+    private final BytesRefBlockHash bytesHash;
+    private final LongLongHashTable finalHash;
+    private long minLongKey = Long.MAX_VALUE;
+    private long maxLongKey = Long.MIN_VALUE;
 
-    BytesRefLongBlockHash(BigArrays bigArrays, int channel1, int channel2, boolean reverseOutput, int emitBatchSize) {
-        this.channel1 = channel1;
-        this.channel2 = channel2;
+    BytesRefLongBlockHash(BlockFactory blockFactory, int bytesChannel, int longsChannel, boolean reverseOutput, int emitBatchSize) {
+        super(blockFactory);
+        this.bytesChannel = bytesChannel;
+        this.longsChannel = longsChannel;
         this.reverseOutput = reverseOutput;
         this.emitBatchSize = emitBatchSize;
 
         boolean success = false;
-        BytesRefHash bytesHash = null;
-        LongLongHash longHash = null;
+        BytesRefBlockHash bytesHash = null;
         try {
-            bytesHash = new BytesRefHash(1, bigArrays);
-            longHash = new LongLongHash(1, bigArrays);
+            bytesHash = new BytesRefBlockHash(bytesChannel, blockFactory);
             this.bytesHash = bytesHash;
-            this.finalHash = longHash;
+            this.finalHash = HashImplFactory.newLongLongHash(blockFactory);
             success = true;
         } finally {
             if (success == false) {
@@ -65,117 +70,175 @@ final class BytesRefLongBlockHash extends BlockHash {
 
     @Override
     public void add(Page page, GroupingAggregatorFunction.AddInput addInput) {
-        BytesRefBlock block1 = page.getBlock(channel1);
-        LongBlock block2 = page.getBlock(channel2);
-        BytesRefVector vector1 = block1.asVector();
-        LongVector vector2 = block2.asVector();
-        if (vector1 != null && vector2 != null) {
-            addInput.add(0, add(vector1, vector2));
-        } else {
-            new AddBlock(block1, block2, addInput).add();
-        }
-    }
-
-    public IntVector add(BytesRefVector vector1, LongVector vector2) {
-        BytesRef scratch = new BytesRef();
-        int positions = vector1.getPositionCount();
-        final int[] ords = new int[positions];
-        for (int i = 0; i < positions; i++) {
-            long hash1 = hashOrdToGroup(bytesHash.add(vector1.getBytesRef(i, scratch)));
-            ords[i] = Math.toIntExact(hashOrdToGroup(finalHash.add(hash1, vector2.getLong(i))));
-        }
-        return new IntArrayVector(ords, positions);
-    }
-
-    private static final long[] EMPTY = new long[0];
-
-    private class AddBlock extends LongLongBlockHash.AbstractAddBlock {
-        private final BytesRefBlock block1;
-        private final LongBlock block2;
-
-        AddBlock(BytesRefBlock block1, LongBlock block2, GroupingAggregatorFunction.AddInput addInput) {
-            super(emitBatchSize, addInput);
-            this.block1 = block1;
-            this.block2 = block2;
-        }
-
-        void add() {
-            BytesRef scratch = new BytesRef();
-            int positions = block1.getPositionCount();
-            long[] seen1 = EMPTY;
-            long[] seen2 = EMPTY;
-            for (int p = 0; p < positions; p++) {
-                if (block1.isNull(p) || block2.isNull(p)) {
-                    ords.appendNull();
-                    addedValue(p);
-                    continue;
-                }
-                // TODO use MultivalueDedupe
-                int start1 = block1.getFirstValueIndex(p);
-                int start2 = block2.getFirstValueIndex(p);
-                int count1 = block1.getValueCount(p);
-                int count2 = block2.getValueCount(p);
-                if (count1 == 1 && count2 == 1) {
-                    long bytesOrd = hashOrdToGroup(bytesHash.add(block1.getBytesRef(start1, scratch)));
-                    ords.appendInt(Math.toIntExact(hashOrdToGroup(finalHash.add(bytesOrd, block2.getLong(start2)))));
-                    addedValue(p);
-                    continue;
-                }
-                int end = start1 + count1;
-                if (seen1.length < count1) {
-                    seen1 = new long[ArrayUtil.oversize(count1, Long.BYTES)];
-                }
-                int seenSize1 = 0;
-                for (int i = start1; i < end; i++) {
-                    long bytesOrd = bytesHash.add(block1.getBytesRef(i, scratch));
-                    if (bytesOrd < 0) { // already seen
-                        seenSize1 = LongLongBlockHash.add(seen1, seenSize1, -1 - bytesOrd);
-                    } else {
-                        seen1[seenSize1++] = bytesOrd;
-                    }
-                }
-                if (seen2.length < count2) {
-                    seen2 = new long[ArrayUtil.oversize(count2, Long.BYTES)];
-                }
-                int seenSize2 = 0;
-                end = start2 + count2;
-                for (int i = start2; i < end; i++) {
-                    seenSize2 = LongLongBlockHash.add(seen2, seenSize2, block2.getLong(i));
-                }
-                if (seenSize1 == 1 && seenSize2 == 1) {
-                    ords.appendInt(Math.toIntExact(hashOrdToGroup(finalHash.add(seen1[0], seen2[0]))));
-                    addedValue(p);
-                    continue;
-                }
-                ords.beginPositionEntry();
-                for (int s1 = 0; s1 < seenSize1; s1++) {
-                    for (int s2 = 0; s2 < seenSize2; s2++) {
-                        ords.appendInt(Math.toIntExact(hashOrdToGroup(finalHash.add(seen1[s1], seen2[s2]))));
-                        addedValueInMultivaluePosition(p);
-                    }
-                }
-                ords.endPositionEntry();
+        BytesRefBlock bytesBlock = page.getBlock(bytesChannel);
+        BytesRefVector bytesVector = bytesBlock.asVector();
+        if (bytesVector != null) {
+            try (IntVector bytesHashes = bytesHash.add(bytesVector)) {
+                add(page, bytesHashes, addInput);
             }
-            emitOrds();
+        } else {
+            try (IntBlock bytesHashes = bytesHash.add(bytesBlock)) {
+                add(bytesHashes, page.getBlock(longsChannel), addInput);
+            }
+        }
+    }
+
+    public void add(Page page, IntVector bytesHashes, GroupingAggregatorFunction.AddInput addInput) {
+        LongBlock longsBlock = page.getBlock(longsChannel);
+        LongVector longsVector = longsBlock.asVector();
+        if (longsVector != null) {
+            try (IntVector ords = add(bytesHashes, longsVector)) {
+                addInput.add(0, ords);
+            }
+        } else {
+            add(bytesHashes.asBlock(), longsBlock, addInput);
+        }
+    }
+
+    public void add(IntBlock bytesHashes, LongBlock longsBlock, GroupingAggregatorFunction.AddInput addInput) {
+        try (IntLongBlockAdd work = new IntLongBlockAdd(blockFactory, emitBatchSize, addInput, finalHash, bytesHashes, longsBlock)) {
+            work.add();
+        }
+    }
+
+    public IntVector add(IntVector bytesHashes, LongVector longsVector) {
+        int positions = bytesHashes.getPositionCount();
+        final int[] ords = new int[positions];
+        int lastByte = bytesHashes.getInt(0);
+        long lastLong = longsVector.getLong(0);
+        ords[0] = Math.toIntExact(hashOrdToGroup(addGroup(lastByte, lastLong)));
+        boolean constant = true;
+        if (bytesHashes.isConstant()) {
+            for (int i = 1; i < positions; i++) {
+                final long nextLong = longsVector.getLong(i);
+                if (nextLong == lastLong) {
+                    ords[i] = ords[i - 1];
+                } else {
+                    ords[i] = Math.toIntExact(hashOrdToGroup(addGroup(lastByte, nextLong)));
+                    lastLong = nextLong;
+                    constant = false;
+                }
+            }
+        } else {
+            for (int i = 1; i < positions; i++) {
+                final int nextByte = bytesHashes.getInt(i);
+                final long nextLong = longsVector.getLong(i);
+                if (nextByte == lastByte && nextLong == lastLong) {
+                    ords[i] = ords[i - 1];
+                } else {
+                    ords[i] = Math.toIntExact(hashOrdToGroup(addGroup(nextByte, nextLong)));
+                    lastByte = nextByte;
+                    lastLong = nextLong;
+                    constant = false;
+                }
+            }
+        }
+        if (constant) {
+            return blockFactory.newConstantIntVector(ords[0], positions);
+        } else {
+            return blockFactory.newIntArrayVector(ords, positions);
         }
     }
 
     @Override
-    public Block[] getKeys() {
-        int positions = (int) finalHash.size();
-        BytesRefVector.Builder keys1 = BytesRefVector.newVectorBuilder(positions);
-        LongVector.Builder keys2 = LongVector.newVectorBuilder(positions);
-        BytesRef scratch = new BytesRef();
-        for (long i = 0; i < positions; i++) {
-            keys2.appendLong(finalHash.getKey2(i));
-            long h1 = finalHash.getKey1(i);
-            keys1.appendBytesRef(bytesHash.get(h1, scratch));
+    public ReleasableIterator<IntBlock> lookup(Page page, ByteSizeValue targetBlockSize) {
+        throw new UnsupportedOperationException("TODO");
+    }
+
+    @Override
+    public Block[] getKeys(IntVector selected) {
+        BytesRefBlock k1 = null;
+        LongVector k2 = null;
+        int positions = selected.getPositionCount();
+        if (OrdinalBytesRefBlock.isDense(positions, bytesHash.hash.size())) {
+            try (var ordinals = blockFactory.newIntBlockBuilder(positions); var longs = blockFactory.newLongVectorBuilder(positions)) {
+                for (int i = 0; i < positions; i++) {
+                    int groupId = selected.getInt(i);
+                    long h1 = finalHash.getKey1(groupId);
+                    if (h1 == 0) {
+                        ordinals.appendNull();
+                    } else {
+                        ordinals.appendInt(Math.toIntExact(h1 - 1));
+                    }
+                    longs.appendLong(finalHash.getKey2(groupId));
+                }
+                BytesRefArray bytes = bytesHash.hash.getBytesRefs();
+                bytes.incRef();
+                BytesRefVector dict = null;
+
+                try {
+                    dict = blockFactory.newBytesRefArrayVector(bytes, Math.toIntExact(bytes.size()));
+                    bytes = null; // transfer ownership to dict
+                    k1 = new OrdinalBytesRefBlock(ordinals.build(), dict);
+                    dict = null;  // transfer ownership to k1
+                } finally {
+                    Releasables.closeExpectNoException(bytes, dict);
+                }
+                k2 = longs.build();
+            } finally {
+                if (k2 == null) {
+                    Releasables.closeExpectNoException(k1);
+                }
+            }
+        } else {
+            try (
+                BytesRefBlock.Builder keys1 = blockFactory.newBytesRefBlockBuilder(positions);
+                LongVector.Builder keys2 = blockFactory.newLongVectorBuilder(positions)
+            ) {
+                BytesRef scratch = new BytesRef();
+                for (int i = 0; i < positions; i++) {
+                    int groupId = selected.getInt(i);
+                    long h1 = finalHash.getKey1(groupId);
+                    if (h1 == 0) {
+                        keys1.appendNull();
+                    } else {
+                        keys1.appendBytesRef(bytesHash.hash.get(h1 - 1, scratch));
+                    }
+                    keys2.appendLong(finalHash.getKey2(groupId));
+                }
+                k1 = keys1.build();
+                k2 = keys2.build();
+            } finally {
+                if (k2 == null) {
+                    Releasables.closeExpectNoException(k1);
+                }
+            }
         }
         if (reverseOutput) {
-            return new Block[] { keys2.build().asBlock(), keys1.build().asBlock() };
+            return new Block[] { k2.asBlock(), k1 };
         } else {
-            return new Block[] { keys1.build().asBlock(), keys2.build().asBlock() };
+            return new Block[] { k1, k2.asBlock() };
         }
+    }
+
+    public long getBytesRefKeyFromGroup(long groupId) {
+        return finalHash.getKey1(groupId);
+    }
+
+    public long getLongKeyFromGroup(long groupId) {
+        return finalHash.getKey2(groupId);
+    }
+
+    public long getGroupId(long bytesKey, long longKey) {
+        return finalHash.find(bytesKey, longKey);
+    }
+
+    public long addGroup(long bytesKey, long longKey) {
+        minLongKey = Math.min(minLongKey, longKey);
+        maxLongKey = Math.min(maxLongKey, longKey);
+        return finalHash.add(bytesKey, longKey);
+    }
+
+    public long numGroups() {
+        return finalHash.size();
+    }
+
+    public long getMinLongKey() {
+        return minLongKey;
+    }
+
+    public long getMaxLongKey() {
+        return maxLongKey;
     }
 
     @Override
@@ -185,19 +248,24 @@ final class BytesRefLongBlockHash extends BlockHash {
 
     @Override
     public IntVector nonEmpty() {
-        return IntVector.range(0, Math.toIntExact(finalHash.size()));
+        return blockFactory.newIntRangeVector(0, Math.toIntExact(finalHash.size()));
+    }
+
+    @Override
+    public int numKeys() {
+        return Math.toIntExact(finalHash.size());
     }
 
     @Override
     public String toString() {
         return "BytesRefLongBlockHash{keys=[BytesRefKey[channel="
-            + channel1
+            + bytesChannel
             + "], LongKey[channel="
-            + channel2
+            + longsChannel
             + "]], entries="
             + finalHash.size()
             + ", size="
-            + bytesHash.ramBytesUsed()
+            + bytesHash.hash.ramBytesUsed()
             + "b}";
     }
 }

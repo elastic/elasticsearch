@@ -8,16 +8,17 @@
 package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.Blocked;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
+import org.elasticsearch.xpack.core.ml.job.config.JobUpdate;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
 import org.junit.After;
 
-import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -34,11 +35,19 @@ public class ResetJobIT extends MlNativeAutodetectIntegTestCase {
         cleanUp();
     }
 
-    public void testReset() throws IOException {
+    public void testReset() throws Exception {
+        testReset(false);
+    }
+
+    public void testReset_previousResetFailed() throws Exception {
+        testReset(true);
+    }
+
+    private void testReset(boolean previousResetFailed) throws Exception {
         TimeValue bucketSpan = TimeValue.timeValueMinutes(30);
         long startTime = 1514764800000L;
         final int bucketCount = 100;
-        Job.Builder job = createJob("test-reset", bucketSpan);
+        Job.Builder job = createJob("test-reset-" + previousResetFailed, bucketSpan);
 
         openJob(job.getId());
         postData(
@@ -53,6 +62,13 @@ public class ResetJobIT extends MlNativeAutodetectIntegTestCase {
 
         DataCounts dataCounts = getJobStats(job.getId()).get(0).getDataCounts();
         assertThat(dataCounts.getProcessedRecordCount(), greaterThan(0L));
+
+        if (previousResetFailed) {
+            JobUpdate jobUpdate = new JobUpdate.Builder(job.getId()).setBlocked(
+                new Blocked(Blocked.Reason.RESET, new TaskId(randomIdentifier(), randomInt()))
+            ).build();
+            updateJob(job.getId(), jobUpdate);
+        }
 
         resetJob(job.getId());
 

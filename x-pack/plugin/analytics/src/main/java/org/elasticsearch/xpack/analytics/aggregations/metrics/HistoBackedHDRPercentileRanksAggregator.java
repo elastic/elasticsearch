@@ -58,7 +58,7 @@ public class HistoBackedHDRPercentileRanksAggregator extends AbstractHistoBacked
         if (state == null) {
             return Double.NaN;
         } else {
-            return InternalHDRPercentileRanks.percentileRank(state, Double.valueOf(name));
+            return InternalHDRPercentileRanks.percentileRank(state, Double.parseDouble(name));
         }
     }
 }

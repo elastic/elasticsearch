@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.ccr;
 
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
-import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -75,7 +75,7 @@ public class FollowerFailOverIT extends CcrIntegTestCase {
                     }
                     if (frequently()) {
                         String id = Integer.toString(frequently() ? docID.incrementAndGet() : between(0, 10)); // sometimes update
-                        IndexResponse indexResponse = leaderClient().prepareIndex(leaderIndex)
+                        DocWriteResponse indexResponse = leaderClient().prepareIndex(leaderIndex)
                             .setId(id)
                             .setSource("{\"f\":" + id + "}", XContentType.JSON)
                             .get();
@@ -92,10 +92,10 @@ public class FollowerFailOverIT extends CcrIntegTestCase {
         availableDocs.release(between(100, 200));
         PutFollowAction.Request follow = putFollow(leaderIndex, followerIndex);
         follow.getParameters().setMaxReadRequestOperationCount(randomIntBetween(32, 2048));
-        follow.getParameters().setMaxReadRequestSize(new ByteSizeValue(randomIntBetween(1, 4096), ByteSizeUnit.KB));
+        follow.getParameters().setMaxReadRequestSize(ByteSizeValue.of(randomIntBetween(1, 4096), ByteSizeUnit.KB));
         follow.getParameters().setMaxOutstandingReadRequests(randomIntBetween(1, 10));
         follow.getParameters().setMaxWriteRequestOperationCount(randomIntBetween(32, 2048));
-        follow.getParameters().setMaxWriteRequestSize(new ByteSizeValue(randomIntBetween(1, 4096), ByteSizeUnit.KB));
+        follow.getParameters().setMaxWriteRequestSize(ByteSizeValue.of(randomIntBetween(1, 4096), ByteSizeUnit.KB));
         follow.getParameters().setMaxOutstandingWriteRequests(randomIntBetween(1, 10));
         logger.info("--> follow request {}", Strings.toString(follow));
         followerClient().execute(PutFollowAction.INSTANCE, follow).get();
@@ -142,7 +142,7 @@ public class FollowerFailOverIT extends CcrIntegTestCase {
                 }
                 Object[] args = new Object[] { counter++ };
                 final String source = Strings.format("{\"f\":%d}", args);
-                IndexResponse indexResp = leaderClient().prepareIndex("index1")
+                DocWriteResponse indexResp = leaderClient().prepareIndex("index1")
                     .setSource(source, XContentType.JSON)
                     .setTimeout(TimeValue.timeValueSeconds(1))
                     .get();
@@ -153,11 +153,12 @@ public class FollowerFailOverIT extends CcrIntegTestCase {
 
         PutFollowAction.Request followRequest = putFollow("index1", "index2");
         followRequest.getParameters().setMaxReadRequestOperationCount(randomIntBetween(32, 2048));
-        followRequest.getParameters().setMaxReadRequestSize(new ByteSizeValue(randomIntBetween(1, 4096), ByteSizeUnit.KB));
+        followRequest.getParameters().setMaxReadRequestSize(ByteSizeValue.of(randomIntBetween(1, 4096), ByteSizeUnit.KB));
         followRequest.getParameters().setMaxOutstandingReadRequests(randomIntBetween(1, 10));
         followRequest.getParameters().setMaxWriteRequestOperationCount(randomIntBetween(32, 2048));
-        followRequest.getParameters().setMaxWriteRequestSize(new ByteSizeValue(randomIntBetween(1, 4096), ByteSizeUnit.KB));
+        followRequest.getParameters().setMaxWriteRequestSize(ByteSizeValue.of(randomIntBetween(1, 4096), ByteSizeUnit.KB));
         followRequest.getParameters().setMaxOutstandingWriteRequests(randomIntBetween(1, 10));
+        followRequest.waitForActiveShards(ActiveShardCount.ALL);
         followerClient().execute(PutFollowAction.INSTANCE, followRequest).get();
         disableDelayedAllocation("index2");
         logger.info("--> follow request {}", Strings.toString(followRequest));
@@ -255,7 +256,6 @@ public class FollowerFailOverIT extends CcrIntegTestCase {
                         .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                         .put("index.routing.allocation.require.box", "large")
                 )
-                .get()
         );
         getFollowerCluster().startNode(
             onlyRoles(nodeAttributes, Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE))
@@ -270,13 +270,13 @@ public class FollowerFailOverIT extends CcrIntegTestCase {
         // have an older mapping version than the actual mapping version that IndexService will use to index "doc1".
         final CountDownLatch latch = new CountDownLatch(1);
         clusterService.addLowPriorityApplier(event -> {
-            IndexMetadata imd = event.state().metadata().index("leader-index");
+            IndexMetadata imd = event.state().metadata().getProject().index("leader-index");
             if (imd != null
                 && imd.mapping() != null
                 && XContentMapValues.extractValue("properties.balance.type", imd.mapping().sourceAsMap()) != null) {
                 try {
                     logger.info("--> block ClusterService from exposing new mapping version");
-                    latch.await();
+                    safeAwait(latch);
                 } catch (Exception e) {
                     throw new AssertionError(e);
                 }
@@ -291,7 +291,7 @@ public class FollowerFailOverIT extends CcrIntegTestCase {
                 assertNotNull(mapper);
                 assertNotNull(mapper.mappers().getMapper("balance"));
             });
-            IndexResponse indexResp = leaderCluster.client()
+            DocWriteResponse indexResp = leaderCluster.client()
                 .prepareIndex("leader-index")
                 .setId("1")
                 .setSource("{\"balance\": 100}", XContentType.JSON)

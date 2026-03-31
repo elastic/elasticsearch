@@ -7,20 +7,28 @@
 
 package org.elasticsearch.compute.data;
 
+// begin generated imports
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.ReleasableIterator;
+import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.ReleasableIterator;
+
+import java.util.Arrays;
+// end generated imports
 
 /**
  * Vector implementation that stores a constant long value.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-ConstantVector.java.st} instead.
  */
-public final class ConstantLongVector extends AbstractVector implements LongVector {
+final class ConstantLongVector extends AbstractVector implements LongVector {
 
-    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ConstantLongVector.class);
+    static final long RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ConstantLongVector.class);
 
     private final long value;
 
-    public ConstantLongVector(long value, int positionCount) {
-        super(positionCount);
+    ConstantLongVector(long value, int positionCount, BlockFactory blockFactory) {
+        super(positionCount, blockFactory);
         this.value = value;
     }
 
@@ -30,13 +38,75 @@ public final class ConstantLongVector extends AbstractVector implements LongVect
     }
 
     @Override
+    public void copyTo(int srcPosition, long[] dst, int dstPosition, int length) {
+        Arrays.fill(dst, dstPosition, dstPosition + length, value);
+    }
+
+    @Override
     public LongBlock asBlock() {
         return new LongVectorBlock(this);
     }
 
     @Override
-    public LongVector filter(int... positions) {
-        return new ConstantLongVector(value, positions.length);
+    public LongVector filter(boolean mayContainDuplicates, int... positions) {
+        return blockFactory().newConstantLongVector(value, positions.length);
+    }
+
+    @Override
+    public LongBlock keepMask(BooleanVector mask) {
+        if (getPositionCount() == 0) {
+            incRef();
+            return new LongVectorBlock(this);
+        }
+        if (mask.isConstant()) {
+            if (mask.getBoolean(0)) {
+                incRef();
+                return new LongVectorBlock(this);
+            }
+            return (LongBlock) blockFactory().newConstantNullBlock(getPositionCount());
+        }
+        try (LongBlock.Builder builder = blockFactory().newLongBlockBuilder(getPositionCount())) {
+            // TODO if X-ArrayBlock used BooleanVector for it's null mask then we could shuffle references here.
+            for (int p = 0; p < getPositionCount(); p++) {
+                if (mask.getBoolean(p)) {
+                    builder.appendLong(value);
+                } else {
+                    builder.appendNull();
+                }
+            }
+            return builder.build();
+        }
+    }
+
+    @Override
+    public ReleasableIterator<LongBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize) {
+        if (positions.getPositionCount() == 0) {
+            return ReleasableIterator.empty();
+        }
+        IntVector positionsVector = positions.asVector();
+        if (positionsVector == null) {
+            return new LongLookup(asBlock(), positions, targetBlockSize);
+        }
+        int min = positionsVector.min();
+        if (min < 0) {
+            throw new IllegalArgumentException("invalid position [" + min + "]");
+        }
+        if (min > getPositionCount()) {
+            return ReleasableIterator.single((LongBlock) positions.blockFactory().newConstantNullBlock(positions.getPositionCount()));
+        }
+        if (positionsVector.max() < getPositionCount()) {
+            return ReleasableIterator.single(positions.blockFactory().newConstantLongBlockWith(value, positions.getPositionCount()));
+        }
+        return new LongLookup(asBlock(), positions, targetBlockSize);
+    }
+
+    @Override
+    public LongVector slice(int beginInclusive, int endExclusive) {
+        if (beginInclusive == 0 && endExclusive == getPositionCount()) {
+            incRef();
+            return this;
+        }
+        return blockFactory().newConstantLongVector(value, endExclusive - beginInclusive);
     }
 
     @Override
@@ -50,8 +120,13 @@ public final class ConstantLongVector extends AbstractVector implements LongVect
     }
 
     @Override
+    public LongVector deepCopy(BlockFactory blockFactory) {
+        return blockFactory.newConstantLongVector(value, getPositionCount());
+    }
+
+    @Override
     public long ramBytesUsed() {
-        return BASE_RAM_BYTES_USED + RamUsageEstimator.shallowSizeOfInstance(long.class);
+        return RAM_BYTES_USED;
     }
 
     @Override
@@ -69,10 +144,5 @@ public final class ConstantLongVector extends AbstractVector implements LongVect
 
     public String toString() {
         return getClass().getSimpleName() + "[positions=" + getPositionCount() + ", value=" + value + ']';
-    }
-
-    @Override
-    public void close() {
-        // no-op
     }
 }

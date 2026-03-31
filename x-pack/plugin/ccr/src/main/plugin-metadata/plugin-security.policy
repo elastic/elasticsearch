@@ -1,4 +1,0 @@
-grant {
-  // needed for multiple server implementations used in tests
-  permission java.net.SocketPermission "*", "accept,connect";
-};

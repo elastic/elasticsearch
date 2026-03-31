@@ -21,7 +21,10 @@
 
 package org.elasticsearch.tdigest;
 
-import java.util.Collection;
+import org.apache.lucene.util.Accountable;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.tdigest.arrays.TDigestArrays;
+
 import java.util.Locale;
 
 /**
@@ -35,7 +38,7 @@ import java.util.Locale;
  * - test coverage roughly at 90%
  * - easy to adapt for use with map-reduce
  */
-public abstract class TDigest {
+public abstract class TDigest implements TDigestReadView, Releasable, Accountable {
     protected ScaleFunction scale = ScaleFunction.K_2;
     double min = Double.POSITIVE_INFINITY;
     double max = Double.NEGATIVE_INFINITY;
@@ -48,8 +51,8 @@ public abstract class TDigest {
      *                    The number of centroids retained will be a smallish (usually less than 10) multiple of this number.
      * @return the MergingDigest
      */
-    public static TDigest createMergingDigest(double compression) {
-        return new MergingDigest(compression);
+    public static MergingDigest createMergingDigest(TDigestArrays arrays, double compression) {
+        return MergingDigest.create(arrays, compression);
     }
 
     /**
@@ -61,8 +64,8 @@ public abstract class TDigest {
      *                    The number of centroids retained will be a smallish (usually less than 10) multiple of this number.
      * @return the AvlTreeDigest
      */
-    public static TDigest createAvlTreeDigest(double compression) {
-        return new AVLTreeDigest(compression);
+    public static AVLTreeDigest createAvlTreeDigest(TDigestArrays arrays, double compression) {
+        return AVLTreeDigest.create(arrays, compression);
     }
 
     /**
@@ -71,8 +74,8 @@ public abstract class TDigest {
      *
      * @return the SortingDigest
      */
-    public static TDigest createSortingDigest() {
-        return new SortingDigest();
+    public static SortingDigest createSortingDigest(TDigestArrays arrays) {
+        return SortingDigest.create(arrays);
     }
 
     /**
@@ -84,8 +87,8 @@ public abstract class TDigest {
      *                    The number of centroids retained will be a smallish (usually less than 10) multiple of this number.
      * @return the HybridDigest
      */
-    public static TDigest createHybridDigest(double compression) {
-        return new HybridDigest(compression);
+    public static HybridDigest createHybridDigest(TDigestArrays arrays, double compression) {
+        return HybridDigest.create(arrays, compression);
     }
 
     /**
@@ -105,7 +108,7 @@ public abstract class TDigest {
         add(x, 1);
     }
 
-    final void checkValue(double x) {
+    static void checkValue(double x) {
         if (Double.isNaN(x) || Double.isInfinite(x)) {
             throw new IllegalArgumentException("Invalid value: " + x);
         }
@@ -121,13 +124,6 @@ public abstract class TDigest {
      * This is a destructive operation that is not thread-safe.
      */
     public abstract void compress();
-
-    /**
-     * Returns the number of points that have been added to this TDigest.
-     *
-     * @return The sum of the weights on all centroids.
-     */
-    public abstract long size();
 
     /**
      * Returns the fraction of all points added which are &le; x. Points
@@ -147,14 +143,6 @@ public abstract class TDigest {
      * @return The smallest value x such that cdf(x) &ge; q
      */
     public abstract double quantile(double q);
-
-    /**
-     * A {@link Collection} that lets you go through the centroids in ascending order by mean.  Centroids
-     * returned will not be re-used, but may or may not share storage with this TDigest.
-     *
-     * @return The centroids in the form of a Collection.
-     */
-    public abstract Collection<Centroid> centroids();
 
     /**
      * Returns the current compression factor.
@@ -178,13 +166,11 @@ public abstract class TDigest {
     }
 
     /**
-     * Add all of the centroids of another TDigest to this one.
+     * Add all of the centroids of another digest to this one.
      *
-     * @param other The other TDigest
+     * @param other The other digest
      */
-    public abstract void add(TDigest other);
-
-    public abstract int centroidCount();
+    public abstract void add(TDigestReadView other);
 
     /**
      * Prepare internal structure for loading the requested number of samples.

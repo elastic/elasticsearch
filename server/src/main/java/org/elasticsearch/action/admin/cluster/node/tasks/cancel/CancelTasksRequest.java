@@ -1,21 +1,22 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.node.tasks.cancel;
 
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 
 import java.io.IOException;
-import java.util.Arrays;
 
 /**
  * A request to cancel tasks
@@ -24,6 +25,8 @@ public class CancelTasksRequest extends BaseTasksRequest<CancelTasksRequest> {
 
     public static final String DEFAULT_REASON = "by user request";
     public static final boolean DEFAULT_WAIT_FOR_COMPLETION = false;
+
+    private static final int MAX_DESCRIPTION_ITEMS = 10;
 
     private String reason = DEFAULT_REASON;
     private boolean waitForCompletion = DEFAULT_WAIT_FOR_COMPLETION;
@@ -77,17 +80,35 @@ public class CancelTasksRequest extends BaseTasksRequest<CancelTasksRequest> {
 
     @Override
     public String getDescription() {
-        return "reason["
-            + reason
-            + "], waitForCompletion["
-            + waitForCompletion
-            + "], targetTaskId["
-            + getTargetTaskId()
-            + "], targetParentTaskId["
-            + getTargetParentTaskId()
-            + "], nodes"
-            + Arrays.toString(getNodes())
-            + ", actions"
-            + Arrays.toString(getActions());
+        StringBuilder sb = new StringBuilder();
+
+        sb.append("reason[")
+            .append(reason)
+            .append("], waitForCompletion[")
+            .append(waitForCompletion)
+            .append("], targetTaskId[")
+            .append(getTargetTaskId())
+            .append("], targetParentTaskId[")
+            .append(getTargetParentTaskId())
+            .append("], nodes[");
+        appendBoundedArray(sb, getNodes());
+        sb.append(']');
+        sb.append(", actions[");
+        appendBoundedArray(sb, getActions());
+        sb.append(']');
+
+        return sb.toString();
+    }
+
+    private static void appendBoundedArray(StringBuilder sb, String[] values) {
+        if (values == null || values.length == 0) {
+            return;
+        }
+
+        var collector = new Strings.BoundedDelimitedStringCollector(sb, ", ", 1024);
+        for (String v : values) {
+            collector.appendItem(v);
+        }
+        collector.finish();
     }
 }

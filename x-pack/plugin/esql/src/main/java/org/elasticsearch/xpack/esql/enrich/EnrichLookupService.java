@@ -9,294 +9,239 @@ package org.elasticsearch.xpack.esql.enrich;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
-import org.elasticsearch.action.IndicesRequest;
-import org.elasticsearch.action.UnavailableShardsException;
-import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
-import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.GroupShardsIterator;
-import org.elasticsearch.cluster.routing.ShardIterator;
-import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BlockStreamInput;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.lucene.ValueSources;
-import org.elasticsearch.compute.lucene.ValuesSourceReaderOperator;
-import org.elasticsearch.compute.operator.Driver;
-import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.Operator;
-import org.elasticsearch.compute.operator.OutputOperator;
-import org.elasticsearch.compute.operator.ProjectOperator;
-import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.compute.operator.Warnings;
+import org.elasticsearch.compute.operator.lookup.LookupEnrichQueryGenerator;
+import org.elasticsearch.compute.operator.lookup.QueryList;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.RangeFieldMapper;
+import org.elasticsearch.index.mapper.RangeType;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.search.SearchService;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.search.internal.AliasFilter;
-import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.tasks.CancellableTask;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.transport.TransportChannel;
-import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
-import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ClientHelper;
+import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.security.SecurityContext;
+import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
+import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequest;
+import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
+import org.elasticsearch.xpack.core.security.support.Exceptions;
+import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
-import org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
-import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
-import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
-import org.elasticsearch.xpack.ql.expression.Alias;
-import org.elasticsearch.xpack.ql.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.BitSet;
 import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.concurrent.Executor;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Function;
-import java.util.stream.IntStream;
-
-import static org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry.PlanReader.readerFromPlanReader;
-import static org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry.PlanWriter.writerFromPlanWriter;
+import java.util.stream.Collectors;
 
 /**
- * {@link EnrichLookupService} performs enrich lookup for a given input page. The lookup process consists of three stages:
- * - Stage 1: Finding matching document IDs for the input page. This stage is done by the {@link EnrichQuerySourceOperator} or its variants.
- * The output page of this stage is represented as [DocVector, IntBlock: positions of the input terms].
- * <p>
- * - Stage 2: Extracting field values for the matched document IDs. The output page is represented as
- * [DocVector, IntBlock: positions, Block: field1, Block: field2,...].
- * <p>
- * - Stage 3: Combining the extracted values based on positions and filling nulls for positions without matches.
- * This is done by {@link MergePositionsOperator}. The output page is represented as [Block: field1, Block: field2,...].
- * <p>
- * The positionCount of the output page must be equal to the positionCount of the input page.
+ * {@link EnrichLookupService} performs enrich lookup for a given input page.
+ * See {@link AbstractLookupService} for how it works where it refers to this
+ * process as a {@code LEFT JOIN}. Which is mostly is.
  */
-public class EnrichLookupService {
+public class EnrichLookupService extends AbstractLookupService<EnrichLookupService.Request, EnrichLookupService.TransportRequest> {
     public static final String LOOKUP_ACTION_NAME = EsqlQueryAction.NAME + "/lookup";
-
-    private final ClusterService clusterService;
-    private final SearchService searchService;
-    private final TransportService transportService;
-    private final Executor executor;
-    private final BigArrays bigArrays;
 
     public EnrichLookupService(
         ClusterService clusterService,
-        SearchService searchService,
+        IndicesService indicesService,
+        LookupShardContextFactory lookupShardContextFactory,
         TransportService transportService,
-        BigArrays bigArrays
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        BigArrays bigArrays,
+        BlockFactory blockFactory,
+        ProjectResolver projectResolver,
+        PlannerSettings.Holder plannerSettings
     ) {
-        this.clusterService = clusterService;
-        this.searchService = searchService;
-        this.transportService = transportService;
-        this.executor = transportService.getThreadPool().executor(EsqlPlugin.ESQL_THREAD_POOL_NAME);
-        this.bigArrays = bigArrays;
-        transportService.registerRequestHandler(LOOKUP_ACTION_NAME, this.executor, LookupRequest::new, new TransportHandler());
+        super(
+            LOOKUP_ACTION_NAME,
+            clusterService,
+            indicesService,
+            lookupShardContextFactory,
+            transportService,
+            indexNameExpressionResolver,
+            bigArrays,
+            blockFactory,
+            true,
+            TransportRequest::readFrom,
+            projectResolver,
+            plannerSettings
+        );
     }
 
-    public void lookupAsync(
-        String sessionId,
-        CancellableTask parentTask,
-        String index,
-        String matchType,
-        String matchField,
-        List<NamedExpression> extractFields,
-        Page inputPage,
-        ActionListener<Page> listener
-    ) {
-        ClusterState clusterState = clusterService.state();
-        GroupShardsIterator<ShardIterator> shardIterators = clusterService.operationRouting()
-            .searchShards(clusterState, new String[] { index }, Map.of(), "_local");
-        if (shardIterators.size() != 1) {
-            listener.onFailure(new EsqlIllegalArgumentException("target index {} has more than one shard", index));
-            return;
-        }
-        ShardIterator shardIt = shardIterators.get(0);
-        ShardRouting shardRouting = shardIt.nextOrNull();
-        if (shardRouting == null) {
-            listener.onFailure(new UnavailableShardsException(shardIt.shardId(), "enrich index is not available"));
-            return;
-        }
-        DiscoveryNode targetNode = clusterState.nodes().get(shardRouting.currentNodeId());
-        LookupRequest lookupRequest = new LookupRequest(sessionId, shardIt.shardId(), matchType, matchField, inputPage, extractFields);
-        ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
-        listener = ContextPreservingActionListener.wrapPreservingContext(listener, threadContext);
-        try (ThreadContext.StoredContext ignored = threadContext.stashWithOrigin(ClientHelper.ENRICH_ORIGIN)) {
-            // TODO: handle retry and avoid forking for the local lookup
-            transportService.sendChildRequest(
-                targetNode,
-                LOOKUP_ACTION_NAME,
-                lookupRequest,
-                parentTask,
-                TransportRequestOptions.EMPTY,
-                new ActionListenerResponseHandler<>(listener.map(r -> r.page), LookupResponse::new, executor)
-            );
-        }
+    @Override
+    protected TransportRequest transportRequest(EnrichLookupService.Request request, ShardId shardId) {
+        return new TransportRequest(
+            request.sessionId,
+            shardId,
+            request.inputDataType,
+            request.matchType,
+            request.matchField,
+            request.inputPage,
+            null,
+            request.extractFields,
+            request.source
+        );
     }
 
-    private void doLookup(
-        String sessionId,
-        CancellableTask task,
-        ShardId shardId,
-        String matchType,
-        String matchField,
-        Page inputPage,
-        List<NamedExpression> extractFields,
-        ActionListener<Page> listener
+    @Override
+    protected LookupEnrichQueryGenerator queryList(
+        TransportRequest request,
+        SearchExecutionContext context,
+        AliasFilter aliasFilter,
+        Warnings warnings
     ) {
-        Block inputBlock = inputPage.getBlock(0);
-        if (inputBlock.areAllValuesNull()) {
-            listener.onResponse(createNullResponse(inputPage.getPositionCount(), extractFields));
-            return;
+        DataType inputDataType = request.inputDataType;
+        MappedFieldType fieldType = context.getFieldType(request.matchField);
+        validateTypes(inputDataType, fieldType);
+        int channelOffset = 0;
+        return switch (request.matchType) {
+            case "match", "range" -> termQueryList(fieldType, aliasFilter, channelOffset, inputDataType);
+            case "geo_match" -> QueryList.geoShapeQueryList(fieldType, aliasFilter, channelOffset);
+            default -> throw new EsqlIllegalArgumentException("illegal match type " + request.matchType);
+        };
+    }
+
+    @Override
+    protected LookupResponse createLookupResponse(List<Page> pages, BlockFactory blockFactory) {
+        if (pages.size() != 1) {
+            throw new UnsupportedOperationException("ENRICH always makes a single page of output");
         }
-        try {
-            ShardSearchRequest shardSearchRequest = new ShardSearchRequest(shardId, 0, AliasFilter.EMPTY);
-            SearchContext searchContext = searchService.createSearchContext(shardSearchRequest, SearchService.NO_TIMEOUT);
-            listener = ActionListener.runBefore(listener, searchContext::close);
-            SearchExecutionContext searchExecutionContext = searchContext.getSearchExecutionContext();
-            MappedFieldType fieldType = searchExecutionContext.getFieldType(matchField);
-            final SourceOperator queryOperator = switch (matchType) {
-                case "match", "range" -> {
-                    QueryList queryList = QueryList.termQueryList(fieldType, searchExecutionContext, inputBlock);
-                    yield new EnrichQuerySourceOperator(queryList, searchExecutionContext.getIndexReader());
-                }
-                default -> throw new EsqlIllegalArgumentException("illegal match type " + matchType);
-            };
-            List<Operator> intermediateOperators = new ArrayList<>(extractFields.size() + 2);
-            final ElementType[] mergingTypes = new ElementType[extractFields.size()];
-            // extract-field operators
-            for (int i = 0; i < extractFields.size(); i++) {
-                NamedExpression extractField = extractFields.get(i);
-                final ElementType elementType = LocalExecutionPlanner.toElementType(extractField.dataType());
-                mergingTypes[i] = elementType;
-                var sources = ValueSources.sources(
-                    List.of(searchContext),
-                    extractField instanceof Alias a ? ((NamedExpression) a.child()).name() : extractField.name(),
-                    EsqlDataTypes.isUnsupported(extractField.dataType()),
-                    elementType
+        return new LookupResponse(pages.getFirst(), blockFactory);
+    }
+
+    @Override
+    protected LookupResponse readLookupResponse(StreamInput in, BlockFactory blockFactory) throws IOException {
+        return new LookupResponse(in, blockFactory);
+    }
+
+    private static void validateTypes(@Nullable DataType inputDataType, MappedFieldType fieldType) {
+        if (fieldType instanceof RangeFieldMapper.RangeFieldType rangeType && inputDataType != null) {
+            // For range policy types, the ENRICH index field type will be one of a list of supported range types,
+            // which need to match the input data type (eg. ip-range -> ip, date-range -> date, etc.)
+            if (rangeTypesCompatible(rangeType.rangeType(), inputDataType) == false) {
+                throw new EsqlIllegalArgumentException(
+                    "ENRICH range and input types are incompatible: range[" + rangeType.rangeType() + "], input[" + inputDataType + "]"
                 );
-                intermediateOperators.add(new ValuesSourceReaderOperator(sources, 0, extractField.name()));
             }
-            // drop docs block
-            intermediateOperators.add(droppingBlockOperator(extractFields.size() + 2, 0));
-            boolean singleLeaf = searchContext.searcher().getLeafContexts().size() == 1;
-            // merging field-values by position
-            final int[] mergingChannels = IntStream.range(0, extractFields.size()).map(i -> i + 1).toArray();
-            intermediateOperators.add(
-                new MergePositionsOperator(singleLeaf, inputPage.getPositionCount(), 0, mergingChannels, mergingTypes)
-            );
-            AtomicReference<Page> result = new AtomicReference<>();
-            OutputOperator outputOperator = new OutputOperator(List.of(), Function.identity(), result::set);
-            Driver driver = new Driver(
-                "enrich-lookup:" + sessionId,
-                new DriverContext(bigArrays),
-                () -> lookupDescription(sessionId, shardId, matchType, matchField, extractFields, inputPage.getPositionCount()),
-                queryOperator,
-                intermediateOperators,
-                outputOperator,
-                Driver.DEFAULT_STATUS_INTERVAL,
-                searchContext
-            );
-            task.addListener(() -> {
-                String reason = Objects.requireNonNullElse(task.getReasonCancelled(), "task was cancelled");
-                driver.cancel(reason);
-            });
-            Driver.start(executor, driver, Driver.DEFAULT_MAX_ITERATIONS, listener.map(ignored -> {
-                Page out = result.get();
-                if (out == null) {
-                    out = createNullResponse(inputPage.getPositionCount(), extractFields);
-                }
-                return out;
-            }));
-        } catch (Exception e) {
-            listener.onFailure(e);
         }
+        // For match policies, the ENRICH index field will always be KEYWORD, and input type will be converted to KEYWORD.
+        // For geo_match, type validation is done earlier, in the Analyzer.
     }
 
-    private static Page createNullResponse(int positionCount, List<NamedExpression> extractFields) {
-        final Block[] blocks = new Block[extractFields.size()];
-        for (int i = 0; i < extractFields.size(); i++) {
-            blocks[i] = Block.constantNullBlock(positionCount);
+    private static boolean rangeTypesCompatible(RangeType rangeType, @Nullable DataType inputDataType) {
+        if (inputDataType.noText() == DataType.KEYWORD) {
+            // We allow runtime parsing of string types to numeric types
+            return true;
         }
-        return new Page(blocks);
+        return switch (rangeType) {
+            case INTEGER, LONG -> inputDataType.isWholeNumber();
+            case IP -> inputDataType == DataType.IP;
+            case DATE -> inputDataType.isDate();
+            default -> rangeType.isNumeric() == inputDataType.isNumeric();
+        };
     }
 
-    private static Operator droppingBlockOperator(int totalBlocks, int droppingPosition) {
-        BitSet bitSet = new BitSet(totalBlocks);
-        bitSet.set(0, totalBlocks);
-        bitSet.clear(droppingPosition);
-        return new ProjectOperator(bitSet);
-    }
-
-    private class TransportHandler implements TransportRequestHandler<LookupRequest> {
-        @Override
-        public void messageReceived(LookupRequest request, TransportChannel channel, Task task) {
-            ActionListener<LookupResponse> listener = new ChannelActionListener<>(channel);
-            doLookup(
-                request.sessionId,
-                (CancellableTask) task,
-                request.shardId,
-                request.matchType,
-                request.matchField,
-                request.inputPage,
-                request.extractFields,
-                listener.map(LookupResponse::new)
-            );
-        }
-    }
-
-    private static class LookupRequest extends TransportRequest implements IndicesRequest {
-        private final String sessionId;
-        private final ShardId shardId;
+    public static class Request extends AbstractLookupService.Request {
         private final String matchType;
         private final String matchField;
-        private final Page inputPage;
-        private final List<NamedExpression> extractFields;
 
-        LookupRequest(
+        Request(
             String sessionId,
-            ShardId shardId,
+            String index,
+            DataType inputDataType,
             String matchType,
             String matchField,
             Page inputPage,
-            List<NamedExpression> extractFields
+            List<NamedExpression> extractFields,
+            Source source
         ) {
-            this.sessionId = sessionId;
-            this.shardId = shardId;
+            super(sessionId, index, index, inputDataType, inputPage, extractFields, source);
             this.matchType = matchType;
             this.matchField = matchField;
-            this.inputPage = inputPage;
-            this.extractFields = extractFields;
+        }
+    }
+
+    protected static class TransportRequest extends AbstractLookupService.TransportRequest {
+        private final String matchType;
+        private final String matchField;
+        /**
+         * For mixed clusters with nodes &lt;8.14, this will be null.
+         */
+        @Nullable
+        final DataType inputDataType;
+
+        TransportRequest(
+            String sessionId,
+            ShardId shardId,
+            DataType inputDataType,
+            String matchType,
+            String matchField,
+            Page inputPage,
+            Page toRelease,
+            List<NamedExpression> extractFields,
+            Source source
+        ) {
+            super(sessionId, shardId, shardId.getIndexName(), inputPage, toRelease, extractFields, source);
+            this.matchType = matchType;
+            this.matchField = matchField;
+            this.inputDataType = inputDataType;
         }
 
-        LookupRequest(StreamInput in) throws IOException {
-            super(in);
-            this.sessionId = in.readString();
-            this.shardId = new ShardId(in);
-            this.matchType = in.readString();
-            this.matchField = in.readString();
-            this.inputPage = new Page(in);
-            PlanStreamInput planIn = new PlanStreamInput(in, PlanNameRegistry.INSTANCE, in.namedWriteableRegistry(), null);
-            this.extractFields = planIn.readCollectionAsList(readerFromPlanReader(PlanStreamInput::readNamedExpression));
+        static TransportRequest readFrom(StreamInput in, BlockFactory blockFactory) throws IOException {
+            TaskId parentTaskId = TaskId.readFromStream(in);
+            String sessionId = in.readString();
+            ShardId shardId = new ShardId(in);
+            DataType inputDataType = DataType.fromTypeName(in.readString());
+            String matchType = in.readString();
+            String matchField = in.readString();
+            Page inputPage;
+            try (BlockStreamInput bsi = new BlockStreamInput(in, blockFactory)) {
+                inputPage = new Page(bsi);
+            }
+            PlanStreamInput planIn = new PlanStreamInput(in, in.namedWriteableRegistry(), null);
+            List<NamedExpression> extractFields = planIn.readNamedWriteableCollectionAsList(NamedExpression.class);
+            var source = Source.readFrom(planIn);
+            TransportRequest result = new TransportRequest(
+                sessionId,
+                shardId,
+                inputDataType,
+                matchType,
+                matchField,
+                inputPage,
+                inputPage,
+                extractFields,
+                source
+            );
+            result.setParentTask(parentTaskId);
+            return result;
         }
 
         @Override
@@ -304,72 +249,125 @@ public class EnrichLookupService {
             super.writeTo(out);
             out.writeString(sessionId);
             out.writeWriteable(shardId);
+            out.writeString(inputDataType.typeName());
             out.writeString(matchType);
             out.writeString(matchField);
             out.writeWriteable(inputPage);
-            PlanStreamOutput planOut = new PlanStreamOutput(out, PlanNameRegistry.INSTANCE);
-            planOut.writeCollection(extractFields, writerFromPlanWriter(PlanStreamOutput::writeNamedExpression));
+            PlanStreamOutput planOut = new PlanStreamOutput(out, null);
+            planOut.writeNamedWriteableCollection(extractFields);
+            source.writeTo(planOut);
         }
 
         @Override
-        public String[] indices() {
-            return new String[] { shardId.getIndexName() };
-        }
-
-        @Override
-        public IndicesOptions indicesOptions() {
-            return IndicesOptions.strictSingleIndexNoExpandForbidClosed();
-        }
-
-        @Override
-        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-            return new CancellableTask(id, type, action, "", parentTaskId, headers) {
-                @Override
-                public String getDescription() {
-                    return lookupDescription(sessionId, shardId, matchType, matchField, extractFields, inputPage.getPositionCount());
-                }
-            };
+        protected String extraDescription() {
+            return " ,input_type=" + inputDataType + " ,match_type=" + matchType + " ,match_field=" + matchField;
         }
     }
 
-    private static String lookupDescription(
-        String sessionId,
-        ShardId shardId,
-        String matchType,
-        String matchField,
-        List<NamedExpression> extractFields,
-        int positionCount
-    ) {
-        return "ENRICH_LOOKUP("
-            + " session="
-            + sessionId
-            + " ,shard="
-            + shardId
-            + " ,match_type="
-            + matchType
-            + " ,match_field="
-            + matchField
-            + " ,extract_fields="
-            + extractFields
-            + " ,positions="
-            + positionCount
-            + ")";
-    }
+    private static class LookupResponse extends AbstractLookupService.LookupResponse {
+        private Page page;
 
-    private static class LookupResponse extends TransportResponse {
-        private final Page page;
-
-        LookupResponse(Page page) {
+        private LookupResponse(Page page, BlockFactory blockFactory) {
+            super(blockFactory);
             this.page = page;
         }
 
-        LookupResponse(StreamInput in) throws IOException {
-            this.page = new Page(in);
+        private LookupResponse(StreamInput in, BlockFactory blockFactory) throws IOException {
+            super(blockFactory);
+            try (BlockStreamInput bsi = new BlockStreamInput(in, blockFactory)) {
+                this.page = new Page(bsi);
+            }
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
+            long bytes = page.ramBytesUsedByBlocks();
+            blockFactory.breaker().addEstimateBytesAndMaybeBreak(bytes, "serialize enrich lookup response");
+            reservedBytes += bytes;
             page.writeTo(out);
         }
+
+        @Override
+        protected List<Page> takePages() {
+            var p = List.of(page);
+            page = null;
+            return p;
+        }
+
+        @Override
+        protected void innerRelease() {
+            if (page != null) {
+                Releasables.closeExpectNoException(page::releaseBlocks);
+            }
+        }
+    }
+
+    @Override
+    protected void sendChildRequest(
+        CancellableTask parentTask,
+        ActionListener<AbstractLookupService.LookupResponse> delegate,
+        DiscoveryNode targetNode,
+        TransportRequest transportRequest
+    ) {
+        ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
+        ActionListener<AbstractLookupService.LookupResponse> listener = ContextPreservingActionListener.wrapPreservingContext(
+            delegate,
+            threadContext
+        );
+        hasEnrichPrivilege(listener.delegateFailureAndWrap((l, ignored) -> {
+            // Since we just checked the needed privileges
+            // we can access the index regardless of the user/role that is executing the query
+            try (ThreadContext.StoredContext unused = threadContext.stashWithOrigin(ClientHelper.ENRICH_ORIGIN)) {
+                super.sendChildRequest(parentTask, l, targetNode, transportRequest);
+            }
+        }));
+    }
+
+    protected void hasEnrichPrivilege(ActionListener<Void> outListener) {
+        final Settings settings = clusterService.getSettings();
+        String privilegeName = ClusterPrivilegeResolver.MONITOR_ENRICH.name();
+        if (privilegeName == null
+            || settings.hasValue(XPackSettings.SECURITY_ENABLED.getKey()) == false
+            || XPackSettings.SECURITY_ENABLED.get(settings) == false) {
+            outListener.onResponse(null);
+            return;
+        }
+        final ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
+        final SecurityContext securityContext = new SecurityContext(Settings.EMPTY, threadContext);
+        final User user = securityContext.getUser();
+        if (user == null) {
+            outListener.onFailure(new IllegalStateException("missing or unable to read authentication info on request"));
+            return;
+        }
+        HasPrivilegesRequest request = new HasPrivilegesRequest();
+        request.username(user.principal());
+        request.clusterPrivileges(privilegeName);
+        request.indexPrivileges(new RoleDescriptor.IndicesPrivileges[0]);
+        request.applicationPrivileges(new RoleDescriptor.ApplicationResourcePrivileges[0]);
+        ActionListener<HasPrivilegesResponse> listener = outListener.delegateFailureAndWrap((l, resp) -> {
+            if (resp.isCompleteMatch()) {
+                l.onResponse(null);
+                return;
+            }
+            String detailed = resp.getClusterPrivileges()
+                .entrySet()
+                .stream()
+                .filter(e -> e.getValue() == false)
+                .map(e -> "privilege [" + e.getKey() + "] is missing")
+                .collect(Collectors.joining(", "));
+            String message = "user ["
+                + user.principal()
+                + "] doesn't have "
+                + "sufficient privileges to perform enrich lookup: "
+                + detailed;
+            l.onFailure(Exceptions.authorizationError(message));
+        });
+        transportService.sendRequest(
+            transportService.getLocalNode(),
+            HasPrivilegesAction.NAME,
+            request,
+            TransportRequestOptions.EMPTY,
+            new ActionListenerResponseHandler<>(listener, HasPrivilegesResponse::new, executor)
+        );
     }
 }

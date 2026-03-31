@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.gradle.util;
 
@@ -13,9 +14,6 @@ import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.UnknownTaskException;
 import org.gradle.api.artifacts.Configuration;
-import org.gradle.api.artifacts.Dependency;
-import org.gradle.api.artifacts.ModuleDependency;
-import org.gradle.api.artifacts.ProjectDependency;
 import org.gradle.api.plugins.JavaBasePlugin;
 import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.plugins.JavaPluginExtension;
@@ -34,7 +32,6 @@ import org.gradle.plugins.ide.idea.model.IdeaModel;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -50,7 +47,7 @@ public abstract class GradleUtils {
     }
 
     public static void maybeConfigure(TaskContainer tasks, String name, Action<? super Task> config) {
-        tasks.matching(t -> t.getName().equals(name)).configureEach(t -> config.execute(t));
+        tasks.matching(t -> t.getName().equals(name)).configureEach(config);
     }
 
     public static <T extends Task> void maybeConfigure(
@@ -59,7 +56,7 @@ public abstract class GradleUtils {
         Class<? extends T> type,
         Action<? super T> config
     ) {
-        tasks.withType(type).matching((Spec<T>) t -> t.getName().equals(name)).configureEach(task -> { config.execute(task); });
+        tasks.withType(type).matching((Spec<T>) t -> t.getName().equals(name)).configureEach(config);
     }
 
     public static TaskProvider<?> findByName(TaskContainer tasks, String name) {
@@ -183,37 +180,17 @@ public abstract class GradleUtils {
         }
     }
 
-    public static Dependency projectDependency(Project project, String projectPath, String projectConfig) {
-        if (project.findProject(projectPath) == null) {
-            throw new GradleException("no project [" + projectPath + "], project names: " + project.getRootProject().getAllprojects());
-        }
-        Map<String, Object> depConfig = new HashMap<>();
-        depConfig.put("path", projectPath);
-        depConfig.put("configuration", projectConfig);
-        return project.getDependencies().project(depConfig);
-    }
-
     /**
      * To calculate the project path from a task path without relying on Task#getProject() which is discouraged during
      * task execution time.
      */
     public static String getProjectPathFromTask(String taskPath) {
-        int lastDelimiterIndex = taskPath.lastIndexOf(":");
+        int lastDelimiterIndex = taskPath.lastIndexOf(':');
         return lastDelimiterIndex == 0 ? ":" : taskPath.substring(0, lastDelimiterIndex);
     }
 
     public static boolean isModuleProject(String projectPath) {
         return projectPath.contains("modules:") || projectPath.startsWith(":x-pack:plugin");
-    }
-
-    public static void disableTransitiveDependencies(Configuration config) {
-        config.getDependencies().all(dep -> {
-            if (dep instanceof ModuleDependency
-                && dep instanceof ProjectDependency == false
-                && dep.getGroup().startsWith("org.elasticsearch") == false) {
-                ((ModuleDependency) dep).setTransitive(false);
-            }
-        });
     }
 
     public static String projectPath(String taskPath) {
@@ -229,5 +206,46 @@ public abstract class GradleUtils {
      */
     public static boolean isIncludedBuild(Project project) {
         return project.getGradle().getParent() != null;
+    }
+
+    /**
+     * Actions we want to be able to retry. Mostly related to network operations that can fail transiently.
+     * @param runnable action to run
+     * */
+    public static void withRetries(Runnable runnable) {
+        withRetries(3, 10, runnable);
+    }
+
+    /**
+     * Actions we want to be able to retry. Mostly related to network operations that can fail transiently.
+     * @param gracePeriodInS initial wait time between retries, in seconds
+     * @param retries number of retries before giving up
+     * @param runnable action to run
+     * */
+    public static void withRetries(int retries, int gracePeriodInS, Runnable runnable) {
+        int delay = gracePeriodInS;
+        for (int attempt = 0; attempt <= retries; attempt++) {
+            try {
+                runnable.run();
+                return;
+            } catch (GradleException e) {
+                if (attempt == retries) {
+                    throw e;
+                }
+                System.out.println("Attempt " + (attempt + 1) + " failed, retrying in " + delay + " seconds...");
+                try {
+                    Thread.sleep(delay * 1000L);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    throw new RuntimeException("Retry interrupted", ie);
+                }
+                // After the first sleep, increase delay by 20 seconds once, then grow by gracePeriodInS each retry
+                if (attempt == 0) {
+                    delay = gracePeriodInS + 20;
+                } else {
+                    delay += gracePeriodInS;
+                }
+            }
+        }
     }
 }

@@ -7,21 +7,24 @@
 
 package org.elasticsearch.compute.data;
 
-import org.apache.lucene.util.RamUsageEstimator;
+// begin generated imports
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
+// end generated imports
 
 /**
- * Block view of a DoubleVector.
- * This class is generated. Do not edit it.
+ * Block view of a {@link DoubleVector}. Cannot represent multi-values or nulls.
+ * This class is generated. Edit {@code X-VectorBlock.java.st} instead.
  */
 public final class DoubleVectorBlock extends AbstractVectorBlock implements DoubleBlock {
 
-    private static final long RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(DoubleVectorBlock.class);
-
     private final DoubleVector vector;
 
+    /**
+     * @param vector considered owned by the current block; must not be used in any other {@code Block}
+     */
     DoubleVectorBlock(DoubleVector vector) {
-        super(vector.getPositionCount());
         this.vector = vector;
     }
 
@@ -36,7 +39,7 @@ public final class DoubleVectorBlock extends AbstractVectorBlock implements Doub
     }
 
     @Override
-    public int getTotalValueCount() {
+    public int getPositionCount() {
         return vector.getPositionCount();
     }
 
@@ -46,13 +49,39 @@ public final class DoubleVectorBlock extends AbstractVectorBlock implements Doub
     }
 
     @Override
-    public DoubleBlock filter(int... positions) {
-        return new FilterDoubleVector(vector, positions).asBlock();
+    public DoubleBlock slice(int beginInclusive, int endExclusive) {
+        return vector.slice(beginInclusive, endExclusive).asBlock();
+    }
+
+    @Override
+    public DoubleBlock filter(boolean mayContainDuplicates, int... positions) {
+        return vector.filter(mayContainDuplicates, positions).asBlock();
+    }
+
+    @Override
+    public DoubleBlock keepMask(BooleanVector mask) {
+        return vector.keepMask(mask);
+    }
+
+    @Override
+    public DoubleBlock deepCopy(BlockFactory blockFactory) {
+        return vector.deepCopy(blockFactory).asBlock();
+    }
+
+    @Override
+    public ReleasableIterator<? extends DoubleBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize) {
+        return vector.lookup(positions, targetBlockSize);
+    }
+
+    @Override
+    public DoubleBlock expand() {
+        incRef();
+        return this;
     }
 
     @Override
     public long ramBytesUsed() {
-        return RAM_BYTES_USED + RamUsageEstimator.sizeOf(vector);
+        return vector.ramBytesUsed();
     }
 
     @Override
@@ -74,7 +103,18 @@ public final class DoubleVectorBlock extends AbstractVectorBlock implements Doub
     }
 
     @Override
-    public void close() {
+    public void closeInternal() {
+        assert (vector.isReleased() == false) : "can't release block [" + this + "] containing already released vector";
         Releasables.closeExpectNoException(vector);
+    }
+
+    @Override
+    public void allowPassingToDifferentDriver() {
+        vector.allowPassingToDifferentDriver();
+    }
+
+    @Override
+    public BlockFactory blockFactory() {
+        return vector.blockFactory();
     }
 }

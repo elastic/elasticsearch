@@ -1,7 +1,6 @@
 setup:
   - skip:
-      version: "all"
-      reason: "my reason"
+      awaits_fix: "my reason"
 ---
 "Test without a setup":
   - do:

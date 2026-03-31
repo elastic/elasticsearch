@@ -30,7 +30,7 @@ import org.junit.Before;
 import java.io.IOException;
 
 /**
- * Tests doc-value-based searches against indices imported from clusters older than N-1.
+ * Tests doc-value-based searches against archive indices, imported from clusters older than N-2.
  * We reuse the YAML tests in search/390_doc_values_search.yml but have to do the setup
  * manually here as the setup is done on the old cluster for which we have to use the
  * low-level REST client instead of the YAML set up that only knows how to talk to

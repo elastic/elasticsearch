@@ -1,25 +1,29 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.bucket.prefix;
 
+import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CollectionUtil;
+import org.elasticsearch.common.util.IntArray;
+import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.search.aggregations.AggregationErrors;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.NonCollectingAggregator;
@@ -51,22 +55,6 @@ public final class IpPrefixAggregator extends BucketsAggregator {
             this.prefixLength = prefixLength;
             this.appendPrefixLength = appendPrefixLength;
             this.netmask = netmask;
-        }
-
-        public boolean isIpv6() {
-            return isIpv6;
-        }
-
-        public int getPrefixLength() {
-            return prefixLength;
-        }
-
-        public boolean appendPrefixLength() {
-            return appendPrefixLength;
-        }
-
-        public BytesRef getNetmask() {
-            return netmask;
         }
 
         @Override
@@ -114,119 +102,120 @@ public final class IpPrefixAggregator extends BucketsAggregator {
 
     @Override
     protected LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, LeafBucketCollector sub) throws IOException {
-        return new IpPrefixLeafCollector(sub, config.getValuesSource().bytesValues(aggCtx.getLeafReaderContext()), ipPrefix);
+        final SortedBinaryDocValues values = config.getValuesSource().bytesValues(aggCtx.getLeafReaderContext());
+        final BinaryDocValues singleton = FieldData.unwrapSingleton(values);
+        return singleton != null ? getLeafCollector(singleton, sub) : getLeafCollector(values, sub);
     }
 
-    private class IpPrefixLeafCollector extends LeafBucketCollectorBase {
-        private final IpPrefix ipPrefix;
-        private final LeafBucketCollector sub;
-        private final SortedBinaryDocValues values;
+    private LeafBucketCollector getLeafCollector(SortedBinaryDocValues values, LeafBucketCollector sub) {
 
-        IpPrefixLeafCollector(final LeafBucketCollector sub, final SortedBinaryDocValues values, final IpPrefix ipPrefix) {
-            super(sub, values);
-            this.sub = sub;
-            this.values = values;
-            this.ipPrefix = ipPrefix;
-        }
-
-        @Override
-        public void collect(int doc, long owningBucketOrd) throws IOException {
-            BytesRef previousSubnet = null;
-            BytesRef subnet = new BytesRef(new byte[ipPrefix.netmask.length]);
-            BytesRef ipAddress;
-            if (values.advanceExact(doc)) {
-                int valuesCount = values.docValueCount();
-
-                for (int i = 0; i < valuesCount; ++i) {
-                    ipAddress = values.nextValue();
-                    maskIpAddress(ipAddress, ipPrefix.netmask, subnet);
-                    if (previousSubnet != null && subnet.bytesEquals(previousSubnet)) {
-                        continue;
+        return new LeafBucketCollectorBase(sub, values) {
+            @Override
+            public void collect(int doc, long owningBucketOrd) throws IOException {
+                if (values.advanceExact(doc)) {
+                    BytesRef previousSubnet = null;
+                    for (int i = 0; i < values.docValueCount(); ++i) {
+                        final BytesRef subnet = new BytesRef(new byte[ipPrefix.netmask.length]);
+                        maskIpAddress(values.nextValue(), ipPrefix.netmask, subnet);
+                        if (previousSubnet != null && subnet.bytesEquals(previousSubnet)) {
+                            continue;
+                        }
+                        addBucketOrd(bucketOrds.add(owningBucketOrd, subnet), doc, sub);
+                        previousSubnet = subnet;
                     }
-                    long bucketOrd = bucketOrds.add(owningBucketOrd, subnet);
-                    if (bucketOrd < 0) {
-                        bucketOrd = -1 - bucketOrd;
-                        collectExistingBucket(sub, doc, bucketOrd);
-                    } else {
-                        collectBucket(sub, doc, bucketOrd);
-                    }
-                    previousSubnet = subnet;
                 }
             }
-        }
+        };
+    }
 
-        private static void maskIpAddress(final BytesRef ipAddress, final BytesRef subnetMask, final BytesRef subnet) {
-            assert ipAddress.length == 16 : "Invalid length for ip address [" + ipAddress.length + "] expected 16 bytes";
-            // NOTE: IPv4 addresses are encoded as 16-bytes. As a result, we use an
-            // offset (12) to apply the subnet to the last 4 bytes (byes 12, 13, 14, 15)
-            // if the subnet mask is just a 4-bytes subnet mask.
-            int offset = subnetMask.length == 4 ? 12 : 0;
-            for (int i = 0; i < subnetMask.length; ++i) {
-                subnet.bytes[i] = (byte) (ipAddress.bytes[i + offset] & subnetMask.bytes[i]);
+    private LeafBucketCollector getLeafCollector(BinaryDocValues values, LeafBucketCollector sub) {
+        final BytesRef subnet = new BytesRef(new byte[ipPrefix.netmask.length]);
+        return new LeafBucketCollectorBase(sub, values) {
+            @Override
+            public void collect(int doc, long owningBucketOrd) throws IOException {
+                if (values.advanceExact(doc)) {
+                    maskIpAddress(values.binaryValue(), ipPrefix.netmask, subnet);
+                    addBucketOrd(bucketOrds.add(owningBucketOrd, subnet), doc, sub);
+                }
             }
+        };
+    }
+
+    private void addBucketOrd(long bucketOrd, int doc, LeafBucketCollector sub) throws IOException {
+        if (bucketOrd < 0) {
+            bucketOrd = -1 - bucketOrd;
+            collectExistingBucket(sub, doc, bucketOrd);
+        } else {
+            collectBucket(sub, doc, bucketOrd);
+        }
+    }
+
+    private static void maskIpAddress(final BytesRef ipAddress, final BytesRef subnetMask, final BytesRef subnet) {
+        assert ipAddress.length == 16 : "Invalid length for ip address [" + ipAddress.length + "] expected 16 bytes";
+        // NOTE: IPv4 addresses are encoded as 16-bytes. As a result, we use an
+        // offset (12) to apply the subnet to the last 4 bytes (byes 12, 13, 14, 15)
+        // if the subnet mask is just a 4-bytes subnet mask.
+        int offset = subnetMask.length == 4 ? 12 : 0;
+        for (int i = 0; i < subnetMask.length; ++i) {
+            subnet.bytes[i] = (byte) (ipAddress.bytes[i + offset] & subnetMask.bytes[i]);
         }
     }
 
     @Override
-    public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
+    public InternalAggregation[] buildAggregations(LongArray owningBucketOrds) throws IOException {
         long totalOrdsToCollect = 0;
-        final int[] bucketsInOrd = new int[owningBucketOrds.length];
-        for (int ordIdx = 0; ordIdx < owningBucketOrds.length; ordIdx++) {
-            final long bucketCount = bucketOrds.bucketsInOrd(owningBucketOrds[ordIdx]);
-            bucketsInOrd[ordIdx] = (int) bucketCount;
-            totalOrdsToCollect += bucketCount;
-        }
-
-        long[] bucketOrdsToCollect = new long[(int) totalOrdsToCollect];
-        int b = 0;
-        for (long owningBucketOrd : owningBucketOrds) {
-            BytesKeyedBucketOrds.BucketOrdsEnum ordsEnum = bucketOrds.ordsEnum(owningBucketOrd);
-            while (ordsEnum.next()) {
-                bucketOrdsToCollect[b++] = ordsEnum.ord();
+        try (IntArray bucketsInOrd = bigArrays().newIntArray(owningBucketOrds.size())) {
+            for (long ordIdx = 0; ordIdx < owningBucketOrds.size(); ordIdx++) {
+                final long bucketCount = bucketOrds.bucketsInOrd(owningBucketOrds.get(ordIdx));
+                bucketsInOrd.set(ordIdx, (int) bucketCount);
+                totalOrdsToCollect += bucketCount;
             }
-        }
 
-        InternalAggregations[] subAggregationResults = buildSubAggsForBuckets(bucketOrdsToCollect);
-        InternalAggregation[] results = new InternalAggregation[owningBucketOrds.length];
-        b = 0;
-        for (int ordIdx = 0; ordIdx < owningBucketOrds.length; ordIdx++) {
-            List<InternalIpPrefix.Bucket> buckets = new ArrayList<>(bucketsInOrd[ordIdx]);
-            BytesKeyedBucketOrds.BucketOrdsEnum ordsEnum = bucketOrds.ordsEnum(owningBucketOrds[ordIdx]);
-            while (ordsEnum.next()) {
-                long ordinal = ordsEnum.ord();
-                if (bucketOrdsToCollect[b] != ordinal) {
-                    throw new AggregationExecutionException(
-                        "Iteration order of ["
-                            + bucketOrds
-                            + "] changed without mutating. ["
-                            + ordinal
-                            + "] should have been ["
-                            + bucketOrdsToCollect[b]
-                            + "]"
-                    );
+            try (LongArray bucketOrdsToCollect = bigArrays().newLongArray(totalOrdsToCollect)) {
+                int[] b = new int[] { 0 };
+                for (long i = 0; i < owningBucketOrds.size(); i++) {
+                    BytesKeyedBucketOrds.BucketOrdsEnum ordsEnum = bucketOrds.ordsEnum(owningBucketOrds.get(i));
+                    while (ordsEnum.next()) {
+                        bucketOrdsToCollect.set(b[0]++, ordsEnum.ord());
+                    }
                 }
-                BytesRef ipAddress = new BytesRef();
-                ordsEnum.readValue(ipAddress);
-                long docCount = bucketDocCount(ordinal);
-                buckets.add(
-                    new InternalIpPrefix.Bucket(
-                        config.format(),
-                        BytesRef.deepCopyOf(ipAddress),
-                        keyed,
-                        ipPrefix.isIpv6,
-                        ipPrefix.prefixLength,
-                        ipPrefix.appendPrefixLength,
-                        docCount,
-                        subAggregationResults[b++]
-                    )
-                );
 
-                // NOTE: the aggregator is expected to return sorted results
-                CollectionUtil.introSort(buckets, BucketOrder.key(true).comparator());
+                var subAggregationResults = buildSubAggsForBuckets(bucketOrdsToCollect);
+                b[0] = 0;
+                return buildAggregations(Math.toIntExact(owningBucketOrds.size()), ordIdx -> {
+                    List<InternalIpPrefix.Bucket> buckets = new ArrayList<>(bucketsInOrd.get(ordIdx));
+                    BytesKeyedBucketOrds.BucketOrdsEnum ordsEnum = bucketOrds.ordsEnum(owningBucketOrds.get(ordIdx));
+                    while (ordsEnum.next()) {
+                        long ordinal = ordsEnum.ord();
+                        if (bucketOrdsToCollect.get(b[0]) != ordinal) {
+                            throw AggregationErrors.iterationOrderChangedWithoutMutating(
+                                bucketOrds.toString(),
+                                ordinal,
+                                bucketOrdsToCollect.get(b[0])
+                            );
+                        }
+                        BytesRef ipAddress = new BytesRef();
+                        ordsEnum.readValue(ipAddress);
+                        long docCount = bucketDocCount(ordinal);
+                        checkRealMemoryCBForInternalBucket();
+                        buckets.add(
+                            new InternalIpPrefix.Bucket(
+                                BytesRef.deepCopyOf(ipAddress),
+                                ipPrefix.isIpv6,
+                                ipPrefix.prefixLength,
+                                ipPrefix.appendPrefixLength,
+                                docCount,
+                                subAggregationResults.apply(b[0]++)
+                            )
+                        );
+
+                        // NOTE: the aggregator is expected to return sorted results
+                        CollectionUtil.introSort(buckets, BucketOrder.key(true).comparator());
+                    }
+                    return new InternalIpPrefix(name, config.format(), keyed, minDocCount, buckets, metadata());
+                });
             }
-            results[ordIdx] = new InternalIpPrefix(name, config.format(), keyed, minDocCount, buckets, metadata());
         }
-        return results;
     }
 
     @Override

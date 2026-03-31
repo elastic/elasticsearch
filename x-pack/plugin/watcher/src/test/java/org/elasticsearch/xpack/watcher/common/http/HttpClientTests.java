@@ -500,6 +500,7 @@ public class HttpClientTests extends ESTestCase {
             .setBody("foo")
             .addHeader("foo", "bar")
             .addHeader("foo", "baz")
+            .addHeader("Foo", "bam")
             .addHeader("Content-Length", "3");
         webServer.enqueue(mockResponse);
 
@@ -509,7 +510,7 @@ public class HttpClientTests extends ESTestCase {
         assertThat(webServer.requests(), hasSize(1));
 
         assertThat(httpResponse.headers(), hasKey("foo"));
-        assertThat(httpResponse.headers().get("foo"), containsInAnyOrder("bar", "baz"));
+        assertThat(httpResponse.headers().get("foo"), containsInAnyOrder("bar", "baz", "bam"));
     }
 
     // finally fixing https://github.com/elastic/x-plugins/issues/1141 - yay! Fixed due to switching to apache http client internally!
@@ -565,7 +566,7 @@ public class HttpClientTests extends ESTestCase {
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody(data));
 
         Settings settings = Settings.builder()
-            .put(HttpSettings.MAX_HTTP_RESPONSE_SIZE.getKey(), new ByteSizeValue(randomBytesLength - 1, ByteSizeUnit.BYTES))
+            .put(HttpSettings.MAX_HTTP_RESPONSE_SIZE.getKey(), ByteSizeValue.of(randomBytesLength - 1, ByteSizeUnit.BYTES))
             .build();
 
         HttpRequest.Builder requestBuilder = HttpRequest.builder("localhost", webServer.getPort()).method(HttpMethod.GET).path("/");
@@ -577,7 +578,7 @@ public class HttpClientTests extends ESTestCase {
     }
 
     public void testThatGetRedirectIsFollowed() throws Exception {
-        String redirectUrl = "http://" + webServer.getHostName() + ":" + webServer.getPort() + "/foo";
+        String redirectUrl = "http://" + webServer.getHttpAddress() + "/foo";
         webServer.enqueue(new MockResponse().setResponseCode(302).addHeader("Location", redirectUrl));
         HttpMethod method = randomFrom(HttpMethod.GET, HttpMethod.HEAD);
 
@@ -600,7 +601,7 @@ public class HttpClientTests extends ESTestCase {
 
     // not allowed by RFC, only allowed for GET or HEAD
     public void testThatPostRedirectIsNotFollowed() throws Exception {
-        String redirectUrl = "http://" + webServer.getHostName() + ":" + webServer.getPort() + "/foo";
+        String redirectUrl = "http://" + webServer.getHttpAddress() + "/foo";
         webServer.enqueue(new MockResponse().setResponseCode(302).addHeader("Location", redirectUrl));
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody("shouldNeverBeRead"));
 
@@ -689,7 +690,7 @@ public class HttpClientTests extends ESTestCase {
     public void testThatWhiteListingWorksForRedirects() throws Exception {
         int numberOfRedirects = randomIntBetween(1, 10);
         for (int i = 0; i < numberOfRedirects; i++) {
-            String redirectUrl = "http://" + webServer.getHostName() + ":" + webServer.getPort() + "/redirect" + i;
+            String redirectUrl = "http://" + webServer.getHttpAddress() + "/redirect" + i;
             webServer.enqueue(new MockResponse().setResponseCode(302).addHeader("Location", redirectUrl));
         }
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody("shouldBeRead"));
@@ -845,6 +846,6 @@ public class HttpClientTests extends ESTestCase {
     }
 
     private String getWebserverUri() {
-        return Strings.format("http://%s:%s", webServer.getHostName(), webServer.getPort());
+        return Strings.format("http://%s", webServer.getHttpAddress());
     }
 }

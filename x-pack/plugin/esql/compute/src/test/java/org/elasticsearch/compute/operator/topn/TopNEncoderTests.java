@@ -12,9 +12,14 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
+import org.elasticsearch.geo.GeometryTestUtils;
+import org.elasticsearch.geo.ShapeTestUtils;
+import org.elasticsearch.geometry.Point;
+import org.elasticsearch.geometry.utils.WellKnownBinary;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.versionfield.Version;
 
+import java.nio.ByteOrder;
 import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -104,6 +109,11 @@ public class TopNEncoderTests extends ESTestCase {
         roundTripBytesRef(randomVersion().toBytesRef());
     }
 
+    public void testPointAsWKB() {
+        assumeTrue("unsupported", encoder == TopNEncoder.DEFAULT_UNSORTABLE);
+        roundTripBytesRef(randomPointAsWKB());
+    }
+
     public void testIp() {
         assumeTrue("unsupported", encoder == TopNEncoder.IP);
         roundTripBytesRef(new BytesRef(InetAddressPoint.encode(randomIp(randomBoolean()))));
@@ -111,9 +121,8 @@ public class TopNEncoderTests extends ESTestCase {
 
     private void roundTripBytesRef(BytesRef v) {
         BreakingBytesRefBuilder builder = ExtractorTests.nonBreakingBytesRefBuilder();
-        int reportedSize = encoder.encodeBytesRef(v, builder);
+        encoder.encodeBytesRef(v, builder);
         BytesRef encoded = builder.bytesRefView();
-        assertThat(encoded.length, equalTo(reportedSize));
         assertThat(encoder.decodeBytesRef(encoded, new BytesRef()), equalTo(v));
         assertThat(encoded.length, equalTo(0));
     }
@@ -127,5 +136,11 @@ public class TopNEncoderTests extends ESTestCase {
             case 3 -> TopNOperatorTests.randomVersion();
             default -> throw new IllegalArgumentException();
         };
+    }
+
+    static BytesRef randomPointAsWKB() {
+        Point point = randomBoolean() ? GeometryTestUtils.randomPoint() : ShapeTestUtils.randomPoint();
+        byte[] wkb = WellKnownBinary.toWKB(point, ByteOrder.LITTLE_ENDIAN);
+        return new BytesRef(wkb);
     }
 }

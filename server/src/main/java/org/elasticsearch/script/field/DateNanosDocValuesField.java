@@ -1,17 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.script.field;
 
-import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
+import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 
 import java.io.IOException;
 import java.time.ZoneOffset;
@@ -25,7 +26,7 @@ public class DateNanosDocValuesField extends AbstractScriptFieldFactory<ZonedDat
         DocValuesScriptFieldFactory,
         ScriptDocValues.Supplier<ZonedDateTime> {
 
-    protected final SortedNumericDocValues input;
+    protected final SortedNumericLongValues input;
     protected final String name;
 
     protected ZonedDateTime[] values = new ZonedDateTime[0];
@@ -33,7 +34,7 @@ public class DateNanosDocValuesField extends AbstractScriptFieldFactory<ZonedDat
 
     private ScriptDocValues.Dates dates = null;
 
-    public DateNanosDocValuesField(SortedNumericDocValues input, String name) {
+    public DateNanosDocValuesField(SortedNumericLongValues input, String name) {
         this.input = input;
         this.name = name;
     }

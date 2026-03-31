@@ -7,79 +7,232 @@
 
 package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 
-import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.xpack.esql.ExceptionUtils;
+import org.elasticsearch.xpack.esql.capabilities.ConfigurationAware;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 
+import java.io.IOException;
+import java.time.Duration;
+import java.time.Period;
+import java.time.ZoneId;
 import java.time.temporal.TemporalAmount;
-import java.util.function.Function;
-import java.util.function.Predicate;
+import java.util.Collection;
+import java.util.Objects;
 
-import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isDateTimeOrTemporal;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
+import static org.elasticsearch.xpack.esql.core.type.DataType.TIME_DURATION;
+import static org.elasticsearch.xpack.esql.core.type.DataType.isDateTimeOrNanosOrTemporal;
+import static org.elasticsearch.xpack.esql.core.type.DataType.isMillisOrNanos;
+import static org.elasticsearch.xpack.esql.core.type.DataType.isNull;
+import static org.elasticsearch.xpack.esql.core.type.DataType.isTemporalAmount;
 
-abstract class DateTimeArithmeticOperation extends EsqlArithmeticOperation {
-
+public abstract class DateTimeArithmeticOperation extends DenseVectorArithmeticOperation implements ConfigurationAware {
     /** Arithmetic (quad) function. */
     interface DatetimeArithmeticEvaluator {
-        ExpressionEvaluator apply(
+        ExpressionEvaluator.Factory apply(
             Source source,
-            ExpressionEvaluator expressionEvaluator,
+            ExpressionEvaluator.Factory expressionEvaluator,
             TemporalAmount temporalAmount,
-            DriverContext driverContext
+            ZoneId zoneId
         );
     }
 
-    private final DatetimeArithmeticEvaluator datetimes;
+    private final DatetimeArithmeticEvaluator millisEvaluator;
+    private final DatetimeArithmeticEvaluator nanosEvaluator;
 
     DateTimeArithmeticOperation(
         Source source,
         Expression left,
         Expression right,
         OperationSymbol op,
-        ArithmeticEvaluator ints,
-        ArithmeticEvaluator longs,
-        ArithmeticEvaluator ulongs,
-        ArithmeticEvaluator doubles,
-        DatetimeArithmeticEvaluator datetimes
+        BinaryEvaluator ints,
+        BinaryEvaluator longs,
+        BinaryEvaluator ulongs,
+        BinaryEvaluator doubles,
+        DenseVectorBinaryEvaluator denseVectors,
+        DatetimeArithmeticEvaluator millisEvaluator,
+        DatetimeArithmeticEvaluator nanosEvaluator
     ) {
-        super(source, left, right, op, ints, longs, ulongs, doubles);
-        this.datetimes = datetimes;
+        super(source, left, right, op, ints, longs, ulongs, doubles, denseVectors);
+        this.millisEvaluator = millisEvaluator;
+        this.nanosEvaluator = nanosEvaluator;
+    }
+
+    DateTimeArithmeticOperation(
+        StreamInput in,
+        OperationSymbol op,
+        BinaryEvaluator ints,
+        BinaryEvaluator longs,
+        BinaryEvaluator ulongs,
+        BinaryEvaluator doubles,
+        DenseVectorBinaryEvaluator denseVectors,
+        DatetimeArithmeticEvaluator millisEvaluator,
+        DatetimeArithmeticEvaluator nanosEvaluator
+    ) throws IOException {
+        super(in, op, ints, longs, ulongs, doubles, denseVectors);
+        this.millisEvaluator = millisEvaluator;
+        this.nanosEvaluator = nanosEvaluator;
     }
 
     @Override
-    protected TypeResolution resolveType() {
+    protected TypeResolution resolveInputType(Expression e, TypeResolutions.ParamOrdinal paramOrdinal) {
+        return TypeResolutions.isType(
+            e,
+            t -> t.isNumeric() || t == DENSE_VECTOR || DataType.isDateTimeOrNanosOrTemporal(t) || DataType.isNull(t),
+            sourceText(),
+            paramOrdinal,
+            "date_nanos",
+            "datetime",
+            "numeric",
+            "dense_vector"
+        );
+    }
+
+    @Override
+    protected TypeResolution checkCompatibility() {
         DataType leftType = left().dataType();
         DataType rightType = right().dataType();
-        // date math is only possible if one argument is a DATETIME and the other a (foldable) TemporalValue
-        if (isDateTimeOrTemporal(leftType) || isDateTimeOrTemporal(rightType)) {
-            if (argumentOfType(DataTypes::isDateTime) == null || argumentOfType(EsqlDataTypes::isTemporalAmount) == null) {
-                return new TypeResolution(
-                    format(null, "[{}] has arguments with incompatible types [{}] and [{}]", symbol(), leftType, rightType)
-                );
+
+        // Date math is only possible if either
+        // - one argument is a DATETIME and the other a (foldable) TemporalValue, or
+        // - both arguments are TemporalValues (so we can fold them), or
+        // - one argument is NULL and the other one a DATETIME.
+        if (isDateTimeOrNanosOrTemporal(leftType) || isDateTimeOrNanosOrTemporal(rightType)) {
+            if (isNull(leftType) || isNull(rightType)) {
+                return TypeResolution.TYPE_RESOLVED;
             }
-            return TypeResolution.TYPE_RESOLVED;
+            if ((isMillisOrNanos(leftType) && isTemporalAmount(rightType)) || (isTemporalAmount(leftType) && isMillisOrNanos(rightType))) {
+                return TypeResolution.TYPE_RESOLVED;
+            }
+            if (isTemporalAmount(leftType) && isTemporalAmount(rightType) && leftType == rightType) {
+                return TypeResolution.TYPE_RESOLVED;
+            }
+
+            return new TypeResolution(formatIncompatibleTypesMessage(symbol(), leftType, rightType));
         }
-        return super.resolveType();
+        return super.checkCompatibility();
+    }
+
+    /**
+     * Override this to allow processing literals of type {@link DataType#DATE_PERIOD} when folding constants.
+     * Used in {@link DateTimeArithmeticOperation#fold}.
+     * @param left the left period
+     * @param right the right period
+     * @return the result of the evaluation
+     */
+    abstract Period fold(Period left, Period right);
+
+    /**
+     * Override this to allow processing literals of type {@link DataType#TIME_DURATION} when folding constants.
+     * Used in {@link DateTimeArithmeticOperation#fold}.
+     * @param left the left duration
+     * @param right the right duration
+     * @return the result of the evaluation
+     */
+    abstract Duration fold(Duration left, Duration right);
+
+    @Override
+    public final Object fold(FoldContext ctx) {
+        DataType leftDataType = left().dataType();
+        DataType rightDataType = right().dataType();
+        if (leftDataType == DATE_PERIOD && rightDataType == DATE_PERIOD) {
+            // Both left and right expressions are temporal amounts; we can assume they are both foldable.
+            var l = left().fold(ctx);
+            var r = right().fold(ctx);
+            if (l instanceof Collection<?> || r instanceof Collection<?>) {
+                return null;
+            }
+            try {
+                return fold((Period) l, (Period) r);
+            } catch (ArithmeticException e) {
+                // Folding will be triggered before the plan is sent to the compute service, so we have to handle arithmetic exceptions
+                // manually and provide a user-friendly error message.
+                throw ExceptionUtils.math(source(), e);
+            }
+        }
+        if (leftDataType == TIME_DURATION && rightDataType == TIME_DURATION) {
+            // Both left and right expressions are temporal amounts; we can assume they are both foldable.
+            Duration l = (Duration) left().fold(ctx);
+            Duration r = (Duration) right().fold(ctx);
+            try {
+                return fold(l, r);
+            } catch (ArithmeticException e) {
+                // Folding will be triggered before the plan is sent to the compute service, so we have to handle arithmetic exceptions
+                // manually and provide a user-friendly error message.
+                throw ExceptionUtils.math(source(), e);
+            }
+        }
+        if (isNull(leftDataType) || isNull(rightDataType)) {
+            return null;
+        }
+        return super.fold(ctx);
     }
 
     @Override
-    public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
-        return dataType() == DataTypes.DATETIME
-            ? dvrCtx -> datetimes.apply(
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
+        ZoneId zoneId = configuration().zoneId();
+        if (dataType() == DATETIME) {
+            // One of the arguments has to be a datetime and the other a temporal amount.
+            Expression datetimeArgument;
+            Expression temporalAmountArgument;
+            if (left().dataType() == DATETIME) {
+                datetimeArgument = left();
+                temporalAmountArgument = right();
+            } else {
+                datetimeArgument = right();
+                temporalAmountArgument = left();
+            }
+
+            return millisEvaluator.apply(
                 source(),
-                toEvaluator.apply(argumentOfType(DataTypes::isDateTime)).get(dvrCtx),
-                (TemporalAmount) argumentOfType(EsqlDataTypes::isTemporalAmount).fold(),
-                dvrCtx
-            )
-            : super.toEvaluator(toEvaluator);
+                toEvaluator.apply(datetimeArgument),
+                (TemporalAmount) temporalAmountArgument.fold(toEvaluator.foldCtx()),
+                zoneId
+            );
+        } else if (dataType() == DATE_NANOS) {
+            // One of the arguments has to be a date_nanos and the other a temporal amount.
+            Expression dateNanosArgument;
+            Expression temporalAmountArgument;
+            if (left().dataType() == DATE_NANOS) {
+                dateNanosArgument = left();
+                temporalAmountArgument = right();
+            } else {
+                dateNanosArgument = right();
+                temporalAmountArgument = left();
+            }
+
+            return nanosEvaluator.apply(
+                source(),
+                toEvaluator.apply(dateNanosArgument),
+                (TemporalAmount) temporalAmountArgument.fold(toEvaluator.foldCtx()),
+                zoneId
+            );
+        } else {
+            return super.toEvaluator(toEvaluator);
+        }
     }
 
-    private Expression argumentOfType(Predicate<DataType> filter) {
-        return filter.test(left().dataType()) ? left() : filter.test(right().dataType()) ? right() : null;
+    @Override
+    public int hashCode() {
+        return Objects.hash(getClass(), children(), configuration());
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (super.equals(obj) == false) {
+            return false;
+        }
+        DateTimeArithmeticOperation other = (DateTimeArithmeticOperation) obj;
+
+        return configuration().equals(other.configuration());
     }
 }

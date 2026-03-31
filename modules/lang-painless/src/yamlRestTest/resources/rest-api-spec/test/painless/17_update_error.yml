@@ -1,7 +1,7 @@
 ---
 "Script errors contain position":
-  - skip:
-      version: " - 7.7.0"
+  - requires:
+      cluster_features: ["gte_v7.7.1"]
       reason: "position introduced in 7.7"
 
   - do:

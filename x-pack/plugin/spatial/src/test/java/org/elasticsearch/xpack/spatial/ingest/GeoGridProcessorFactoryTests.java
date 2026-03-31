@@ -30,7 +30,7 @@ public class GeoGridProcessorFactoryTests extends ESTestCase {
         config.put("field", "field1");
         config.put("tile_type", GeoGridProcessor.TileFieldType.GEOHASH.name());
         String processorTag = randomAlphaOfLength(10);
-        GeoGridProcessor processor = factory.create(null, processorTag, null, config);
+        GeoGridProcessor processor = factory.create(null, processorTag, null, config, null);
         assertThat(processor.getTag(), equalTo(processorTag));
         assertFields(processor, "field1", "field1");
         assertThat(processor.tileType(), equalTo(GeoGridProcessor.TileFieldType.GEOHASH));
@@ -42,7 +42,7 @@ public class GeoGridProcessorFactoryTests extends ESTestCase {
         config.put("field", "field1");
         config.put("tile_type", GeoGridProcessor.TileFieldType.GEOTILE.name());
         String processorTag = randomAlphaOfLength(10);
-        GeoGridProcessor processor = factory.create(null, processorTag, null, config);
+        GeoGridProcessor processor = factory.create(null, processorTag, null, config, null);
         assertThat(processor.getTag(), equalTo(processorTag));
         assertFields(processor, "field1", "field1");
         assertThat(processor.tileType(), equalTo(GeoGridProcessor.TileFieldType.GEOTILE));
@@ -54,7 +54,7 @@ public class GeoGridProcessorFactoryTests extends ESTestCase {
         config.put("field", "field1");
         config.put("tile_type", GeoGridProcessor.TileFieldType.GEOHEX.name());
         String processorTag = randomAlphaOfLength(10);
-        GeoGridProcessor processor = factory.create(null, processorTag, null, config);
+        GeoGridProcessor processor = factory.create(null, processorTag, null, config, null);
         assertThat(processor.getTag(), equalTo(processorTag));
         assertFields(processor, "field1", "field1");
         assertThat(processor.tileType(), equalTo(GeoGridProcessor.TileFieldType.GEOHEX));
@@ -69,7 +69,7 @@ public class GeoGridProcessorFactoryTests extends ESTestCase {
         String processorTag = randomAlphaOfLength(10);
         ElasticsearchParseException e = expectThrows(
             ElasticsearchParseException.class,
-            () -> factory.create(null, processorTag, null, config)
+            () -> factory.create(null, processorTag, null, config, null)
         );
         assertThat(e.getMessage(), equalTo("[target_format] illegal value [invalid], valid values are [WKT, GEOJSON]"));
     }
@@ -79,7 +79,7 @@ public class GeoGridProcessorFactoryTests extends ESTestCase {
         String processorTag = randomAlphaOfLength(10);
         ElasticsearchParseException e = expectThrows(
             ElasticsearchParseException.class,
-            () -> factory.create(null, processorTag, null, config)
+            () -> factory.create(null, processorTag, null, config, null)
         );
         assertThat(e.getMessage(), equalTo("[field] required property is missing"));
     }
@@ -91,7 +91,7 @@ public class GeoGridProcessorFactoryTests extends ESTestCase {
         config.put("tile_type", GeoGridProcessor.TileFieldType.GEOTILE.name());
         config.put("target_format", "wkt");
         String processorTag = randomAlphaOfLength(10);
-        GeoGridProcessor processor = factory.create(null, processorTag, null, config);
+        GeoGridProcessor processor = factory.create(null, processorTag, null, config, null);
         assertThat(processor.getTag(), equalTo(processorTag));
         assertFields(processor, "field1", "other");
         assertThat(processor.tileType(), equalTo(GeoGridProcessor.TileFieldType.GEOTILE));
@@ -104,7 +104,7 @@ public class GeoGridProcessorFactoryTests extends ESTestCase {
         config.put("tile_type", GeoGridProcessor.TileFieldType.GEOHEX.name());
         config.put("children_field", "children");
         String processorTag = randomAlphaOfLength(10);
-        GeoGridProcessor processor = factory.create(null, processorTag, null, config);
+        GeoGridProcessor processor = factory.create(null, processorTag, null, config, null);
         assertThat(processor.getTag(), equalTo(processorTag));
         assertFields(processor, "field1", "field1", "", "children", "", "");
         assertThat(processor.tileType(), equalTo(GeoGridProcessor.TileFieldType.GEOHEX));
@@ -121,7 +121,7 @@ public class GeoGridProcessorFactoryTests extends ESTestCase {
         config.put("precision_field", "precision");
         config.put("target_format", "wkt");
         String processorTag = randomAlphaOfLength(10);
-        GeoGridProcessor processor = factory.create(null, processorTag, null, config);
+        GeoGridProcessor processor = factory.create(null, processorTag, null, config, null);
         assertThat(processor.getTag(), equalTo(processorTag));
         assertFields(processor, "field1", "field1", "parent", "children", "nonChildren", "precision");
         assertThat(processor.tileType(), equalTo(GeoGridProcessor.TileFieldType.GEOHEX));
@@ -134,7 +134,7 @@ public class GeoGridProcessorFactoryTests extends ESTestCase {
         String processorTag = randomAlphaOfLength(10);
         ElasticsearchParseException e = expectThrows(
             ElasticsearchParseException.class,
-            () -> factory.create(null, processorTag, null, config)
+            () -> factory.create(null, processorTag, null, config, null)
         );
         assertThat(e.getMessage(), equalTo("[tile_type] required property is missing"));
     }
@@ -146,7 +146,7 @@ public class GeoGridProcessorFactoryTests extends ESTestCase {
         String processorTag = randomAlphaOfLength(10);
         ElasticsearchParseException e = expectThrows(
             ElasticsearchParseException.class,
-            () -> factory.create(null, processorTag, null, config)
+            () -> factory.create(null, processorTag, null, config, null)
         );
         assertThat(e.getMessage(), equalTo("[tile_type] illegal value [super_tiles], valid values are [GEOHASH, GEOTILE, GEOHEX]"));
     }

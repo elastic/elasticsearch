@@ -1,0 +1,5 @@
+pr: 140150
+summary: Allow allocation to replacement target node on vacate completion
+area: Allocation
+type: bug
+issues: []

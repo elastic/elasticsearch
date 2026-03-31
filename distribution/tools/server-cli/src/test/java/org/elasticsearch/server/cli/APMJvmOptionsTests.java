@@ -1,15 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.server.cli;
 
 import org.elasticsearch.cli.UserException;
+import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
@@ -17,11 +21,17 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Properties;
 
+import static org.elasticsearch.telemetry.TelemetryProvider.OTEL_METRICS_ENABLED_SYSTEM_PROPERTY;
+import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.endsWith;
@@ -33,21 +43,24 @@ import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 
-@ESTestCase.WithoutSecurityManager
 public class APMJvmOptionsTests extends ESTestCase {
 
     private Path installDir;
     private Path agentPath;
+    private String otelMetricsEnabled;
 
     @Before
     public void setup() throws IOException, UserException {
+        otelMetricsEnabled = System.getProperty(OTEL_METRICS_ENABLED_SYSTEM_PROPERTY);
         installDir = makeFakeAgentJar();
         agentPath = APMJvmOptions.findAgentJar(installDir.toAbsolutePath().toString());
+        clearSystemProperty(OTEL_METRICS_ENABLED_SYSTEM_PROPERTY);
     }
 
     @After
     public void cleanup() throws IOException {
         Files.delete(agentPath);
+        restoreSystemProperty(otelMetricsEnabled, OTEL_METRICS_ENABLED_SYSTEM_PROPERTY);
     }
 
     public void testFindJar() throws IOException {
@@ -73,17 +86,34 @@ public class APMJvmOptionsTests extends ESTestCase {
         assertFalse(Files.exists(tempFile));
     }
 
+    public void testExtractSecureSettings() {
+        MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString("telemetry.secret_token", "token");
+        secureSettings.setString("telemetry.api_key", "key");
+
+        Map<String, String> propertiesMap = new HashMap<>();
+        APMJvmOptions.extractSecureSettings(secureSettings, propertiesMap);
+
+        assertThat(propertiesMap, matchesMap(Map.of("secret_token", "token", "api_key", "key")));
+    }
+
     public void testExtractSettings() throws UserException {
-        Settings settings = Settings.builder()
-            .put("tracing.apm.enabled", true)
-            .put("tracing.apm.agent.server_url", "https://myurl:443")
-            .put("tracing.apm.agent.service_node_name", "instance-0000000001")
-            .put("tracing.apm.agent.global_labels.deployment_id", "123")
-            .put("tracing.apm.agent.global_labels.deployment_name", "APM Tracing")
-            .put("tracing.apm.agent.global_labels.organization_id", "456")
+        Settings defaults = Settings.builder()
+            .put("telemetry.agent.server_url", "https://myurl:443")
+            .put("telemetry.agent.service_node_name", "instance-0000000001")
             .build();
 
-        var extracted = APMJvmOptions.extractApmSettings(settings);
+        var name = "APM Tracing";
+        var deploy = "123";
+        var org = "456";
+        var extracted = APMJvmOptions.extractApmSettings(
+            Settings.builder()
+                .put(defaults)
+                .put("telemetry.agent.global_labels.deployment_name", name)
+                .put("telemetry.agent.global_labels.deployment_id", deploy)
+                .put("telemetry.agent.global_labels.organization_id", org)
+                .build()
+        );
 
         assertThat(
             extracted,
@@ -96,33 +126,114 @@ public class APMJvmOptionsTests extends ESTestCase {
         );
 
         List<String> labels = Arrays.stream(extracted.get("global_labels").split(",")).toList();
-
         assertThat(labels, hasSize(3));
-        assertThat(labels, containsInAnyOrder("deployment_name=APM Tracing", "organization_id=456", "deployment_id=123"));
+        assertThat(labels, containsInAnyOrder("deployment_name=APM Tracing", "organization_id=" + org, "deployment_id=" + deploy));
 
-        settings = Settings.builder()
-            .put("tracing.apm.enabled", true)
-            .put("tracing.apm.agent.server_url", "https://myurl:443")
-            .put("tracing.apm.agent.service_node_name", "instance-0000000001")
-            .put("tracing.apm.agent.global_labels.deployment_id", "")
-            .put("tracing.apm.agent.global_labels.deployment_name", "APM=Tracing")
-            .put("tracing.apm.agent.global_labels.organization_id", ",456")
-            .build();
-
-        extracted = APMJvmOptions.extractApmSettings(settings);
-
+        // test replacing with underscores and skipping empty
+        name = "APM=Tracing";
+        deploy = "";
+        org = ",456";
+        extracted = APMJvmOptions.extractApmSettings(
+            Settings.builder()
+                .put(defaults)
+                .put("telemetry.agent.global_labels.deployment_name", name)
+                .put("telemetry.agent.global_labels.deployment_id", deploy)
+                .put("telemetry.agent.global_labels.organization_id", org)
+                .build()
+        );
         labels = Arrays.stream(extracted.get("global_labels").split(",")).toList();
         assertThat(labels, hasSize(2));
         assertThat(labels, containsInAnyOrder("deployment_name=APM_Tracing", "organization_id=_456"));
+    }
+
+    public void testAPMAgentAlwaysAttached() throws Exception {
+        Path tempDir = createTempDir();
+        List<String> options = APMJvmOptions.apmJvmOptions(
+            Settings.builder()
+                .put("telemetry.tracing.enabled", false)
+                .put("telemetry.metrics.enabled", false)
+                .put("telemetry.agent.server_url", "https://myurl:443")
+                .build(),
+            null,
+            createTempDir(),
+            tempDir,
+            installDir.toAbsolutePath().toString()
+        );
+
+        assertFalse(options.isEmpty());
+
+        Properties properties = extractProperties(options);
+        assertThat(properties.getProperty("metrics_interval"), equalTo("120s"));
+        assertNull(properties.getProperty("disable_metrics"));
+    }
+
+    public void testAPMAgentMetricsDisabledWhenOtelMetricsEnabled() throws Exception {
+        setSystemProperty(OTEL_METRICS_ENABLED_SYSTEM_PROPERTY, "true");
+        Path tempDir = createTempDir();
+        List<String> options = APMJvmOptions.apmJvmOptions(
+            Settings.builder().put("telemetry.agent.server_url", "https://myurl:443").build(),
+            null,
+            createTempDir(),
+            tempDir,
+            installDir.toAbsolutePath().toString()
+        );
+
+        assertFalse(options.isEmpty());
+
+        Properties properties = extractProperties(options);
+        assertThat(properties.getProperty("metrics_interval"), equalTo("0s"));
+        assertThat(properties.getProperty("disable_metrics"), equalTo("*"));
+    }
+
+    private static Properties extractProperties(List<String> options) throws IOException {
+        Path configPath = findApmConfigPath(options);
+        Properties properties = new Properties();
+        try (InputStream inputStream = Files.newInputStream(configPath)) {
+            properties.load(inputStream);
+        }
+        return properties;
+    }
+
+    private static Path findApmConfigPath(List<String> options) {
+        for (String inputArgument : options) {
+            if (inputArgument.startsWith("-javaagent:")) {
+                int configIndex = inputArgument.lastIndexOf("=c=");
+                if (configIndex > 0) {
+                    final Path apmConfig = PathUtils.get(inputArgument.substring(configIndex + 3));
+                    if (Files.isRegularFile(apmConfig) && apmConfig.getFileName().toString().matches(Node.APM_PROPFILE_REGEX)) {
+                        return apmConfig;
+                    }
+                }
+            }
+        }
+        throw new AssertionError("Expected temp APM config file. Options were: " + options);
     }
 
     private Path makeFakeAgentJar() throws IOException {
         Path tempFile = createTempFile();
         Path apmPathDir = tempFile.getParent().resolve("modules").resolve("apm");
         Files.createDirectories(apmPathDir);
-        Path apmAgentFile = apmPathDir.resolve("elastic-apm-agent-0.0.0.jar");
+        Path apmAgentFile = apmPathDir.resolve("elastic-apm-agent-java8-0.0.0.jar");
         Files.move(tempFile, apmAgentFile);
 
         return tempFile.getParent();
+    }
+
+    @SuppressForbidden(reason = "sets system property for test scenario")
+    private static void setSystemProperty(String key, String value) {
+        System.setProperty(key, value);
+    }
+
+    @SuppressForbidden(reason = "clears system property for test setup/teardown")
+    private static void clearSystemProperty(String key) {
+        System.clearProperty(key);
+    }
+
+    private static void restoreSystemProperty(String value, String key) {
+        if (value == null) {
+            clearSystemProperty(key);
+        } else {
+            setSystemProperty(key, value);
+        }
     }
 }

@@ -1,5 +1,0 @@
-pr: 99286
-summary: "ESQL: Log execution time consistently"
-area: ES|QL
-type: enhancement
-issues: []

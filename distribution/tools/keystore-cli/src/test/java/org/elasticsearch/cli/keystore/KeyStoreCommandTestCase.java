@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cli.keystore;
@@ -76,11 +77,11 @@ public abstract class KeyStoreCommandTestCase extends CommandTestCase {
     }
 
     void saveKeystore(KeyStoreWrapper keystore, String password) throws Exception {
-        keystore.save(env.configFile(), password.toCharArray());
+        keystore.save(env.configDir(), password.toCharArray());
     }
 
     KeyStoreWrapper loadKeystore(String password) throws Exception {
-        KeyStoreWrapper keystore = KeyStoreWrapper.load(env.configFile());
+        KeyStoreWrapper keystore = KeyStoreWrapper.load(env.configDir());
         keystore.decrypt(password.toCharArray());
         return keystore;
     }

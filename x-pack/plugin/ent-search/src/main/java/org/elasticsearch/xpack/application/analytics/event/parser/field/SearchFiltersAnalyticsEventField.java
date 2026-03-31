@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.application.analytics.event.parser.field;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
@@ -18,8 +19,13 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * @deprecated in 9.0
+ */
+@Deprecated
+@UpdateForV10(owner = UpdateForV10.Owner.ENTERPRISE_SEARCH)
 public class SearchFiltersAnalyticsEventField {
-    public static ParseField SEARCH_FILTERS_FIELD = new ParseField("filters");
+    public static final ParseField SEARCH_FILTERS_FIELD = new ParseField("filters");
 
     private static final ObjectParser<Map<String, List<String>>, AnalyticsEvent.Context> PARSER = new ObjectParser<>(
         SEARCH_FILTERS_FIELD.getPreferredName(),

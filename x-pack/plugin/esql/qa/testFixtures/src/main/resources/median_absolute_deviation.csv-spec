@@ -1,0 +1,41 @@
+medianAbsoluteDeviation
+// tag::median-absolute-deviation[]
+FROM employees
+| STATS MEDIAN(salary), MEDIAN_ABSOLUTE_DEVIATION(salary)
+// end::median-absolute-deviation[]
+;
+
+// tag::median-absolute-deviation-result[]
+MEDIAN(salary):double | MEDIAN_ABSOLUTE_DEVIATION(salary):double
+47003                 | 10096.5
+// end::median-absolute-deviation-result[]
+;
+
+medianAbsoluteDeviationFold
+required_capability: fn_mv_median_absolute_deviation
+ROW x = [0, 2, 5, 6]
+| STATS
+    int_constant = MEDIAN_ABSOLUTE_DEVIATION([0, 2, 5, 6]::integer),
+    int_var = MEDIAN_ABSOLUTE_DEVIATION(x::integer),
+    long_constant = MEDIAN_ABSOLUTE_DEVIATION([0, 2, 5, 6]::long),
+    long_var = MEDIAN_ABSOLUTE_DEVIATION(x::long),
+    double_constant = MEDIAN_ABSOLUTE_DEVIATION([0, 2, 5, 6]::double),
+    double_var = MEDIAN_ABSOLUTE_DEVIATION(x::double)
+;
+
+int_constant:double | int_var:double | long_constant:double | long_var:double | double_constant:double | double_var:double
+2                   | 2              | 2                    | 2               | 2                      | 2
+;
+
+docsStatsMADNestedExpression#[skip:-8.12.99,reason:supported in 8.13+]
+// tag::docsStatsMADNestedExpression[]
+FROM employees
+| STATS m_a_d_max_salary_change = MEDIAN_ABSOLUTE_DEVIATION(MV_MAX(salary_change))
+// end::docsStatsMADNestedExpression[]
+;
+
+// tag::docsStatsMADNestedExpression-result[]
+m_a_d_max_salary_change:double
+5.69
+// end::docsStatsMADNestedExpression-result[]
+;

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.metadata;
@@ -32,7 +33,7 @@ import java.util.Set;
 
 import static java.util.Collections.emptySet;
 
-public class AliasMetadata implements SimpleDiffable<AliasMetadata>, ToXContentFragment {
+public class AliasMetadata implements SimpleDiffable<AliasMetadata>, ToXContentFragment, AliasInfo {
 
     private final String alias;
 
@@ -236,7 +237,7 @@ public class AliasMetadata implements SimpleDiffable<AliasMetadata>, ToXContentF
         return builder;
     }
 
-    public static AliasMetadata getFirstAliasMetadata(Metadata metadata, IndexAbstraction ia) {
+    public static AliasMetadata getFirstAliasMetadata(ProjectMetadata metadata, IndexAbstraction ia) {
         if (ia.getType() != IndexAbstraction.Type.ALIAS) {
             throw new IllegalArgumentException("unexpected type: [" + ia.getType() + "]");
         }
@@ -396,6 +397,8 @@ public class AliasMetadata implements SimpleDiffable<AliasMetadata>, ToXContentF
                     } else if ("is_hidden".equals(currentFieldName)) {
                         builder.isHidden(parser.booleanValue());
                     }
+                } else if (token == null) {
+                    throw new IllegalArgumentException("unexpected null token while parsing alias");
                 }
             }
             return builder.build();

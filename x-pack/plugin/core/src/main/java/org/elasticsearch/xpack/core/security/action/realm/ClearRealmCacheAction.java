@@ -14,6 +14,6 @@ public class ClearRealmCacheAction extends ActionType<ClearRealmCacheResponse> {
     public static final String NAME = "cluster:admin/xpack/security/realm/cache/clear";
 
     protected ClearRealmCacheAction() {
-        super(NAME, ClearRealmCacheResponse::new);
+        super(NAME);
     }
 }

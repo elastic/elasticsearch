@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.support;
@@ -11,14 +12,13 @@ package org.elasticsearch.search.aggregations.support;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 
-import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.index.fielddata.AbstractSortedNumericDocValues;
 import org.elasticsearch.index.fielddata.AbstractSortedSetDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
+import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -123,11 +123,8 @@ public class MissingValuesTests extends ESTestCase {
 
             @Override
             public long nextOrd() {
-                if (i < ords[doc].length) {
-                    return ords[doc][i++];
-                } else {
-                    return NO_MORE_ORDS;
-                }
+                assert i < ords[doc].length;
+                return ords[doc][i++];
             }
 
             @Override
@@ -152,10 +149,8 @@ public class MissingValuesTests extends ESTestCase {
                     for (int ord : ords[i]) {
                         assertEquals(values[ord], withMissingReplaced.lookupOrd(withMissingReplaced.nextOrd()));
                     }
-                    assertEquals(SortedSetDocValues.NO_MORE_ORDS, withMissingReplaced.nextOrd());
                 } else {
                     assertEquals(missing, withMissingReplaced.lookupOrd(withMissingReplaced.nextOrd()));
-                    assertEquals(SortedSetDocValues.NO_MORE_ORDS, withMissingReplaced.nextOrd());
                 }
             }
         }
@@ -258,7 +253,7 @@ public class MissingValuesTests extends ESTestCase {
             }
             Arrays.sort(values[i]);
         }
-        SortedNumericDocValues asNumericValues = new AbstractSortedNumericDocValues() {
+        SortedNumericLongValues asNumericValues = new SortedNumericLongValues() {
 
             int doc = -1;
             int i;
@@ -281,7 +276,7 @@ public class MissingValuesTests extends ESTestCase {
             }
         };
         final long missing = randomInt();
-        SortedNumericDocValues withMissingReplaced = MissingValues.replaceMissing(asNumericValues, missing);
+        SortedNumericLongValues withMissingReplaced = MissingValues.replaceMissing(asNumericValues, missing);
         for (int i = 0; i < numDocs; ++i) {
             assertTrue(withMissingReplaced.advanceExact(i));
             if (values[i].length > 0) {

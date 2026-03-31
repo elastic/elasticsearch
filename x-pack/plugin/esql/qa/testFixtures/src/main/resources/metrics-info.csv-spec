@@ -1,0 +1,64 @@
+metricsInfoBasic
+required_capability: metrics_info_command
+TS k8s | METRICS_INFO | SORT metric_name;
+
+metric_name:keyword    | data_stream:keyword | unit:keyword | metric_type:keyword | field_type:keyword | dimension_fields:keyword
+network.eth0.rx        | k8s                 | packets      | gauge               | integer            | [cluster, pod, region]
+network.eth0.tx        | k8s                 | packets      | gauge               | integer            | [cluster, pod, region]
+network.total_bytes_in | k8s                 | bytes        | counter             | long               | [cluster, pod, region]
+network.total_cost     | k8s                 | usd          | counter             | double             | [cluster, pod, region]
+;
+
+metricsInfoWithKeep
+required_capability: metrics_info_command
+TS k8s | METRICS_INFO | KEEP metric_name, metric_type | SORT metric_name;
+
+metric_name:keyword    | metric_type:keyword
+network.eth0.rx        | gauge
+network.eth0.tx        | gauge
+network.total_bytes_in | counter
+network.total_cost     | counter
+;
+
+metricsInfoWithWhere
+required_capability: metrics_info_command
+TS k8s | METRICS_INFO | WHERE metric_type == "counter" | SORT metric_name;
+
+metric_name:keyword         | data_stream:keyword | unit:keyword | metric_type:keyword | field_type:keyword | dimension_fields:keyword
+network.total_bytes_in      | k8s                 | bytes        | counter             | long               | [cluster, pod, region]
+network.total_cost          | k8s                 | usd          | counter             | double             | [cluster, pod, region]
+;
+
+metricsInfoWithWhereOnMetricName
+required_capability: metrics_info_command
+TS k8s | METRICS_INFO | WHERE metric_name LIKE "network.eth0*" | SORT metric_name;
+
+metric_name:keyword         | data_stream:keyword | unit:keyword | metric_type:keyword | field_type:keyword | dimension_fields:keyword
+network.eth0.rx             | k8s                 | packets      | gauge               | integer            | [cluster, pod, region]
+network.eth0.tx             | k8s                 | packets      | gauge               | integer            | [cluster, pod, region]
+;
+
+metricsInfoCountDistinct
+required_capability: metrics_info_command
+TS k8s | METRICS_INFO | STATS metric_count = COUNT_DISTINCT(metric_name);
+
+metric_count:long
+4
+;
+
+metricsInfoCountByType
+required_capability: metrics_info_command
+TS k8s | METRICS_INFO | STATS metric_count = COUNT(*) BY metric_type | SORT metric_type;
+
+metric_count:long | metric_type:keyword
+2                 | counter
+2                 | gauge
+;
+
+metricsInfoCountDistinctCounters
+required_capability: metrics_info_command
+TS k8s | METRICS_INFO | WHERE metric_type == "counter" | STATS matching_metrics = COUNT_DISTINCT(metric_name);
+
+matching_metrics:long
+2
+;

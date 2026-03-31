@@ -11,33 +11,34 @@ import java.lang.StringBuilder;
 import java.util.List;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 
 /**
  * {@link AggregatorFunction} implementation for {@link MedianAbsoluteDeviationDoubleAggregator}.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code AggregatorImplementer} instead.
  */
 public final class MedianAbsoluteDeviationDoubleAggregatorFunction implements AggregatorFunction {
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
       new IntermediateStateDesc("quart", ElementType.BYTES_REF)  );
 
+  private final DriverContext driverContext;
+
   private final QuantileStates.SingleState state;
 
   private final List<Integer> channels;
 
-  public MedianAbsoluteDeviationDoubleAggregatorFunction(List<Integer> channels,
-      QuantileStates.SingleState state) {
+  MedianAbsoluteDeviationDoubleAggregatorFunction(DriverContext driverContext,
+      List<Integer> channels) {
+    this.driverContext = driverContext;
     this.channels = channels;
-    this.state = state;
-  }
-
-  public static MedianAbsoluteDeviationDoubleAggregatorFunction create(List<Integer> channels) {
-    return new MedianAbsoluteDeviationDoubleAggregatorFunction(channels, MedianAbsoluteDeviationDoubleAggregator.initSingle());
+    this.state = MedianAbsoluteDeviationDoubleAggregator.initSingle(driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -50,35 +51,82 @@ public final class MedianAbsoluteDeviationDoubleAggregatorFunction implements Ag
   }
 
   @Override
-  public void addRawInput(Page page) {
-    Block uncastBlock = page.getBlock(channels.get(0));
-    if (uncastBlock.areAllValuesNull()) {
+  public void addRawInput(Page page, BooleanVector mask) {
+    if (mask.allFalse()) {
+      // Entire page masked away
+    } else if (mask.allTrue()) {
+      addRawInputNotMasked(page);
+    } else {
+      addRawInputMasked(page, mask);
+    }
+  }
+
+  private void addRawInputMasked(Page page, BooleanVector mask) {
+    DoubleBlock vBlock = page.getBlock(channels.get(0));
+    DoubleVector vVector = vBlock.asVector();
+    if (vVector == null) {
+      addRawBlock(vBlock, mask);
       return;
     }
-    DoubleBlock block = (DoubleBlock) uncastBlock;
-    DoubleVector vector = block.asVector();
-    if (vector != null) {
-      addRawVector(vector);
-    } else {
-      addRawBlock(block);
+    addRawVector(vVector, mask);
+  }
+
+  private void addRawInputNotMasked(Page page) {
+    DoubleBlock vBlock = page.getBlock(channels.get(0));
+    DoubleVector vVector = vBlock.asVector();
+    if (vVector == null) {
+      addRawBlock(vBlock);
+      return;
+    }
+    addRawVector(vVector);
+  }
+
+  private void addRawVector(DoubleVector vVector) {
+    for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
+      double vValue = vVector.getDouble(valuesPosition);
+      MedianAbsoluteDeviationDoubleAggregator.combine(state, vValue);
     }
   }
 
-  private void addRawVector(DoubleVector vector) {
-    for (int i = 0; i < vector.getPositionCount(); i++) {
-      MedianAbsoluteDeviationDoubleAggregator.combine(state, vector.getDouble(i));
-    }
-  }
-
-  private void addRawBlock(DoubleBlock block) {
-    for (int p = 0; p < block.getPositionCount(); p++) {
-      if (block.isNull(p)) {
+  private void addRawVector(DoubleVector vVector, BooleanVector mask) {
+    for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
+      if (mask.getBoolean(valuesPosition) == false) {
         continue;
       }
-      int start = block.getFirstValueIndex(p);
-      int end = start + block.getValueCount(p);
-      for (int i = start; i < end; i++) {
-        MedianAbsoluteDeviationDoubleAggregator.combine(state, block.getDouble(i));
+      double vValue = vVector.getDouble(valuesPosition);
+      MedianAbsoluteDeviationDoubleAggregator.combine(state, vValue);
+    }
+  }
+
+  private void addRawBlock(DoubleBlock vBlock) {
+    for (int p = 0; p < vBlock.getPositionCount(); p++) {
+      int vValueCount = vBlock.getValueCount(p);
+      if (vValueCount == 0) {
+        continue;
+      }
+      int vStart = vBlock.getFirstValueIndex(p);
+      int vEnd = vStart + vValueCount;
+      for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
+        double vValue = vBlock.getDouble(vOffset);
+        MedianAbsoluteDeviationDoubleAggregator.combine(state, vValue);
+      }
+    }
+  }
+
+  private void addRawBlock(DoubleBlock vBlock, BooleanVector mask) {
+    for (int p = 0; p < vBlock.getPositionCount(); p++) {
+      if (mask.getBoolean(p) == false) {
+        continue;
+      }
+      int vValueCount = vBlock.getValueCount(p);
+      if (vValueCount == 0) {
+        continue;
+      }
+      int vStart = vBlock.getFirstValueIndex(p);
+      int vEnd = vStart + vValueCount;
+      for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
+        double vValue = vBlock.getDouble(vOffset);
+        MedianAbsoluteDeviationDoubleAggregator.combine(state, vValue);
       }
     }
   }
@@ -87,20 +135,24 @@ public final class MedianAbsoluteDeviationDoubleAggregatorFunction implements Ag
   public void addIntermediateInput(Page page) {
     assert channels.size() == intermediateBlockCount();
     assert page.getBlockCount() >= channels.get(0) + intermediateStateDesc().size();
-    BytesRefVector quart = page.<BytesRefBlock>getBlock(channels.get(0)).asVector();
+    Block quartUncast = page.getBlock(channels.get(0));
+    if (quartUncast.areAllValuesNull()) {
+      return;
+    }
+    BytesRefVector quart = ((BytesRefBlock) quartUncast).asVector();
     assert quart.getPositionCount() == 1;
-    BytesRef scratch = new BytesRef();
-    MedianAbsoluteDeviationDoubleAggregator.combineIntermediate(state, quart.getBytesRef(0, scratch));
+    BytesRef quartScratch = new BytesRef();
+    MedianAbsoluteDeviationDoubleAggregator.combineIntermediate(state, quart.getBytesRef(0, quartScratch));
   }
 
   @Override
-  public void evaluateIntermediate(Block[] blocks, int offset) {
-    state.toIntermediate(blocks, offset);
+  public void evaluateIntermediate(Block[] blocks, int offset, DriverContext driverContext) {
+    state.toIntermediate(blocks, offset, driverContext);
   }
 
   @Override
-  public void evaluateFinal(Block[] blocks, int offset) {
-    blocks[offset] = MedianAbsoluteDeviationDoubleAggregator.evaluateFinal(state);
+  public void evaluateFinal(Block[] blocks, int offset, DriverContext driverContext) {
+    blocks[offset] = MedianAbsoluteDeviationDoubleAggregator.evaluateFinal(state, driverContext);
   }
 
   @Override

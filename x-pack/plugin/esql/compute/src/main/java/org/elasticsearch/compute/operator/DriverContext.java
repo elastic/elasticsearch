@@ -7,13 +7,22 @@
 
 package org.elasticsearch.compute.operator;
 
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.LocalCircuitBreaker;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 
 import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -31,7 +40,11 @@ import java.util.concurrent.atomic.AtomicReference;
  * This allows to "transfer ownership" of a shared resource across operators (and even across
  * Drivers), while ensuring that the resource can be correctly released when no longer needed.
  *
- * Currently only supports releasables, but additional driver-local context can be added.
+ * DriverContext can also be used to track async actions. The driver may close an operator while
+ * some of its async actions are still running. To prevent the driver from finishing in this case,
+ * methods {@link #addAsyncAction()} and {@link #removeAsyncAction()} are provided for tracking
+ * such actions. Subsequently, the driver uses {@link #waitForAsyncActions(ActionListener)} to
+ * await the completion of all async actions before finalizing the Driver.
  */
 public class DriverContext {
 
@@ -42,17 +55,79 @@ public class DriverContext {
 
     private final BigArrays bigArrays;
 
-    public DriverContext(BigArrays bigArrays) {
+    private final BlockFactory blockFactory;
+
+    private final AsyncActions asyncActions = new AsyncActions();
+
+    private final WarningsMode warningsMode;
+
+    private final @Nullable String driverDescription;
+
+    private final LocalCircuitBreaker.SizeSettings localBreakerSettings;
+
+    private Runnable earlyTerminationChecker = () -> {};
+
+    public DriverContext(BigArrays bigArrays, BlockFactory blockFactory, @Nullable LocalCircuitBreaker.SizeSettings localBreakerSettings) {
+        this(bigArrays, blockFactory, localBreakerSettings, null, WarningsMode.COLLECT);
+    }
+
+    public DriverContext(
+        BigArrays bigArrays,
+        BlockFactory blockFactory,
+        @Nullable LocalCircuitBreaker.SizeSettings localBreakerSettings,
+        String description
+    ) {
+        this(bigArrays, blockFactory, localBreakerSettings, description, WarningsMode.COLLECT);
+    }
+
+    private DriverContext(
+        BigArrays bigArrays,
+        BlockFactory blockFactory,
+        @Nullable LocalCircuitBreaker.SizeSettings localBreakerSettings,
+        @Nullable String description,
+        WarningsMode warningsMode
+    ) {
         Objects.requireNonNull(bigArrays);
+        Objects.requireNonNull(blockFactory);
         this.bigArrays = bigArrays;
+        this.blockFactory = blockFactory;
+        this.localBreakerSettings = localBreakerSettings == null ? LocalCircuitBreaker.SizeSettings.DEFAULT_SETTINGS : localBreakerSettings;
+        this.driverDescription = description;
+        this.warningsMode = warningsMode;
     }
 
     public BigArrays bigArrays() {
         return bigArrays;
     }
 
+    /**
+     * The {@link CircuitBreaker} to use to track memory.
+     */
+    public CircuitBreaker breaker() {
+        return blockFactory.breaker();
+    }
+
+    public LocalCircuitBreaker.SizeSettings localBreakerSettings() {
+        return localBreakerSettings;
+    }
+
+    public BlockFactory blockFactory() {
+        return blockFactory;
+    }
+
+    /** See {@link Driver#shortDescription}. */
+    @Nullable
+    public String driverDescription() {
+        return driverDescription;
+    }
+
     /** A snapshot of the driver context. */
-    public record Snapshot(Set<Releasable> releasables) {}
+    public record Snapshot(Set<Releasable> releasables) implements Releasable {
+        @Override
+        public void close() {
+            Releasables.close(releasables);
+        }
+    }
 
     /**
      * Adds a releasable to this context. Releasables are identified by Object identity.
@@ -96,6 +171,7 @@ public class DriverContext {
         }
         // must be called by the thread executing the driver.
         // no more updates to this context.
+        asyncActions.finish();
         var itr = workingSet.iterator();
         workingSet = null;
         Set<Releasable> releasableSet = Collections.newSetFromMap(new IdentityHashMap<>());
@@ -110,6 +186,105 @@ public class DriverContext {
     private void ensureFinished() {
         if (isFinished() == false) {
             throw new IllegalStateException("not finished");
+        }
+    }
+
+    public void waitForAsyncActions(ActionListener<Void> listener) {
+        asyncActions.addListener(listener);
+    }
+
+    public void addAsyncAction() {
+        asyncActions.addInstance();
+    }
+
+    public void removeAsyncAction() {
+        asyncActions.removeInstance();
+    }
+
+    /**
+     * Returns true if there are pending async actions registered via {@link #addAsyncAction()}.
+     */
+    public boolean hasPendingAsyncActions() {
+        return asyncActions.instances.get() > 1;
+    }
+
+    /**
+     * Checks if the Driver associated with this DriverContext has been cancelled or early terminated.
+     */
+    public void checkForEarlyTermination() {
+        earlyTerminationChecker.run();
+    }
+
+    /**
+     * Initializes the early termination or cancellation checker for this DriverContext.
+     * This method should be called when associating this DriverContext with a driver.
+     */
+    public void initializeEarlyTerminationChecker(Runnable checker) {
+        this.earlyTerminationChecker = checker;
+    }
+
+    /**
+     * Evaluators should use this function to decide their warning behavior.
+     * @return an appropriate {@link WarningsMode}
+     */
+    public WarningsMode warningsMode() {
+        return warningsMode;
+    }
+
+    /**
+     * Indicates the behavior Evaluators of this context should use for reporting warnings
+     */
+    public enum WarningsMode {
+        COLLECT,
+        IGNORE
+    }
+
+    /**
+     * Marks the beginning of a run loop for assertion purposes.
+     */
+    public boolean assertBeginRunLoop() {
+        if (blockFactory.breaker() instanceof LocalCircuitBreaker localBreaker) {
+            assert localBreaker.assertBeginRunLoop();
+        }
+        return true;
+    }
+
+    /**
+     * Marks the end of a run loop for assertion purposes.
+     */
+    public boolean assertEndRunLoop() {
+        if (blockFactory.breaker() instanceof LocalCircuitBreaker localBreaker) {
+            assert localBreaker.assertEndRunLoop();
+        }
+        return true;
+    }
+
+    private static class AsyncActions {
+        private final SubscribableListener<Void> completion = new SubscribableListener<>();
+        private final AtomicBoolean finished = new AtomicBoolean();
+        private final AtomicInteger instances = new AtomicInteger(1);
+
+        void addInstance() {
+            if (finished.get()) {
+                throw new IllegalStateException("DriverContext was finished already");
+            }
+            instances.incrementAndGet();
+        }
+
+        void removeInstance() {
+            if (instances.decrementAndGet() == 0) {
+                completion.onResponse(null);
+            }
+        }
+
+        void addListener(ActionListener<Void> listener) {
+            completion.addListener(listener);
+        }
+
+        void finish() {
+            if (finished.compareAndSet(false, true)) {
+                removeInstance();
+            }
         }
     }
 }

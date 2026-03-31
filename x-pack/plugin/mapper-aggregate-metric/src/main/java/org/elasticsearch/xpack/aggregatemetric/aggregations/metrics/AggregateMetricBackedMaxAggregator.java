@@ -6,11 +6,11 @@
  */
 package org.elasticsearch.xpack.aggregatemetric.aggregations.metrics;
 
+import org.apache.lucene.search.DoubleValues;
 import org.apache.lucene.search.ScoreMode;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
@@ -24,14 +24,14 @@ import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.xpack.aggregatemetric.aggregations.support.AggregateMetricsValuesSource;
-import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper.Metric;
+import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateMetricDoubleFieldMapper.Metric;
 
 import java.io.IOException;
 import java.util.Map;
 
 class AggregateMetricBackedMaxAggregator extends NumericMetricsAggregator.SingleValue {
 
-    private final AggregateMetricsValuesSource.AggregateDoubleMetric valuesSource;
+    private final AggregateMetricsValuesSource.AggregateMetricDouble valuesSource;
     final DocValueFormat formatter;
     DoubleArray maxes;
 
@@ -44,7 +44,7 @@ class AggregateMetricBackedMaxAggregator extends NumericMetricsAggregator.Single
     ) throws IOException {
         super(name, context, parent, metadata);
         assert config.hasValues();
-        this.valuesSource = (AggregateMetricsValuesSource.AggregateDoubleMetric) config.getValuesSource();
+        this.valuesSource = (AggregateMetricsValuesSource.AggregateMetricDouble) config.getValuesSource();
         maxes = context.bigArrays().newDoubleArray(1, false);
         maxes.fill(0, maxes.size(), Double.NEGATIVE_INFINITY);
         this.formatter = config.format();
@@ -59,7 +59,7 @@ class AggregateMetricBackedMaxAggregator extends NumericMetricsAggregator.Single
     public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, final LeafBucketCollector sub) throws IOException {
         final BigArrays bigArrays = bigArrays();
         final SortedNumericDoubleValues allValues = valuesSource.getAggregateMetricValues(aggCtx.getLeafReaderContext(), Metric.max);
-        final NumericDoubleValues values = MultiValueMode.MAX.select(allValues);
+        final DoubleValues values = MultiValueMode.MAX.select(allValues);
         return new LeafBucketCollectorBase(sub, allValues) {
 
             @Override

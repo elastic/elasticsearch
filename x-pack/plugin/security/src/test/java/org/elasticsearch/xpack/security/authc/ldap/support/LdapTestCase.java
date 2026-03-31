@@ -20,6 +20,7 @@ import com.unboundid.ldap.sdk.SimpleBindRequest;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -29,6 +30,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.ESTestCase.EntitledTestPackages;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
@@ -73,6 +75,7 @@ import static org.elasticsearch.xpack.core.security.authc.ldap.support.SessionFa
 import static org.elasticsearch.xpack.core.security.authc.ldap.support.SessionFactorySettings.URLS_SETTING;
 import static org.hamcrest.Matchers.is;
 
+@EntitledTestPackages(value = { "com.unboundid.ldap.listener" }) // tests start LDAP server that listens for incoming connections
 public abstract class LdapTestCase extends ESTestCase {
 
     protected static final RealmConfig.RealmIdentifier REALM_IDENTIFIER = new RealmConfig.RealmIdentifier("ldap", "ldap1");
@@ -95,6 +98,9 @@ public abstract class LdapTestCase extends ESTestCase {
         ldapServers = new InMemoryDirectoryServer[numberOfLdapServers];
         for (int i = 0; i < numberOfLdapServers; i++) {
             InMemoryDirectoryServerConfig serverConfig = new InMemoryDirectoryServerConfig("o=sevenSeas");
+            // Avoid generating operational attributes (like createTimestamp or modifyTimestamp) whose format is dependent
+            // on the locale and can cause invalid format failures since it violates the default schema.
+            serverConfig.setGenerateOperationalAttributes(false);
             debugLogging.configure(serverConfig);
             List<InMemoryListenerConfig> listeners = new ArrayList<>(2);
             listeners.add(InMemoryListenerConfig.createLDAPConfig("ldap", null, 0, null));
@@ -183,7 +189,8 @@ public abstract class LdapTestCase extends ESTestCase {
         List<String> urls = new ArrayList<>(numberOfLdapServers);
         for (int i = 0; i < numberOfLdapServers; i++) {
             InetAddress listenAddress = resolveListenAddress(ldapServers[i].getListenAddress());
-            LDAPURL url = new LDAPURL("ldap", NetworkAddress.format(listenAddress), ldapServers[i].getListenPort(), null, null, null, null);
+            String hostName = InetAddresses.toUriString(listenAddress);
+            LDAPURL url = new LDAPURL("ldap", hostName, ldapServers[i].getListenPort(), null, null, null, null);
             urls.add(url.toString());
         }
         return urls.toArray(Strings.EMPTY_ARRAY);

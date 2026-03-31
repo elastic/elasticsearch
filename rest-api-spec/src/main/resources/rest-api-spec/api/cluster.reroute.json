@@ -1,63 +1,67 @@
 {
-  "cluster.reroute":{
-    "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/cluster-reroute.html",
-      "description":"Allows to manually change the allocation of individual shards in the cluster."
+  "cluster.reroute": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cluster-reroute",
+      "description": "Reroute the cluster"
     },
-    "stability":"stable",
-    "visibility":"public",
-    "headers":{
-      "accept": [ "application/json"],
-      "content_type": ["application/json"]
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
     },
-    "url":{
-      "paths":[
+    "url": {
+      "paths": [
         {
-          "path":"/_cluster/reroute",
-          "methods":[
+          "path": "/_cluster/reroute",
+          "methods": [
             "POST"
           ]
         }
       ]
     },
-    "params":{
-      "dry_run":{
-        "type":"boolean",
-        "description":"Simulate the operation only and return the resulting state"
+    "params": {
+      "dry_run": {
+        "type": "boolean",
+        "default": false,
+        "description": "Simulate the operation only and return the resulting state"
       },
-      "explain":{
-        "type":"boolean",
-        "description":"Return an explanation of why the commands can or cannot be executed"
+      "explain": {
+        "type": "boolean",
+        "default": false,
+        "description": "Return an explanation of why the commands can or cannot be executed"
       },
-      "retry_failed":{
-        "type":"boolean",
-        "description":"Retries allocation of shards that are blocked due to too many subsequent allocation failures"
+      "retry_failed": {
+        "type": "boolean",
+        "default": false,
+        "description": "Retries allocation of shards that are blocked due to too many subsequent allocation failures"
       },
-      "metric":{
-        "type":"list",
-        "options":[
-          "_all",
-          "blocks",
-          "metadata",
-          "nodes",
-          "none",
-          "routing_table",
-          "master_node",
-          "version"
-        ],
-        "description":"Limit the information returned to the specified metrics. Defaults to all but metadata"
+      "metric": {
+        "type": "list",
+        "deprecated": {
+          "version": "8.6.0",
+          "description": "This parameter has no effect; its use will be forbidden in a future version."
+        },
+        "description": "Limit the information returned to the specified metrics. Defaults to all but metadata"
       },
-      "master_timeout":{
-        "type":"time",
-        "description":"Explicit operation timeout for connection to master node"
+      "master_timeout": {
+        "type": "time",
+        "default": "30s",
+        "description": "Explicit operation timeout for connection to master node"
       },
-      "timeout":{
-        "type":"time",
-        "description":"Explicit operation timeout"
+      "timeout": {
+        "type": "time",
+        "default": "30s",
+        "description": "Explicit operation timeout"
       }
     },
-    "body":{
-      "description":"The definition of `commands` to perform (`move`, `cancel`, `allocate`)"
+    "body": {
+      "description": "The definition of `commands` to perform (`move`, `cancel`, `allocate`)",
+      "required": false
     }
   }
 }

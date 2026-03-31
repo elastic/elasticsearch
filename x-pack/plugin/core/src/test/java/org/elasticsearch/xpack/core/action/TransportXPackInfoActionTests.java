@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.action;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.license.License;
@@ -48,9 +49,9 @@ public class TransportXPackInfoActionTests extends ESTestCase {
         LicenseService licenseService = mock(LicenseService.class);
 
         NodeClient client = mock(NodeClient.class);
-        Map<XPackInfoFeatureAction, FeatureSet> featureSets = new HashMap<>();
+        Map<ActionType<XPackInfoFeatureResponse>, FeatureSet> featureSets = new HashMap<>();
         int featureSetCount = randomIntBetween(0, 5);
-        for (XPackInfoFeatureAction infoAction : randomSubsetOf(featureSetCount, XPackInfoFeatureAction.ALL)) {
+        for (ActionType<XPackInfoFeatureResponse> infoAction : randomSubsetOf(featureSetCount, XPackInfoFeatureAction.ALL)) {
             FeatureSet featureSet = new FeatureSet(randomAlphaOfLength(5), randomBoolean(), randomBoolean());
             featureSets.put(infoAction, featureSet);
             when(client.executeLocally(eq(infoAction), any(ActionRequest.class), any(ActionListener.class))).thenAnswer(answer -> {
@@ -68,7 +69,7 @@ public class TransportXPackInfoActionTests extends ESTestCase {
             client
         ) {
             @Override
-            protected List<XPackInfoFeatureAction> infoActions() {
+            protected List<ActionType<XPackInfoFeatureResponse>> infoActions() {
                 return new ArrayList<>(featureSets.keySet());
             }
         };

@@ -7,188 +7,220 @@
 
 package org.elasticsearch.xpack.esql.stats;
 
-import org.apache.lucene.index.DocValuesType;
-import org.apache.lucene.index.FieldInfo;
-import org.apache.lucene.index.FieldInfos;
-import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.LeafReader;
-import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.PointValues;
-import org.apache.lucene.index.Term;
-import org.apache.lucene.index.Terms;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
-import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute.FieldName;
 
-import java.io.IOException;
-import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 
-public class SearchStats {
+/**
+ * Interface for determining information about fields in the index.
+ * This is used by the optimizer to make decisions about how to optimize queries.
+ */
+public interface SearchStats {
+    SearchStats EMPTY = new EmptySearchStats();
 
-    private final List<SearchContext> contexts;
+    boolean exists(FieldName field);
 
-    private static class FieldStat {
-        private Long count;
-        private Boolean exists;
-        private Object min, max;
+    boolean isIndexed(FieldName field);
+
+    boolean hasDocValues(FieldName field);
+
+    boolean hasExactSubfield(FieldName field);
+
+    long count();
+
+    long count(FieldName field);
+
+    long count(FieldName field, BytesRef value);
+
+    Object min(FieldName field);
+
+    Object max(FieldName field);
+
+    boolean isSingleValue(FieldName field);
+
+    boolean canUseEqualityOnSyntheticSourceDelegate(FieldName name, String value);
+
+    /**
+     * Do all fields with the matching name support this loader config?
+     */
+    boolean supportsLoaderConfig(FieldName name, BlockLoaderFunctionConfig config, MappedFieldType.FieldExtractPreference preference);
+
+    /**
+     * Returns the value for a field if it's a constant (eg. a constant_keyword with only one value for the involved indices).
+     * NULL if the field is not a constant.
+     */
+    default String constantValue(FieldName name) {
+        return null;
     }
 
-    private static final int CACHE_SIZE = 32;
+    /**
+     * Returns the mapped field type for the given field name, or null if the field is not found.
+     */
+    default MappedFieldType fieldType(FieldName name) {
+        return null;
+    }
 
-    // simple non-thread-safe cache for avoiding unnecessary IO (which while fast it still I/O)
-    private final Map<String, FieldStat> cache = new LinkedHashMap<>(CACHE_SIZE, 0.75f, true) {
+    /**
+     * Returns the target shards and their index metadata.
+     */
+    Map<ShardId, IndexMetadata> targetShards();
+
+    default boolean canPartitionByTsidPrefix() {
+        return false;
+    }
+
+    /**
+     * When there are no search stats available, for example when there are no search contexts, we have static results.
+     */
+    record EmptySearchStats() implements SearchStats {
+
         @Override
-        protected boolean removeEldestEntry(Map.Entry<String, FieldStat> eldest) {
-            return size() > CACHE_SIZE;
+        public boolean exists(FieldName field) {
+            return false;
         }
-    };
 
-    public SearchStats(List<SearchContext> contexts) {
-        this.contexts = contexts;
-    }
-
-    public long count() {
-        var count = new long[] { 0 };
-        boolean completed = doWithContexts(r -> count[0] += r.numDocs(), false);
-        return completed ? count[0] : -1;
-    }
-
-    public long count(String field) {
-        var stat = cache.computeIfAbsent(field, s -> new FieldStat());
-        if (stat.count == null) {
-            var count = new long[] { 0 };
-            boolean completed = doWithContexts(r -> count[0] += countEntries(r, field), false);
-            stat.count = completed ? count[0] : -1;
+        @Override
+        public boolean isIndexed(FieldName field) {
+            return false;
         }
-        return stat.count;
-    }
 
-    public long count(String field, BytesRef value) {
-        var count = new long[] { 0 };
-        Term term = new Term(field, value);
-        boolean completed = doWithContexts(r -> count[0] += r.docFreq(term), false);
-        return completed ? count[0] : -1;
-    }
-
-    public boolean exists(String field) {
-        var stat = cache.computeIfAbsent(field, s -> new FieldStat());
-        if (stat.exists == null) {
-            stat.exists = false;
-            // even if there are deleted documents, check the existence of a field
-            // since if it's missing, deleted documents won't change that
-            for (SearchContext context : contexts) {
-                if (context.getSearchExecutionContext().isFieldMapped(field)) {
-                    stat.exists = true;
-                    break;
-                }
-            }
+        @Override
+        public boolean hasDocValues(FieldName field) {
+            return false;
         }
-        return stat.exists;
-    }
 
-    public byte[] min(String field, DataType dataType) {
-        var stat = cache.computeIfAbsent(field, s -> new FieldStat());
-        if (stat.min == null) {
-            var min = new byte[][] { null };
-            doWithContexts(r -> {
-                byte[] localMin = PointValues.getMinPackedValue(r, field);
-                // TODO: how to compare with the previous min
-                if (localMin != null) {
-                    if (min[0] == null) {
-                        min[0] = localMin;
-                    } else {
-                        throw new EsqlIllegalArgumentException("Don't know how to compare with previous min");
-                    }
-                }
-
-            }, true);
-            stat.min = min[0];
+        @Override
+        public boolean hasExactSubfield(FieldName field) {
+            return false;
         }
-        // return stat.min;
-        return null;
-    }
 
-    public byte[] max(String field, DataType dataType) {
-        var stat = cache.computeIfAbsent(field, s -> new FieldStat());
-        if (stat.max == null) {
-
-            var max = new byte[][] { null };
-            doWithContexts(r -> {
-                byte[] localMax = PointValues.getMaxPackedValue(r, field);
-                // TODO: how to compare with the previous max
-                if (localMax != null) {
-                    if (max[0] == null) {
-                        max[0] = localMax;
-                    } else {
-                        throw new EsqlIllegalArgumentException("Don't know how to compare with previous max");
-                    }
-                }
-            }, true);
-            stat.max = max[0];
+        @Override
+        public boolean supportsLoaderConfig(
+            FieldName name,
+            BlockLoaderFunctionConfig config,
+            MappedFieldType.FieldExtractPreference preference
+        ) {
+            return false;
         }
-        // return stat.max;
-        return null;
-    }
 
-    //
-    // @see org.elasticsearch.search.query.QueryPhaseCollectorManager#shortcutTotalHitCount(IndexReader, Query)
-    //
-    private static int countEntries(IndexReader indexReader, String field) {
-        int count = 0;
-        try {
-            for (LeafReaderContext context : indexReader.leaves()) {
-                LeafReader reader = context.reader();
-                FieldInfos fieldInfos = reader.getFieldInfos();
-                FieldInfo fieldInfo = fieldInfos.fieldInfo(field);
-
-                if (fieldInfo != null) {
-                    if (fieldInfo.getDocValuesType() == DocValuesType.NONE) {
-                        // no shortcut possible: it's a text field, empty values are counted as no value.
-                        return -1;
-                    }
-                    if (fieldInfo.getPointIndexDimensionCount() > 0) {
-                        PointValues points = reader.getPointValues(field);
-                        if (points != null) {
-                            count += points.getDocCount();
-                        }
-                    } else if (fieldInfo.getIndexOptions() != IndexOptions.NONE) {
-                        Terms terms = reader.terms(field);
-                        if (terms != null) {
-                            count += terms.getDocCount();
-                        }
-                    } else {
-                        return -1; // no shortcut possible for fields that are not indexed
-                    }
-                }
-            }
-        } catch (IOException ex) {
-            throw new EsqlIllegalArgumentException("Cannot access data storage", ex);
+        @Override
+        public long count() {
+            return 0;
         }
-        return count;
-    }
 
-    private interface IndexReaderConsumer {
-        void consume(IndexReader reader) throws IOException;
-    }
+        @Override
+        public long count(FieldName field) {
+            return 0;
+        }
 
-    private boolean doWithContexts(IndexReaderConsumer consumer, boolean acceptsDeletions) {
-        try {
-            for (SearchContext context : contexts) {
-                for (LeafReaderContext leafContext : context.searcher().getLeafContexts()) {
-                    var reader = leafContext.reader();
-                    if (acceptsDeletions == false && reader.hasDeletions()) {
-                        return false;
-                    }
-                    consumer.consume(reader);
-                }
-            }
+        @Override
+        public long count(FieldName field, BytesRef value) {
+            return 0;
+        }
+
+        @Override
+        public Object min(FieldName field) {
+            return null;
+        }
+
+        @Override
+        public Object max(FieldName field) {
+            return null;
+        }
+
+        @Override
+        public boolean isSingleValue(FieldName field) {
             return true;
-        } catch (IOException ex) {
-            throw new EsqlIllegalArgumentException("Cannot access data storage", ex);
+        }
+
+        @Override
+        public boolean canUseEqualityOnSyntheticSourceDelegate(FieldName name, String value) {
+            return false;
+        }
+
+        @Override
+        public Map<ShardId, IndexMetadata> targetShards() {
+            return Map.of();
+        }
+    }
+
+    /**
+     * A default implementat that throws {@link UnsupportedOperationException} on all methods. Implemetors can override only the methods
+     * they <i>know</i> would be called.
+     */
+    abstract class UnsupportedSearchStats implements SearchStats {
+        @Override
+        public boolean exists(FieldName field) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public boolean isIndexed(FieldName field) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public boolean hasDocValues(FieldName field) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public boolean hasExactSubfield(FieldName field) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public boolean supportsLoaderConfig(
+            FieldName name,
+            BlockLoaderFunctionConfig config,
+            MappedFieldType.FieldExtractPreference preference
+        ) {
+            return false;
+        }
+
+        @Override
+        public long count() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public long count(FieldName field) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public long count(FieldName field, BytesRef value) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Object min(FieldName field) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Object max(FieldName field) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public boolean isSingleValue(FieldName field) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public boolean canUseEqualityOnSyntheticSourceDelegate(FieldName name, String value) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Map<ShardId, IndexMetadata> targetShards() {
+            throw new UnsupportedOperationException();
         }
     }
 }

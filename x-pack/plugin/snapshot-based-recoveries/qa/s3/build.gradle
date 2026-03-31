@@ -1,21 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
-import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
-import org.elasticsearch.gradle.internal.info.BuildParams
-
-apply plugin: 'elasticsearch.legacy-java-rest-test'
+apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.rest-resources'
 
 final Project fixture = project(':test:fixtures:s3-fixture')
 
 dependencies {
   javaRestTestImplementation(testArtifact(project(xpackModule('snapshot-based-recoveries'))))
+  javaRestTestImplementation project(':test:fixtures:s3-fixture')
 }
 
 restResources {
@@ -41,41 +38,14 @@ if (!s3AccessKey && !s3SecretKey && !s3Bucket && !s3BasePath) {
   throw new IllegalArgumentException("not all options specified to run against external S3 service are present")
 }
 
-if (useFixture) {
-  apply plugin: 'elasticsearch.test.fixtures'
-  testFixtures.useFixture(fixture.path, 's3-snapshot-based-recoveries')
-}
-
-tasks.withType(Test).configureEach {
+tasks.named("javaRestTest").configure {
+  usesDefaultDistribution("to be triaged")
+  systemProperty("tests.use.fixture", Boolean.toString(useFixture))
   systemProperty 'test.s3.bucket', s3Bucket
+  systemProperty("s3AccessKey", s3AccessKey)
+  systemProperty("s3SecretKey", s3SecretKey)
   nonInputProperties.systemProperty 'test.s3.base_path',
-    s3BasePath ? s3BasePath + "_snapshot_based_recoveries_tests" + BuildParams.testSeed : 'base_path'
-}
-
-testClusters.matching { it.name == "javaRestTest" }.configureEach {
-  testDistribution = 'DEFAULT'
-  numberOfNodes = 3
-
-  setting 'xpack.license.self_generated.type', 'trial'
-
-  keystore 's3.client.snapshot_based_recoveries.access_key', s3AccessKey
-  keystore 's3.client.snapshot_based_recoveries.secret_key', s3SecretKey
-
-  if (useFixture) {
-    def fixtureAddress = { fixtureName ->
-      assert useFixture: 'closure should not be used without a fixture'
-      int ephemeralPort = fixture.postProcessFixture.ext."test.fixtures.${fixtureName}.tcp.80"
-      assert ephemeralPort > 0
-      '127.0.0.1:' + ephemeralPort
-    }
-    setting 's3.client.snapshot_based_recoveries.protocol', 'http'
-    setting 's3.client.snapshot_based_recoveries.endpoint', { "${-> fixtureAddress('s3-snapshot-based-recoveries')}" }, IGNORE_VALUE
-
-  } else {
-    println "Using an external service to test " + project.name
-  }
-
-  setting 'xpack.security.enabled', 'false'
+    s3BasePath ? s3BasePath + "_snapshot_based_recoveries_tests" + buildParams.testSeed : 'base_path_integration_tests'
 }
 
 tasks.register("s3ThirdPartyTest") {

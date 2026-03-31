@@ -20,7 +20,7 @@ import java.util.Objects;
  */
 public final class GetPrivilegesResponse extends ActionResponse {
 
-    private ApplicationPrivilegeDescriptor[] privileges;
+    private final ApplicationPrivilegeDescriptor[] privileges;
 
     public GetPrivilegesResponse(ApplicationPrivilegeDescriptor... privileges) {
         this.privileges = Objects.requireNonNull(privileges, "Application privileges cannot be null");
@@ -31,7 +31,6 @@ public final class GetPrivilegesResponse extends ActionResponse {
     }
 
     public GetPrivilegesResponse(StreamInput in) throws IOException {
-        super(in);
         this.privileges = in.readArray(ApplicationPrivilegeDescriptor::new, ApplicationPrivilegeDescriptor[]::new);
     }
 

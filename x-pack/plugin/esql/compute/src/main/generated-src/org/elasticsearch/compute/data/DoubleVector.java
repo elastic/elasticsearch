@@ -7,24 +7,65 @@
 
 package org.elasticsearch.compute.data;
 
+// begin generated imports
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.ReleasableIterator;
 
 import java.io.IOException;
+// end generated imports
 
 /**
  * Vector that stores double values.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-Vector.java.st} instead.
  */
-public sealed interface DoubleVector extends Vector permits ConstantDoubleVector, FilterDoubleVector, DoubleArrayVector,
-    DoubleBigArrayVector {
+public sealed interface DoubleVector extends Vector permits ConstantDoubleVector, DoubleArrayVector, DoubleBigArrayVector,
+    ConstantNullVector, org.elasticsearch.compute.data.arrow.DoubleArrowBufVector {
     double getDouble(int position);
+
+    /**
+     * Copies values from this vector into the destination array.
+     */
+    default void copyTo(int srcPosition, double[] dst, int dstPosition, int length) {
+        for (int i = 0; i < length; i++) {
+            dst[dstPosition + i] = getDouble(srcPosition + i);
+        }
+    }
 
     @Override
     DoubleBlock asBlock();
 
     @Override
-    DoubleVector filter(int... positions);
+    DoubleVector filter(boolean mayContainDuplicates, int... positions);
+
+    @Override
+    DoubleBlock keepMask(BooleanVector mask);
+
+    /**
+     * Make a deep copy of this {@link Vector} using the provided {@link BlockFactory},
+     * likely copying all data.
+     */
+    @Override
+    default DoubleVector deepCopy(BlockFactory blockFactory) {
+        try (DoubleBlock.Builder builder = blockFactory.newDoubleBlockBuilder(getPositionCount())) {
+            builder.copyFrom(asBlock(), 0, getPositionCount());
+            builder.mvOrdering(Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING);
+            return builder.build().asVector();
+        }
+    }
+
+    @Override
+    ReleasableIterator<? extends DoubleBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize);
+
+    /**
+     * Return a subset of this vector from {@code beginInclusive} to
+     * {@code endExclusive}. This <strong>may</strong> return the same
+     * instance if the range covers all positions, but if it does it
+     * will {@link #incRef()} it.
+     */
+    @Override
+    DoubleVector slice(int beginInclusive, int endExclusive);
 
     /**
      * Compares the given object with this vector for equality. Returns {@code true} if and only if the
@@ -73,39 +114,60 @@ public sealed interface DoubleVector extends Vector permits ConstantDoubleVector
     }
 
     /** Deserializes a Vector from the given stream input. */
-    static DoubleVector of(StreamInput in) throws IOException {
+    static DoubleVector readFrom(BlockFactory blockFactory, StreamInput in) throws IOException {
         final int positions = in.readVInt();
-        final boolean constant = in.readBoolean();
-        if (constant && positions > 0) {
-            return new ConstantDoubleVector(in.readDouble(), positions);
-        } else {
-            var builder = DoubleVector.newVectorBuilder(positions);
-            for (int i = 0; i < positions; i++) {
-                builder.appendDouble(in.readDouble());
+        final byte serializationType = in.readByte();
+        return switch (serializationType) {
+            case SERIALIZE_VECTOR_VALUES -> readValues(positions, in, blockFactory);
+            case SERIALIZE_VECTOR_CONSTANT -> blockFactory.newConstantDoubleVector(in.readDouble(), positions);
+            case SERIALIZE_VECTOR_ARRAY -> DoubleArrayVector.readArrayVector(positions, in, blockFactory);
+            case SERIALIZE_VECTOR_BIG_ARRAY -> DoubleBigArrayVector.readArrayVector(positions, in, blockFactory);
+            default -> {
+                assert false : "invalid vector serialization type [" + serializationType + "]";
+                throw new IllegalStateException("invalid vector serialization type [" + serializationType + "]");
             }
-            return builder.build();
-        }
+        };
     }
 
     /** Serializes this Vector to the given stream output. */
     default void writeTo(StreamOutput out) throws IOException {
         final int positions = getPositionCount();
+        final var version = out.getTransportVersion();
         out.writeVInt(positions);
-        out.writeBoolean(isConstant());
         if (isConstant() && positions > 0) {
+            out.writeByte(SERIALIZE_VECTOR_CONSTANT);
             out.writeDouble(getDouble(0));
+        } else if (this instanceof DoubleArrayVector v) {
+            out.writeByte(SERIALIZE_VECTOR_ARRAY);
+            v.writeArrayVector(positions, out);
+        } else if (this instanceof DoubleBigArrayVector v) {
+            out.writeByte(SERIALIZE_VECTOR_BIG_ARRAY);
+            v.writeArrayVector(positions, out);
         } else {
-            for (int i = 0; i < positions; i++) {
-                out.writeDouble(getDouble(i));
-            }
+            out.writeByte(SERIALIZE_VECTOR_VALUES);
+            writeValues(this, positions, out);
         }
     }
 
-    static Builder newVectorBuilder(int estimatedSize) {
-        return new DoubleVectorBuilder(estimatedSize);
+    private static DoubleVector readValues(int positions, StreamInput in, BlockFactory blockFactory) throws IOException {
+        try (var builder = blockFactory.newDoubleVectorFixedBuilder(positions)) {
+            for (int i = 0; i < positions; i++) {
+                builder.appendDouble(i, in.readDouble());
+            }
+            return builder.build();
+        }
     }
 
-    sealed interface Builder extends Vector.Builder permits DoubleVectorBuilder {
+    private static void writeValues(DoubleVector v, int positions, StreamOutput out) throws IOException {
+        for (int i = 0; i < positions; i++) {
+            out.writeDouble(v.getDouble(i));
+        }
+    }
+
+    /**
+     * A builder that grows as needed.
+     */
+    sealed interface Builder extends Vector.Builder permits DoubleVectorBuilder, FixedBuilder {
         /**
          * Appends a double to the current entry.
          */
@@ -113,5 +175,19 @@ public sealed interface DoubleVector extends Vector permits ConstantDoubleVector
 
         @Override
         DoubleVector build();
+    }
+
+    /**
+     * A builder that never grows.
+     */
+    sealed interface FixedBuilder extends Builder permits DoubleVectorFixedBuilder {
+        /**
+         * Appends a double to the current entry.
+         */
+        @Override
+        FixedBuilder appendDouble(double value);
+
+        FixedBuilder appendDouble(int index, double value);
+
     }
 }

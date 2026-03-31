@@ -1,5 +1,0 @@
-pr: 99117
-summary: Do not report failure after connections are made
-area: Network
-type: bug
-issues: []

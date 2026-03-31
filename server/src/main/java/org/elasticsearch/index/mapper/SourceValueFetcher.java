@@ -1,14 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper.IgnoredSourceFormat;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.lookup.Source;
@@ -30,6 +33,7 @@ import java.util.Set;
 public abstract class SourceValueFetcher implements ValueFetcher {
     private final Set<String> sourcePaths;
     private final @Nullable Object nullValue;
+    private final IgnoredSourceFormat ignoredSourceFormat;
 
     public SourceValueFetcher(String fieldName, SearchExecutionContext context) {
         this(fieldName, context, null);
@@ -40,21 +44,27 @@ public abstract class SourceValueFetcher implements ValueFetcher {
      * @param nullValue An optional substitute value if the _source value is 'null'.
      */
     public SourceValueFetcher(String fieldName, SearchExecutionContext context, Object nullValue) {
-        this(context.isSourceEnabled() ? context.sourcePath(fieldName) : Collections.emptySet(), nullValue);
+        this(
+            context.isSourceEnabled() ? context.sourcePath(fieldName) : Collections.emptySet(),
+            nullValue,
+            context.getIndexSettings().getIgnoredSourceFormat()
+        );
     }
 
     /**
-     * @param sourcePaths   The paths to pull source values from
-     * @param nullValue     An optional substitute value if the _source value is `null`
+     * @param sourcePaths         The paths to pull source values from
+     * @param nullValue           An optional substitute value if the _source value is `null`
+     * @param ignoredSourceFormat
      */
-    public SourceValueFetcher(Set<String> sourcePaths, Object nullValue) {
+    public SourceValueFetcher(Set<String> sourcePaths, Object nullValue, IgnoredSourceFormat ignoredSourceFormat) {
         this.sourcePaths = sourcePaths;
         this.nullValue = nullValue;
+        this.ignoredSourceFormat = ignoredSourceFormat;
     }
 
     @Override
     public List<Object> fetchValues(Source source, int doc, List<Object> ignoredValues) {
-        List<Object> values = new ArrayList<>();
+        ArrayList<Object> values = new ArrayList<>();
         for (String path : sourcePaths) {
             Object sourceValue = source.extractValue(path, nullValue);
             if (sourceValue == null) {
@@ -91,12 +101,13 @@ public abstract class SourceValueFetcher implements ValueFetcher {
                 }
             }
         }
+        values.trimToSize();
         return values;
     }
 
     @Override
     public StoredFieldsSpec storedFieldsSpec() {
-        return StoredFieldsSpec.NEEDS_SOURCE;
+        return StoredFieldsSpec.withSourcePaths(ignoredSourceFormat, sourcePaths);
     }
 
     /**
@@ -140,8 +151,8 @@ public abstract class SourceValueFetcher implements ValueFetcher {
      * Creates a {@link SourceValueFetcher} that converts source values to Strings
      * @param sourcePaths   the paths to fetch values from in the source
      */
-    public static SourceValueFetcher toString(Set<String> sourcePaths) {
-        return new SourceValueFetcher(sourcePaths, null) {
+    public static SourceValueFetcher toString(Set<String> sourcePaths, IndexSettings indexSettings) {
+        return new SourceValueFetcher(sourcePaths, null, indexSettings.getIgnoredSourceFormat()) {
             @Override
             protected Object parseSourceValue(Object value) {
                 return value.toString();

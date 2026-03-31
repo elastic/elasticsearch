@@ -7,27 +7,38 @@
 
 package org.elasticsearch.compute.data;
 
+// begin generated imports
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.ReleasableIterator;
+import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.ReleasableIterator;
+
+import java.util.Arrays;
+// end generated imports
 
 /**
  * Vector implementation that stores a constant BytesRef value.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-ConstantVector.java.st} instead.
  */
-public final class ConstantBytesRefVector extends AbstractVector implements BytesRefVector {
+final class ConstantBytesRefVector extends AbstractVector implements BytesRefVector {
 
-    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ConstantBytesRefVector.class);
-
+    static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ConstantBytesRefVector.class) + RamUsageEstimator
+        .shallowSizeOfInstance(BytesRef.class);
     private final BytesRef value;
 
-    public ConstantBytesRefVector(BytesRef value, int positionCount) {
-        super(positionCount);
+    ConstantBytesRefVector(BytesRef value, int positionCount, BlockFactory blockFactory) {
+        super(positionCount, blockFactory);
         this.value = value;
     }
 
     @Override
-    public BytesRef getBytesRef(int position, BytesRef ignore) {
-        return value;
+    public BytesRef getBytesRef(int position, BytesRef scratch) {
+        scratch.bytes = value.bytes;
+        scratch.offset = value.offset;
+        scratch.length = value.length;
+        return scratch;
     }
 
     @Override
@@ -36,8 +47,73 @@ public final class ConstantBytesRefVector extends AbstractVector implements Byte
     }
 
     @Override
-    public BytesRefVector filter(int... positions) {
-        return new ConstantBytesRefVector(value, positions.length);
+    public OrdinalBytesRefVector asOrdinals() {
+        return null;
+    }
+
+    @Override
+    public BytesRefVector filter(boolean mayContainDuplicates, int... positions) {
+        return blockFactory().newConstantBytesRefVector(value, positions.length);
+    }
+
+    @Override
+    public BytesRefBlock keepMask(BooleanVector mask) {
+        if (getPositionCount() == 0) {
+            incRef();
+            return new BytesRefVectorBlock(this);
+        }
+        if (mask.isConstant()) {
+            if (mask.getBoolean(0)) {
+                incRef();
+                return new BytesRefVectorBlock(this);
+            }
+            return (BytesRefBlock) blockFactory().newConstantNullBlock(getPositionCount());
+        }
+        IntBlock ordinals = null;
+        BytesRefVector bytes = null;
+        try {
+            try (IntVector unmaskedOrdinals = blockFactory().newConstantIntVector(0, getPositionCount())) {
+                ordinals = unmaskedOrdinals.keepMask(mask);
+            }
+            bytes = blockFactory().newConstantBytesRefVector(value, getPositionCount());
+            OrdinalBytesRefBlock result = new OrdinalBytesRefBlock(ordinals, bytes);
+            ordinals = null;
+            bytes = null;
+            return result;
+        } finally {
+            Releasables.close(ordinals, bytes);
+        }
+    }
+
+    @Override
+    public ReleasableIterator<BytesRefBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize) {
+        if (positions.getPositionCount() == 0) {
+            return ReleasableIterator.empty();
+        }
+        IntVector positionsVector = positions.asVector();
+        if (positionsVector == null) {
+            return new BytesRefLookup(asBlock(), positions, targetBlockSize);
+        }
+        int min = positionsVector.min();
+        if (min < 0) {
+            throw new IllegalArgumentException("invalid position [" + min + "]");
+        }
+        if (min > getPositionCount()) {
+            return ReleasableIterator.single((BytesRefBlock) positions.blockFactory().newConstantNullBlock(positions.getPositionCount()));
+        }
+        if (positionsVector.max() < getPositionCount()) {
+            return ReleasableIterator.single(positions.blockFactory().newConstantBytesRefBlockWith(value, positions.getPositionCount()));
+        }
+        return new BytesRefLookup(asBlock(), positions, targetBlockSize);
+    }
+
+    @Override
+    public BytesRefVector slice(int beginInclusive, int endExclusive) {
+        if (beginInclusive == 0 && endExclusive == getPositionCount()) {
+            incRef();
+            return this;
+        }
+        return blockFactory().newConstantBytesRefVector(value, endExclusive - beginInclusive);
     }
 
     @Override
@@ -51,8 +127,31 @@ public final class ConstantBytesRefVector extends AbstractVector implements Byte
     }
 
     @Override
+    public BytesRefVector deepCopy(BlockFactory blockFactory) {
+        return blockFactory.newConstantBytesRefVector(value, getPositionCount());
+    }
+
+    public static long ramBytesUsedWithLength(BytesRef value) {
+        return BASE_RAM_BYTES_USED + RamUsageEstimator.alignObjectSize(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + value.length);
+    }
+
+    /**
+     * Estimates the RAM usage of this vector, applying an overestimate multiplier when the
+     * value's byte length exceeds {@code overestimateThreshold}. This compensates for heap
+     * overhead that {@link RamUsageEstimator} does not track, such as when loading large text
+     * fields from {@code _source}.
+     */
+    public static long ramBytesEstimated(BytesRef value, long overestimateThreshold, double overestimateFactor) {
+        long valueBytes = RamUsageEstimator.alignObjectSize(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + value.length);
+        if (value.length > overestimateThreshold) {
+            valueBytes = Math.round(valueBytes * overestimateFactor);
+        }
+        return BASE_RAM_BYTES_USED + valueBytes;
+    }
+
+    @Override
     public long ramBytesUsed() {
-        return BASE_RAM_BYTES_USED + RamUsageEstimator.shallowSizeOfInstance(BytesRef.class);
+        return ramBytesEstimated(value, blockFactory().bytesRefRamOverestimateThreshold(), blockFactory().bytesRefRamOverestimateFactor());
     }
 
     @Override
@@ -70,10 +169,5 @@ public final class ConstantBytesRefVector extends AbstractVector implements Byte
 
     public String toString() {
         return getClass().getSimpleName() + "[positions=" + getPositionCount() + ", value=" + value + ']';
-    }
-
-    @Override
-    public void close() {
-        // no-op
     }
 }

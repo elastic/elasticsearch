@@ -11,8 +11,8 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.IndicesRequest;
-import org.elasticsearch.action.admin.indices.close.CloseIndexAction;
-import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
+import org.elasticsearch.action.admin.indices.close.TransportCloseIndexAction;
+import org.elasticsearch.action.admin.indices.delete.TransportDeleteIndexAction;
 import org.elasticsearch.action.admin.indices.open.OpenIndexAction;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -34,19 +34,18 @@ import org.elasticsearch.xpack.security.authz.AuthorizationService;
  * The server transport filter that should be used in nodes as it ensures that an incoming
  * request is properly authenticated and authorized
  */
-class ServerTransportFilter {
+public class ServerTransportFilter {
 
     private static final Logger logger = LogManager.getLogger(ServerTransportFilter.class);
 
     private final AuthenticationService authcService;
     private final AuthorizationService authzService;
-    private final SecurityActionMapper actionMapper = new SecurityActionMapper();
     private final ThreadContext threadContext;
     private final boolean extractClientCert;
     private final DestructiveOperations destructiveOperations;
     private final SecurityContext securityContext;
 
-    ServerTransportFilter(
+    public ServerTransportFilter(
         AuthenticationService authcService,
         AuthorizationService authzService,
         ThreadContext threadContext,
@@ -63,12 +62,15 @@ class ServerTransportFilter {
     }
 
     /**
-     * Called just after the given request was received by the transport. Any exception
-     * thrown by this method will stop the request from being handled and the error will
-     * be sent back to the sender.
+     * Called just after the given request was received by the transport service.
+     * <p>
+     * Any exception thrown by this method will stop the request from being handled
+     * and the error will be sent back to the sender.
      */
-    void inbound(String action, TransportRequest request, TransportChannel transportChannel, ActionListener<Void> listener) {
-        if (CloseIndexAction.NAME.equals(action) || OpenIndexAction.NAME.equals(action) || DeleteIndexAction.NAME.equals(action)) {
+    public void inbound(String action, TransportRequest request, TransportChannel transportChannel, ActionListener<Void> listener) {
+        if (TransportCloseIndexAction.NAME.equals(action)
+            || OpenIndexAction.NAME.equals(action)
+            || TransportDeleteIndexAction.TYPE.name().equals(action)) {
             IndicesRequest indicesRequest = (IndicesRequest) request;
             try {
                 destructiveOperations.failDestructive(indicesRequest.indices());

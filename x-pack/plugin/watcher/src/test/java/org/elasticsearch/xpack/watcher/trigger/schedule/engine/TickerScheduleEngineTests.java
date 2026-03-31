@@ -12,6 +12,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.watcher.trigger.TriggerEvent;
 import org.elasticsearch.xpack.core.watcher.watch.ClockMock;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
+import org.elasticsearch.xpack.core.watcher.watch.WatchStatus;
 import org.elasticsearch.xpack.watcher.condition.InternalAlwaysCondition;
 import org.elasticsearch.xpack.watcher.input.none.ExecutableNoneInput;
 import org.elasticsearch.xpack.watcher.trigger.schedule.Schedule;
@@ -27,12 +28,10 @@ import java.time.ZonedDateTime;
 import java.time.temporal.ChronoField;
 import java.util.ArrayList;
 import java.util.BitSet;
-import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Consumer;
 
 import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.daily;
 import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.interval;
@@ -65,7 +64,7 @@ public class TickerScheduleEngineTests extends ESTestCase {
     }
 
     @After
-    public void cleanup() throws Exception {
+    public void cleanup() {
         engine.stop();
     }
 
@@ -79,57 +78,47 @@ public class TickerScheduleEngineTests extends ESTestCase {
         }
         final BitSet bits = new BitSet(count);
 
-        engine.register(new Consumer<Iterable<TriggerEvent>>() {
-            @Override
-            public void accept(Iterable<TriggerEvent> events) {
-                for (TriggerEvent event : events) {
-                    int index = Integer.parseInt(event.jobName());
-                    if (bits.get(index) == false) {
-                        logger.info("job [{}] first fire", index);
-                        bits.set(index);
-                        firstLatch.countDown();
-                    } else {
-                        logger.info("job [{}] second fire", index);
-                        secondLatch.countDown();
-                    }
+        engine.register(events -> {
+            for (TriggerEvent event : events) {
+                int index = Integer.parseInt(event.jobName());
+                if (bits.get(index) == false) {
+                    logger.info("job [{}] first fire", index);
+                    bits.set(index);
+                    firstLatch.countDown();
+                } else {
+                    logger.info("job [{}] second fire", index);
+                    secondLatch.countDown();
                 }
             }
         });
 
         engine.start(watches);
         advanceClockIfNeeded(clock.instant().plusMillis(1100).atZone(ZoneOffset.UTC));
-        if (firstLatch.await(3 * count, TimeUnit.SECONDS) == false) {
+        if (firstLatch.await(3L * count, TimeUnit.SECONDS) == false) {
             fail("waiting too long for all watches to be triggered");
         }
 
         advanceClockIfNeeded(clock.instant().plusMillis(1100).atZone(ZoneOffset.UTC));
-        if (secondLatch.await(3 * count, TimeUnit.SECONDS) == false) {
+        if (secondLatch.await(3L * count, TimeUnit.SECONDS) == false) {
             fail("waiting too long for all watches to be triggered");
         }
-        engine.stop();
         assertThat(bits.cardinality(), is(count));
     }
 
     public void testAddHourly() throws Exception {
         final String name = "job_name";
         final CountDownLatch latch = new CountDownLatch(1);
-        engine.start(Collections.emptySet());
-        engine.register(new Consumer<Iterable<TriggerEvent>>() {
-            @Override
-            public void accept(Iterable<TriggerEvent> events) {
-                for (TriggerEvent event : events) {
-                    assertThat(event.jobName(), is(name));
-                    logger.info("triggered job on [{}]", clock);
-                }
-                latch.countDown();
+        engine.start(List.of());
+        engine.register(events -> {
+            for (TriggerEvent event : events) {
+                assertThat(event.jobName(), is(name));
+                logger.info("triggered job on [{}]", clock);
             }
+            latch.countDown();
         });
 
         int randomMinute = randomIntBetween(0, 59);
-        ZonedDateTime testNowTime = clock.instant()
-            .atZone(ZoneOffset.UTC)
-            .with(ChronoField.MINUTE_OF_HOUR, randomMinute)
-            .with(ChronoField.SECOND_OF_MINUTE, 59);
+        ZonedDateTime testNowTime = clock.instant().atZone(ZoneOffset.UTC).withMinute(randomMinute).withSecond(59);
 
         ZonedDateTime scheduledTime = testNowTime.plusSeconds(2);
         logger.info("Setting current time to [{}], job execution time [{}]", testNowTime, scheduledTime);
@@ -146,27 +135,20 @@ public class TickerScheduleEngineTests extends ESTestCase {
     public void testAddDaily() throws Exception {
         final String name = "job_name";
         final CountDownLatch latch = new CountDownLatch(1);
-        engine.start(Collections.emptySet());
+        engine.start(List.of());
 
-        engine.register(new Consumer<Iterable<TriggerEvent>>() {
-            @Override
-            public void accept(Iterable<TriggerEvent> events) {
-                for (TriggerEvent event : events) {
-                    assertThat(event.jobName(), is(name));
-                    logger.info("triggered job on [{}]", clock.instant().atZone(ZoneOffset.UTC));
-                    latch.countDown();
-                }
+        engine.register(events -> {
+            for (TriggerEvent event : events) {
+                assertThat(event.jobName(), is(name));
+                logger.info("triggered job on [{}]", clock.instant().atZone(ZoneOffset.UTC));
+                latch.countDown();
             }
         });
 
         int randomHour = randomIntBetween(0, 23);
         int randomMinute = randomIntBetween(0, 59);
 
-        ZonedDateTime testNowTime = clock.instant()
-            .atZone(ZoneOffset.UTC)
-            .with(ChronoField.HOUR_OF_DAY, randomHour)
-            .with(ChronoField.MINUTE_OF_HOUR, randomMinute)
-            .with(ChronoField.SECOND_OF_MINUTE, 59);
+        ZonedDateTime testNowTime = clock.instant().atZone(ZoneOffset.UTC).withHour(randomHour).withMinute(randomMinute).withSecond(59);
 
         ZonedDateTime scheduledTime = testNowTime.plusSeconds(2);
         logger.info("Setting current time to [{}], job execution time [{}]", testNowTime, scheduledTime);
@@ -183,16 +165,13 @@ public class TickerScheduleEngineTests extends ESTestCase {
     public void testAddWeekly() throws Exception {
         final String name = "job_name";
         final CountDownLatch latch = new CountDownLatch(1);
-        engine.start(Collections.emptySet());
-        engine.register(new Consumer<Iterable<TriggerEvent>>() {
-            @Override
-            public void accept(Iterable<TriggerEvent> events) {
-                for (TriggerEvent event : events) {
-                    assertThat(event.jobName(), is(name));
-                    logger.info("triggered job");
-                }
-                latch.countDown();
+        engine.start(List.of());
+        engine.register(events -> {
+            for (TriggerEvent event : events) {
+                assertThat(event.jobName(), is(name));
+                logger.info("triggered job");
             }
+            latch.countDown();
         });
 
         int randomHour = randomIntBetween(0, 23);
@@ -202,9 +181,9 @@ public class TickerScheduleEngineTests extends ESTestCase {
         ZonedDateTime testNowTime = clock.instant()
             .atZone(ZoneOffset.UTC)
             .with(ChronoField.DAY_OF_WEEK, randomDay)
-            .with(ChronoField.HOUR_OF_DAY, randomHour)
-            .with(ChronoField.MINUTE_OF_HOUR, randomMinute)
-            .with(ChronoField.SECOND_OF_MINUTE, 59);
+            .withHour(randomHour)
+            .withMinute(randomMinute)
+            .withSecond(59);
 
         ZonedDateTime scheduledTime = testNowTime.plusSeconds(2);
 
@@ -230,23 +209,18 @@ public class TickerScheduleEngineTests extends ESTestCase {
     }
 
     public void testAddSameJobSeveralTimesAndExecutedOnce() throws InterruptedException {
-        engine.start(Collections.emptySet());
+        engine.start(List.of());
 
         final CountDownLatch firstLatch = new CountDownLatch(1);
         final CountDownLatch secondLatch = new CountDownLatch(1);
         AtomicInteger counter = new AtomicInteger(0);
-        engine.register(new Consumer<Iterable<TriggerEvent>>() {
-            @Override
-            public void accept(Iterable<TriggerEvent> events) {
-                events.forEach(event -> {
-                    if (counter.getAndIncrement() == 0) {
-                        firstLatch.countDown();
-                    } else {
-                        secondLatch.countDown();
-                    }
-                });
+        engine.register(events -> events.forEach(event -> {
+            if (counter.getAndIncrement() == 0) {
+                firstLatch.countDown();
+            } else {
+                secondLatch.countDown();
             }
-        });
+        }));
 
         int times = scaledRandomIntBetween(3, 30);
         for (int i = 0; i < times; i++) {
@@ -268,7 +242,7 @@ public class TickerScheduleEngineTests extends ESTestCase {
     }
 
     public void testAddOnlyWithNewSchedule() {
-        engine.start(Collections.emptySet());
+        engine.start(List.of());
 
         // add watch with schedule
         Watch oncePerSecondWatch = createWatch("_id", interval("1s"));
@@ -283,6 +257,232 @@ public class TickerScheduleEngineTests extends ESTestCase {
         assertThat(engine.getSchedules().get("_id"), not(is(activeSchedule)));
     }
 
+    /**
+     * This test verifies that a watch with a valid lastCheckedTime executes before the interval time to ensure the job resumes waiting
+     * from the same point it left off before the reallocation / restart
+     */
+    public void testWatchWithLastCheckedTimeExecutesBeforeInitialInterval() throws Exception {
+        final var firstLatch = new CountDownLatch(1);
+        final var secondLatch = new CountDownLatch(1);
+
+        Watch watch = new Watch(
+            "watch",
+            new ScheduleTrigger(interval("1s")),
+            new ExecutableNoneInput(),
+            InternalAlwaysCondition.INSTANCE,
+            null,
+            null,
+            List.of(),
+            null,
+            new WatchStatus(-1L, null, null, clock.instant().minusMillis(500).atZone(ZoneOffset.UTC), null, null, null),
+            SequenceNumbers.UNASSIGNED_SEQ_NO,
+            SequenceNumbers.UNASSIGNED_PRIMARY_TERM
+        );
+
+        var watches = List.of(watch);
+
+        var runCount = new AtomicInteger(0);
+
+        engine.register(events -> {
+            for (TriggerEvent ignored : events) {
+                if (runCount.getAndIncrement() == 0) {
+                    logger.info("job first fire");
+                    firstLatch.countDown();
+                } else {
+                    logger.info("job second fire");
+                    secondLatch.countDown();
+                }
+            }
+        });
+
+        engine.start(watches);
+        advanceClockIfNeeded(clock.instant().plusMillis(510).atZone(ZoneOffset.UTC));
+        if (firstLatch.await(3, TimeUnit.SECONDS) == false) {
+            fail("waiting too long for all watches to be triggered");
+        }
+
+        advanceClockIfNeeded(clock.instant().plusMillis(1100).atZone(ZoneOffset.UTC));
+        if (secondLatch.await(3, TimeUnit.SECONDS) == false) {
+            fail("waiting too long for all watches to be triggered");
+        }
+
+        assertThat(runCount.get(), is(2));
+    }
+
+    /**
+     * This test verifies that a watch without a lastCheckedTime but with a valid activationTime executes before the interval time to
+     * ensure the job resumes waiting from the same point it left off before the reallocation / restart
+     */
+    public void testWatchWithNoLastCheckedTimeButHasActivationTimeExecutesBeforeInitialInterval() throws Exception {
+        final var firstLatch = new CountDownLatch(1);
+        final var secondLatch = new CountDownLatch(1);
+
+        Watch watch = new Watch(
+            "watch",
+            new ScheduleTrigger(interval("1s")),
+            new ExecutableNoneInput(),
+            InternalAlwaysCondition.INSTANCE,
+            null,
+            null,
+            List.of(),
+            null,
+            new WatchStatus(
+                -1L,
+                new WatchStatus.State(true, clock.instant().minusMillis(500).atZone(ZoneOffset.UTC)),
+                null,
+                null,
+                null,
+                null,
+                null
+            ),
+            SequenceNumbers.UNASSIGNED_SEQ_NO,
+            SequenceNumbers.UNASSIGNED_PRIMARY_TERM
+        );
+
+        var watches = List.of(watch);
+
+        var runCount = new AtomicInteger(0);
+
+        engine.register(events -> {
+            for (TriggerEvent ignored : events) {
+                if (runCount.getAndIncrement() == 0) {
+                    logger.info("job first fire");
+                    firstLatch.countDown();
+                } else {
+                    logger.info("job second fire");
+                    secondLatch.countDown();
+                }
+            }
+        });
+
+        engine.start(watches);
+        advanceClockIfNeeded(clock.instant().plusMillis(510).atZone(ZoneOffset.UTC));
+        if (firstLatch.await(3, TimeUnit.SECONDS) == false) {
+            fail("waiting too long for all watches to be triggered");
+        }
+
+        advanceClockIfNeeded(clock.instant().plusMillis(1100).atZone(ZoneOffset.UTC));
+        if (secondLatch.await(3, TimeUnit.SECONDS) == false) {
+            fail("waiting too long for all watches to be triggered");
+        }
+
+        assertThat(runCount.get(), is(2));
+    }
+
+    /**
+     * This test verifies that a watch added after service start with a lastCheckedTime executes before the interval time to ensure the job
+     * resumes waiting from the same point it left off before the reallocation / restart
+     */
+    public void testAddWithLastCheckedTimeExecutesBeforeInitialInterval() throws Exception {
+        final var firstLatch = new CountDownLatch(1);
+        final var secondLatch = new CountDownLatch(1);
+
+        Watch watch = new Watch(
+            "watch",
+            new ScheduleTrigger(interval("1s")),
+            new ExecutableNoneInput(),
+            InternalAlwaysCondition.INSTANCE,
+            null,
+            null,
+            List.of(),
+            null,
+            new WatchStatus(-1L, null, null, clock.instant().minusMillis(500).atZone(ZoneOffset.UTC), null, null, null),
+            SequenceNumbers.UNASSIGNED_SEQ_NO,
+            SequenceNumbers.UNASSIGNED_PRIMARY_TERM
+        );
+
+        var runCount = new AtomicInteger(0);
+
+        engine.register(events -> {
+            for (TriggerEvent ignored : events) {
+                if (runCount.getAndIncrement() == 0) {
+                    logger.info("job first fire");
+                    firstLatch.countDown();
+                } else {
+                    logger.info("job second fire");
+                    secondLatch.countDown();
+                }
+            }
+        });
+
+        engine.start(List.of());
+        advanceClockIfNeeded(clock.instant().plusMillis(1100).atZone(ZoneOffset.UTC));
+        engine.add(watch);
+
+        advanceClockIfNeeded(clock.instant().plusMillis(510).atZone(ZoneOffset.UTC));
+        if (firstLatch.await(3, TimeUnit.SECONDS) == false) {
+            fail("waiting too long for all watches to be triggered");
+        }
+
+        advanceClockIfNeeded(clock.instant().plusMillis(1100).atZone(ZoneOffset.UTC));
+        if (secondLatch.await(3, TimeUnit.SECONDS) == false) {
+            fail("waiting too long for all watches to be triggered");
+        }
+
+        assertThat(runCount.get(), is(2));
+    }
+
+    /**
+     * This test verifies that a watch added after service start without a lastCheckedTime but with a valid activationTime executes before
+     * the interval time to ensure the job resumes waiting from the same point it left off before the reallocation / restart
+     */
+    public void testAddWithNoLastCheckedTimeButHasActivationTimeExecutesBeforeInitialInterval() throws Exception {
+        final var firstLatch = new CountDownLatch(1);
+        final var secondLatch = new CountDownLatch(1);
+
+        Watch watch = new Watch(
+            "watch",
+            new ScheduleTrigger(interval("1s")),
+            new ExecutableNoneInput(),
+            InternalAlwaysCondition.INSTANCE,
+            null,
+            null,
+            List.of(),
+            null,
+            new WatchStatus(
+                -1L,
+                new WatchStatus.State(true, clock.instant().minusMillis(500).atZone(ZoneOffset.UTC)),
+                null,
+                null,
+                null,
+                null,
+                null
+            ),
+            SequenceNumbers.UNASSIGNED_SEQ_NO,
+            SequenceNumbers.UNASSIGNED_PRIMARY_TERM
+        );
+
+        var runCount = new AtomicInteger(0);
+
+        engine.register(events -> {
+            for (TriggerEvent ignored : events) {
+                if (runCount.getAndIncrement() == 0) {
+                    logger.info("job first fire");
+                    firstLatch.countDown();
+                } else {
+                    logger.info("job second fire");
+                    secondLatch.countDown();
+                }
+            }
+        });
+
+        engine.start(List.of());
+        advanceClockIfNeeded(clock.instant().plusMillis(1100).atZone(ZoneOffset.UTC));
+        engine.add(watch);
+
+        advanceClockIfNeeded(clock.instant().plusMillis(510).atZone(ZoneOffset.UTC));
+        if (firstLatch.await(3, TimeUnit.SECONDS) == false) {
+            fail("waiting too long for all watches to be triggered");
+        }
+
+        advanceClockIfNeeded(clock.instant().plusMillis(1100).atZone(ZoneOffset.UTC));
+        if (secondLatch.await(3, TimeUnit.SECONDS) == false) {
+            fail("waiting too long for all watches to be triggered");
+        }
+
+        assertThat(runCount.get(), is(2));
+    }
+
     private Watch createWatch(String name, Schedule schedule) {
         return new Watch(
             name,
@@ -291,7 +491,7 @@ public class TickerScheduleEngineTests extends ESTestCase {
             InternalAlwaysCondition.INSTANCE,
             null,
             null,
-            Collections.emptyList(),
+            List.of(),
             null,
             null,
             SequenceNumbers.UNASSIGNED_SEQ_NO,

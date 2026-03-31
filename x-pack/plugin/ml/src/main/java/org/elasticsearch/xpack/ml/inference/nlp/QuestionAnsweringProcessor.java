@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.ml.inference.nlp;
 
 import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.QuestionAnsweringInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.QuestionAnsweringConfig;
@@ -66,10 +66,18 @@ public class QuestionAnsweringProcessor extends NlpTask.Processor {
     record RequestBuilder(NlpTokenizer tokenizer, String question) implements NlpTask.RequestBuilder {
 
         @Override
-        public NlpTask.Request buildRequest(List<String> inputs, String requestId, Tokenization.Truncate truncate, int span)
-            throws IOException {
+        public NlpTask.Request buildRequest(
+            List<String> inputs,
+            String requestId,
+            Tokenization.Truncate truncate,
+            int span,
+            Integer windowSize
+        ) throws IOException {
             if (inputs.size() > 1) {
                 throw ExceptionsHelper.badRequestException("Unable to do question answering on more than one text input at a time");
+            }
+            if (question == null) {
+                throw ExceptionsHelper.badRequestException("Question is required for question answering");
             }
             String context = inputs.get(0);
             List<TokenizationResult.Tokens> tokenizations = tokenizer.tokenize(question, context, truncate, span, 0);
@@ -83,7 +91,11 @@ public class QuestionAnsweringProcessor extends NlpTask.Processor {
             NlpTask.ResultProcessor {
 
         @Override
-        public InferenceResults processResult(TokenizationResult tokenization, PyTorchInferenceResult pyTorchResult) {
+        public InferenceResults processResult(TokenizationResult tokenization, PyTorchInferenceResult pyTorchResult, boolean chunkResult) {
+            if (chunkResult) {
+                throw chunkingNotSupportedException(TaskType.NER);
+            }
+
             if (pyTorchResult.getInferenceResult().length < 1) {
                 throw new ElasticsearchStatusException("question answering result has no data", RestStatus.INTERNAL_SERVER_ERROR);
             }
@@ -113,7 +125,7 @@ public class QuestionAnsweringProcessor extends NlpTask.Processor {
             if (pyTorchResult.getInferenceResult().length % 2 != 0) {
                 throw new ElasticsearchStatusException(
                     "question answering result has invalid dimension, number of dimensions must be a multiple of 2 found [{}]",
-                    RestStatus.INTERNAL_SERVER_ERROR,
+                    RestStatus.CONFLICT,
                     pyTorchResult.getInferenceResult().length
                 );
             }
@@ -126,7 +138,7 @@ public class QuestionAnsweringProcessor extends NlpTask.Processor {
             if (numberOfSpans != tokensList.size()) {
                 throw new ElasticsearchStatusException(
                     "question answering result has invalid dimensions; the number of spans [{}] does not match batched token size [{}]",
-                    RestStatus.INTERNAL_SERVER_ERROR,
+                    RestStatus.CONFLICT,
                     numberOfSpans,
                     tokensList.size()
                 );
@@ -141,7 +153,7 @@ public class QuestionAnsweringProcessor extends NlpTask.Processor {
                 if (starts.length != ends.length) {
                     throw new ElasticsearchStatusException(
                         "question answering result has invalid dimensions; start positions [{}] must equal potential end [{}]",
-                        RestStatus.INTERNAL_SERVER_ERROR,
+                        RestStatus.CONFLICT,
                         starts.length,
                         ends.length
                     );
@@ -210,7 +222,7 @@ public class QuestionAnsweringProcessor extends NlpTask.Processor {
         if (start.length != end.length) {
             throw new ElasticsearchStatusException(
                 "question answering result has invalid dimensions; possible start tokens [{}] must equal possible end tokens [{}]",
-                RestStatus.INTERNAL_SERVER_ERROR,
+                RestStatus.CONFLICT,
                 start.length,
                 end.length
             );

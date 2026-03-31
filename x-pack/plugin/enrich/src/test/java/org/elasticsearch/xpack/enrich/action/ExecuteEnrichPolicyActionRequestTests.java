@@ -14,7 +14,7 @@ public class ExecuteEnrichPolicyActionRequestTests extends AbstractWireSerializi
 
     @Override
     protected ExecuteEnrichPolicyAction.Request createTestInstance() {
-        return new ExecuteEnrichPolicyAction.Request(randomAlphaOfLength(3));
+        return new ExecuteEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, randomAlphaOfLength(3));
     }
 
     @Override

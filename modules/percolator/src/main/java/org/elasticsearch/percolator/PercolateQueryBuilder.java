@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.percolator;
@@ -34,29 +35,28 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.get.GetRequest;
+import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
+import org.elasticsearch.index.query.LeafQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardException;
@@ -64,6 +64,11 @@ import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.search.lookup.Source;
+import org.elasticsearch.search.lookup.SourceFilter;
+import org.elasticsearch.search.lookup.SourceProvider;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
@@ -80,20 +85,14 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
-import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.core.RestApiVersion.equalTo;
 import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
-public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBuilder> {
-    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(ParseField.class);
-    static final String DOCUMENT_TYPE_DEPRECATION_MESSAGE = "[types removal] Types are deprecated in [percolate] queries. "
-        + "The [document_type] should no longer be specified.";
-    static final String TYPE_DEPRECATION_MESSAGE = "[types removal] Types are deprecated in [percolate] queries. "
-        + "The [type] of the indexed document should no longer be specified.";
+public class PercolateQueryBuilder extends LeafQueryBuilder<PercolateQueryBuilder> {
+    private static final Logger LOGGER = LogManager.getLogger(PercolateQueryBuilder.class);
 
     public static final String NAME = "percolate";
 
@@ -101,8 +100,6 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
     static final ParseField DOCUMENTS_FIELD = new ParseField("documents");
     private static final ParseField NAME_FIELD = new ParseField("name");
     private static final ParseField QUERY_FIELD = new ParseField("field");
-    private static final ParseField DOCUMENT_TYPE_FIELD = new ParseField("document_type");
-    private static final ParseField INDEXED_DOCUMENT_FIELD_TYPE = new ParseField("type");
     private static final ParseField INDEXED_DOCUMENT_FIELD_INDEX = new ParseField("index");
     private static final ParseField INDEXED_DOCUMENT_FIELD_ID = new ParseField("id");
     private static final ParseField INDEXED_DOCUMENT_FIELD_ROUTING = new ParseField("routing");
@@ -217,15 +214,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         super(in);
         field = in.readString();
         name = in.readOptionalString();
-        if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            String documentType = in.readOptionalString();
-            assert documentType == null;
-        }
         indexedDocumentIndex = in.readOptionalString();
-        if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            String indexedDocumentType = in.readOptionalString();
-            assert indexedDocumentType == null;
-        }
         indexedDocumentId = in.readOptionalString();
         indexedDocumentRouting = in.readOptionalString();
         indexedDocumentPreference = in.readOptionalString();
@@ -259,15 +248,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         }
         out.writeString(field);
         out.writeOptionalString(name);
-        if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            // In 7x, typeless percolate queries are represented by null documentType values
-            out.writeOptionalString(null);
-        }
         out.writeOptionalString(indexedDocumentIndex);
-        if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            // In 7x, typeless percolate queries are represented by null indexedDocumentType values
-            out.writeOptionalString(null);
-        }
         out.writeOptionalString(indexedDocumentId);
         out.writeOptionalString(indexedDocumentRouting);
         out.writeOptionalString(indexedDocumentPreference);
@@ -309,9 +290,6 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         if (indexedDocumentIndex != null || indexedDocumentId != null) {
             if (indexedDocumentIndex != null) {
                 builder.field(INDEXED_DOCUMENT_FIELD_INDEX.getPreferredName(), indexedDocumentIndex);
-            }
-            if (builder.getRestApiVersion() == RestApiVersion.V_7) {
-                builder.field(INDEXED_DOCUMENT_FIELD_TYPE.getPreferredName(), MapperService.SINGLE_MAPPING_NAME);
             }
             if (indexedDocumentId != null) {
                 builder.field(INDEXED_DOCUMENT_FIELD_ID.getPreferredName(), indexedDocumentId);
@@ -370,18 +348,6 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
             DOCUMENTS_FIELD.getPreferredName(),
             INDEXED_DOCUMENT_FIELD_ID.getPreferredName()
         );
-        PARSER.declareString(
-            deprecateAndIgnoreType("percolate_with_type", TYPE_DEPRECATION_MESSAGE),
-            INDEXED_DOCUMENT_FIELD_TYPE.forRestApiVersion(equalTo(RestApiVersion.V_7))
-        );
-        PARSER.declareString(
-            deprecateAndIgnoreType("percolate_with_document_type", DOCUMENT_TYPE_DEPRECATION_MESSAGE),
-            DOCUMENT_TYPE_FIELD.forRestApiVersion(equalTo(RestApiVersion.V_7))
-        );
-    }
-
-    private static BiConsumer<PercolateQueryBuilder, String> deprecateAndIgnoreType(String key, String message) {
-        return (target, type) -> deprecationLogger.compatibleCritical(key, message);
     }
 
     private static BytesReference parseDocument(XContentParser parser) throws IOException {
@@ -530,9 +496,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
 
         PercolatorFieldMapper.PercolatorFieldType pft = (PercolatorFieldMapper.PercolatorFieldType) fieldType;
         String queryName = this.name != null ? this.name : pft.name();
-        SearchExecutionContext percolateShardContext = wrap(context);
-        percolateShardContext = PercolatorFieldMapper.configureContext(percolateShardContext, pft.mapUnmappedFieldsAsText);
-        PercolateQuery.QueryStore queryStore = createStore(pft.queryBuilderField, percolateShardContext);
+        PercolateQuery.QueryStore queryStore = createStore(pft.queryBuilderField, pft.mapUnmappedFieldsAsText, context);
 
         return pft.percolateQuery(queryName, queryStore, documents, docSearcher, excludeNestedDocuments, context.indexVersionCreated());
     }
@@ -571,7 +535,11 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         }
     }
 
-    static PercolateQuery.QueryStore createStore(MappedFieldType queryBuilderFieldType, SearchExecutionContext context) {
+    static PercolateQuery.QueryStore createStore(
+        MappedFieldType queryBuilderFieldType,
+        boolean mapUnmappedFieldsAsText,
+        SearchExecutionContext context
+    ) {
         IndexVersion indexVersion = context.indexVersionCreated();
         NamedWriteableRegistry registry = context.getWriteableRegistry();
         return ctx -> {
@@ -582,35 +550,36 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
             }
             return docId -> {
                 if (binaryDocValues.advanceExact(docId)) {
+                    // create a shallow copy and set overrides
+                    var percolateShardContext = newPercolateSearchContext(context, mapUnmappedFieldsAsText);
+
                     BytesRef qbSource = binaryDocValues.binaryValue();
-                    try (
-                        InputStream in = new ByteArrayInputStream(qbSource.bytes, qbSource.offset, qbSource.length);
-                        StreamInput input = new NamedWriteableAwareStreamInput(new InputStreamStreamInput(in, qbSource.length), registry)
-                    ) {
-                        // Query builder's content is stored via BinaryFieldMapper, which has a custom encoding
-                        // to encode multiple binary values into a single binary doc values field.
-                        // This is the reason we need to first read the number of values and
-                        // then the length of the field value in bytes.
-                        int numValues = input.readVInt();
-                        assert numValues == 1;
-                        int valueLength = input.readVInt();
-                        assert valueLength > 0;
-
-                        TransportVersion transportVersion;
-                        if (indexVersion.before(IndexVersion.V_8_8_0)) {
-                            transportVersion = TransportVersion.fromId(indexVersion.id());
-                        } else {
-                            transportVersion = TransportVersion.readVersion(input);
+                    QueryBuilder queryBuilder = readQueryBuilder(qbSource, registry, indexVersion, () -> {
+                        // query builder is written in an incompatible format, fall-back to reading it from source
+                        if (percolateShardContext.isSourceEnabled() == false) {
+                            throw new ElasticsearchException(
+                                "Unable to read percolator query. Original transport version is incompatible and source is "
+                                    + "unavailable on index [{}].",
+                                percolateShardContext.index().getName()
+                            );
                         }
-                        // set the transportversion here - only read vints so far, so can change the version freely at this point
-                        input.setTransportVersion(transportVersion);
+                        LOGGER.warn(
+                            "Reading percolator query from source. For best performance, reindexing of index [{}] is required.",
+                            percolateShardContext.index().getName()
+                        );
+                        SourceProvider sourceProvider = percolateShardContext.createSourceProvider(new SourceFilter(null, null));
+                        Source source = sourceProvider.getSource(ctx, docId);
+                        SourceToParse sourceToParse = new SourceToParse(
+                            String.valueOf(docId),
+                            source.internalSourceRef(),
+                            source.sourceContentType()
+                        );
 
-                        QueryBuilder queryBuilder = input.readNamedWriteable(QueryBuilder.class);
-                        assert in.read() == -1;
-                        queryBuilder = Rewriteable.rewrite(queryBuilder, context);
-                        return queryBuilder.toQuery(context);
-                    }
+                        return percolateShardContext.parseDocument(sourceToParse).rootDoc().getBinaryValue(queryBuilderFieldType.name());
+                    });
 
+                    queryBuilder = Rewriteable.rewrite(queryBuilder, percolateShardContext);
+                    return queryBuilder.toQuery(percolateShardContext);
                 } else {
                     return null;
                 }
@@ -618,8 +587,60 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         };
     }
 
-    static SearchExecutionContext wrap(SearchExecutionContext delegate) {
-        return new SearchExecutionContext(delegate) {
+    private static QueryBuilder readQueryBuilder(
+        BytesRef bytesRef,
+        NamedWriteableRegistry registry,
+        IndexVersion indexVersion,
+        CheckedSupplier<BytesRef, IOException> fallbackSource
+    ) throws IOException {
+        try (
+            InputStream in = new ByteArrayInputStream(bytesRef.bytes, bytesRef.offset, bytesRef.length);
+            StreamInput input = new NamedWriteableAwareStreamInput(new InputStreamStreamInput(in, bytesRef.length), registry)
+        ) {
+            // Query builder's content is stored via BinaryFieldMapper, which has a custom encoding
+            // to encode multiple binary values into a single binary doc values field.
+            // This is the reason we need to first read the number of values and
+            // then the length of the field value in bytes.
+            int numValues = input.readVInt();
+            assert numValues == 1;
+            int valueLength = input.readVInt();
+            assert valueLength > 0;
+
+            TransportVersion transportVersion;
+            if (indexVersion.before(IndexVersions.V_8_8_0)) {
+                transportVersion = TransportVersion.fromId(indexVersion.id());
+            } else {
+                transportVersion = TransportVersion.readVersion(input);
+            }
+
+            QueryBuilder queryBuilder;
+
+            if (TransportVersion.isCompatible(transportVersion) || fallbackSource == null) {
+                // set the transportversion here - only read vints so far, so can change the version freely at this point
+                input.setTransportVersion(transportVersion);
+                queryBuilder = input.readNamedWriteable(QueryBuilder.class);
+                assert in.read() == -1;
+            } else {
+                // incompatible transport version, try the fallback
+                queryBuilder = readQueryBuilder(fallbackSource.get(), registry, indexVersion, null);
+            }
+
+            return queryBuilder;
+        }
+    }
+
+    /**
+     * Create a shallow copy of the {@code source} context with specific
+     * overrides for Percolator usage. The shallow copy makes the shared
+     * elements thread safe
+     * @param source The context to copy
+     * @param mapUnmappedFieldsAsText Controls unmapped fields behavior
+     * @return A copy of the source context with overrides
+     */
+    static SearchExecutionContext newPercolateSearchContext(SearchExecutionContext source, boolean mapUnmappedFieldsAsText) {
+        assert source.getClass().isAnonymousClass() == false
+            : "source must not be an anonymous class as overridden methods will be lost when a new SearchExecutionContext is created";
+        var wrapped = new SearchExecutionContext(source) {
 
             @Override
             public IndexReader getIndexReader() {
@@ -653,8 +674,9 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
             ) {
                 IndexFieldData.Builder builder = fieldType.fielddataBuilder(
                     new FieldDataContext(
-                        delegate.getFullyQualifiedIndex().getName(),
-                        delegate::lookup,
+                        source.getFullyQualifiedIndex().getName(),
+                        source.getIndexSettings(),
+                        source::lookup,
                         this::sourcePath,
                         fielddataOperation
                     )
@@ -663,11 +685,59 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
                 CircuitBreakerService circuitBreaker = new NoneCircuitBreakerService();
                 return (IFD) builder.build(cache, circuitBreaker);
             }
+
+            // When expanding wildcard fields for term queries, we don't expand to fields that are empty.
+            // This is sane behavior for typical usage. But for percolator, the fields for the may not have any terms
+            // Consequently, we may erroneously skip expanding those term fields.
+            // This override allows mapped field values to expand via wildcard input, even if the field is empty in the shard.
+            @Override
+            public boolean fieldExistsInIndex(String fieldname) {
+                return true;
+            }
+
+            @Override
+            public void addNamedQuery(String name, Query query) {
+                source.addNamedQuery(name, query);
+            }
+
+            @Override
+            public void addCircuitBreakerMemory(long bytes, String label) {
+                source.addCircuitBreakerMemory(bytes, label);
+            }
+
+            @Override
+            public long getQueryConstructionMemoryUsed() {
+                return source.getQueryConstructionMemoryUsed();
+            }
+
+            @Override
+            public void releaseQueryConstructionMemory() {
+                source.releaseQueryConstructionMemory();
+            }
         };
+
+        // This means that fields in the query need to exist in the mapping prior to registering this query
+        // The reason that this is required, is that if a field doesn't exist then the query assumes defaults, which may be undesired.
+        //
+        // Even worse when fields mentioned in percolator queries do go added to map after the queries have been registered
+        // then the percolator queries don't work as expected any more.
+        //
+        // Query parsing can't introduce new fields in mappings (which happens when registering a percolator query),
+        // because field type can't be inferred from queries (like document do) so the best option here is to disallow
+        // the usage of unmapped fields in percolator queries to avoid unexpected behaviour
+        //
+        // if index.percolator.map_unmapped_fields_as_string is set to true, query can contain unmapped fields which will be mapped
+        // as an analyzed string.
+        wrapped.setAllowUnmappedFields(false);
+        wrapped.setMapUnmappedFieldAsString(mapUnmappedFieldsAsText);
+        // We need to rewrite queries with name to Lucene NamedQuery to find matched sub-queries of percolator query
+        wrapped.setRewriteToNamedQueries();
+
+        return wrapped;
     }
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ZERO;
+        return TransportVersion.zero();
     }
 }

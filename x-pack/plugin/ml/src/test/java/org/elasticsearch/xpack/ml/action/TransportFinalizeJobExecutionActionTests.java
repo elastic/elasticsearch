@@ -11,11 +11,10 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.action.update.UpdateAction;
+import org.elasticsearch.action.update.TransportUpdateAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -59,7 +58,7 @@ public class TransportFinalizeJobExecutionActionTests extends ESTestCase {
             ActionListener listener = (ActionListener) invocationOnMock.getArguments()[2];
             listener.onResponse(null);
             return null;
-        }).when(client).execute(eq(UpdateAction.INSTANCE), any(), any());
+        }).when(client).execute(eq(TransportUpdateAction.TYPE), any(), any());
 
         when(client.threadPool()).thenReturn(threadPool);
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
@@ -76,21 +75,16 @@ public class TransportFinalizeJobExecutionActionTests extends ESTestCase {
         action.masterOperation(null, request, clusterState, ActionTestUtils.assertNoFailureListener(ack::set));
 
         assertTrue(ack.get().isAcknowledged());
-        verify(client, times(2)).execute(eq(UpdateAction.INSTANCE), any(), any());
+        verify(client, times(2)).execute(eq(TransportUpdateAction.TYPE), any(), any());
         verify(clusterService, never()).submitUnbatchedStateUpdateTask(any(), any());
     }
 
     private TransportFinalizeJobExecutionAction createAction(ClusterService clusterService) {
-        // TODO: temporary, remove in #97879
-        TransportService transportService = mock(TransportService.class);
-        when(transportService.getThreadPool()).thenReturn(threadPool);
-
         return new TransportFinalizeJobExecutionAction(
-            transportService,
+            mock(TransportService.class),
             clusterService,
             threadPool,
             mock(ActionFilters.class),
-            mock(IndexNameExpressionResolver.class),
             client
         );
 

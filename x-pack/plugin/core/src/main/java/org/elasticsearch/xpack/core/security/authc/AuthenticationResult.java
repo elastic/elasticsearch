@@ -6,12 +6,15 @@
  */
 package org.elasticsearch.xpack.core.security.authc;
 
+import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.util.concurrent.ThreadContextTransient;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.security.user.User;
 
 import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
 
 /**
  * Represents the result of an authentication attempt.
@@ -26,7 +29,16 @@ import java.util.Objects;
 public final class AuthenticationResult<T> {
     private static final AuthenticationResult<?> NOT_HANDLED = new AuthenticationResult<>(Status.CONTINUE, null, null, null, null);
 
-    public static String THREAD_CONTEXT_KEY = "_xpack_security_auth_result";
+    @SuppressWarnings("rawtypes")
+    public static final ThreadContextTransient<AuthenticationResult> THREAD_CONTEXT_VALUE = ThreadContextTransient.transientValue(
+        "_xpack_security_auth_result",
+        AuthenticationResult.class
+    );
+
+    @SuppressWarnings("unchecked")
+    public static <T> AuthenticationResult<T> get(ThreadContext threadContext) {
+        return (AuthenticationResult<T>) AuthenticationResult.THREAD_CONTEXT_VALUE.get(threadContext);
+    }
 
     public enum Status {
         /**
@@ -182,6 +194,18 @@ public final class AuthenticationResult<T> {
             + ", exception="
             + exception
             + '}';
+    }
+
+    public <S> AuthenticationResult<S> map(Function<T, S> fn) {
+        if (this == NOT_HANDLED) {
+            return notHandled();
+        }
+        if (this.isAuthenticated()) {
+            return new AuthenticationResult<>(Status.SUCCESS, fn.apply(this.value), message, exception, metadata);
+        } else {
+            assert this.value == null : "unsuccessful result must have null value";
+            return new AuthenticationResult<>(this.status, null, message, exception, metadata);
+        }
     }
 
 }

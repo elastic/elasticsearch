@@ -7,25 +7,27 @@
 
 package org.elasticsearch.compute.data;
 
+// begin generated imports
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefArray;
+import org.elasticsearch.core.Releasables;
+
+import java.util.Arrays;
+// end generated imports
 
 /**
  * Block build of BytesRefBlocks.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-BlockBuilder.java.st} instead.
  */
 final class BytesRefBlockBuilder extends AbstractBlockBuilder implements BytesRefBlock.Builder {
 
-    private static final BytesRef NULL_VALUE = new BytesRef();
-
     private BytesRefArray values;
 
-    BytesRefBlockBuilder(int estimatedSize) {
-        this(estimatedSize, BigArrays.NON_RECYCLING_INSTANCE);
-    }
-
-    BytesRefBlockBuilder(int estimatedSize, BigArrays bigArrays) {
+    BytesRefBlockBuilder(int estimatedSize, BigArrays bigArrays, BlockFactory blockFactory) {
+        super(blockFactory);
         values = new BytesRefArray(Math.max(estimatedSize, 2), bigArrays);
     }
 
@@ -37,6 +39,11 @@ final class BytesRefBlockBuilder extends AbstractBlockBuilder implements BytesRe
         valueCount++;
         updatePosition();
         return this;
+    }
+
+    @Override
+    protected int elementSize() {
+        return -1;
     }
 
     @Override
@@ -69,57 +76,7 @@ final class BytesRefBlockBuilder extends AbstractBlockBuilder implements BytesRe
 
     @Override
     protected void writeNullValue() {
-        values.append(NULL_VALUE);
-    }
-
-    /**
-     * Appends the all values of the given block into a the current position
-     * in this builder.
-     */
-    @Override
-    public BytesRefBlockBuilder appendAllValuesToCurrentPosition(Block block) {
-        if (block.areAllValuesNull()) {
-            return appendNull();
-        }
-        return appendAllValuesToCurrentPosition((BytesRefBlock) block);
-    }
-
-    /**
-     * Appends the all values of the given block into a the current position
-     * in this builder.
-     */
-    @Override
-    public BytesRefBlockBuilder appendAllValuesToCurrentPosition(BytesRefBlock block) {
-        final int positionCount = block.getPositionCount();
-        if (positionCount == 0) {
-            return appendNull();
-        }
-        final int totalValueCount = block.getTotalValueCount();
-        if (totalValueCount == 0) {
-            return appendNull();
-        }
-        if (totalValueCount > 1) {
-            beginPositionEntry();
-        }
-        BytesRef scratch = new BytesRef();
-        final BytesRefVector vector = block.asVector();
-        if (vector != null) {
-            for (int p = 0; p < positionCount; p++) {
-                appendBytesRef(vector.getBytesRef(p, scratch));
-            }
-        } else {
-            for (int p = 0; p < positionCount; p++) {
-                int count = block.getValueCount(p);
-                int i = block.getFirstValueIndex(p);
-                for (int v = 0; v < count; v++) {
-                    appendBytesRef(block.getBytesRef(i++, scratch));
-                }
-            }
-        }
-        if (totalValueCount > 1) {
-            endPositionEntry();
-        }
-        return this;
+        values.append(BytesRefBlock.NULL_VALUE);
     }
 
     @Override
@@ -136,7 +93,11 @@ final class BytesRefBlockBuilder extends AbstractBlockBuilder implements BytesRe
     /**
      * Copy the values in {@code block} from {@code beginInclusive} to
      * {@code endExclusive} into this builder.
+     * <p>
+     *     For single-position copies see {@link #copyFrom(BytesRefBlock, int, BytesRef scratch)}.
+     * </p>
      */
+    @Override
     public BytesRefBlockBuilder copyFrom(BytesRefBlock block, int beginInclusive, int endExclusive) {
         if (endExclusive > block.getPositionCount()) {
             throw new IllegalArgumentException("can't copy past the end [" + endExclusive + " > " + block.getPositionCount() + "]");
@@ -153,21 +114,7 @@ final class BytesRefBlockBuilder extends AbstractBlockBuilder implements BytesRe
     private void copyFromBlock(BytesRefBlock block, int beginInclusive, int endExclusive) {
         BytesRef scratch = new BytesRef();
         for (int p = beginInclusive; p < endExclusive; p++) {
-            if (block.isNull(p)) {
-                appendNull();
-                continue;
-            }
-            int count = block.getValueCount(p);
-            if (count > 1) {
-                beginPositionEntry();
-            }
-            int i = block.getFirstValueIndex(p);
-            for (int v = 0; v < count; v++) {
-                appendBytesRef(block.getBytesRef(i++, scratch));
-            }
-            if (count > 1) {
-                endPositionEntry();
-            }
+            copyFrom(block, p, scratch);
         }
     }
 
@@ -178,6 +125,39 @@ final class BytesRefBlockBuilder extends AbstractBlockBuilder implements BytesRe
         }
     }
 
+    /**
+     * Copy the values in {@code block} at {@code position}. If this position
+     * has a single value, this'll copy a single value. If this positions has
+     * many values, it'll copy all of them. If this is {@code null}, then it'll
+     * copy the {@code null}.
+     * @param scratch Scratch string used to prevent allocation. Share this
+                      between many calls to this function.
+     * <p>
+     *     Note that there isn't a version of this method on {@link Block.Builder} that takes
+     *     {@link Block}. That'd be quite slow, running position by position. And it's important
+     *     to know if you are copying {@link BytesRef}s so you can have the scratch.
+     * </p>
+     */
+    @Override
+    public BytesRefBlockBuilder copyFrom(BytesRefBlock block, int position, BytesRef scratch) {
+        if (block.isNull(position)) {
+            appendNull();
+            return this;
+        }
+        int count = block.getValueCount(position);
+        int i = block.getFirstValueIndex(position);
+        if (count == 1) {
+            appendBytesRef(block.getBytesRef(i++, scratch));
+            return this;
+        }
+        beginPositionEntry();
+        for (int v = 0; v < count; v++) {
+            appendBytesRef(block.getBytesRef(i++, scratch));
+        }
+        endPositionEntry();
+        return this;
+    }
+
     @Override
     public BytesRefBlockBuilder mvOrdering(Block.MvOrdering mvOrdering) {
         this.mvOrdering = mvOrdering;
@@ -185,16 +165,61 @@ final class BytesRefBlockBuilder extends AbstractBlockBuilder implements BytesRe
     }
 
     @Override
-    public BytesRefBlock build() {
-        finish();
+    public long estimatedBytes() {
+        return super.estimatedBytes() + BytesRefArrayBlock.BASE_RAM_BYTES_USED + values.ramBytesUsed();
+    }
+
+    private BytesRefBlock buildFromBytesArray() {
+        assert estimatedBytes == 0 || firstValueIndexes != null;
+        final BytesRefBlock theBlock;
         if (hasNonNullValue && positionCount == 1 && valueCount == 1) {
-            return new ConstantBytesRefVector(values.get(0, new BytesRef()), 1).asBlock();
+            theBlock = new ConstantBytesRefVector(BytesRef.deepCopyOf(values.get(0, new BytesRef())), 1, blockFactory).asBlock();
+            /*
+             * Update the breaker with the actual bytes used.
+             * We pass false below even though we've used the bytes. That's weird,
+             * but if we break here we will throw away the used memory, letting
+             * it be deallocated. The exception will bubble up and the builder will
+             * still technically be open, meaning the calling code should close it
+             * which will return all used memory to the breaker.
+             */
+            blockFactory.adjustBreaker(theBlock.ramBytesUsed() - estimatedBytes);
+            Releasables.closeExpectNoException(values);
         } else {
             if (isDense() && singleValued()) {
-                return new BytesRefArrayVector(values, positionCount).asBlock();
+                theBlock = new BytesRefArrayVector(values, positionCount, blockFactory).asBlock();
             } else {
-                return new BytesRefArrayBlock(values, positionCount, firstValueIndexes, nullsMask, mvOrdering);
+                theBlock = new BytesRefArrayBlock(values, positionCount, firstValueIndexes, nullsMask, mvOrdering, blockFactory);
             }
+            /*
+             * Update the breaker with the actual bytes used.
+             * We pass false below even though we've used the bytes. That's weird,
+             * but if we break here we will throw away the used memory, letting
+             * it be deallocated. The exception will bubble up and the builder will
+             * still technically be open, meaning the calling code should close it
+             * which will return all used memory to the breaker.
+             */
+            blockFactory.adjustBreaker(theBlock.ramBytesUsed() - estimatedBytes - values.bigArraysRamBytesUsed());
         }
+        return theBlock;
+    }
+
+    @Override
+    public BytesRefBlock build() {
+        try {
+            finish();
+            BytesRefBlock theBlock;
+            theBlock = buildFromBytesArray();
+            values = null;
+            built();
+            return theBlock;
+        } catch (CircuitBreakingException e) {
+            close();
+            throw e;
+        }
+    }
+
+    @Override
+    public void extraClose() {
+        Releasables.closeExpectNoException(values);
     }
 }

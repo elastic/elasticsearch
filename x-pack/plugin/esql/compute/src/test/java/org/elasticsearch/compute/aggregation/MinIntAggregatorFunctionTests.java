@@ -7,11 +7,12 @@
 
 package org.elasticsearch.compute.aggregation;
 
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.IntBlock;
-import org.elasticsearch.compute.operator.SequenceIntBlockSourceOperator;
+import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.compute.test.operator.blocksource.SequenceIntBlockSourceOperator;
 
 import java.util.List;
 import java.util.stream.IntStream;
@@ -20,13 +21,13 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class MinIntAggregatorFunctionTests extends AggregatorFunctionTestCase {
     @Override
-    protected SourceOperator simpleInput(int size) {
-        return new SequenceIntBlockSourceOperator(IntStream.range(0, size).map(l -> randomInt()));
+    protected SourceOperator simpleInput(BlockFactory blockFactory, int size) {
+        return new SequenceIntBlockSourceOperator(blockFactory, IntStream.range(0, size).map(l -> randomInt()));
     }
 
     @Override
-    protected AggregatorFunctionSupplier aggregatorFunction(BigArrays bigArrays, List<Integer> inputChannels) {
-        return new MinIntAggregatorFunctionSupplier(bigArrays, inputChannels);
+    protected AggregatorFunctionSupplier aggregatorFunction() {
+        return new MinIntAggregatorFunctionSupplier();
     }
 
     @Override
@@ -35,8 +36,8 @@ public class MinIntAggregatorFunctionTests extends AggregatorFunctionTestCase {
     }
 
     @Override
-    public void assertSimpleOutput(List<Block> input, Block result) {
-        int max = input.stream().flatMapToInt(b -> allInts(b)).min().getAsInt();
+    public void assertSimpleOutput(List<Page> input, Block result) {
+        int max = input.stream().flatMapToInt(p -> allInts(p.getBlock(0))).min().getAsInt();
         assertThat(((IntBlock) result).getInt(0), equalTo(max));
     }
 }

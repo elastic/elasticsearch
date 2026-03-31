@@ -15,6 +15,6 @@ public final class KibanaEnrollmentAction extends ActionType<KibanaEnrollmentRes
     public static final KibanaEnrollmentAction INSTANCE = new KibanaEnrollmentAction();
 
     private KibanaEnrollmentAction() {
-        super(NAME, KibanaEnrollmentResponse::new);
+        super(NAME);
     }
 }

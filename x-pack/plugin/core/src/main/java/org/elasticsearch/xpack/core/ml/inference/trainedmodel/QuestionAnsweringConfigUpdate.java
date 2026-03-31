@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
@@ -22,7 +21,6 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig.NUM_TOP_CLASSES;
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig.RESULTS_FIELD;
@@ -53,10 +51,7 @@ public class QuestionAnsweringConfigUpdate extends NlpConfigUpdate implements Na
     }
 
     @SuppressWarnings({ "unchecked" })
-    private static final ObjectParser<QuestionAnsweringConfigUpdate.Builder, Void> STRICT_PARSER = new ObjectParser<>(
-        NAME,
-        QuestionAnsweringConfigUpdate.Builder::new
-    );
+    private static final ObjectParser<Builder, Void> STRICT_PARSER = new ObjectParser<>(NAME, Builder::new);
 
     static {
         STRICT_PARSER.declareString(Builder::setQuestion, QUESTION);
@@ -127,37 +122,6 @@ public class QuestionAnsweringConfigUpdate extends NlpConfigUpdate implements Na
     }
 
     @Override
-    public InferenceConfig apply(InferenceConfig originalConfig) {
-        if (originalConfig instanceof QuestionAnsweringConfig == false) {
-            throw ExceptionsHelper.badRequestException(
-                "Inference config of type [{}] can not be updated with a inference request of type [{}]",
-                originalConfig.getName(),
-                getName()
-            );
-        }
-
-        QuestionAnsweringConfig questionAnsweringConfig = (QuestionAnsweringConfig) originalConfig;
-        return new QuestionAnsweringConfig(
-            question,
-            Optional.ofNullable(numTopClasses).orElse(questionAnsweringConfig.getNumTopClasses()),
-            Optional.ofNullable(maxAnswerLength).orElse(questionAnsweringConfig.getMaxAnswerLength()),
-            questionAnsweringConfig.getVocabularyConfig(),
-            tokenizationUpdate == null
-                ? questionAnsweringConfig.getTokenization()
-                : tokenizationUpdate.apply(questionAnsweringConfig.getTokenization()),
-            Optional.ofNullable(resultsField).orElse(questionAnsweringConfig.getResultsField())
-        );
-    }
-
-    boolean isNoop(QuestionAnsweringConfig originalConfig) {
-        return (numTopClasses == null || numTopClasses.equals(originalConfig.getNumTopClasses()))
-            && (maxAnswerLength == null || maxAnswerLength.equals(originalConfig.getMaxAnswerLength()))
-            && (resultsField == null || resultsField.equals(originalConfig.getResultsField()))
-            && (question == null || question.equals(originalConfig.getQuestion()))
-            && super.isNoop();
-    }
-
-    @Override
     public boolean isSupported(InferenceConfig config) {
         return config instanceof QuestionAnsweringConfig;
     }
@@ -211,9 +175,7 @@ public class QuestionAnsweringConfigUpdate extends NlpConfigUpdate implements Na
         return question;
     }
 
-    public static class Builder
-        implements
-            InferenceConfigUpdate.Builder<QuestionAnsweringConfigUpdate.Builder, QuestionAnsweringConfigUpdate> {
+    public static class Builder implements InferenceConfigUpdate.Builder<Builder, QuestionAnsweringConfigUpdate> {
         private Integer numTopClasses;
         private Integer maxAnswerLength;
         private String resultsField;
@@ -221,7 +183,7 @@ public class QuestionAnsweringConfigUpdate extends NlpConfigUpdate implements Na
         private String question;
 
         @Override
-        public QuestionAnsweringConfigUpdate.Builder setResultsField(String resultsField) {
+        public Builder setResultsField(String resultsField) {
             this.resultsField = resultsField;
             return this;
         }
@@ -254,6 +216,6 @@ public class QuestionAnsweringConfigUpdate extends NlpConfigUpdate implements Na
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_3_0;
+        return TransportVersion.minimumCompatible();
     }
 }

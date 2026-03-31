@@ -7,142 +7,157 @@
 
 package org.elasticsearch.compute.operator.topn;
 
-import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 
+import java.util.Locale;
+
+/**
+ * Extracts sort keys for top-n from their {@link BooleanBlock}s.
+ * This class is generated. Edit {@code X-KeyExtractor.java.st} instead.
+ */
 abstract class KeyExtractorForBoolean implements KeyExtractor {
     static KeyExtractorForBoolean extractorFor(TopNEncoder encoder, boolean ascending, byte nul, byte nonNul, BooleanBlock block) {
         BooleanVector v = block.asVector();
         if (v != null) {
-            return new KeyExtractorForBoolean.ForVector(encoder, nul, nonNul, v);
+            return new KeyExtractorForBoolean.FromVector(encoder, nul, nonNul, v);
         }
         if (ascending) {
-            return block.mvOrdering() == Block.MvOrdering.ASCENDING
-                ? new KeyExtractorForBoolean.MinForAscending(encoder, nul, nonNul, block)
-                : new KeyExtractorForBoolean.MinForUnordered(encoder, nul, nonNul, block);
+            return block.mvSortedAscending()
+                ? new KeyExtractorForBoolean.MinFromAscendingBlock(encoder, nul, nonNul, block)
+                : new KeyExtractorForBoolean.MinFromUnorderedBlock(encoder, nul, nonNul, block);
         }
-        return block.mvOrdering() == Block.MvOrdering.ASCENDING
-            ? new KeyExtractorForBoolean.MaxForAscending(encoder, nul, nonNul, block)
-            : new KeyExtractorForBoolean.MaxForUnordered(encoder, nul, nonNul, block);
+        return block.mvSortedAscending()
+            ? new KeyExtractorForBoolean.MaxFromAscendingBlock(encoder, nul, nonNul, block)
+            : new KeyExtractorForBoolean.MaxFromUnorderedBlock(encoder, nul, nonNul, block);
     }
 
+    private final TopNEncoder encoder;
     private final byte nul;
     private final byte nonNul;
 
     KeyExtractorForBoolean(TopNEncoder encoder, byte nul, byte nonNul) {
-        assert encoder == TopNEncoder.DEFAULT_SORTABLE;
+        this.encoder = encoder;
         this.nul = nul;
         this.nonNul = nonNul;
     }
 
-    protected final int nonNul(BreakingBytesRefBuilder key, boolean value) {
+    protected final void nonNul(BreakingBytesRefBuilder key, boolean value) {
         key.append(nonNul);
-        TopNEncoder.DEFAULT_SORTABLE.encodeBoolean(value, key);
-        return Byte.BYTES + 1;
+        encoder.encodeBoolean(value, key);
     }
 
-    protected final int nul(BreakingBytesRefBuilder key) {
+    protected final void nul(BreakingBytesRefBuilder key) {
         key.append(nul);
-        return 1;
     }
 
-    static class ForVector extends KeyExtractorForBoolean {
+    @Override
+    public final String toString() {
+        return String.format(Locale.ROOT, "KeyExtractorForBoolean%s(%s, %s)", getClass().getSimpleName(), nul, nonNul);
+    }
+
+    static class FromVector extends KeyExtractorForBoolean {
         private final BooleanVector vector;
 
-        ForVector(TopNEncoder encoder, byte nul, byte nonNul, BooleanVector vector) {
+        FromVector(TopNEncoder encoder, byte nul, byte nonNul, BooleanVector vector) {
             super(encoder, nul, nonNul);
             this.vector = vector;
         }
 
         @Override
-        public int writeKey(BreakingBytesRefBuilder key, int position) {
-            return nonNul(key, vector.getBoolean(position));
+        public void writeKey(BreakingBytesRefBuilder key, int position) {
+            nonNul(key, vector.getBoolean(position));
         }
     }
 
-    static class MinForAscending extends KeyExtractorForBoolean {
+    static class MinFromAscendingBlock extends KeyExtractorForBoolean {
         private final BooleanBlock block;
 
-        MinForAscending(TopNEncoder encoder, byte nul, byte nonNul, BooleanBlock block) {
+        MinFromAscendingBlock(TopNEncoder encoder, byte nul, byte nonNul, BooleanBlock block) {
             super(encoder, nul, nonNul);
             this.block = block;
         }
 
         @Override
-        public int writeKey(BreakingBytesRefBuilder key, int position) {
+        public void writeKey(BreakingBytesRefBuilder key, int position) {
             if (block.isNull(position)) {
-                return nul(key);
+                nul(key);
+                return;
             }
-            return nonNul(key, block.getBoolean(block.getFirstValueIndex(position)));
+            nonNul(key, block.getBoolean(block.getFirstValueIndex(position)));
         }
     }
 
-    static class MaxForAscending extends KeyExtractorForBoolean {
+    static class MaxFromAscendingBlock extends KeyExtractorForBoolean {
         private final BooleanBlock block;
 
-        MaxForAscending(TopNEncoder encoder, byte nul, byte nonNul, BooleanBlock block) {
+        MaxFromAscendingBlock(TopNEncoder encoder, byte nul, byte nonNul, BooleanBlock block) {
             super(encoder, nul, nonNul);
             this.block = block;
         }
 
         @Override
-        public int writeKey(BreakingBytesRefBuilder key, int position) {
+        public void writeKey(BreakingBytesRefBuilder key, int position) {
             if (block.isNull(position)) {
-                return nul(key);
+                nul(key);
+                return;
             }
-            return nonNul(key, block.getBoolean(block.getFirstValueIndex(position) + block.getValueCount(position) - 1));
+            nonNul(key, block.getBoolean(block.getFirstValueIndex(position) + block.getValueCount(position) - 1));
         }
     }
 
-    static class MinForUnordered extends KeyExtractorForBoolean {
+    static class MinFromUnorderedBlock extends KeyExtractorForBoolean {
         private final BooleanBlock block;
 
-        MinForUnordered(TopNEncoder encoder, byte nul, byte nonNul, BooleanBlock block) {
+        MinFromUnorderedBlock(TopNEncoder encoder, byte nul, byte nonNul, BooleanBlock block) {
             super(encoder, nul, nonNul);
             this.block = block;
         }
 
         @Override
-        public int writeKey(BreakingBytesRefBuilder key, int position) {
+        public void writeKey(BreakingBytesRefBuilder key, int position) {
             int size = block.getValueCount(position);
             if (size == 0) {
-                return nul(key);
+                nul(key);
+                return;
             }
             int start = block.getFirstValueIndex(position);
             int end = start + size;
             for (int i = start; i < end; i++) {
                 if (block.getBoolean(i) == false) {
-                    return nonNul(key, false);
+                    nonNul(key, false);
+                    return;
                 }
             }
-            return nonNul(key, true);
+            nonNul(key, true);
         }
     }
 
-    static class MaxForUnordered extends KeyExtractorForBoolean {
+    static class MaxFromUnorderedBlock extends KeyExtractorForBoolean {
         private final BooleanBlock block;
 
-        MaxForUnordered(TopNEncoder encoder, byte nul, byte nonNul, BooleanBlock block) {
+        MaxFromUnorderedBlock(TopNEncoder encoder, byte nul, byte nonNul, BooleanBlock block) {
             super(encoder, nul, nonNul);
             this.block = block;
         }
 
         @Override
-        public int writeKey(BreakingBytesRefBuilder key, int position) {
+        public void writeKey(BreakingBytesRefBuilder key, int position) {
             int size = block.getValueCount(position);
             if (size == 0) {
-                return nul(key);
+                nul(key);
+                return;
             }
             int start = block.getFirstValueIndex(position);
             int end = start + size;
             for (int i = start; i < end; i++) {
                 if (block.getBoolean(i)) {
-                    return nonNul(key, true);
+                    nonNul(key, true);
+                    return;
                 }
             }
-            return nonNul(key, false);
+            nonNul(key, false);
         }
     }
 }

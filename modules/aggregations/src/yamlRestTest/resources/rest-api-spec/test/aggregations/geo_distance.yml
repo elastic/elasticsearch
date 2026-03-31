@@ -46,8 +46,8 @@ setup:
 
 ---
 "avg_bucket":
-  - skip:
-      version: " - 7.7.99"
+  - requires:
+      cluster_features: ["gte_v7.8.0"]
       reason: Fixed in 7.8.0
   - do:
       search:

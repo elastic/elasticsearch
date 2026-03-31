@@ -7,17 +7,18 @@
 
 package org.elasticsearch.xpack.security.enrollment;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
-import org.elasticsearch.action.admin.cluster.node.info.NodesInfoAction;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
-import org.elasticsearch.action.bulk.BackoffPolicy;
+import org.elasticsearch.action.admin.cluster.node.info.TransportNodesInfoAction;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.cluster.version.CompatibilityVersions;
+import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -28,7 +29,9 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.http.HttpInfo;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.DefaultBuiltInExecutorBuilders;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.EnrollmentToken;
@@ -54,6 +57,7 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
@@ -82,6 +86,8 @@ public class InternalEnrollmentTokenGeneratorTests extends ESTestCase {
         final Settings settings = Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), "InternalEnrollmentTokenGeneratorTests").build();
         threadPool = new ThreadPool(
             settings,
+            MeterRegistry.NOOP,
+            new DefaultBuiltInExecutorBuilders(),
             new FixedExecutorBuilder(
                 settings,
                 TokenService.THREAD_POOL_NAME,
@@ -138,7 +144,7 @@ public class InternalEnrollmentTokenGeneratorTests extends ESTestCase {
             );
             return null;
         }).when(client).execute(eq(CreateApiKeyAction.INSTANCE), any(CreateApiKeyRequest.class), anyActionListener());
-        doAnswer(this::answerWithInfo).when(client).execute(eq(NodesInfoAction.INSTANCE), any(), any());
+        doAnswer(this::answerWithInfo).when(client).execute(eq(TransportNodesInfoAction.TYPE), any(), any());
     }
 
     public void testCreationSuccess() {
@@ -151,7 +157,7 @@ public class InternalEnrollmentTokenGeneratorTests extends ESTestCase {
         assertThat(token.getApiKey(), equalTo("api-key-id:api-key-secret"));
         assertThat(token.getBoundAddress().size(), equalTo(1));
         assertThat(token.getBoundAddress().get(0), equalTo("192.168.1.2:9200"));
-        assertThat(token.getVersion(), equalTo(Version.CURRENT.toString()));
+        assertThat(token.getVersion(), equalTo(EnrollmentToken.CURRENT_TOKEN_VERSION));
         assertThat(token.getFingerprint(), equalTo("ce480d53728605674fcfd8ffb51000d8a33bf32de7c7f1e26b4d428f8a91362d"));
     }
 
@@ -180,7 +186,7 @@ public class InternalEnrollmentTokenGeneratorTests extends ESTestCase {
             nodeInfoApiCalls += 1;
             responseActionListener.onFailure(new Exception("error"));
             return null;
-        }).when(client).execute(eq(NodesInfoAction.INSTANCE), any(), any());
+        }).when(client).execute(eq(TransportNodesInfoAction.TYPE), any(), any());
         final SSLService sslService = new TestsSSLService(environment);
         final InternalEnrollmentTokenGenerator generator = new InternalEnrollmentTokenGenerator(environment, sslService, client);
         PlainActionFuture<EnrollmentToken> future = new PlainActionFuture<>();
@@ -195,7 +201,7 @@ public class InternalEnrollmentTokenGeneratorTests extends ESTestCase {
         doAnswer(this::answerNullHttpInfo).doAnswer(this::answerNullHttpInfo)
             .doAnswer(this::answerWithInfo)
             .when(client)
-            .execute(eq(NodesInfoAction.INSTANCE), any(), any());
+            .execute(eq(TransportNodesInfoAction.TYPE), any(), any());
         final SSLService sslService = new TestsSSLService(environment);
         final InternalEnrollmentTokenGenerator generator = new InternalEnrollmentTokenGenerator(environment, sslService, client);
         PlainActionFuture<EnrollmentToken> future = new PlainActionFuture<>();
@@ -205,13 +211,13 @@ public class InternalEnrollmentTokenGeneratorTests extends ESTestCase {
         assertThat(token.getApiKey(), equalTo("api-key-id:api-key-secret"));
         assertThat(token.getBoundAddress().size(), equalTo(1));
         assertThat(token.getBoundAddress().get(0), equalTo("192.168.1.2:9200"));
-        assertThat(token.getVersion(), equalTo(Version.CURRENT.toString()));
+        assertThat(token.getVersion(), equalTo(EnrollmentToken.CURRENT_TOKEN_VERSION));
         assertThat(token.getFingerprint(), equalTo("ce480d53728605674fcfd8ffb51000d8a33bf32de7c7f1e26b4d428f8a91362d"));
     }
 
     public void testRetryButFailToGetNodesHttpInfo() {
         // Answer with null HTTP info every time
-        doAnswer(this::answerNullHttpInfo).when(client).execute(eq(NodesInfoAction.INSTANCE), any(), any());
+        doAnswer(this::answerNullHttpInfo).when(client).execute(eq(TransportNodesInfoAction.TYPE), any(), any());
         final SSLService sslService = new TestsSSLService(environment);
         final InternalEnrollmentTokenGenerator generator = new InternalEnrollmentTokenGenerator(environment, sslService, client);
         PlainActionFuture<EnrollmentToken> future = new PlainActionFuture<>();
@@ -230,9 +236,10 @@ public class InternalEnrollmentTokenGeneratorTests extends ESTestCase {
                 new ClusterName("cluster_name"),
                 List.of(
                     new NodeInfo(
-                        Version.CURRENT,
-                        TransportVersion.current(),
+                        Build.current().version(),
+                        new CompatibilityVersions(TransportVersion.current(), Map.of()),
                         IndexVersion.current(),
+                        Map.of(),
                         null,
                         DiscoveryNodeUtils.builder("1").name("node-name").roles(Set.of()).build(),
                         null,
@@ -264,9 +271,10 @@ public class InternalEnrollmentTokenGeneratorTests extends ESTestCase {
                 new ClusterName("cluster_name"),
                 List.of(
                     new NodeInfo(
-                        Version.CURRENT,
-                        TransportVersion.current(),
+                        Build.current().version(),
+                        new CompatibilityVersions(TransportVersion.current(), Map.of()),
                         IndexVersion.current(),
+                        Map.of(),
                         null,
                         DiscoveryNodeUtils.builder("1").name("node-name").roles(Set.of()).build(),
                         null,

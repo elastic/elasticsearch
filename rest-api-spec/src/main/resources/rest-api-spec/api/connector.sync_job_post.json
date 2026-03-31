@@ -1,0 +1,32 @@
+{
+  "connector.sync_job_post": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-connector-sync-job-post",
+      "description": "Create a connector sync job"
+    },
+    "stability": "beta",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_connector/_sync_job",
+          "methods": [
+            "POST"
+          ]
+        }
+      ]
+    },
+    "body": {
+      "description": "The connector sync job data.",
+      "required": true
+    }
+  }
+}

@@ -6,8 +6,16 @@
  */
 package org.elasticsearch.xpack.sql.qa.single_node;
 
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xpack.sql.qa.cli.PartialResultsTestCase;
+import org.junit.ClassRule;
 
 public class CliPartialResultsIT extends PartialResultsTestCase {
+    @ClassRule
+    public static final ElasticsearchCluster cluster = SqlTestCluster.getCluster();
 
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
+    }
 }

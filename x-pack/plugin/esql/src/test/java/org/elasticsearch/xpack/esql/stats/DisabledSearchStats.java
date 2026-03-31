@@ -8,14 +8,51 @@
 package org.elasticsearch.xpack.esql.stats;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute.FieldName;
 
-import static java.util.Collections.emptyList;
+import java.util.Map;
 
-public class DisabledSearchStats extends SearchStats {
+public class DisabledSearchStats implements SearchStats {
 
-    public DisabledSearchStats() {
-        super(emptyList());
+    @Override
+    public boolean exists(FieldName field) {
+        return true;
+    }
+
+    @Override
+    public boolean isIndexed(FieldName field) {
+        // Vector fields are not indexed, so vector similarity functions are be evaluated via evaluator instead of pushed down in CSV tests
+        return field.string().contains("vector") == false;
+    }
+
+    @Override
+    public boolean hasDocValues(FieldName field) {
+        // Some spatial tests assume doc values and the loader emulates it. Nothing else does.
+        // Point fields: location, city_location, centroid
+        // Shape fields: shape, geo_shape, city_boundary, event_shape, event_city_boundary
+        return field.string().endsWith("location")
+            || field.string().endsWith("centroid")
+            || field.string().endsWith("shape")
+            || field.string().endsWith("boundary")
+            || field.string().equals("subset");
+    }
+
+    @Override
+    public boolean hasExactSubfield(FieldName field) {
+        return true;
+    }
+
+    @Override
+    public boolean supportsLoaderConfig(
+        FieldName name,
+        BlockLoaderFunctionConfig config,
+        MappedFieldType.FieldExtractPreference preference
+    ) {
+        return false;
     }
 
     @Override
@@ -24,27 +61,37 @@ public class DisabledSearchStats extends SearchStats {
     }
 
     @Override
-    public long count(String field) {
+    public long count(FieldName field) {
         return -1;
     }
 
     @Override
-    public long count(String field, BytesRef value) {
+    public long count(FieldName field, BytesRef value) {
         return -1;
     }
 
     @Override
-    public boolean exists(String field) {
-        return true;
-    }
-
-    @Override
-    public byte[] min(String field, DataType dataType) {
+    public Object min(FieldName field) {
         return null;
     }
 
     @Override
-    public byte[] max(String field, DataType dataType) {
+    public Object max(FieldName field) {
         return null;
+    }
+
+    @Override
+    public boolean isSingleValue(FieldName field) {
+        return false;
+    }
+
+    @Override
+    public boolean canUseEqualityOnSyntheticSourceDelegate(FieldName name, String value) {
+        return false;
+    }
+
+    @Override
+    public Map<ShardId, IndexMetadata> targetShards() {
+        return Map.of();
     }
 }

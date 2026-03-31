@@ -1,7 +1,15 @@
-import org.elasticsearch.gradle.Version
-import org.elasticsearch.gradle.internal.info.BuildParams
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
 
 apply plugin: 'elasticsearch.legacy-java-rest-test'
+
+dependencies {
+  javaRestTestImplementation(project(':modules:lang-mustache'))
+}
 
 testClusters.configureEach {
   testDistribution = 'DEFAULT'
@@ -13,10 +21,9 @@ testClusters.configureEach {
   setting 'xpack.license.self_generated.type', 'trial'
   setting 'indices.lifecycle.history_index_enabled', 'false'
   setting 'slm.history_index_enabled', 'false'
-  requiresFeature 'es.inference_rescorer_feature_flag_enabled', Version.fromString("8.10.0")
 }
 
-if (BuildParams.inFipsJvm){
+if (buildParams.inFipsJvm){
   // Test clusters run with security disabled
   tasks.named("javaRestTest").configure{enabled = false }
 }

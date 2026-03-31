@@ -1,15 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.plugins;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.PrivilegedOperations.ClosableURLClassLoader;
 import org.elasticsearch.test.compiler.InMemoryJavaCompiler;
 import org.elasticsearch.test.jar.JarUtils;
 
@@ -20,8 +20,10 @@ import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.ServiceLoader;
 
+import static org.elasticsearch.test.hamcrest.OptionalMatchers.isEmpty;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
@@ -32,7 +34,7 @@ public class ExtensionLoaderTests extends ESTestCase {
         int getValue();
     }
 
-    private ClosableURLClassLoader buildProviderJar(Map<String, CharSequence> sources) throws Exception {
+    private URLClassLoader buildProviderJar(Map<String, CharSequence> sources) throws Exception {
         var classToBytes = InMemoryJavaCompiler.compile(sources);
 
         Map<String, byte[]> jarEntries = new HashMap<>();
@@ -52,7 +54,7 @@ public class ExtensionLoaderTests extends ESTestCase {
         JarUtils.createJarWithEntries(jar, jarEntries);
         URL[] urls = new URL[] { jar.toUri().toURL() };
 
-        return new ClosableURLClassLoader(URLClassLoader.newInstance(urls, this.getClass().getClassLoader()));
+        return URLClassLoader.newInstance(urls, this.getClass().getClassLoader());
     }
 
     private String defineProvider(String name, int value) {
@@ -68,21 +70,16 @@ public class ExtensionLoaderTests extends ESTestCase {
             """, name, value);
     }
 
-    public void testNoProviderNullFallback() {
-        TestService service = ExtensionLoader.loadSingleton(ServiceLoader.load(TestService.class), () -> null);
-        assertThat(service, nullValue());
-    }
-
     public void testNoProvider() {
-        TestService service = ExtensionLoader.loadSingleton(ServiceLoader.load(TestService.class), () -> () -> 2);
-        assertThat(service, not(nullValue()));
-        assertThat(service.getValue(), equalTo(2));
+        Optional<TestService> service = ExtensionLoader.loadSingleton(ServiceLoader.load(TestService.class));
+        assertThat(service, isEmpty());
     }
 
     public void testOneProvider() throws Exception {
         Map<String, CharSequence> sources = Map.of("p.FooService", defineProvider("FooService", 1));
         try (var loader = buildProviderJar(sources)) {
-            TestService service = ExtensionLoader.loadSingleton(ServiceLoader.load(TestService.class, loader.classloader()), () -> null);
+            TestService service = ExtensionLoader.loadSingleton(ServiceLoader.load(TestService.class, loader))
+                .orElseThrow(AssertionError::new);
             assertThat(service, not(nullValue()));
             assertThat(service.getValue(), equalTo(1));
         }
@@ -98,7 +95,7 @@ public class ExtensionLoaderTests extends ESTestCase {
         try (var loader = buildProviderJar(sources)) {
             var e = expectThrows(
                 IllegalStateException.class,
-                () -> ExtensionLoader.loadSingleton(ServiceLoader.load(TestService.class, loader.classloader()), () -> null)
+                () -> ExtensionLoader.loadSingleton(ServiceLoader.load(TestService.class, loader))
             );
             assertThat(e.getMessage(), containsString("More than one extension found"));
             assertThat(e.getMessage(), containsString("TestService"));

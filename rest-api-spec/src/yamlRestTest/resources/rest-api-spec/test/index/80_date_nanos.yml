@@ -1,8 +1,8 @@
 ---
 "date_nanos requires dates after 1970 and before 2262":
 
-  - skip:
-      version: " - 8.7.99"
+  - requires:
+      cluster_features: ["gte_v8.8.0"]
       reason: error message changed in 8.8.0
 
   - do:

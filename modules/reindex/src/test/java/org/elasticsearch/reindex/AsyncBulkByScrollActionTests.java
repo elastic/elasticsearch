@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.reindex;
@@ -19,7 +20,6 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.DocWriteResponse.Result;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
-import org.elasticsearch.action.bulk.BackoffPolicy;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse.Failure;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -46,9 +46,11 @@ import org.elasticsearch.client.internal.FilterClient;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.TimeValue;
@@ -57,16 +59,15 @@ import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.BulkByScrollTask;
-import org.elasticsearch.index.reindex.ClientScrollableHitSource;
-import org.elasticsearch.index.reindex.ScrollableHitSource;
-import org.elasticsearch.index.reindex.ScrollableHitSource.Hit;
-import org.elasticsearch.index.reindex.ScrollableHitSource.SearchFailure;
+import org.elasticsearch.index.reindex.PaginatedSearchFailure;
+import org.elasticsearch.index.reindex.ResumeInfo;
 import org.elasticsearch.index.reindex.WorkerBulkByScrollTaskState;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.reindex.PaginatedHitSource.Hit;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
-import org.elasticsearch.search.internal.InternalSearchResponse;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
@@ -86,6 +87,7 @@ import java.util.IdentityHashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.Delayed;
 import java.util.concurrent.ExecutionException;
@@ -104,7 +106,7 @@ import static java.util.Collections.singleton;
 import static java.util.Collections.singletonList;
 import static java.util.Collections.synchronizedSet;
 import static org.apache.lucene.tests.util.TestUtil.randomSimpleString;
-import static org.elasticsearch.action.bulk.BackoffPolicy.constantBackoff;
+import static org.elasticsearch.common.BackoffPolicy.constantBackoff;
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
 import static org.elasticsearch.core.TimeValue.timeValueSeconds;
 import static org.hamcrest.Matchers.contains;
@@ -126,6 +128,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
     private PlainActionFuture<BulkByScrollResponse> listener;
     private String scrollId;
     private ThreadPool threadPool;
+    private ThreadPool clientThreadPool;
     private TaskManager taskManager;
     private BulkByScrollTask testTask;
     private WorkerBulkByScrollTaskState worker;
@@ -142,6 +145,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         threadPool = new TestThreadPool(getTestName());
         setupClient(threadPool);
         testRequest = new DummyAbstractBulkByScrollRequest(new SearchRequest());
+        testRequest.setEligibleForRelocationOnShutdown(true); // for relocation tests
         listener = new PlainActionFuture<>();
         scrollId = null;
         taskManager = new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet());
@@ -154,16 +158,18 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
     }
 
     private void setupClient(ThreadPool threadPool) {
-        if (client != null) {
-            client.close();
+        if (clientThreadPool != null) {
+            terminate(clientThreadPool);
         }
+        clientThreadPool = threadPool;
         client = new MyMockClient(new NoOpClient(threadPool));
         client.threadPool().getThreadContext().putHeader(expectedHeaders);
     }
 
     @After
     public void tearDownAndVerifyCommonStuff() throws Exception {
-        client.close();
+        terminate(clientThreadPool);
+        clientThreadPool = null;
         terminate(threadPool);
     }
 
@@ -195,7 +201,6 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         DummyAsyncBulkByScrollAction action = new DummyActionWithoutBackoff();
         action.start();
         assertBusy(() -> assertEquals(testRequest.getMaxRetries() + 1, client.searchAttempts.get()));
-        assertBusy(() -> assertTrue(listener.isDone()));
         ExecutionException e = expectThrows(ExecutionException.class, () -> listener.get());
         assertThat(ExceptionsHelper.stackTrace(e), containsString(EsRejectedExecutionException.class.getSimpleName()));
         assertNull("There shouldn't be a search attempt pending that we didn't reject", client.lastSearch.get());
@@ -203,10 +208,10 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
     }
 
     public void testStartNextScrollRetriesOnRejectionAndSucceeds() throws Exception {
-        // this test primarily tests ClientScrollableHitSource but left it to test integration to status
+        // this test primarily tests ClientScrollablePaginatedHitSource but left it to test integration to status
         client.scrollsToReject = randomIntBetween(0, testRequest.getMaxRetries() - 1);
         // use fail() onResponse handler because mocked search never fires on listener.
-        ClientScrollableHitSource hitSource = new ClientScrollableHitSource(
+        ClientScrollablePaginatedHitSource paginatedHitSource = new ClientScrollablePaginatedHitSource(
             logger,
             buildTestBackoffPolicy(),
             threadPool,
@@ -216,8 +221,8 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
             new ParentTaskAssigningClient(client, localNode, testTask),
             testRequest.getSearchRequest()
         );
-        hitSource.setScroll(scrollId());
-        hitSource.startNextScroll(TimeValue.timeValueSeconds(0));
+        paginatedHitSource.setScroll(scrollId());
+        paginatedHitSource.startNextScroll(TimeValue.timeValueSeconds(0));
         assertBusy(() -> assertEquals(client.scrollsToReject + 1, client.scrollAttempts.get()));
         if (listener.isDone()) {
             Object result = listener.get();
@@ -228,14 +233,14 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
     }
 
     public void testStartNextScrollRetriesOnRejectionButFailsOnTooManyRejections() throws Exception {
-        // this test primarily tests ClientScrollableHitSource but left it to test integration to status
+        // this test primarily tests ClientScrollablePaginatedHitSource but left it to test integration to status
         client.scrollsToReject = testRequest.getMaxRetries() + randomIntBetween(1, 100);
         assertExactlyOnce(onFail -> {
             Consumer<Exception> validingOnFail = e -> {
                 assertNotNull(ExceptionsHelper.unwrap(e, EsRejectedExecutionException.class));
                 onFail.run();
             };
-            ClientScrollableHitSource hitSource = new ClientScrollableHitSource(
+            ClientScrollablePaginatedHitSource paginatedHitSource = new ClientScrollablePaginatedHitSource(
                 logger,
                 buildTestBackoffPolicy(),
                 threadPool,
@@ -245,8 +250,8 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
                 new ParentTaskAssigningClient(client, localNode, testTask),
                 testRequest.getSearchRequest()
             );
-            hitSource.setScroll(scrollId());
-            hitSource.startNextScroll(TimeValue.timeValueSeconds(0));
+            paginatedHitSource.setScroll(scrollId());
+            paginatedHitSource.startNextScroll(TimeValue.timeValueSeconds(0));
             assertBusy(() -> assertEquals(testRequest.getMaxRetries() + 1, client.scrollAttempts.get()));
         });
         assertNull("There shouldn't be a scroll attempt pending that we didn't reject", client.lastScroll.get());
@@ -258,7 +263,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         assertEquals(0, testTask.getStatus().getTotal());
 
         long total = randomIntBetween(0, Integer.MAX_VALUE);
-        ScrollableHitSource.Response response = new ScrollableHitSource.Response(false, emptyList(), total, emptyList(), null);
+        PaginatedHitSource.Response response = new PaginatedHitSource.Response(false, emptyList(), total, emptyList(), null);
         simulateScrollResponse(new DummyAsyncBulkByScrollAction(), 0, 0, response);
         assertEquals(total, testTask.getStatus().getTotal());
     }
@@ -269,8 +274,8 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
     public void testScrollResponseBatchingBehavior() throws Exception {
         int maxBatches = randomIntBetween(0, 100);
         for (int batches = 1; batches < maxBatches; batches++) {
-            Hit hit = new ScrollableHitSource.BasicHit("index", "id", 0);
-            ScrollableHitSource.Response response = new ScrollableHitSource.Response(false, emptyList(), 1, singletonList(hit), null);
+            Hit hit = new PaginatedHitSource.BasicHit("index", "id", 0);
+            PaginatedHitSource.Response response = new PaginatedHitSource.Response(false, emptyList(), 1, singletonList(hit), null);
             DummyAsyncBulkByScrollAction action = new DummyAsyncBulkByScrollAction();
             simulateScrollResponse(action, System.nanoTime(), 0, response);
 
@@ -406,7 +411,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
                 }
             }
         });
-        ScrollableHitSource.Response response = new ScrollableHitSource.Response(false, emptyList(), 0, emptyList(), null);
+        PaginatedHitSource.Response response = new PaginatedHitSource.Response(false, emptyList(), 0, emptyList(), null);
         simulateScrollResponse(new DummyAsyncBulkByScrollAction(), System.nanoTime(), 10, response);
         ExecutionException e = expectThrows(ExecutionException.class, () -> listener.get());
         assertThat(e.getCause(), instanceOf(EsRejectedExecutionException.class));
@@ -422,8 +427,8 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
      * scroll request going down.
      */
     public void testShardFailuresAbortRequest() throws Exception {
-        SearchFailure shardFailure = new SearchFailure(new RuntimeException("test"));
-        ScrollableHitSource.Response scrollResponse = new ScrollableHitSource.Response(
+        PaginatedSearchFailure shardFailure = new PaginatedSearchFailure(new RuntimeException("test"));
+        PaginatedHitSource.Response scrollResponse = new PaginatedHitSource.Response(
             false,
             singletonList(shardFailure),
             0,
@@ -443,7 +448,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
      * Mimicks search timeouts.
      */
     public void testSearchTimeoutsAbortRequest() throws Exception {
-        ScrollableHitSource.Response scrollResponse = new ScrollableHitSource.Response(true, emptyList(), 0, emptyList(), null);
+        PaginatedHitSource.Response scrollResponse = new PaginatedHitSource.Response(true, emptyList(), 0, emptyList(), null);
         simulateScrollResponse(new DummyAsyncBulkByScrollAction(), System.nanoTime(), 0, scrollResponse);
         BulkByScrollResponse response = listener.get();
         assertThat(response.getBulkFailures(), empty());
@@ -480,9 +485,9 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
                 throw new RuntimeException("surprise");
             }
         };
-        ScrollableHitSource.BasicHit hit = new ScrollableHitSource.BasicHit("index", "id", 0);
+        PaginatedHitSource.BasicHit hit = new PaginatedHitSource.BasicHit("index", "id", 0);
         hit.setSource(new BytesArray("{}"), XContentType.JSON);
-        ScrollableHitSource.Response response = new ScrollableHitSource.Response(false, emptyList(), 1, singletonList(hit), null);
+        PaginatedHitSource.Response response = new PaginatedHitSource.Response(false, emptyList(), 1, singletonList(hit), null);
         simulateScrollResponse(action, System.nanoTime(), 0, response);
         ExecutionException e = expectThrows(ExecutionException.class, () -> listener.get());
         assertThat(e.getCause(), instanceOf(RuntimeException.class));
@@ -565,47 +570,40 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         action.start();
 
         // create a simulated response.
-        SearchHit hit = new SearchHit(0, "id").sourceRef(new BytesArray("{}"));
-        SearchHits hits = new SearchHits(
+        SearchHit hit = SearchHit.unpooled(0, "id").sourceRef(new BytesArray("{}"));
+        SearchHits hits = SearchHits.unpooled(
             IntStream.range(0, 100).mapToObj(i -> hit).toArray(SearchHit[]::new),
             new TotalHits(0, TotalHits.Relation.EQUAL_TO),
             0
         );
-        InternalSearchResponse internalResponse = new InternalSearchResponse(hits, null, null, null, false, false, 1);
-        SearchResponse searchResponse = new SearchResponse(
-            internalResponse,
-            scrollId(),
-            5,
-            4,
-            0,
-            randomLong(),
-            null,
-            SearchResponse.Clusters.EMPTY
-        );
+        SearchResponse searchResponse = SearchResponseUtils.response(hits).scrollId(scrollId()).shards(5, 4, 0).build();
+        try {
+            client.lastSearch.get().listener.onResponse(searchResponse);
 
-        client.lastSearch.get().listener.onResponse(searchResponse);
+            assertEquals(0, capturedDelay.get().seconds());
+            capturedCommand.get().run();
 
-        assertEquals(0, capturedDelay.get().seconds());
-        capturedCommand.get().run();
+            // So the next request is going to have to wait an extra 100 seconds or so (base was 10 seconds, so 110ish)
+            assertThat(client.lastScroll.get().request.scroll().seconds(), either(equalTo(110L)).or(equalTo(109L)));
 
-        // So the next request is going to have to wait an extra 100 seconds or so (base was 10 seconds, so 110ish)
-        assertThat(client.lastScroll.get().request.scroll().keepAlive().seconds(), either(equalTo(110L)).or(equalTo(109L)));
+            // Now we can simulate a response and check the delay that we used for the task
+            if (randomBoolean()) {
+                client.lastScroll.get().listener.onResponse(searchResponse);
+                assertEquals(99, capturedDelay.get().seconds());
+            } else {
+                // Let's rethrottle between the starting the scroll and getting the response
+                worker.rethrottle(10f);
+                client.lastScroll.get().listener.onResponse(searchResponse);
+                // The delay uses the new throttle
+                assertEquals(9, capturedDelay.get().seconds());
+            }
 
-        // Now we can simulate a response and check the delay that we used for the task
-        if (randomBoolean()) {
-            client.lastScroll.get().listener.onResponse(searchResponse);
-            assertEquals(99, capturedDelay.get().seconds());
-        } else {
-            // Let's rethrottle between the starting the scroll and getting the response
-            worker.rethrottle(10f);
-            client.lastScroll.get().listener.onResponse(searchResponse);
-            // The delay uses the new throttle
-            assertEquals(9, capturedDelay.get().seconds());
+            // Running the command ought to increment the delay counter on the task.
+            capturedCommand.get().run();
+            assertEquals(capturedDelay.get(), testTask.getStatus().getThrottled());
+        } finally {
+            searchResponse.decRef();
         }
-
-        // Running the command ought to increment the delay counter on the task.
-        capturedCommand.get().run();
-        assertEquals(capturedDelay.get(), testTask.getStatus().getThrottled());
     }
 
     /**
@@ -695,7 +693,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
                 action,
                 System.nanoTime(),
                 1,
-                new ScrollableHitSource.Response(false, emptyList(), between(1, 100000), emptyList(), null)
+                new PaginatedHitSource.Response(false, emptyList(), between(1, 100000), emptyList(), null)
             )
         );
     }
@@ -757,7 +755,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
             action.setScroll(scrollId());
         }
         long total = randomIntBetween(0, Integer.MAX_VALUE);
-        ScrollableHitSource.Response response = new ScrollableHitSource.Response(false, emptyList(), total, emptyList(), null);
+        PaginatedHitSource.Response response = new PaginatedHitSource.Response(false, emptyList(), total, emptyList(), null);
         // Use a long delay here so the test will time out if the cancellation doesn't reschedule the throttled task
         worker.rethrottle(1);
         simulateScrollResponse(action, System.nanoTime(), 1000, response);
@@ -787,12 +785,12 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
     }
 
     public void testScrollConsumableHitsResponseCanBeConsumedInChunks() {
-        List<ScrollableHitSource.BasicHit> hits = new ArrayList<>();
+        List<PaginatedHitSource.BasicHit> hits = new ArrayList<>();
         int numberOfHits = randomIntBetween(0, 300);
         for (int i = 0; i < numberOfHits; i++) {
-            hits.add(new ScrollableHitSource.BasicHit("idx", "id-" + i, -1));
+            hits.add(new PaginatedHitSource.BasicHit("idx", "id-" + i, -1));
         }
-        final ScrollableHitSource.Response scrollResponse = new ScrollableHitSource.Response(
+        final PaginatedHitSource.Response scrollResponse = new PaginatedHitSource.Response(
             false,
             emptyList(),
             hits.size(),
@@ -800,9 +798,9 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
             "scrollid"
         );
         final AbstractAsyncBulkByScrollAction.ScrollConsumableHitsResponse response =
-            new AbstractAsyncBulkByScrollAction.ScrollConsumableHitsResponse(new ScrollableHitSource.AsyncResponse() {
+            new AbstractAsyncBulkByScrollAction.ScrollConsumableHitsResponse(new PaginatedHitSource.AsyncResponse() {
                 @Override
-                public ScrollableHitSource.Response response() {
+                public PaginatedHitSource.Response response() {
                     return scrollResponse;
                 }
 
@@ -816,7 +814,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         int totalConsumedHits = 0;
         while (response.hasRemainingHits()) {
             final int numberOfHitsToConsume;
-            final List<? extends ScrollableHitSource.Hit> consumedHits;
+            final List<? extends Hit> consumedHits;
             if (randomBoolean()) {
                 numberOfHitsToConsume = numberOfHits - totalConsumedHits;
                 consumedHits = response.consumeRemainingHits();
@@ -836,13 +834,13 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
     }
 
     public void testScrollConsumableHitsResponseErrorHandling() {
-        List<ScrollableHitSource.BasicHit> hits = new ArrayList<>();
+        List<PaginatedHitSource.BasicHit> hits = new ArrayList<>();
         int numberOfHits = randomIntBetween(2, 300);
         for (int i = 0; i < numberOfHits; i++) {
-            hits.add(new ScrollableHitSource.BasicHit("idx", "id-" + i, -1));
+            hits.add(new PaginatedHitSource.BasicHit("idx", "id-" + i, -1));
         }
 
-        final ScrollableHitSource.Response scrollResponse = new ScrollableHitSource.Response(
+        final PaginatedHitSource.Response scrollResponse = new PaginatedHitSource.Response(
             false,
             emptyList(),
             hits.size(),
@@ -850,9 +848,9 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
             "scrollid"
         );
         final AbstractAsyncBulkByScrollAction.ScrollConsumableHitsResponse response =
-            new AbstractAsyncBulkByScrollAction.ScrollConsumableHitsResponse(new ScrollableHitSource.AsyncResponse() {
+            new AbstractAsyncBulkByScrollAction.ScrollConsumableHitsResponse(new PaginatedHitSource.AsyncResponse() {
                 @Override
-                public ScrollableHitSource.Response response() {
+                public PaginatedHitSource.Response response() {
                     return scrollResponse;
                 }
 
@@ -879,7 +877,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
     }
 
     public void testEnableScrollByDefault() {
-        var preparedSearchRequest = AbstractAsyncBulkByScrollAction.prepareSearchRequest(testRequest, false, false);
+        var preparedSearchRequest = AbstractAsyncBulkByScrollAction.prepareSearchRequest(testRequest, false, false, false);
         assertThat(preparedSearchRequest.scroll(), notNullValue());
     }
 
@@ -887,7 +885,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         testRequest.setMaxDocs(between(101, 1000));
         testRequest.getSearchRequest().source().size(100);
 
-        var preparedSearchRequest = AbstractAsyncBulkByScrollAction.prepareSearchRequest(testRequest, false, false);
+        var preparedSearchRequest = AbstractAsyncBulkByScrollAction.prepareSearchRequest(testRequest, false, false, false);
 
         assertThat(preparedSearchRequest.scroll(), notNullValue());
     }
@@ -896,7 +894,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         testRequest.setMaxDocs(between(1, 100));
         testRequest.getSearchRequest().source().size(100);
 
-        var preparedSearchRequest = AbstractAsyncBulkByScrollAction.prepareSearchRequest(testRequest, false, false);
+        var preparedSearchRequest = AbstractAsyncBulkByScrollAction.prepareSearchRequest(testRequest, false, false, false);
 
         assertThat(preparedSearchRequest.scroll(), nullValue());
     }
@@ -906,9 +904,154 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         testRequest.getSearchRequest().source().size(100);
         testRequest.setAbortOnVersionConflict(false);
 
-        var preparedSearchRequest = AbstractAsyncBulkByScrollAction.prepareSearchRequest(testRequest, false, false);
+        var preparedSearchRequest = AbstractAsyncBulkByScrollAction.prepareSearchRequest(testRequest, false, false, false);
 
         assertThat(preparedSearchRequest.scroll(), notNullValue());
+    }
+
+    public void testNotifyDoneRelocatesWhenRequestedAndNodeAvailable() {
+        testTask.requestRelocation();
+        worker.setNodeToRelocateToSupplier(() -> Optional.of("target-node"));
+
+        final String expectedScrollId = scrollId();
+        final AtomicBoolean cleanedUp = new AtomicBoolean();
+        final DummyAsyncBulkByScrollAction action = new DummyAsyncBulkByScrollAction() {
+            @Override
+            protected PaginatedHitSource buildScrollableResultSource(BackoffPolicy backoffPolicy, SearchRequest searchRequest) {
+                return new ClientScrollablePaginatedHitSource(
+                    logger,
+                    backoffPolicy,
+                    threadPool,
+                    worker::countSearchRetry,
+                    this::onScrollResponse,
+                    this::finishHim,
+                    new ParentTaskAssigningClient(client, localNode, testTask),
+                    searchRequest
+                ) {
+                    @Override
+                    protected void cleanup(Runnable onCompletion) {
+                        cleanedUp.set(true);
+                        super.cleanup(onCompletion);
+                    }
+                };
+            }
+        };
+        action.setScroll(expectedScrollId);
+
+        final var asyncResponse = new AbstractAsyncBulkByScrollAction.ScrollConsumableHitsResponse(new PaginatedHitSource.AsyncResponse() {
+            @Override
+            public PaginatedHitSource.Response response() {
+                return new PaginatedHitSource.Response(false, emptyList(), 0, emptyList(), scrollId);
+            }
+
+            @Override
+            public void done(final TimeValue extraKeepAlive) {
+                fail("done() should not be called because it fetches more data");
+            }
+        });
+
+        action.notifyDone(System.nanoTime(), asyncResponse, 0);
+
+        assertTrue(listener.isDone());
+        final BulkByScrollResponse response = listener.actionGet();
+        assertTrue(response.getTaskResumeInfo().isPresent());
+        final ResumeInfo resumeInfo = response.getTaskResumeInfo().get();
+        assertNotNull(resumeInfo.worker());
+        assertThat(resumeInfo.worker(), instanceOf(ResumeInfo.ScrollWorkerResumeInfo.class));
+        final ResumeInfo.ScrollWorkerResumeInfo scrollResumeInfo = (ResumeInfo.ScrollWorkerResumeInfo) resumeInfo.worker();
+        assertEquals(expectedScrollId, scrollResumeInfo.scrollId());
+        assertNull(scrollResumeInfo.remoteVersion());
+        // scroll should NOT be cleared - we need it for the relocated task
+        assertThat(client.scrollsCleared, empty());
+        // local resources (e.g. remote REST client) should be cleaned up
+        assertTrue("local resources should be cleaned up during relocation", cleanedUp.get());
+    }
+
+    public void testNotifyDoneContinuesWhenRelocationRequestedButNoNode() throws Exception {
+        testTask.requestRelocation();
+        worker.setNodeToRelocateToSupplier(Optional::empty);
+
+        final String expectedScrollId = scrollId();
+        final DummyAsyncBulkByScrollAction action = new DummyAsyncBulkByScrollAction();
+        action.setScroll(expectedScrollId);
+
+        final AtomicBoolean doneCalled = new AtomicBoolean();
+        final var asyncResponse = new AbstractAsyncBulkByScrollAction.ScrollConsumableHitsResponse(new PaginatedHitSource.AsyncResponse() {
+            @Override
+            public PaginatedHitSource.Response response() {
+                return new PaginatedHitSource.Response(false, emptyList(), 0, emptyList(), expectedScrollId);
+            }
+
+            @Override
+            public void done(final TimeValue extraKeepAlive) {
+                doneCalled.set(true);
+            }
+        });
+        action.notifyDone(System.nanoTime(), asyncResponse, 0);
+
+        assertTrue("asyncResponse.done() should be called for normal flow", doneCalled.get());
+    }
+
+    public void testNotifyDoneIgnoresRelocationWhenNotRequested() throws Exception {
+        // do NOT call testTask.requestRelocation()
+        worker.setNodeToRelocateToSupplier(() -> Optional.of("target-node"));
+
+        final String expectedScrollId = scrollId();
+        final DummyAsyncBulkByScrollAction action = new DummyAsyncBulkByScrollAction();
+        action.setScroll(expectedScrollId);
+
+        final AtomicBoolean doneCalled = new AtomicBoolean();
+        final var asyncResponse = new AbstractAsyncBulkByScrollAction.ScrollConsumableHitsResponse(new PaginatedHitSource.AsyncResponse() {
+            @Override
+            public PaginatedHitSource.Response response() {
+                return new PaginatedHitSource.Response(false, emptyList(), 0, emptyList(), expectedScrollId);
+            }
+
+            @Override
+            public void done(final TimeValue extraKeepAlive) {
+                doneCalled.set(true);
+            }
+        });
+        action.notifyDone(System.nanoTime(), asyncResponse, 0);
+
+        assertTrue("asyncResponse.done() should be called when relocation is not requested", doneCalled.get());
+    }
+
+    public void testNotifyDoneConsumesRemainingHitsBeforeRelocating() {
+        testTask.requestRelocation();
+        worker.setNodeToRelocateToSupplier(() -> Optional.of("target-node"));
+
+        final String expectedScrollId = scrollId();
+        final AtomicBoolean onScrollResponseCalled = new AtomicBoolean();
+        final DummyAsyncBulkByScrollAction action = new DummyAsyncBulkByScrollAction() {
+            @Override
+            void onScrollResponse(final AbstractAsyncBulkByScrollAction.ScrollConsumableHitsResponse asyncResponse) {
+                onScrollResponseCalled.set(true);
+                // don't call super - continues ingesting and listener might complete before assertions
+            }
+        };
+        action.setScroll(expectedScrollId);
+
+        final List<Hit> hits = List.of(
+            new PaginatedHitSource.BasicHit("index", "id-1", -1),
+            new PaginatedHitSource.BasicHit("index", "id-2", -1)
+        );
+        final var asyncResponse = new AbstractAsyncBulkByScrollAction.ScrollConsumableHitsResponse(new PaginatedHitSource.AsyncResponse() {
+            @Override
+            public PaginatedHitSource.Response response() {
+                return new PaginatedHitSource.Response(false, emptyList(), hits.size(), hits, expectedScrollId);
+            }
+
+            @Override
+            public void done(final TimeValue extraKeepAlive) {
+                fail("done() should not be called when there are remaining hits to consume");
+            }
+        });
+
+        action.notifyDone(System.nanoTime(), asyncResponse, 0);
+
+        assertThat("should continue consuming remaining hits via onScrollResponse", onScrollResponseCalled.get(), equalTo(true));
+        assertThat("listener should not be done - relocation should not happen while hits remain", listener.isDone(), equalTo(false));
     }
 
     /**
@@ -918,15 +1061,15 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         DummyAsyncBulkByScrollAction action,
         long lastBatchTime,
         int lastBatchSize,
-        ScrollableHitSource.Response response
+        PaginatedHitSource.Response response
     ) {
         action.setScroll(scrollId());
         action.onScrollResponse(
             lastBatchTime,
             lastBatchSize,
-            new AbstractAsyncBulkByScrollAction.ScrollConsumableHitsResponse(new ScrollableHitSource.AsyncResponse() {
+            new AbstractAsyncBulkByScrollAction.ScrollConsumableHitsResponse(new PaginatedHitSource.AsyncResponse() {
                 @Override
-                public ScrollableHitSource.Response response() {
+                public PaginatedHitSource.Response response() {
                     return response;
                 }
 
@@ -944,6 +1087,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         DummyAsyncBulkByScrollAction() {
             super(
                 testTask,
+                randomBoolean(),
                 randomBoolean(),
                 randomBoolean(),
                 AsyncBulkByScrollActionTests.this.logger,
@@ -982,7 +1126,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         BulkByScrollResponse> {
 
         protected DummyTransportAsyncBulkByScrollAction(String actionName, ActionFilters actionFilters, TaskManager taskManager) {
-            super(actionName, actionFilters, taskManager);
+            super(actionName, actionFilters, taskManager, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         }
 
         @Override

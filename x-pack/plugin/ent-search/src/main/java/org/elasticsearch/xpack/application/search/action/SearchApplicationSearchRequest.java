@@ -7,9 +7,9 @@
 
 package org.elasticsearch.xpack.application.search.action;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -31,7 +31,7 @@ import java.util.Objects;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
-public class SearchApplicationSearchRequest extends ActionRequest implements IndicesRequest, ToXContentObject {
+public class SearchApplicationSearchRequest extends LegacyActionRequest implements IndicesRequest, ToXContentObject {
 
     private static final ParseField QUERY_PARAMS_FIELD = new ParseField("params");
     private static final ParseField NAME_FIELD = new ParseField("name");
@@ -42,7 +42,7 @@ public class SearchApplicationSearchRequest extends ActionRequest implements Ind
     public SearchApplicationSearchRequest(StreamInput in) throws IOException {
         super(in);
         this.name = in.readString();
-        this.queryParams = in.readMap();
+        this.queryParams = in.readGenericMap();
     }
 
     public SearchApplicationSearchRequest(String name) {

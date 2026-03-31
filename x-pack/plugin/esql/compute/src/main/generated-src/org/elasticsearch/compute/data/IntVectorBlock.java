@@ -7,21 +7,24 @@
 
 package org.elasticsearch.compute.data;
 
-import org.apache.lucene.util.RamUsageEstimator;
+// begin generated imports
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
+// end generated imports
 
 /**
- * Block view of a IntVector.
- * This class is generated. Do not edit it.
+ * Block view of a {@link IntVector}. Cannot represent multi-values or nulls.
+ * This class is generated. Edit {@code X-VectorBlock.java.st} instead.
  */
 public final class IntVectorBlock extends AbstractVectorBlock implements IntBlock {
 
-    private static final long RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(IntVectorBlock.class);
-
     private final IntVector vector;
 
+    /**
+     * @param vector considered owned by the current block; must not be used in any other {@code Block}
+     */
     IntVectorBlock(IntVector vector) {
-        super(vector.getPositionCount());
         this.vector = vector;
     }
 
@@ -36,7 +39,7 @@ public final class IntVectorBlock extends AbstractVectorBlock implements IntBloc
     }
 
     @Override
-    public int getTotalValueCount() {
+    public int getPositionCount() {
         return vector.getPositionCount();
     }
 
@@ -46,13 +49,39 @@ public final class IntVectorBlock extends AbstractVectorBlock implements IntBloc
     }
 
     @Override
-    public IntBlock filter(int... positions) {
-        return new FilterIntVector(vector, positions).asBlock();
+    public IntBlock slice(int beginInclusive, int endExclusive) {
+        return vector.slice(beginInclusive, endExclusive).asBlock();
+    }
+
+    @Override
+    public IntBlock filter(boolean mayContainDuplicates, int... positions) {
+        return vector.filter(mayContainDuplicates, positions).asBlock();
+    }
+
+    @Override
+    public IntBlock keepMask(BooleanVector mask) {
+        return vector.keepMask(mask);
+    }
+
+    @Override
+    public IntBlock deepCopy(BlockFactory blockFactory) {
+        return vector.deepCopy(blockFactory).asBlock();
+    }
+
+    @Override
+    public ReleasableIterator<? extends IntBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize) {
+        return vector.lookup(positions, targetBlockSize);
+    }
+
+    @Override
+    public IntBlock expand() {
+        incRef();
+        return this;
     }
 
     @Override
     public long ramBytesUsed() {
-        return RAM_BYTES_USED + RamUsageEstimator.sizeOf(vector);
+        return vector.ramBytesUsed();
     }
 
     @Override
@@ -74,7 +103,18 @@ public final class IntVectorBlock extends AbstractVectorBlock implements IntBloc
     }
 
     @Override
-    public void close() {
+    public void closeInternal() {
+        assert (vector.isReleased() == false) : "can't release block [" + this + "] containing already released vector";
         Releasables.closeExpectNoException(vector);
+    }
+
+    @Override
+    public void allowPassingToDifferentDriver() {
+        vector.allowPassingToDifferentDriver();
+    }
+
+    @Override
+    public BlockFactory blockFactory() {
+        return vector.blockFactory();
     }
 }

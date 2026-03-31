@@ -121,8 +121,8 @@ parent has gap:
 
 ---
 parent has min_doc_count:
-  - skip:
-      version: " - 8.2.99"
+  - requires:
+      cluster_features: ["gte_v8.3.0"]
       reason: allowed in 8.3.0
 
   - do:
@@ -161,3 +161,22 @@ parent has min_doc_count:
   - is_false: aggregations.@timestamp.buckets.0.d
   - match: { aggregations.@timestamp.buckets.1.d.value: 1 }
   - match: { aggregations.@timestamp.buckets.2.d.value: -1 }
+
+---
+invalid parent aggregation:
+  - do:
+      catch: /serial_diff aggregation \[d\] must have a histogram, date_histogram or auto_date_histogram as parent/
+      search:
+        body:
+          aggs:
+            a:
+              filter:
+                term:
+                  a: 1
+              aggs:
+                b:
+                  sum:
+                    field: b
+                d:
+                  serial_diff:
+                    buckets_path: "b"

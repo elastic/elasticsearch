@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.action.search;
 
@@ -18,12 +19,12 @@ import org.elasticsearch.search.SearchShardTarget;
  * where the given index is used to set the result on the array.
  */
 final class CountedCollector<R extends SearchPhaseResult> {
-    private final ArraySearchPhaseResults<R> resultConsumer;
+    private final SearchPhaseResults<R> resultConsumer;
     private final CountDown counter;
     private final Runnable onFinish;
-    private final SearchPhaseContext context;
+    private final AbstractSearchAsyncAction<?> context;
 
-    CountedCollector(ArraySearchPhaseResults<R> resultConsumer, int expectedOps, Runnable onFinish, SearchPhaseContext context) {
+    CountedCollector(SearchPhaseResults<R> resultConsumer, int expectedOps, Runnable onFinish, AbstractSearchAsyncAction<?> context) {
         this.resultConsumer = resultConsumer;
         this.counter = new CountDown(expectedOps);
         this.onFinish = onFinish;
@@ -49,7 +50,7 @@ final class CountedCollector<R extends SearchPhaseResult> {
     }
 
     /**
-     * Escalates the failure via {@link SearchPhaseContext#onShardFailure(int, SearchShardTarget, Exception)}
+     * Escalates the failure via {@link AbstractSearchAsyncAction#onShardFailure(int, SearchShardTarget, Exception)}
      * and then runs {@link #countDown()}
      */
     void onFailure(final int shardIndex, @Nullable SearchShardTarget shardTarget, Exception e) {

@@ -1,45 +1,31 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.plugins;
 
-import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
-import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.engine.EngineFactory;
-import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.indices.breaker.BreakerSettings;
 import org.elasticsearch.indices.recovery.plan.RecoveryPlannerService;
 import org.elasticsearch.indices.recovery.plan.ShardSnapshotsService;
 import org.elasticsearch.ingest.Processor;
-import org.elasticsearch.repositories.RepositoriesService;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.PrivilegedOperations;
 import org.elasticsearch.test.compiler.InMemoryJavaCompiler;
 import org.elasticsearch.test.jar.JarUtils;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.tracing.Tracer;
-import org.elasticsearch.watcher.ResourceWatcherService;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.net.URL;
 import java.net.URLClassLoader;
@@ -246,11 +232,8 @@ public class PluginIntrospectorTests extends ESTestCase {
         JarUtils.createJarWithEntries(jar, jarEntries);
         URL[] urls = new URL[] { jar.toUri().toURL() };
 
-        URLClassLoader loader = URLClassLoader.newInstance(urls, PluginIntrospectorTests.class.getClassLoader());
-        try {
+        try (URLClassLoader loader = URLClassLoader.newInstance(urls, PluginIntrospectorTests.class.getClassLoader())) {
             assertThat(pluginIntrospector.interfaces(loader.loadClass("r.FooPlugin")), contains("ActionPlugin"));
-        } finally {
-            PrivilegedOperations.closeURLClassLoader(loader);
         }
     }
 
@@ -259,22 +242,7 @@ public class PluginIntrospectorTests extends ESTestCase {
     public void testOverriddenMethodsBasic() {
         class FooPlugin extends Plugin {
             @Override
-            public Collection<Object> createComponents(
-                Client client,
-                ClusterService clusterService,
-                ThreadPool threadPool,
-                ResourceWatcherService resourceWatcherService,
-                ScriptService scriptService,
-                NamedXContentRegistry xContentRegistry,
-                Environment environment,
-                NodeEnvironment nodeEnvironment,
-                NamedWriteableRegistry namedWriteableRegistry,
-                IndexNameExpressionResolver indexNameExpressionResolver,
-                Supplier<RepositoriesService> repositoriesServiceSupplier,
-                Tracer tracer,
-                AllocationService allocationService,
-                IndicesService indicesService
-            ) {
+            public Collection<?> createComponents(PluginServices services) {
                 return null;
             }
         }

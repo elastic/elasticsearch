@@ -5,7 +5,15 @@
   },
   "dynamic_templates" : [
     {
-      "strings_as_keywords" : {
+      "map_objects": {
+        "match_mapping_type": "object",
+        "mapping": {
+          "type": "object"
+        }
+      }
+    },
+    {
+      "non_objects_as_keywords" : {
         "match" : "*",
         "mapping" : {
           "type" : "keyword"

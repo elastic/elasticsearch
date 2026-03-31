@@ -14,6 +14,10 @@ import org.elasticsearch.compute.data.$Type$Block;
 import org.elasticsearch.compute.data.$Type$Vector;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 
+/**
+ * Extracts non-sort-key values for top-n from their {@link $Type$Block}s.
+ * This class is generated. Edit {@code X-KeyExtractor.java.st} instead.
+ */
 abstract class ValueExtractorFor$Type$ implements ValueExtractor {
     static ValueExtractorFor$Type$ extractorFor(TopNEncoder encoder, boolean inKey, $Type$Block block) {
         $Type$Vector vector = block.asVector();
@@ -33,9 +37,9 @@ $endif$
 
     ValueExtractorFor$Type$(TopNEncoder encoder, boolean inKey) {
 $if(BytesRef)$
-        this.encoder = encoder;
+        this.encoder = encoder.toUnsortable();
 $else$
-        assert encoder == TopNEncoder.DEFAULT_UNSORTABLE : encoder.toString();
+        assert encoder.toUnsortable() == TopNEncoder.DEFAULT_UNSORTABLE : encoder.toString();
 $endif$
         this.inKey = inKey;
     }

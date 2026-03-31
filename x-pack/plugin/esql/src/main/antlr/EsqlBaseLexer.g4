@@ -1,24 +1,77 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
 lexer grammar EsqlBaseLexer;
 
-DISSECT : 'dissect' -> pushMode(EXPRESSION);
-DROP : 'drop' -> pushMode(SOURCE_IDENTIFIERS);
-ENRICH : 'enrich' -> pushMode(SOURCE_IDENTIFIERS);
-EVAL : 'eval' -> pushMode(EXPRESSION);
-EXPLAIN : 'explain' -> pushMode(EXPLAIN_MODE);
-FROM : 'from' -> pushMode(SOURCE_IDENTIFIERS);
-GROK : 'grok' -> pushMode(EXPRESSION);
-INLINESTATS : 'inlinestats' -> pushMode(EXPRESSION);
-KEEP : 'keep' -> pushMode(SOURCE_IDENTIFIERS);
-LIMIT : 'limit' -> pushMode(EXPRESSION);
-MV_EXPAND : 'mv_expand' -> pushMode(SOURCE_IDENTIFIERS);
-PROJECT : 'project' -> pushMode(SOURCE_IDENTIFIERS);
-RENAME : 'rename' -> pushMode(SOURCE_IDENTIFIERS);
-ROW : 'row' -> pushMode(EXPRESSION);
-SHOW : 'show' -> pushMode(EXPRESSION);
-SORT : 'sort' -> pushMode(EXPRESSION);
-STATS : 'stats' -> pushMode(EXPRESSION);
-WHERE : 'where' -> pushMode(EXPRESSION);
-UNKNOWN_CMD : ~[ \r\n\t[\]/]+ -> pushMode(EXPRESSION);
+@header {
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+}
+
+options {
+  superClass=LexerConfig;
+  caseInsensitive=true;
+}
+
+/*
+ * Before modifying this file or the files in the `lexer` subdirectory, please read
+ * the section below as changes here  have significant impact in the ANTLR generated
+ * code and its consumption in Kibana.
+ *
+ * A. To add a development command (only available behind in snapshot/dev builds)
+ *
+ * Since the tokens/modes are in development, add a predicate like this:
+ * DEV_MYCOMMAND : {this.isDevVersion()}? 'mycommand' -> ...
+ *
+ * B. To add a new (production-ready) token
+ *
+ * Be sure to go through step A (add a development token).
+ * Make sure to remove the prefix and conditional before promoting the tokens in
+ * production.
+ *
+ * C. Renaming a token
+ *
+ * Avoid renaming the token. But if you really have to, please check with the
+ * Kibana team as they might be using the generated ANTLR "dictionary".
+ *
+ * D. To remove a token
+ *
+ * If the tokens haven't made it to production (and make sure to double check),
+ * simply remove them from the grammar.
+ * If the tokens get promoted to release, check with the Kibana team the impact
+ * they have on the UI (auto-completion, etc...)
+ */
+
+/*
+ * Import lexer grammars for each command, making sure to import
+ * the UNKNOWN_CMD token *last* because it takes over parsing for
+ * all other commands.
+ */
+import ChangePoint,
+       Enrich,
+       Explain,
+       Expression,
+       From,
+       Fork,
+       Fuse,
+       Inline,
+       Join,
+       Lookup,
+       MMR,
+       MvExpand,
+       Project,
+       Promql,
+       Rename,
+       Set,
+       Show,
+       UnknownCommand;
 
 LINE_COMMENT
     : '//' ~[\r\n]* '\r'? '\n'? -> channel(HIDDEN)
@@ -30,162 +83,4 @@ MULTILINE_COMMENT
 
 WS
     : [ \r\n\t]+ -> channel(HIDDEN)
-    ;
-
-
-mode EXPLAIN_MODE;
-EXPLAIN_OPENING_BRACKET : '[' -> type(OPENING_BRACKET), pushMode(DEFAULT_MODE);
-EXPLAIN_PIPE : '|' -> type(PIPE), popMode;
-EXPLAIN_WS : WS -> channel(HIDDEN);
-EXPLAIN_LINE_COMMENT : LINE_COMMENT -> channel(HIDDEN);
-EXPLAIN_MULTILINE_COMMENT : MULTILINE_COMMENT -> channel(HIDDEN);
-
-mode EXPRESSION;
-
-PIPE : '|' -> popMode;
-
-fragment DIGIT
-    : [0-9]
-    ;
-
-fragment LETTER
-    : [A-Za-z]
-    ;
-
-fragment ESCAPE_SEQUENCE
-    : '\\' [tnr"\\]
-    ;
-
-fragment UNESCAPED_CHARS
-    : ~[\r\n"\\]
-    ;
-
-fragment EXPONENT
-    : [Ee] [+-]? DIGIT+
-    ;
-
-STRING
-    : '"' (ESCAPE_SEQUENCE | UNESCAPED_CHARS)* '"'
-    | '"""' (~[\r\n])*? '"""' '"'? '"'?
-    ;
-
-INTEGER_LITERAL
-    : DIGIT+
-    ;
-
-DECIMAL_LITERAL
-    : DIGIT+ DOT DIGIT*
-    | DOT DIGIT+
-    | DIGIT+ (DOT DIGIT*)? EXPONENT
-    | DOT DIGIT+ EXPONENT
-    ;
-
-BY : 'by';
-
-AND : 'and';
-ASC : 'asc';
-ASSIGN : '=';
-COMMA : ',';
-DESC : 'desc';
-DOT : '.';
-FALSE : 'false';
-FIRST : 'first';
-LAST : 'last';
-LP : '(';
-IN: 'in';
-IS: 'is';
-LIKE: 'like';
-NOT : 'not';
-NULL : 'null';
-NULLS : 'nulls';
-OR : 'or';
-PARAM: '?';
-RLIKE: 'rlike';
-RP : ')';
-TRUE : 'true';
-INFO : 'info';
-FUNCTIONS : 'functions';
-
-EQ  : '==';
-NEQ : '!=';
-LT  : '<';
-LTE : '<=';
-GT  : '>';
-GTE : '>=';
-
-PLUS : '+';
-MINUS : '-';
-ASTERISK : '*';
-SLASH : '/';
-PERCENT : '%';
-
-// Brackets are funny. We can happen upon a CLOSING_BRACKET in two ways - one
-// way is to start in an explain command which then shifts us to expression
-// mode. Thus, the two popModes on CLOSING_BRACKET. The other way could as
-// the start of a multivalued field constant. To line up with the double pop
-// the explain mode needs, we double push when we see that.
-OPENING_BRACKET : '[' -> pushMode(EXPRESSION), pushMode(EXPRESSION);
-CLOSING_BRACKET : ']' -> popMode, popMode;
-
-
-UNQUOTED_IDENTIFIER
-    : LETTER (LETTER | DIGIT | '_')*
-    // only allow @ at beginning of identifier to keep the option to allow @ as infix operator in the future
-    // also, single `_` and `@` characters are not valid identifiers
-    | ('_' | '@') (LETTER | DIGIT | '_')+
-    ;
-
-QUOTED_IDENTIFIER
-    : '`' ( ~'`' | '``' )* '`'
-    ;
-
-EXPR_LINE_COMMENT
-    : LINE_COMMENT -> channel(HIDDEN)
-    ;
-
-EXPR_MULTILINE_COMMENT
-    : MULTILINE_COMMENT -> channel(HIDDEN)
-    ;
-
-EXPR_WS
-    : WS -> channel(HIDDEN)
-    ;
-
-
-
-mode SOURCE_IDENTIFIERS;
-
-SRC_PIPE : '|' -> type(PIPE), popMode;
-SRC_OPENING_BRACKET : '[' -> type(OPENING_BRACKET), pushMode(SOURCE_IDENTIFIERS), pushMode(SOURCE_IDENTIFIERS);
-SRC_CLOSING_BRACKET : ']' -> popMode, popMode, type(CLOSING_BRACKET);
-SRC_COMMA : ',' -> type(COMMA);
-SRC_ASSIGN : '=' -> type(ASSIGN);
-AS : 'as';
-METADATA: 'metadata';
-ON : 'on';
-WITH : 'with';
-
-SRC_UNQUOTED_IDENTIFIER
-    : SRC_UNQUOTED_IDENTIFIER_PART+
-    ;
-
-fragment SRC_UNQUOTED_IDENTIFIER_PART
-    : ~[=`|,[\]/ \t\r\n]+
-    | '/' ~[*/] // allow single / but not followed by another / or * which would start a comment
-    ;
-
-SRC_QUOTED_IDENTIFIER
-    : QUOTED_IDENTIFIER
-    ;
-
-SRC_LINE_COMMENT
-    : LINE_COMMENT -> channel(HIDDEN)
-    ;
-
-SRC_MULTILINE_COMMENT
-    : MULTILINE_COMMENT -> channel(HIDDEN)
-    ;
-
-SRC_WS
-    : WS -> channel(HIDDEN)
     ;

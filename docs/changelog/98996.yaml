@@ -1,5 +1,0 @@
-pr: 98996
-summary: Reintroduce `sparse_vector` mapping
-area: Mapping
-type: enhancement
-issues: []

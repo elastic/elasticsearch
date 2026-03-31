@@ -39,6 +39,7 @@ import java.util.stream.IntStream;
 
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.inference.InferenceModelTestUtils.deserializeFromTrainedModel;
 import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
@@ -535,6 +536,40 @@ public class EnsembleInferenceModelTests extends ESTestCase {
         featureImportance = ensemble.featureImportance(new double[] { 0.9, 0.0 });
         assertThat(featureImportance[0][0], closeTo(2.0538184, eps));
         assertThat(featureImportance[1][0], closeTo(0.1451914, eps));
+    }
+
+    public void testMinAndMaxBoundaries() throws IOException {
+        List<String> featureNames = Arrays.asList("foo", "bar");
+        Tree tree1 = Tree.builder()
+            .setFeatureNames(featureNames)
+            .setRoot(TreeNode.builder(0).setLeftChild(1).setRightChild(2).setSplitFeature(0).setThreshold(0.5))
+            .addNode(TreeNode.builder(1).setLeafValue(0.3))
+            .addNode(TreeNode.builder(2).setThreshold(0.8).setSplitFeature(1).setLeftChild(3).setRightChild(4))
+            .addNode(TreeNode.builder(3).setLeafValue(0.1))
+            .addNode(TreeNode.builder(4).setLeafValue(0.2))
+            .build();
+        Tree tree2 = Tree.builder()
+            .setFeatureNames(featureNames)
+            .setRoot(TreeNode.builder(0).setLeftChild(1).setRightChild(2).setSplitFeature(0).setThreshold(0.5))
+            .addNode(TreeNode.builder(1).setLeafValue(1.5))
+            .addNode(TreeNode.builder(2).setLeafValue(0.9))
+            .build();
+        Ensemble ensembleObject = Ensemble.builder()
+            .setTargetType(TargetType.REGRESSION)
+            .setFeatureNames(featureNames)
+            .setTrainedModels(Arrays.asList(tree1, tree2))
+            .setOutputAggregator(new WeightedSum(new double[] { 0.5, 0.5 }))
+            .build();
+
+        EnsembleInferenceModel ensemble = deserializeFromTrainedModel(
+            ensembleObject,
+            xContentRegistry(),
+            EnsembleInferenceModel::fromXContent
+        );
+        ensemble.rewriteFeatureIndices(Collections.emptyMap());
+
+        assertThat(ensemble.getMinPredictedValue(), equalTo(1.0));
+        assertThat(ensemble.getMaxPredictedValue(), equalTo(1.8));
     }
 
     private static Map<String, Object> zipObjMap(List<String> keys, List<Double> values) {

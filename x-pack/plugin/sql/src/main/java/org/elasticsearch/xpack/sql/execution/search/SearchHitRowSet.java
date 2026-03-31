@@ -28,9 +28,8 @@ import java.util.Set;
  * Extracts rows from an array of {@link SearchHit}.
  */
 class SearchHitRowSet extends ResultRowSet<HitExtractor> {
-    private final SearchHit[] hits;
+    private final SearchHits hits;
     private final Map<SearchHit, Map<String, SearchHit[]>> flatInnerHits = new HashMap<>();
-    private final Set<String> innerHits = new LinkedHashSet<>();
     private final String innerHit;
 
     private final int size;
@@ -42,13 +41,14 @@ class SearchHitRowSet extends ResultRowSet<HitExtractor> {
     SearchHitRowSet(List<HitExtractor> exts, BitSet mask, int sizeRequested, int limit, SearchResponse response) {
         super(exts, mask);
 
-        this.hits = response.getHits().getHits();
+        this.hits = response.getHits().asUnpooled();
 
         // Since the results might contain nested docs, the iteration is similar to that of Aggregation
         // namely it discovers the nested docs and then, for iteration, increments the deepest level first
         // and eventually carries that over to the top level
 
         String innerHit = null;
+        Set<String> innerHits = new LinkedHashSet<>();
         for (HitExtractor ex : exts) {
             if (ex.hitName() != null) {
                 innerHits.add(ex.hitName());
@@ -58,7 +58,7 @@ class SearchHitRowSet extends ResultRowSet<HitExtractor> {
             }
         }
 
-        int sz = hits.length;
+        int sz = hits.getHits().length;
 
         int maxDepth = 0;
         if (innerHits.isEmpty() == false) {
@@ -106,7 +106,7 @@ class SearchHitRowSet extends ResultRowSet<HitExtractor> {
         int extractorLevel = e.hitName() == null ? 0 : 1;
 
         SearchHit hit = null;
-        SearchHit[] sh = hits;
+        SearchHit[] sh = hits.getHits();
         for (int lvl = 0; lvl <= extractorLevel; lvl++) {
             // TODO: add support for multi-nested doc
             if (hit != null) {
@@ -172,7 +172,7 @@ class SearchHitRowSet extends ResultRowSet<HitExtractor> {
             // increment last row
             indexPerLevel[indexPerLevel.length - 1]++;
             // then check size
-            SearchHit[] sh = hits;
+            SearchHit[] sh = hits.getHits();
             for (int lvl = 0; lvl < indexPerLevel.length; lvl++) {
                 if (indexPerLevel[lvl] == sh.length) {
                     // reset the current branch
@@ -181,7 +181,7 @@ class SearchHitRowSet extends ResultRowSet<HitExtractor> {
                     indexPerLevel[lvl - 1]++;
                     // restart the loop
                     lvl = 0;
-                    sh = hits;
+                    sh = hits.getHits();
                 } else {
                     SearchHit h = sh[indexPerLevel[lvl]];
                     // TODO: improve this for multi-nested responses

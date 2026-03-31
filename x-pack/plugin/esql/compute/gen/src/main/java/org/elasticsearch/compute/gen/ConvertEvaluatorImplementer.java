@@ -13,47 +13,73 @@ import com.squareup.javapoet.MethodSpec;
 import com.squareup.javapoet.TypeName;
 import com.squareup.javapoet.TypeSpec;
 
-import java.util.BitSet;
+import org.elasticsearch.compute.gen.argument.Argument;
+import org.elasticsearch.compute.gen.argument.FixedArgument;
+import org.elasticsearch.compute.gen.argument.StandardArgument;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.stream.Collectors;
 
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.Modifier;
 import javax.lang.model.element.TypeElement;
+import javax.lang.model.type.TypeMirror;
 import javax.lang.model.util.Elements;
 
-import static org.elasticsearch.compute.gen.Methods.appendMethod;
+import static org.elasticsearch.compute.gen.EvaluatorImplementer.baseRamBytesUsed;
+import static org.elasticsearch.compute.gen.Methods.buildFromFactory;
 import static org.elasticsearch.compute.gen.Methods.getMethod;
 import static org.elasticsearch.compute.gen.Types.ABSTRACT_CONVERT_FUNCTION_EVALUATOR;
-import static org.elasticsearch.compute.gen.Types.BIG_ARRAYS;
 import static org.elasticsearch.compute.gen.Types.BLOCK;
 import static org.elasticsearch.compute.gen.Types.BYTES_REF;
-import static org.elasticsearch.compute.gen.Types.BYTES_REF_ARRAY;
+import static org.elasticsearch.compute.gen.Types.BYTES_REF_VECTOR_BUILDER;
+import static org.elasticsearch.compute.gen.Types.DRIVER_CONTEXT;
 import static org.elasticsearch.compute.gen.Types.EXPRESSION_EVALUATOR;
+import static org.elasticsearch.compute.gen.Types.EXPRESSION_EVALUATOR_FACTORY;
+import static org.elasticsearch.compute.gen.Types.INT_VECTOR;
+import static org.elasticsearch.compute.gen.Types.ORDINALS_BYTES_REF_VECTOR;
 import static org.elasticsearch.compute.gen.Types.SOURCE;
 import static org.elasticsearch.compute.gen.Types.VECTOR;
-import static org.elasticsearch.compute.gen.Types.arrayBlockType;
-import static org.elasticsearch.compute.gen.Types.arrayVectorType;
 import static org.elasticsearch.compute.gen.Types.blockType;
-import static org.elasticsearch.compute.gen.Types.constantVectorType;
+import static org.elasticsearch.compute.gen.Types.builderType;
 import static org.elasticsearch.compute.gen.Types.vectorType;
 
 public class ConvertEvaluatorImplementer {
 
     private final TypeElement declarationType;
-    private final ExecutableElement processFunction;
-    private final String extraName;
+    private final EvaluatorImplementer.ProcessFunction processFunction;
+    private final boolean canProcessOrdinals;
     private final ClassName implementation;
-    private final TypeName argumentType;
-    private final TypeName resultType;
+    private final StandardArgument argument;
+    private final List<TypeMirror> warnExceptions;
 
-    public ConvertEvaluatorImplementer(Elements elements, ExecutableElement processFunction, String extraName) {
+    public ConvertEvaluatorImplementer(
+        Elements elements,
+        javax.lang.model.util.Types types,
+        ExecutableElement processFunction,
+        String extraName,
+        List<TypeMirror> warnExceptions
+    ) {
         this.declarationType = (TypeElement) processFunction.getEnclosingElement();
-        this.processFunction = processFunction;
-        if (processFunction.getParameters().size() != 1) {
-            throw new IllegalArgumentException("processing function should have exactly one parameter");
+        this.processFunction = new EvaluatorImplementer.ProcessFunction(types, processFunction, warnExceptions);
+        this.canProcessOrdinals = warnExceptions.isEmpty()
+            && this.processFunction.returnType().equals(BYTES_REF)
+            && this.processFunction.args.getFirst() instanceof StandardArgument s
+            && s.type().equals(BYTES_REF);
+
+        if (this.processFunction.args.getFirst() instanceof StandardArgument == false) {
+            throw new IllegalArgumentException("first argument must be the field to process");
         }
-        this.extraName = extraName;
-        this.argumentType = TypeName.get(processFunction.getParameters().get(0).asType());
-        this.resultType = TypeName.get(processFunction.getReturnType());
+        argument = (StandardArgument) this.processFunction.args.getFirst();
+        for (int a = 1; a < this.processFunction.args.size(); a++) {
+            if (this.processFunction.args.get(a) instanceof FixedArgument == false) {
+                throw new IllegalArgumentException("fixed function args supported after the first");
+                // TODO support more function types when we need them
+            }
+        }
+
+        this.warnExceptions = warnExceptions;
 
         this.implementation = ClassName.get(
             elements.getPackageOf(declarationType).toString(),
@@ -74,31 +100,47 @@ public class ConvertEvaluatorImplementer {
     private TypeSpec type() {
         TypeSpec.Builder builder = TypeSpec.classBuilder(implementation);
         builder.addJavadoc("{@link $T} implementation for {@link $T}.\n", EXPRESSION_EVALUATOR, declarationType);
-        builder.addJavadoc("This class is generated. Do not edit it.");
+        builder.addJavadoc("This class is generated. Edit {@code " + getClass().getSimpleName() + "} instead.");
         builder.addModifiers(Modifier.PUBLIC, Modifier.FINAL);
         builder.superclass(ABSTRACT_CONVERT_FUNCTION_EVALUATOR);
+        builder.addField(baseRamBytesUsed(implementation));
 
+        for (Argument a : processFunction.args) {
+            a.declareField(builder);
+        }
         builder.addMethod(ctor());
-        builder.addMethod(name());
+        builder.addMethod(next());
         builder.addMethod(evalVector());
-        builder.addMethod(evalValue(true));
+        if (argument.supportsVectorReadAccess()) {
+            builder.addMethod(evalValue(true));
+        }
         builder.addMethod(evalBlock());
         builder.addMethod(evalValue(false));
+        if (canProcessOrdinals) {
+            builder.addMethod(evalOrdinals());
+        }
+        builder.addMethod(processFunction.toStringMethod(implementation));
+        builder.addMethod(processFunction.close());
+        builder.addMethod(processFunction.baseRamBytesUsed());
+        builder.addType(factory());
         return builder.build();
     }
 
     private MethodSpec ctor() {
         MethodSpec.Builder builder = MethodSpec.constructorBuilder().addModifiers(Modifier.PUBLIC);
-        builder.addParameter(EXPRESSION_EVALUATOR, "field");
         builder.addParameter(SOURCE, "source");
-        builder.addStatement("super($N, $N)", "field", "source");
+        builder.addStatement("super(driverContext, source)");
+        for (Argument a : processFunction.args) {
+            a.implementCtor(builder);
+        }
+        builder.addParameter(DRIVER_CONTEXT, "driverContext");
         return builder.build();
     }
 
-    private MethodSpec name() {
-        MethodSpec.Builder builder = MethodSpec.methodBuilder("name").addModifiers(Modifier.PUBLIC);
-        builder.addAnnotation(Override.class).returns(String.class);
-        builder.addStatement("return $S", declarationType.getSimpleName() + extraName);
+    private MethodSpec next() {
+        MethodSpec.Builder builder = MethodSpec.methodBuilder("next").addAnnotation(Override.class).addModifiers(Modifier.PUBLIC);
+        builder.returns(EXPRESSION_EVALUATOR);
+        builder.addStatement("return $N", ((StandardArgument) processFunction.args.getFirst()).name());
         return builder.build();
     }
 
@@ -106,100 +148,104 @@ public class ConvertEvaluatorImplementer {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("evalVector").addAnnotation(Override.class).addModifiers(Modifier.PUBLIC);
         builder.addParameter(VECTOR, "v").returns(BLOCK);
 
-        TypeName vectorType = vectorType(argumentType);
+        if (argument.supportsVectorReadAccess() == false) {
+            builder.addStatement("throw new UnsupportedOperationException(\"vectors are unsupported for this evaluator\")");
+            return builder.build();
+        }
+
+        TypeName vectorType = vectorType(argument.type());
         builder.addStatement("$T vector = ($T) v", vectorType, vectorType);
+        if (canProcessOrdinals) {
+            builder.addStatement("$T ordinals = vector.asOrdinals()", ORDINALS_BYTES_REF_VECTOR);
+            builder.beginControlFlow("if (ordinals != null)");
+            {
+                builder.addStatement("return evalOrdinals(ordinals)");
+            }
+            builder.endControlFlow();
+        }
+
         builder.addStatement("int positionCount = v.getPositionCount()");
 
-        String scratchPadName = null;
-        if (argumentType.equals(BYTES_REF)) {
-            scratchPadName = "scratchPad";
-            builder.addStatement("BytesRef $N = new BytesRef()", scratchPadName);
+        String scratchPadName = argument.scratchType() != null ? "scratchPad" : null;
+        if (scratchPadName != null) {
+            builder.addStatement("$T $N = new $T()", argument.scratchType(), scratchPadName, argument.scratchType());
         }
 
         builder.beginControlFlow("if (vector.isConstant())");
         {
-            builder.beginControlFlow("try");
-            {
-                var constVectType = constantVectorType(resultType);
+            catchingWarnExceptions(builder, () -> {
+                var constVectType = processFunction.resultDataType(true);
                 builder.addStatement(
-                    "return new $T($N, positionCount).asBlock()",
+                    "return driverContext.blockFactory().newConstant$TWith($N, positionCount)",
                     constVectType,
                     evalValueCall("vector", "0", scratchPadName)
                 );
-            }
-            builder.nextControlFlow("catch (Exception e)");
-            {
-                builder.addStatement("registerException(e)");
-                builder.addStatement("return Block.constantNullBlock(positionCount)");
-            }
-            builder.endControlFlow();
+            }, () -> builder.addStatement("return driverContext.blockFactory().newConstantNullBlock(positionCount)"));
         }
         builder.endControlFlow();
 
-        builder.addStatement("$T nullsMask = null", BitSet.class);
-        if (resultType.equals(BYTES_REF)) {
-            builder.addStatement(
-                "$T values = new $T(positionCount, $T.NON_RECYCLING_INSTANCE)", // TODO: see note in MvEvaluatorImplementer
-                BYTES_REF_ARRAY,
-                BYTES_REF_ARRAY,
-                BIG_ARRAYS
-            );
-        } else {
-            builder.addStatement("$T[] values = new $T[positionCount]", resultType, resultType);
-        }
-        builder.beginControlFlow("for (int p = 0; p < positionCount; p++)");
-        {
-            builder.beginControlFlow("try");
-            {
-                if (resultType.equals(BYTES_REF)) {
-                    builder.addStatement("values.append($N)", evalValueCall("vector", "p", scratchPadName));
-                } else {
-                    builder.addStatement("values[p] = $N", evalValueCall("vector", "p", scratchPadName));
-                }
-            }
-            builder.nextControlFlow("catch (Exception e)");
-            {
-                builder.addStatement("registerException(e)");
-                builder.beginControlFlow("if (nullsMask == null)");
-                {
-                    builder.addStatement("nullsMask = new BitSet(positionCount)");
-                }
-                builder.endControlFlow();
-                builder.addStatement("nullsMask.set(p)");
-            }
-            builder.endControlFlow();
-        }
-        builder.endControlFlow();
-
-        builder.addStatement(
-            """
-                return nullsMask == null
-                  ? new $T(values, positionCount).asBlock()
-                  // UNORDERED, since whatever ordering there is, it isn't necessarily preserved
-                  : new $T(values, positionCount, null, nullsMask, Block.MvOrdering.UNORDERED)""",
-            arrayVectorType(resultType),
-            arrayBlockType(resultType)
+        ClassName resultBuilderType = builderType(processFunction.resultDataType(true));
+        builder.beginControlFlow(
+            "try ($T builder = driverContext.blockFactory().$L(positionCount))",
+            resultBuilderType,
+            buildFromFactory(resultBuilderType)
         );
+        {
+            builder.beginControlFlow("for (int p = 0; p < positionCount; p++)");
+            {
+                catchingWarnExceptions(
+                    builder,
+                    () -> builder.addStatement(
+                        "builder.$L($N)",
+                        processFunction.appendMethod(),
+                        evalValueCall("vector", "p", scratchPadName)
+                    ),
+                    () -> builder.addStatement("builder.appendNull()")
+                );
+            }
+            builder.endControlFlow();
+            builder.addStatement("return builder.build()");
+        }
+        builder.endControlFlow();
 
         return builder.build();
+    }
+
+    private void catchingWarnExceptions(MethodSpec.Builder builder, Runnable whileCatching, Runnable ifCaught) {
+        if (warnExceptions.isEmpty()) {
+            whileCatching.run();
+            return;
+        }
+        builder.beginControlFlow("try");
+        whileCatching.run();
+        builder.nextControlFlow(
+            "catch (" + warnExceptions.stream().map(m -> "$T").collect(Collectors.joining(" | ")) + "  e)",
+            warnExceptions.stream().map(m -> TypeName.get(m)).toArray()
+        );
+        builder.addStatement("registerException(e)");
+        ifCaught.run();
+        builder.endControlFlow();
     }
 
     private MethodSpec evalBlock() {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("evalBlock").addAnnotation(Override.class).addModifiers(Modifier.PUBLIC);
         builder.addParameter(BLOCK, "b").returns(BLOCK);
 
-        TypeName blockType = blockType(argumentType);
+        TypeName blockType = blockType(argument.type());
         builder.addStatement("$T block = ($T) b", blockType, blockType);
         builder.addStatement("int positionCount = block.getPositionCount()");
-        TypeName resultBlockType = blockType(resultType);
-        builder.addStatement("$T.Builder builder = $T.newBlockBuilder(positionCount)", resultBlockType, resultBlockType);
-        String scratchPadName = null;
-        if (argumentType.equals(BYTES_REF)) {
-            scratchPadName = "scratchPad";
-            builder.addStatement("BytesRef $N = new BytesRef()", scratchPadName);
+        TypeName resultBuilderType = builderType(processFunction.resultDataType(true));
+        builder.beginControlFlow(
+            "try ($T builder = driverContext.blockFactory().$L(positionCount))",
+            resultBuilderType,
+            buildFromFactory(resultBuilderType)
+        );
+        String scratchPadName = argument.scratchType() != null ? "scratchPad" : null;
+        if (scratchPadName != null) {
+            builder.addStatement("$T $N = new $T()", argument.scratchType(), scratchPadName, argument.scratchType());
         }
 
-        String appendMethod = appendMethod(resultType);
+        String appendMethod = processFunction.appendMethod();
         builder.beginControlFlow("for (int p = 0; p < positionCount; p++)");
         {
             builder.addStatement("int valueCount = block.getValueCount(p)");
@@ -207,12 +253,10 @@ public class ConvertEvaluatorImplementer {
             builder.addStatement("int end = start + valueCount");
             builder.addStatement("boolean positionOpened = false");
             builder.addStatement("boolean valuesAppended = false");
-            // builder.addStatement("builder.beginPositionEntry()");
             builder.beginControlFlow("for (int i = start; i < end; i++)");
             {
-                builder.beginControlFlow("try");
-                {
-                    builder.addStatement("$T value = $N", resultType, evalValueCall("block", "i", scratchPadName));
+                catchingWarnExceptions(builder, () -> {
+                    builder.addStatement("$T value = $N", processFunction.returnType(), evalValueCall("block", "i", scratchPadName));
                     builder.beginControlFlow("if (positionOpened == false && valueCount > 1)");
                     {
                         builder.addStatement("builder.beginPositionEntry()");
@@ -221,12 +265,7 @@ public class ConvertEvaluatorImplementer {
                     builder.endControlFlow();
                     builder.addStatement("builder.$N(value)", appendMethod);
                     builder.addStatement("valuesAppended = true");
-                }
-                builder.nextControlFlow("catch (Exception e)");
-                {
-                    builder.addStatement("registerException(e)");
-                }
-                builder.endControlFlow();
+                }, () -> {});
             }
             builder.endControlFlow();
             builder.beginControlFlow("if (valuesAppended == false)");
@@ -242,6 +281,7 @@ public class ConvertEvaluatorImplementer {
         builder.endControlFlow();
 
         builder.addStatement("return builder.build()");
+        builder.endControlFlow();
 
         return builder.build();
     }
@@ -261,24 +301,72 @@ public class ConvertEvaluatorImplementer {
 
     private MethodSpec evalValue(boolean forVector) {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("evalValue")
-            .addModifiers(Modifier.PRIVATE, Modifier.STATIC)
-            .returns(resultType);
+            .addModifiers(Modifier.PRIVATE)
+            .returns(processFunction.returnType());
 
         if (forVector) {
-            builder.addParameter(vectorType(argumentType), "container");
+            builder.addParameter(vectorType(argument.type()), "container");
         } else {
-            builder.addParameter(blockType(argumentType), "container");
+            builder.addParameter(blockType(argument.type()), "container");
         }
         builder.addParameter(TypeName.INT, "index");
-        if (argumentType.equals(BYTES_REF)) {
-            builder.addParameter(BYTES_REF, "scratchPad");
-            builder.addStatement("$T value = container.$N(index, scratchPad)", argumentType, getMethod(argumentType));
+        if (argument.scratchType() != null) {
+            builder.addParameter(argument.scratchType(), "scratchPad");
+            builder.addStatement("$T value = container.$N(index, scratchPad)", argument.type(), getMethod(argument.type()));
         } else {
-            builder.addStatement("$T value = container.$N(index)", argumentType, getMethod(argumentType));
+            builder.addStatement("$T value = container.$N(index)", argument.type(), getMethod(argument.type()));
         }
 
-        builder.addStatement("return $T.$N(value)", declarationType, processFunction.getSimpleName());
+        StringBuilder pattern = new StringBuilder();
+        List<Object> args = new ArrayList<>();
+        pattern.append("return $T.$N(value");
+        args.add(declarationType);
+        args.add(processFunction.function.getSimpleName());
+        for (int a = 1; a < processFunction.args.size(); a++) {
+            pattern.append(", ");
+            processFunction.args.get(a).buildInvocation(pattern, args, false /* block style parameter should be unused */);
+        }
+        pattern.append(")");
+        builder.addStatement(pattern.toString(), args.toArray());
+        return builder.build();
+    }
 
+    private MethodSpec evalOrdinals() {
+        MethodSpec.Builder builder = MethodSpec.methodBuilder("evalOrdinals").addModifiers(Modifier.PRIVATE);
+        builder.addParameter(ORDINALS_BYTES_REF_VECTOR, "v").returns(BLOCK);
+
+        builder.addStatement("int positionCount = v.getDictionaryVector().getPositionCount()");
+        builder.addStatement("BytesRef scratchPad = new BytesRef()");
+        builder.beginControlFlow(
+            "try ($T builder = driverContext.blockFactory().newBytesRefVectorBuilder(positionCount))",
+            BYTES_REF_VECTOR_BUILDER
+        );
+        {
+            builder.beginControlFlow("for (int p = 0; p < positionCount; p++)");
+            {
+                builder.addStatement("builder.appendBytesRef($N)", evalValueCall("v.getDictionaryVector()", "p", "scratchPad"));
+            }
+            builder.endControlFlow();
+            builder.addStatement("$T ordinals = v.getOrdinalsVector()", INT_VECTOR);
+            builder.addStatement("ordinals.incRef()");
+            builder.addStatement("return new $T(ordinals, builder.build()).asBlock()", ORDINALS_BYTES_REF_VECTOR);
+        }
+        builder.endControlFlow();
+
+        return builder.build();
+    }
+
+    private TypeSpec factory() {
+        TypeSpec.Builder builder = TypeSpec.classBuilder("Factory");
+        builder.addSuperinterface(EXPRESSION_EVALUATOR_FACTORY);
+        builder.addModifiers(Modifier.PUBLIC, Modifier.STATIC);
+
+        builder.addField(SOURCE, "source", Modifier.PRIVATE, Modifier.FINAL);
+        processFunction.args.forEach(a -> a.declareFactoryField(builder));
+
+        builder.addMethod(processFunction.factoryCtor());
+        builder.addMethod(processFunction.factoryGet(implementation));
+        builder.addMethod(processFunction.toStringMethod(implementation));
         return builder.build();
     }
 }

@@ -1,14 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.windows.service;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.Build;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.cli.Terminal;
@@ -47,7 +48,7 @@ class WindowsServiceInstallCommand extends ProcrunCommand {
         addArg(
             args,
             "--DisplayName",
-            pinfo.envVars().getOrDefault("SERVICE_DISPLAY_NAME", "Elasticsearch %s (%s)".formatted(Version.CURRENT, serviceId))
+            pinfo.envVars().getOrDefault("SERVICE_DISPLAY_NAME", "Elasticsearch %s (%s)".formatted(Build.current().version(), serviceId))
         );
         addArg(
             args,
@@ -55,7 +56,7 @@ class WindowsServiceInstallCommand extends ProcrunCommand {
             pinfo.envVars()
                 .getOrDefault(
                     "SERVICE_DESCRIPTION",
-                    String.format(java.util.Locale.ROOT, "Elasticsearch %s Windows Service - https://elastic.co", Version.CURRENT)
+                    String.format(java.util.Locale.ROOT, "Elasticsearch %s Windows Service - https://elastic.co", Build.current().version())
                 )
         );
         addQuotedArg(args, "--Jvm", quote(getJvmDll(getJavaHome(pinfo.sysprops())).toString()));
@@ -63,7 +64,7 @@ class WindowsServiceInstallCommand extends ProcrunCommand {
         addArg(args, "--StopMode", "jvm");
         addQuotedArg(args, "--StartPath", quote(pinfo.workingDir().toString()));
         addArg(args, "++JvmOptions", "-Dcli.name=windows-service-daemon");
-        addArg(args, "++JvmOptions", "-Dcli.libs=lib/tools/server-cli,lib/tools/windows-service-cli");
+        addArg(args, "++JvmOptions", "-Dcli.libs=lib/tools/server-cli,lib/tools/server-launcher,lib/tools/windows-service-cli");
         addArg(args, "++Environment", String.format(java.util.Locale.ROOT, "HOSTNAME=%s", pinfo.envVars().get("COMPUTERNAME")));
 
         String serviceUsername = pinfo.envVars().get("SERVICE_USERNAME");

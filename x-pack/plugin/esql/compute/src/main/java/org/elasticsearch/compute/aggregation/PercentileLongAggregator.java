@@ -8,39 +8,35 @@
 package org.elasticsearch.compute.aggregation;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.ann.Aggregator;
 import org.elasticsearch.compute.ann.GroupingAggregator;
 import org.elasticsearch.compute.ann.IntermediateState;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.IntVector;
+import org.elasticsearch.compute.operator.DriverContext;
 
 @Aggregator({ @IntermediateState(name = "quart", type = "BYTES_REF") })
 @GroupingAggregator
 class PercentileLongAggregator {
 
-    public static QuantileStates.SingleState initSingle(double percentile) {
-        return new QuantileStates.SingleState(percentile);
+    public static QuantileStates.SingleState initSingle(DriverContext driverContext, double percentile) {
+        return new QuantileStates.SingleState(driverContext.breaker(), percentile);
     }
 
     public static void combine(QuantileStates.SingleState current, long v) {
         current.add(v);
     }
 
-    public static void combineStates(QuantileStates.SingleState current, QuantileStates.SingleState state) {
-        current.add(state);
-    }
-
     public static void combineIntermediate(QuantileStates.SingleState state, BytesRef inValue) {
         state.add(inValue);
     }
 
-    public static Block evaluateFinal(QuantileStates.SingleState state) {
-        return state.evaluatePercentile();
+    public static Block evaluateFinal(QuantileStates.SingleState state, DriverContext driverContext) {
+        return state.evaluatePercentile(driverContext);
     }
 
-    public static QuantileStates.GroupingState initGrouping(BigArrays bigArrays, double percentile) {
-        return new QuantileStates.GroupingState(bigArrays, percentile);
+    public static QuantileStates.GroupingState initGrouping(DriverContext driverContext, double percentile) {
+        return new QuantileStates.GroupingState(driverContext.breaker(), driverContext.bigArrays(), percentile);
     }
 
     public static void combine(QuantileStates.GroupingState state, int groupId, long v) {
@@ -51,16 +47,11 @@ class PercentileLongAggregator {
         state.add(groupId, inValue);
     }
 
-    public static void combineStates(
-        QuantileStates.GroupingState current,
-        int currentGroupId,
+    public static Block evaluateFinal(
         QuantileStates.GroupingState state,
-        int statePosition
+        IntVector selectedGroups,
+        GroupingAggregatorEvaluationContext ctx
     ) {
-        current.add(currentGroupId, state.getOrNull(statePosition));
-    }
-
-    public static Block evaluateFinal(QuantileStates.GroupingState state, IntVector selectedGroups) {
-        return state.evaluatePercentile(selectedGroups);
+        return state.evaluatePercentile(selectedGroups, ctx.driverContext());
     }
 }

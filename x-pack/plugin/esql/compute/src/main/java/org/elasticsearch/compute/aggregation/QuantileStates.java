@@ -8,20 +8,23 @@
 package org.elasticsearch.compute.aggregation;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BytesRefBlock;
-import org.elasticsearch.compute.data.ConstantBytesRefVector;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntVector;
+import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.aggregations.metrics.InternalMedianAbsoluteDeviation;
 import org.elasticsearch.search.aggregations.metrics.TDigestState;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.util.stream.LongStream;
 
 public final class QuantileStates {
     public static final double MEDIAN = 50.0;
@@ -46,65 +49,66 @@ public final class QuantileStates {
         return new BytesRef(baos.toByteArray());
     }
 
-    static TDigestState deserializeDigest(BytesRef bytesRef) {
+    static TDigestState deserializeDigest(CircuitBreaker breaker, BytesRef bytesRef) {
         ByteArrayStreamInput in = new ByteArrayStreamInput(bytesRef.bytes);
         in.reset(bytesRef.bytes, bytesRef.offset, bytesRef.length);
         try {
-            return TDigestState.read(in);
+            return TDigestState.read(breaker, in);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
     }
 
     static class SingleState implements AggregatorState {
-        private TDigestState digest;
+        private final CircuitBreaker breaker;
+        private final TDigestState digest;
         private final Double percentile;
 
-        SingleState(double percentile) {
-            this.digest = TDigestState.create(DEFAULT_COMPRESSION);
+        SingleState(CircuitBreaker breaker, double percentile) {
+            this.breaker = breaker;
+            this.digest = TDigestState.create(breaker, DEFAULT_COMPRESSION);
             this.percentile = percentileParam(percentile);
         }
 
         @Override
-        public void close() {}
+        public void close() {
+            Releasables.close(digest);
+        }
 
         void add(double v) {
             digest.add(v);
         }
 
-        void add(SingleState other) {
-            digest.add(other.digest);
-        }
-
         void add(BytesRef other) {
-            digest.add(deserializeDigest(other));
+            try (var otherDigest = deserializeDigest(breaker, other)) {
+                digest.add(otherDigest);
+            }
         }
 
         /** Extracts an intermediate view of the contents of this state.  */
         @Override
-        public void toIntermediate(Block[] blocks, int offset) {
+        public void toIntermediate(Block[] blocks, int offset, DriverContext driverContext) {
             assert blocks.length >= offset + 1;
-            blocks[offset] = new ConstantBytesRefVector(serializeDigest(this.digest), 1).asBlock();
+            blocks[offset] = driverContext.blockFactory().newConstantBytesRefBlockWith(serializeDigest(this.digest), 1);
         }
 
-        Block evaluateMedianAbsoluteDeviation() {
+        Block evaluateMedianAbsoluteDeviation(DriverContext driverContext) {
+            BlockFactory blockFactory = driverContext.blockFactory();
             assert percentile == MEDIAN : "Median must be 50th percentile [percentile = " + percentile + "]";
             if (digest.size() == 0) {
-                return Block.constantNullBlock(1);
+                return blockFactory.newConstantNullBlock(1);
             }
             double result = InternalMedianAbsoluteDeviation.computeMedianAbsoluteDeviation(digest);
-            return DoubleBlock.newConstantBlockWith(result, 1);
+            return blockFactory.newConstantDoubleBlockWith(result, 1);
         }
 
-        Block evaluatePercentile() {
-            if (percentile == null) {
-                return DoubleBlock.newBlockBuilder(1).appendNull().build();
-            }
-            if (digest.size() == 0) {
-                return Block.constantNullBlock(1);
+        Block evaluatePercentile(DriverContext driverContext) {
+            BlockFactory blockFactory = driverContext.blockFactory();
+            if (percentile == null || digest.size() == 0) {
+                return blockFactory.newConstantNullBlock(1);
             }
             double result = digest.quantile(percentile / 100);
-            return DoubleBlock.newConstantBlockWith(result, 1);
+            return blockFactory.newConstantDoubleBlockWith(result, 1);
         }
     }
 
@@ -112,9 +116,11 @@ public final class QuantileStates {
         private long largestGroupId = -1;
         private ObjectArray<TDigestState> digests;
         private final BigArrays bigArrays;
+        private final CircuitBreaker breaker;
         private final Double percentile;
 
-        GroupingState(BigArrays bigArrays, double percentile) {
+        GroupingState(CircuitBreaker breaker, BigArrays bigArrays, double percentile) {
+            this.breaker = breaker;
             this.bigArrays = bigArrays;
             this.digests = bigArrays.newObjectArray(1);
             this.percentile = percentileParam(percentile);
@@ -124,7 +130,7 @@ public final class QuantileStates {
             digests = bigArrays.grow(digests, groupId + 1);
             TDigestState qs = digests.get(groupId);
             if (qs == null) {
-                qs = TDigestState.create(DEFAULT_COMPRESSION);
+                qs = TDigestState.create(breaker, DEFAULT_COMPRESSION);
                 digests.set(groupId, qs);
             }
             return qs;
@@ -140,12 +146,15 @@ public final class QuantileStates {
             }
         }
 
-        void enableGroupIdTracking(SeenGroupIds seenGroupIds) {
+        @Override
+        public void enableGroupIdTracking(SeenGroupIds seenGroupIds) {
             // We always enable.
         }
 
         void add(int groupId, BytesRef other) {
-            getOrAddGroup(groupId).add(deserializeDigest(other));
+            try (var digestToAdd = deserializeDigest(breaker, other)) {
+                getOrAddGroup(groupId).add(digestToAdd);
+            }
         }
 
         TDigestState getOrNull(int position) {
@@ -157,66 +166,75 @@ public final class QuantileStates {
         }
 
         /** Extracts an intermediate view of the contents of this state.  */
-        @Override
-        public void toIntermediate(Block[] blocks, int offset, IntVector selected) {
+        public void toIntermediate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {
             assert blocks.length >= offset + 1;
-            var builder = BytesRefBlock.newBlockBuilder(selected.getPositionCount());
-            for (int i = 0; i < selected.getPositionCount(); i++) {
-                int group = selected.getInt(i);
-                TDigestState state;
-                if (group < digests.size()) {
-                    state = getOrNull(group);
-                    if (state == null) {
-                        state = TDigestState.create(DEFAULT_COMPRESSION);
+            try (var builder = driverContext.blockFactory().newBytesRefBlockBuilder(selected.getPositionCount())) {
+                for (int i = 0; i < selected.getPositionCount(); i++) {
+                    int group = selected.getInt(i);
+                    TDigestState state;
+                    boolean closeState = false;
+                    if (group < digests.size()) {
+                        state = getOrNull(group);
+                        if (state == null) {
+                            state = TDigestState.create(breaker, DEFAULT_COMPRESSION);
+                            closeState = true;
+                        }
+                    } else {
+                        state = TDigestState.create(breaker, DEFAULT_COMPRESSION);
+                        closeState = true;
                     }
-                } else {
-                    state = TDigestState.create(DEFAULT_COMPRESSION);
+                    builder.appendBytesRef(serializeDigest(state));
+
+                    if (closeState) {
+                        state.close();
+                    }
                 }
-                builder.appendBytesRef(serializeDigest(state));
+                blocks[offset] = builder.build();
             }
-            blocks[offset] = builder.build();
         }
 
-        Block evaluateMedianAbsoluteDeviation(IntVector selected) {
+        Block evaluateMedianAbsoluteDeviation(IntVector selected, DriverContext driverContext) {
             assert percentile == MEDIAN : "Median must be 50th percentile [percentile = " + percentile + "]";
-            final DoubleBlock.Builder builder = DoubleBlock.newBlockBuilder(selected.getPositionCount());
-            for (int i = 0; i < selected.getPositionCount(); i++) {
-                int si = selected.getInt(i);
-                if (si >= digests.size()) {
-                    builder.appendNull();
-                    continue;
+            try (DoubleBlock.Builder builder = driverContext.blockFactory().newDoubleBlockBuilder(selected.getPositionCount())) {
+                for (int i = 0; i < selected.getPositionCount(); i++) {
+                    int si = selected.getInt(i);
+                    if (si >= digests.size()) {
+                        builder.appendNull();
+                        continue;
+                    }
+                    final TDigestState digest = digests.get(si);
+                    if (digest != null && digest.size() > 0) {
+                        builder.appendDouble(InternalMedianAbsoluteDeviation.computeMedianAbsoluteDeviation(digest));
+                    } else {
+                        builder.appendNull();
+                    }
                 }
-                final TDigestState digest = digests.get(si);
-                if (digest != null && digest.size() > 0) {
-                    builder.appendDouble(InternalMedianAbsoluteDeviation.computeMedianAbsoluteDeviation(digest));
-                } else {
-                    builder.appendNull();
-                }
+                return builder.build();
             }
-            return builder.build();
         }
 
-        Block evaluatePercentile(IntVector selected) {
-            final DoubleBlock.Builder builder = DoubleBlock.newBlockBuilder(selected.getPositionCount());
-            for (int i = 0; i < selected.getPositionCount(); i++) {
-                int si = selected.getInt(i);
-                if (si >= digests.size()) {
-                    builder.appendNull();
-                    continue;
+        Block evaluatePercentile(IntVector selected, DriverContext driverContext) {
+            try (DoubleBlock.Builder builder = driverContext.blockFactory().newDoubleBlockBuilder(selected.getPositionCount())) {
+                for (int i = 0; i < selected.getPositionCount(); i++) {
+                    int si = selected.getInt(i);
+                    if (si >= digests.size()) {
+                        builder.appendNull();
+                        continue;
+                    }
+                    final TDigestState digest = digests.get(si);
+                    if (percentile != null && digest != null && digest.size() > 0) {
+                        builder.appendDouble(digest.quantile(percentile / 100));
+                    } else {
+                        builder.appendNull();
+                    }
                 }
-                final TDigestState digest = digests.get(si);
-                if (percentile != null && digest != null && digest.size() > 0) {
-                    builder.appendDouble(digest.quantile(percentile / 100));
-                } else {
-                    builder.appendNull();
-                }
+                return builder.build();
             }
-            return builder.build();
         }
 
         @Override
         public void close() {
-            digests.close();
+            Releasables.close(Releasables.wrap(LongStream.range(0, digests.size()).mapToObj(i -> digests.get(i)).toList()), digests);
         }
     }
 }

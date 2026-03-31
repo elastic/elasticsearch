@@ -233,6 +233,14 @@ setup:
         wait_for_completion: true
 
 ---
+"Usage stats":
+  - do:
+      cluster.stats: {}
+
+  - gte: { repositories.gcs.count: 1 }
+  - gte: { repositories.gcs.read_write: 1 }
+
+---
 teardown:
 
   # Remove our repository

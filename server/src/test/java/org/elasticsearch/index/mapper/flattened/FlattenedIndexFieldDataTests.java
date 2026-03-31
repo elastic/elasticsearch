@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper.flattened;
@@ -71,7 +72,7 @@ public class FlattenedIndexFieldDataTests extends ESSingleNodeTestCase {
         DirectoryReader reader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(writer), new ShardId("test", "_na_", 1));
 
         // Load global field data for subfield 'key'.
-        IndexFieldData<?> ifd1 = ifdService.getForField(fieldType1, FieldDataContext.noRuntimeFields("test"));
+        IndexFieldData<?> ifd1 = ifdService.getForField(fieldType1, FieldDataContext.noRuntimeFields("test", "test"));
         assertTrue(ifd1 instanceof KeyedFlattenedFieldData);
 
         KeyedFlattenedFieldData fieldData1 = (KeyedFlattenedFieldData) ifd1;
@@ -81,7 +82,7 @@ public class FlattenedIndexFieldDataTests extends ESSingleNodeTestCase {
 
         // Load global field data for the subfield 'other_key'.
         MappedFieldType fieldType2 = fieldMapper.fieldType().getChildFieldType("other_key");
-        IndexFieldData<?> ifd2 = ifdService.getForField(fieldType2, FieldDataContext.noRuntimeFields("test"));
+        IndexFieldData<?> ifd2 = ifdService.getForField(fieldType2, FieldDataContext.noRuntimeFields("test", "test"));
         assertTrue(ifd2 instanceof KeyedFlattenedFieldData);
 
         KeyedFlattenedFieldData fieldData2 = (KeyedFlattenedFieldData) ifd2;

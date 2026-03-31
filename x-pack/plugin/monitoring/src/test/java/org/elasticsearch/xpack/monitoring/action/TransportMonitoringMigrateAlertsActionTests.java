@@ -298,7 +298,7 @@ public class TransportMonitoringMigrateAlertsActionTests extends MonitoringInteg
                 .put("xpack.monitoring.elasticsearch.collection.enabled", false)
                 .put("xpack.monitoring.exporters.remoteCluster.type", HttpExporter.TYPE)
                 .put("xpack.monitoring.exporters.remoteCluster.enabled", true)
-                .put("xpack.monitoring.exporters.remoteCluster.host", webServer.getHostName() + ":" + webServer.getPort())
+                .put("xpack.monitoring.exporters.remoteCluster.host", webServer.getHttpAddress())
                 .put("xpack.monitoring.exporters.remoteCluster.cluster_alerts.management.enabled", true);
 
             // enable http exporter
@@ -338,7 +338,7 @@ public class TransportMonitoringMigrateAlertsActionTests extends MonitoringInteg
                 .put("xpack.monitoring.elasticsearch.collection.enabled", false)
                 .put("xpack.monitoring.exporters.remoteCluster.type", HttpExporter.TYPE)
                 .put("xpack.monitoring.exporters.remoteCluster.enabled", false)
-                .put("xpack.monitoring.exporters.remoteCluster.host", webServer.getHostName() + ":" + webServer.getPort())
+                .put("xpack.monitoring.exporters.remoteCluster.host", webServer.getHttpAddress())
                 .put("xpack.monitoring.exporters.remoteCluster.cluster_alerts.management.enabled", true);
 
             // configure disabled http exporter
@@ -378,7 +378,7 @@ public class TransportMonitoringMigrateAlertsActionTests extends MonitoringInteg
                 .put("xpack.monitoring.elasticsearch.collection.enabled", false)
                 .put("xpack.monitoring.exporters.remoteCluster.type", HttpExporter.TYPE)
                 .put("xpack.monitoring.exporters.remoteCluster.enabled", false)
-                .put("xpack.monitoring.exporters.remoteCluster.host", webServer.getHostName() + ":" + webServer.getPort())
+                .put("xpack.monitoring.exporters.remoteCluster.host", webServer.getHttpAddress())
                 .put("xpack.monitoring.exporters.remoteCluster.cluster_alerts.management.enabled", true);
 
             // create a disabled http exporter
@@ -413,7 +413,7 @@ public class TransportMonitoringMigrateAlertsActionTests extends MonitoringInteg
                 .put("xpack.monitoring.elasticsearch.collection.enabled", false)
                 .put("xpack.monitoring.exporters.remoteCluster.type", HttpExporter.TYPE)
                 .put("xpack.monitoring.exporters.remoteCluster.enabled", true)
-                .put("xpack.monitoring.exporters.remoteCluster.host", webServer.getHostName() + ":" + webServer.getPort())
+                .put("xpack.monitoring.exporters.remoteCluster.host", webServer.getHttpAddress())
                 .put("xpack.monitoring.exporters.remoteCluster.cluster_alerts.management.enabled", true);
 
             // enable http exporter
@@ -457,7 +457,7 @@ public class TransportMonitoringMigrateAlertsActionTests extends MonitoringInteg
                 .put("xpack.monitoring.elasticsearch.collection.enabled", false)
                 .put("xpack.monitoring.exporters.remoteCluster.type", HttpExporter.TYPE)
                 .put("xpack.monitoring.exporters.remoteCluster.enabled", true)
-                .put("xpack.monitoring.exporters.remoteCluster.host", webServer.getHostName() + ":" + webServer.getPort())
+                .put("xpack.monitoring.exporters.remoteCluster.host", webServer.getHttpAddress())
                 .put("xpack.monitoring.exporters.remoteCluster.cluster_alerts.management.enabled", true);
 
             // enable http exporter
@@ -520,14 +520,14 @@ public class TransportMonitoringMigrateAlertsActionTests extends MonitoringInteg
         templates.add(".monitoring-logstash");
         templates.add(".monitoring-beats");
 
-        GetIndexTemplatesResponse response = client().admin().indices().prepareGetTemplates(".monitoring-*").get();
+        GetIndexTemplatesResponse response = client().admin().indices().prepareGetTemplates(TEST_REQUEST_TIMEOUT, ".monitoring-*").get();
         Set<String> actualTemplates = response.getIndexTemplates().stream().map(IndexTemplateMetadata::getName).collect(Collectors.toSet());
         assertEquals(templates, actualTemplates);
     }
 
     private void assertWatchesExist(boolean exist) {
         // Check if watches index exists
-        if (client().admin().indices().prepareGetIndex().addIndices(".watches").get().getIndices().length == 0) {
+        if (client().admin().indices().prepareGetIndex(TEST_REQUEST_TIMEOUT).addIndices(".watches").get().getIndices().length == 0) {
             fail("Expected [.watches] index with cluster alerts present, but no [.watches] index was found");
         }
 

@@ -10,7 +10,7 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.rest.RestUtils;
+import org.elasticsearch.rest.RequestParams;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -200,7 +200,7 @@ public class HttpRequest implements ToXContentObject {
      * Sanitize both internal (see {@link #sanitizeInternalHeaders(Map)} and
      * user-added sensitive headers that should not be shown.
      */
-    private Map<String, String> sanitizeHeaders(Map<String, String> headers) {
+    private static Map<String, String> sanitizeHeaders(Map<String, String> headers) {
         String authorizationHeader = headers.containsKey("Authorization") ? "Authorization" : null;
         if (authorizationHeader == null) {
             authorizationHeader = headers.containsKey("authorization") ? "authorization" : null;
@@ -217,7 +217,7 @@ public class HttpRequest implements ToXContentObject {
      * Sanitize headers that the user may not have added, but were automatically
      * added by Elasticsearch.
      */
-    private Map<String, String> sanitizeInternalHeaders(Map<String, String> headers) {
+    private static Map<String, String> sanitizeInternalHeaders(Map<String, String> headers) {
         // Redact the additional webhook password, if present.
         if (headers.containsKey(WebhookService.TOKEN_HEADER_NAME)) {
             Map<String, String> sanitizedHeaders = new HashMap<>(headers);
@@ -560,7 +560,7 @@ public class HttpRequest implements ToXContentObject {
                 }
                 String rawQuery = uri.getRawQuery();
                 if (Strings.hasLength(rawQuery)) {
-                    RestUtils.decodeQueryString(rawQuery, 0, params);
+                    setParams(RequestParams.fromQueryString(rawQuery));
                 }
             } catch (URISyntaxException e) {
                 throw new ElasticsearchParseException("Malformed URL [{}]", supposedUrl);

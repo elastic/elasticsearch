@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.allocation;
@@ -30,6 +31,7 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -99,10 +101,10 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
 
         // verify unassigned info
         assertNotNull(unassignedInfo);
-        assertEquals(Reason.NODE_LEFT, unassignedInfo.getReason());
+        assertEquals(Reason.NODE_LEFT, unassignedInfo.reason());
         assertTrue(
-            unassignedInfo.getLastAllocationStatus() == AllocationStatus.FETCHING_SHARD_DATA
-                || unassignedInfo.getLastAllocationStatus() == AllocationStatus.NO_VALID_SHARD_COPY
+            unassignedInfo.lastAllocationStatus() == AllocationStatus.FETCHING_SHARD_DATA
+                || unassignedInfo.lastAllocationStatus() == AllocationStatus.NO_VALID_SHARD_COPY
         );
 
         // verify cluster info
@@ -157,12 +159,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         // wait till we have passed any pending shard data fetching
         assertEquals(
             AllocationDecision.ALLOCATION_DELAYED,
-            clusterAdmin().prepareAllocationExplain()
-                .setIndex("idx")
-                .setShard(0)
-                .setPrimary(false)
-                .get()
-                .getExplanation()
+            ClusterAllocationExplanationUtils.getClusterAllocationExplanation(client(), "idx", 0, false)
                 .getShardAllocationDecision()
                 .getAllocateDecision()
                 .getAllocationDecision()
@@ -194,8 +191,8 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
 
         // verify unassigned info
         assertNotNull(unassignedInfo);
-        assertEquals(Reason.NODE_LEFT, unassignedInfo.getReason());
-        assertEquals(AllocationStatus.NO_ATTEMPT, unassignedInfo.getLastAllocationStatus());
+        assertEquals(Reason.NODE_LEFT, unassignedInfo.reason());
+        assertEquals(AllocationStatus.NO_ATTEMPT, unassignedInfo.lastAllocationStatus());
 
         // verify cluster info
         verifyClusterInfo(clusterInfo, includeDiskInfo, 2);
@@ -324,8 +321,8 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
 
         // verify unassigned info
         assertNotNull(unassignedInfo);
-        assertEquals(Reason.NODE_LEFT, unassignedInfo.getReason());
-        assertEquals(AllocationStatus.NO_ATTEMPT, unassignedInfo.getLastAllocationStatus());
+        assertEquals(Reason.NODE_LEFT, unassignedInfo.reason());
+        assertEquals(AllocationStatus.NO_ATTEMPT, unassignedInfo.lastAllocationStatus());
 
         // verify cluster info
         verifyClusterInfo(clusterInfo, includeDiskInfo, 3);
@@ -436,8 +433,8 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
 
         // verify unassigned info
         assertNotNull(unassignedInfo);
-        assertEquals(Reason.INDEX_CREATED, unassignedInfo.getReason());
-        assertEquals(AllocationStatus.DECIDERS_NO, unassignedInfo.getLastAllocationStatus());
+        assertEquals(Reason.INDEX_CREATED, unassignedInfo.reason());
+        assertEquals(AllocationStatus.DECIDERS_NO, unassignedInfo.lastAllocationStatus());
 
         // verify cluster info
         verifyClusterInfo(clusterInfo, includeDiskInfo, 2);
@@ -542,7 +539,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         assertEquals(AllocationDecision.NO, moveDecision.getAllocationDecision());
         assertEquals(Explanations.Move.NO, moveDecision.getExplanation());
         assertFalse(moveDecision.canRemain());
-        assertFalse(moveDecision.forceMove());
+        assertFalse(moveDecision.cannotRemainAndCanMove());
         assertFalse(moveDecision.canRebalanceCluster());
         assertNull(moveDecision.getClusterRebalanceDecision());
         assertNull(moveDecision.getTargetNode());
@@ -655,7 +652,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         assertEquals(AllocationDecision.NO, moveDecision.getAllocationDecision());
         assertEquals(Explanations.Rebalance.CANNOT_REBALANCE_CAN_ALLOCATE, moveDecision.getExplanation());
         assertTrue(moveDecision.canRemain());
-        assertFalse(moveDecision.forceMove());
+        assertFalse(moveDecision.cannotRemainAndCanMove());
         assertFalse(moveDecision.canRebalanceCluster());
         assertNotNull(moveDecision.getCanRemainDecision());
         assertNull(moveDecision.getTargetNode());
@@ -761,7 +758,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         assertEquals(AllocationDecision.NO, moveDecision.getAllocationDecision());
         assertEquals(Explanations.Rebalance.ALREADY_BALANCED, moveDecision.getExplanation());
         assertTrue(moveDecision.canRemain());
-        assertFalse(moveDecision.forceMove());
+        assertFalse(moveDecision.cannotRemainAndCanMove());
         assertTrue(moveDecision.canRebalanceCluster());
         assertNotNull(moveDecision.getCanRemainDecision());
         assertNull(moveDecision.getTargetNode());
@@ -859,7 +856,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         assertEquals(AllocationDecision.NO, moveDecision.getAllocationDecision());
         assertEquals(Explanations.Rebalance.ALREADY_BALANCED, moveDecision.getExplanation());
         assertTrue(moveDecision.canRemain());
-        assertFalse(moveDecision.forceMove());
+        assertFalse(moveDecision.cannotRemainAndCanMove());
         assertTrue(moveDecision.canRebalanceCluster());
         assertNotNull(moveDecision.getCanRemainDecision());
         assertNull(moveDecision.getTargetNode());
@@ -967,7 +964,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         assertEquals(AllocationDecision.NO, moveDecision.getAllocationDecision());
         assertEquals(Explanations.Rebalance.CANNOT_REBALANCE_CANNOT_ALLOCATE, moveDecision.getExplanation());
         assertTrue(moveDecision.canRemain());
-        assertFalse(moveDecision.forceMove());
+        assertFalse(moveDecision.cannotRemainAndCanMove());
         assertFalse(moveDecision.canRebalanceCluster());
         assertNotNull(moveDecision.getCanRemainDecision());
         assertNull(moveDecision.getTargetNode());
@@ -1057,7 +1054,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
             logger.info("--> close the index, now the replica is stale");
             assertAcked(indicesAdmin().prepareClose("idx"));
 
-            final ClusterHealthResponse clusterHealthResponse = clusterAdmin().prepareHealth("idx")
+            final ClusterHealthResponse clusterHealthResponse = clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT, "idx")
                 .setTimeout(TimeValue.timeValueSeconds(30))
                 .setWaitForActiveShards(ActiveShardCount.ONE)
                 .setWaitForNoInitializingShards(true)
@@ -1075,12 +1072,12 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
 
         // wait until the system has fetched shard data and we know there is no valid shard copy
         assertBusy(() -> {
-            ClusterAllocationExplanation explanation = clusterAdmin().prepareAllocationExplain()
-                .setIndex("idx")
-                .setShard(0)
-                .setPrimary(true)
-                .get()
-                .getExplanation();
+            ClusterAllocationExplanation explanation = ClusterAllocationExplanationUtils.getClusterAllocationExplanation(
+                client(),
+                "idx",
+                0,
+                true
+            );
             assertTrue(explanation.getShardAllocationDecision().getAllocateDecision().isDecisionTaken());
             assertEquals(
                 AllocationDecision.NO_VALID_SHARD_COPY,
@@ -1222,24 +1219,13 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         return runExplain(primary, null, includeYesDecisions, includeDiskInfo);
     }
 
-    private ClusterAllocationExplanation runExplain(boolean primary, String nodeId, boolean includeYesDecisions, boolean includeDiskInfo)
-        throws Exception {
-
-        ClusterAllocationExplanation explanation = admin().cluster()
-            .prepareAllocationExplain()
-            .setIndex("idx")
-            .setShard(0)
-            .setPrimary(primary)
-            .setIncludeYesDecisions(includeYesDecisions)
-            .setIncludeDiskInfo(includeDiskInfo)
-            .setCurrentNode(nodeId)
-            .get()
-            .getExplanation();
+    private ClusterAllocationExplanation runExplain(boolean primary, String nodeId, boolean includeYesDecisions, boolean includeDiskInfo) {
+        final var request = new ClusterAllocationExplainRequest(TEST_REQUEST_TIMEOUT, "idx", 0, primary, nodeId);
+        request.includeYesDecisions(includeYesDecisions);
+        request.includeDiskInfo(includeDiskInfo);
+        final var explanation = safeGet(client().execute(TransportClusterAllocationExplainAction.TYPE, request)).getExplanation();
         if (logger.isDebugEnabled()) {
-            XContentBuilder builder = JsonXContent.contentBuilder();
-            builder.prettyPrint();
-            builder.humanReadable(true);
-            logger.debug("--> explain json output: \n{}", Strings.toString(explanation.toXContent(builder, ToXContent.EMPTY_PARAMS)));
+            logger.debug("--> explain json output: \n{}", Strings.toString(explanation, true, true));
         }
         return explanation;
     }
@@ -1261,7 +1247,6 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
             indicesAdmin().prepareCreate("idx")
                 .setSettings(indexSettings(numPrimaries, numReplicas).put(settings))
                 .setWaitForActiveShards(activeShardCount)
-                .get()
         );
 
         if (activeShardCount != ActiveShardCount.NONE) {
@@ -1270,7 +1255,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         if (state == IndexMetadata.State.CLOSE) {
             assertAcked(indicesAdmin().prepareClose("idx"));
 
-            final ClusterHealthResponse clusterHealthResponse = clusterAdmin().prepareHealth("idx")
+            final ClusterHealthResponse clusterHealthResponse = clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT, "idx")
                 .setTimeout(TimeValue.timeValueSeconds(30))
                 .setWaitForActiveShards(activeShardCount)
                 .setWaitForEvents(Priority.LANGUID)
@@ -1291,20 +1276,20 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
     }
 
     private String primaryNodeName() {
-        ClusterState clusterState = admin().cluster().prepareState().get().getState();
+        ClusterState clusterState = admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         String nodeId = clusterState.getRoutingTable().index("idx").shard(0).primaryShard().currentNodeId();
         return clusterState.getRoutingNodes().node(nodeId).node().getName();
     }
 
     private DiscoveryNode replicaNode() {
-        ClusterState clusterState = admin().cluster().prepareState().get().getState();
+        ClusterState clusterState = admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         String nodeId = clusterState.getRoutingTable().index("idx").shard(0).replicaShards().get(0).currentNodeId();
         return clusterState.getRoutingNodes().node(nodeId).node();
     }
 
     private XContentParser getParser(ClusterAllocationExplanation explanation) throws IOException {
         XContentBuilder builder = JsonXContent.contentBuilder();
-        return createParser(explanation.toXContent(builder, ToXContent.EMPTY_PARAMS));
+        return createParser(ChunkedToXContent.wrapAsToXContent(explanation).toXContent(builder, ToXContent.EMPTY_PARAMS));
     }
 
     private void verifyShardInfo(XContentParser parser, boolean primary, boolean includeDiskInfo, ShardRoutingState state)

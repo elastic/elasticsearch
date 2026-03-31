@@ -15,6 +15,6 @@ public final class RepositoriesMeteringAction extends ActionType<RepositoriesMet
     static final String NAME = "cluster:monitor/xpack/repositories_metering/get_metrics";
 
     RepositoriesMeteringAction() {
-        super(NAME, RepositoriesMeteringResponse::new);
+        super(NAME);
     }
 }

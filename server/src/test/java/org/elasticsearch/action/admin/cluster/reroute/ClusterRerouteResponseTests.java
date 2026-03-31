@@ -1,14 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.reroute;
 
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -27,12 +28,14 @@ import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.shard.IndexLongFieldRange;
+import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -129,8 +132,19 @@ public class ClusterRerouteResponseTests extends ESTestCase {
                         "nodes_versions": [
                           {
                             "node_id": "node0",
-                            "transport_version": "8000099",
-                            "mappings_versions": {}
+                            "transport_version": "%s",
+                            "mappings_versions": {
+                              ".system-index": {
+                                "version": 1,
+                                "hash": 0
+                              }
+                            }
+                          }
+                        ],
+                        "nodes_features": [
+                          {
+                            "node_id": "node0",
+                            "features": []
                           }
                         ],
                         "metadata": {
@@ -146,6 +160,7 @@ public class ClusterRerouteResponseTests extends ESTestCase {
                           "indices": {
                             "index": {
                               "version": 1,
+                              "transport_version" : "0",
                               "mapping_version": 1,
                               "settings_version": 1,
                               "aliases_version": 1,
@@ -173,9 +188,13 @@ public class ClusterRerouteResponseTests extends ESTestCase {
                                 "0": []
                               },
                               "rollover_info": {},
+                              "mappings_updated_version" : %s,
                               "system": false,
                               "timestamp_range": {
                                 "shards": []
+                              },
+                              "event_ingested_range": {
+                                "unknown":true
                               }
                             }
                           },
@@ -198,7 +217,9 @@ public class ClusterRerouteResponseTests extends ESTestCase {
                 clusterState.stateUUID(),
                 clusterState.getNodes().get("node0").getEphemeralId(),
                 Version.CURRENT,
-                IndexVersion.MINIMUM_COMPATIBLE,
+                IndexVersions.MINIMUM_COMPATIBLE,
+                IndexVersion.current(),
+                TransportVersion.current(),
                 IndexVersion.current(),
                 IndexVersion.current()
             ),
@@ -212,7 +233,7 @@ public class ClusterRerouteResponseTests extends ESTestCase {
         assertXContent(
             createClusterRerouteResponse(createClusterState()),
             new ToXContent.MapParams(Map.of("metric", "metadata", "settings_filter", "index.number*,index.version.created")),
-            """
+            Strings.format("""
                 {
                   "acknowledged" : true,
                   "state" : {
@@ -230,6 +251,7 @@ public class ClusterRerouteResponseTests extends ESTestCase {
                       "indices" : {
                         "index" : {
                           "version" : 1,
+                          "transport_version" : "0",
                           "mapping_version" : 1,
                           "settings_version" : 1,
                           "aliases_version" : 1,
@@ -252,9 +274,13 @@ public class ClusterRerouteResponseTests extends ESTestCase {
                             "0" : [ ]
                           },
                           "rollover_info" : { },
+                          "mappings_updated_version" : %s,
                           "system" : false,
                           "timestamp_range" : {
                             "shards" : [ ]
+                          },
+                          "event_ingested_range" : {
+                            "unknown" : true
                           }
                         }
                       },
@@ -264,7 +290,7 @@ public class ClusterRerouteResponseTests extends ESTestCase {
                       "reserved_state":{}
                     }
                   }
-                }""",
+                }""", IndexVersion.current()),
             """
                 The [state] field in the response to the reroute API is deprecated and will be removed in a future version. \
                 Specify ?metric=none to adopt the future behaviour."""
@@ -285,30 +311,15 @@ public class ClusterRerouteResponseTests extends ESTestCase {
             ChunkedToXContent.wrapAsToXContent(response).toXContent(builder, params);
             assertEquals(XContentHelper.stripWhitespace(expectedBody), XContentHelper.stripWhitespace(Strings.toString(builder)));
         } catch (IOException e) {
-            throw new AssertionError("unexpected", e);
+            fail(e);
         }
 
         final var expectedChunks = Objects.equals(params.param("metric"), "none")
             ? 2
             : 4 + ClusterStateTests.expectedChunkCount(params, response.getState());
 
-        AbstractChunkedSerializingTestCase.assertChunkCount(response, params, ignored -> expectedChunks);
+        AbstractChunkedSerializingTestCase.assertChunkCount(response, params, o -> expectedChunks);
         assertCriticalWarnings(criticalDeprecationWarnings);
-
-        // check the v7 API too
-        AbstractChunkedSerializingTestCase.assertChunkCount(new ChunkedToXContent() {
-            @Override
-            public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params outerParams) {
-                return response.toXContentChunkedV7(outerParams);
-            }
-
-            @Override
-            public boolean isFragment() {
-                return response.isFragment();
-            }
-        }, params, ignored -> expectedChunks);
-        // the v7 API should not emit any deprecation warnings
-        assertCriticalWarnings();
     }
 
     private static ClusterRerouteResponse createClusterRerouteResponse(ClusterState clusterState) {
@@ -323,7 +334,11 @@ public class ClusterRerouteResponseTests extends ESTestCase {
         var node0 = DiscoveryNodeUtils.create("node0", new TransportAddress(TransportAddress.META_ADDRESS, 9000));
         return ClusterState.builder(new ClusterName("test"))
             .nodes(new DiscoveryNodes.Builder().add(node0).masterNodeId(node0.getId()).build())
-            .putTransportVersion(node0.getId(), TransportVersions.V_8_0_0)
+            .putCompatibilityVersions(
+                node0.getId(),
+                TransportVersion.current(),
+                Map.of(".system-index", new SystemIndexDescriptor.MappingsVersion(1, 0))
+            )
             .metadata(
                 Metadata.builder()
                     .put(
@@ -334,6 +349,7 @@ public class ClusterRerouteResponseTests extends ESTestCase {
                                     .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                                     .build()
                             )
+                            .eventIngestedRange(IndexLongFieldRange.UNKNOWN)
                             .build(),
                         false
                     )

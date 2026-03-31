@@ -1,0 +1,130 @@
+---
+setup:
+  - do:
+      cluster.health:
+        wait_for_events: languid
+
+---
+"Test traces-apm-* processor.event inference":
+  - do:
+      bulk:
+        index: traces-apm-testing
+        refresh: true
+        body:
+          # `processor.event: transaction` is inferred from presence of `transaction.type`
+          - create: {}
+          - '{"@timestamp": "2017-06-22", "transaction": {"type": "foo"}}'
+
+          # `processor.event: span` is inferred otherwise
+          - create: {}
+          - '{"@timestamp": "2017-06-22"}'
+
+  - is_false: errors
+
+  - do:
+      search:
+        index: traces-apm-testing
+        body:
+          fields: ["processor.event"]
+  - length: { hits.hits: 2 }
+  - match: { hits.hits.0.fields: {"processor.event": ["transaction"]} }
+  - match: { hits.hits.1.fields: {"processor.event": ["span"]} }
+
+---
+"Test traces-apm-* setting *.duration.us from event.duration":
+  - do:
+      bulk:
+        index: traces-apm-testing
+        refresh: true
+        body:
+          - create: {}
+          - '{"@timestamp": "2017-06-22", "transaction": {"type": "foo"}, "event": {"duration": 1234}}'
+
+          - create: {}
+          - '{"@timestamp": "2017-06-22", "event": {"duration": 1234}}'
+
+          # If event.duration is omitted, it is assumed to be zero.
+          - create: {}
+          - '{"@timestamp": "2017-06-22"}'
+
+          # An existing field will not be overwritten.
+          - create: {}
+          - '{"@timestamp": "2017-06-22", "span": {"duration": {"us": 789}}}'
+
+  - is_false: errors
+
+  - do:
+      search:
+        index: traces-apm-testing
+        body:
+          fields: ["event.duration", "*.duration.us"]
+  - length: { hits.hits: 4 }
+  - match: { hits.hits.0.fields: {"transaction.duration.us": [1]} }
+  - match: { hits.hits.1.fields: {"span.duration.us": [1]} }
+  - match: { hits.hits.2.fields: {"span.duration.us": [0]} }
+  - match: { hits.hits.3.fields: {"span.duration.us": [789]} }
+
+---
+"Test traces-apm-* setting event.success_count from event.outcome":
+  - do:
+      bulk:
+        index: traces-apm-testing
+        refresh: true
+        body:
+          # No event.outcome, no event.success_count
+          - create: {}
+          - '{"@timestamp": "2017-06-22"}'
+
+          # event.outcome: unknown, no event.success_count
+          - create: {}
+          - '{"@timestamp": "2017-06-22", "event": {"outcome": "unknown"}}'
+
+          - create: {}
+          - '{
+            "@timestamp": "2017-06-22",
+            "processor": {"event": "transaction"},
+            "event": {"outcome": "success"},
+            "transaction": {"representative_count": 2}
+          }'
+
+          - create: {}
+          - '{
+            "@timestamp": "2017-06-22",
+            "processor": {"event": "span"},
+            "event": {"outcome": "success"},
+            "span": {"representative_count": 3}
+          }'
+
+          - create: {}
+          - '{
+            "@timestamp": "2017-06-22",
+            "processor": {"event": "span"},
+            "event": {"outcome": "success"},
+            "span": {"representative_count": null}
+          }'
+
+          - create: {}
+          - '{
+            "@timestamp": "2017-06-22",
+            "processor": {"event": "transaction"},
+            "event": {"outcome": "success"}
+          }'
+
+          - create: {}
+          - '{"@timestamp": "2017-06-22", "event": {"outcome": "failure"}}'
+
+  - is_false: errors
+
+  - do:
+      search:
+        index: traces-apm-testing
+        body:
+          fields: ["event.success_count"]
+  - length: { hits.hits: 7 }
+  - match: { hits.hits.0.fields: null }
+  - match: { hits.hits.1.fields: null }
+  - match: { hits.hits.2.fields: {"event.success_count": [2]} }
+  - match: { hits.hits.3.fields: {"event.success_count": [3]} }
+  - match: { hits.hits.4.fields: {"event.success_count": [1]} }
+  - match: { hits.hits.5.fields: {"event.success_count": [1]} }
+  - match: { hits.hits.6.fields: {"event.success_count": [0]} }

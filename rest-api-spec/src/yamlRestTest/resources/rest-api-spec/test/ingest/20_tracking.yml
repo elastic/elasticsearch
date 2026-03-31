@@ -1,0 +1,84 @@
+setup:
+  - requires:
+      test_runner_features: capabilities
+      capabilities:
+        - method: PUT
+          path: /_ingest/pipeline/{id}
+          capabilities: [ pipeline_tracking_info ]
+      reason: "Pipelines have tracking info: modified_date and created_date"
+
+---
+"Test creating and getting pipeline returns created_date and modified_date":
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "processors": []
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      ingest.get_pipeline:
+        human: true
+        id: "my_pipeline"
+  - gte: { my_pipeline.created_date_millis: 0 }
+  - gte: { my_pipeline.modified_date_millis: 0 }
+  - match: { my_pipeline.created_date: "/^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$/" }
+  - match: { my_pipeline.modified_date: "/^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$/" }
+
+---
+"Test PUT setting created_date":
+  - do:
+      catch: bad_request
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "processors": [],
+            "created_date": "2025-07-04T12:50:48.415Z"
+          }
+  - match: { status: 400 }
+  - match: { error.reason: "Provided a pipeline property which is managed by the system: created_date." }
+
+---
+"Test PUT setting created_date_millis":
+  - do:
+      catch: bad_request
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body: >
+          {
+            "processors": [],
+            "created_date_millis": 0
+          }
+  - match: { status: 400 }
+  - match: { error.reason: "Provided a pipeline property which is managed by the system: created_date_millis." }
+
+---
+"Test PUT setting modified_date_millis":
+  - do:
+      catch: bad_request
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "processors": [],
+            "modified_date_millis": 0
+          }
+  - match: { status: 400 }
+  - match: { error.reason: "Provided a pipeline property which is managed by the system: modified_date_millis." }
+
+---
+"Test PUT setting modified_date":
+  - do:
+      catch: bad_request
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "processors": [],
+            "modified_date": "2025-07-04T12:50:48.415Z"
+          }
+  - match: { status: 400 }
+  - match: { error.reason: "Provided a pipeline property which is managed by the system: modified_date." }

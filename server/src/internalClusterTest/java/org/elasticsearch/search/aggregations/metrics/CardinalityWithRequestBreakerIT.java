@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.metrics;
@@ -37,8 +38,7 @@ public class CardinalityWithRequestBreakerIT extends ESIntegTestCase {
             true,
             IntStream.range(0, randomIntBetween(10, 1000))
                 .mapToObj(
-                    i -> client().prepareIndex("test")
-                        .setId("id_" + i)
+                    i -> prepareIndex("test").setId("id_" + i)
                         .setSource(Map.of("field0", randomAlphaOfLength(5), "field1", randomAlphaOfLength(5)))
                 )
                 .toArray(IndexRequestBuilder[]::new)
@@ -49,14 +49,12 @@ public class CardinalityWithRequestBreakerIT extends ESIntegTestCase {
         );
 
         try {
-            client().prepareSearch("test")
-                .addAggregation(
-                    terms("terms").field("field0.keyword")
-                        .collectMode(randomFrom(Aggregator.SubAggCollectionMode.values()))
-                        .order(BucketOrder.aggregation("cardinality", randomBoolean()))
-                        .subAggregation(cardinality("cardinality").precisionThreshold(randomLongBetween(1, 40000)).field("field1.keyword"))
-                )
-                .get();
+            prepareSearch("test").addAggregation(
+                terms("terms").field("field0.keyword")
+                    .collectMode(randomFrom(Aggregator.SubAggCollectionMode.values()))
+                    .order(BucketOrder.aggregation("cardinality", randomBoolean()))
+                    .subAggregation(cardinality("cardinality").precisionThreshold(randomLongBetween(1, 40000)).field("field1.keyword"))
+            ).get().decRef();
         } catch (ElasticsearchException e) {
             if (ExceptionsHelper.unwrap(e, CircuitBreakingException.class) == null) {
                 throw e;

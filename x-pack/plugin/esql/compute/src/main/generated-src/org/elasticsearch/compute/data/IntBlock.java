@@ -7,17 +7,21 @@
 
 package org.elasticsearch.compute.data;
 
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamInput;
+// begin generated imports
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.ReleasableIterator;
+import org.elasticsearch.index.mapper.BlockLoader;
 
 import java.io.IOException;
+// end generated imports
 
 /**
  * Block that stores int values.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-Block.java.st} instead.
  */
-public sealed interface IntBlock extends Block permits FilterIntBlock, IntArrayBlock, IntVectorBlock {
+public sealed interface IntBlock extends Block permits IntArrayBlock, IntVectorBlock, ConstantNullBlock, IntBigArrayBlock,
+    org.elasticsearch.compute.data.arrow.IntArrowBufBlock {
 
     /**
      * Retrieves the int value stored at the given value index.
@@ -30,60 +34,157 @@ public sealed interface IntBlock extends Block permits FilterIntBlock, IntArrayB
      */
     int getInt(int valueIndex);
 
+    /**
+     * Checks if this block has the given value at position. If at this index we have a
+     * multivalue, then it returns true if any values match.
+     *
+     * @param position the index at which we should check the value(s)
+     * @param value the value to check against
+     */
+    default boolean hasValue(int position, int value) {
+        final var count = getValueCount(position);
+        final var startIndex = getFirstValueIndex(position);
+        final var BINARYSEARCH_THRESHOLD = 16;
+        if (count > BINARYSEARCH_THRESHOLD && mvSortedAscending()) {
+            return binarySearch(this, position, count, value) >= 0;
+        }
+
+        for (int index = startIndex; index < startIndex + count; index++) {
+            if (value == getInt(index)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Perform a binary search on this block
+     *
+     * @param block to search in
+     * @param startIndex
+     * @param count number of positions to search beyond the startIndex
+     * @param value to search for
+     * @return position or negative number if not found
+     */
+    static int binarySearch(IntBlock block, int startIndex, int count, int value) {
+        int low = startIndex;
+        int high = count - 1;
+
+        while (low <= high) {
+            int mid = (low + high) >>> 1;
+            int midVal = block.getInt(mid);
+
+            if (midVal < value) low = mid + 1;
+            else if (midVal > value) high = mid - 1;
+            else return mid; // key found
+        }
+        return -(low + 1);  // key not found.
+    }
+
     @Override
     IntVector asVector();
 
     @Override
-    IntBlock filter(int... positions);
-
-    NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Block.class, "IntBlock", IntBlock::of);
-
-    @Override
-    default String getWriteableName() {
-        return "IntBlock";
+    default IntBlock slice(int beginInclusive, int endExclusive) {
+        if (beginInclusive == 0 && endExclusive == getPositionCount()) {
+            incRef();
+            return this;
+        }
+        try (IntBlock.Builder builder = blockFactory().newIntBlockBuilder(endExclusive - beginInclusive)) {
+            builder.copyFrom(this, beginInclusive, endExclusive);
+            return builder.build();
+        }
     }
 
-    static IntBlock of(StreamInput in) throws IOException {
-        final boolean isVector = in.readBoolean();
-        if (isVector) {
-            return IntVector.of(in).asBlock();
+    @Override
+    IntBlock filter(boolean mayContainDuplicates, int... positions);
+
+    /**
+     * Make a deep copy of this {@link Block} using the provided {@link BlockFactory},
+     * likely copying all data.
+     */
+    @Override
+    default IntBlock deepCopy(BlockFactory blockFactory) {
+        try (IntBlock.Builder builder = blockFactory.newIntBlockBuilder(getPositionCount())) {
+            builder.copyFrom(this, 0, getPositionCount());
+            builder.mvOrdering(mvOrdering());
+            return builder.build();
         }
-        final int positions = in.readVInt();
-        var builder = newBlockBuilder(positions);
-        for (int i = 0; i < positions; i++) {
-            if (in.readBoolean()) {
-                builder.appendNull();
-            } else {
-                final int valueCount = in.readVInt();
-                builder.beginPositionEntry();
-                for (int valueIndex = 0; valueIndex < valueCount; valueIndex++) {
-                    builder.appendInt(in.readInt());
-                }
-                builder.endPositionEntry();
+    }
+
+    @Override
+    IntBlock keepMask(BooleanVector mask);
+
+    @Override
+    ReleasableIterator<? extends IntBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize);
+
+    @Override
+    IntBlock expand();
+
+    static IntBlock readFrom(BlockStreamInput in) throws IOException {
+        final byte serializationType = in.readByte();
+        return switch (serializationType) {
+            case SERIALIZE_BLOCK_VALUES -> IntBlock.readValues(in);
+            case SERIALIZE_BLOCK_VECTOR -> IntVector.readFrom(in.blockFactory(), in).asBlock();
+            case SERIALIZE_BLOCK_ARRAY -> IntArrayBlock.readArrayBlock(in.blockFactory(), in);
+            case SERIALIZE_BLOCK_BIG_ARRAY -> IntBigArrayBlock.readArrayBlock(in.blockFactory(), in);
+            default -> {
+                assert false : "invalid block serialization type " + serializationType;
+                throw new IllegalStateException("invalid serialization type " + serializationType);
             }
+        };
+    }
+
+    private static IntBlock readValues(BlockStreamInput in) throws IOException {
+        final int positions = in.readVInt();
+        try (IntBlock.Builder builder = in.blockFactory().newIntBlockBuilder(positions)) {
+            for (int i = 0; i < positions; i++) {
+                if (in.readBoolean()) {
+                    builder.appendNull();
+                } else {
+                    final int valueCount = in.readVInt();
+                    builder.beginPositionEntry();
+                    for (int valueIndex = 0; valueIndex < valueCount; valueIndex++) {
+                        builder.appendInt(in.readInt());
+                    }
+                    builder.endPositionEntry();
+                }
+            }
+            return builder.build();
         }
-        return builder.build();
     }
 
     @Override
     default void writeTo(StreamOutput out) throws IOException {
         IntVector vector = asVector();
-        out.writeBoolean(vector != null);
+        final var version = out.getTransportVersion();
         if (vector != null) {
+            out.writeByte(SERIALIZE_BLOCK_VECTOR);
             vector.writeTo(out);
+        } else if (this instanceof IntArrayBlock b) {
+            out.writeByte(SERIALIZE_BLOCK_ARRAY);
+            b.writeArrayBlock(out);
+        } else if (this instanceof IntBigArrayBlock b) {
+            out.writeByte(SERIALIZE_BLOCK_BIG_ARRAY);
+            b.writeArrayBlock(out);
         } else {
-            final int positions = getPositionCount();
-            out.writeVInt(positions);
-            for (int pos = 0; pos < positions; pos++) {
-                if (isNull(pos)) {
-                    out.writeBoolean(true);
-                } else {
-                    out.writeBoolean(false);
-                    final int valueCount = getValueCount(pos);
-                    out.writeVInt(valueCount);
-                    for (int valueIndex = 0; valueIndex < valueCount; valueIndex++) {
-                        out.writeInt(getInt(getFirstValueIndex(pos) + valueIndex));
-                    }
+            out.writeByte(SERIALIZE_BLOCK_VALUES);
+            IntBlock.writeValues(this, out);
+        }
+    }
+
+    private static void writeValues(IntBlock block, StreamOutput out) throws IOException {
+        final int positions = block.getPositionCount();
+        out.writeVInt(positions);
+        for (int pos = 0; pos < positions; pos++) {
+            if (block.isNull(pos)) {
+                out.writeBoolean(true);
+            } else {
+                out.writeBoolean(false);
+                final int valueCount = block.getValueCount(pos);
+                out.writeVInt(valueCount);
+                for (int valueIndex = 0; valueIndex < valueCount; valueIndex++) {
+                    out.writeInt(block.getInt(block.getFirstValueIndex(pos) + valueIndex));
                 }
             }
         }
@@ -107,6 +208,9 @@ public sealed interface IntBlock extends Block permits FilterIntBlock, IntArrayB
      * equals method works properly across different implementations of the IntBlock interface.
      */
     static boolean equals(IntBlock block1, IntBlock block2) {
+        if (block1 == block2) {
+            return true;
+        }
         final int positions = block1.getPositionCount();
         if (positions != block2.getPositionCount()) {
             return false;
@@ -157,19 +261,14 @@ public sealed interface IntBlock extends Block permits FilterIntBlock, IntArrayB
         return result;
     }
 
-    static Builder newBlockBuilder(int estimatedSize) {
-        return new IntBlockBuilder(estimatedSize);
-    }
-
-    static IntBlock newConstantBlockWith(int value, int positions) {
-        return new ConstantIntVector(value, positions).asBlock();
-    }
-
-    sealed interface Builder extends Block.Builder permits IntBlockBuilder {
-
+    /**
+     * Builder for {@link IntBlock}
+     */
+    sealed interface Builder extends Block.Builder, BlockLoader.IntBuilder permits IntBlockBuilder {
         /**
          * Appends a int to the current entry.
          */
+        @Override
         Builder appendInt(int value);
 
         /**
@@ -177,6 +276,14 @@ public sealed interface IntBlock extends Block permits FilterIntBlock, IntArrayB
          * {@code endExclusive} into this builder.
          */
         Builder copyFrom(IntBlock block, int beginInclusive, int endExclusive);
+
+        /**
+         * Copy the values in {@code block} at {@code position}. If this position
+         * has a single value, this'll copy a single value. If this positions has
+         * many values, it'll copy all of them. If this is {@code null}, then it'll
+         * copy the {@code null}.
+         */
+        Builder copyFrom(IntBlock block, int position);
 
         @Override
         Builder appendNull();
@@ -192,20 +299,6 @@ public sealed interface IntBlock extends Block permits FilterIntBlock, IntArrayB
 
         @Override
         Builder mvOrdering(Block.MvOrdering mvOrdering);
-
-        // TODO boolean containsMvDups();
-
-        /**
-         * Appends the all values of the given block into a the current position
-         * in this builder.
-         */
-        Builder appendAllValuesToCurrentPosition(Block block);
-
-        /**
-         * Appends the all values of the given block into a the current position
-         * in this builder.
-         */
-        Builder appendAllValuesToCurrentPosition(IntBlock block);
 
         @Override
         IntBlock build();

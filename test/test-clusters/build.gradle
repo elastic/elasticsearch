@@ -9,6 +9,10 @@ dependencies {
   implementation "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
   implementation "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
   implementation "org.elasticsearch.gradle:reaper"
+
+  testImplementation "junit:junit:${versions.junit}"
+  testImplementation "org.hamcrest:hamcrest:${versions.hamcrest}"
+  testImplementation "org.apache.logging.log4j:log4j-core:${versions.log4j}"
 }
 
 tasks.named("processResources").configure {

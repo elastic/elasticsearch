@@ -5,6 +5,11 @@
 # 2.0.
 #
 
+org.elasticsearch.xpack.lucene.bwc.codecs.lucene87.BWCLucene87Codec
+org.elasticsearch.xpack.lucene.bwc.codecs.lucene86.BWCLucene86Codec
+org.elasticsearch.xpack.lucene.bwc.codecs.lucene84.BWCLucene84Codec
+org.elasticsearch.xpack.lucene.bwc.codecs.lucene80.BWCLucene80Codec
 org.elasticsearch.xpack.lucene.bwc.codecs.lucene70.BWCLucene70Codec
+org.elasticsearch.xpack.lucene.bwc.codecs.lucene70.Lucene70Codec
 org.elasticsearch.xpack.lucene.bwc.codecs.lucene62.Lucene62Codec
 org.elasticsearch.xpack.lucene.bwc.codecs.lucene60.Lucene60Codec

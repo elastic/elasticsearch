@@ -1,16 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.xcontent;
 
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -19,8 +19,10 @@ import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.plugins.internal.DocumentParsingObserver;
+import org.elasticsearch.index.mapper.Mapping;
+import org.elasticsearch.plugins.internal.XContentParserDecorator;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
@@ -65,7 +67,7 @@ public class XContentHelper {
      */
     @Deprecated
     public static XContentParser createParser(XContentParserConfiguration config, BytesReference bytes) throws IOException {
-        Compressor compressor = CompressorFactory.compressor(bytes);
+        Compressor compressor = CompressorFactory.compressorForUnknownXContentType(bytes);
         if (compressor != null) {
             InputStream compressedInput = compressor.threadLocalInputStream(bytes.streamInput());
             if (compressedInput.markSupported() == false) {
@@ -74,8 +76,24 @@ public class XContentHelper {
             final XContentType contentType = XContentFactory.xContentType(compressedInput);
             return XContentFactory.xContent(contentType).createParser(config, compressedInput);
         } else {
-            return XContentFactory.xContent(xContentType(bytes)).createParser(config, bytes.streamInput());
+            return createParserNotCompressed(config, bytes, xContentType(bytes));
         }
+    }
+
+    /**
+     * Same as {@link #createParser(XContentParserConfiguration, BytesReference, XContentType)} but only supports uncompressed
+     * {@code bytes}.
+     */
+    public static XContentParser createParserNotCompressed(
+        XContentParserConfiguration config,
+        BytesReference bytes,
+        XContentType xContentType
+    ) throws IOException {
+        XContent xContent = xContentType.xContent();
+        if (bytes.hasArray()) {
+            return xContent.createParser(config, bytes.array(), bytes.arrayOffset(), bytes.length());
+        }
+        return xContent.createParser(config, bytes.streamInput());
     }
 
     /**
@@ -104,17 +122,10 @@ public class XContentHelper {
         Objects.requireNonNull(xContentType);
         Compressor compressor = CompressorFactory.compressor(bytes);
         if (compressor != null) {
-            InputStream compressedInput = compressor.threadLocalInputStream(bytes.streamInput());
-            if (compressedInput.markSupported() == false) {
-                compressedInput = new BufferedInputStream(compressedInput);
-            }
-            return XContentFactory.xContent(xContentType).createParser(config, compressedInput);
+            return XContentFactory.xContent(xContentType).createParser(config, compressor.threadLocalInputStream(bytes.streamInput()));
         } else {
-            // TODO now that we have config we make a method on bytes to do this building wihout needing this check everywhere
-            if (bytes.hasArray()) {
-                return xContentType.xContent().createParser(config, bytes.array(), bytes.arrayOffset(), bytes.length());
-            }
-            return xContentType.xContent().createParser(config, bytes.streamInput());
+            // TODO now that we have config we make a method on bytes to do this building without needing this check everywhere
+            return createParserNotCompressed(config, bytes, xContentType);
         }
     }
 
@@ -143,14 +154,14 @@ public class XContentHelper {
         BytesReference bytes,
         boolean ordered,
         XContentType xContentType,
-        DocumentParsingObserver documentParsingObserver
+        XContentParserDecorator parserDecorator
     ) {
         return parseToType(
             ordered ? XContentParser::mapOrdered : XContentParser::map,
             bytes,
             xContentType,
             XContentParserConfiguration.EMPTY,
-            documentParsingObserver
+            parserDecorator
         );
     }
 
@@ -181,7 +192,7 @@ public class XContentHelper {
     ) throws ElasticsearchParseException {
         XContentParserConfiguration config = XContentParserConfiguration.EMPTY;
         if (include != null || exclude != null) {
-            config = config.withFiltering(include, exclude, false);
+            config = config.withFiltering(null, include, exclude, false);
         }
         return parseToType(ordered ? XContentParser::mapOrdered : XContentParser::map, bytes, xContentType, config);
     }
@@ -198,7 +209,7 @@ public class XContentHelper {
         @Nullable XContentType xContentType,
         @Nullable XContentParserConfiguration config
     ) throws ElasticsearchParseException {
-        return parseToType(extractor, bytes, xContentType, config, DocumentParsingObserver.EMPTY_INSTANCE);
+        return parseToType(extractor, bytes, xContentType, config, XContentParserDecorator.NOOP);
     }
 
     public static <T> Tuple<XContentType, T> parseToType(
@@ -206,12 +217,13 @@ public class XContentHelper {
         BytesReference bytes,
         @Nullable XContentType xContentType,
         @Nullable XContentParserConfiguration config,
-        DocumentParsingObserver documentParsingObserver
+        XContentParserDecorator parserDecorator
     ) throws ElasticsearchParseException {
         config = config != null ? config : XContentParserConfiguration.EMPTY;
         try (
-            XContentParser parser = documentParsingObserver.wrapParser(
-                xContentType != null ? createParser(config, bytes, xContentType) : createParser(config, bytes)
+            XContentParser parser = parserDecorator.decorate(
+                xContentType != null ? createParser(config, bytes, xContentType) : createParser(config, bytes),
+                Mapping.EMPTY
             )
         ) {
             Tuple<XContentType, T> xContentTypeTTuple = new Tuple<>(parser.contentType(), extractor.apply(parser));
@@ -256,7 +268,10 @@ public class XContentHelper {
         @Nullable Set<String> exclude
     ) throws ElasticsearchParseException {
         try (
-            XContentParser parser = xContent.createParser(XContentParserConfiguration.EMPTY.withFiltering(include, exclude, false), input)
+            XContentParser parser = xContent.createParser(
+                XContentParserConfiguration.EMPTY.withFiltering(null, include, exclude, false),
+                input
+            )
         ) {
             return ordered ? parser.mapOrdered() : parser.map();
         } catch (IOException e) {
@@ -291,7 +306,7 @@ public class XContentHelper {
     ) throws ElasticsearchParseException {
         try (
             XContentParser parser = xContent.createParser(
-                XContentParserConfiguration.EMPTY.withFiltering(include, exclude, false),
+                XContentParserConfiguration.EMPTY.withFiltering(null, include, exclude, false),
                 bytes,
                 offset,
                 length
@@ -310,7 +325,7 @@ public class XContentHelper {
 
     @Deprecated
     public static String convertToJson(BytesReference bytes, boolean reformatJson, boolean prettyPrint) throws IOException {
-        return convertToJson(bytes, reformatJson, prettyPrint, XContentFactory.xContentType(bytes.toBytesRef().bytes));
+        return convertToJson(bytes, reformatJson, prettyPrint, xContentType(bytes));
     }
 
     public static String convertToJson(BytesReference bytes, boolean reformatJson, XContentType xContentType) throws IOException {
@@ -337,20 +352,8 @@ public class XContentHelper {
             return bytes.utf8ToString();
         }
 
-        if (bytes.hasArray()) {
-            try (
-                XContentParser parser = XContentFactory.xContent(xContentType)
-                    .createParser(XContentParserConfiguration.EMPTY, bytes.array(), bytes.arrayOffset(), bytes.length())
-            ) {
-                return toJsonString(prettyPrint, parser);
-            }
-        } else {
-            try (
-                InputStream stream = bytes.streamInput();
-                XContentParser parser = XContentFactory.xContent(xContentType).createParser(XContentParserConfiguration.EMPTY, stream)
-            ) {
-                return toJsonString(prettyPrint, parser);
-            }
+        try (var parser = createParserNotCompressed(XContentParserConfiguration.EMPTY, bytes, xContentType)) {
+            return toJsonString(prettyPrint, parser);
         }
     }
 
@@ -418,7 +421,7 @@ public class XContentHelper {
      * Merges the map provided as the second parameter into the content of the first. Only does recursive merge for inner maps.
      * If a non-null {@link CustomMerge} is provided, it is applied whenever a merge is required, meaning - whenever both the first and
      * the second map has values for the same key. Otherwise, values from the first map will always have precedence, meaning - if the
-     * first map contains a key, its value will not be overriden.
+     * first map contains a key, its value will not be overridden.
      * @param first the map which serves as the merge base
      * @param second the map of which contents are merged into the base map
      * @param customMerge a custom merge rule to apply whenever a key has concrete values (i.e. not a map or a collection) in both maps
@@ -566,7 +569,7 @@ public class XContentHelper {
     @Deprecated
     public static void writeRawField(String field, BytesReference source, XContentBuilder builder, ToXContent.Params params)
         throws IOException {
-        Compressor compressor = CompressorFactory.compressor(source);
+        Compressor compressor = CompressorFactory.compressorForUnknownXContentType(source);
         if (compressor != null) {
             try (InputStream compressedStreamInput = compressor.threadLocalInputStream(source.streamInput())) {
                 builder.rawField(field, compressedStreamInput);
@@ -590,7 +593,7 @@ public class XContentHelper {
         ToXContent.Params params
     ) throws IOException {
         Objects.requireNonNull(xContentType);
-        Compressor compressor = CompressorFactory.compressor(source);
+        Compressor compressor = CompressorFactory.compressorForUnknownXContentType(source);
         if (compressor != null) {
             try (InputStream compressedStreamInput = compressor.threadLocalInputStream(source.streamInput())) {
                 builder.rawField(field, compressedStreamInput, xContentType);
@@ -628,7 +631,22 @@ public class XContentHelper {
      */
     public static BytesReference toXContent(ToXContent toXContent, XContentType xContentType, Params params, boolean humanReadable)
         throws IOException {
-        try (XContentBuilder builder = XContentBuilder.builder(xContentType.xContent())) {
+        return toXContent(toXContent, xContentType, RestApiVersion.current(), params, humanReadable);
+    }
+
+    /**
+     * Returns the bytes that represent the XContent output of the provided {@link ToXContent} object, using the provided
+     * {@link XContentType}. Wraps the output into a new anonymous object according to the value returned
+     * by the {@link ToXContent#isFragment()} method returns.
+     */
+    public static BytesReference toXContent(
+        ToXContent toXContent,
+        XContentType xContentType,
+        RestApiVersion restApiVersion,
+        Params params,
+        boolean humanReadable
+    ) throws IOException {
+        try (XContentBuilder builder = XContentBuilder.builder(xContentType.xContent(), restApiVersion)) {
             builder.humanReadable(humanReadable);
             if (toXContent.isFragment()) {
                 builder.startObject();
@@ -660,7 +678,7 @@ public class XContentHelper {
      */
     @Deprecated
     public static XContentType xContentTypeMayCompressed(BytesReference bytes) {
-        Compressor compressor = CompressorFactory.compressor(bytes);
+        Compressor compressor = CompressorFactory.compressorForUnknownXContentType(bytes);
         if (compressor != null) {
             try {
                 InputStream compressedStreamInput = compressor.threadLocalInputStream(bytes.streamInput());
@@ -727,12 +745,7 @@ public class XContentHelper {
      * @param xContentType an instance to serialize
      */
     public static void writeTo(StreamOutput out, XContentType xContentType) throws IOException {
-        if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            // when sending an enumeration to <v8 node it does not have new VND_ XContentType instances
-            out.writeVInt(xContentType.canonical().ordinal());
-        } else {
-            out.writeVInt(xContentType.ordinal());
-        }
+        out.writeVInt(xContentType.ordinal());
     }
 
     /**
@@ -746,7 +759,7 @@ public class XContentHelper {
     public static XContentParser mapToXContentParser(XContentParserConfiguration config, Map<String, ?> source) {
         try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
             builder.map(source);
-            return XContentFactory.xContent(builder.contentType()).createParser(config, Strings.toString(builder));
+            return createParserNotCompressed(config, BytesReference.bytes(builder), builder.contentType());
         } catch (IOException e) {
             throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
         }

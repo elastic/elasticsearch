@@ -1,22 +1,20 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.support.replication;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
@@ -24,6 +22,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -82,7 +81,7 @@ public class TransportReplicationActionRetryOnClosedNodeIT extends ESIntegTestCa
 
     public static class TestAction extends TransportReplicationAction<Request, Request, Response> {
         private static final String ACTION_NAME = "internal:test-replication-action";
-        private static final ActionType<Response> TYPE = new ActionType<>(ACTION_NAME, Response::new);
+        private static final ActionType<Response> TYPE = new ActionType<>(ACTION_NAME);
 
         @Inject
         public TestAction(
@@ -105,7 +104,10 @@ public class TransportReplicationActionRetryOnClosedNodeIT extends ESIntegTestCa
                 actionFilters,
                 Request::new,
                 Request::new,
-                ThreadPool.Names.GENERIC
+                threadPool.executor(ThreadPool.Names.GENERIC),
+                SyncGlobalCheckpointAfterOperation.DoNotSync,
+                PrimaryActionExecution.RejectOnOverload,
+                ReplicaActionExecution.SubjectToCircuitBreaker
             );
         }
 
@@ -137,8 +139,8 @@ public class TransportReplicationActionRetryOnClosedNodeIT extends ESIntegTestCa
         public TestPlugin() {}
 
         @Override
-        public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-            return List.of(new ActionHandler<>(TestAction.TYPE, TestAction.class));
+        public List<ActionHandler> getActions() {
+            return List.of(new ActionHandler(TestAction.TYPE, TestAction.class));
         }
 
         @Override
@@ -161,11 +163,7 @@ public class TransportReplicationActionRetryOnClosedNodeIT extends ESIntegTestCa
                             // only activated on primary
                             if (action.equals(testActionName)) {
                                 actionRunningLatch.countDown();
-                                try {
-                                    actionWaitLatch.await(10, TimeUnit.SECONDS);
-                                } catch (InterruptedException e) {
-                                    throw new AssertionError(e);
-                                }
+                                safeAwait(actionWaitLatch);
                             }
                             sender.sendRequest(connection, action, request, options, handler);
                         }
@@ -209,19 +207,11 @@ public class TransportReplicationActionRetryOnClosedNodeIT extends ESIntegTestCa
 
         assertTrue(primaryTestPlugin.actionRunningLatch.await(10, TimeUnit.SECONDS));
 
-        MockTransportService primaryTransportService = (MockTransportService) internalCluster().getInstance(
-            TransportService.class,
-            primary
-        );
         // we pause node after TransportService has moved to stopped, but before closing connections, since if connections are closed
         // we would not hit the transport service closed case.
-        primaryTransportService.addOnStopListener(() -> {
+        MockTransportService.getInstance(primary).addOnStopListener(() -> {
             primaryTestPlugin.actionWaitLatch.countDown();
-            try {
-                assertTrue(doneLatch.await(10, TimeUnit.SECONDS));
-            } catch (InterruptedException e) {
-                throw new AssertionError(e);
-            }
+            safeAwait(doneLatch);
         });
         internalCluster().stopNode(primary);
 
@@ -233,7 +223,7 @@ public class TransportReplicationActionRetryOnClosedNodeIT extends ESIntegTestCa
 
     private TestPlugin getTestPlugin(String node) {
         PluginsService pluginsService = internalCluster().getInstance(PluginsService.class, node);
-        List<TestPlugin> testPlugins = pluginsService.filterPlugins(TestPlugin.class);
+        List<TestPlugin> testPlugins = pluginsService.filterPlugins(TestPlugin.class).toList();
         assertThat(testPlugins, Matchers.hasSize(1));
         return testPlugins.get(0);
     }

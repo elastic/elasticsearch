@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.eql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.eql.querydsl.container.FieldExtractorRegistry;
 import org.elasticsearch.xpack.eql.session.EqlConfiguration;
 import org.elasticsearch.xpack.eql.session.EqlSession;
+import org.elasticsearch.xpack.ql.InvalidArgumentException;
 import org.elasticsearch.xpack.ql.execution.search.extractor.AbstractFieldHitExtractor;
 import org.elasticsearch.xpack.ql.execution.search.extractor.BucketExtractor;
 import org.elasticsearch.xpack.ql.execution.search.extractor.ComputingExtractor;
@@ -166,7 +167,9 @@ public class ExecutionManager {
             criteria.subList(0, completionStage),
             criteria.get(completionStage),
             matcher,
-            listOfKeys
+            listOfKeys,
+            cfg.allowPartialSearchResults(),
+            cfg.allowPartialSequenceResults()
         );
 
         return w;
@@ -177,7 +180,7 @@ public class ExecutionManager {
      */
     public Executable assemble(List<List<Attribute>> listOfKeys, List<PhysicalPlan> plans, Limit limit) {
         if (cfg.fetchSize() > SAMPLE_MAX_PAGE_SIZE) {
-            throw new EqlIllegalArgumentException("Fetch size cannot be greater than [{}]", SAMPLE_MAX_PAGE_SIZE);
+            throw new InvalidArgumentException("Fetch size cannot be greater than [{}]", SAMPLE_MAX_PAGE_SIZE);
         }
 
         FieldExtractorRegistry extractorRegistry = new FieldExtractorRegistry();
@@ -234,11 +237,12 @@ public class ExecutionManager {
             cfg.fetchSize(),
             limit,
             session.circuitBreaker(),
-            cfg.maxSamplesPerKey()
+            cfg.maxSamplesPerKey(),
+            cfg.allowPartialSearchResults()
         );
     }
 
-    private boolean[] toMissing(List<SequenceCriterion> criteria) {
+    private static boolean[] toMissing(List<SequenceCriterion> criteria) {
         boolean[] result = new boolean[criteria.size()];
         for (int i = 0; i < criteria.size(); i++) {
             result[i] = criteria.get(i).missing();
@@ -246,7 +250,7 @@ public class ExecutionManager {
         return result;
     }
 
-    private HitExtractor timestampExtractor(HitExtractor hitExtractor) {
+    private static HitExtractor timestampExtractor(HitExtractor hitExtractor) {
         if (hitExtractor instanceof FieldHitExtractor fe) {
             return (fe instanceof TimestampFieldHitExtractor) ? hitExtractor : new TimestampFieldHitExtractor(fe);
         }
@@ -265,7 +269,7 @@ public class ExecutionManager {
         return extractors;
     }
 
-    private List<BucketExtractor> compositeKeyExtractors(List<? extends Expression> exps, FieldExtractorRegistry registry) {
+    private static List<BucketExtractor> compositeKeyExtractors(List<? extends Expression> exps, FieldExtractorRegistry registry) {
         List<BucketExtractor> extractors = new ArrayList<>(exps.size());
         for (Expression exp : exps) {
             extractors.add(RuntimeUtils.createBucketExtractor(registry.compositeKeyExtraction(exp)));

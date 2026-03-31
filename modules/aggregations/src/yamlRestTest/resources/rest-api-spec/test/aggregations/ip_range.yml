@@ -7,6 +7,9 @@ setup:
               properties:
                 ip:
                    type: ip
+  - do:
+      indices.refresh:
+        index: test
 
 ---
 "IP range":
@@ -136,8 +139,8 @@ setup:
 
 ---
 "IP Range avg_bucket":
-  - skip:
-      version: " - 7.7.99"
+  - requires:
+      cluster_features: ["gte_v7.8.0"]
       reason: Fixed in 7.8.0
   - do:
       bulk:

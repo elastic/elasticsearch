@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.application.analytics.action;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.xpack.application.analytics.event.AnalyticsEvent;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 
 import java.io.IOException;
@@ -30,7 +31,14 @@ public class PostAnalyticsEventDebugResponseBWCSerializingTests extends Abstract
 
     @Override
     protected PostAnalyticsEventAction.Response mutateInstance(PostAnalyticsEventAction.Response instance) throws IOException {
-        return randomValueOtherThan(instance, this::createTestInstance);
+        PostAnalyticsEventAction.DebugResponse debugResponse = (PostAnalyticsEventAction.DebugResponse) instance;
+        boolean isAccepted = instance.isAccepted();
+        AnalyticsEvent analyticsEvent = debugResponse.analyticsEvent();
+        switch (between(0, 1)) {
+            case 0 -> isAccepted = isAccepted == false;
+            case 1 -> analyticsEvent = randomValueOtherThan(analyticsEvent, () -> randomAnalyticsEvent());
+        }
+        return new PostAnalyticsEventAction.DebugResponse(isAccepted, analyticsEvent);
     }
 
     @Override

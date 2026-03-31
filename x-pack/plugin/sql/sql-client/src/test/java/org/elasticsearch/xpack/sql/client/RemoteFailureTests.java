@@ -61,7 +61,19 @@ public class RemoteFailureTests extends ESTestCase {
         assertEquals("missing authentication token for REST request [/?pretty&error_trace]", failure.reason());
         assertThat(failure.remoteTrace(), containsString("DefaultAuthenticationFailureHandler.missingToken"));
         assertNull(failure.cause());
-        assertEquals(singletonMap("WWW-Authenticate", "Basic realm=\"security\" charset=\"UTF-8\""), failure.headers());
+        assertEquals(singletonMap("WWW-Authenticate", "Basic realm=\"security\", charset=\"UTF-8\""), failure.headers());
+    }
+
+    public void testParseMissingAuthMultipleSchemes() throws IOException {
+        RemoteFailure failure = parse("missing_auth_multiple_schemes.json");
+        assertEquals("security_exception", failure.type());
+        assertEquals(
+            "unable to authenticate with provided credentials and anonymous access is not allowed for this request",
+            failure.reason()
+        );
+        assertThat(failure.remoteTrace(), containsString("AuthenticationService.authenticate"));
+        assertNull(failure.cause());
+        assertEquals(singletonMap("WWW-Authenticate", "Basic realm=\"security\", charset=\"UTF-8\", ApiKey"), failure.headers());
     }
 
     public void testNoError() {

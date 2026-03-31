@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations.bucket.terms;
 
@@ -54,11 +55,6 @@ public class LongRareTerms extends InternalMappedRareTerms<LongRareTerms, LongRa
 
         @Override
         public Object getKey() {
-            return term;
-        }
-
-        @Override
-        public Number getKeyAsNumber() {
             return term;
         }
 
@@ -124,11 +120,6 @@ public class LongRareTerms extends InternalMappedRareTerms<LongRareTerms, LongRa
     @Override
     protected LongRareTerms createWithFilter(String name, List<LongRareTerms.Bucket> buckets, SetBackedScalingCuckooFilter filter) {
         return new LongRareTerms(name, order, getMetadata(), format, buckets, maxDocCount, filter);
-    }
-
-    @Override
-    protected LongRareTerms.Bucket[] createBucketsArray(int size) {
-        return new LongRareTerms.Bucket[size];
     }
 
     @Override

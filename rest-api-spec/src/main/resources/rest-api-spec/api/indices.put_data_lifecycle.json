@@ -1,54 +1,62 @@
 {
-  "indices.put_data_lifecycle":{
-    "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/data-streams-put-lifecycle.html",
-      "description":"Updates the data stream lifecycle of the selected data streams."
+  "indices.put_data_lifecycle": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-put-data-lifecycle",
+      "description": "Update data stream lifecycles"
     },
-    "stability":"stable",
-    "visibility":"public",
-    "headers":{
-      "accept": [ "application/json"]
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
     },
     "url": {
       "paths": [
         {
-          "path":"/_data_stream/{name}/_lifecycle",
-          "methods":[
+          "path": "/_data_stream/{name}/_lifecycle",
+          "methods": [
             "PUT"
           ],
-          "parts":{
-            "name":{
-              "type":"list",
-              "description":"A comma-separated list of data streams whose lifecycle will be updated; use `*` to set the lifecycle to all data streams"
+          "parts": {
+            "name": {
+              "type": "list",
+              "description": "A comma-separated list of data streams whose lifecycle will be updated; use `*` to set the lifecycle to all data streams"
             }
           }
         }
       ]
     },
-    "params":{
-      "expand_wildcards":{
-        "type":"enum",
-        "options":[
+    "params": {
+      "expand_wildcards": {
+        "type": "list",
+        "options": [
           "open",
           "closed",
           "hidden",
           "none",
           "all"
         ],
-        "default":"open",
-        "description":"Whether wildcard expressions should get expanded to open or closed indices (default: open)"
+        "default": "open",
+        "description": "Whether wildcard expressions should get expanded to open or closed indices (default: open)"
       },
-      "timeout":{
-        "type":"time",
-        "description":"Explicit timestamp for the document"
+      "timeout": {
+        "type": "time",
+        "default": "30s",
+        "description": "Explicit timestamp for the document"
       },
-      "master_timeout":{
-        "type":"time",
-        "description":"Specify timeout for connection to master"
+      "master_timeout": {
+        "type": "time",
+        "default": "30s",
+        "description": "Specify timeout for connection to master"
       }
     },
-    "body":{
-      "description":"The data stream lifecycle configuration that consist of the data retention"
+    "body": {
+      "description": "The data stream lifecycle configuration that consist of the data retention",
+      "required": true
     }
   }
 }

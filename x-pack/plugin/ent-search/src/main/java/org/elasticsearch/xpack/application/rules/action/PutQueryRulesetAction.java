@@ -7,16 +7,15 @@
 
 package org.elasticsearch.xpack.application.rules.action;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -34,16 +33,14 @@ import java.util.Objects;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
-public class PutQueryRulesetAction extends ActionType<PutQueryRulesetAction.Response> {
+public class PutQueryRulesetAction {
 
-    public static final PutQueryRulesetAction INSTANCE = new PutQueryRulesetAction();
     public static final String NAME = "cluster:admin/xpack/query_rules/put";
+    public static final ActionType<Response> INSTANCE = new ActionType<>(NAME);
 
-    public PutQueryRulesetAction() {
-        super(NAME, PutQueryRulesetAction.Response::new);
-    }
+    private PutQueryRulesetAction() {/* no instances */}
 
-    public static class Request extends ActionRequest implements ToXContentObject {
+    public static class Request extends LegacyActionRequest implements ToXContentObject {
 
         private final QueryRuleset queryRuleset;
         private static final ParseField QUERY_RULESET_FIELD = new ParseField("queryRuleset");
@@ -72,6 +69,15 @@ public class PutQueryRulesetAction extends ActionType<PutQueryRulesetAction.Resp
             List<QueryRule> rules = queryRuleset.rules();
             if (rules == null || rules.isEmpty()) {
                 validationException = addValidationError("rules cannot be null or empty", validationException);
+            } else {
+                for (QueryRule rule : rules) {
+                    if (rule.id() == null) {
+                        validationException = addValidationError(
+                            "rule_id cannot be null or empty. rule: [" + rule + "]",
+                            validationException
+                        );
+                    }
+                }
             }
 
             return validationException;
@@ -114,8 +120,8 @@ public class PutQueryRulesetAction extends ActionType<PutQueryRulesetAction.Resp
             PARSER.declareObject(constructorArg(), (p, c) -> QueryRuleset.fromXContent(c, p), QUERY_RULESET_FIELD);
         }
 
-        public static PutQueryRulesetAction.Request fromXContent(String id, XContentParser parser) throws IOException {
-            return new PutQueryRulesetAction.Request(QueryRuleset.fromXContent(id, parser));
+        public static Request fromXContent(String id, XContentParser parser) throws IOException {
+            return new Request(QueryRuleset.fromXContent(id, parser));
         }
 
         @Override
@@ -125,12 +131,11 @@ public class PutQueryRulesetAction extends ActionType<PutQueryRulesetAction.Resp
 
     }
 
-    public static class Response extends ActionResponse implements StatusToXContentObject {
+    public static class Response extends ActionResponse implements ToXContentObject {
 
         final DocWriteResponse.Result result;
 
         public Response(StreamInput in) throws IOException {
-            super(in);
             result = DocWriteResponse.Result.readFrom(in);
         }
 
@@ -151,7 +156,6 @@ public class PutQueryRulesetAction extends ActionType<PutQueryRulesetAction.Resp
             return builder;
         }
 
-        @Override
         public RestStatus status() {
             return switch (result) {
                 case CREATED -> RestStatus.CREATED;

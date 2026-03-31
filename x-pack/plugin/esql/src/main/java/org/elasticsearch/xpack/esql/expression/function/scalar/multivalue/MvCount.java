@@ -7,45 +7,88 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.multivalue;
 
+import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.ConstantIntVector;
-import org.elasticsearch.compute.data.IntArrayVector;
-import org.elasticsearch.compute.data.IntBlock;
-import org.elasticsearch.compute.data.Vector;
-import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.tree.NodeInfo;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.Param;
 
+import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isType;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isRepresentableExceptCountersDenseVectorAggregateMetricDoubleAndHistogram;
 
 /**
- * Reduce a multivalued field to a single valued field containing the minimum value.
+ * Reduce a multivalued field to a single valued field containing the count of values.
  */
 public class MvCount extends AbstractMultivalueFunction {
-    public MvCount(Source source, Expression field) {
-        super(source, field);
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "MvCount", MvCount::new);
+
+    @FunctionInfo(
+        returnType = "integer",
+        description = "Converts a multivalued expression into a single valued column containing a count of the number of values.",
+        examples = @Example(file = "string", tag = "mv_count")
+    )
+    public MvCount(
+        Source source,
+        @Param(
+            name = "field",
+            type = {
+                "boolean",
+                "cartesian_point",
+                "cartesian_shape",
+                "date",
+                "date_nanos",
+                "double",
+                "geo_point",
+                "geo_shape",
+                "geohash",
+                "geotile",
+                "geohex",
+                "integer",
+                "ip",
+                "keyword",
+                "long",
+                "text",
+                "unsigned_long",
+                "version" },
+            description = "Expression that can be null, a single value, or multiple values."
+        ) Expression v
+    ) {
+        super(source, v);
+    }
+
+    private MvCount(StreamInput in) throws IOException {
+        super(in);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
     }
 
     @Override
     protected TypeResolution resolveFieldType() {
-        return isType(field(), EsqlDataTypes::isRepresentable, sourceText(), null, "representable");
+        return isRepresentableExceptCountersDenseVectorAggregateMetricDoubleAndHistogram(field(), sourceText(), DEFAULT);
     }
 
     @Override
     public DataType dataType() {
-        return DataTypes.INTEGER;
+        return DataType.INTEGER;
     }
 
     @Override
     protected ExpressionEvaluator.Factory evaluator(ExpressionEvaluator.Factory fieldEval) {
-        return dvrCtx -> new Evaluator(fieldEval.get(dvrCtx));
+        return new EvaluatorFactory(fieldEval);
     }
 
     @Override
@@ -58,9 +101,23 @@ public class MvCount extends AbstractMultivalueFunction {
         return NodeInfo.create(this, MvCount::new, field());
     }
 
+    private record EvaluatorFactory(ExpressionEvaluator.Factory field) implements ExpressionEvaluator.Factory {
+        @Override
+        public ExpressionEvaluator get(DriverContext context) {
+            return new Evaluator(context, field.get(context));
+        }
+
+        @Override
+        public String toString() {
+            return "MvCount[field=" + field + ']';
+        }
+    }
+
     private static class Evaluator extends AbstractEvaluator {
-        protected Evaluator(EvalOperator.ExpressionEvaluator field) {
-            super(field);
+        private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(Evaluator.class);
+
+        protected Evaluator(DriverContext driverContext, ExpressionEvaluator field) {
+            super(driverContext, field);
         }
 
         @Override
@@ -69,36 +126,43 @@ public class MvCount extends AbstractMultivalueFunction {
         }
 
         @Override
-        protected Block evalNullable(Block fieldVal) {
-            IntBlock.Builder builder = IntBlock.newBlockBuilder(fieldVal.getPositionCount());
-            for (int p = 0; p < fieldVal.getPositionCount(); p++) {
-                int valueCount = fieldVal.getValueCount(p);
-                if (valueCount == 0) {
-                    builder.appendNull();
-                    continue;
+        protected Block evalNullable(Block block) {
+            try (var builder = driverContext.blockFactory().newIntBlockBuilder(block.getPositionCount())) {
+                for (int p = 0; p < block.getPositionCount(); p++) {
+                    int valueCount = block.getValueCount(p);
+                    if (valueCount == 0) {
+                        builder.appendNull();
+                        continue;
+                    }
+                    builder.appendInt(valueCount);
                 }
-                builder.appendInt(valueCount);
+                return builder.build();
             }
-            return builder.build();
         }
 
         @Override
-        protected Vector evalNotNullable(Block fieldVal) {
-            int[] values = new int[fieldVal.getPositionCount()];
-            for (int p = 0; p < fieldVal.getPositionCount(); p++) {
-                values[p] = fieldVal.getValueCount(p);
+        protected Block evalNotNullable(Block block) {
+            try (var builder = driverContext.blockFactory().newIntVectorFixedBuilder(block.getPositionCount())) {
+                for (int p = 0; p < block.getPositionCount(); p++) {
+                    builder.appendInt(block.getValueCount(p));
+                }
+                return builder.build().asBlock();
             }
-            return new IntArrayVector(values, values.length);
         }
 
         @Override
-        protected Block evalSingleValuedNullable(Block fieldVal) {
-            return evalNullable(fieldVal);
+        protected Block evalSingleValuedNullable(Block ref) {
+            return evalNullable(ref);
         }
 
         @Override
-        protected Vector evalSingleValuedNotNullable(Block fieldVal) {
-            return new ConstantIntVector(1, fieldVal.getPositionCount());
+        protected Block evalSingleValuedNotNullable(Block ref) {
+            return driverContext.blockFactory().newConstantIntBlockWith(1, ref.getPositionCount());
+        }
+
+        @Override
+        public long baseRamBytesUsed() {
+            return BASE_RAM_BYTES_USED + field.baseRamBytesUsed();
         }
     }
 }

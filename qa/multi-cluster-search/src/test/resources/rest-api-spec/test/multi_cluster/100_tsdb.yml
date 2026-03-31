@@ -1,8 +1,8 @@
 ---
 setup:
   # Create a local tsdb index with a tsid the doesn't overlap with the remote cluster.
-  - skip:
-      version: " - 8.0.99"
+  - requires:
+      cluster_features: ["gte_v8.1.0"]
       reason: introduced in 8.1.0
 
   - do:
@@ -59,8 +59,8 @@ setup:
 
 ---
 teardown:
-  - skip:
-      version: " - 8.0.99"
+  - requires:
+      cluster_features: ["gte_v8.1.0"]
       reason: introduced in 8.1.0
 
   - do:
@@ -70,8 +70,8 @@ teardown:
 
 ---
 aggregate tsid:
-  - skip:
-      version: " - 8.0.99"
+  - requires:
+      cluster_features: ["gte_v8.1.0"]
       reason: introduced in 8.1.0
 
   - do:

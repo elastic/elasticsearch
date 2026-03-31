@@ -7,12 +7,14 @@
 
 package org.elasticsearch.compute.aggregation;
 
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.LongDoubleTupleBlockSourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.compute.test.operator.blocksource.LongDoubleTupleBlockSourceOperator;
 import org.elasticsearch.core.Tuple;
 
 import java.util.List;
@@ -24,8 +26,8 @@ import static org.hamcrest.Matchers.equalTo;
 public class CountDistinctDoubleGroupingAggregatorFunctionTests extends GroupingAggregatorFunctionTestCase {
 
     @Override
-    protected AggregatorFunctionSupplier aggregatorFunction(BigArrays bigArrays, List<Integer> inputChannels) {
-        return new CountDistinctDoubleAggregatorFunctionSupplier(bigArrays, inputChannels, 40000);
+    protected AggregatorFunctionSupplier aggregatorFunction() {
+        return new CountDistinctDoubleAggregatorFunctionSupplier(40000);
     }
 
     @Override
@@ -34,8 +36,9 @@ public class CountDistinctDoubleGroupingAggregatorFunctionTests extends Grouping
     }
 
     @Override
-    protected SourceOperator simpleInput(int size) {
+    protected SourceOperator simpleInput(BlockFactory blockFactory, int size) {
         return new LongDoubleTupleBlockSourceOperator(
+            blockFactory,
             LongStream.range(0, size).mapToObj(l -> Tuple.tuple(randomGroupId(size), randomDoubleBetween(0, 100, true)))
         );
     }
@@ -55,5 +58,14 @@ public class CountDistinctDoubleGroupingAggregatorFunctionTests extends Grouping
         assertThat(b.isNull(position), equalTo(false));
         assertThat(b.getValueCount(position), equalTo(1));
         assertThat(((LongBlock) b).getLong(b.getFirstValueIndex(position)), equalTo(0L));
+    }
+
+    @Override
+    protected void assertOutputFromAllFiltered(Block b) {
+        assertThat(b.elementType(), equalTo(ElementType.LONG));
+        LongVector v = (LongVector) b.asVector();
+        for (int p = 0; p < v.getPositionCount(); p++) {
+            assertThat(v.getLong(p), equalTo(0L));
+        }
     }
 }

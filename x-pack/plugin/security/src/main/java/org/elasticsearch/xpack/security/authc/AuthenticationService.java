@@ -10,16 +10,19 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.http.HttpPreRequest;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
@@ -88,7 +91,9 @@ public class AuthenticationService {
         TokenService tokenService,
         ApiKeyService apiKeyService,
         ServiceAccountService serviceAccountService,
-        OperatorPrivilegesService operatorPrivilegesService
+        OperatorPrivilegesService operatorPrivilegesService,
+        PluggableAuthenticatorChain pluggableAuthenticatorChain,
+        MeterRegistry meterRegistry
     ) {
         this.realms = realms;
         this.auditTrailService = auditTrailService;
@@ -104,15 +109,17 @@ public class AuthenticationService {
         }
 
         final String nodeName = Node.NODE_NAME_SETTING.get(settings);
+
         this.authenticatorChain = new AuthenticatorChain(
             settings,
             operatorPrivilegesService,
             anonymousUser,
             new AuthenticationContextSerializer(),
-            new ServiceAccountAuthenticator(serviceAccountService, nodeName),
-            new OAuth2TokenAuthenticator(tokenService),
-            new ApiKeyAuthenticator(apiKeyService, nodeName),
-            new RealmsAuthenticator(numInvalidation, lastSuccessfulAuthCache)
+            pluggableAuthenticatorChain,
+            new ServiceAccountAuthenticator(serviceAccountService, nodeName, meterRegistry),
+            new OAuth2TokenAuthenticator(tokenService, meterRegistry),
+            new ApiKeyAuthenticator(apiKeyService, nodeName, meterRegistry),
+            new RealmsAuthenticator(numInvalidation, lastSuccessfulAuthCache, meterRegistry)
         );
     }
 
@@ -215,12 +222,10 @@ public class AuthenticationService {
         final Authenticator.Context context = new Authenticator.Context(
             threadContext,
             new AuditableTransportRequest(auditTrailService.get(), failureHandler, threadContext, action, transportRequest),
-            null,
-            true,
-            realms
+            realms,
+            token
         );
-        context.addAuthenticationToken(token);
-        authenticatorChain.authenticateAsync(context, listener);
+        authenticatorChain.authenticate(context, listener);
     }
 
     public void expire(String principal) {
@@ -237,7 +242,12 @@ public class AuthenticationService {
         }
     }
 
-    public void onSecurityIndexStateChange(SecurityIndexManager.State previousState, SecurityIndexManager.State currentState) {
+    @FixForMultiProject
+    public void onSecurityIndexStateChange(
+        ProjectId projectId,
+        SecurityIndexManager.IndexState previousState,
+        SecurityIndexManager.IndexState currentState
+    ) {
         if (lastSuccessfulAuthCache != null) {
             if (isMoveFromRedToNonRed(previousState, currentState)
                 || isIndexDeleted(previousState, currentState)
@@ -247,18 +257,21 @@ public class AuthenticationService {
         }
     }
 
-    Authenticator.Context newContext(final String action, final TransportRequest request, final boolean allowAnonymous) {
+    /**
+     * Returns an authenticator context for verifying only the provided {@param authenticationToken} without trying
+     * to extract any other tokens from the thread context.
+     */
+    Authenticator.Context newContext(final String action, final TransportRequest request, AuthenticationToken authenticationToken) {
         return new Authenticator.Context(
             threadContext,
             new AuditableTransportRequest(auditTrailService.get(), failureHandler, threadContext, action, request),
-            null,
-            allowAnonymous,
-            realms
+            realms,
+            authenticationToken
         );
     }
 
     void authenticate(final Authenticator.Context context, final ActionListener<Authentication> listener) {
-        authenticatorChain.authenticateAsync(context, listener);
+        authenticatorChain.authenticate(context, listener);
     }
 
     // pkg private method for testing
@@ -266,7 +279,7 @@ public class AuthenticationService {
         return numInvalidation.get();
     }
 
-    abstract static class AuditableRequest {
+    public abstract static class AuditableRequest {
 
         final AuditTrail auditTrail;
         final AuthenticationFailureHandler failureHandler;

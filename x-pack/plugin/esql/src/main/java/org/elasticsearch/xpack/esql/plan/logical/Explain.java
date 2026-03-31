@@ -7,23 +7,39 @@
 
 package org.elasticsearch.xpack.esql.plan.logical;
 
-import org.elasticsearch.xpack.ql.expression.Attribute;
-import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
-import org.elasticsearch.xpack.ql.plan.logical.LeafPlan;
-import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.ql.tree.NodeInfo;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.util.List;
 import java.util.Objects;
 
-public class Explain extends LeafPlan {
+public class Explain extends LeafPlan implements TelemetryAware {
 
     public enum Type {
         PARSED,
         ANALYZED
     }
+
+    /**
+     * Output columns for EXPLAIN command.
+     * - cluster: the cluster alias (empty string for local cluster)
+     * - node: the node name where the plan runs
+     * - role: coordinator, data, or subplan
+     * - type: the plan type (parsedPlan, optimizedLogicalPlan, optimizedPhysicalPlan, localPlan)
+     * - plan: the plan string representation
+     */
+    public static final List<Attribute> OUTPUT_ATTRIBUTES = List.of(
+        new ReferenceAttribute(Source.EMPTY, null, "cluster", DataType.KEYWORD),
+        new ReferenceAttribute(Source.EMPTY, null, "node", DataType.KEYWORD),
+        new ReferenceAttribute(Source.EMPTY, null, "role", DataType.KEYWORD),
+        new ReferenceAttribute(Source.EMPTY, null, "type", DataType.KEYWORD),
+        new ReferenceAttribute(Source.EMPTY, null, "plan", DataType.KEYWORD)
+    );
 
     private final LogicalPlan query;
 
@@ -32,32 +48,23 @@ public class Explain extends LeafPlan {
         this.query = query;
     }
 
-    // TODO: implement again
-    // @Override
-    // public void execute(EsqlSession session, ActionListener<Result> listener) {
-    // ActionListener<String> analyzedStringListener = listener.map(
-    // analyzed -> new Result(
-    // output(),
-    // List.of(List.of(query.toString(), Type.PARSED.toString()), List.of(analyzed, Type.ANALYZED.toString()))
-    // )
-    // );
-    //
-    // session.analyzedPlan(
-    // query,
-    // ActionListener.wrap(
-    // analyzed -> analyzedStringListener.onResponse(analyzed.toString()),
-    // e -> analyzedStringListener.onResponse(e.toString())
-    // )
-    // );
-    //
-    // }
+    @Override
+    public void writeTo(StreamOutput out) {
+        throw new UnsupportedOperationException("not serialized");
+    }
+
+    @Override
+    public String getWriteableName() {
+        throw new UnsupportedOperationException("not serialized");
+    }
+
+    public LogicalPlan query() {
+        return query;
+    }
 
     @Override
     public List<Attribute> output() {
-        return List.of(
-            new ReferenceAttribute(Source.EMPTY, "plan", DataTypes.KEYWORD),
-            new ReferenceAttribute(Source.EMPTY, "type", DataTypes.KEYWORD)
-        );
+        return OUTPUT_ATTRIBUTES;
     }
 
     @Override

@@ -59,6 +59,11 @@ public class BertJapaneseTokenization extends Tokenization {
         super(in);
     }
 
+    @Override
+    Tokenization buildWindowingTokenization(int updatedMaxSeqLength, int updatedSpan) {
+        return new BertJapaneseTokenization(this.doLowerCase, this.withSpecialTokens, updatedMaxSeqLength, Truncate.NONE, updatedSpan);
+    }
+
     XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         return builder;
     }

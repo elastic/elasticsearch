@@ -34,11 +34,6 @@ final class LatLonShapeDVAtomicShapeFieldData extends LeafShapeFieldData<GeoShap
     }
 
     @Override
-    public void close() {
-        // noop
-    }
-
-    @Override
     public GeoShapeValues getShapeValues() {
         try {
             final BinaryDocValues binaryValues = DocValues.getBinary(reader, fieldName);

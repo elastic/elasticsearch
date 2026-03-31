@@ -72,7 +72,7 @@ public class FileUserPasswdStoreTests extends ESTestCase {
     }
 
     public void testStore_ConfiguredWithUnreadableFile() throws Exception {
-        Path configDir = env.configFile();
+        Path configDir = env.configDir();
         Files.createDirectories(configDir);
         Path file = configDir.resolve("users");
 
@@ -88,7 +88,7 @@ public class FileUserPasswdStoreTests extends ESTestCase {
 
     public void testStore_AutoReload() throws Exception {
         Path users = getDataPath("users");
-        Path configDir = env.configFile();
+        Path configDir = env.configDir();
         Files.createDirectories(configDir);
         Path file = configDir.resolve("users");
         Files.copy(users, file, StandardCopyOption.REPLACE_EXISTING);
@@ -149,7 +149,7 @@ public class FileUserPasswdStoreTests extends ESTestCase {
 
     public void testStore_AutoReload_WithParseFailures() throws Exception {
         Path users = getDataPath("users");
-        Path confDir = env.configFile();
+        Path confDir = env.configDir();
         Files.createDirectories(confDir);
         Path testUsers = confDir.resolve("users");
         Files.copy(users, testUsers, StandardCopyOption.REPLACE_EXISTING);

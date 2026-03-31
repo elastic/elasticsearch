@@ -1,0 +1,177 @@
+hash
+required_capability: hash_function
+
+// tag::hash[]
+FROM sample_data
+| WHERE message != "Connection error"
+| EVAL md5 = hash("md5", message), sha256 = hash("sha256", message)
+| KEEP message, md5, sha256
+// end::hash[]
+;
+ignoreOrder:true
+
+// tag::hash-result[]
+message:keyword       | md5:keyword                      | sha256:keyword
+Connected to 10.1.0.1 | abd7d1ce2bb636842a29246b3512dcae | 6d8372129ad78770f7185554dd39864749a62690216460752d6c075fa38ad85c
+Connected to 10.1.0.2 | 8f8f1cb60832d153f5b9ec6dc828b93f | b0db24720f15857091b3c99f4c4833586d0ea3229911b8777efb8d917cf27e9a
+Connected to 10.1.0.3 | 912b6dc13503165a15de43304bb77c78 | 75b0480188db8acc4d5cc666a51227eb2bc5b989cd8ca912609f33e0846eff57
+Disconnected          | ef70e46fd3bbc21e3e1f0b6815e750c0 | 04dfac3671b494ad53fcd152f7a14511bfb35747278aad8ce254a0d6e4ba4718
+// end::hash-result[]
+;
+
+
+hashOfConvertedType
+required_capability: hash_function
+
+FROM sample_data 
+| WHERE message != "Connection error"
+| EVAL input = event_duration::STRING, md5 = hash("md5", input), sha256 = hash("sha256", input) 
+| KEEP message, input, md5, sha256
+;
+ignoreOrder:true
+
+message:keyword       | input:keyword | md5:keyword                      | sha256:keyword
+Connected to 10.1.0.1 | 1756467       | c4fc1c57ee9b1d2b2023b70c8c167b54 | 8376a50a7ba7e6bd1bf9ad0c32d27d2f49fd0fa422573f98f239e21048b078f3
+Connected to 10.1.0.2 | 2764889       | 8e8cf005e11a7b5df1d9478a4715a444 | 1031f2bef8eaecbf47319505422300b27ea1f7c38b6717d41332325062f9a56a
+Connected to 10.1.0.3 | 3450233       | 09f2c64f5a55e9edf8ffbad336b561d8 | f77d7545769c4ecc85092f4f0b7ec8c20f467e4beb15fe67ca29f9aa8e9a6900
+Disconnected          | 1232382       | 6beac1485638d51e13c2c53990a2f611 | 9a03c1274a3ebb6c1cb85d170ce0a6fdb9d2232724e06b9f5e7cb9274af3cad6
+;
+
+
+hashOfEmptyInput
+required_capability: hash_function
+
+ROW input="" | EVAL md5 = hash("md5", input), sha256 = hash("sha256", input);
+
+input:keyword | md5:keyword                      | sha256:keyword
+              | d41d8cd98f00b204e9800998ecf8427e | e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+;
+
+hashOfNullInput
+required_capability: hash_function
+
+ROW input=null::STRING | EVAL md5 = hash("md5", input), sha256 = hash("sha256", input);
+
+input:keyword | md5:keyword | sha256:keyword
+null          | null        | null
+;
+
+
+hashWithNullAlgorithm
+required_capability: hash_function
+
+ROW input="input" | EVAL hash = hash(null, input);
+
+input:keyword | hash:keyword
+input         | null
+;
+
+
+hashWithMv
+required_capability: hash_function
+
+ROW input=["foo", "bar"] | mv_expand input | EVAL md5 = hash("md5", input), sha256 = hash("sha256", input);
+
+input:keyword  | md5:keyword                      | sha256:keyword
+foo            | acbd18db4cc2f85cedef654fccc4a4d8 | 2c26b46b68ffc68ff99b453c1d30413413422d706483bfa0f98a5e886266e7ae
+bar            | 37b51d194a7513e45b56f6524f2d51f2 | fcde2b2edba56bf408601fb721fe9b5c338d10ee429ea04fae5511b68fbf8fb9
+;
+
+
+hashWithNestedFunctions
+required_capability: hash_function
+
+ROW input=["foo", "bar"] | EVAL hash = concat(hash("md5", mv_concat(input, "-")), "-", hash("sha256", mv_concat(input, "-")));
+
+input:keyword  | hash:keyword
+["foo", "bar"] | e5f9ec048d1dbe19c70f720e002f9cb1-7d89c4f517e3bd4b5e8e76687937005b602ea00c5cba3e25ef1fc6575a55103e
+;
+
+
+hashWithConvertedTypes
+required_capability: hash_function
+
+ROW input=42 | EVAL md5 = hash("md5", input::STRING), sha256 = hash("sha256", to_string(input));
+
+input:integer | md5:keyword                      | sha256:keyword
+42            | a1d0c6e83f027327d8461063f4ac58a6 | 73475cb40a568e8da8a045ced110137e159f890ac4da883b6b17dc651b3a8049
+;
+
+
+hashWithStats
+required_capability: hash_function
+required_capability: hash_function_aliases_v1
+
+FROM sample_data 
+| EVAL md5="md5"
+| STATS count = count(*) by hash(md5, message), md5(message), sha1(message), sha256(message)
+| WHERE count > 1;
+
+count:long | hash(md5, message):keyword        | md5(message):keyword             | sha1(message):keyword                    | sha256(message):keyword
+3          | 2e92ae79ff32b37fee4368a594792183  | 2e92ae79ff32b37fee4368a594792183 | 1dbb3521876a899f82d6b0ff10eb32a01e03aba8 | 8d137af9c64fba09bbb003aba93f0b029898fe19e7927cd696f4c3e2b69f538d
+;
+
+
+md5Hash
+required_capability: hash_function_aliases_v1
+
+// tag::md5[]
+FROM sample_data
+| WHERE message != "Connection error"
+| EVAL md5 = md5(message)
+| KEEP message, md5
+// end::md5[]
+;
+ignoreOrder:true
+
+// tag::md5-result[]
+message:keyword       | md5:keyword
+Connected to 10.1.0.1 | abd7d1ce2bb636842a29246b3512dcae
+Connected to 10.1.0.2 | 8f8f1cb60832d153f5b9ec6dc828b93f
+Connected to 10.1.0.3 | 912b6dc13503165a15de43304bb77c78
+Disconnected          | ef70e46fd3bbc21e3e1f0b6815e750c0
+// end::md5-result[]
+;
+
+
+sha1Hash
+required_capability: hash_function_aliases_v1
+
+// tag::sha1[]
+FROM sample_data 
+| WHERE message != "Connection error"
+| EVAL sha1 = sha1(message)
+| KEEP message, sha1
+// end::sha1[]
+;
+ignoreOrder:true
+
+// tag::sha1-result[]
+message:keyword       | sha1:keyword
+Connected to 10.1.0.1 | 42b85531a79088036a17759db7d2de292b92f57f
+Connected to 10.1.0.2 | d30db445da2e9237c9718d0c7e4fb7cbbe9c2cb4
+Connected to 10.1.0.3 | 2733848d943809f0b10cad3e980763e88afb9853
+Disconnected          | 771e05f27b99fd59f638f41a7a4e977b1d4691fe
+// end::sha1-result[]
+;
+
+sha256Hash
+required_capability: hash_function_aliases_v1
+
+// tag::sha256[]
+FROM sample_data 
+| WHERE message != "Connection error"
+| EVAL sha256 = sha256(message)
+| KEEP message, sha256
+// end::sha256[]
+;
+ignoreOrder:true
+
+// tag::sha256-result[]
+message:keyword       | sha256:keyword
+Connected to 10.1.0.1 | 6d8372129ad78770f7185554dd39864749a62690216460752d6c075fa38ad85c
+Connected to 10.1.0.2 | b0db24720f15857091b3c99f4c4833586d0ea3229911b8777efb8d917cf27e9a
+Connected to 10.1.0.3 | 75b0480188db8acc4d5cc666a51227eb2bc5b989cd8ca912609f33e0846eff57
+Disconnected          | 04dfac3671b494ad53fcd152f7a14511bfb35747278aad8ce254a0d6e4ba4718
+// end::sha256-result[]
+;

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.support;
@@ -33,7 +34,7 @@ public class RetryableActionTests extends ESTestCase {
 
     public void testRetryableActionNoRetries() {
         final AtomicInteger executedCount = new AtomicInteger();
-        final PlainActionFuture<Boolean> future = PlainActionFuture.newFuture();
+        final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
         final RetryableAction<Boolean> retryableAction = new RetryableAction<>(
             logger,
             taskQueue.getThreadPool(),
@@ -65,7 +66,7 @@ public class RetryableActionTests extends ESTestCase {
         int expectedRetryCount = randomIntBetween(1, 8);
         final AtomicInteger remainingFailedCount = new AtomicInteger(expectedRetryCount);
         final AtomicInteger retryCount = new AtomicInteger();
-        final PlainActionFuture<Boolean> future = PlainActionFuture.newFuture();
+        final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
         final RetryableAction<Boolean> retryableAction = new RetryableAction<>(
             logger,
             taskQueue.getThreadPool(),
@@ -113,7 +114,7 @@ public class RetryableActionTests extends ESTestCase {
 
     public void testRetryableActionTimeout() {
         final AtomicInteger retryCount = new AtomicInteger();
-        final PlainActionFuture<Boolean> future = PlainActionFuture.newFuture();
+        final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
         final RetryableAction<Boolean> retryableAction = new RetryableAction<>(
             logger,
             taskQueue.getThreadPool(),
@@ -161,7 +162,7 @@ public class RetryableActionTests extends ESTestCase {
 
     public void testTimeoutOfZeroMeansNoRetry() {
         final AtomicInteger executedCount = new AtomicInteger();
-        final PlainActionFuture<Boolean> future = PlainActionFuture.newFuture();
+        final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
         final RetryableAction<Boolean> retryableAction = new RetryableAction<>(
             logger,
             taskQueue.getThreadPool(),
@@ -191,7 +192,7 @@ public class RetryableActionTests extends ESTestCase {
 
     public void testFailedBecauseNotRetryable() {
         final AtomicInteger executedCount = new AtomicInteger();
-        final PlainActionFuture<Boolean> future = PlainActionFuture.newFuture();
+        final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
         final RetryableAction<Boolean> retryableAction = new RetryableAction<>(
             logger,
             taskQueue.getThreadPool(),
@@ -221,7 +222,7 @@ public class RetryableActionTests extends ESTestCase {
 
     public void testRetryableActionCancelled() {
         final AtomicInteger executedCount = new AtomicInteger();
-        final PlainActionFuture<Boolean> future = PlainActionFuture.newFuture();
+        final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
         final RetryableAction<Boolean> retryableAction = new RetryableAction<>(
             logger,
             taskQueue.getThreadPool(),
@@ -259,7 +260,7 @@ public class RetryableActionTests extends ESTestCase {
     }
 
     public void testMaxDelayBound() {
-        final PlainActionFuture<Boolean> future = PlainActionFuture.newFuture();
+        final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
         final RetryableAction<Boolean> retryableAction = new RetryableAction<>(
             logger,
             taskQueue.getThreadPool(),

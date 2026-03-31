@@ -54,6 +54,10 @@ public abstract class GroupsResolverTestCase extends ESTestCase {
 
     @Before
     public void setUpLdapConnection() throws Exception {
+        doSetupLdapConnection();
+    }
+
+    protected void doSetupLdapConnection() throws Exception {
         Path trustPath = getDataPath(trustPath());
         this.ldapConnection = LdapTestUtils.openConnection(ldapUrl(), bindDN(), bindPassword(), trustPath);
     }

@@ -1,45 +1,56 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.support.single.shard;
 
+import org.elasticsearch.ElasticsearchTimeoutException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.NoShardAvailableActionException;
+import org.elasticsearch.action.SplitAwareRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.TransportActions;
+import org.elasticsearch.action.support.replication.StaleRequestException;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateObserver;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequestHandler;
-import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.concurrent.Executor;
 
 import static org.elasticsearch.action.support.TransportActions.isShardNotAvailableException;
 import static org.elasticsearch.core.Strings.format;
@@ -52,28 +63,41 @@ import static org.elasticsearch.core.Strings.format;
 public abstract class TransportSingleShardAction<Request extends SingleShardRequest<Request>, Response extends ActionResponse> extends
     TransportAction<Request, Response> {
 
+    // How long to wait to see a shard routing update after receiving a stale request failure
+    // Deliberately is not registered in ClusterSettings.BUILT_IN_CLUSTER_SETTINGS because it is only for tests
+    public static final Setting<TimeValue> ROUTE_REFRESH_TIMEOUT = Setting.timeSetting(
+        "single_shard_action.route_refresh_timeout",
+        TimeValue.timeValueSeconds(30),
+        Setting.Property.NodeScope
+    );
+
     protected final ThreadPool threadPool;
     protected final ClusterService clusterService;
     protected final TransportService transportService;
+    protected final ProjectResolver projectResolver;
     protected final IndexNameExpressionResolver indexNameExpressionResolver;
 
     private final String transportShardAction;
-    private final String executor;
+    private final Executor executor;
 
+    @SuppressWarnings("this-escape")
     protected TransportSingleShardAction(
         String actionName,
         ThreadPool threadPool,
         ClusterService clusterService,
         TransportService transportService,
         ActionFilters actionFilters,
+        ProjectResolver projectResolver,
         IndexNameExpressionResolver indexNameExpressionResolver,
         Writeable.Reader<Request> request,
-        String executor
+        Executor executor
     ) {
-        super(actionName, actionFilters, transportService.getTaskManager());
+        // TODO: consider passing the executor, remove it from doExecute and let InboundHandler/TransportAction handle concurrency.
+        super(actionName, actionFilters, transportService.getTaskManager(), EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.transportService = transportService;
+        this.projectResolver = projectResolver;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
 
         this.transportShardAction = actionName + "[s]";
@@ -107,23 +131,27 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
     protected abstract Response shardOperation(Request request, ShardId shardId) throws IOException;
 
     protected void asyncShardOperation(Request request, ShardId shardId, ActionListener<Response> listener) throws IOException {
-        threadPool.executor(getExecutor(request, shardId)).execute(ActionRunnable.supply(listener, () -> shardOperation(request, shardId)));
+        getExecutor(shardId).execute(ActionRunnable.supplyAndDecRef(listener, () -> shardOperation(request, shardId)));
     }
 
     protected abstract Writeable.Reader<Response> getResponseReader();
 
     protected abstract boolean resolveIndex(Request request);
 
-    protected static ClusterBlockException checkGlobalBlock(ClusterState state) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.READ);
+    protected static ClusterBlockException checkGlobalBlock(ProjectState state) {
+        return state.blocks().globalBlockedException(state.projectId(), ClusterBlockLevel.READ);
     }
 
-    protected ClusterBlockException checkRequestBlock(ClusterState state, InternalRequest request) {
-        return state.blocks().indexBlockedException(ClusterBlockLevel.READ, request.concreteIndex());
+    protected ClusterBlockException checkRequestBlock(ProjectState state, InternalRequest request) {
+        return state.blocks().indexBlockedException(projectResolver.getProjectId(), ClusterBlockLevel.READ, request.concreteIndex());
     }
 
-    protected void resolveRequest(ClusterState state, InternalRequest request) {
+    protected void resolveRequest(ProjectState state, InternalRequest request) {
 
+    }
+
+    protected ProjectState getProjectState() {
+        return projectResolver.getProjectState(clusterService.state());
     }
 
     /**
@@ -131,7 +159,7 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
      * the operation locally (the node that received the request)
      */
     @Nullable
-    protected abstract ShardsIterator shards(ClusterState state, InternalRequest request);
+    protected abstract ShardsIterator shards(ProjectState state, InternalRequest request);
 
     class AsyncSingleAction {
 
@@ -144,31 +172,39 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
         private AsyncSingleAction(Request request, ActionListener<Response> listener) {
             this.listener = listener;
 
-            ClusterState clusterState = clusterService.state();
+            final ProjectState project = getProjectState();
             if (logger.isTraceEnabled()) {
-                logger.trace("executing [{}] based on cluster state version [{}]", request, clusterState.version());
+                logger.trace(
+                    "executing [{}] in [{}] based on cluster state version [{}]",
+                    request,
+                    project.projectId(),
+                    project.cluster().version()
+                );
             }
-            nodes = clusterState.nodes();
-            ClusterBlockException blockException = checkGlobalBlock(clusterState);
+            nodes = project.cluster().nodes();
+            ClusterBlockException blockException = checkGlobalBlock(project);
             if (blockException != null) {
                 throw blockException;
             }
 
             String concreteSingleIndex;
             if (resolveIndex(request)) {
-                concreteSingleIndex = indexNameExpressionResolver.concreteSingleIndex(clusterState, request).getName();
+                concreteSingleIndex = indexNameExpressionResolver.concreteSingleIndex(project.metadata(), request).getName();
             } else {
                 concreteSingleIndex = request.index();
             }
             this.internalRequest = new InternalRequest(request, concreteSingleIndex);
-            resolveRequest(clusterState, internalRequest);
+            resolveRequest(project, internalRequest);
 
-            blockException = checkRequestBlock(clusterState, internalRequest);
+            blockException = checkRequestBlock(project, internalRequest);
             if (blockException != null) {
                 throw blockException;
             }
 
-            this.shardIt = shards(clusterState, internalRequest);
+            this.shardIt = shards(project, internalRequest);
+            if (request instanceof SplitAwareRequest splitAwareRequest) {
+                splitAwareRequest.setSplitShardCountSummary(project.metadata(), concreteSingleIndex);
+            }
         }
 
         public void start() {
@@ -179,7 +215,7 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
                     clusterService.localNode(),
                     transportShardAction,
                     internalRequest.request(),
-                    new ActionListenerResponseHandler<>(listener, reader, TransportResponseHandler.TRANSPORT_WORKER)
+                    new ActionListenerResponseHandler<>(listener, reader, executor)
                 );
             } else {
                 perform(null);
@@ -198,6 +234,10 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
             if (lastFailure == null || TransportActions.isReadOverrideException(currentFailure)) {
                 lastFailure = currentFailure;
                 this.lastFailure = currentFailure;
+            }
+            if (ExceptionsHelper.unwrapCause(currentFailure) instanceof StaleRequestException staleRequestException) {
+                waitForRoutingUpdateAndRestart(staleRequestException);
+                return;
             }
             final ShardRouting shardRouting = shardIt.nextOrNull();
             if (shardRouting == null) {
@@ -232,13 +272,56 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
                     node,
                     transportShardAction,
                     internalRequest.request(),
-                    new ActionListenerResponseHandler<>(listener, reader, TransportResponseHandler.TRANSPORT_WORKER) {
+                    new ActionListenerResponseHandler<>(listener, reader, executor) {
                         @Override
                         public void handleException(TransportException exp) {
                             onFailure(shardRouting, exp);
                         }
                     }
                 );
+            }
+        }
+
+        // Called when a request has failed with a StaleRequestException
+        // This indicates that request routing has changed since we resolved the shard,
+        // e.g., due to a resharding operation.
+        // Waits for the routing table to refresh, then restarts the request from the top
+        private void waitForRoutingUpdateAndRestart(StaleRequestException staleRequestException) {
+            if (internalRequest.request() instanceof SplitAwareRequest splitAwareRequest) {
+                final var staleSummary = splitAwareRequest.getSplitShardCountSummary();
+                logger.debug("retrying request due to stale route: {}", internalRequest.request());
+                // TransportGetAction.getFromTranslog has a similar pattern for handling failures.
+                // These observers could add up though -- it might be nice to try to share them across requests.
+                ClusterStateObserver.waitForState(clusterService, threadPool.getThreadContext(), new ClusterStateObserver.Listener() {
+                    @Override
+                    public void onNewClusterState(ClusterState state) {
+                        new AsyncSingleAction(internalRequest.request(), listener).start();
+                    }
+
+                    @Override
+                    public void onClusterServiceClose() {
+                        listener.onFailure(new NodeClosedException(clusterService.localNode()));
+                    }
+
+                    @Override
+                    public void onTimeout(TimeValue timeout) {
+                        listener.onFailure(
+                            new ElasticsearchTimeoutException("gave up waiting for routing to refresh", staleRequestException)
+                        );
+                    }
+                }, (state) -> {
+                    // this is a predicate with a side effect, apologies!
+                    // it's because the summary calculation is the responsibility of the request
+                    // implementation, and we don't currently have a non-mutating calculator
+                    splitAwareRequest.setSplitShardCountSummary(
+                        projectResolver.getProjectState(state).metadata(),
+                        internalRequest.concreteIndex()
+                    );
+                    return splitAwareRequest.getSplitShardCountSummary().equals(staleSummary) == false;
+                }, ROUTE_REFRESH_TIMEOUT.get(clusterService.getSettings()), logger);
+            } else {
+                assert false : "refreshRouting called without a SplitAwareRequest: " + internalRequest.request();
+                listener.onFailure(staleRequestException);
             }
         }
     }
@@ -248,7 +331,7 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
         @Override
         public void messageReceived(Request request, final TransportChannel channel, Task task) throws Exception {
             // if we have a local operation, execute it on a thread since we don't spawn
-            execute(task, request, new ChannelActionListener<>(channel));
+            executeDirect(task, request, new ChannelActionListener<>(channel));
         }
     }
 
@@ -284,7 +367,7 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
         }
     }
 
-    protected String getExecutor(Request request, ShardId shardId) {
+    protected Executor getExecutor(ShardId shardId) {
         return executor;
     }
 }

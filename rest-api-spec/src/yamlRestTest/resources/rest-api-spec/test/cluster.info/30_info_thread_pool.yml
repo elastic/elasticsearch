@@ -1,7 +1,7 @@
 ---
 "Cluster HTTP Info":
-  - skip:
-      version: " - 8.8.99"
+  - requires:
+      cluster_features: ["gte_v8.9.0"]
       reason: "/_info/thread_pool only available from v8.9"
 
   - do:
@@ -94,13 +94,6 @@
   - gte: { thread_pool.search_coordination.rejected: 0 }
   - gte: { thread_pool.search_coordination.largest: 0 }
   - gte: { thread_pool.search_coordination.completed: 0 }
-
-  - gte: { thread_pool.search_throttled.threads: 0 }
-  - gte: { thread_pool.search_throttled.queue: 0 }
-  - gte: { thread_pool.search_throttled.active: 0 }
-  - gte: { thread_pool.search_throttled.rejected: 0 }
-  - gte: { thread_pool.search_throttled.largest: 0 }
-  - gte: { thread_pool.search_throttled.completed: 0 }
 
   - gte: { thread_pool.snapshot.threads: 0 }
   - gte: { thread_pool.snapshot.queue: 0 }

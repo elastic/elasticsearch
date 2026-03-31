@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.security.authc;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.BytesRef;
@@ -16,19 +17,17 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest.OpType;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.DocWriteResponse.Result;
-import org.elasticsearch.action.bulk.BackoffPolicy;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
@@ -41,16 +40,21 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.MasterService;
+import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
+import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -90,13 +94,13 @@ import org.elasticsearch.xpack.core.security.authc.support.TokensInvalidationRes
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.support.FeatureNotEnabledException;
 import org.elasticsearch.xpack.security.support.FeatureNotEnabledException.Feature;
+import org.elasticsearch.xpack.security.support.SecureBytesRefRecycler;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
+import org.elasticsearch.xpack.security.support.SecurityIndexManager.IndexState;
 
 import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.Closeable;
 import java.io.IOException;
-import java.io.OutputStream;
 import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
@@ -121,6 +125,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
@@ -147,12 +152,14 @@ import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK
 import static org.elasticsearch.search.SearchService.DEFAULT_KEEPALIVE_SETTING;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
+import static org.elasticsearch.xpack.security.support.SecurityIndexManager.Availability.PRIMARY_SHARDS;
+import static org.elasticsearch.xpack.security.support.SecurityIndexManager.Availability.SEARCH_SHARDS;
 
 /**
  * Service responsible for the creation, validation, and other management of {@link UserToken}
  * objects for authentication
  */
-public final class TokenService {
+public class TokenService {
 
     /**
      * The parameters below are used to generate the cryptographic key that is used to encrypt the
@@ -202,13 +209,13 @@ public final class TokenService {
     static final int LEGACY_MINIMUM_BYTES = VERSION_BYTES + SALT_BYTES + IV_BYTES + 1;
     static final int MINIMUM_BYTES = VERSION_BYTES + TOKEN_LENGTH + 1;
     static final int LEGACY_MINIMUM_BASE64_BYTES = Double.valueOf(Math.ceil((4 * LEGACY_MINIMUM_BYTES) / 3)).intValue();
-    public static final int MINIMUM_BASE64_BYTES = Double.valueOf(Math.ceil((4 * MINIMUM_BYTES) / 3)).intValue();
-    static final TransportVersion VERSION_HASHED_TOKENS = TransportVersions.V_7_2_0;
-    static final TransportVersion VERSION_TOKENS_INDEX_INTRODUCED = TransportVersions.V_7_2_0;
-    static final TransportVersion VERSION_ACCESS_TOKENS_AS_UUIDS = TransportVersions.V_7_2_0;
-    static final TransportVersion VERSION_MULTIPLE_CONCURRENT_REFRESHES = TransportVersions.V_7_2_0;
-    static final TransportVersion VERSION_CLIENT_AUTH_FOR_REFRESH = TransportVersions.V_8_2_0;
-    static final TransportVersion VERSION_GET_TOKEN_DOC_FOR_REFRESH = TransportVersions.V_8_500_040;
+    static final int MINIMUM_BASE64_BYTES = Double.valueOf(Math.ceil((4 * MINIMUM_BYTES) / 3)).intValue();
+    static final TransportVersion VERSION_HASHED_TOKENS = TransportVersion.fromId(7_02_00_99);
+    static final TransportVersion VERSION_TOKENS_INDEX_INTRODUCED = TransportVersion.fromId(7_02_00_99);
+    static final TransportVersion VERSION_ACCESS_TOKENS_AS_UUIDS = TransportVersion.fromId(7_02_00_99);
+    static final TransportVersion VERSION_MULTIPLE_CONCURRENT_REFRESHES = TransportVersion.fromId(7_02_00_99);
+    static final TransportVersion VERSION_CLIENT_AUTH_FOR_REFRESH = TransportVersion.fromId(8_02_00_99);
+    static final TransportVersion VERSION_GET_TOKEN_DOC_FOR_REFRESH = TransportVersion.fromId(8_500_0_61);
 
     private static final Logger logger = LogManager.getLogger(TokenService.class);
 
@@ -225,6 +232,7 @@ public final class TokenService {
     private final boolean enabled;
     private final XPackLicenseState licenseState;
     private final SecurityContext securityContext;
+    private final Recycler<BytesRef> bytesRefRecycler;
     private volatile TokenKeys keyCache;
     private volatile long lastExpirationRunMs;
     private final AtomicLong createdTimeStamps = new AtomicLong(-1);
@@ -232,6 +240,7 @@ public final class TokenService {
     /**
      * Creates a new token service
      */
+    @SuppressWarnings("this-escape")
     public TokenService(
         Settings settings,
         Clock clock,
@@ -240,7 +249,8 @@ public final class TokenService {
         SecurityContext securityContext,
         SecurityIndexManager securityMainIndex,
         SecurityIndexManager securityTokensIndex,
-        ClusterService clusterService
+        ClusterService clusterService,
+        Recycler<BytesRef> bytesRefRecycler
     ) throws GeneralSecurityException {
         byte[] saltArr = new byte[SALT_BYTES];
         secureRandom.nextBytes(saltArr);
@@ -253,6 +263,7 @@ public final class TokenService {
         this.securityContext = securityContext;
         this.securityMainIndex = securityMainIndex;
         this.securityTokensIndex = securityTokensIndex;
+        this.bytesRefRecycler = new SecureBytesRefRecycler(bytesRefRecycler);
         this.lastExpirationRunMs = client.threadPool().relativeTimeInMillis();
         this.deleteInterval = DELETE_INTERVAL.get(settings);
         this.enabled = isTokenServiceEnabled(settings);
@@ -360,12 +371,12 @@ public final class TokenService {
             final BytesReference tokenDocument;
             try {
                 final String userTokenId;
-                if (tokenVersion.onOrAfter(VERSION_GET_TOKEN_DOC_FOR_REFRESH)) {
+                if (tokenVersion.supports(VERSION_GET_TOKEN_DOC_FOR_REFRESH)) {
                     assert accessTokenBytes.length == RAW_TOKEN_BYTES_TOTAL_LENGTH;
                     MessageDigest userTokenIdDigest = sha256();
                     userTokenIdDigest.update(accessTokenBytes, RAW_TOKEN_BYTES_LENGTH, RAW_TOKEN_DOC_ID_BYTES_LENGTH);
-                    userTokenId = Base64.getUrlEncoder().withoutPadding().encodeToString(userTokenIdDigest.digest());
-                    accessTokenToStore = Base64.getUrlEncoder().withoutPadding().encodeToString(sha256().digest(accessTokenBytes));
+                    userTokenId = Strings.BASE_64_NO_PADDING_URL_ENCODER.encodeToString(userTokenIdDigest.digest());
+                    accessTokenToStore = Strings.BASE_64_NO_PADDING_URL_ENCODER.encodeToString(sha256().digest(accessTokenBytes));
                     if (refreshTokenBytes != null) {
                         assert refreshTokenBytes.length == RAW_TOKEN_BYTES_TOTAL_LENGTH;
                         assert Arrays.equals(
@@ -376,31 +387,31 @@ public final class TokenService {
                             RAW_TOKEN_BYTES_LENGTH,
                             RAW_TOKEN_BYTES_TOTAL_LENGTH
                         ) : "the last bytes of paired access and refresh tokens should be the same";
-                        refreshTokenToStore = Base64.getUrlEncoder().withoutPadding().encodeToString(sha256().digest(refreshTokenBytes));
-                        refreshTokenToReturn = prependVersionAndEncodeRefreshToken(tokenVersion, refreshTokenBytes);
+                        refreshTokenToStore = Strings.BASE_64_NO_PADDING_URL_ENCODER.encodeToString(sha256().digest(refreshTokenBytes));
+                        refreshTokenToReturn = prependVersionAndEncodeRefreshToken(tokenVersion, refreshTokenBytes, bytesRefRecycler);
                     } else {
                         refreshTokenToStore = refreshTokenToReturn = null;
                     }
-                } else if (tokenVersion.onOrAfter(VERSION_HASHED_TOKENS)) {
+                } else if (tokenVersion.supports(VERSION_HASHED_TOKENS)) {
                     assert accessTokenBytes.length == RAW_TOKEN_BYTES_LENGTH;
-                    userTokenId = hashTokenString(Base64.getUrlEncoder().withoutPadding().encodeToString(accessTokenBytes));
+                    userTokenId = hashTokenString(Strings.BASE_64_NO_PADDING_URL_ENCODER.encodeToString(accessTokenBytes));
                     accessTokenToStore = null;
                     if (refreshTokenBytes != null) {
                         assert refreshTokenBytes.length == RAW_TOKEN_BYTES_LENGTH;
-                        refreshTokenToStore = hashTokenString(Base64.getUrlEncoder().withoutPadding().encodeToString(refreshTokenBytes));
-                        refreshTokenToReturn = prependVersionAndEncodeRefreshToken(tokenVersion, refreshTokenBytes);
+                        refreshTokenToStore = hashTokenString(Strings.BASE_64_NO_PADDING_URL_ENCODER.encodeToString(refreshTokenBytes));
+                        refreshTokenToReturn = prependVersionAndEncodeRefreshToken(tokenVersion, refreshTokenBytes, bytesRefRecycler);
                     } else {
                         refreshTokenToStore = refreshTokenToReturn = null;
                     }
                 } else {
                     assert accessTokenBytes.length == RAW_TOKEN_BYTES_LENGTH;
-                    userTokenId = Base64.getUrlEncoder().withoutPadding().encodeToString(accessTokenBytes);
+                    userTokenId = Strings.BASE_64_NO_PADDING_URL_ENCODER.encodeToString(accessTokenBytes);
                     accessTokenToStore = null;
                     if (refreshTokenBytes != null) {
                         assert refreshTokenBytes.length == RAW_TOKEN_BYTES_LENGTH;
-                        refreshTokenToStore = refreshTokenToReturn = Base64.getUrlEncoder()
-                            .withoutPadding()
-                            .encodeToString(refreshTokenBytes);
+                        refreshTokenToStore = refreshTokenToReturn = Strings.BASE_64_NO_PADDING_URL_ENCODER.encodeToString(
+                            refreshTokenBytes
+                        );
                     } else {
                         refreshTokenToStore = refreshTokenToReturn = null;
                     }
@@ -413,7 +424,7 @@ public final class TokenService {
                 listener.onFailure(traceLog("create token", e));
                 return;
             }
-            final RefreshPolicy tokenCreationRefreshPolicy = tokenVersion.onOrAfter(VERSION_GET_TOKEN_DOC_FOR_REFRESH)
+            final RefreshPolicy tokenCreationRefreshPolicy = tokenVersion.supports(VERSION_GET_TOKEN_DOC_FOR_REFRESH)
                 ? RefreshPolicy.NONE
                 : RefreshPolicy.WAIT_UNTIL;
             final SecurityIndexManager tokensIndex = getTokensIndexForVersion(tokenVersion);
@@ -431,25 +442,29 @@ public final class TokenService {
                 .setSource(tokenDocument, XContentType.JSON)
                 .setRefreshPolicy(tokenCreationRefreshPolicy)
                 .request();
-            tokensIndex.prepareIndexIfNeededThenExecute(
-                ex -> listener.onFailure(traceLog("prepare tokens index [" + tokensIndex.aliasName() + "]", documentId, ex)),
-                () -> executeAsyncWithOrigin(
-                    client,
-                    SECURITY_ORIGIN,
-                    IndexAction.INSTANCE,
-                    indexTokenRequest,
-                    ActionListener.wrap(indexResponse -> {
-                        if (indexResponse.getResult() == Result.CREATED) {
-                            String accessTokenToReturn = prependVersionAndEncodeAccessToken(tokenVersion, accessTokenBytes);
-                            listener.onResponse(new CreateTokenResult(accessTokenToReturn, refreshTokenToReturn, authentication));
-                        } else {
-                            listener.onFailure(
-                                traceLog("create token", new ElasticsearchException("failed to create token document [{}]", indexResponse))
-                            );
-                        }
-                    }, listener::onFailure)
-                )
-            );
+            tokensIndex.forCurrentProject()
+                .prepareIndexIfNeededThenExecute(
+                    ex -> listener.onFailure(traceLog("prepare tokens index [" + tokensIndex.aliasName() + "]", documentId, ex)),
+                    () -> executeAsyncWithOrigin(
+                        client,
+                        SECURITY_ORIGIN,
+                        TransportIndexAction.TYPE,
+                        indexTokenRequest,
+                        ActionListener.wrap(indexResponse -> {
+                            if (indexResponse.getResult() == Result.CREATED) {
+                                String accessTokenToReturn = prependVersionAndEncodeAccessToken(tokenVersion, accessTokenBytes);
+                                listener.onResponse(new CreateTokenResult(accessTokenToReturn, refreshTokenToReturn, authentication));
+                            } else {
+                                listener.onFailure(
+                                    traceLog(
+                                        "create token",
+                                        new ElasticsearchException("failed to create token document [{}]", indexResponse)
+                                    )
+                                );
+                            }
+                        }, listener::onFailure)
+                    )
+                );
         }
     }
 
@@ -467,7 +482,7 @@ public final class TokenService {
      * verification that the token has not been revoked or is expired.
      */
     void tryAuthenticateToken(SecureString token, ActionListener<UserToken> listener) {
-        if (isEnabled() && token != null) {
+        if (shouldTryRealm() && token != null) {
             decodeToken(token.toString(), true, listener.delegateResponse((l, e) -> {
                 if (isShardNotAvailableException(e)) {
                     l.onResponse(null);
@@ -552,15 +567,15 @@ public final class TokenService {
         ActionListener<Doc> listener
     ) {
         final SecurityIndexManager tokensIndex = getTokensIndexForVersion(tokenVersion);
-        final SecurityIndexManager frozenTokensIndex = tokensIndex.freeze();
-        if (frozenTokensIndex.isAvailable() == false) {
+        final IndexState projectSecurityIndex = tokensIndex.forCurrentProject();
+        if (projectSecurityIndex.isAvailable(PRIMARY_SHARDS) == false) {
             logger.warn("failed to get access token [{}] because index [{}] is not available", tokenId, tokensIndex.aliasName());
-            listener.onFailure(frozenTokensIndex.getUnavailableReason());
+            listener.onFailure(projectSecurityIndex.getUnavailableReason(PRIMARY_SHARDS));
             return;
         }
         final GetRequest getRequest = client.prepareGet(tokensIndex.aliasName(), getTokenDocumentId(tokenId)).request();
         final Consumer<Exception> onFailure = ex -> listener.onFailure(traceLog("get token from id", tokenId, ex));
-        tokensIndex.checkIndexVersionThenExecute(
+        projectSecurityIndex.checkIndexVersionThenExecute(
             ex -> listener.onFailure(traceLog("prepare tokens index [" + tokensIndex.aliasName() + "]", tokenId, ex)),
             () -> executeAsyncWithOrigin(
                 client.threadPool().getThreadContext(),
@@ -576,7 +591,7 @@ public final class TokenService {
                     }
                     Map<String, Object> accessSource = (Map<String, Object>) response.getSource().get("access_token");
                     Map<String, Object> refreshSource = (Map<String, Object>) response.getSource().get("refresh_token");
-                    boolean versionGetForRefresh = tokenVersion.onOrAfter(VERSION_GET_TOKEN_DOC_FOR_REFRESH);
+                    boolean versionGetForRefresh = tokenVersion.supports(VERSION_GET_TOKEN_DOC_FOR_REFRESH);
                     if (accessSource == null) {
                         onFailure.accept(new IllegalStateException("token document is missing the access_token field"));
                     } else if (accessSource.containsKey("user_token") == false) {
@@ -609,7 +624,11 @@ public final class TokenService {
                     if (isShardNotAvailableException(e)) {
                         logger.warn("failed to get token doc [{}] because index [{}] is not available", tokenId, tokensIndex.aliasName());
                     } else {
-                        logger.error(() -> "failed to get token doc [" + tokenId + "]", e);
+                        logger.log(
+                            ExceptionsHelper.unwrapCause(e) instanceof CircuitBreakingException ? Level.WARN : Level.ERROR,
+                            () -> "failed to get token doc [" + tokenId + "]",
+                            e
+                        );
                     }
                     listener.onFailure(e);
                 }),
@@ -631,7 +650,7 @@ public final class TokenService {
         try (StreamInput in = new InputStreamStreamInput(Base64.getDecoder().wrap(new ByteArrayInputStream(bytes)), bytes.length)) {
             final TransportVersion version = TransportVersion.readVersion(in);
             in.setTransportVersion(version);
-            if (version.onOrAfter(VERSION_GET_TOKEN_DOC_FOR_REFRESH)) {
+            if (version.supports(VERSION_GET_TOKEN_DOC_FOR_REFRESH)) {
                 byte[] accessTokenBytes = in.readByteArray();
                 if (accessTokenBytes.length != RAW_TOKEN_BYTES_TOTAL_LENGTH) {
                     logger.debug(
@@ -644,10 +663,10 @@ public final class TokenService {
                 }
                 MessageDigest userTokenIdDigest = sha256();
                 userTokenIdDigest.update(accessTokenBytes, RAW_TOKEN_BYTES_LENGTH, RAW_TOKEN_DOC_ID_BYTES_LENGTH);
-                final String userTokenId = Base64.getUrlEncoder().withoutPadding().encodeToString(userTokenIdDigest.digest());
-                final String storedAccessToken = Base64.getUrlEncoder().withoutPadding().encodeToString(sha256().digest(accessTokenBytes));
+                final String userTokenId = Strings.BASE_64_NO_PADDING_URL_ENCODER.encodeToString(userTokenIdDigest.digest());
+                final String storedAccessToken = Strings.BASE_64_NO_PADDING_URL_ENCODER.encodeToString(sha256().digest(accessTokenBytes));
                 getAndValidateUserToken(userTokenId, version, storedAccessToken, validateUserToken, listener);
-            } else if (version.onOrAfter(VERSION_ACCESS_TOKENS_AS_UUIDS)) {
+            } else if (version.supports(VERSION_ACCESS_TOKENS_AS_UUIDS)) {
                 // The token was created in a > VERSION_ACCESS_TOKENS_UUIDS cluster
                 if (in.available() < MINIMUM_BYTES) {
                     logger.debug("invalid token, smaller than [{}] bytes", MINIMUM_BYTES);
@@ -667,27 +686,29 @@ public final class TokenService {
                 final BytesKey decodedSalt = new BytesKey(in.readByteArray());
                 final BytesKey passphraseHash = new BytesKey(in.readByteArray());
                 final byte[] iv = in.readByteArray();
-                final BytesStreamOutput out = new BytesStreamOutput();
-                Streams.copy(in, out);
-                final byte[] encryptedTokenId = BytesReference.toBytes(out.bytes());
                 final KeyAndCache keyAndCache = keyCache.get(passphraseHash);
                 if (keyAndCache != null) {
-                    getKeyAsync(decodedSalt, keyAndCache, ActionListener.wrap(decodeKey -> {
+                    final ReleasableBytesReference encryptedTokenId;
+                    try (var recyclerBytesStreamOutput = new RecyclerBytesStreamOutput(bytesRefRecycler)) {
+                        recyclerBytesStreamOutput.writeAllBytesFrom(in);
+                        encryptedTokenId = recyclerBytesStreamOutput.moveToBytesReference();
+                    }
+                    getKeyAsync(decodedSalt, keyAndCache, ActionListener.releaseAfter(listener.delegateFailure((delegate, decodeKey) -> {
                         if (decodeKey != null) {
                             try {
                                 final Cipher cipher = getDecryptionCipher(iv, decodeKey, version, decodedSalt);
                                 final String tokenId = decryptTokenId(encryptedTokenId, cipher, version);
-                                getAndValidateUserToken(tokenId, version, null, validateUserToken, listener);
+                                getAndValidateUserToken(tokenId, version, null, validateUserToken, delegate);
                             } catch (IOException | GeneralSecurityException e) {
                                 // could happen with a token that is not ours
                                 logger.warn("invalid token", e);
-                                listener.onResponse(null);
+                                delegate.onResponse(null);
                             }
                         } else {
                             // could happen with a token that is not ours
-                            listener.onResponse(null);
+                            delegate.onResponse(null);
                         }
-                    }, listener::onFailure));
+                    }), encryptedTokenId));
                 } else {
                     logger.debug(() -> format("invalid key %s key: %s", passphraseHash, keyCache.cache.keySet()));
                     listener.onResponse(null);
@@ -849,12 +870,12 @@ public final class TokenService {
         final Set<String> idsOfOlderTokens = new HashSet<>();
         boolean anyOlderTokensBeforeRefreshViaGet = false;
         for (UserToken userToken : userTokens) {
-            if (userToken.getTransportVersion().onOrAfter(VERSION_TOKENS_INDEX_INTRODUCED)) {
+            if (userToken.getTransportVersion().supports(VERSION_TOKENS_INDEX_INTRODUCED)) {
                 idsOfRecentTokens.add(userToken.getId());
             } else {
                 idsOfOlderTokens.add(userToken.getId());
             }
-            anyOlderTokensBeforeRefreshViaGet |= userToken.getTransportVersion().before(VERSION_GET_TOKEN_DOC_FOR_REFRESH);
+            anyOlderTokensBeforeRefreshViaGet |= userToken.getTransportVersion().supports(VERSION_GET_TOKEN_DOC_FOR_REFRESH) == false;
         }
         final RefreshPolicy tokensInvalidationRefreshPolicy = anyOlderTokensBeforeRefreshViaGet
             ? RefreshPolicy.WAIT_UNTIL
@@ -942,121 +963,124 @@ public final class TokenService {
                 )
             );
             bulkRequestBuilder.setRefreshPolicy(refreshPolicy);
-            tokensIndexManager.prepareIndexIfNeededThenExecute(
-                ex -> listener.onFailure(traceLog("prepare index [" + tokensIndexManager.aliasName() + "]", ex)),
-                () -> executeAsyncWithOrigin(
-                    client.threadPool().getThreadContext(),
-                    SECURITY_ORIGIN,
-                    bulkRequestBuilder.request(),
-                    ActionListener.<BulkResponse>wrap(bulkResponse -> {
-                        ArrayList<String> retryTokenDocIds = new ArrayList<>();
-                        ArrayList<ElasticsearchException> failedRequestResponses = new ArrayList<>();
-                        ArrayList<String> previouslyInvalidated = new ArrayList<>();
-                        ArrayList<String> invalidated = new ArrayList<>();
-                        if (null != previousResult) {
-                            failedRequestResponses.addAll((previousResult.getErrors()));
-                            previouslyInvalidated.addAll(previousResult.getPreviouslyInvalidatedTokens());
-                            invalidated.addAll(previousResult.getInvalidatedTokens());
-                        }
-                        for (BulkItemResponse bulkItemResponse : bulkResponse.getItems()) {
-                            if (bulkItemResponse.isFailed()) {
-                                Throwable cause = bulkItemResponse.getFailure().getCause();
-                                final String failedTokenDocId = getTokenIdFromDocumentId(bulkItemResponse.getFailure().getId());
-                                if (isShardNotAvailableException(cause)) {
-                                    retryTokenDocIds.add(failedTokenDocId);
+            tokensIndexManager.forCurrentProject()
+                .prepareIndexIfNeededThenExecute(
+                    ex -> listener.onFailure(traceLog("prepare index [" + tokensIndexManager.aliasName() + "]", ex)),
+                    () -> executeAsyncWithOrigin(
+                        client.threadPool().getThreadContext(),
+                        SECURITY_ORIGIN,
+                        bulkRequestBuilder.request(),
+                        ActionListener.<BulkResponse>wrap(bulkResponse -> {
+                            ArrayList<String> retryTokenDocIds = new ArrayList<>();
+                            ArrayList<ElasticsearchException> failedRequestResponses = new ArrayList<>();
+                            ArrayList<String> previouslyInvalidated = new ArrayList<>();
+                            ArrayList<String> invalidated = new ArrayList<>();
+                            if (null != previousResult) {
+                                failedRequestResponses.addAll((previousResult.getErrors()));
+                                previouslyInvalidated.addAll(previousResult.getPreviouslyInvalidatedTokens());
+                                invalidated.addAll(previousResult.getInvalidatedTokens());
+                            }
+                            for (BulkItemResponse bulkItemResponse : bulkResponse.getItems()) {
+                                if (bulkItemResponse.isFailed()) {
+                                    Throwable cause = bulkItemResponse.getFailure().getCause();
+                                    final String failedTokenDocId = getTokenIdFromDocumentId(bulkItemResponse.getFailure().getId());
+                                    if (isShardNotAvailableException(cause)) {
+                                        retryTokenDocIds.add(failedTokenDocId);
+                                    } else {
+                                        traceLog("invalidate access token", failedTokenDocId, cause);
+                                        failedRequestResponses.add(
+                                            new ElasticsearchException("Error invalidating " + srcPrefix + ": ", cause)
+                                        );
+                                    }
                                 } else {
-                                    traceLog("invalidate access token", failedTokenDocId, cause);
-                                    failedRequestResponses.add(new ElasticsearchException("Error invalidating " + srcPrefix + ": ", cause));
-                                }
-                            } else {
-                                UpdateResponse updateResponse = bulkItemResponse.getResponse();
-                                if (updateResponse.getResult() == DocWriteResponse.Result.UPDATED) {
-                                    logger.debug(
-                                        () -> format("Invalidated [%s] for doc [%s]", srcPrefix, updateResponse.getGetResult().getId())
-                                    );
-                                    invalidated.add(updateResponse.getGetResult().getId());
-                                } else if (updateResponse.getResult() == DocWriteResponse.Result.NOOP) {
-                                    previouslyInvalidated.add(updateResponse.getGetResult().getId());
+                                    UpdateResponse updateResponse = bulkItemResponse.getResponse();
+                                    if (updateResponse.getResult() == DocWriteResponse.Result.UPDATED) {
+                                        logger.debug(
+                                            () -> format("Invalidated [%s] for doc [%s]", srcPrefix, updateResponse.getGetResult().getId())
+                                        );
+                                        invalidated.add(updateResponse.getGetResult().getId());
+                                    } else if (updateResponse.getResult() == DocWriteResponse.Result.NOOP) {
+                                        previouslyInvalidated.add(updateResponse.getGetResult().getId());
+                                    }
                                 }
                             }
-                        }
-                        if (retryTokenDocIds.isEmpty() == false && backoff.hasNext()) {
-                            logger.debug(
-                                "failed to invalidate [{}] tokens out of [{}], retrying to invalidate these too",
-                                retryTokenDocIds.size(),
-                                tokenIds.size()
-                            );
-                            final TokensInvalidationResult incompleteResult = new TokensInvalidationResult(
-                                invalidated,
-                                previouslyInvalidated,
-                                failedRequestResponses,
-                                RestStatus.OK
-                            );
-                            client.threadPool()
-                                .schedule(
-                                    () -> indexInvalidation(
-                                        retryTokenDocIds,
-                                        tokensIndexManager,
-                                        backoff,
-                                        srcPrefix,
-                                        incompleteResult,
-                                        refreshPolicy,
-                                        listener
-                                    ),
-                                    backoff.next(),
-                                    client.threadPool().generic()
-                                );
-                        } else {
-                            if (retryTokenDocIds.isEmpty() == false) {
-                                logger.warn(
-                                    "failed to invalidate [{}] tokens out of [{}] after all retries",
+                            if (retryTokenDocIds.isEmpty() == false && backoff.hasNext()) {
+                                logger.debug(
+                                    "failed to invalidate [{}] tokens out of [{}], retrying to invalidate these too",
                                     retryTokenDocIds.size(),
                                     tokenIds.size()
                                 );
-                                for (String retryTokenDocId : retryTokenDocIds) {
-                                    failedRequestResponses.add(
-                                        new ElasticsearchException(
-                                            "Error invalidating [{}] with doc id [{}] after retries exhausted",
-                                            srcPrefix,
-                                            retryTokenDocId
-                                        )
-                                    );
-                                }
-                            }
-                            final TokensInvalidationResult result = new TokensInvalidationResult(
-                                invalidated,
-                                previouslyInvalidated,
-                                failedRequestResponses,
-                                RestStatus.OK
-                            );
-                            listener.onResponse(result);
-                        }
-                    }, e -> {
-                        Throwable cause = ExceptionsHelper.unwrapCause(e);
-                        traceLog("invalidate tokens", cause);
-                        if (isShardNotAvailableException(cause) && backoff.hasNext()) {
-                            logger.debug("failed to invalidate tokens, retrying ");
-                            client.threadPool()
-                                .schedule(
-                                    () -> indexInvalidation(
-                                        tokenIds,
-                                        tokensIndexManager,
-                                        backoff,
-                                        srcPrefix,
-                                        previousResult,
-                                        refreshPolicy,
-                                        listener
-                                    ),
-                                    backoff.next(),
-                                    client.threadPool().generic()
+                                final TokensInvalidationResult incompleteResult = new TokensInvalidationResult(
+                                    invalidated,
+                                    previouslyInvalidated,
+                                    failedRequestResponses,
+                                    RestStatus.OK
                                 );
-                        } else {
-                            listener.onFailure(e);
-                        }
-                    }),
-                    client::bulk
-                )
-            );
+                                client.threadPool()
+                                    .schedule(
+                                        () -> indexInvalidation(
+                                            retryTokenDocIds,
+                                            tokensIndexManager,
+                                            backoff,
+                                            srcPrefix,
+                                            incompleteResult,
+                                            refreshPolicy,
+                                            listener
+                                        ),
+                                        backoff.next(),
+                                        client.threadPool().generic()
+                                    );
+                            } else {
+                                if (retryTokenDocIds.isEmpty() == false) {
+                                    logger.warn(
+                                        "failed to invalidate [{}] tokens out of [{}] after all retries",
+                                        retryTokenDocIds.size(),
+                                        tokenIds.size()
+                                    );
+                                    for (String retryTokenDocId : retryTokenDocIds) {
+                                        failedRequestResponses.add(
+                                            new ElasticsearchException(
+                                                "Error invalidating [{}] with doc id [{}] after retries exhausted",
+                                                srcPrefix,
+                                                retryTokenDocId
+                                            )
+                                        );
+                                    }
+                                }
+                                final TokensInvalidationResult result = new TokensInvalidationResult(
+                                    invalidated,
+                                    previouslyInvalidated,
+                                    failedRequestResponses,
+                                    RestStatus.OK
+                                );
+                                listener.onResponse(result);
+                            }
+                        }, e -> {
+                            Throwable cause = ExceptionsHelper.unwrapCause(e);
+                            traceLog("invalidate tokens", cause);
+                            if (isShardNotAvailableException(cause) && backoff.hasNext()) {
+                                logger.debug("failed to invalidate tokens, retrying ");
+                                client.threadPool()
+                                    .schedule(
+                                        () -> indexInvalidation(
+                                            tokenIds,
+                                            tokensIndexManager,
+                                            backoff,
+                                            srcPrefix,
+                                            previousResult,
+                                            refreshPolicy,
+                                            listener
+                                        ),
+                                        backoff.next(),
+                                        client.threadPool().generic()
+                                    );
+                            } else {
+                                listener.onFailure(e);
+                            }
+                        }),
+                        client::bulk
+                    )
+                );
         }
     }
 
@@ -1102,7 +1126,7 @@ public final class TokenService {
             try (StreamInput in = new InputStreamStreamInput(Base64.getDecoder().wrap(new ByteArrayInputStream(bytes)), bytes.length)) {
                 final TransportVersion version = TransportVersion.readVersion(in);
                 in.setTransportVersion(version);
-                if (version.onOrAfter(VERSION_GET_TOKEN_DOC_FOR_REFRESH)) {
+                if (version.supports(VERSION_GET_TOKEN_DOC_FOR_REFRESH)) {
                     final byte[] refreshTokenBytes = in.readByteArray();
                     if (refreshTokenBytes.length != RAW_TOKEN_BYTES_TOTAL_LENGTH) {
                         logger.debug(
@@ -1115,13 +1139,13 @@ public final class TokenService {
                     } else {
                         MessageDigest userTokenIdDigest = sha256();
                         userTokenIdDigest.update(refreshTokenBytes, RAW_TOKEN_BYTES_LENGTH, RAW_TOKEN_DOC_ID_BYTES_LENGTH);
-                        final String userTokenId = Base64.getUrlEncoder().withoutPadding().encodeToString(userTokenIdDigest.digest());
-                        final String storedRefreshToken = Base64.getUrlEncoder()
-                            .withoutPadding()
-                            .encodeToString(sha256().digest(refreshTokenBytes));
+                        final String userTokenId = Strings.BASE_64_NO_PADDING_URL_ENCODER.encodeToString(userTokenIdDigest.digest());
+                        final String storedRefreshToken = Strings.BASE_64_NO_PADDING_URL_ENCODER.encodeToString(
+                            sha256().digest(refreshTokenBytes)
+                        );
                         getTokenDocById(userTokenId, version, null, storedRefreshToken, listener);
                     }
-                } else if (version.onOrAfter(VERSION_HASHED_TOKENS)) {
+                } else if (version.supports(VERSION_HASHED_TOKENS)) {
                     final String unencodedRefreshToken = in.readString();
                     if (unencodedRefreshToken.length() != TOKEN_LENGTH) {
                         logger.debug("Decoded refresh token [{}] with version [{}] is invalid.", unencodedRefreshToken, version);
@@ -1168,13 +1192,13 @@ public final class TokenService {
                 onFailure.accept(ex);
             }
         };
-        final SecurityIndexManager frozenTokensIndex = tokensIndexManager.freeze();
-        if (frozenTokensIndex.indexExists() == false) {
-            logger.warn("index [{}] does not exist so we can't find token from refresh token", frozenTokensIndex.aliasName());
-            listener.onFailure(frozenTokensIndex.getUnavailableReason());
-        } else if (frozenTokensIndex.isAvailable() == false) {
-            logger.debug("index [{}] is not available to find token from refresh token, retrying", frozenTokensIndex.aliasName());
-            maybeRetryOnFailure.accept(frozenTokensIndex.getUnavailableReason());
+        final IndexState projectSecurityIndex = tokensIndexManager.forCurrentProject();
+        if (projectSecurityIndex.indexExists() == false) {
+            logger.warn("index [{}] does not exist so we can't find token from refresh token", projectSecurityIndex.aliasName());
+            listener.onFailure(new IndexNotFoundException(projectSecurityIndex.aliasName()));
+        } else if (projectSecurityIndex.isAvailable(SEARCH_SHARDS) == false) {
+            logger.debug("index [{}] is not available to find token from refresh token, retrying", projectSecurityIndex.aliasName());
+            maybeRetryOnFailure.accept(projectSecurityIndex.getUnavailableReason(SEARCH_SHARDS));
         } else {
             final SearchRequest request = client.prepareSearch(tokensIndexManager.aliasName())
                 .setQuery(
@@ -1184,7 +1208,7 @@ public final class TokenService {
                 )
                 .seqNoAndPrimaryTerm(true)
                 .request();
-            tokensIndexManager.checkIndexVersionThenExecute(
+            projectSecurityIndex.checkIndexVersionThenExecute(
                 listener::onFailure,
                 () -> executeAsyncWithOrigin(
                     client.threadPool().getThreadContext(),
@@ -1261,7 +1285,7 @@ public final class TokenService {
             final Tuple<byte[], byte[]> newTokenBytes = getRandomTokenBytes(newTokenVersion, true);
             final Map<String, Object> updateMap = new HashMap<>();
             updateMap.put("refreshed", true);
-            if (newTokenVersion.onOrAfter(VERSION_MULTIPLE_CONCURRENT_REFRESHES)) {
+            if (newTokenVersion.supports(VERSION_MULTIPLE_CONCURRENT_REFRESHES)) {
                 updateMap.put("refresh_time", clock.instant().toEpochMilli());
                 try {
                     final byte[] iv = getRandomBytes(IV_BYTES);
@@ -1284,7 +1308,7 @@ public final class TokenService {
             assert tokenDoc.seqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO : "expected an assigned sequence number";
             assert tokenDoc.primaryTerm() != SequenceNumbers.UNASSIGNED_PRIMARY_TERM : "expected an assigned primary term";
             final RefreshPolicy tokenRefreshUpdateRefreshPolicy = refreshTokenStatus.getTransportVersion()
-                .onOrAfter(VERSION_GET_TOKEN_DOC_FOR_REFRESH) ? RefreshPolicy.NONE : RefreshPolicy.IMMEDIATE;
+                .supports(VERSION_GET_TOKEN_DOC_FOR_REFRESH) ? RefreshPolicy.NONE : RefreshPolicy.IMMEDIATE;
             logger.debug(
                 () -> format(
                     "Using refresh policy [%s] when updating token doc [%s] for refresh in the security index [%s]",
@@ -1299,88 +1323,35 @@ public final class TokenService {
                 .setRefreshPolicy(tokenRefreshUpdateRefreshPolicy)
                 .setIfSeqNo(tokenDoc.seqNo())
                 .setIfPrimaryTerm(tokenDoc.primaryTerm());
-            refreshedTokenIndex.prepareIndexIfNeededThenExecute(
-                ex -> listener.onFailure(traceLog("prepare index [" + refreshedTokenIndex.aliasName() + "]", ex)),
-                () -> executeAsyncWithOrigin(
-                    client.threadPool().getThreadContext(),
-                    SECURITY_ORIGIN,
-                    updateRequest.request(),
-                    ActionListener.<UpdateResponse>wrap(updateResponse -> {
-                        if (updateResponse.getResult() == DocWriteResponse.Result.UPDATED) {
-                            logger.debug(
-                                () -> format("updated the original token document to %s", updateResponse.getGetResult().sourceAsMap())
-                            );
-                            final Tuple<UserToken, String> parsedTokens = parseTokensFromDocument(tokenDoc.sourceAsMap(), null);
-                            final UserToken toRefreshUserToken = parsedTokens.v1();
-                            createOAuth2Tokens(
-                                newTokenBytes.v1(),
-                                newTokenBytes.v2(),
-                                newTokenVersion,
-                                toRefreshUserToken.getAuthentication(),
-                                clientAuth,
-                                toRefreshUserToken.getMetadata(),
-                                listener
-                            );
-                        } else if (backoff.hasNext()) {
-                            logger.info(
-                                "failed to update the original token document [{}], the update result was [{}]. Retrying",
-                                tokenDoc.id(),
-                                updateResponse.getResult()
-                            );
-                            client.threadPool()
-                                .schedule(
-                                    () -> innerRefresh(refreshToken, tokenDoc, clientAuth, backoff, refreshRequested, listener),
-                                    backoff.next(),
-                                    client.threadPool().generic()
+            refreshedTokenIndex.forCurrentProject()
+                .prepareIndexIfNeededThenExecute(
+                    ex -> listener.onFailure(traceLog("prepare index [" + refreshedTokenIndex.aliasName() + "]", ex)),
+                    () -> executeAsyncWithOrigin(
+                        client.threadPool().getThreadContext(),
+                        SECURITY_ORIGIN,
+                        updateRequest.request(),
+                        ActionListener.<UpdateResponse>wrap(updateResponse -> {
+                            if (updateResponse.getResult() == DocWriteResponse.Result.UPDATED) {
+                                logger.debug(
+                                    () -> format("updated the original token document to %s", updateResponse.getGetResult().sourceAsMap())
                                 );
-                        } else {
-                            logger.info(
-                                "failed to update the original token document [{}] after all retries, the update result was [{}]. ",
-                                tokenDoc.id(),
-                                updateResponse.getResult()
-                            );
-                            listener.onFailure(invalidGrantException("could not refresh the requested token"));
-                        }
-                    }, e -> {
-                        Throwable cause = ExceptionsHelper.unwrapCause(e);
-                        if (cause instanceof VersionConflictEngineException) {
-                            // The document has been updated by another thread, get it again.
-                            logger.debug("version conflict while updating document [{}], attempting to get it again", tokenDoc.id());
-                            getTokenDocAsync(tokenDoc.id(), refreshedTokenIndex, true, new ActionListener<>() {
-                                @Override
-                                public void onResponse(GetResponse response) {
-                                    if (response.isExists()) {
-                                        assert response.getId().equals(tokenDoc.id());
-                                        innerRefresh(refreshToken, new Doc(response), clientAuth, backoff, refreshRequested, listener);
-                                    } else {
-                                        logger.warn("could not find token document [{}] for refresh", tokenDoc.id());
-                                        onFailure.accept(invalidGrantException("could not refresh the requested token"));
-                                    }
-                                }
-
-                                @Override
-                                public void onFailure(Exception e) {
-                                    if (isShardNotAvailableException(e)) {
-                                        if (backoff.hasNext()) {
-                                            logger.info("could not get token document [{}] for refresh, retrying", tokenDoc.id());
-                                            client.threadPool()
-                                                .schedule(
-                                                    () -> getTokenDocAsync(tokenDoc.id(), refreshedTokenIndex, true, this),
-                                                    backoff.next(),
-                                                    client.threadPool().generic()
-                                                );
-                                        } else {
-                                            logger.warn("could not get token document [{}] for refresh after all retries", tokenDoc.id());
-                                            onFailure.accept(invalidGrantException("could not refresh the requested token"));
-                                        }
-                                    } else {
-                                        onFailure.accept(e);
-                                    }
-                                }
-                            });
-                        } else if (isShardNotAvailableException(e)) {
-                            if (backoff.hasNext()) {
-                                logger.debug("failed to update the original token document [{}], retrying", tokenDoc.id());
+                                final Tuple<UserToken, String> parsedTokens = parseTokensFromDocument(tokenDoc.sourceAsMap(), null);
+                                final UserToken toRefreshUserToken = parsedTokens.v1();
+                                createOAuth2Tokens(
+                                    newTokenBytes.v1(),
+                                    newTokenBytes.v2(),
+                                    newTokenVersion,
+                                    toRefreshUserToken.getAuthentication(),
+                                    clientAuth,
+                                    toRefreshUserToken.getMetadata(),
+                                    listener
+                                );
+                            } else if (backoff.hasNext()) {
+                                logger.info(
+                                    "failed to update the original token document [{}], the update result was [{}]. Retrying",
+                                    tokenDoc.id(),
+                                    updateResponse.getResult()
+                                );
                                 client.threadPool()
                                     .schedule(
                                         () -> innerRefresh(refreshToken, tokenDoc, clientAuth, backoff, refreshRequested, listener),
@@ -1388,16 +1359,73 @@ public final class TokenService {
                                         client.threadPool().generic()
                                     );
                             } else {
-                                logger.warn("failed to update the original token document [{}], after all retries", tokenDoc.id());
-                                onFailure.accept(invalidGrantException("could not refresh the requested token"));
+                                logger.info(
+                                    "failed to update the original token document [{}] after all retries, the update result was [{}].",
+                                    tokenDoc.id(),
+                                    updateResponse.getResult()
+                                );
+                                listener.onFailure(invalidGrantException("could not refresh the requested token"));
                             }
-                        } else {
-                            onFailure.accept(e);
-                        }
-                    }),
-                    client::update
-                )
-            );
+                        }, e -> {
+                            Throwable cause = ExceptionsHelper.unwrapCause(e);
+                            if (cause instanceof VersionConflictEngineException) {
+                                // The document has been updated by another thread, get it again.
+                                logger.debug("version conflict while updating document [{}], attempting to get it again", tokenDoc.id());
+                                getTokenDocAsync(tokenDoc.id(), refreshedTokenIndex, true, new ActionListener<>() {
+                                    @Override
+                                    public void onResponse(GetResponse response) {
+                                        if (response.isExists()) {
+                                            assert response.getId().equals(tokenDoc.id());
+                                            innerRefresh(refreshToken, new Doc(response), clientAuth, backoff, refreshRequested, listener);
+                                        } else {
+                                            logger.warn("could not find token document [{}] for refresh", tokenDoc.id());
+                                            onFailure.accept(invalidGrantException("could not refresh the requested token"));
+                                        }
+                                    }
+
+                                    @Override
+                                    public void onFailure(Exception e) {
+                                        if (isShardNotAvailableException(e)) {
+                                            if (backoff.hasNext()) {
+                                                logger.info("could not get token document [{}] for refresh, retrying", tokenDoc.id());
+                                                client.threadPool()
+                                                    .schedule(
+                                                        () -> getTokenDocAsync(tokenDoc.id(), refreshedTokenIndex, true, this),
+                                                        backoff.next(),
+                                                        client.threadPool().generic()
+                                                    );
+                                            } else {
+                                                logger.warn(
+                                                    "could not get token document [{}] for refresh after all retries",
+                                                    tokenDoc.id()
+                                                );
+                                                onFailure.accept(invalidGrantException("could not refresh the requested token"));
+                                            }
+                                        } else {
+                                            onFailure.accept(e);
+                                        }
+                                    }
+                                });
+                            } else if (isShardNotAvailableException(e)) {
+                                if (backoff.hasNext()) {
+                                    logger.debug("failed to update the original token document [{}], retrying", tokenDoc.id());
+                                    client.threadPool()
+                                        .schedule(
+                                            () -> innerRefresh(refreshToken, tokenDoc, clientAuth, backoff, refreshRequested, listener),
+                                            backoff.next(),
+                                            client.threadPool().generic()
+                                        );
+                                } else {
+                                    logger.warn("failed to update the original token document [{}], after all retries", tokenDoc.id());
+                                    onFailure.accept(invalidGrantException("could not refresh the requested token"));
+                                }
+                            } else {
+                                onFailure.accept(e);
+                            }
+                        }),
+                        client::update
+                    )
+                );
         }
     }
 
@@ -1437,14 +1465,14 @@ public final class TokenService {
                 // We expect this to protect against race conditions that manifest within few ms
                 final Iterator<TimeValue> backoff = BackoffPolicy.exponentialBackoff(TimeValue.timeValueMillis(10), 8).iterator();
                 final String tokenDocId;
-                if (refreshTokenStatus.getTransportVersion().onOrAfter(VERSION_GET_TOKEN_DOC_FOR_REFRESH)) {
+                if (refreshTokenStatus.getTransportVersion().supports(VERSION_GET_TOKEN_DOC_FOR_REFRESH)) {
                     MessageDigest userTokenIdDigest = sha256();
                     userTokenIdDigest.update(
                         Base64.getUrlDecoder().decode(decryptedTokens[0]),
                         RAW_TOKEN_BYTES_LENGTH,
                         RAW_TOKEN_DOC_ID_BYTES_LENGTH
                     );
-                    tokenDocId = getTokenDocumentId(Base64.getUrlEncoder().withoutPadding().encodeToString(userTokenIdDigest.digest()));
+                    tokenDocId = getTokenDocumentId(Strings.BASE_64_NO_PADDING_URL_ENCODER.encodeToString(userTokenIdDigest.digest()));
                 } else {
                     tokenDocId = getTokenDocumentId(hashTokenString(decryptedTokens[0]));
                 }
@@ -1485,7 +1513,8 @@ public final class TokenService {
                                         ),
                                         prependVersionAndEncodeRefreshToken(
                                             refreshTokenStatus.getTransportVersion(),
-                                            Base64.getUrlDecoder().decode(decryptedTokens[1])
+                                            Base64.getUrlDecoder().decode(decryptedTokens[1]),
+                                            bytesRefRecycler
                                         ),
                                         authentication
                                     )
@@ -1528,8 +1557,8 @@ public final class TokenService {
         byte[] salt
     ) throws GeneralSecurityException {
         Cipher cipher = getEncryptionCipher(iv, refreshToken, salt);
-        final String supersedingAccessToken = Base64.getUrlEncoder().withoutPadding().encodeToString(supersedingAccessTokenBytes);
-        final String supersedingRefreshToken = Base64.getUrlEncoder().withoutPadding().encodeToString(supersedingRefreshTokenBytes);
+        final String supersedingAccessToken = Strings.BASE_64_NO_PADDING_URL_ENCODER.encodeToString(supersedingAccessTokenBytes);
+        final String supersedingRefreshToken = Strings.BASE_64_NO_PADDING_URL_ENCODER.encodeToString(supersedingRefreshTokenBytes);
         final String supersedingTokens = supersedingAccessToken + "|" + supersedingRefreshToken;
         return Base64.getEncoder().encodeToString(cipher.doFinal(supersedingTokens.getBytes(StandardCharsets.UTF_8)));
     }
@@ -1541,10 +1570,11 @@ public final class TokenService {
         ActionListener<GetResponse> listener
     ) {
         final GetRequest getRequest = client.prepareGet(tokensIndex.aliasName(), tokenDocId).setFetchSource(fetchSource).request();
-        tokensIndex.checkIndexVersionThenExecute(
-            ex -> listener.onFailure(traceLog("prepare tokens index [" + tokensIndex.aliasName() + "]", tokenDocId, ex)),
-            () -> executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, getRequest, listener, client::get)
-        );
+        tokensIndex.forCurrentProject()
+            .checkIndexVersionThenExecute(
+                ex -> listener.onFailure(traceLog("prepare tokens index [" + tokensIndex.aliasName() + "]", tokenDocId, ex)),
+                () -> executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, getRequest, listener, client::get)
+            );
     }
 
     // public for tests
@@ -1686,7 +1716,7 @@ public final class TokenService {
         RefreshTokenStatus refreshTokenStatus
     ) {
         if (refreshTokenStatus.isRefreshed()) {
-            if (refreshTokenStatus.getTransportVersion().onOrAfter(VERSION_MULTIPLE_CONCURRENT_REFRESHES)) {
+            if (refreshTokenStatus.getTransportVersion().supports(VERSION_MULTIPLE_CONCURRENT_REFRESHES)) {
                 if (refreshRequested.isAfter(refreshTokenStatus.getRefreshInstant().plus(30L, ChronoUnit.SECONDS))) {
                     return Optional.of(invalidGrantException("token has already been refreshed more than 30 seconds in the past"));
                 }
@@ -1766,7 +1796,7 @@ public final class TokenService {
                                 client,
                                 request,
                                 new ContextPreservingActionListener<>(supplier, listener),
-                                (SearchHit hit) -> filterAndParseHit(hit, filter)
+                                (SearchHit hit) -> filterAndParseHit(hit.getSourceAsMap(), filter)
                             );
                         }, listener::onFailure));
                 }
@@ -1786,48 +1816,48 @@ public final class TokenService {
      */
     private void sourceIndicesWithTokensAndRun(ActionListener<List<String>> listener) {
         final List<String> indicesWithTokens = new ArrayList<>(2);
-        final SecurityIndexManager frozenTokensIndex = securityTokensIndex.freeze();
-        if (frozenTokensIndex.indexExists()) {
+        final IndexState projectSecurityIndex = securityTokensIndex.forCurrentProject();
+        if (projectSecurityIndex.indexExists()) {
             // an existing tokens index always contains tokens (if available and version allows)
-            if (false == frozenTokensIndex.isAvailable()) {
-                listener.onFailure(frozenTokensIndex.getUnavailableReason());
+            if (false == projectSecurityIndex.isAvailable(SEARCH_SHARDS)) {
+                listener.onFailure(projectSecurityIndex.getUnavailableReason(SEARCH_SHARDS));
                 return;
             }
-            if (false == frozenTokensIndex.isIndexUpToDate()) {
+            if (false == projectSecurityIndex.isIndexUpToDate()) {
                 listener.onFailure(
                     new IllegalStateException(
                         "Index ["
-                            + frozenTokensIndex.aliasName()
+                            + projectSecurityIndex.aliasName()
                             + "] is not on the current version. Features relying on the index"
                             + " will not be available until the upgrade API is run on the index"
                     )
                 );
                 return;
             }
-            indicesWithTokens.add(frozenTokensIndex.aliasName());
+            indicesWithTokens.add(Objects.requireNonNull(projectSecurityIndex.aliasName()));
         }
-        final SecurityIndexManager frozenMainIndex = securityMainIndex.freeze();
-        if (frozenMainIndex.indexExists()) {
+        final IndexState projectMainIndex = securityMainIndex.forCurrentProject();
+        if (projectMainIndex.indexExists()) {
             // main security index _might_ contain tokens if the tokens index has been created recently
-            if (false == frozenTokensIndex.indexExists()
-                || frozenTokensIndex.getCreationTime()
+            if (false == projectSecurityIndex.indexExists()
+                || projectSecurityIndex.getCreationTime()
                     .isAfter(clock.instant().minus(ExpiredTokenRemover.MAXIMUM_TOKEN_LIFETIME_HOURS, ChronoUnit.HOURS))) {
-                if (false == frozenMainIndex.isAvailable()) {
-                    listener.onFailure(frozenMainIndex.getUnavailableReason());
+                if (false == projectMainIndex.isAvailable(SEARCH_SHARDS)) {
+                    listener.onFailure(projectMainIndex.getUnavailableReason(SEARCH_SHARDS));
                     return;
                 }
-                if (false == frozenMainIndex.isIndexUpToDate()) {
+                if (false == projectMainIndex.isIndexUpToDate()) {
                     listener.onFailure(
                         new IllegalStateException(
                             "Index ["
-                                + frozenMainIndex.aliasName()
+                                + projectMainIndex.aliasName()
                                 + "] is not on the current version. Features relying on the index"
                                 + " will not be available until the upgrade API is run on the index"
                         )
                     );
                     return;
                 }
-                indicesWithTokens.add(frozenMainIndex.aliasName());
+                indicesWithTokens.add(Objects.requireNonNull(projectMainIndex.aliasName()));
             }
         }
         listener.onResponse(indicesWithTokens);
@@ -1863,7 +1893,7 @@ public final class TokenService {
                     .field("refreshed", false)
                     .startObject("client")
                     .field("type", "unassociated_client");
-                if (userToken.getTransportVersion().onOrAfter(VERSION_CLIENT_AUTH_FOR_REFRESH)) {
+                if (userToken.getTransportVersion().supports(VERSION_CLIENT_AUTH_FOR_REFRESH)) {
                     builder.field(
                         "authentication",
                         originatingClientAuth.maybeRewriteForOlderVersion(userToken.getTransportVersion()).encode()
@@ -1910,9 +1940,8 @@ public final class TokenService {
         };
     }
 
-    private static Tuple<UserToken, String> filterAndParseHit(SearchHit hit, @Nullable Predicate<Map<String, Object>> filter)
+    private static Tuple<UserToken, String> filterAndParseHit(Map<String, Object> source, @Nullable Predicate<Map<String, Object>> filter)
         throws IllegalStateException, DateTimeException {
-        final Map<String, Object> source = hit.getSourceAsMap();
         if (source == null) {
             throw new IllegalStateException("token document did not have source but source should have been fetched");
         }
@@ -1961,8 +1990,10 @@ public final class TokenService {
         }
     }
 
-    private boolean isEnabled() {
-        return enabled && Security.TOKEN_SERVICE_FEATURE.check(licenseState);
+    private boolean shouldTryRealm() {
+        // Check license without tracking because this is just checking if we should *try* the realm - if this realm doesn't match,
+        // the next realm in the list will be checked, and that's not "using the feature"
+        return enabled && Security.TOKEN_SERVICE_FEATURE.checkWithoutTracking(licenseState);
     }
 
     private void ensureEnabled() {
@@ -1982,7 +2013,7 @@ public final class TokenService {
      * consider both the new and the old indices.
      */
     private SecurityIndexManager getTokensIndexForVersion(TransportVersion version) {
-        if (version.onOrAfter(VERSION_TOKENS_INDEX_INTRODUCED)) {
+        if (version.supports(VERSION_TOKENS_INDEX_INTRODUCED)) {
             return securityTokensIndex;
         } else {
             return securityMainIndex;
@@ -2010,27 +2041,22 @@ public final class TokenService {
 
     public String prependVersionAndEncodeAccessToken(TransportVersion version, byte[] accessTokenBytes) throws IOException,
         GeneralSecurityException {
-        if (version.onOrAfter(VERSION_GET_TOKEN_DOC_FOR_REFRESH)) {
-            try (BytesStreamOutput out = new BytesStreamOutput(VERSION_BYTES + RAW_TOKEN_BYTES_TOTAL_LENGTH)) {
+        if (version.supports(VERSION_GET_TOKEN_DOC_FOR_REFRESH)) {
+            try (var out = new RecyclerBytesStreamOutput(bytesRefRecycler)) {
                 out.setTransportVersion(version);
                 TransportVersion.writeVersion(version, out);
                 out.writeByteArray(accessTokenBytes);
-                return Base64.getEncoder().encodeToString(out.bytes().toBytesRef().bytes);
+                return out.toBase64String(Base64.getEncoder());
             }
-        } else if (version.onOrAfter(VERSION_ACCESS_TOKENS_AS_UUIDS)) {
-            try (BytesStreamOutput out = new BytesStreamOutput(MINIMUM_BASE64_BYTES)) {
+        } else if (version.supports(VERSION_ACCESS_TOKENS_AS_UUIDS)) {
+            try (var out = new RecyclerBytesStreamOutput(bytesRefRecycler)) {
                 out.setTransportVersion(version);
                 TransportVersion.writeVersion(version, out);
-                out.writeString(Base64.getUrlEncoder().withoutPadding().encodeToString(accessTokenBytes));
-                return Base64.getEncoder().encodeToString(out.bytes().toBytesRef().bytes);
+                out.writeString(Strings.BASE_64_NO_PADDING_URL_ENCODER.encodeToString(accessTokenBytes));
+                return out.toBase64String(Base64.getEncoder());
             }
         } else {
-            // we know that the minimum length is larger than the default of the ByteArrayOutputStream so set the size to this explicitly
-            try (
-                ByteArrayOutputStream os = new ByteArrayOutputStream(LEGACY_MINIMUM_BASE64_BYTES);
-                OutputStream base64 = Base64.getEncoder().wrap(os);
-                StreamOutput out = new OutputStreamStreamOutput(base64)
-            ) {
+            try (var out = new RecyclerBytesStreamOutput(bytesRefRecycler)) {
                 out.setTransportVersion(version);
                 KeyAndCache keyAndCache = keyCache.activeKeyCache;
                 TransportVersion.writeVersion(version, out);
@@ -2040,35 +2066,39 @@ public final class TokenService {
                 out.writeByteArray(initializationVector);
                 try (
                     CipherOutputStream encryptedOutput = new CipherOutputStream(
-                        out,
+                        Streams.noCloseStream(out),
                         getEncryptionCipher(initializationVector, keyAndCache, version)
                     );
                     StreamOutput encryptedStreamOutput = new OutputStreamStreamOutput(encryptedOutput)
                 ) {
                     encryptedStreamOutput.setTransportVersion(version);
-                    encryptedStreamOutput.writeString(Base64.getUrlEncoder().withoutPadding().encodeToString(accessTokenBytes));
+                    encryptedStreamOutput.writeString(Strings.BASE_64_NO_PADDING_URL_ENCODER.encodeToString(accessTokenBytes));
                     // StreamOutput needs to be closed explicitly because it wraps CipherOutputStream
                     encryptedStreamOutput.close();
-                    return new String(os.toByteArray(), StandardCharsets.UTF_8);
+                    return out.toBase64String(Base64.getEncoder());
                 }
             }
         }
     }
 
-    public static String prependVersionAndEncodeRefreshToken(TransportVersion version, byte[] refreshTokenBytes) throws IOException {
-        if (version.onOrAfter(VERSION_GET_TOKEN_DOC_FOR_REFRESH)) {
-            try (BytesStreamOutput out = new BytesStreamOutput(VERSION_BYTES + RAW_TOKEN_BYTES_TOTAL_LENGTH)) {
+    public static String prependVersionAndEncodeRefreshToken(
+        TransportVersion version,
+        byte[] refreshTokenBytes,
+        Recycler<BytesRef> bytesRefRecycler
+    ) throws IOException {
+        if (version.supports(VERSION_GET_TOKEN_DOC_FOR_REFRESH)) {
+            try (var out = new RecyclerBytesStreamOutput(bytesRefRecycler)) {
                 out.setTransportVersion(version);
                 TransportVersion.writeVersion(version, out);
                 out.writeByteArray(refreshTokenBytes);
-                return Base64.getEncoder().encodeToString(out.bytes().toBytesRef().bytes);
+                return out.toBase64String(Base64.getEncoder());
             }
         } else {
-            try (BytesStreamOutput out = new BytesStreamOutput(VERSION_BYTES + TOKEN_LENGTH)) {
+            try (var out = new RecyclerBytesStreamOutput(bytesRefRecycler)) {
                 out.setTransportVersion(version);
                 TransportVersion.writeVersion(version, out);
-                out.writeString(Base64.getUrlEncoder().withoutPadding().encodeToString(refreshTokenBytes));
-                return Base64.getEncoder().encodeToString(out.bytes().toBytesRef().bytes);
+                out.writeString(Strings.BASE_64_NO_PADDING_URL_ENCODER.encodeToString(refreshTokenBytes));
+                return out.toBase64String(Base64.getEncoder());
             }
         }
     }
@@ -2117,10 +2147,9 @@ public final class TokenService {
         }
     }
 
-    private static String decryptTokenId(byte[] encryptedTokenId, Cipher cipher, TransportVersion version) throws IOException {
+    private static String decryptTokenId(BytesReference encryptedTokenId, Cipher cipher, TransportVersion version) throws IOException {
         try (
-            ByteArrayInputStream bais = new ByteArrayInputStream(encryptedTokenId);
-            CipherInputStream cis = new CipherInputStream(bais, cipher);
+            CipherInputStream cis = new CipherInputStream(encryptedTokenId.streamInput(), cipher);
             StreamInput decryptedInput = new InputStreamStreamInput(cis)
         ) {
             decryptedInput.setTransportVersion(version);
@@ -2153,7 +2182,7 @@ public final class TokenService {
     }
 
     Tuple<byte[], byte[]> getRandomTokenBytes(TransportVersion version, boolean includeRefreshToken) {
-        if (version.onOrAfter(VERSION_GET_TOKEN_DOC_FOR_REFRESH)) {
+        if (version.supports(VERSION_GET_TOKEN_DOC_FOR_REFRESH)) {
             byte[] accessTokenBytes = getRandomBytes(RAW_TOKEN_BYTES_TOTAL_LENGTH);
             if (includeRefreshToken) {
                 byte[] refreshTokenBytes = new byte[RAW_TOKEN_BYTES_TOTAL_LENGTH];
@@ -2204,7 +2233,7 @@ public final class TokenService {
      */
     private static ElasticsearchSecurityException expiredTokenException() {
         ElasticsearchSecurityException e = new ElasticsearchSecurityException("token expired", RestStatus.UNAUTHORIZED);
-        e.addHeader("WWW-Authenticate", EXPIRED_TOKEN_WWW_AUTH_VALUE);
+        e.addBodyHeader("WWW-Authenticate", EXPIRED_TOKEN_WWW_AUTH_VALUE);
         return e;
     }
 
@@ -2213,7 +2242,7 @@ public final class TokenService {
      */
     private static ElasticsearchSecurityException invalidGrantException(String detail) {
         ElasticsearchSecurityException e = new ElasticsearchSecurityException("invalid_grant", RestStatus.BAD_REQUEST);
-        e.addHeader("error_description", detail);
+        e.addBodyHeader("error_description", detail);
         return e;
     }
 
@@ -2227,7 +2256,7 @@ public final class TokenService {
     private static <E extends Throwable> E traceLog(String action, String identifier, E exception) {
         if (logger.isTraceEnabled()) {
             if (exception instanceof final ElasticsearchException esEx) {
-                final Object detail = esEx.getHeader("error_description");
+                final Object detail = esEx.getBodyHeader("error_description");
                 if (detail != null) {
                     logger.trace(() -> format("Failure in [%s] for id [%s] - [%s]", action, identifier, detail), esEx);
                 } else {
@@ -2246,7 +2275,7 @@ public final class TokenService {
     private static <E extends Throwable> E traceLog(String action, E exception) {
         if (logger.isTraceEnabled()) {
             if (exception instanceof final ElasticsearchException esEx) {
-                final Object detail = esEx.getHeader("error_description");
+                final Object detail = esEx.getBodyHeader("error_description");
                 if (detail != null) {
                     logger.trace(() -> format("Failure in [%s] - [%s]", action, detail), esEx);
                 } else {
@@ -2260,7 +2289,7 @@ public final class TokenService {
     }
 
     static boolean isExpiredTokenException(ElasticsearchSecurityException e) {
-        final List<String> headers = e.getHeader("WWW-Authenticate");
+        final List<String> headers = e.getBodyHeader("WWW-Authenticate");
         return headers != null && headers.stream().anyMatch(EXPIRED_TOKEN_WWW_AUTH_VALUE::equals);
     }
 
@@ -2378,7 +2407,7 @@ public final class TokenService {
         char[] ref = new char[0];
         try {
             secureRandom.nextBytes(keyBytes);
-            encode = Base64.getUrlEncoder().withoutPadding().encode(keyBytes);
+            encode = Strings.BASE_64_NO_PADDING_URL_ENCODER.encode(keyBytes);
             ref = new char[encode.length];
             int len = UnicodeUtil.UTF8toUTF16(encode, 0, encode.length, ref);
             return new SecureString(Arrays.copyOfRange(ref, 0, len));
@@ -2446,7 +2475,11 @@ public final class TokenService {
                     @Override
                     public void onFailure(Exception e) {
                         installTokenMetadataInProgress.set(false);
-                        logger.error("unable to install token metadata", e);
+                        logger.log(
+                            MasterService.isPublishFailureException(e) ? Level.WARN : Level.ERROR,
+                            "unable to install token metadata",
+                            e
+                        );
                     }
 
                     @Override
@@ -2577,7 +2610,7 @@ public final class TokenService {
             String iv,
             String salt
         ) {
-            assert associatedAuthentication.getEffectiveSubject().getTransportVersion().onOrAfter(VERSION_CLIENT_AUTH_FOR_REFRESH);
+            assert associatedAuthentication.getEffectiveSubject().getTransportVersion().supports(VERSION_CLIENT_AUTH_FOR_REFRESH);
             this.invalidated = invalidated;
             // not used, filled-in for consistency's sake
             this.associatedUser = associatedAuthentication.getEffectiveSubject().getUser().principal();
@@ -2732,7 +2765,6 @@ public final class TokenService {
     }
 
     record Doc(String id, Map<String, Object> sourceAsMap, long seqNo, long primaryTerm) {
-
         Doc(SearchHit searchHit) {
             this(searchHit.getId(), searchHit.getSourceAsMap(), searchHit.getSeqNo(), searchHit.getPrimaryTerm());
         }

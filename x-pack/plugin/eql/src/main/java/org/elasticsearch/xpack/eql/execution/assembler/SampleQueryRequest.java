@@ -187,7 +187,7 @@ public class SampleQueryRequest implements QueryRequest {
         searchSource.aggregation(agg);
     }
 
-    private boolean isOptionalAttribute(Attribute a) {
+    private static boolean isOptionalAttribute(Attribute a) {
         return a instanceof OptionalMissingAttribute || a instanceof OptionalResolvedAttribute;
     }
 

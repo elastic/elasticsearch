@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.percolator;
@@ -97,11 +98,12 @@ final class PercolatorHighlightSubFetchPhase implements FetchSubPhase {
                             BytesReference document = percolateQuery.getDocuments().get(slot);
                             leafStoredFields.advanceTo(slot);
                             HitContext subContext = new HitContext(
-                                new SearchHit(slot, "unknown"),
+                                SearchHit.unpooled(slot, "unknown"),
                                 percolatorLeafReaderContext,
                                 slot,
                                 leafStoredFields.storedFields(),
-                                Source.fromBytes(document)
+                                Source.fromBytes(document),
+                                null
                             );
                             processor.process(subContext);
                             for (Map.Entry<String, HighlightField> entry : subContext.hit().getHighlightFields().entrySet()) {

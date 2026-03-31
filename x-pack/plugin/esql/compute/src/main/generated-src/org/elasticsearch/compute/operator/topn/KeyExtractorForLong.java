@@ -7,108 +7,120 @@
 
 package org.elasticsearch.compute.operator.topn;
 
-import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 
+import java.util.Locale;
+
+/**
+ * Extracts sort keys for top-n from their {@link LongBlock}s.
+ * This class is generated. Edit {@code X-KeyExtractor.java.st} instead.
+ */
 abstract class KeyExtractorForLong implements KeyExtractor {
     static KeyExtractorForLong extractorFor(TopNEncoder encoder, boolean ascending, byte nul, byte nonNul, LongBlock block) {
         LongVector v = block.asVector();
         if (v != null) {
-            return new KeyExtractorForLong.ForVector(encoder, nul, nonNul, v);
+            return new KeyExtractorForLong.FromVector(encoder, nul, nonNul, v);
         }
         if (ascending) {
-            return block.mvOrdering() == Block.MvOrdering.ASCENDING
-                ? new KeyExtractorForLong.MinForAscending(encoder, nul, nonNul, block)
-                : new KeyExtractorForLong.MinForUnordered(encoder, nul, nonNul, block);
+            return block.mvSortedAscending()
+                ? new KeyExtractorForLong.MinFromAscendingBlock(encoder, nul, nonNul, block)
+                : new KeyExtractorForLong.MinFromUnorderedBlock(encoder, nul, nonNul, block);
         }
-        return block.mvOrdering() == Block.MvOrdering.ASCENDING
-            ? new KeyExtractorForLong.MaxForAscending(encoder, nul, nonNul, block)
-            : new KeyExtractorForLong.MaxForUnordered(encoder, nul, nonNul, block);
+        return block.mvSortedAscending()
+            ? new KeyExtractorForLong.MaxFromAscendingBlock(encoder, nul, nonNul, block)
+            : new KeyExtractorForLong.MaxFromUnorderedBlock(encoder, nul, nonNul, block);
     }
 
+    private final TopNEncoder encoder;
     private final byte nul;
     private final byte nonNul;
 
     KeyExtractorForLong(TopNEncoder encoder, byte nul, byte nonNul) {
-        assert encoder == TopNEncoder.DEFAULT_SORTABLE;
+        this.encoder = encoder;
         this.nul = nul;
         this.nonNul = nonNul;
     }
 
-    protected final int nonNul(BreakingBytesRefBuilder key, long value) {
+    protected final void nonNul(BreakingBytesRefBuilder key, long value) {
         key.append(nonNul);
-        TopNEncoder.DEFAULT_SORTABLE.encodeLong(value, key);
-        return Long.BYTES + 1;
+        encoder.encodeLong(value, key);
     }
 
-    protected final int nul(BreakingBytesRefBuilder key) {
+    protected final void nul(BreakingBytesRefBuilder key) {
         key.append(nul);
-        return 1;
     }
 
-    static class ForVector extends KeyExtractorForLong {
+    @Override
+    public final String toString() {
+        return String.format(Locale.ROOT, "KeyExtractorForLong%s(%s, %s)", getClass().getSimpleName(), nul, nonNul);
+    }
+
+    static class FromVector extends KeyExtractorForLong {
         private final LongVector vector;
 
-        ForVector(TopNEncoder encoder, byte nul, byte nonNul, LongVector vector) {
+        FromVector(TopNEncoder encoder, byte nul, byte nonNul, LongVector vector) {
             super(encoder, nul, nonNul);
             this.vector = vector;
         }
 
         @Override
-        public int writeKey(BreakingBytesRefBuilder key, int position) {
-            return nonNul(key, vector.getLong(position));
+        public void writeKey(BreakingBytesRefBuilder key, int position) {
+            nonNul(key, vector.getLong(position));
         }
     }
 
-    static class MinForAscending extends KeyExtractorForLong {
+    static class MinFromAscendingBlock extends KeyExtractorForLong {
         private final LongBlock block;
 
-        MinForAscending(TopNEncoder encoder, byte nul, byte nonNul, LongBlock block) {
+        MinFromAscendingBlock(TopNEncoder encoder, byte nul, byte nonNul, LongBlock block) {
             super(encoder, nul, nonNul);
             this.block = block;
         }
 
         @Override
-        public int writeKey(BreakingBytesRefBuilder key, int position) {
+        public void writeKey(BreakingBytesRefBuilder key, int position) {
             if (block.isNull(position)) {
-                return nul(key);
+                nul(key);
+                return;
             }
-            return nonNul(key, block.getLong(block.getFirstValueIndex(position)));
+            nonNul(key, block.getLong(block.getFirstValueIndex(position)));
         }
     }
 
-    static class MaxForAscending extends KeyExtractorForLong {
+    static class MaxFromAscendingBlock extends KeyExtractorForLong {
         private final LongBlock block;
 
-        MaxForAscending(TopNEncoder encoder, byte nul, byte nonNul, LongBlock block) {
+        MaxFromAscendingBlock(TopNEncoder encoder, byte nul, byte nonNul, LongBlock block) {
             super(encoder, nul, nonNul);
             this.block = block;
         }
 
         @Override
-        public int writeKey(BreakingBytesRefBuilder key, int position) {
+        public void writeKey(BreakingBytesRefBuilder key, int position) {
             if (block.isNull(position)) {
-                return nul(key);
+                nul(key);
+                return;
             }
-            return nonNul(key, block.getLong(block.getFirstValueIndex(position) + block.getValueCount(position) - 1));
+            nonNul(key, block.getLong(block.getFirstValueIndex(position) + block.getValueCount(position) - 1));
         }
     }
 
-    static class MinForUnordered extends KeyExtractorForLong {
+    static class MinFromUnorderedBlock extends KeyExtractorForLong {
         private final LongBlock block;
 
-        MinForUnordered(TopNEncoder encoder, byte nul, byte nonNul, LongBlock block) {
+        MinFromUnorderedBlock(TopNEncoder encoder, byte nul, byte nonNul, LongBlock block) {
             super(encoder, nul, nonNul);
             this.block = block;
         }
 
         @Override
-        public int writeKey(BreakingBytesRefBuilder key, int position) {
+        public void writeKey(BreakingBytesRefBuilder key, int position) {
             int size = block.getValueCount(position);
             if (size == 0) {
-                return nul(key);
+                nul(key);
+                return;
             }
             int start = block.getFirstValueIndex(position);
             int end = start + size;
@@ -116,23 +128,24 @@ abstract class KeyExtractorForLong implements KeyExtractor {
             for (int i = start + 1; i < end; i++) {
                 min = Math.min(min, block.getLong(i));
             }
-            return nonNul(key, min);
+            nonNul(key, min);
         }
     }
 
-    static class MaxForUnordered extends KeyExtractorForLong {
+    static class MaxFromUnorderedBlock extends KeyExtractorForLong {
         private final LongBlock block;
 
-        MaxForUnordered(TopNEncoder encoder, byte nul, byte nonNul, LongBlock block) {
+        MaxFromUnorderedBlock(TopNEncoder encoder, byte nul, byte nonNul, LongBlock block) {
             super(encoder, nul, nonNul);
             this.block = block;
         }
 
         @Override
-        public int writeKey(BreakingBytesRefBuilder key, int position) {
+        public void writeKey(BreakingBytesRefBuilder key, int position) {
             int size = block.getValueCount(position);
             if (size == 0) {
-                return nul(key);
+                nul(key);
+                return;
             }
             int start = block.getFirstValueIndex(position);
             int end = start + size;
@@ -140,7 +153,7 @@ abstract class KeyExtractorForLong implements KeyExtractor {
             for (int i = start + 1; i < end; i++) {
                 max = Math.max(max, block.getLong(i));
             }
-            return nonNul(key, max);
+            nonNul(key, max);
         }
     }
 }

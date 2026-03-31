@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing.allocation;
@@ -46,7 +47,9 @@ public class TrackFailedAllocationNodesTests extends ESAllocationTestCase {
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(discoNodes)
             .metadata(metadata)
-            .routingTable(RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY).addAsNew(metadata.index("idx")).build())
+            .routingTable(
+                RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY).addAsNew(metadata.getProject().index("idx")).build()
+            )
             .build();
         clusterState = allocationService.reroute(clusterState, "reroute", ActionListener.noop());
         Set<String> failedNodeIds = new HashSet<>();
@@ -59,17 +62,14 @@ public class TrackFailedAllocationNodesTests extends ESAllocationTestCase {
                 List.of(new FailedShard(clusterState.routingTable().index("idx").shard(0).shard(0), null, null, randomBoolean())),
                 List.of()
             );
-            assertThat(
-                clusterState.routingTable().index("idx").shard(0).shard(0).unassignedInfo().getFailedNodeIds(),
-                equalTo(failedNodeIds)
-            );
+            assertThat(clusterState.routingTable().index("idx").shard(0).shard(0).unassignedInfo().failedNodeIds(), equalTo(failedNodeIds));
         }
 
         // reroute with retryFailed=true should discard the failedNodes
         assertThat(clusterState.routingTable().index("idx").shard(0).shard(0).state(), equalTo(ShardRoutingState.UNASSIGNED));
         clusterState = allocationService.reroute(clusterState, new AllocationCommands(), false, true, false, ActionListener.noop())
             .clusterState();
-        assertThat(clusterState.routingTable().index("idx").shard(0).shard(0).unassignedInfo().getFailedNodeIds(), empty());
+        assertThat(clusterState.routingTable().index("idx").shard(0).shard(0).unassignedInfo().failedNodeIds(), empty());
 
         // do not track the failed nodes while shard is started
         clusterState = startInitializingShardsAndReroute(allocationService, clusterState);
@@ -79,6 +79,6 @@ public class TrackFailedAllocationNodesTests extends ESAllocationTestCase {
             List.of(new FailedShard(clusterState.routingTable().index("idx").shard(0).primaryShard(), null, null, false)),
             List.of()
         );
-        assertThat(clusterState.routingTable().index("idx").shard(0).primaryShard().unassignedInfo().getFailedNodeIds(), empty());
+        assertThat(clusterState.routingTable().index("idx").shard(0).primaryShard().unassignedInfo().failedNodeIds(), empty());
     }
 }

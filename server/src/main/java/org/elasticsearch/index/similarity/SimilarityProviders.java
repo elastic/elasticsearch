@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.similarity;
@@ -41,6 +42,7 @@ import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.lucene.similarity.LegacyBM25Similarity;
 
 import java.util.Arrays;
@@ -100,7 +102,7 @@ final class SimilarityProviders {
         if (model == null) {
             String replacement = LEGACY_BASIC_MODELS.get(basicModel);
             if (replacement != null) {
-                if (indexCreatedVersion.onOrAfter(IndexVersion.V_7_0_0)) {
+                if (indexCreatedVersion.onOrAfter(IndexVersions.V_7_0_0)) {
                     throw new IllegalArgumentException(
                         "Basic model [" + basicModel + "] isn't supported anymore, " + "please use another model."
                     );
@@ -139,7 +141,7 @@ final class SimilarityProviders {
         if (effect == null) {
             String replacement = LEGACY_AFTER_EFFECTS.get(afterEffect);
             if (replacement != null) {
-                if (indexCreatedVersion.onOrAfter(IndexVersion.V_7_0_0)) {
+                if (indexCreatedVersion.onOrAfter(IndexVersions.V_7_0_0)) {
                     throw new IllegalArgumentException(
                         "After effect [" + afterEffect + "] isn't supported anymore, please use another effect."
                     );
@@ -239,7 +241,7 @@ final class SimilarityProviders {
         unknownSettings.removeAll(Arrays.asList(supportedSettings));
         unknownSettings.remove("type"); // used to figure out which sim this is
         if (unknownSettings.isEmpty() == false) {
-            if (version.onOrAfter(IndexVersion.V_7_0_0)) {
+            if (version.onOrAfter(IndexVersions.V_7_0_0)) {
                 throw new IllegalArgumentException("Unknown settings for similarity of type [" + type + "]: " + unknownSettings);
             } else {
                 deprecationLogger.warn(

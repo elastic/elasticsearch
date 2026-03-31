@@ -14,7 +14,9 @@ import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xpack.sql.qa.jdbc.JdbcIntegrationTestCase;
+import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -49,6 +51,13 @@ import static org.hamcrest.collection.IsEmptyCollection.empty;
  * <code> new Fn("ASCII", "foobar").ignore()</code></p>
  */
 public class ConsistentFunctionArgHandlingIT extends JdbcIntegrationTestCase {
+    @ClassRule
+    public static final ElasticsearchCluster cluster = SqlTestCluster.getCluster();
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
+    }
 
     private static final List<Fn> FUNCTION_CALLS_TO_TEST = asList(
         new Fn("ASCII", "foobar"),

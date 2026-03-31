@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.ql.expression;
 
-import java.util.Objects;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -28,7 +27,7 @@ public class NameId {
 
     @Override
     public int hashCode() {
-        return Objects.hash(id);
+        return Long.hashCode(id);
     }
 
     @Override

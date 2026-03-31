@@ -1,6 +1,0 @@
-pr: 97317
-summary: "Fix merges of mappings with `subobjects: false` for composable index templates"
-area: Mapping
-type: bug
-issues:
- - 96768

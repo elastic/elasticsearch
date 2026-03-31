@@ -8,31 +8,36 @@ import java.lang.Integer;
 import java.lang.Override;
 import java.lang.String;
 import java.util.List;
-import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.compute.operator.DriverContext;
 
 /**
  * {@link AggregatorFunctionSupplier} implementation for {@link MedianAbsoluteDeviationIntAggregator}.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code AggregatorFunctionSupplierImplementer} instead.
  */
 public final class MedianAbsoluteDeviationIntAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
-  private final BigArrays bigArrays;
+  public MedianAbsoluteDeviationIntAggregatorFunctionSupplier() {
+  }
 
-  private final List<Integer> channels;
+  @Override
+  public List<IntermediateStateDesc> nonGroupingIntermediateStateDesc() {
+    return MedianAbsoluteDeviationIntAggregatorFunction.intermediateStateDesc();
+  }
 
-  public MedianAbsoluteDeviationIntAggregatorFunctionSupplier(BigArrays bigArrays,
+  @Override
+  public List<IntermediateStateDesc> groupingIntermediateStateDesc() {
+    return MedianAbsoluteDeviationIntGroupingAggregatorFunction.intermediateStateDesc();
+  }
+
+  @Override
+  public MedianAbsoluteDeviationIntAggregatorFunction aggregator(DriverContext driverContext,
       List<Integer> channels) {
-    this.bigArrays = bigArrays;
-    this.channels = channels;
+    return new MedianAbsoluteDeviationIntAggregatorFunction(driverContext, channels);
   }
 
   @Override
-  public MedianAbsoluteDeviationIntAggregatorFunction aggregator() {
-    return MedianAbsoluteDeviationIntAggregatorFunction.create(channels);
-  }
-
-  @Override
-  public MedianAbsoluteDeviationIntGroupingAggregatorFunction groupingAggregator() {
-    return MedianAbsoluteDeviationIntGroupingAggregatorFunction.create(channels, bigArrays);
+  public MedianAbsoluteDeviationIntGroupingAggregatorFunction groupingAggregator(
+      DriverContext driverContext, List<Integer> channels) {
+    return new MedianAbsoluteDeviationIntGroupingAggregatorFunction(channels, driverContext);
   }
 
   @Override

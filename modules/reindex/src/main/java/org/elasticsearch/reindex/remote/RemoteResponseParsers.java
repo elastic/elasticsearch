@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.reindex.remote;
@@ -11,13 +12,14 @@ package org.elasticsearch.reindex.remote;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.index.reindex.ScrollableHitSource.BasicHit;
-import org.elasticsearch.index.reindex.ScrollableHitSource.Hit;
-import org.elasticsearch.index.reindex.ScrollableHitSource.Response;
-import org.elasticsearch.index.reindex.ScrollableHitSource.SearchFailure;
+import org.elasticsearch.index.reindex.PaginatedSearchFailure;
+import org.elasticsearch.reindex.PaginatedHitSource.BasicHit;
+import org.elasticsearch.reindex.PaginatedHitSource.Hit;
+import org.elasticsearch.reindex.PaginatedHitSource.Response;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
@@ -29,6 +31,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.Base64;
 import java.util.List;
 import java.util.function.BiFunction;
 
@@ -39,7 +42,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
- * Parsers to convert the response from the remote host into objects useful for {@link RemoteScrollableHitSource}.
+ * Parsers to convert the response from the remote host into objects useful for {@link RemoteScrollablePaginatedHitSource}.
  */
 final class RemoteResponseParsers {
     private RemoteResponseParsers() {}
@@ -96,8 +99,8 @@ final class RemoteResponseParsers {
         HITS_PARSER.declareField(constructorArg(), (p, c) -> {
             if (p.currentToken() == XContentParser.Token.START_OBJECT) {
                 final TotalHits totalHits = SearchHits.parseTotalHitsFragment(p);
-                assert totalHits.relation == TotalHits.Relation.EQUAL_TO;
-                return totalHits.value;
+                assert totalHits.relation() == TotalHits.Relation.EQUAL_TO;
+                return totalHits.value();
             } else {
                 // For BWC with nodes pre 7.0
                 return p.longValue();
@@ -109,7 +112,7 @@ final class RemoteResponseParsers {
     /**
      * Parser for {@code failed} shards in the {@code _shards} elements.
      */
-    public static final ConstructingObjectParser<SearchFailure, Void> SEARCH_FAILURE_PARSER = new ConstructingObjectParser<>(
+    public static final ConstructingObjectParser<PaginatedSearchFailure, Void> SEARCH_FAILURE_PARSER = new ConstructingObjectParser<>(
         "failure",
         true,
         a -> {
@@ -125,7 +128,7 @@ final class RemoteResponseParsers {
             } else {
                 reasonThrowable = (Throwable) reason;
             }
-            return new SearchFailure(reasonThrowable, index, shardId, nodeId);
+            return new PaginatedSearchFailure(reasonThrowable, index, shardId, nodeId);
         }
     );
     static {
@@ -166,13 +169,13 @@ final class RemoteResponseParsers {
             int i = 0;
             Throwable catastrophicFailure = (Throwable) a[i++];
             if (catastrophicFailure != null) {
-                return new Response(false, singletonList(new SearchFailure(catastrophicFailure)), 0, emptyList(), null);
+                return new Response(false, singletonList(new PaginatedSearchFailure(catastrophicFailure)), 0, emptyList(), null);
             }
             boolean timedOut = (boolean) a[i++];
             String scroll = (String) a[i++];
             Object[] hitsElement = (Object[]) a[i++];
             @SuppressWarnings("unchecked")
-            List<SearchFailure> failures = (List<SearchFailure>) a[i++];
+            List<PaginatedSearchFailure> failures = (List<PaginatedSearchFailure>) a[i++];
 
             long totalHits = 0;
             List<Hit> hits = emptyList();
@@ -266,6 +269,24 @@ final class RemoteResponseParsers {
         public void setCausedBy(Throwable causedBy) {
             this.causedBy = causedBy;
         }
+    }
+
+    /**
+     * Parser for the open point-in-time response. Returns the PIT id as {@link BytesReference}.
+     */
+    public static final ConstructingObjectParser<BytesReference, XContentType> OPEN_PIT_PARSER = new ConstructingObjectParser<>(
+        "open_pit_response",
+        true,
+        a -> {
+            String id = (String) a[0];
+            if (id == null || id.isEmpty()) {
+                throw new IllegalArgumentException("open point-in-time response must contain [id] field");
+            }
+            return new BytesArray(Base64.getUrlDecoder().decode(id));
+        }
+    );
+    static {
+        OPEN_PIT_PARSER.declareString(optionalConstructorArg(), new ParseField("id"));
     }
 
     /**

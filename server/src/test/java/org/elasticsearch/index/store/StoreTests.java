@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.store;
 
@@ -51,13 +52,13 @@ import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.store.FilterIndexOutput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.index.seqno.RetentionLease;
@@ -111,7 +112,7 @@ public class StoreTests extends ESTestCase {
         "index",
         Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build()
     );
-    private static final Version MIN_SUPPORTED_LUCENE_VERSION = IndexVersion.MINIMUM_COMPATIBLE.luceneVersion();
+    private static final Version MIN_SUPPORTED_LUCENE_VERSION = IndexVersions.MINIMUM_COMPATIBLE.luceneVersion();
 
     public void testRefCount() {
         final ShardId shardId = new ShardId("index", "_na_", 1);
@@ -272,7 +273,7 @@ public class StoreTests extends ESTestCase {
         metadata = store.getMetadata(randomBoolean() ? indexCommit : null);
         assertThat(metadata.fileMetadataMap().isEmpty(), is(false));
         for (StoreFileMetadata meta : metadata) {
-            try (IndexInput input = store.directory().openInput(meta.name(), IOContext.DEFAULT)) {
+            try (IndexInput input = store.directory().openInput(meta.name(), IOContext.READONCE)) {
                 String checksum = Store.digestToString(CodecUtil.retrieveChecksum(input));
                 assertThat("File: " + meta.name() + " has a different checksum", meta.checksum(), equalTo(checksum));
                 assertThat(meta.writtenBy(), equalTo(Version.LATEST.toString()));
@@ -731,6 +732,15 @@ public class StoreTests extends ESTestCase {
         IOUtils.close(store);
     }
 
+    public void testCleanupEmptyStore() throws IOException {
+        final ShardId shardId = new ShardId("index", "_na_", 1);
+        Store store = new Store(shardId, INDEX_SETTINGS, StoreTests.newDirectory(random()), new DummyShardLock(shardId));
+
+        store.cleanupAndVerify("test", Store.MetadataSnapshot.EMPTY);
+
+        IOUtils.close(store);
+    }
+
     public void testOnCloseCallback() throws IOException {
         final ShardId shardId = new ShardId(
             new Index(randomRealisticUnicodeOfCodepointLengthBetween(1, 10), "_na_"),
@@ -743,7 +753,7 @@ public class StoreTests extends ESTestCase {
             assertEquals(shardId, theLock.getShardId());
             assertEquals(lock, theLock);
             count.incrementAndGet();
-        });
+        }, false);
         assertEquals(count.get(), 0);
 
         final int iters = randomIntBetween(1, 10);
@@ -774,22 +784,22 @@ public class StoreTests extends ESTestCase {
         final long localStoreSizeDelta = randomLongBetween(-initialStoreSize, initialStoreSize);
         final long reservedBytes = randomBoolean() ? StoreStats.UNKNOWN_RESERVED_BYTES : randomLongBetween(0L, Integer.MAX_VALUE);
         StoreStats stats = store.stats(reservedBytes, size -> size + localStoreSizeDelta);
-        assertEquals(initialStoreSize, stats.totalDataSetSize().getBytes());
-        assertEquals(initialStoreSize + localStoreSizeDelta, stats.getSize().getBytes());
-        assertEquals(reservedBytes, stats.getReservedSize().getBytes());
+        assertEquals(initialStoreSize, stats.totalDataSetSizeInBytes());
+        assertEquals(initialStoreSize + localStoreSizeDelta, stats.sizeInBytes());
+        assertEquals(reservedBytes, stats.reservedSizeInBytes());
 
         stats.add(null);
-        assertEquals(initialStoreSize, stats.totalDataSetSize().getBytes());
-        assertEquals(initialStoreSize + localStoreSizeDelta, stats.getSize().getBytes());
-        assertEquals(reservedBytes, stats.getReservedSize().getBytes());
+        assertEquals(initialStoreSize, stats.totalDataSetSizeInBytes());
+        assertEquals(initialStoreSize + localStoreSizeDelta, stats.sizeInBytes());
+        assertEquals(reservedBytes, stats.reservedSizeInBytes());
 
         final long otherStatsDataSetBytes = randomLongBetween(0L, Integer.MAX_VALUE);
         final long otherStatsLocalBytes = randomLongBetween(0L, Integer.MAX_VALUE);
         final long otherStatsReservedBytes = randomBoolean() ? StoreStats.UNKNOWN_RESERVED_BYTES : randomLongBetween(0L, Integer.MAX_VALUE);
         stats.add(new StoreStats(otherStatsLocalBytes, otherStatsDataSetBytes, otherStatsReservedBytes));
-        assertEquals(initialStoreSize + otherStatsDataSetBytes, stats.totalDataSetSize().getBytes());
-        assertEquals(initialStoreSize + otherStatsLocalBytes + localStoreSizeDelta, stats.getSize().getBytes());
-        assertEquals(Math.max(reservedBytes, 0L) + Math.max(otherStatsReservedBytes, 0L), stats.getReservedSize().getBytes());
+        assertEquals(initialStoreSize + otherStatsDataSetBytes, stats.totalDataSetSizeInBytes());
+        assertEquals(initialStoreSize + otherStatsLocalBytes + localStoreSizeDelta, stats.sizeInBytes());
+        assertEquals(Math.max(reservedBytes, 0L) + Math.max(otherStatsReservedBytes, 0L), stats.reservedSizeInBytes());
 
         Directory dir = store.directory();
         final long length;
@@ -804,8 +814,8 @@ public class StoreTests extends ESTestCase {
 
         assertTrue(numNonExtraFiles(store) > 0);
         stats = store.stats(0L, size -> size + localStoreSizeDelta);
-        assertEquals(initialStoreSize + length, stats.totalDataSetSize().getBytes());
-        assertEquals(initialStoreSize + localStoreSizeDelta + length, stats.getSizeInBytes());
+        assertEquals(initialStoreSize + length, stats.totalDataSetSizeInBytes());
+        assertEquals(initialStoreSize + localStoreSizeDelta + length, stats.sizeInBytes());
 
         deleteContent(store.directory());
         IOUtils.close(store);
@@ -815,7 +825,7 @@ public class StoreTests extends ESTestCase {
         // directory that returns total written bytes as the data set size
         final var directory = new ByteSizeDirectory(StoreTests.newDirectory(random())) {
 
-            final AtomicLong dataSetBytes = new AtomicLong(0L);
+            final AtomicLong dataSetBytes = new AtomicLong(estimateSizeInBytes(getDelegate()));
 
             @Override
             public long estimateSizeInBytes() throws IOException {
@@ -940,7 +950,7 @@ public class StoreTests extends ESTestCase {
 
     public void testMetadataSnapshotStreaming() throws Exception {
         Store.MetadataSnapshot outMetadataSnapshot = createMetadataSnapshot();
-        TransportVersion targetVersion = randomVersion(random());
+        TransportVersion targetVersion = randomVersion();
 
         ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
         OutputStreamStreamOutput out = new OutputStreamStreamOutput(outBuffer);
@@ -962,7 +972,7 @@ public class StoreTests extends ESTestCase {
 
     public void testEmptyMetadataSnapshotStreaming() throws Exception {
         var outMetadataSnapshot = randomBoolean() ? Store.MetadataSnapshot.EMPTY : new Store.MetadataSnapshot(emptyMap(), emptyMap(), 0L);
-        var targetVersion = randomCompatibleVersion(random());
+        var targetVersion = randomCompatibleVersion();
 
         var outBuffer = new ByteArrayOutputStream();
         var out = new OutputStreamStreamOutput(outBuffer);
@@ -994,17 +1004,12 @@ public class StoreTests extends ESTestCase {
         Document doc = new Document();
         doc.add(new TextField("id", "1", Field.Store.NO));
         writer.addDocument(doc);
-        Map<String, String> commitData = Maps.newMapWithExpectedSize(2);
-        String syncId = "a sync id";
-        commitData.put(Engine.SYNC_COMMIT_ID, syncId);
-        writer.setLiveCommitData(commitData.entrySet());
         writer.commit();
         writer.close();
         Store.MetadataSnapshot metadata;
         metadata = store.getMetadata(randomBoolean() ? null : deletionPolicy.snapshot());
         assertFalse(metadata.fileMetadataMap().isEmpty());
         // do not check for correct files, we have enough tests for that above
-        assertThat(metadata.commitUserData().get(Engine.SYNC_COMMIT_ID), equalTo(syncId));
         TestUtil.checkIndex(store.directory());
         assertDeleteContent(store, store.directory());
         IOUtils.close(store);
@@ -1028,7 +1033,7 @@ public class StoreTests extends ESTestCase {
             new TransportNodesListShardStoreMetadata.StoreFilesMetadata(metadataSnapshot, peerRecoveryRetentionLeases);
         ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
         OutputStreamStreamOutput out = new OutputStreamStreamOutput(outBuffer);
-        TransportVersion targetVersion = randomCompatibleVersion(random());
+        TransportVersion targetVersion = randomCompatibleVersion();
         out.setTransportVersion(targetVersion);
         outStoreFileMetadata.writeTo(out);
         ByteArrayInputStream inBuffer = new ByteArrayInputStream(outBuffer.toByteArray());
@@ -1039,7 +1044,6 @@ public class StoreTests extends ESTestCase {
         for (StoreFileMetadata inFile : inStoreFileMetadata) {
             assertThat(inFile.name(), equalTo(outFiles.next().name()));
         }
-        assertThat(outStoreFileMetadata.syncId(), equalTo(inStoreFileMetadata.syncId()));
         assertThat(outStoreFileMetadata.peerRecoveryRetentionLeases(), equalTo(peerRecoveryRetentionLeases));
     }
 
@@ -1049,7 +1053,7 @@ public class StoreTests extends ESTestCase {
             : new TransportNodesListShardStoreMetadata.StoreFilesMetadata(Store.MetadataSnapshot.EMPTY, emptyList());
         var outBuffer = new ByteArrayOutputStream();
         var out = new OutputStreamStreamOutput(outBuffer);
-        var targetVersion = randomCompatibleVersion(random());
+        var targetVersion = randomCompatibleVersion();
         out.setTransportVersion(targetVersion);
         outStoreFileMetadata.writeTo(out);
 

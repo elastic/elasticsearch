@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -49,19 +50,24 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
+        public String contentType() {
+            return CONTENT_TYPE;
+        }
+
+        @Override
         public RoutingFieldMapper build() {
             return RoutingFieldMapper.get(required.getValue());
         }
     }
 
-    public static final TypeParser PARSER = new ConfigurableTypeParser(c -> RoutingFieldMapper.get(Defaults.REQUIRED), c -> new Builder());
+    public static final TypeParser PARSER = new ConfigurableTypeParser(c -> new Builder());
 
     public static final MappedFieldType FIELD_TYPE = new RoutingFieldType();
 
     static final class RoutingFieldType extends StringFieldType {
 
         private RoutingFieldType() {
-            super(NAME, true, true, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
+            super(NAME, IndexType.terms(true, false), true, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
         }
 
         @Override
@@ -108,7 +114,7 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
 
     @Override
     public void preParse(DocumentParserContext context) {
-        String routing = context.sourceToParse().routing();
+        String routing = context.routing();
         if (routing != null) {
             context.doc().add(new StringField(fieldType().name(), routing, Field.Store.YES));
             context.addToFieldNames(fieldType().name());
@@ -118,10 +124,5 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
     @Override
     protected String contentType() {
         return CONTENT_TYPE;
-    }
-
-    @Override
-    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
-        return SourceLoader.SyntheticFieldLoader.NOTHING;
     }
 }

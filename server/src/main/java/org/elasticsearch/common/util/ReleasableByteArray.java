@@ -1,14 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.util;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefIterator;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
@@ -16,6 +18,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
+import java.io.InputStream;
 
 import static org.elasticsearch.common.util.BigArrays.indexIsInt;
 
@@ -60,7 +63,7 @@ public class ReleasableByteArray implements ByteArray {
     }
 
     @Override
-    public byte set(long index, byte value) {
+    public void set(long index, byte value) {
         throw new UnsupportedOperationException();
     }
 
@@ -86,6 +89,17 @@ public class ReleasableByteArray implements ByteArray {
         // The interface that this class implements should have something like an arrayOffset() method,
         // so that callers know from what array offset the first actual byte starts.
         throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public BytesRefIterator iterator() {
+        assert ref.hasReferences();
+        return ref.iterator();
+    }
+
+    @Override
+    public void fillWith(InputStream in) {
+        throw new UnsupportedOperationException("read-only ByteArray");
     }
 
     @Override

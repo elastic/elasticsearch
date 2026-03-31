@@ -13,7 +13,6 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.rest.RestStatus;
@@ -28,12 +27,9 @@ import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsSource;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.BoostedTreeParams;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.Regression;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
-import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinition;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.OneHotEncoding;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.PreProcessor;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble.Ensemble;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.metadata.Hyperparameters;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.metadata.TrainedModelMetadata;
+import org.hamcrest.Matchers;
 import org.junit.After;
 
 import java.io.IOException;
@@ -46,11 +42,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.test.hamcrest.OptionalMatchers.isPresent;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
+import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
@@ -112,68 +111,65 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         startAnalytics(jobId);
         waitUntilAnalyticsIsStopped(jobId);
 
-        int trainingDocsWithEmptyFeatureImportance = 0;
-        int testDocsWithEmptyFeatureImportance = 0;
-
         // for debugging
         List<Map<String, Object>> badDocuments = new ArrayList<>();
-        SearchResponse sourceData = client().prepareSearch(sourceIndex).setTrackTotalHits(true).setSize(1000).get();
-        for (SearchHit hit : sourceData.getHits()) {
-            Map<String, Object> destDoc = getDestDoc(config, hit);
-            Map<String, Object> resultsObject = getMlResultsObjectFromDestDoc(destDoc);
+        assertResponse(prepareSearch(sourceIndex).setTrackTotalHits(true).setSize(1000), sourceData -> {
+            int trainingDocsWithEmptyFeatureImportance = 0;
+            int testDocsWithEmptyFeatureImportance = 0;
+            for (SearchHit hit : sourceData.getHits()) {
+                Map<String, Object> destDoc = getDestDoc(config, hit);
+                Map<String, Object> resultsObject = getMlResultsObjectFromDestDoc(destDoc);
 
-            // TODO reenable this assertion when the backend is stable
-            // it seems for this case values can be as far off as 2.0
+                // TODO reenable this assertion when the backend is stable
+                // it seems for this case values can be as far off as 2.0
 
-            // double featureValue = (double) destDoc.get(NUMERICAL_FEATURE_FIELD);
-            // double predictionValue = (double) resultsObject.get(predictedClassField);
-            // assertThat(predictionValue, closeTo(10 * featureValue, 2.0));
+                // double featureValue = (double) destDoc.get(NUMERICAL_FEATURE_FIELD);
+                // double predictionValue = (double) resultsObject.get(predictedClassField);
+                // assertThat(predictionValue, closeTo(10 * featureValue, 2.0));
 
-            assertThat(resultsObject.containsKey(predictedClassField), is(true));
-            assertThat(resultsObject.containsKey("is_training"), is(true));
-            assertThat(resultsObject.get("is_training"), is(destDoc.containsKey(DEPENDENT_VARIABLE_FIELD)));
-            @SuppressWarnings("unchecked")
-            List<Map<String, Object>> importanceArray = (List<Map<String, Object>>) resultsObject.get("feature_importance");
+                assertThat(resultsObject, hasKey(predictedClassField));
+                assertThat(resultsObject, hasEntry("is_training", destDoc.containsKey(DEPENDENT_VARIABLE_FIELD)));
+                @SuppressWarnings("unchecked")
+                List<Map<String, Object>> importanceArray = (List<Map<String, Object>>) resultsObject.get("feature_importance");
 
-            if (importanceArray.isEmpty()) {
-                badDocuments.add(destDoc);
-                if (Boolean.TRUE.equals(resultsObject.get("is_training"))) {
-                    trainingDocsWithEmptyFeatureImportance++;
-                } else {
-                    testDocsWithEmptyFeatureImportance++;
+                if (importanceArray.isEmpty()) {
+                    badDocuments.add(destDoc);
+                    if (Boolean.TRUE.equals(resultsObject.get("is_training"))) {
+                        trainingDocsWithEmptyFeatureImportance++;
+                    } else {
+                        testDocsWithEmptyFeatureImportance++;
+                    }
                 }
+
+                assertThat(
+                    importanceArray,
+                    hasItem(
+                        either(Matchers.<String, Object>hasEntry("feature_name", NUMERICAL_FEATURE_FIELD)).or(
+                            hasEntry("feature_name", DISCRETE_NUMERICAL_FEATURE_FIELD)
+                        )
+                    )
+                );
             }
 
-            assertThat(importanceArray, hasSize(greaterThan(0)));
+            // If feature importance was empty for some of the docs this assertion helps us
+            // understand whether the offending docs were training or test docs.
             assertThat(
-                importanceArray.stream()
-                    .filter(
-                        m -> NUMERICAL_FEATURE_FIELD.equals(m.get("feature_name"))
-                            || DISCRETE_NUMERICAL_FEATURE_FIELD.equals(m.get("feature_name"))
-                    )
-                    .findAny(),
-                isPresent()
+                "There were ["
+                    + trainingDocsWithEmptyFeatureImportance
+                    + "] training docs and ["
+                    + testDocsWithEmptyFeatureImportance
+                    + "] test docs with empty feature importance"
+                    + " from "
+                    + sourceData.getHits().getTotalHits().value()
+                    + " hits.\n"
+                    + badDocuments,
+                trainingDocsWithEmptyFeatureImportance + testDocsWithEmptyFeatureImportance,
+                equalTo(0)
             );
-        }
-
-        // If feature importance was empty for some of the docs this assertion helps us
-        // understand whether the offending docs were training or test docs.
-        assertThat(
-            "There were ["
-                + trainingDocsWithEmptyFeatureImportance
-                + "] training docs and ["
-                + testDocsWithEmptyFeatureImportance
-                + "] test docs with empty feature importance"
-                + " from "
-                + sourceData.getHits().getTotalHits().value
-                + " hits.\n"
-                + badDocuments,
-            trainingDocsWithEmptyFeatureImportance + testDocsWithEmptyFeatureImportance,
-            equalTo(0)
-        );
+        });
 
         assertProgressComplete(jobId);
-        assertThat(searchStoredProgress(jobId).getHits().getTotalHits().value, equalTo(1L));
+        assertStoredProgressHits(jobId, 1);
         assertModelStatePersisted(stateDocId());
         assertExactlyOneInferenceModelPersisted(jobId);
         assertMlResultsFieldMappings(destIndex, predictedClassField, "double");
@@ -206,18 +202,18 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
 
         startAnalytics(jobId);
         waitUntilAnalyticsIsStopped(jobId);
+        assertResponse(prepareSearch(sourceIndex).setTrackTotalHits(true).setSize(1000), sourceData -> {
+            for (SearchHit hit : sourceData.getHits()) {
+                Map<String, Object> resultsObject = getMlResultsObjectFromDestDoc(getDestDoc(config, hit));
 
-        SearchResponse sourceData = client().prepareSearch(sourceIndex).setTrackTotalHits(true).setSize(1000).get();
-        for (SearchHit hit : sourceData.getHits()) {
-            Map<String, Object> resultsObject = getMlResultsObjectFromDestDoc(getDestDoc(config, hit));
-
-            assertThat(resultsObject.containsKey(predictedClassField), is(true));
-            assertThat(resultsObject.containsKey("is_training"), is(true));
-            assertThat(resultsObject.get("is_training"), is(true));
-        }
+                assertThat(resultsObject.containsKey(predictedClassField), is(true));
+                assertThat(resultsObject.containsKey("is_training"), is(true));
+                assertThat(resultsObject.get("is_training"), is(true));
+            }
+        });
 
         assertProgressComplete(jobId);
-        assertThat(searchStoredProgress(jobId).getHits().getTotalHits().value, equalTo(1L));
+        assertStoredProgressHits(jobId, 1);
 
         GetDataFrameAnalyticsStatsAction.Response.Stats stats = getAnalyticsStats(jobId);
         assertThat(stats.getDataCounts().getJobId(), equalTo(jobId));
@@ -264,23 +260,24 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         startAnalytics(jobId);
         waitUntilAnalyticsIsStopped(jobId);
 
-        int trainingRowsCount = 0;
-        int nonTrainingRowsCount = 0;
-        SearchResponse sourceData = client().prepareSearch(sourceIndex).setTrackTotalHits(true).setSize(1000).get();
-        for (SearchHit hit : sourceData.getHits()) {
-            Map<String, Object> resultsObject = getMlResultsObjectFromDestDoc(getDestDoc(config, hit));
+        assertResponse(prepareSearch(sourceIndex).setTrackTotalHits(true).setSize(1000), sourceData -> {
+            int trainingRowsCount = 0;
+            int nonTrainingRowsCount = 0;
+            for (SearchHit hit : sourceData.getHits()) {
+                Map<String, Object> resultsObject = getMlResultsObjectFromDestDoc(getDestDoc(config, hit));
 
-            assertThat(resultsObject.containsKey(predictedClassField), is(true));
-            assertThat(resultsObject.containsKey("is_training"), is(true));
-            // Let's just assert there's both training and non-training results
-            if ((boolean) resultsObject.get("is_training")) {
-                trainingRowsCount++;
-            } else {
-                nonTrainingRowsCount++;
+                assertThat(resultsObject.containsKey(predictedClassField), is(true));
+                assertThat(resultsObject.containsKey("is_training"), is(true));
+                // Let's just assert there's both training and non-training results
+                if ((boolean) resultsObject.get("is_training")) {
+                    trainingRowsCount++;
+                } else {
+                    nonTrainingRowsCount++;
+                }
             }
-        }
-        assertThat(trainingRowsCount, greaterThan(0));
-        assertThat(nonTrainingRowsCount, greaterThan(0));
+            assertThat(trainingRowsCount, greaterThan(0));
+            assertThat(nonTrainingRowsCount, greaterThan(0));
+        });
 
         GetDataFrameAnalyticsStatsAction.Response.Stats stats = getAnalyticsStats(jobId);
         assertThat(stats.getDataCounts().getJobId(), equalTo(jobId));
@@ -291,7 +288,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertThat(stats.getDataCounts().getSkippedDocsCount(), equalTo(0L));
 
         assertProgressComplete(jobId);
-        assertThat(searchStoredProgress(jobId).getHits().getTotalHits().value, equalTo(1L));
+        assertStoredProgressHits(jobId, 1);
         assertModelStatePersisted(stateDocId());
         assertExactlyOneInferenceModelPersisted(jobId);
         assertMlResultsFieldMappings(destIndex, predictedClassField, "double");
@@ -344,17 +341,18 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
 
         waitUntilAnalyticsIsStopped(jobId);
 
-        SearchResponse sourceData = client().prepareSearch(sourceIndex).setTrackTotalHits(true).setSize(1000).get();
-        for (SearchHit hit : sourceData.getHits()) {
-            Map<String, Object> resultsObject = getMlResultsObjectFromDestDoc(getDestDoc(config, hit));
+        assertResponse(prepareSearch(sourceIndex).setTrackTotalHits(true).setSize(1000), sourceData -> {
+            for (SearchHit hit : sourceData.getHits()) {
+                Map<String, Object> resultsObject = getMlResultsObjectFromDestDoc(getDestDoc(config, hit));
 
-            assertThat(resultsObject.containsKey(predictedClassField), is(true));
-            assertThat(resultsObject.containsKey("is_training"), is(true));
-            assertThat(resultsObject.get("is_training"), is(true));
-        }
+                assertThat(resultsObject.containsKey(predictedClassField), is(true));
+                assertThat(resultsObject.containsKey("is_training"), is(true));
+                assertThat(resultsObject.get("is_training"), is(true));
+            }
+        });
 
         assertProgressComplete(jobId);
-        assertThat(searchStoredProgress(jobId).getHits().getTotalHits().value, equalTo(1L));
+        assertStoredProgressHits(jobId, 1);
         assertModelStatePersisted(stateDocId());
         assertAtLeastOneInferenceModelPersisted(jobId);
         assertMlResultsFieldMappings(destIndex, predictedClassField, "double");
@@ -363,6 +361,9 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
     public void testTwoJobsWithSameRandomizeSeedUseSameTrainingSet() throws Exception {
         String sourceIndex = "regression_two_jobs_with_same_randomize_seed_source";
         indexData(sourceIndex, 100, 0);
+        // Force merge to single segment to ensure deterministic _doc sort order during reindexing
+        // Without this, multiple segments or segment merges can cause non-deterministic document processing order
+        client().admin().indices().prepareForceMerge(sourceIndex).setMaxNumSegments(1).setFlush(true).get();
 
         String firstJobId = "regression_two_jobs_with_same_randomize_seed_1";
         String firstJobDestIndex = firstJobId + "_dest";
@@ -420,28 +421,26 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         waitUntilAnalyticsIsStopped(jobId);
 
         assertProgressComplete(jobId);
-        assertThat(searchStoredProgress(jobId).getHits().getTotalHits().value, equalTo(1L));
+        assertStoredProgressHits(jobId, 1);
         assertModelStatePersisted(stateDocId());
         assertExactlyOneInferenceModelPersisted(jobId);
         assertMlResultsFieldMappings(destIndex, predictedClassField, "double");
 
         // Call _delete_expired_data API and check nothing was deleted
         assertThat(deleteExpiredData().isDeleted(), is(true));
-        assertThat(searchStoredProgress(jobId).getHits().getTotalHits().value, equalTo(1L));
+        assertStoredProgressHits(jobId, 1);
         assertModelStatePersisted(stateDocId());
 
         // Delete the config straight from the config index
         DeleteResponse deleteResponse = client().prepareDelete(".ml-config", DataFrameAnalyticsConfig.documentId(jobId))
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-            .execute()
-            .actionGet();
+            .get();
         assertThat(deleteResponse.status(), equalTo(RestStatus.OK));
 
         // Now calling the _delete_expired_data API should remove unused state
         assertThat(deleteExpiredData().isDeleted(), is(true));
 
-        SearchResponse stateIndexSearchResponse = client().prepareSearch(".ml-state*").execute().actionGet();
-        assertThat(stateIndexSearchResponse.getHits().getTotalHits().value, equalTo(0L));
+        assertHitCount(prepareSearch(".ml-state*"), 0L);
     }
 
     public void testDependentVariableIsLong() throws Exception {
@@ -498,30 +497,29 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         startAnalytics(jobId);
         waitUntilAnalyticsIsStopped(jobId);
 
-        SearchResponse sourceData = client().prepareSearch(sourceIndex).setTrackTotalHits(true).setSize(1000).get();
-        for (SearchHit hit : sourceData.getHits()) {
-            Map<String, Object> destDoc = getDestDoc(config, hit);
-            Map<String, Object> resultsObject = getMlResultsObjectFromDestDoc(destDoc);
+        assertResponse(prepareSearch(sourceIndex).setTrackTotalHits(true).setSize(1000), sourceData -> {
+            for (SearchHit hit : sourceData.getHits()) {
+                Map<String, Object> destDoc = getDestDoc(config, hit);
+                Map<String, Object> resultsObject = getMlResultsObjectFromDestDoc(destDoc);
 
-            assertThat(resultsObject.containsKey(predictedClassField), is(true));
-            assertThat(resultsObject.containsKey("is_training"), is(true));
-            assertThat(resultsObject.get("is_training"), is(destDoc.containsKey(DEPENDENT_VARIABLE_FIELD)));
-            @SuppressWarnings("unchecked")
-            List<Map<String, Object>> importanceArray = (List<Map<String, Object>>) resultsObject.get("feature_importance");
-            assertThat(importanceArray, hasSize(greaterThan(0)));
-            assertThat(
-                importanceArray.stream()
-                    .filter(
-                        m -> NUMERICAL_FEATURE_FIELD.equals(m.get("feature_name"))
-                            || DISCRETE_NUMERICAL_FEATURE_FIELD.equals(m.get("feature_name"))
+                assertThat(resultsObject, hasKey(predictedClassField));
+                assertThat(resultsObject, hasEntry("is_training", destDoc.containsKey(DEPENDENT_VARIABLE_FIELD)));
+                @SuppressWarnings("unchecked")
+                List<Map<String, Object>> importanceArray = (List<Map<String, Object>>) resultsObject.get("feature_importance");
+
+                assertThat(
+                    importanceArray,
+                    hasItem(
+                        either(Matchers.<String, Object>hasEntry("feature_name", NUMERICAL_FEATURE_FIELD)).or(
+                            hasEntry("feature_name", DISCRETE_NUMERICAL_FEATURE_FIELD)
+                        )
                     )
-                    .findAny(),
-                isPresent()
-            );
-        }
+                );
+            }
+        });
 
         assertProgressComplete(jobId);
-        assertThat(searchStoredProgress(jobId).getHits().getTotalHits().value, equalTo(1L));
+        assertStoredProgressHits(jobId, 1);
         assertModelStatePersisted(stateDocId());
         assertExactlyOneInferenceModelPersisted(jobId);
         assertMlResultsFieldMappings(destIndex, predictedClassField, "double");
@@ -541,7 +539,6 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         );
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/93228")
     public void testAliasFields() throws Exception {
         // The goal of this test is to assert alias fields are included in the analytics job.
         // We have a simple dataset with two integer fields: field_1 and field_2.
@@ -586,10 +583,32 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         // Very infrequently this test may fail as the algorithm underestimates the
         // required number of trees for this simple problem. This failure is irrelevant
         // for non-trivial real-world problem and improving estimation of the number of trees
-        // would introduce unnecessary overhead. Hence, to reduce the noise from this test we fix the seed.
+        // would introduce unnecessary overhead. Hence, to reduce the noise from this test we fix the seed
+        // and use the hyperparameters that are known to work.
         long seed = 1000L; // fix seed
 
-        Regression regression = new Regression("field_2", BoostedTreeParams.builder().build(), null, 90.0, seed, null, null, null, null);
+        Regression regression = new Regression(
+            "field_2",
+            BoostedTreeParams.builder()
+                .setDownsampleFactor(0.7520841625652861)
+                .setAlpha(547.9095715556235)
+                .setLambda(3.3008189603590044)
+                .setGamma(1.6082763366825203)
+                .setSoftTreeDepthLimit(4.733224114945455)
+                .setSoftTreeDepthTolerance(0.15)
+                .setEta(0.12371209659057758)
+                .setEtaGrowthRatePerTree(1.0618560482952888)
+                .setMaxTrees(30)
+                .setFeatureBagFraction(0.8)
+                .build(),
+            null,
+            90.0,
+            seed,
+            null,
+            null,
+            null,
+            null
+        );
         DataFrameAnalyticsConfig config = new DataFrameAnalyticsConfig.Builder().setId(jobId)
             .setSource(new DataFrameAnalyticsSource(new String[] { sourceIndex }, null, null, Collections.emptyMap()))
             .setDest(new DataFrameAnalyticsDest(destIndex, null))
@@ -605,49 +624,28 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
 
         waitUntilAnalyticsIsStopped(jobId);
 
-        double predictionErrorSum = 0.0;
+        assertResponse(prepareSearch(sourceIndex).setSize(totalDocCount), sourceData -> {
+            double predictionErrorSum = 0.0;
+            for (SearchHit hit : sourceData.getHits()) {
+                Map<String, Object> destDoc = getDestDoc(config, hit);
+                Map<String, Object> resultsObject = getMlResultsObjectFromDestDoc(destDoc);
 
-        SearchResponse sourceData = client().prepareSearch(sourceIndex).setSize(totalDocCount).get();
-        StringBuilder targetsPredictions = new StringBuilder(); // used to investigate #90599
-        for (SearchHit hit : sourceData.getHits()) {
-            Map<String, Object> destDoc = getDestDoc(config, hit);
-            Map<String, Object> resultsObject = getMlResultsObjectFromDestDoc(destDoc);
+                assertThat(resultsObject.containsKey(predictionField), is(true));
+                assertThat(resultsObject.containsKey("is_training"), is(true));
 
-            assertThat(resultsObject.containsKey(predictionField), is(true));
-            assertThat(resultsObject.containsKey("is_training"), is(true));
-
-            int featureValue = (int) destDoc.get("field_1");
-            double predictionValue = (double) resultsObject.get(predictionField);
-            predictionErrorSum += Math.abs(predictionValue - 2 * featureValue);
-
-            // collect the log of targets and predictions for debugging #90599
-            targetsPredictions.append(2 * featureValue).append(", ").append(predictionValue).append("\n");
-        }
-
-        // We assert on the mean prediction error in order to reduce the probability
-        // the test fails compared to asserting on the prediction of each individual doc.
-        double meanPredictionError = predictionErrorSum / sourceData.getHits().getHits().length;
-
-        // obtain addition information for investigation of #90599
-        String modelId = getModelId(jobId);
-        TrainedModelMetadata modelMetadata = getModelMetadata(modelId);
-        assertThat(modelMetadata.getHyperparameters().size(), greaterThan(0));
-        StringBuilder hyperparameters = new StringBuilder(); // used to investigate #90599
-        for (Hyperparameters hyperparameter : modelMetadata.getHyperparameters()) {
-            hyperparameters.append(hyperparameter.hyperparameterName).append(": ").append(hyperparameter.value).append("\n");
-        }
-        TrainedModelDefinition modelDefinition = getModelDefinition(modelId);
-        Ensemble ensemble = (Ensemble) modelDefinition.getTrainedModel();
-        int numberTrees = ensemble.getModels().size();
-        String str = "Failure: failed for seed %d modelId %s numberTrees %d\n";
-        assertThat(
-            Strings.format(str, seed, modelId, numberTrees) + targetsPredictions + hyperparameters,
-            meanPredictionError,
-            lessThanOrEqualTo(3.0)
-        );
+                int featureValue = ((Number) destDoc.get("field_1")).intValue();
+                double predictionValue = ((Number) resultsObject.get(predictionField)).doubleValue();
+                predictionErrorSum += Math.abs(predictionValue - 2 * featureValue);
+            }
+            // We assert on the mean prediction error in order to reduce the probability
+            // the test fails compared to asserting on the prediction of each individual doc.
+            double meanPredictionError = predictionErrorSum / sourceData.getHits().getHits().length;
+            String str = "Failure: failed for seed %d inferenceEntityId %s numberTrees %d\n";
+            assertThat(meanPredictionError, lessThanOrEqualTo(3.0));
+        });
 
         assertProgressComplete(jobId);
-        assertThat(searchStoredProgress(jobId).getHits().getTotalHits().value, equalTo(1L));
+        assertStoredProgressHits(jobId, 1);
         assertModelStatePersisted(stateDocId());
         assertExactlyOneInferenceModelPersisted(jobId);
         assertMlResultsFieldMappings(destIndex, predictionField, "double");
@@ -704,18 +702,19 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         waitUntilAnalyticsIsStopped(jobId);
 
         // for debugging
-        SearchResponse sourceData = client().prepareSearch(sourceIndex).setTrackTotalHits(true).setSize(1000).get();
-        for (SearchHit hit : sourceData.getHits()) {
-            Map<String, Object> destDoc = getDestDoc(config, hit);
-            Map<String, Object> resultsObject = getMlResultsObjectFromDestDoc(destDoc);
+        assertResponse(prepareSearch(sourceIndex).setTrackTotalHits(true).setSize(1000), sourceData -> {
+            for (SearchHit hit : sourceData.getHits()) {
+                Map<String, Object> destDoc = getDestDoc(config, hit);
+                Map<String, Object> resultsObject = getMlResultsObjectFromDestDoc(destDoc);
 
-            assertThat(resultsObject.containsKey(predictedClassField), is(true));
-            assertThat(resultsObject.containsKey("is_training"), is(true));
-            assertThat(resultsObject.get("is_training"), is(destDoc.containsKey(DEPENDENT_VARIABLE_FIELD)));
-        }
+                assertThat(resultsObject.containsKey(predictedClassField), is(true));
+                assertThat(resultsObject.containsKey("is_training"), is(true));
+                assertThat(resultsObject.get("is_training"), is(destDoc.containsKey(DEPENDENT_VARIABLE_FIELD)));
+            }
+        });
 
         assertProgressComplete(jobId);
-        assertThat(searchStoredProgress(jobId).getHits().getTotalHits().value, equalTo(1L));
+        assertStoredProgressHits(jobId, 1);
         assertModelStatePersisted(stateDocId());
         assertExactlyOneInferenceModelPersisted(jobId);
         assertMlResultsFieldMappings(destIndex, predictedClassField, "double");
@@ -794,23 +793,23 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
 
         startAnalytics(jobId);
         waitUntilAnalyticsIsStopped(jobId);
+        assertResponse(prepareSearch(destIndex).setTrackTotalHits(true).setSize(1000), destData -> {
+            for (SearchHit hit : destData.getHits()) {
+                Map<String, Object> destDoc = hit.getSourceAsMap();
+                Map<String, Object> resultsObject = getMlResultsObjectFromDestDoc(destDoc);
 
-        SearchResponse destData = client().prepareSearch(destIndex).setTrackTotalHits(true).setSize(1000).get();
-        for (SearchHit hit : destData.getHits()) {
-            Map<String, Object> destDoc = hit.getSourceAsMap();
-            Map<String, Object> resultsObject = getMlResultsObjectFromDestDoc(destDoc);
-
-            assertThat(resultsObject.containsKey(predictedClassField), is(true));
-            assertThat(resultsObject.containsKey("is_training"), is(true));
-            assertThat(resultsObject.get("is_training"), is(destDoc.containsKey(DEPENDENT_VARIABLE_FIELD)));
-            @SuppressWarnings("unchecked")
-            List<Map<String, Object>> importanceArray = (List<Map<String, Object>>) resultsObject.get("feature_importance");
-            assertThat(importanceArray, hasSize(1));
-            assertThat(importanceArray.get(0), hasEntry("feature_name", numericRuntimeField));
-        }
+                assertThat(resultsObject.containsKey(predictedClassField), is(true));
+                assertThat(resultsObject.containsKey("is_training"), is(true));
+                assertThat(resultsObject.get("is_training"), is(destDoc.containsKey(DEPENDENT_VARIABLE_FIELD)));
+                @SuppressWarnings("unchecked")
+                List<Map<String, Object>> importanceArray = (List<Map<String, Object>>) resultsObject.get("feature_importance");
+                assertThat(importanceArray, hasSize(1));
+                assertThat(importanceArray.get(0), hasEntry("feature_name", numericRuntimeField));
+            }
+        });
 
         assertProgressComplete(jobId);
-        assertThat(searchStoredProgress(jobId).getHits().getTotalHits().value, equalTo(1L));
+        assertStoredProgressHits(jobId, 1);
         assertModelStatePersisted(stateDocId());
         assertExactlyOneInferenceModelPersisted(jobId);
         assertMlResultsFieldMappings(destIndex, predictedClassField, "double");

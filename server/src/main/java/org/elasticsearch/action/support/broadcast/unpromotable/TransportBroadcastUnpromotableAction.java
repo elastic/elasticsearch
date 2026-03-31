@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.support.broadcast.unpromotable;
@@ -22,6 +23,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportChannel;
@@ -51,18 +53,20 @@ public abstract class TransportBroadcastUnpromotableAction<Request extends Broad
         ShardStateAction shardStateAction,
         ActionFilters actionFilters,
         Writeable.Reader<Request> requestReader,
-        String executor
+        Executor executor
     ) {
-        super(actionName, transportService, actionFilters, requestReader);
+        super(actionName, transportService, actionFilters, requestReader, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.clusterService = clusterService;
         this.shardStateAction = shardStateAction;
         this.transportService = transportService;
         this.transportUnpromotableAction = actionName + "[u]";
-        this.executor = transportService.getThreadPool().executor(executor);
+        this.executor = executor;
 
         transportService.registerRequestHandler(
             transportUnpromotableAction,
             this.executor,
+            false,
+            false,
             requestReader,
             new UnpromotableTransportHandler()
         );
@@ -72,7 +76,7 @@ public abstract class TransportBroadcastUnpromotableAction<Request extends Broad
 
     @Override
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
-        final var unpromotableShards = request.indexShardRoutingTable.unpromotableShards();
+        final var unpromotableShards = request.indexShardRoutingTable.assignedUnpromotableShards();
         final var responses = new ArrayList<Response>(unpromotableShards.size());
 
         try (var listeners = new RefCountingListener(listener.map(v -> combineUnpromotableShardResponses(responses)))) {
@@ -117,7 +121,7 @@ public abstract class TransportBroadcastUnpromotableAction<Request extends Broad
         shardStateAction.remoteShardFailed(
             shardRouting.shardId(),
             shardRouting.allocationId().getId(),
-            clusterState.metadata().index(shardRouting.getIndexName()).primaryTerm(shardRouting.shardId().getId()),
+            clusterState.metadata().getProject().index(shardRouting.getIndexName()).primaryTerm(shardRouting.shardId().getId()),
             true,
             "mark unpromotable copy as stale after refresh failure",
             e,

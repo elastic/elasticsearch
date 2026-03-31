@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.indices.recovery;
 
@@ -56,6 +57,7 @@ import org.elasticsearch.index.engine.SegmentsStats;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.index.seqno.RetentionLease;
 import org.elasticsearch.index.seqno.RetentionLeases;
@@ -102,7 +104,6 @@ import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -124,7 +125,6 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -191,7 +191,7 @@ public class RecoverySourceHandlerTests extends MapperServiceTestCase {
             metas.add(md);
         }
         Store targetStore = newStore(createTempDir());
-        MultiFileWriter multiFileWriter = new MultiFileWriter(targetStore, mock(RecoveryState.Index.class), "", logger, () -> {});
+        MultiFileWriter multiFileWriter = new MultiFileWriter(targetStore, mock(RecoveryState.Index.class), "", logger);
         RecoveryTargetHandler target = new TestRecoveryTargetHandler() {
             @Override
             public void writeFileChunk(
@@ -233,7 +233,7 @@ public class RecoverySourceHandlerTests extends MapperServiceTestCase {
         IOUtils.close(reader, store, multiFileWriter, targetStore);
     }
 
-    public StartRecoveryRequest getStartRecoveryRequest() throws IOException {
+    public StartRecoveryRequest getStartRecoveryRequest() {
         Store.MetadataSnapshot metadataSnapshot = randomBoolean()
             ? Store.MetadataSnapshot.EMPTY
             : new Store.MetadataSnapshot(
@@ -246,6 +246,7 @@ public class RecoverySourceHandlerTests extends MapperServiceTestCase {
             null,
             DiscoveryNodeUtils.builder("b").roles(emptySet()).build(),
             DiscoveryNodeUtils.builder("b").roles(emptySet()).build(),
+            0L,
             metadataSnapshot,
             randomBoolean(),
             randomNonNegativeLong(),
@@ -521,7 +522,7 @@ public class RecoverySourceHandlerTests extends MapperServiceTestCase {
                 {
                     "@timestamp": %s,
                     "dim": "dim"
-                }""", docIdent)), XContentType.JSON);
+                }""", docIdent)), XContentType.JSON, TimeSeriesRoutingHashFieldMapper.DUMMY_ENCODED_VALUE);
             return IndexShard.prepareIndex(
                 mapper,
                 source,
@@ -577,7 +578,7 @@ public class RecoverySourceHandlerTests extends MapperServiceTestCase {
             )
         );
         Store targetStore = newStore(createTempDir(), false);
-        MultiFileWriter multiFileWriter = new MultiFileWriter(targetStore, mock(RecoveryState.Index.class), "", logger, () -> {});
+        MultiFileWriter multiFileWriter = new MultiFileWriter(targetStore, mock(RecoveryState.Index.class), "", logger);
         RecoveryTargetHandler target = new TestRecoveryTargetHandler() {
             @Override
             public void writeFileChunk(
@@ -708,6 +709,7 @@ public class RecoverySourceHandlerTests extends MapperServiceTestCase {
         final RecoverySettings recoverySettings = new RecoverySettings(Settings.EMPTY, service);
         final StartRecoveryRequest request = getStartRecoveryRequest();
         final IndexShard shard = mock(IndexShard.class);
+        when(shard.getThreadPool()).thenReturn(threadPool);
         when(shard.seqNoStats()).thenReturn(mock(SeqNoStats.class));
         when(shard.segmentStats(anyBoolean(), anyBoolean())).thenReturn(mock(SegmentsStats.class));
         when(shard.isRelocatedPrimary()).thenReturn(true);
@@ -715,11 +717,11 @@ public class RecoverySourceHandlerTests extends MapperServiceTestCase {
         doAnswer(invocation -> {
             ((ActionListener<Releasable>) invocation.getArguments()[0]).onResponse(() -> {});
             return null;
-        }).when(shard).acquirePrimaryOperationPermit(any(), anyString());
+        }).when(shard).acquirePrimaryOperationPermit(any(), any(Executor.class));
 
         final IndexMetadata.Builder indexMetadata = IndexMetadata.builder("test")
             .settings(
-                indexSettings(IndexVersionUtils.randomVersion(random()), between(1, 5), between(0, 5)).put(
+                indexSettings(IndexVersionUtils.randomVersion(), between(1, 5), between(0, 5)).put(
                     IndexMetadata.SETTING_INDEX_UUID,
                     UUIDs.randomBase64UUID(random())
                 )
@@ -783,10 +785,8 @@ public class RecoverySourceHandlerTests extends MapperServiceTestCase {
 
         };
         PlainActionFuture<RecoveryResponse> future = new PlainActionFuture<>();
-        expectThrows(IndexShardRelocatedException.class, () -> {
-            handler.recoverToTarget(future);
-            future.actionGet();
-        });
+        handler.recoverToTarget(future);
+        expectThrows(IndexShardRelocatedException.class, future);
         assertFalse(phase1Called.get());
         assertFalse(prepareTargetForTranslogCalled.get());
         assertFalse(phase2Called.get());
@@ -798,28 +798,30 @@ public class RecoverySourceHandlerTests extends MapperServiceTestCase {
         final IndexShard shard = mock(IndexShard.class);
         final AtomicBoolean freed = new AtomicBoolean(true);
         when(shard.isRelocatedPrimary()).thenReturn(false);
+        when(shard.getThreadPool()).thenReturn(threadPool);
         doAnswer(invocation -> {
             freed.set(false);
             ((ActionListener<Releasable>) invocation.getArguments()[0]).onResponse(() -> freed.set(true));
             return null;
-        }).when(shard).acquirePrimaryOperationPermit(any(), anyString());
+        }).when(shard).acquirePrimaryOperationPermit(any(), any(Executor.class));
 
         Thread cancelingThread = new Thread(() -> cancellableThreads.cancel("test"));
         cancelingThread.start();
-        try {
-            PlainActionFuture.<Void, RuntimeException>get(
-                future -> RecoverySourceHandler.runUnderPrimaryPermit(
-                    listener -> listener.onResponse(null),
-                    shard,
-                    cancellableThreads,
-                    future
-                ),
-                10,
-                TimeUnit.SECONDS
-            );
-        } catch (CancellableThreads.ExecutionCancelledException e) {
-            // expected.
-        }
+        safeAwait(
+            runListener -> RecoverySourceHandler.runUnderPrimaryPermit(
+                permitListener -> permitListener.onResponse(null),
+                shard,
+                cancellableThreads,
+                runListener.delegateResponse((l, e) -> {
+                    if (e instanceof CancellableThreads.ExecutionCancelledException) {
+                        // expected.
+                        l.onResponse(null);
+                    } else {
+                        l.onFailure(e);
+                    }
+                })
+            )
+        );
         cancelingThread.join();
         // we have to use assert busy as we may be interrupted while acquiring the permit, if so we want to check
         // that the permit is released.
@@ -1077,50 +1079,6 @@ public class RecoverySourceHandlerTests extends MapperServiceTestCase {
         store.close();
     }
 
-    public void testVerifySeqNoStatsWhenRecoverWithSyncId() throws Exception {
-        IndexShard shard = mock(IndexShard.class);
-        when(shard.state()).thenReturn(IndexShardState.STARTED);
-        RecoverySourceHandler handler = new RecoverySourceHandler(
-            shard,
-            new TestRecoveryTargetHandler(),
-            threadPool,
-            getStartRecoveryRequest(),
-            between(1, 16),
-            between(1, 4),
-            between(1, 4),
-            between(1, 4),
-            false,
-            recoveryPlannerService
-        );
-
-        String syncId = UUIDs.randomBase64UUID();
-        int numDocs = between(0, 1000);
-        long localCheckpoint = randomLongBetween(SequenceNumbers.NO_OPS_PERFORMED, Long.MAX_VALUE);
-        long maxSeqNo = randomLongBetween(SequenceNumbers.NO_OPS_PERFORMED, Long.MAX_VALUE);
-        assertTrue(
-            handler.hasSameLegacySyncId(
-                newMetadataSnapshot(syncId, Long.toString(localCheckpoint), Long.toString(maxSeqNo), numDocs),
-                newMetadataSnapshot(syncId, Long.toString(localCheckpoint), Long.toString(maxSeqNo), numDocs)
-            )
-        );
-
-        AssertionError error = expectThrows(AssertionError.class, () -> {
-            long localCheckpointOnTarget = randomValueOtherThan(
-                localCheckpoint,
-                () -> randomLongBetween(SequenceNumbers.NO_OPS_PERFORMED, Long.MAX_VALUE)
-            );
-            long maxSeqNoOnTarget = randomValueOtherThan(
-                maxSeqNo,
-                () -> randomLongBetween(SequenceNumbers.NO_OPS_PERFORMED, Long.MAX_VALUE)
-            );
-            handler.hasSameLegacySyncId(
-                newMetadataSnapshot(syncId, Long.toString(localCheckpoint), Long.toString(maxSeqNo), numDocs),
-                newMetadataSnapshot(syncId, Long.toString(localCheckpointOnTarget), Long.toString(maxSeqNoOnTarget), numDocs)
-            );
-        });
-        assertThat(error.getMessage(), containsString("try to recover [index][1] with sync id but seq_no stats are mismatched:"));
-    }
-
     public void testRecoveryPlannerServiceIsUsed() throws Exception {
         try (Store store = newStore(createTempDir("source"), false)) {
             IndexShard shard = mock(IndexShard.class);
@@ -1173,7 +1131,7 @@ public class RecoverySourceHandlerTests extends MapperServiceTestCase {
                     super.recoverFilesFromSourceAndSnapshot(shardRecoveryPlan, store, stopWatch, listener);
                 }
             };
-            PlainActionFuture<RecoverySourceHandler.SendFileResult> phase1Listener = PlainActionFuture.newFuture();
+            PlainActionFuture<RecoverySourceHandler.SendFileResult> phase1Listener = new PlainActionFuture<>();
             IndexCommit indexCommit = DirectoryReader.listCommits(dir).get(0);
             handler.phase1(indexCommit, 0, () -> 0, phase1Listener);
             phase1Listener.get();
@@ -1269,7 +1227,7 @@ public class RecoverySourceHandlerTests extends MapperServiceTestCase {
                 }
             };
 
-            PlainActionFuture<RecoverySourceHandler.SendFileResult> future = PlainActionFuture.newFuture();
+            PlainActionFuture<RecoverySourceHandler.SendFileResult> future = new PlainActionFuture<>();
             handler.recoverFilesFromSourceAndSnapshot(shardRecoveryPlan, store, mock(StopWatch.class), future);
             future.actionGet();
 
@@ -1337,7 +1295,7 @@ public class RecoverySourceHandlerTests extends MapperServiceTestCase {
                 }
             };
 
-            PlainActionFuture<RecoverySourceHandler.SendFileResult> future = PlainActionFuture.newFuture();
+            PlainActionFuture<RecoverySourceHandler.SendFileResult> future = new PlainActionFuture<>();
             handler.recoverFilesFromSourceAndSnapshot(shardRecoveryPlan, store, mock(StopWatch.class), future);
 
             assertBusy(() -> {
@@ -1429,7 +1387,7 @@ public class RecoverySourceHandlerTests extends MapperServiceTestCase {
                 }
             };
 
-            PlainActionFuture<RecoverySourceHandler.SendFileResult> future = PlainActionFuture.newFuture();
+            PlainActionFuture<RecoverySourceHandler.SendFileResult> future = new PlainActionFuture<>();
             handler.recoverFilesFromSourceAndSnapshot(shardRecoveryPlan, store, mock(StopWatch.class), future);
 
             downloadSnapshotFileReceived.await();
@@ -1500,7 +1458,7 @@ public class RecoverySourceHandlerTests extends MapperServiceTestCase {
                 }
             };
 
-            PlainActionFuture<RecoverySourceHandler.SendFileResult> future = PlainActionFuture.newFuture();
+            PlainActionFuture<RecoverySourceHandler.SendFileResult> future = new PlainActionFuture<>();
             handler.recoverFilesFromSourceAndSnapshot(shardRecoveryPlan, store, mock(StopWatch.class), future);
 
             downloadSnapshotFileReceived.await();
@@ -1655,7 +1613,7 @@ public class RecoverySourceHandlerTests extends MapperServiceTestCase {
                 }
             };
 
-            PlainActionFuture<RecoverySourceHandler.SendFileResult> future = PlainActionFuture.newFuture();
+            PlainActionFuture<RecoverySourceHandler.SendFileResult> future = new PlainActionFuture<>();
             handler.recoverFilesFromSourceAndSnapshot(shardRecoveryPlan, store, mock(StopWatch.class), future);
 
             downloadSnapshotFileReceived.await();
@@ -1728,7 +1686,7 @@ public class RecoverySourceHandlerTests extends MapperServiceTestCase {
             0
         );
 
-        ByteSizeValue partSize = new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES);
+        ByteSizeValue partSize = ByteSizeValue.of(Long.MAX_VALUE, ByteSizeUnit.BYTES);
 
         List<StoreFileMetadata> filesToRecoverFromSource = sourceFiles.subList(0, sourceFileCount);
         List<StoreFileMetadata> filesToRecoverFromSnapshot = sourceFiles.subList(sourceFileCount, sourceFiles.size());
@@ -1782,7 +1740,6 @@ public class RecoverySourceHandlerTests extends MapperServiceTestCase {
 
     private Store.MetadataSnapshot newMetadataSnapshot(String syncId, String localCheckpoint, String maxSeqNo, int numDocs) {
         Map<String, String> userData = new HashMap<>();
-        userData.put(Engine.SYNC_COMMIT_ID, syncId);
         if (localCheckpoint != null) {
             userData.put(SequenceNumbers.LOCAL_CHECKPOINT_KEY, localCheckpoint);
         }

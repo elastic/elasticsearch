@@ -31,8 +31,8 @@ setup:
 ---
 "Basic multi-search template":
 
-  - skip:
-      version: " - 8.2.99"
+  - requires:
+      cluster_features: ["gte_v8.3.0"]
       reason:  "status field checks were added in 8.3"
 
   - do:
@@ -74,9 +74,9 @@ setup:
 
 ---
 "Multi-search template with errors":
- 
-  - skip:
-      version: " - 8.2.99"
+
+  - requires:
+      cluster_features: ["gte_v8.3.0"]
       reason:  "status field checks were added in 8.3"
 
   - do:
@@ -114,14 +114,14 @@ setup:
 
   - match:  { responses.0.hits.total:     2  }
   - match:  { responses.1.error.root_cause.0.type: x_content_e_o_f_exception }
-  - match:  { responses.1.error.root_cause.0.reason: "/Unexpected.end.of.input/" }
+  - match:  { responses.1.error.root_cause.0.reason: "/\\[1:22\\].Unexpected.end.of.file/" }
   - match:  { responses.2.hits.total:     1  }
   - match:  { responses.3.error.root_cause.0.type: parsing_exception }
   - match:  { responses.3.error.root_cause.0.reason: "/unknown.query.\\[unknown\\]/" }
   - match:  { responses.4.error.root_cause.0.type: illegal_argument_exception }
   - match:  { responses.4.error.root_cause.0.reason: "[rest_total_hits_as_int] cannot be used if the tracking of total hits is not accurate, got 1" }
   - match:  { responses.0.status: 200 }
-  - match:  { responses.1.status: 500 }
+  - match:  { responses.1.status: 400 }
   - match:  { responses.2.status: 200 }
   - match:  { responses.3.status: 400 }
 
@@ -151,8 +151,8 @@ setup:
 ---
 "Basic multi-search using stored template":
 
-  - skip:
-      version: " - 8.2.99"
+  - requires:
+      cluster_features: ["gte_v8.3.0"]
       reason:  "status field checks were added in 8.3"
 
   - do:
@@ -197,8 +197,8 @@ setup:
 ---
 "Test with rest_total_hits_as_int":
 
-  - skip:
-      version: " - 8.2.99"
+  - requires:
+      cluster_features: ["gte_v8.3.0"]
       reason:  "status field checks were added in 8.3"
 
   - do:

@@ -147,4 +147,226 @@ public class TransformLatestRestIT extends TransformRestTestCase {
             );
         }
     }
+
+    @SuppressWarnings("unchecked")
+    public void testPreviewAsIndexRequest() throws IOException {
+        setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME);
+        var createPreviewRequest = createRequestWithAuth("POST", getTransformEndpoint() + "_preview?as_index_request", null);
+        createPreviewRequest.setJsonEntity(Strings.format("""
+            {
+              "source": {
+                "index": "%s"
+              },
+              "latest": {
+                "unique_key": [ "user_id" ],
+                "sort": "@timestamp"
+              }
+            }""", REVIEWS_INDEX_NAME));
+        var previewTransformResponse = entityAsMap(client().performRequest(createPreviewRequest));
+        var preview = (List<Map<String, Object>>) previewTransformResponse.get("preview");
+        preview.forEach(p -> {
+            assertNotNull(XContentMapValues.extractValue("_id", p));
+            assertNotNull(XContentMapValues.extractValue("_source.@timestamp", p));
+            assertNotNull(XContentMapValues.extractValue("_source.user_id", p));
+        });
+    }
+
+    public void testContinuousLatestWithFrom_NoDocs() throws Exception {
+        testContinuousLatestWithFrom("latest_from_no_docs", "reviews_from_no_docs", "2017-02-20", 0);
+    }
+
+    public void testContinuousLatestWithFrom_OneDoc() throws Exception {
+        testContinuousLatestWithFrom("latest_from_one_doc", "reviews_from_one_doc", "2017-02-10", 1);
+    }
+
+    public void testContinuousLatestWithFrom_AllDocs_FromNull() throws Exception {
+        testContinuousLatestWithFrom("latest_from_all_docs_from_null", "reviews_from_all_docs_from_null", null, 28);
+    }
+
+    public void testContinuousLatestWithFrom_AllDocs() throws Exception {
+        testContinuousLatestWithFrom("latest_from_all_docs", "reviews_from_all_docs", "2017-01-01", 28);
+    }
+
+    private void testContinuousLatestWithFrom(String transformId, String indexName, String from, int expectedDestNumDocs) throws Exception {
+        createReviewsIndex(indexName);
+        String transformIndex = transformId + "-dest";
+        setupDataAccessRole(DATA_ACCESS_ROLE, indexName, transformIndex);
+        Request createTransformRequest = createRequestWithAuth(
+            "PUT",
+            getTransformEndpoint() + transformId,
+            BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS
+        );
+        String config = Strings.format("""
+            {
+              "source": {
+                "index": "%s"
+              },
+              "dest": {
+                "index": "%s"
+              },
+              "frequency": "1s",
+              "sync": {
+                "time": {
+                  "field": "timestamp",
+                  "delay": "1s"
+                }
+              },
+              "latest": {
+                "unique_key": [ "user_id" ],
+                "sort": "timestamp"
+              }
+            }""", indexName, transformIndex);
+        createTransformRequest.setJsonEntity(config);
+        Map<String, Object> createTransformResponse = entityAsMap(client().performRequest(createTransformRequest));
+        assertThat(createTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
+
+        assertSourceIndexContents(indexName, 1000, "2017-01-10T10:10:10.000Z", "2017-01-30T22:34:38.000Z");
+
+        {
+            StringBuilder bulk = new StringBuilder();
+            bulk.append(Strings.format("""
+                {"index":{"_index":"%s"}}
+                {"user_id":"user_%s","business_id":"business_%s","stars":%s,"location":"%s","timestamp":%s}
+                """, indexName, 666, 777, 7, 888, "\"2017-02-15\""));
+            bulk.append("\r\n");
+
+            Request bulkRequest = new Request("POST", "/_bulk");
+            bulkRequest.addParameter("refresh", "true");
+            bulkRequest.setJsonEntity(bulk.toString());
+            Map<String, Object> bulkResponse = entityAsMap(client().performRequest(bulkRequest));
+            assertThat(bulkResponse.get("errors"), equalTo(Boolean.FALSE));
+        }
+
+        assertSourceIndexContents(indexName, 1001, "2017-01-10T10:10:10.000Z", "2017-02-15T00:00:00.000Z");
+
+        startAndWaitForContinuousTransform(transformId, transformIndex, null, from, 1L);
+        assertTrue(indexExists(transformIndex));
+
+        Map<String, Object> transformIndexStats = getAsMap(transformIndex + "/_stats");
+        assertThat(
+            "Stats were: " + transformIndexStats,
+            XContentMapValues.extractValue("_all.total.docs.count", transformIndexStats),
+            is(equalTo(expectedDestNumDocs))
+        );
+
+        stopTransform(transformId, false);
+        deleteIndex(indexName);
+    }
+
+    /**
+     * Verifies that a continuous latest transform correctly handles non-monotonic alignment between
+     * the sort field and the sync time field (gh#90643).
+     *
+     * Scenario: Two documents for the same unique key arrive in separate checkpoints. The first
+     * document has a higher sort value (updated_at) but a lower sync value (event_ingested). The
+     * second document has a lower sort value but a higher sync value. Without the fix, the second
+     * checkpoint overwrites the destination with the stale document because the narrow time-window
+     * filter hides the first document from top_hits.
+     */
+    public void testContinuousLatestWithNonMonotonicSortField() throws Exception {
+        String sourceIndex = "non_monotonic_source";
+        String transformId = "non_monotonic_latest";
+        String transformIndex = transformId + "-dest";
+        setupDataAccessRole(DATA_ACCESS_ROLE, sourceIndex, transformIndex);
+
+        Request createIndex = new Request("PUT", sourceIndex);
+        createIndex.setJsonEntity("""
+            {
+              "mappings": {
+                "properties": {
+                  "order_id":        { "type": "keyword" },
+                  "status":          { "type": "keyword" },
+                  "updated_at":      { "type": "date" },
+                  "event_ingested":  { "type": "date" }
+                }
+              }
+            }""");
+        client().performRequest(createIndex);
+
+        long now = System.currentTimeMillis();
+
+        // Doc A: higher sort value, ingested well in the past so it's visible in checkpoint 1
+        doBulk(org.elasticsearch.core.Strings.format("""
+            {"index":{"_index":"%s"}}
+            {"order_id":"order-1","status":"accepted","updated_at":%d,"event_ingested":%d}
+            """, sourceIndex, now + 5000, now - 10000), true);
+
+        Request createTransformRequest = createRequestWithAuth(
+            "PUT",
+            getTransformEndpoint() + transformId,
+            BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS
+        );
+        createTransformRequest.setJsonEntity(org.elasticsearch.core.Strings.format("""
+            {
+              "source": { "index": "%s" },
+              "dest": { "index": "%s" },
+              "frequency": "1s",
+              "sync": {
+                "time": {
+                  "field": "event_ingested",
+                  "delay": "1s"
+                }
+              },
+              "latest": {
+                "unique_key": [ "order_id" ],
+                "sort": "updated_at"
+              }
+            }""", sourceIndex, transformIndex));
+        Map<String, Object> createResponse = entityAsMap(client().performRequest(createTransformRequest));
+        assertThat(createResponse.get("acknowledged"), equalTo(Boolean.TRUE));
+
+        startAndWaitForContinuousTransform(transformId, transformIndex, BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS);
+
+        Map<String, Object> searchResult = getAsMap(transformIndex + "/_search?q=order_id:order-1");
+        assertEquals(1, XContentMapValues.extractValue("hits.total.value", searchResult));
+        assertThat(((List<?>) XContentMapValues.extractValue("hits.hits._source.status", searchResult)).get(0), is(equalTo("accepted")));
+
+        // Doc B: lower sort value but ingested after checkpoint 1, using real current time
+        long ingestedNow = System.currentTimeMillis();
+        doBulk(org.elasticsearch.core.Strings.format("""
+            {"index":{"_index":"%s"}}
+            {"order_id":"order-1","status":"pending","updated_at":%d,"event_ingested":%d}
+            """, sourceIndex, now + 3000, ingestedNow), true);
+
+        waitForTransformCheckpoint(transformId, 2);
+        refreshIndex(transformIndex);
+
+        searchResult = getAsMap(transformIndex + "/_search?q=order_id:order-1");
+        assertEquals(1, XContentMapValues.extractValue("hits.total.value", searchResult));
+        assertThat(((List<?>) XContentMapValues.extractValue("hits.hits._source.status", searchResult)).get(0), is(equalTo("accepted")));
+
+        stopTransform(transformId, false);
+        deleteIndex(sourceIndex);
+    }
+
+    private void assertSourceIndexContents(String indexName, int expectedNumDocs, String expectedMinTimestamp, String expectedMaxTimestamp)
+        throws IOException {
+        Request searchRequest = new Request("GET", indexName + "/_search");
+        searchRequest.setJsonEntity("""
+            {
+              "size": 0,
+              "aggregations": {
+                "min_timestamp": {
+                  "min": {
+                    "field": "timestamp"
+                  }
+                },
+                "max_timestamp": {
+                  "max": {
+                    "field": "timestamp"
+                  }
+                }
+              }
+            }""");
+        Map<String, Object> searchResponse = entityAsMap(client().performRequest(searchRequest));
+        assertThat(XContentMapValues.extractValue("hits.total.value", searchResponse), is(equalTo(expectedNumDocs)));
+        assertThat(
+            XContentMapValues.extractValue("aggregations.min_timestamp.value_as_string", searchResponse),
+            is(equalTo(expectedMinTimestamp))
+        );
+        assertThat(
+            XContentMapValues.extractValue("aggregations.max_timestamp.value_as_string", searchResponse),
+            is(equalTo(expectedMaxTimestamp))
+        );
+    }
 }

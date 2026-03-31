@@ -6,8 +6,6 @@
  */
 package org.elasticsearch.xpack.ml.process;
 
-import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.common.bytes.BytesReference;
 
 import java.io.IOException;
@@ -23,19 +21,14 @@ public final class StateToProcessWriterHelper {
     public static void writeStateToStream(BytesReference source, OutputStream stream) throws IOException {
         // The source bytes are already UTF-8. The C++ process wants UTF-8, so we
         // can avoid converting to a Java String only to convert back again.
-        BytesRefIterator iterator = source.iterator();
-        for (BytesRef ref = iterator.next(); ref != null; ref = iterator.next()) {
-            // There's a complication that the source can already have trailing 0 bytes
-            int length = ref.bytes.length;
-            while (length > 0 && ref.bytes[length - 1] == 0) {
-                --length;
-            }
-            if (length > 0) {
-                stream.write(ref.bytes, 0, length);
-            }
+        int length = source.length();
+        // There's a complication that the source can already have trailing 0 bytes
+        while (length > 0 && source.get(length - 1) == 0) {
+            --length;
         }
-        // This is dictated by RapidJSON on the C++ side; it treats a '\0' as end-of-file
-        // even when it's not really end-of-file, and this is what we need because we're
+        source.slice(0, length).writeTo(stream);
+        // This is dictated by the JSON parser on the C++ side; it treats a '\0' as the character
+        // that separates distinct JSON documents, and this is what we need because we're
         // sending multiple JSON documents via the same named pipe.
         stream.write(0);
     }

@@ -1,37 +1,36 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.ingest.common;
 
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.IndexScopedSettings;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.ingest.DropProcessor;
+import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.ingest.PipelineProcessor;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.plugins.ActionPlugin;
+import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 
 import java.util.List;
 import java.util.Map;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
+import java.util.function.UnaryOperator;
 
 import static java.util.Map.entry;
 
-public class IngestCommonPlugin extends Plugin implements ActionPlugin, IngestPlugin {
+public class IngestCommonPlugin extends Plugin implements ActionPlugin, IngestPlugin, ExtensiblePlugin {
 
     public IngestCommonPlugin() {}
 
@@ -40,6 +39,7 @@ public class IngestCommonPlugin extends Plugin implements ActionPlugin, IngestPl
         return Map.ofEntries(
             entry(AppendProcessor.TYPE, new AppendProcessor.Factory(parameters.scriptService)),
             entry(BytesProcessor.TYPE, new BytesProcessor.Factory()),
+            entry(CefProcessor.TYPE, new CefProcessor.Factory(parameters.scriptService)),
             entry(CommunityIdProcessor.TYPE, new CommunityIdProcessor.Factory()),
             entry(ConvertProcessor.TYPE, new ConvertProcessor.Factory()),
             entry(CsvProcessor.TYPE, new CsvProcessor.Factory()),
@@ -61,6 +61,7 @@ public class IngestCommonPlugin extends Plugin implements ActionPlugin, IngestPl
             entry(NetworkDirectionProcessor.TYPE, new NetworkDirectionProcessor.Factory(parameters.scriptService)),
             entry(PipelineProcessor.TYPE, new PipelineProcessor.Factory(parameters.ingestService)),
             entry(RegisteredDomainProcessor.TYPE, new RegisteredDomainProcessor.Factory()),
+            entry(RecoverFailureDocumentProcessor.TYPE, new RecoverFailureDocumentProcessor.Factory()),
             entry(RemoveProcessor.TYPE, new RemoveProcessor.Factory(parameters.scriptService)),
             entry(RenameProcessor.TYPE, new RenameProcessor.Factory(parameters.scriptService)),
             entry(RerouteProcessor.TYPE, new RerouteProcessor.Factory()),
@@ -68,27 +69,36 @@ public class IngestCommonPlugin extends Plugin implements ActionPlugin, IngestPl
             entry(SetProcessor.TYPE, new SetProcessor.Factory(parameters.scriptService)),
             entry(SortProcessor.TYPE, new SortProcessor.Factory()),
             entry(SplitProcessor.TYPE, new SplitProcessor.Factory()),
+            entry(TerminateProcessor.TYPE, new TerminateProcessor.Factory()),
             entry(TrimProcessor.TYPE, new TrimProcessor.Factory()),
             entry(URLDecodeProcessor.TYPE, new URLDecodeProcessor.Factory()),
             entry(UppercaseProcessor.TYPE, new UppercaseProcessor.Factory()),
-            entry(UriPartsProcessor.TYPE, new UriPartsProcessor.Factory())
+            entry(UriPartsProcessor.TYPE, new UriPartsProcessor.Factory()),
+            entry(UserAgentProcessor.TYPE, new UserAgentProcessor.Factory(parameters.userAgentParserRegistry))
         );
     }
 
     @Override
-    public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-        return List.of(new ActionHandler<>(GrokProcessorGetAction.INSTANCE, GrokProcessorGetAction.TransportAction.class));
+    public Map<String, UnaryOperator<Metadata.ProjectCustom>> getProjectCustomMetadataUpgraders() {
+        return Map.of(
+            IngestMetadata.TYPE,
+            ingestMetadata -> ((IngestMetadata) ingestMetadata).maybeUpgradeProcessors(
+                UserAgentProcessor.TYPE,
+                UserAgentProcessor::maybeUpgradeConfig
+            )
+        );
+    }
+
+    @Override
+    public List<ActionHandler> getActions() {
+        return List.of(new ActionHandler(GrokProcessorGetAction.INSTANCE, GrokProcessorGetAction.TransportAction.class));
     }
 
     @Override
     public List<RestHandler> getRestHandlers(
-        Settings settings,
-        RestController restController,
-        ClusterSettings clusterSettings,
-        IndexScopedSettings indexScopedSettings,
-        SettingsFilter settingsFilter,
-        IndexNameExpressionResolver indexNameExpressionResolver,
-        Supplier<DiscoveryNodes> nodesInCluster
+        RestHandlersServices restHandlersServices,
+        Supplier<DiscoveryNodes> nodesInCluster,
+        Predicate<NodeFeature> clusterSupportsFeature
     ) {
         return List.of(new GrokProcessorGetAction.RestAction());
     }

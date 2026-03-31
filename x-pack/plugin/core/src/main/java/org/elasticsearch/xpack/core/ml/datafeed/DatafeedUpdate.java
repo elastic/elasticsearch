@@ -166,7 +166,7 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
         delayedDataCheckConfig = in.readOptionalWriteable(DelayedDataCheckConfig::new);
         maxEmptySearches = in.readOptionalInt();
         indicesOptions = in.readBoolean() ? IndicesOptions.readIndicesOptions(in) : null;
-        this.runtimeMappings = in.readBoolean() ? in.readMap() : null;
+        this.runtimeMappings = in.readBoolean() ? in.readGenericMap() : null;
     }
 
     /**
@@ -255,7 +255,7 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
         return builder;
     }
 
-    private void addOptionalField(XContentBuilder builder, ParseField field, Object value) throws IOException {
+    private static void addOptionalField(XContentBuilder builder, ParseField field, Object value) throws IOException {
         if (value != null) {
             builder.field(field.getPreferredName(), value);
         }

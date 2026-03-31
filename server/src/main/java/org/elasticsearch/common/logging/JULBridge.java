@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.logging;
@@ -14,6 +15,7 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
 import java.text.MessageFormat;
+import java.util.Arrays;
 import java.util.Locale;
 import java.util.Map;
 import java.util.NavigableMap;
@@ -67,10 +69,20 @@ class JULBridge extends Handler {
         final String message;
         if (rawMessage == null) {
             message = "<null message>";
+        } else if (record.getParameters() != null && record.getParameters().length > 0) {
+            try {
+                message = new MessageFormat(rawMessage, Locale.ROOT).format(record.getParameters());
+            } catch (Exception e) {
+                logMessage(thrown, logger, level, rawMessage + " " + Arrays.toString(record.getParameters()));
+                return;
+            }
         } else {
-            message = new MessageFormat(rawMessage, Locale.ROOT).format(record.getParameters());
+            message = rawMessage;
         }
+        logMessage(thrown, logger, level, message);
+    }
 
+    private static void logMessage(Throwable thrown, Logger logger, Level level, String message) {
         if (thrown == null) {
             logger.log(level, message);
         } else {
@@ -78,7 +90,7 @@ class JULBridge extends Handler {
         }
     }
 
-    private Level translateJulLevel(java.util.logging.Level julLevel) {
+    private static Level translateJulLevel(java.util.logging.Level julLevel) {
         Level esLevel = levelMap.get(julLevel);
         if (esLevel != null) {
             return esLevel;

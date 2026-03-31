@@ -23,6 +23,7 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.PathUtilsForTesting;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.test.FileMatchers;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
@@ -45,6 +46,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.test.SecurityIntegTestCase.getFastStoredHashAlgoForTests;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasSize;
 
 public class UsersToolTests extends CommandTestCase {
 
@@ -366,6 +368,30 @@ public class UsersToolTests extends CommandTestCase {
         execute("useradd", pathHomeParameter, fileOrderParameter, "username", "-p", SecuritySettingsSourceField.TEST_PASSWORD);
         List<String> lines = Files.readAllLines(confDir.resolve("users_roles"), StandardCharsets.UTF_8);
         assertTrue(lines.toString(), lines.isEmpty());
+    }
+
+    public void testUseraddRolesFileDoesNotExist() throws Exception {
+        final Path rolesFilePath = confDir.resolve("users_roles");
+        Files.delete(rolesFilePath);
+        var output = execute(
+            "useradd",
+            pathHomeParameter,
+            fileOrderParameter,
+            "trevor.slattery",
+            "-p",
+            SecuritySettingsSourceField.TEST_PASSWORD,
+            "-r",
+            "mandarin"
+        );
+        assertThat(output, containsString("does not exist"));
+        assertThat(output, containsString(rolesFilePath + "]"));
+        assertThat(output, containsString("attempt to create"));
+        assertThat(rolesFilePath, FileMatchers.pathExists());
+
+        List<String> lines = Files.readAllLines(rolesFilePath, StandardCharsets.UTF_8);
+        assertThat(lines, hasSize(1));
+        assertThat(lines.get(0), containsString("trevor.slattery"));
+        assertThat(lines.get(0), containsString("mandarin"));
     }
 
     public void testAddUserWithInvalidHashingAlgorithmInFips() throws Exception {

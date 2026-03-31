@@ -16,6 +16,6 @@ public class DeleteSecretAction extends ActionType<DeleteSecretResponse> {
     public static final DeleteSecretAction INSTANCE = new DeleteSecretAction();
 
     private DeleteSecretAction() {
-        super(NAME, DeleteSecretResponse::new);
+        super(NAME);
     }
 }

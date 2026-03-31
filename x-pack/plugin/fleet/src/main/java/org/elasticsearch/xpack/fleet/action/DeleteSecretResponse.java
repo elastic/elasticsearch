@@ -25,7 +25,6 @@ public class DeleteSecretResponse extends ActionResponse implements ToXContentOb
     }
 
     public DeleteSecretResponse(StreamInput in) throws IOException {
-        super(in);
         this.deleted = in.readBoolean();
     }
 

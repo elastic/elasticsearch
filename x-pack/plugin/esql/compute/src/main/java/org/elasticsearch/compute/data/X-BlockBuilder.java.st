@@ -7,39 +7,39 @@
 
 package org.elasticsearch.compute.data;
 
-$if(BytesRef)$
+// begin generated imports
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.BytesRefArray;
+import org.elasticsearch.common.util.$Array$;
+import org.elasticsearch.core.Releasables;
 
-$else$
 import java.util.Arrays;
-$endif$
+// end generated imports
 
 /**
  * Block build of $Type$Blocks.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-BlockBuilder.java.st} instead.
  */
 final class $Type$BlockBuilder extends AbstractBlockBuilder implements $Type$Block.Builder {
 
 $if(BytesRef)$
-    private static final BytesRef NULL_VALUE = new BytesRef();
-
     private BytesRefArray values;
 
-    BytesRefBlockBuilder(int estimatedSize) {
-        this(estimatedSize, BigArrays.NON_RECYCLING_INSTANCE);
-    }
-
-    BytesRefBlockBuilder(int estimatedSize, BigArrays bigArrays) {
+    BytesRefBlockBuilder(int estimatedSize, BigArrays bigArrays, BlockFactory blockFactory) {
+        super(blockFactory);
         values = new BytesRefArray(Math.max(estimatedSize, 2), bigArrays);
     }
 
 $else$
     private $type$[] values;
 
-    $Type$BlockBuilder(int estimatedSize) {
-        values = new $type$[Math.max(estimatedSize, 2)];
+    $Type$BlockBuilder(int estimatedSize, BlockFactory blockFactory) {
+        super(blockFactory);
+        int initialSize = Math.max(estimatedSize, 2);
+        adjustBreaker(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) initialSize * elementSize());
+        values = new $type$[initialSize];
     }
 $endif$
 
@@ -55,6 +55,11 @@ $endif$
         valueCount++;
         updatePosition();
         return this;
+    }
+
+    @Override
+    protected int elementSize() {
+        return $if(BytesRef)$-1$else$$BYTES$$endif$;
     }
 
     @Override
@@ -96,69 +101,9 @@ $endif$
 $if(BytesRef)$
     @Override
     protected void writeNullValue() {
-        values.append(NULL_VALUE);
+        values.append(BytesRefBlock.NULL_VALUE);
     }
 $endif$
-
-    /**
-     * Appends the all values of the given block into a the current position
-     * in this builder.
-     */
-    @Override
-    public $Type$BlockBuilder appendAllValuesToCurrentPosition(Block block) {
-        if (block.areAllValuesNull()) {
-            return appendNull();
-        }
-        return appendAllValuesToCurrentPosition(($Type$Block) block);
-    }
-
-    /**
-     * Appends the all values of the given block into a the current position
-     * in this builder.
-     */
-    @Override
-    public $Type$BlockBuilder appendAllValuesToCurrentPosition($Type$Block block) {
-        final int positionCount = block.getPositionCount();
-        if (positionCount == 0) {
-            return appendNull();
-        }
-        final int totalValueCount = block.getTotalValueCount();
-        if (totalValueCount == 0) {
-            return appendNull();
-        }
-        if (totalValueCount > 1) {
-            beginPositionEntry();
-        }
-$if(BytesRef)$
-        BytesRef scratch = new BytesRef();
-$endif$
-        final $Type$Vector vector = block.asVector();
-        if (vector != null) {
-            for (int p = 0; p < positionCount; p++) {
-$if(BytesRef)$
-                appendBytesRef(vector.getBytesRef(p, scratch));
-$else$
-                append$Type$(vector.get$Type$(p));
-$endif$
-            }
-        } else {
-            for (int p = 0; p < positionCount; p++) {
-                int count = block.getValueCount(p);
-                int i = block.getFirstValueIndex(p);
-                for (int v = 0; v < count; v++) {
-$if(BytesRef)$
-                    appendBytesRef(block.getBytesRef(i++, scratch));
-$else$
-                    append$Type$(block.get$Type$(i++));
-$endif$
-                }
-            }
-        }
-        if (totalValueCount > 1) {
-            endPositionEntry();
-        }
-        return this;
-    }
 
     @Override
     public $Type$BlockBuilder copyFrom(Block block, int beginInclusive, int endExclusive) {
@@ -174,7 +119,11 @@ $endif$
     /**
      * Copy the values in {@code block} from {@code beginInclusive} to
      * {@code endExclusive} into this builder.
+     * <p>
+     *     For single-position copies see {@link #copyFrom($Type$Block, int$if(BytesRef)$, BytesRef scratch$endif$)}.
+     * </p>
      */
+    @Override
     public $Type$BlockBuilder copyFrom($Type$Block block, int beginInclusive, int endExclusive) {
         if (endExclusive > block.getPositionCount()) {
             throw new IllegalArgumentException("can't copy past the end [" + endExclusive + " > " + block.getPositionCount() + "]");
@@ -193,25 +142,7 @@ $if(BytesRef)$
         BytesRef scratch = new BytesRef();
 $endif$
         for (int p = beginInclusive; p < endExclusive; p++) {
-            if (block.isNull(p)) {
-                appendNull();
-                continue;
-            }
-            int count = block.getValueCount(p);
-            if (count > 1) {
-                beginPositionEntry();
-            }
-            int i = block.getFirstValueIndex(p);
-            for (int v = 0; v < count; v++) {
-$if(BytesRef)$
-                appendBytesRef(block.getBytesRef(i++, scratch));
-$else$
-                append$Type$(block.get$Type$(i++));
-$endif$
-            }
-            if (count > 1) {
-                endPositionEntry();
-            }
+            copyFrom(block, p$if(BytesRef)$, scratch$endif$);
         }
     }
 
@@ -228,31 +159,159 @@ $endif$
         }
     }
 
+    /**
+     * Copy the values in {@code block} at {@code position}. If this position
+     * has a single value, this'll copy a single value. If this positions has
+     * many values, it'll copy all of them. If this is {@code null}, then it'll
+     * copy the {@code null}.
+$if(BytesRef)$
+     * @param scratch Scratch string used to prevent allocation. Share this
+                      between many calls to this function.
+$endif$
+     * <p>
+     *     Note that there isn't a version of this method on {@link Block.Builder} that takes
+     *     {@link Block}. That'd be quite slow, running position by position. And it's important
+     *     to know if you are copying {@link BytesRef}s so you can have the scratch.
+     * </p>
+     */
+    @Override
+    public $Type$BlockBuilder copyFrom($Type$Block block, int position$if(BytesRef)$, BytesRef scratch$endif$) {
+        if (block.isNull(position)) {
+            appendNull();
+            return this;
+        }
+        int count = block.getValueCount(position);
+        int i = block.getFirstValueIndex(position);
+        if (count == 1) {
+            append$Type$(block.get$Type$(i++$if(BytesRef)$, scratch$endif$));
+            return this;
+        }
+        beginPositionEntry();
+        for (int v = 0; v < count; v++) {
+            append$Type$(block.get$Type$(i++$if(BytesRef)$, scratch$endif$));
+        }
+        endPositionEntry();
+        return this;
+    }
+
     @Override
     public $Type$BlockBuilder mvOrdering(Block.MvOrdering mvOrdering) {
         this.mvOrdering = mvOrdering;
         return this;
     }
 
-    @Override
-    public $Type$Block build() {
-        finish();
-        if (hasNonNullValue && positionCount == 1 && valueCount == 1) {
 $if(BytesRef)$
-            return new ConstantBytesRefVector(values.get(0, new BytesRef()), 1).asBlock();
+    @Override
+    public long estimatedBytes() {
+        return super.estimatedBytes() + BytesRefArrayBlock.BASE_RAM_BYTES_USED + values.ramBytesUsed();
+    }
+
+    private $Type$Block buildFromBytesArray() {
+        assert estimatedBytes == 0 || firstValueIndexes != null;
+        final $Type$Block theBlock;
+        if (hasNonNullValue && positionCount == 1 && valueCount == 1) {
+            theBlock = new ConstantBytesRefVector(BytesRef.deepCopyOf(values.get(0, new BytesRef())), 1, blockFactory).asBlock();
+            /*
+             * Update the breaker with the actual bytes used.
+             * We pass false below even though we've used the bytes. That's weird,
+             * but if we break here we will throw away the used memory, letting
+             * it be deallocated. The exception will bubble up and the builder will
+             * still technically be open, meaning the calling code should close it
+             * which will return all used memory to the breaker.
+             */
+            blockFactory.adjustBreaker(theBlock.ramBytesUsed() - estimatedBytes);
+            Releasables.closeExpectNoException(values);
         } else {
-$else$
-            return new Constant$Type$Vector(values[0], 1).asBlock();
-        } else {
-            if (values.length - valueCount > 1024 || valueCount < (values.length / 2)) {
-                values = Arrays.copyOf(values, valueCount);
-            }
-$endif$
             if (isDense() && singleValued()) {
-                return new $Type$ArrayVector(values, positionCount).asBlock();
+                theBlock = new $Type$ArrayVector(values, positionCount, blockFactory).asBlock();
             } else {
-                return new $Type$ArrayBlock(values, positionCount, firstValueIndexes, nullsMask, mvOrdering);
+                theBlock = new $Type$ArrayBlock(values, positionCount, firstValueIndexes, nullsMask, mvOrdering, blockFactory);
+            }
+            /*
+             * Update the breaker with the actual bytes used.
+             * We pass false below even though we've used the bytes. That's weird,
+             * but if we break here we will throw away the used memory, letting
+             * it be deallocated. The exception will bubble up and the builder will
+             * still technically be open, meaning the calling code should close it
+             * which will return all used memory to the breaker.
+             */
+            blockFactory.adjustBreaker(theBlock.ramBytesUsed() - estimatedBytes - values.bigArraysRamBytesUsed());
+        }
+        return theBlock;
+    }
+
+$else$
+    private $Type$Block buildBigArraysBlock() {
+        final $Type$Block theBlock;
+    $if(boolean)$
+        final BitArray array = new BitArray(valueCount, blockFactory.bigArrays());
+        for (int i = 0; i < valueCount; i++) {
+            if (values[i]) {
+                array.set(i);
             }
         }
+    $else$
+        final $Array$ array = blockFactory.bigArrays().new$Array$(valueCount, false);
+        for (int i = 0; i < valueCount; i++) {
+            array.set(i, values[i]);
+        }
+    $endif$
+        if (isDense() && singleValued()) {
+            theBlock = new $Type$BigArrayVector(array, positionCount, blockFactory).asBlock();
+        } else {
+            theBlock = new $Type$BigArrayBlock(array, positionCount, firstValueIndexes, nullsMask, mvOrdering, blockFactory);
+        }
+        /*
+        * Update the breaker with the actual bytes used.
+        * We pass false below even though we've used the bytes. That's weird,
+        * but if we break here we will throw away the used memory, letting
+        * it be deallocated. The exception will bubble up and the builder will
+        * still technically be open, meaning the calling code should close it
+        * which will return all used memory to the breaker.
+        */
+        blockFactory.adjustBreaker(theBlock.ramBytesUsed() - estimatedBytes - array.ramBytesUsed());
+        return theBlock;
     }
+$endif$
+
+    @Override
+    public $Type$Block build() {
+        try {
+            finish();
+            $Type$Block theBlock;
+    $if(BytesRef)$
+            theBlock = buildFromBytesArray();
+            values = null;
+    $else$
+            if (hasNonNullValue && positionCount == 1 && valueCount == 1) {
+                theBlock = blockFactory.newConstant$Type$BlockWith(values[0], 1, estimatedBytes);
+            } else if (estimatedBytes > blockFactory.maxPrimitiveArrayBytes()) {
+                theBlock = buildBigArraysBlock();
+            } else if (isDense() && singleValued()) {
+                theBlock = blockFactory.new$Type$ArrayVector(values, positionCount, estimatedBytes).asBlock();
+            } else {
+                theBlock = blockFactory.new$Type$ArrayBlock(
+                    values, // stylecheck
+                    positionCount,
+                    firstValueIndexes,
+                    nullsMask,
+                    mvOrdering,
+                    estimatedBytes
+                );
+            }
+    $endif$
+            built();
+            return theBlock;
+        } catch (CircuitBreakingException e) {
+            close();
+            throw e;
+        }
+    }
+$if(BytesRef)$
+
+    @Override
+    public void extraClose() {
+        Releasables.closeExpectNoException(values);
+    }
+$endif$
 }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.transport;
 
@@ -27,7 +28,7 @@ public class ResultDeduplicatorTests extends ESTestCase {
         AtomicInteger successCount = new AtomicInteger();
         AtomicInteger failureCount = new AtomicInteger();
         Exception failure = randomBoolean() ? new TransportException("simulated") : null;
-        final TransportRequest request = new TransportRequest() {
+        final TransportRequest request = new AbstractTransportRequest() {
             @Override
             public void setParentTask(final TaskId taskId) {}
         };
@@ -86,6 +87,106 @@ public class ResultDeduplicatorTests extends ESTestCase {
                 assertThat(failureCount.get(), equalTo(0));
             }
         });
+    }
+
+    public void testHasRequestReturnsFalseForNewRequest() {
+        final TransportRequest request = new AbstractTransportRequest() {
+            @Override
+            public void setParentTask(final TaskId taskId) {}
+        };
+        final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        final ResultDeduplicator<TransportRequest, Void> deduplicator = new ResultDeduplicator<>(threadContext);
+
+        assertFalse(deduplicator.hasRequest(request));
+        assertThat(deduplicator.size(), equalTo(0));
+    }
+
+    public void testHasRequestReturnsTrueForPendingRequest() {
+        final TransportRequest request = new AbstractTransportRequest() {
+            @Override
+            public void setParentTask(final TaskId taskId) {}
+        };
+        final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        final ResultDeduplicator<TransportRequest, Void> deduplicator = new ResultDeduplicator<>(threadContext);
+        final SetOnce<ActionListener<Void>> listenerHolder = new SetOnce<>();
+
+        deduplicator.executeOnce(request, ActionListener.noop(), (req, reqListener) -> listenerHolder.set(reqListener));
+
+        assertTrue(deduplicator.hasRequest(request));
+        assertThat(deduplicator.size(), equalTo(1));
+    }
+
+    public void testHasRequestReturnsFalseAfterCompletion() {
+        final TransportRequest request = new AbstractTransportRequest() {
+            @Override
+            public void setParentTask(final TaskId taskId) {}
+        };
+        final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        final ResultDeduplicator<TransportRequest, Void> deduplicator = new ResultDeduplicator<>(threadContext);
+        final SetOnce<ActionListener<Void>> listenerHolder = new SetOnce<>();
+
+        deduplicator.executeOnce(request, ActionListener.noop(), (req, reqListener) -> listenerHolder.set(reqListener));
+        assertTrue(deduplicator.hasRequest(request));
+
+        listenerHolder.get().onResponse(null);
+
+        assertFalse(deduplicator.hasRequest(request));
+        assertThat(deduplicator.size(), equalTo(0));
+    }
+
+    public void testHasRequestReturnsFalseAfterFailure() {
+        final TransportRequest request = new AbstractTransportRequest() {
+            @Override
+            public void setParentTask(final TaskId taskId) {}
+        };
+        final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        final ResultDeduplicator<TransportRequest, Void> deduplicator = new ResultDeduplicator<>(threadContext);
+        final SetOnce<ActionListener<Void>> listenerHolder = new SetOnce<>();
+
+        deduplicator.executeOnce(request, ActionListener.noop(), (req, reqListener) -> listenerHolder.set(reqListener));
+        assertTrue(deduplicator.hasRequest(request));
+
+        listenerHolder.get().onFailure(new TransportException("simulated"));
+
+        assertFalse(deduplicator.hasRequest(request));
+        assertThat(deduplicator.size(), equalTo(0));
+    }
+
+    public void testHasRequestReturnsFalseAfterClear() {
+        final TransportRequest request = new AbstractTransportRequest() {
+            @Override
+            public void setParentTask(final TaskId taskId) {}
+        };
+        final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        final ResultDeduplicator<TransportRequest, Void> deduplicator = new ResultDeduplicator<>(threadContext);
+        final SetOnce<ActionListener<Void>> listenerHolder = new SetOnce<>();
+
+        deduplicator.executeOnce(request, ActionListener.noop(), (req, reqListener) -> listenerHolder.set(reqListener));
+        assertTrue(deduplicator.hasRequest(request));
+
+        deduplicator.clear();
+
+        assertFalse(deduplicator.hasRequest(request));
+        assertThat(deduplicator.size(), equalTo(0));
+    }
+
+    public void testHasRequestWithMultipleDifferentRequests() {
+        final TransportRequest request1 = new AbstractTransportRequest() {
+            @Override
+            public void setParentTask(final TaskId taskId) {}
+        };
+        final TransportRequest request2 = new AbstractTransportRequest() {
+            @Override
+            public void setParentTask(final TaskId taskId) {}
+        };
+        final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        final ResultDeduplicator<TransportRequest, Void> deduplicator = new ResultDeduplicator<>(threadContext);
+
+        deduplicator.executeOnce(request1, ActionListener.noop(), (req, reqListener) -> {});
+
+        assertTrue(deduplicator.hasRequest(request1));
+        assertFalse(deduplicator.hasRequest(request2));
+        assertThat(deduplicator.size(), equalTo(1));
     }
 
 }

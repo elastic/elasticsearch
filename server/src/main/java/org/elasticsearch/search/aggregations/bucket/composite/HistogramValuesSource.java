@@ -1,17 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.bucket.composite;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.search.DoubleValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
+import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 
 import java.io.IOException;
@@ -36,7 +38,16 @@ class HistogramValuesSource extends ValuesSource.Numeric {
 
     @Override
     public SortedNumericDoubleValues doubleValues(LeafReaderContext context) throws IOException {
-        SortedNumericDoubleValues values = vs.doubleValues(context);
+        final SortedNumericDoubleValues values = vs.doubleValues(context);
+        final DoubleValues singleton = org.elasticsearch.index.fielddata.FieldData.unwrapSingleton(values);
+        if (singleton != null) {
+            return org.elasticsearch.index.fielddata.FieldData.singleton(doubleSingleValues(singleton));
+        } else {
+            return doubleMultiValues(values);
+        }
+    }
+
+    private SortedNumericDoubleValues doubleMultiValues(SortedNumericDoubleValues values) {
         return new SortedNumericDoubleValues() {
             @Override
             public double nextValue() throws IOException {
@@ -55,13 +66,27 @@ class HistogramValuesSource extends ValuesSource.Numeric {
         };
     }
 
+    private DoubleValues doubleSingleValues(DoubleValues values) {
+        return new DoubleValues() {
+            @Override
+            public double doubleValue() throws IOException {
+                return Math.floor(values.doubleValue() / interval) * interval;
+            }
+
+            @Override
+            public boolean advanceExact(int target) throws IOException {
+                return values.advanceExact(target);
+            }
+        };
+    }
+
     @Override
     public SortedBinaryDocValues bytesValues(LeafReaderContext context) throws IOException {
         throw new UnsupportedOperationException("not applicable");
     }
 
     @Override
-    public SortedNumericDocValues longValues(LeafReaderContext context) throws IOException {
+    public SortedNumericLongValues longValues(LeafReaderContext context) throws IOException {
         throw new UnsupportedOperationException("not applicable");
     }
 }

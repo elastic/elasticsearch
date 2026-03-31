@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.query;
@@ -35,9 +36,9 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopDocsCollector;
-import org.apache.lucene.search.TopFieldCollector;
+import org.apache.lucene.search.TopFieldCollectorManager;
 import org.apache.lucene.search.TopFieldDocs;
-import org.apache.lucene.search.TopScoreDocCollector;
+import org.apache.lucene.search.TopScoreDocCollectorManager;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.Weight;
 import org.elasticsearch.action.search.MaxScoreCollector;
@@ -50,12 +51,14 @@ import org.elasticsearch.index.search.ESToParentBlockJoinQuery;
 import org.elasticsearch.lucene.grouping.SinglePassGroupingCollector;
 import org.elasticsearch.lucene.grouping.TopFieldGroups;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.AggregatorCollector;
 import org.elasticsearch.search.collapse.CollapseContext;
 import org.elasticsearch.search.internal.ScrollContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.profile.query.CollectorResult;
 import org.elasticsearch.search.profile.query.InternalProfileCollector;
 import org.elasticsearch.search.rescore.RescoreContext;
+import org.elasticsearch.search.rescore.RescorePhase;
 import org.elasticsearch.search.sort.SortAndFormats;
 
 import java.io.IOException;
@@ -76,14 +79,14 @@ import static org.elasticsearch.search.profile.query.CollectorResult.REASON_SEAR
 abstract class QueryPhaseCollectorManager implements CollectorManager<Collector, QueryPhaseResult> {
     private final Weight postFilterWeight;
     private final QueryPhaseCollector.TerminateAfterChecker terminateAfterChecker;
-    private final CollectorManager<? extends Collector, Void> aggsCollectorManager;
+    private final CollectorManager<AggregatorCollector, Void> aggsCollectorManager;
     private final Float minScore;
     private final boolean profile;
 
     QueryPhaseCollectorManager(
         Weight postFilterWeight,
         QueryPhaseCollector.TerminateAfterChecker terminateAfterChecker,
-        CollectorManager<? extends Collector, Void> aggsCollectorManager,
+        CollectorManager<AggregatorCollector, Void> aggsCollectorManager,
         Float minScore,
         boolean profile
     ) {
@@ -147,7 +150,7 @@ abstract class QueryPhaseCollectorManager implements CollectorManager<Collector,
         boolean terminatedAfter = false;
         CollectorResult collectorResult = null;
         List<Collector> topDocsCollectors = new ArrayList<>();
-        List<Collector> aggsCollectors = new ArrayList<>();
+        List<AggregatorCollector> aggsCollectors = new ArrayList<>();
         if (profile) {
             List<CollectorResult> resultsPerProfiler = new ArrayList<>();
             List<CollectorResult> topDocsCollectorResults = new ArrayList<>();
@@ -165,7 +168,7 @@ abstract class QueryPhaseCollectorManager implements CollectorManager<Collector,
                 if (aggsCollectorManager != null) {
                     InternalProfileCollector profileAggsCollector = (InternalProfileCollector) queryPhaseCollector.getAggsCollector();
                     aggsCollectorResults.add(profileAggsCollector.getCollectorTree());
-                    aggsCollectors.add(profileAggsCollector.getWrappedCollector());
+                    aggsCollectors.add((AggregatorCollector) profileAggsCollector.getWrappedCollector());
                 }
             }
             List<CollectorResult> childrenResults = new ArrayList<>();
@@ -178,16 +181,14 @@ abstract class QueryPhaseCollectorManager implements CollectorManager<Collector,
             for (Collector collector : collectors) {
                 QueryPhaseCollector queryPhaseCollector = (QueryPhaseCollector) collector;
                 topDocsCollectors.add(queryPhaseCollector.getTopDocsCollector());
-                aggsCollectors.add(queryPhaseCollector.getAggsCollector());
+                aggsCollectors.add((AggregatorCollector) queryPhaseCollector.getAggsCollector());
                 if (queryPhaseCollector.isTerminatedAfter()) {
                     terminatedAfter = true;
                 }
             }
         }
         if (aggsCollectorManager != null) {
-            @SuppressWarnings("unchecked")
-            CollectorManager<Collector, Void> aggsManager = (CollectorManager<Collector, Void>) aggsCollectorManager;
-            aggsManager.reduce(aggsCollectors);
+            aggsCollectorManager.reduce(aggsCollectors);
         }
         TopDocsAndMaxScore topDocsAndMaxScore = reduceTopDocsCollectors(topDocsCollectors);
         return new QueryPhaseResult(topDocsAndMaxScore, getSortValueFormats(), terminatedAfter, collectorResult);
@@ -212,7 +213,7 @@ abstract class QueryPhaseCollectorManager implements CollectorManager<Collector,
      */
     static CollectorManager<Collector, QueryPhaseResult> createQueryPhaseCollectorManager(
         Weight postFilterWeight,
-        CollectorManager<? extends Collector, Void> aggsCollectorManager,
+        CollectorManager<AggregatorCollector, Void> aggsCollectorManager,
         SearchContext searchContext,
         boolean hasFilterCollector
     ) throws IOException {
@@ -221,8 +222,6 @@ abstract class QueryPhaseCollectorManager implements CollectorManager<Collector,
         );
         final IndexReader reader = searchContext.searcher().getIndexReader();
         final Query query = searchContext.rewrittenQuery();
-        // top collectors don't like a size of 0
-        final int totalNumDocs = Math.max(1, reader.numDocs());
         if (searchContext.size() == 0) {
             return new EmptyHits(
                 postFilterWeight,
@@ -233,70 +232,73 @@ abstract class QueryPhaseCollectorManager implements CollectorManager<Collector,
                 searchContext.sort(),
                 searchContext.trackTotalHitsUpTo()
             );
-        } else if (searchContext.scrollContext() != null) {
-            // we can disable the tracking of total hits after the initial scroll query
-            // since the total hits is preserved in the scroll context.
-            int trackTotalHitsUpTo = searchContext.scrollContext().totalHits != null
-                ? SearchContext.TRACK_TOTAL_HITS_DISABLED
-                : SearchContext.TRACK_TOTAL_HITS_ACCURATE;
-            // no matter what the value of from is
-            int numDocs = Math.min(searchContext.size(), totalNumDocs);
-            return forScroll(
-                postFilterWeight,
-                terminateAfterChecker,
-                aggsCollectorManager,
-                searchContext.minimumScore(),
-                searchContext.getProfilers() != null,
-                reader,
-                query,
-                searchContext.sort(),
-                numDocs,
-                searchContext.trackScores(),
-                trackTotalHitsUpTo,
-                hasFilterCollector,
-                searchContext.scrollContext(),
-                searchContext.numberOfShards()
-            );
-        } else if (searchContext.collapse() != null) {
-            boolean trackScores = searchContext.sort() == null || searchContext.trackScores();
-            int numDocs = Math.min(searchContext.from() + searchContext.size(), totalNumDocs);
-            return forCollapsing(
-                postFilterWeight,
-                terminateAfterChecker,
-                aggsCollectorManager,
-                searchContext.minimumScore(),
-                searchContext.getProfilers() != null,
-                searchContext.collapse(),
-                searchContext.sort(),
-                numDocs,
-                trackScores,
-                searchContext.searchAfter()
-            );
-        } else {
+        }
+        // top collectors don't like a size of 0
+        final int totalNumDocs = Math.max(1, reader.numDocs());
+        if (searchContext.scrollContext() == null) {
             int numDocs = Math.min(searchContext.from() + searchContext.size(), totalNumDocs);
             final boolean rescore = searchContext.rescore().isEmpty() == false;
             if (rescore) {
-                assert searchContext.sort() == null;
+                assert RescorePhase.validateSort(searchContext.sort());
                 for (RescoreContext rescoreContext : searchContext.rescore()) {
                     numDocs = Math.max(numDocs, rescoreContext.getWindowSize());
                 }
             }
-            return new WithHits(
-                postFilterWeight,
-                terminateAfterChecker,
-                aggsCollectorManager,
-                searchContext.minimumScore(),
-                searchContext.getProfilers() != null,
-                reader,
-                query,
-                searchContext.sort(),
-                searchContext.searchAfter(),
-                numDocs,
-                searchContext.trackScores(),
-                searchContext.trackTotalHitsUpTo(),
-                hasFilterCollector
-            );
+            if (searchContext.collapse() == null) {
+                return new WithHits(
+                    postFilterWeight,
+                    terminateAfterChecker,
+                    aggsCollectorManager,
+                    searchContext.minimumScore(),
+                    searchContext.getProfilers() != null,
+                    reader,
+                    query,
+                    searchContext.sort(),
+                    searchContext.searchAfter(),
+                    numDocs,
+                    searchContext.trackScores(),
+                    searchContext.trackTotalHitsUpTo(),
+                    hasFilterCollector
+                );
+            } else {
+                boolean trackScores = searchContext.sort() == null || searchContext.trackScores();
+                return forCollapsing(
+                    postFilterWeight,
+                    terminateAfterChecker,
+                    aggsCollectorManager,
+                    searchContext.minimumScore(),
+                    searchContext.getProfilers() != null,
+                    searchContext.collapse(),
+                    searchContext.sort(),
+                    numDocs,
+                    trackScores,
+                    searchContext.searchAfter()
+                );
+            }
         }
+        // we can disable the tracking of total hits after the initial scroll query
+        // since the total hits is preserved in the scroll context.
+        int trackTotalHitsUpTo = searchContext.scrollContext().totalHits != null
+            ? SearchContext.TRACK_TOTAL_HITS_DISABLED
+            : SearchContext.TRACK_TOTAL_HITS_ACCURATE;
+        // no matter what the value of from is
+        int numDocs = Math.min(searchContext.size(), totalNumDocs);
+        return forScroll(
+            postFilterWeight,
+            terminateAfterChecker,
+            aggsCollectorManager,
+            searchContext.minimumScore(),
+            searchContext.getProfilers() != null,
+            reader,
+            query,
+            searchContext.sort(),
+            numDocs,
+            searchContext.trackScores(),
+            trackTotalHitsUpTo,
+            hasFilterCollector,
+            searchContext.scrollContext(),
+            searchContext.numberOfShards()
+        );
     }
 
     /**
@@ -310,7 +312,7 @@ abstract class QueryPhaseCollectorManager implements CollectorManager<Collector,
         EmptyHits(
             Weight postFilterWeight,
             QueryPhaseCollector.TerminateAfterChecker terminateAfterChecker,
-            CollectorManager<? extends Collector, Void> aggsCollectorManager,
+            CollectorManager<AggregatorCollector, Void> aggsCollectorManager,
             Float minScore,
             boolean profile,
             @Nullable SortAndFormats sortAndFormats,
@@ -375,7 +377,7 @@ abstract class QueryPhaseCollectorManager implements CollectorManager<Collector,
         WithHits(
             Weight postFilterWeight,
             QueryPhaseCollector.TerminateAfterChecker terminateAfterChecker,
-            CollectorManager<? extends Collector, Void> aggsCollectorManager,
+            CollectorManager<AggregatorCollector, Void> aggsCollectorManager,
             Float minScore,
             boolean profile,
             IndexReader reader,
@@ -400,7 +402,7 @@ abstract class QueryPhaseCollectorManager implements CollectorManager<Collector,
             } else if (trackTotalHitsUpTo == SearchContext.TRACK_TOTAL_HITS_DISABLED) {
                 // don't compute hit counts via the collector
                 hitCountThreshold = 1;
-                shortcutTotalHits = new TotalHits(0, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO);
+                shortcutTotalHits = Lucene.TOTAL_HITS_GREATER_OR_EQUAL_TO_ZERO;
             } else {
                 // implicit total hit counts are valid only when there is no filter collector in the chain
                 final int hitCount = hasFilterCollector ? -1 : shortcutTotalHitCount(reader, query);
@@ -414,14 +416,9 @@ abstract class QueryPhaseCollectorManager implements CollectorManager<Collector,
                 }
             }
             if (sortAndFormats == null) {
-                this.topDocsManager = TopScoreDocCollector.createSharedManager(numHits, searchAfter, hitCountThreshold);
+                this.topDocsManager = new TopScoreDocCollectorManager(numHits, searchAfter, hitCountThreshold);
             } else {
-                this.topDocsManager = TopFieldCollector.createSharedManager(
-                    sortAndFormats.sort,
-                    numHits,
-                    (FieldDoc) searchAfter,
-                    hitCountThreshold
-                );
+                this.topDocsManager = new TopFieldCollectorManager(sortAndFormats.sort, numHits, (FieldDoc) searchAfter, hitCountThreshold);
             }
         }
 
@@ -480,7 +477,7 @@ abstract class QueryPhaseCollectorManager implements CollectorManager<Collector,
     private static WithHits forScroll(
         Weight postFilterWeight,
         QueryPhaseCollector.TerminateAfterChecker terminateAfterChecker,
-        CollectorManager<? extends Collector, Void> aggsCollectorManager,
+        CollectorManager<AggregatorCollector, Void> aggsCollectorManager,
         Float minScore,
         boolean profile,
         IndexReader reader,
@@ -540,7 +537,7 @@ abstract class QueryPhaseCollectorManager implements CollectorManager<Collector,
     private static QueryPhaseCollectorManager forCollapsing(
         Weight postFilterWeight,
         QueryPhaseCollector.TerminateAfterChecker terminateAfterChecker,
-        CollectorManager<? extends Collector, Void> aggsCollectorManager,
+        CollectorManager<AggregatorCollector, Void> aggsCollectorManager,
         Float minScore,
         boolean profile,
         CollapseContext collapseContext,

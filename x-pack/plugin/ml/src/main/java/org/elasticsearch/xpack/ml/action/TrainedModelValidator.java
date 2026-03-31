@@ -59,7 +59,7 @@ final class TrainedModelValidator {
         if (MlConfigVersion.getMinMlConfigVersion(state.nodes()).before(minimumVersion)) {
             throw new ActionRequestValidationException().addValidationError(
                 format(
-                    "The model [%s] requires that all nodes are at least version [%s]",
+                    "The model [%s] requires that all nodes have ML config version [%s] or higher",
                     resolvedModelPackageConfig.getPackagedModelId(),
                     resolvedModelPackageConfig.getMinimumVersion()
                 )

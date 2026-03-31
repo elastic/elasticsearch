@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.time;
@@ -11,18 +12,19 @@ package org.elasticsearch.common.time;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Strings;
 
+import java.time.DateTimeException;
 import java.time.DayOfWeek;
 import java.time.Instant;
 import java.time.LocalTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
-import java.time.format.DateTimeParseException;
 import java.time.temporal.ChronoField;
 import java.time.temporal.TemporalAccessor;
 import java.time.temporal.TemporalAdjusters;
 import java.time.temporal.TemporalQueries;
 import java.util.Objects;
+import java.util.function.Function;
 import java.util.function.LongSupplier;
 
 /**
@@ -34,15 +36,14 @@ import java.util.function.LongSupplier;
  */
 public class JavaDateMathParser implements DateMathParser {
 
-    private final JavaDateFormatter formatter;
     private final String format;
-    private final JavaDateFormatter roundupParser;
+    private final Function<String, TemporalAccessor> parser;
+    private final Function<String, TemporalAccessor> roundupParser;
 
-    JavaDateMathParser(String format, JavaDateFormatter formatter, JavaDateFormatter roundupParser) {
+    JavaDateMathParser(String format, Function<String, TemporalAccessor> parser, Function<String, TemporalAccessor> roundupParser) {
         this.format = format;
+        this.parser = Objects.requireNonNull(parser);
         this.roundupParser = roundupParser;
-        Objects.requireNonNull(formatter);
-        this.formatter = formatter;
     }
 
     @Override
@@ -201,15 +202,15 @@ public class JavaDateMathParser implements DateMathParser {
 
     private Instant parseDateTime(String value, ZoneId timeZone, boolean roundUpIfNoTime) {
         if (Strings.isNullOrEmpty(value)) {
-            throw new ElasticsearchParseException("cannot parse empty date");
+            throw new ElasticsearchParseException("cannot parse empty datetime");
         }
 
-        DateFormatter formatter = roundUpIfNoTime ? this.roundupParser : this.formatter;
+        Function<String, TemporalAccessor> formatter = roundUpIfNoTime ? roundupParser : this.parser;
         try {
             if (timeZone == null) {
-                return DateFormatters.from(formatter.parse(value)).toInstant();
+                return DateFormatters.from(formatter.apply(value)).toInstant();
             } else {
-                TemporalAccessor accessor = formatter.parse(value);
+                TemporalAccessor accessor = formatter.apply(value);
                 // Use the offset if provided, otherwise fall back to the zone, or null.
                 ZoneOffset offset = TemporalQueries.offset().queryFrom(accessor);
                 ZoneId zoneId = offset == null ? TemporalQueries.zoneId().queryFrom(accessor) : ZoneId.ofOffset("", offset);
@@ -219,7 +220,7 @@ public class JavaDateMathParser implements DateMathParser {
 
                 return DateFormatters.from(accessor).withZoneSameLocal(timeZone).toInstant();
             }
-        } catch (IllegalArgumentException | DateTimeParseException e) {
+        } catch (IllegalArgumentException | DateTimeException e) {
             throw new ElasticsearchParseException(
                 "failed to parse date field [{}] with format [{}]: [{}]",
                 e,

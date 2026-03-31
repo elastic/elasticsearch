@@ -352,7 +352,7 @@ public class CacheFile {
         final RangeMissingHandler writer,
         final Executor executor
     ) {
-        final PlainActionFuture<Integer> future = PlainActionFuture.newFuture();
+        final PlainActionFuture<Integer> future = new PlainActionFuture<>();
         Releasable decrementRef = null;
         try {
             final FileChannelReference reference = acquireFileChannelReference();
@@ -404,7 +404,7 @@ public class CacheFile {
      */
     @Nullable
     public Future<Integer> readIfAvailableOrPending(final ByteRange rangeToRead, final RangeAvailableHandler reader) {
-        final PlainActionFuture<Integer> future = PlainActionFuture.newFuture();
+        final PlainActionFuture<Integer> future = new PlainActionFuture<>();
         Releasable decrementRef = null;
         try {
             final FileChannelReference reference = acquireFileChannelReference();

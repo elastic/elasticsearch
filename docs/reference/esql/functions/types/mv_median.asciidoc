@@ -1,8 +1,0 @@
-[%header.monospaced.styled,format=dsv,separator=|]
-|===
-arg1 | result
-double | double
-integer | integer
-long | long
-unsigned_long | unsigned_long
-|===

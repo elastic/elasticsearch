@@ -1,6 +1,0 @@
-pr: 97972
-summary: Automatically flatten objects when subobjects:false
-area: Mapping
-type: enhancement
-issues:
- - 88934

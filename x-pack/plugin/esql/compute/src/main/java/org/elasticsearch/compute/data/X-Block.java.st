@@ -7,22 +7,34 @@
 
 package org.elasticsearch.compute.data;
 
+// begin generated imports
 $if(BytesRef)$
 import org.apache.lucene.util.BytesRef;
-$else$
 $endif$
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.ReleasableIterator;
+import org.elasticsearch.index.mapper.BlockLoader;
 
 import java.io.IOException;
+// end generated imports
 
 /**
  * Block that stores $type$ values.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-Block.java.st} instead.
  */
-public sealed interface $Type$Block extends Block permits Filter$Type$Block, $Type$ArrayBlock, $Type$VectorBlock {
+$if(BytesRef)$
+public sealed interface BytesRefBlock extends Block permits BytesRefArrayBlock, BytesRefVectorBlock, ConstantNullBlock,
+    OrdinalBytesRefBlock, org.elasticsearch.compute.data.arrow.BytesRefArrowBufBlock {
+$else$
+public sealed interface $Type$Block extends Block permits $Type$ArrayBlock, $Type$VectorBlock, ConstantNullBlock, $Type$BigArrayBlock,
+    org.elasticsearch.compute.data.arrow.$Type$ArrowBufBlock {
+$endif$
 
+$if(BytesRef)$
+    BytesRef NULL_VALUE = new BytesRef();
+
+$endif$
     /**
      * Retrieves the $type$ value stored at the given value index.
      *
@@ -42,64 +54,208 @@ $else$
     $type$ get$Type$(int valueIndex);
 $endif$
 
+    /**
+     * Checks if this block has the given value at position. If at this index we have a
+     * multivalue, then it returns true if any values match.
+     *
+     * @param position the index at which we should check the value(s)
+     * @param value the value to check against
+$if(BytesRef)$
+     * @param scratch the scratch BytesRef to use for this operation
+$endif$
+     */
+    default boolean hasValue(int position, $type$ value$if(BytesRef)$, BytesRef scratch$endif$) {
+        final var count = getValueCount(position);
+        final var startIndex = getFirstValueIndex(position);
+$if(BytesRef)$
+$elseif(boolean)$
+$else$
+        final var BINARYSEARCH_THRESHOLD = 16;
+        if (count > BINARYSEARCH_THRESHOLD && mvSortedAscending()) {
+            return binarySearch(this, position, count, value) >= 0;
+        }
+
+$endif$
+        for (int index = startIndex; index < startIndex + count; index++) {
+$if(BytesRef)$
+            var ref = getBytesRef(index, scratch);
+            if (value.equals(ref)) {
+                return true;
+            }
+$else$
+            if (value == get$Type$(index)) {
+                return true;
+            }
+$endif$
+        }
+        return false;
+    }
+
+$if(BytesRef)$
+$elseif(boolean)$
+$else$
+    /**
+     * Perform a binary search on this block
+     *
+     * @param block to search in
+     * @param startIndex
+     * @param count number of positions to search beyond the startIndex
+     * @param value to search for
+     * @return position or negative number if not found
+     */
+    static int binarySearch($Type$Block block, int startIndex, int count, $type$ value) {
+        int low = startIndex;
+        int high = count - 1;
+
+        while (low <= high) {
+            int mid = (low + high) >>> 1;
+            $type$ midVal = block.get$Type$(mid);
+
+            if (midVal < value) low = mid + 1;
+            else if (midVal > value) high = mid - 1;
+            else return mid; // key found
+        }
+        return -(low + 1);  // key not found.
+    }
+
+$endif$
     @Override
     $Type$Vector asVector();
 
-    @Override
-    $Type$Block filter(int... positions);
+$if(BytesRef)$
+    /**
+     * Returns an ordinal bytesref block if this block is backed by a dictionary and ordinals; otherwise,
+     * returns null. Callers must not release the returned block as no extra reference is retained by this method.
+     */
+    OrdinalBytesRefBlock asOrdinals();
 
-    NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Block.class, "$Type$Block", $Type$Block::of);
+$elseif(boolean)$
+    /**
+     * Convert this to a {@link BooleanVector "mask"} that's appropriate for
+     * passing to {@link #keepMask}. Null and multivalued positions will be
+     * converted to {@code false}.
+     */
+    ToMask toMask();
 
+$endif$
     @Override
-    default String getWriteableName() {
-        return "$Type$Block";
+    default $Type$Block slice(int beginInclusive, int endExclusive) {
+        if (beginInclusive == 0 && endExclusive == getPositionCount()) {
+            incRef();
+            return this;
+        }
+        try ($Type$Block.Builder builder = blockFactory().new$Type$BlockBuilder(endExclusive - beginInclusive)) {
+            builder.copyFrom(this, beginInclusive, endExclusive);
+            return builder.build();
+        }
     }
 
-    static $Type$Block of(StreamInput in) throws IOException {
-        final boolean isVector = in.readBoolean();
-        if (isVector) {
-            return $Type$Vector.of(in).asBlock();
+    @Override
+    $Type$Block filter(boolean mayContainDuplicates, int... positions);
+
+    /**
+     * Make a deep copy of this {@link Block} using the provided {@link BlockFactory},
+     * likely copying all data.
+     */
+    @Override
+    default $Type$Block deepCopy(BlockFactory blockFactory) {
+        try ($Type$Block.Builder builder = blockFactory.new$Type$BlockBuilder(getPositionCount())) {
+            builder.copyFrom(this, 0, getPositionCount());
+            builder.mvOrdering(mvOrdering());
+            return builder.build();
         }
-        final int positions = in.readVInt();
-        var builder = newBlockBuilder(positions);
-        for (int i = 0; i < positions; i++) {
-            if (in.readBoolean()) {
-                builder.appendNull();
-            } else {
-                final int valueCount = in.readVInt();
-                builder.beginPositionEntry();
-                for (int valueIndex = 0; valueIndex < valueCount; valueIndex++) {
-                    builder.append$Type$(in.read$Type$());
-                }
-                builder.endPositionEntry();
+    }
+
+    @Override
+    $Type$Block keepMask(BooleanVector mask);
+
+    @Override
+    ReleasableIterator<? extends $Type$Block> lookup(IntBlock positions, ByteSizeValue targetBlockSize);
+
+    @Override
+    $Type$Block expand();
+
+    static $Type$Block readFrom(BlockStreamInput in) throws IOException {
+        final byte serializationType = in.readByte();
+        return switch (serializationType) {
+            case SERIALIZE_BLOCK_VALUES -> $Type$Block.readValues(in);
+            case SERIALIZE_BLOCK_VECTOR -> $Type$Vector.readFrom(in.blockFactory(), in).asBlock();
+            case SERIALIZE_BLOCK_ARRAY -> $Type$ArrayBlock.readArrayBlock(in.blockFactory(), in);
+$if(BytesRef)$
+            case SERIALIZE_BLOCK_ORDINAL -> OrdinalBytesRefBlock.readOrdinalBlock(in.blockFactory(), in);
+$else$
+            case SERIALIZE_BLOCK_BIG_ARRAY -> $Type$BigArrayBlock.readArrayBlock(in.blockFactory(), in);
+$endif$
+            default -> {
+                assert false : "invalid block serialization type " + serializationType;
+                throw new IllegalStateException("invalid serialization type " + serializationType);
             }
+        };
+    }
+
+    private static $Type$Block readValues(BlockStreamInput in) throws IOException {
+        final int positions = in.readVInt();
+        try ($Type$Block.Builder builder = in.blockFactory().new$Type$BlockBuilder(positions)) {
+            for (int i = 0; i < positions; i++) {
+                if (in.readBoolean()) {
+                    builder.appendNull();
+                } else {
+                    final int valueCount = in.readVInt();
+                    builder.beginPositionEntry();
+                    for (int valueIndex = 0; valueIndex < valueCount; valueIndex++) {
+                        builder.append$Type$(in.read$Type$());
+                    }
+                    builder.endPositionEntry();
+                }
+            }
+            return builder.build();
         }
-        return builder.build();
     }
 
     @Override
     default void writeTo(StreamOutput out) throws IOException {
         $Type$Vector vector = asVector();
-        out.writeBoolean(vector != null);
+        final var version = out.getTransportVersion();
         if (vector != null) {
+            out.writeByte(SERIALIZE_BLOCK_VECTOR);
             vector.writeTo(out);
+        } else if (this instanceof $Type$ArrayBlock b) {
+            out.writeByte(SERIALIZE_BLOCK_ARRAY);
+            b.writeArrayBlock(out);
+$if(BytesRef)$
+        } else if (this instanceof OrdinalBytesRefBlock b && b.isDense()) {
+            out.writeByte(SERIALIZE_BLOCK_ORDINAL);
+            b.writeOrdinalBlock(out);
+$else$
+        } else if (this instanceof $Type$BigArrayBlock b) {
+            out.writeByte(SERIALIZE_BLOCK_BIG_ARRAY);
+            b.writeArrayBlock(out);
+$endif$
         } else {
-            final int positions = getPositionCount();
-            out.writeVInt(positions);
-            for (int pos = 0; pos < positions; pos++) {
-                if (isNull(pos)) {
-                    out.writeBoolean(true);
-                } else {
-                    out.writeBoolean(false);
-                    final int valueCount = getValueCount(pos);
-                    out.writeVInt(valueCount);
-                    for (int valueIndex = 0; valueIndex < valueCount; valueIndex++) {
-    $if(BytesRef)$
-                        out.write$Type$(get$Type$(getFirstValueIndex(pos) + valueIndex, new BytesRef()));
-    $else$
-                        out.write$Type$(get$Type$(getFirstValueIndex(pos) + valueIndex));
-    $endif$
-                    }
+            out.writeByte(SERIALIZE_BLOCK_VALUES);
+            $Type$Block.writeValues(this, out);
+        }
+    }
+
+    private static void writeValues($Type$Block block, StreamOutput out) throws IOException {
+        final int positions = block.getPositionCount();
+        out.writeVInt(positions);
+        for (int pos = 0; pos < positions; pos++) {
+            if (block.isNull(pos)) {
+                out.writeBoolean(true);
+            } else {
+                out.writeBoolean(false);
+                final int valueCount = block.getValueCount(pos);
+                out.writeVInt(valueCount);
+$if(BytesRef)$
+                var scratch = new BytesRef();
+$endif$
+                for (int valueIndex = 0; valueIndex < valueCount; valueIndex++) {
+$if(BytesRef)$
+                    out.write$Type$(block.get$Type$(block.getFirstValueIndex(pos) + valueIndex, scratch));
+$else$
+                    out.write$Type$(block.get$Type$(block.getFirstValueIndex(pos) + valueIndex));
+$endif$
                 }
             }
         }
@@ -123,6 +279,9 @@ $endif$
      * equals method works properly across different implementations of the $Type$Block interface.
      */
     static boolean equals($Type$Block block1, $Type$Block block2) {
+        if (block1 == block2) {
+            return true;
+        }
         final int positions = block1.getPositionCount();
         if (positions != block2.getPositionCount()) {
             return false;
@@ -177,6 +336,8 @@ $elseif(boolean)$
                     result = 31 * result + Boolean.hashCode(block.getBoolean(firstValueIdx + valueIndex));
 $elseif(int)$
                     result = 31 * result + block.getInt(firstValueIdx + valueIndex);
+$elseif(float)$
+                    result = 31 * result + Float.floatToIntBits(block.getFloat(pos));
 $elseif(long)$
                     long element = block.getLong(firstValueIdx + valueIndex);
                     result = 31 * result + (int) (element ^ (element >>> 32));
@@ -190,19 +351,14 @@ $endif$
         return result;
     }
 
-    static Builder newBlockBuilder(int estimatedSize) {
-        return new $Type$BlockBuilder(estimatedSize);
-    }
-
-    static $Type$Block newConstantBlockWith($type$ value, int positions) {
-        return new Constant$Type$Vector(value, positions).asBlock();
-    }
-
-    sealed interface Builder extends Block.Builder permits $Type$BlockBuilder {
-
+    /**
+     * Builder for {@link $Type$Block}
+     */
+    sealed interface Builder extends Block.Builder, BlockLoader.$Type$Builder permits $Type$BlockBuilder {
         /**
          * Appends a $type$ to the current entry.
          */
+        @Override
         Builder append$Type$($type$ value);
 
         /**
@@ -210,6 +366,18 @@ $endif$
          * {@code endExclusive} into this builder.
          */
         Builder copyFrom($Type$Block block, int beginInclusive, int endExclusive);
+
+        /**
+         * Copy the values in {@code block} at {@code position}. If this position
+         * has a single value, this'll copy a single value. If this positions has
+         * many values, it'll copy all of them. If this is {@code null}, then it'll
+         * copy the {@code null}.
+$if(BytesRef)$
+         * @param scratch Scratch string used to prevent allocation. Share this
+                          between many calls to this function.
+$endif$
+         */
+        Builder copyFrom($Type$Block block, int position$if(BytesRef)$, BytesRef scratch$endif$);
 
         @Override
         Builder appendNull();
@@ -225,20 +393,6 @@ $endif$
 
         @Override
         Builder mvOrdering(Block.MvOrdering mvOrdering);
-
-        // TODO boolean containsMvDups();
-
-        /**
-         * Appends the all values of the given block into a the current position
-         * in this builder.
-         */
-        Builder appendAllValuesToCurrentPosition(Block block);
-
-        /**
-         * Appends the all values of the given block into a the current position
-         * in this builder.
-         */
-        Builder appendAllValuesToCurrentPosition($Type$Block block);
 
         @Override
         $Type$Block build();

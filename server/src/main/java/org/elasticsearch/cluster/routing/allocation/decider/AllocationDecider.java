@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing.allocation.decider;
@@ -74,9 +75,9 @@ public abstract class AllocationDecider {
     }
 
     /**
-     * Returns a {@link Decision} whether the cluster can execute
-     * re-balanced operations at all.
-     * {@link Decision#ALWAYS}.
+     * Returns a {@link Decision} on whether the cluster is allowed to rebalance shards to improve relative node shard weights and
+     * performance.
+     * @return {@link Decision#ALWAYS} is returned by default if not overridden.
      */
     public Decision canRebalance(RoutingAllocation allocation) {
         return Decision.ALWAYS;

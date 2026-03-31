@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.core.ml.action.DeleteExpiredDataAction.Request;
 
@@ -21,7 +20,7 @@ public class DeleteExpiredDataActionRequestTests extends AbstractBWCWireSerializ
             request.setRequestsPerSecond(randomFloat());
         }
         if (randomBoolean()) {
-            request.setTimeout(TimeValue.parseTimeValue(randomTimeValue(), "test"));
+            request.setTimeout(randomTimeValue());
         }
         if (randomBoolean()) {
             request.setJobId(randomAlphaOfLength(5));

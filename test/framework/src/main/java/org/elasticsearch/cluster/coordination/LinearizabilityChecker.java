@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.cluster.coordination;
 
@@ -11,9 +12,15 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.threadpool.Scheduler;
+import org.elasticsearch.threadpool.ThreadPool;
 
+import java.io.IOException;
+import java.io.StringWriter;
+import java.io.Writer;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -27,9 +34,11 @@ import java.util.Optional;
 import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BooleanSupplier;
-import java.util.function.Consumer;
 import java.util.function.Function;
 
 /**
@@ -207,15 +216,10 @@ public class LinearizabilityChecker {
     }
 
     /**
-     * Checks whether the provided history is linearizable with respect to the given sequential specification
-     *
-     * @param spec the sequential specification of the datatype
-     * @param history the history of events to check for linearizability
-     * @param missingResponseGenerator used to complete the history with missing responses
-     * @return true iff the history is linearizable w.r.t. the given spec
+     * Convenience method for {@link #isLinearizable(SequentialSpec, History, Function)} that requires the history to be complete
      */
-    public boolean isLinearizable(SequentialSpec spec, History history, Function<Object, Object> missingResponseGenerator) {
-        return isLinearizable(spec, history, missingResponseGenerator, () -> false);
+    public static boolean isLinearizable(SequentialSpec spec, History history) throws LinearizabilityCheckAborted {
+        return isLinearizable(spec, history, o -> { throw new AssertionError("history is not complete"); });
     }
 
     /**
@@ -224,22 +228,38 @@ public class LinearizabilityChecker {
      * @param spec the sequential specification of the datatype
      * @param history the history of events to check for linearizability
      * @param missingResponseGenerator used to complete the history with missing responses
-     * @param terminateEarly a condition upon which to terminate early
      * @return true iff the history is linearizable w.r.t. the given spec
      */
-    public boolean isLinearizable(
-        SequentialSpec spec,
-        History history,
-        Function<Object, Object> missingResponseGenerator,
-        BooleanSupplier terminateEarly
-    ) {
-        history = history.clone(); // clone history before completing it
-        history.complete(missingResponseGenerator); // complete history
-        final Collection<List<Event>> partitions = spec.partition(history.copyEvents());
-        return partitions.stream().allMatch(h -> isLinearizable(spec, h, terminateEarly));
+    public static boolean isLinearizable(SequentialSpec spec, History history, Function<Object, Object> missingResponseGenerator)
+        throws LinearizabilityCheckAborted {
+        final ScheduledThreadPoolExecutor scheduler = Scheduler.initScheduler(Settings.EMPTY, "test-scheduler");
+        final AtomicBoolean abort = new AtomicBoolean();
+        try {
+            history = history.clone(); // clone history before completing it
+            history.complete(missingResponseGenerator); // complete history
+            final Collection<List<Event>> partitions = spec.partition(history.copyEvents());
+            // Large histories can be problematic and have the linearizability checker run OOM
+            // Bound the time how long the checker can run on such histories (Values empirically determined)
+            if (history.size() > 300 || partitions.stream().anyMatch(p -> p.size() > 25)) {
+                logger.warn("Detected large history or partition for linearizable check. Limiting execution time");
+                scheduler.schedule(() -> abort.set(true), 10, TimeUnit.SECONDS);
+            }
+            var allLinearizable = partitions.stream().allMatch(h -> isLinearizable(spec, h, abort::get));
+            if (abort.get()) {
+                throw new LinearizabilityCheckAborted();
+            }
+            return allLinearizable;
+        } finally {
+            ThreadPool.terminate(scheduler, 1, TimeUnit.SECONDS);
+        }
     }
 
-    private boolean isLinearizable(SequentialSpec spec, List<Event> history, BooleanSupplier terminateEarly) {
+    /**
+     * This exception is thrown if the check could not be completed due to timeout or OOM (that could be caused by long event history)
+     */
+    public static final class LinearizabilityCheckAborted extends Exception {}
+
+    private static boolean isLinearizable(SequentialSpec spec, List<Event> history, BooleanSupplier terminateEarly) {
         logger.debug("Checking history of size: {}: {}", history.size(), history);
         Object state = spec.initialState(); // the current state of the datatype
         final FixedBitSet linearized = new FixedBitSet(history.size() / 2); // the linearized prefix of the history
@@ -288,35 +308,41 @@ public class LinearizabilityChecker {
     }
 
     /**
-     * Convenience method for {@link #isLinearizable(SequentialSpec, History, Function)} that requires the history to be complete
-     */
-    public boolean isLinearizable(SequentialSpec spec, History history) {
-        return isLinearizable(spec, history, o -> { throw new IllegalArgumentException("history is not complete"); });
-    }
-
-    /**
      * Return a visual representation of the history
      */
     public static String visualize(SequentialSpec spec, History history, Function<Object, Object> missingResponseGenerator) {
+        final var writer = new StringWriter();
+        writeVisualisation(spec, history, missingResponseGenerator, writer);
+        return writer.toString();
+    }
+
+    /**
+     * Write a visual representation of the history to the given writer
+     */
+    public static void writeVisualisation(
+        SequentialSpec spec,
+        History history,
+        Function<Object, Object> missingResponseGenerator,
+        Writer writer
+    ) {
         history = history.clone();
         history.complete(missingResponseGenerator);
         final Collection<List<Event>> partitions = spec.partition(history.copyEvents());
-        StringBuilder builder = new StringBuilder();
-        partitions.forEach(new Consumer<List<Event>>() {
+        try {
             int index = 0;
-
-            @Override
-            public void accept(List<Event> events) {
-                builder.append("Partition ").append(index++).append("\n");
-                builder.append(visualizePartition(events));
+            for (List<Event> partition : partitions) {
+                writer.write("Partition ");
+                writer.write(Integer.toString(index++));
+                writer.append('\n');
+                visualizePartition(partition, writer);
             }
-        });
-
-        return builder.toString();
+        } catch (IOException e) {
+            logger.error("unexpected writeVisualisation failure", e);
+            assert false : e; // not really doing any IO
+        }
     }
 
-    private static String visualizePartition(List<Event> events) {
-        StringBuilder builder = new StringBuilder();
+    private static void visualizePartition(List<Event> events, Writer writer) throws IOException {
         Entry entry = createLinkedEntries(events).next;
         Map<Tuple<EventType, Integer>, Integer> eventToPosition = new HashMap<>();
         for (Event event : events) {
@@ -324,28 +350,30 @@ public class LinearizabilityChecker {
         }
         while (entry != null) {
             if (entry.match != null) {
-                builder.append(visualizeEntry(entry, eventToPosition)).append("\n");
+                visualizeEntry(entry, eventToPosition, writer);
+                writer.append('\n');
             }
             entry = entry.next;
         }
-        return builder.toString();
     }
 
-    private static String visualizeEntry(Entry entry, Map<Tuple<EventType, Integer>, Integer> eventToPosition) {
+    private static void visualizeEntry(Entry entry, Map<Tuple<EventType, Integer>, Integer> eventToPosition, Writer writer)
+        throws IOException {
+
         String input = String.valueOf(entry.event.value);
         String output = String.valueOf(entry.match.event.value);
         int id = entry.event.id;
         int beginIndex = eventToPosition.get(Tuple.tuple(EventType.INVOCATION, id));
         int endIndex = eventToPosition.get(Tuple.tuple(EventType.RESPONSE, id));
         input = input.substring(0, Math.min(beginIndex + 25, input.length()));
-        return Strings.padStart(input, beginIndex + 25, ' ')
-            + "   "
-            + Strings.padStart("", endIndex - beginIndex, 'X')
-            + "   "
-            + output
-            + "  ("
-            + entry.event.id
-            + ")";
+        writer.write(Strings.padStart(input, beginIndex + 25, ' '));
+        writer.write("   ");
+        writer.write(Strings.padStart("", endIndex - beginIndex, 'X'));
+        writer.write("   ");
+        writer.write(output);
+        writer.write("  (");
+        writer.write(Integer.toString(entry.event.id));
+        writer.write(")");
     }
 
     /**

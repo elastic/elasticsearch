@@ -8,28 +8,35 @@
 package org.elasticsearch.compute.operator.topn;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.LongBlock;
 
+/**
+ * Builds the resulting {@link LongBlock} for some column in a top-n.
+ * This class is generated. Edit {@code X-ResultBuilder.java.st} instead.
+ */
 class ResultBuilderForLong implements ResultBuilder {
     private final LongBlock.Builder builder;
 
     private final boolean inKey;
+
+    private final TopNEncoder encoder;
 
     /**
      * The value previously set by {@link #decodeKey}.
      */
     private long key;
 
-    ResultBuilderForLong(TopNEncoder encoder, boolean inKey, int initialSize) {
-        assert encoder == TopNEncoder.DEFAULT_UNSORTABLE : encoder.toString();
+    ResultBuilderForLong(BlockFactory blockFactory, TopNEncoder encoder, boolean inKey, int initialSize) {
+        this.encoder = encoder;
         this.inKey = inKey;
-        this.builder = LongBlock.newBlockBuilder(initialSize);
+        this.builder = blockFactory.newLongBlockBuilder(initialSize);
     }
 
     @Override
-    public void decodeKey(BytesRef keys) {
+    public void decodeKey(BytesRef keys, boolean asc) {
         assert inKey;
-        key = TopNEncoder.DEFAULT_SORTABLE.decodeLong(keys);
+        key = encoder.toSortable(asc).decodeLong(keys);
     }
 
     @Override
@@ -60,7 +67,17 @@ class ResultBuilderForLong implements ResultBuilder {
     }
 
     @Override
+    public long estimatedBytes() {
+        return builder.estimatedBytes();
+    }
+
+    @Override
     public String toString() {
         return "ResultBuilderForLong[inKey=" + inKey + "]";
+    }
+
+    @Override
+    public void close() {
+        builder.close();
     }
 }

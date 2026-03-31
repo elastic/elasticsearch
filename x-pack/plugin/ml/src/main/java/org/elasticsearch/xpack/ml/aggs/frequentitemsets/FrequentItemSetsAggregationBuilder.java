@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.ml.aggs.frequentitemsets;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -33,6 +32,7 @@ import org.elasticsearch.xpack.ml.aggs.frequentitemsets.mr.ItemSetMapReduceValue
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.function.ToLongFunction;
 
 import static org.elasticsearch.common.Strings.format;
 
@@ -165,26 +165,13 @@ public final class FrequentItemSetsAggregationBuilder extends AbstractAggregatio
         this.minimumSupport = in.readDouble();
         this.minimumSetSize = in.readVInt();
         this.size = in.readVInt();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_6_0)) {
-            this.filter = in.readOptionalNamedWriteable(QueryBuilder.class);
-        } else {
-            this.filter = null;
-        }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
-            this.executionHint = in.readOptionalString();
-        } else {
-            this.executionHint = null;
-        }
+        this.filter = in.readOptionalNamedWriteable(QueryBuilder.class);
+        this.executionHint = in.readOptionalString();
     }
 
     @Override
     public boolean supportsSampling() {
         return true;
-    }
-
-    @Override
-    public boolean supportsParallelCollection() {
-        return false;
     }
 
     @Override
@@ -203,12 +190,8 @@ public final class FrequentItemSetsAggregationBuilder extends AbstractAggregatio
         out.writeDouble(minimumSupport);
         out.writeVInt(minimumSetSize);
         out.writeVInt(size);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_6_0)) {
-            out.writeOptionalNamedWriteable(filter);
-        }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
-            out.writeOptionalString(executionHint);
-        }
+        out.writeOptionalNamedWriteable(filter);
+        out.writeOptionalString(executionHint);
     }
 
     @Override
@@ -266,7 +249,11 @@ public final class FrequentItemSetsAggregationBuilder extends AbstractAggregatio
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_4_0;
+        return TransportVersion.minimumCompatible();
     }
 
+    @Override
+    public boolean supportsParallelCollection(ToLongFunction<String> fieldCardinalityResolver) {
+        return false;
+    }
 }

@@ -10,4 +10,8 @@ package org.elasticsearch.compute.aggregation;
 import org.elasticsearch.compute.data.ElementType;
 
 /** Intermediate aggregation state descriptor. Intermediate state is a list of these. */
-public record IntermediateStateDesc(String name, ElementType type) {}
+public record IntermediateStateDesc(String name, ElementType type, String dataType) {
+    public IntermediateStateDesc(String name, ElementType type) {
+        this(name, type, "");
+    }
+}

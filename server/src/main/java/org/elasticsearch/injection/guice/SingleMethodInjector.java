@@ -1,0 +1,59 @@
+/*
+ * Copyright (C) 2008 Google Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.elasticsearch.injection.guice;
+
+import org.elasticsearch.injection.guice.internal.Errors;
+import org.elasticsearch.injection.guice.internal.ErrorsException;
+import org.elasticsearch.injection.guice.internal.InternalContext;
+import org.elasticsearch.injection.guice.spi.InjectionPoint;
+
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
+
+/**
+ * Invokes an injectable method.
+ */
+class SingleMethodInjector {
+    final Method method;
+    final SingleParameterInjector<?>[] parameterInjectors;
+    final InjectionPoint injectionPoint;
+
+    SingleMethodInjector(InjectorImpl injector, InjectionPoint injectionPoint, Errors errors) throws ErrorsException {
+        this.injectionPoint = injectionPoint;
+        method = (Method) injectionPoint.getMember();
+        parameterInjectors = injector.getParametersInjectors(injectionPoint.getDependencies(), errors);
+    }
+
+    public void inject(Errors errors, InternalContext context, Object o) {
+        Object[] parameters;
+        try {
+            parameters = SingleParameterInjector.getAll(errors, context, parameterInjectors);
+        } catch (ErrorsException e) {
+            errors.merge(e.getErrors());
+            return;
+        }
+
+        try {
+            method.invoke(o, parameters);
+        } catch (IllegalAccessException e) {
+            throw new AssertionError(e); // a security manager is blocking us, we're hosed
+        } catch (InvocationTargetException userException) {
+            Throwable cause = userException.getCause() != null ? userException.getCause() : userException;
+            errors.withSource(injectionPoint).errorInjectingMethod(cause);
+        }
+    }
+}

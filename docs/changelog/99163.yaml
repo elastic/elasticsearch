@@ -1,6 +1,0 @@
-pr: 99163
-summary: Use `NamedWritable` to enable `GeoBoundingBox` serialisation
-area: Geo
-type: bug
-issues:
- - 99089

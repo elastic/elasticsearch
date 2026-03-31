@@ -80,16 +80,46 @@ public class ServiceAccountIT extends ESRestTestCase {
         }
         """;
 
+    private static final String ELASTIC_AUTO_OPS_ROLE_DESCRIPTOR = """
+        {
+            "cluster": [
+                "monitor",
+                "read_ilm",
+                "read_slm"
+            ],
+            "indices": [
+                {
+                    "names": [
+                        "*"
+                    ],
+                    "privileges": [
+                        "monitor",
+                        "view_index_metadata"
+                    ],
+                    "allow_restricted_indices": true
+                }
+            ],
+            "applications": [],
+            "run_as": [],
+            "metadata": {},
+            "transient_metadata": {
+                "enabled": true
+            }
+        }""";
+
     private static final String ELASTIC_FLEET_SERVER_ROLE_DESCRIPTOR = """
         {
               "cluster": [
                 "monitor",
                 "manage_own_api_key",
-                "read_fleet_secrets"
+                "read_fleet_secrets",
+                "cluster:admin/xpack/connector/*"
               ],
               "indices": [
                 {
                   "names": [
+                    "logs",
+                    "logs.*",
                     "logs-*",
                     "metrics-*",
                     "traces-*",
@@ -110,8 +140,7 @@ public class ServiceAccountIT extends ESRestTestCase {
                   ],
                   "privileges": [
                     "read",
-                    "write",
-                    "auto_configure"
+                    "write"
                   ],
                   "allow_restricted_indices": false
                 },
@@ -258,6 +287,61 @@ public class ServiceAccountIT extends ESRestTestCase {
                     "auto_configure"
                   ],
                   "allow_restricted_indices": false
+                },
+                {
+                  "names": [
+                    ".elastic-connectors*"
+                  ],
+                  "privileges": [
+                    "read",
+                    "write",
+                    "monitor",
+                    "create_index",
+                    "auto_configure",
+                    "maintenance",
+                    "view_index_metadata"
+                  ],
+                  "allow_restricted_indices": false
+                },
+                {
+                  "names": [
+                    "content-*",
+                    ".search-acl-filter-*"
+                  ],
+                  "privileges": [
+                    "read",
+                    "write",
+                    "monitor",
+                    "create_index",
+                    "auto_configure",
+                    "maintenance",
+                    "view_index_metadata"
+                  ],
+                  "allow_restricted_indices": false
+                },
+                {
+                  "names": [
+                    ".endpoint-fleetfiles-*"
+                  ],
+                  "privileges": [
+                    "read"
+                  ],
+                  "allow_restricted_indices": false
+                },
+                {
+                  "names": [
+                    "agentless-*"
+                  ],
+                  "privileges": [
+                    "read",
+                    "write",
+                    "monitor",
+                    "create_index",
+                    "auto_configure",
+                    "maintenance",
+                    "view_index_metadata"
+                  ],
+                  "allow_restricted_indices": false
                 }
               ],
               "applications": [        {
@@ -281,7 +365,9 @@ public class ServiceAccountIT extends ESRestTestCase {
         {
             "cluster": [
                 "manage",
-                "manage_security"
+                "manage_security",
+                "read_connector_secrets",
+                "write_connector_secrets"
             ],
             "indices": [
                 {
@@ -399,6 +485,10 @@ public class ServiceAccountIT extends ESRestTestCase {
         assertOK(getServiceAccountResponse3);
         assertServiceAccountRoleDescriptor(getServiceAccountResponse3, "elastic/fleet-server", ELASTIC_FLEET_SERVER_ROLE_DESCRIPTOR);
 
+        final Request getServiceAccountRequestAutoOps = new Request("GET", "_security/service/elastic/auto-ops");
+        final Response getServiceAccountResponseAutoOps = client().performRequest(getServiceAccountRequestAutoOps);
+        assertServiceAccountRoleDescriptor(getServiceAccountResponseAutoOps, "elastic/auto-ops", ELASTIC_AUTO_OPS_ROLE_DESCRIPTOR);
+
         final Request getServiceAccountRequestKibana = new Request("GET", "_security/service/elastic/kibana");
         final Response getServiceAccountResponseKibana = client().performRequest(getServiceAccountRequestKibana);
         assertOK(getServiceAccountResponseKibana);
@@ -409,19 +499,6 @@ public class ServiceAccountIT extends ESRestTestCase {
                 ReservedRolesStore.kibanaSystemRoleDescriptor(KibanaSystemUser.ROLE_NAME)
                     .toXContent(JsonXContent.contentBuilder(), ToXContent.EMPTY_PARAMS)
             )
-        );
-
-        final Request getServiceAccountRequestEnterpriseSearchService = new Request(
-            "GET",
-            "_security/service/elastic/enterprise-search-server"
-        );
-        final Response getServiceAccountResponseEnterpriseSearchService = client().performRequest(
-            getServiceAccountRequestEnterpriseSearchService
-        );
-        assertServiceAccountRoleDescriptor(
-            getServiceAccountResponseEnterpriseSearchService,
-            "elastic/enterprise-search-server",
-            ELASTIC_ENTERPRISE_SEARCH_SERVER_ROLE_DESCRIPTOR
         );
 
         final String requestPath = "_security/service/" + randomFrom("foo", "elastic/foo", "foo/bar");
@@ -449,24 +526,17 @@ public class ServiceAccountIT extends ESRestTestCase {
     }
 
     public void testAuthenticateShouldNotFallThroughInCaseOfFailure() throws IOException {
-        final boolean securityIndexExists = randomBoolean();
-        if (securityIndexExists) {
-            final Request createRoleRequest = new Request("POST", "_security/role/dummy_role");
-            createRoleRequest.setJsonEntity("{\"cluster\":[]}");
-            assertOK(adminClient().performRequest(createRoleRequest));
-        }
+        final Request createRoleRequest = new Request("POST", "_security/role/dummy_role");
+        createRoleRequest.setJsonEntity("{\"cluster\":[]}");
+        assertOK(adminClient().performRequest(createRoleRequest));
         final Request request = new Request("GET", "_security/_authenticate");
         request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", "Bearer " + INVALID_SERVICE_TOKEN));
         final ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(request));
         assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(401));
-        if (securityIndexExists) {
-            assertThat(
-                e.getMessage(),
-                containsString("failed to authenticate service account [elastic/fleet-server] with token name [token1]")
-            );
-        } else {
-            assertThat(e.getMessage(), containsString("no such index [.security]"));
-        }
+        assertThat(
+            e.getMessage(),
+            containsString("failed to authenticate service account [elastic/fleet-server] with token name [token1]")
+        );
     }
 
     public void testAuthenticateShouldWorkWithOAuthBearerToken() throws IOException {

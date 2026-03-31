@@ -7,17 +7,21 @@
 
 package org.elasticsearch.compute.data;
 
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamInput;
+// begin generated imports
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.ReleasableIterator;
+import org.elasticsearch.index.mapper.BlockLoader;
 
 import java.io.IOException;
+// end generated imports
 
 /**
  * Block that stores boolean values.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-Block.java.st} instead.
  */
-public sealed interface BooleanBlock extends Block permits FilterBooleanBlock, BooleanArrayBlock, BooleanVectorBlock {
+public sealed interface BooleanBlock extends Block permits BooleanArrayBlock, BooleanVectorBlock, ConstantNullBlock, BooleanBigArrayBlock,
+    org.elasticsearch.compute.data.arrow.BooleanArrowBufBlock {
 
     /**
      * Retrieves the boolean value stored at the given value index.
@@ -30,60 +34,135 @@ public sealed interface BooleanBlock extends Block permits FilterBooleanBlock, B
      */
     boolean getBoolean(int valueIndex);
 
+    /**
+     * Checks if this block has the given value at position. If at this index we have a
+     * multivalue, then it returns true if any values match.
+     *
+     * @param position the index at which we should check the value(s)
+     * @param value the value to check against
+     */
+    default boolean hasValue(int position, boolean value) {
+        final var count = getValueCount(position);
+        final var startIndex = getFirstValueIndex(position);
+        for (int index = startIndex; index < startIndex + count; index++) {
+            if (value == getBoolean(index)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     @Override
     BooleanVector asVector();
 
-    @Override
-    BooleanBlock filter(int... positions);
+    /**
+     * Convert this to a {@link BooleanVector "mask"} that's appropriate for
+     * passing to {@link #keepMask}. Null and multivalued positions will be
+     * converted to {@code false}.
+     */
+    ToMask toMask();
 
-    NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Block.class, "BooleanBlock", BooleanBlock::of);
-
     @Override
-    default String getWriteableName() {
-        return "BooleanBlock";
+    default BooleanBlock slice(int beginInclusive, int endExclusive) {
+        if (beginInclusive == 0 && endExclusive == getPositionCount()) {
+            incRef();
+            return this;
+        }
+        try (BooleanBlock.Builder builder = blockFactory().newBooleanBlockBuilder(endExclusive - beginInclusive)) {
+            builder.copyFrom(this, beginInclusive, endExclusive);
+            return builder.build();
+        }
     }
 
-    static BooleanBlock of(StreamInput in) throws IOException {
-        final boolean isVector = in.readBoolean();
-        if (isVector) {
-            return BooleanVector.of(in).asBlock();
+    @Override
+    BooleanBlock filter(boolean mayContainDuplicates, int... positions);
+
+    /**
+     * Make a deep copy of this {@link Block} using the provided {@link BlockFactory},
+     * likely copying all data.
+     */
+    @Override
+    default BooleanBlock deepCopy(BlockFactory blockFactory) {
+        try (BooleanBlock.Builder builder = blockFactory.newBooleanBlockBuilder(getPositionCount())) {
+            builder.copyFrom(this, 0, getPositionCount());
+            builder.mvOrdering(mvOrdering());
+            return builder.build();
         }
-        final int positions = in.readVInt();
-        var builder = newBlockBuilder(positions);
-        for (int i = 0; i < positions; i++) {
-            if (in.readBoolean()) {
-                builder.appendNull();
-            } else {
-                final int valueCount = in.readVInt();
-                builder.beginPositionEntry();
-                for (int valueIndex = 0; valueIndex < valueCount; valueIndex++) {
-                    builder.appendBoolean(in.readBoolean());
-                }
-                builder.endPositionEntry();
+    }
+
+    @Override
+    BooleanBlock keepMask(BooleanVector mask);
+
+    @Override
+    ReleasableIterator<? extends BooleanBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize);
+
+    @Override
+    BooleanBlock expand();
+
+    static BooleanBlock readFrom(BlockStreamInput in) throws IOException {
+        final byte serializationType = in.readByte();
+        return switch (serializationType) {
+            case SERIALIZE_BLOCK_VALUES -> BooleanBlock.readValues(in);
+            case SERIALIZE_BLOCK_VECTOR -> BooleanVector.readFrom(in.blockFactory(), in).asBlock();
+            case SERIALIZE_BLOCK_ARRAY -> BooleanArrayBlock.readArrayBlock(in.blockFactory(), in);
+            case SERIALIZE_BLOCK_BIG_ARRAY -> BooleanBigArrayBlock.readArrayBlock(in.blockFactory(), in);
+            default -> {
+                assert false : "invalid block serialization type " + serializationType;
+                throw new IllegalStateException("invalid serialization type " + serializationType);
             }
+        };
+    }
+
+    private static BooleanBlock readValues(BlockStreamInput in) throws IOException {
+        final int positions = in.readVInt();
+        try (BooleanBlock.Builder builder = in.blockFactory().newBooleanBlockBuilder(positions)) {
+            for (int i = 0; i < positions; i++) {
+                if (in.readBoolean()) {
+                    builder.appendNull();
+                } else {
+                    final int valueCount = in.readVInt();
+                    builder.beginPositionEntry();
+                    for (int valueIndex = 0; valueIndex < valueCount; valueIndex++) {
+                        builder.appendBoolean(in.readBoolean());
+                    }
+                    builder.endPositionEntry();
+                }
+            }
+            return builder.build();
         }
-        return builder.build();
     }
 
     @Override
     default void writeTo(StreamOutput out) throws IOException {
         BooleanVector vector = asVector();
-        out.writeBoolean(vector != null);
+        final var version = out.getTransportVersion();
         if (vector != null) {
+            out.writeByte(SERIALIZE_BLOCK_VECTOR);
             vector.writeTo(out);
+        } else if (this instanceof BooleanArrayBlock b) {
+            out.writeByte(SERIALIZE_BLOCK_ARRAY);
+            b.writeArrayBlock(out);
+        } else if (this instanceof BooleanBigArrayBlock b) {
+            out.writeByte(SERIALIZE_BLOCK_BIG_ARRAY);
+            b.writeArrayBlock(out);
         } else {
-            final int positions = getPositionCount();
-            out.writeVInt(positions);
-            for (int pos = 0; pos < positions; pos++) {
-                if (isNull(pos)) {
-                    out.writeBoolean(true);
-                } else {
-                    out.writeBoolean(false);
-                    final int valueCount = getValueCount(pos);
-                    out.writeVInt(valueCount);
-                    for (int valueIndex = 0; valueIndex < valueCount; valueIndex++) {
-                        out.writeBoolean(getBoolean(getFirstValueIndex(pos) + valueIndex));
-                    }
+            out.writeByte(SERIALIZE_BLOCK_VALUES);
+            BooleanBlock.writeValues(this, out);
+        }
+    }
+
+    private static void writeValues(BooleanBlock block, StreamOutput out) throws IOException {
+        final int positions = block.getPositionCount();
+        out.writeVInt(positions);
+        for (int pos = 0; pos < positions; pos++) {
+            if (block.isNull(pos)) {
+                out.writeBoolean(true);
+            } else {
+                out.writeBoolean(false);
+                final int valueCount = block.getValueCount(pos);
+                out.writeVInt(valueCount);
+                for (int valueIndex = 0; valueIndex < valueCount; valueIndex++) {
+                    out.writeBoolean(block.getBoolean(block.getFirstValueIndex(pos) + valueIndex));
                 }
             }
         }
@@ -107,6 +186,9 @@ public sealed interface BooleanBlock extends Block permits FilterBooleanBlock, B
      * equals method works properly across different implementations of the BooleanBlock interface.
      */
     static boolean equals(BooleanBlock block1, BooleanBlock block2) {
+        if (block1 == block2) {
+            return true;
+        }
         final int positions = block1.getPositionCount();
         if (positions != block2.getPositionCount()) {
             return false;
@@ -157,19 +239,14 @@ public sealed interface BooleanBlock extends Block permits FilterBooleanBlock, B
         return result;
     }
 
-    static Builder newBlockBuilder(int estimatedSize) {
-        return new BooleanBlockBuilder(estimatedSize);
-    }
-
-    static BooleanBlock newConstantBlockWith(boolean value, int positions) {
-        return new ConstantBooleanVector(value, positions).asBlock();
-    }
-
-    sealed interface Builder extends Block.Builder permits BooleanBlockBuilder {
-
+    /**
+     * Builder for {@link BooleanBlock}
+     */
+    sealed interface Builder extends Block.Builder, BlockLoader.BooleanBuilder permits BooleanBlockBuilder {
         /**
          * Appends a boolean to the current entry.
          */
+        @Override
         Builder appendBoolean(boolean value);
 
         /**
@@ -177,6 +254,14 @@ public sealed interface BooleanBlock extends Block permits FilterBooleanBlock, B
          * {@code endExclusive} into this builder.
          */
         Builder copyFrom(BooleanBlock block, int beginInclusive, int endExclusive);
+
+        /**
+         * Copy the values in {@code block} at {@code position}. If this position
+         * has a single value, this'll copy a single value. If this positions has
+         * many values, it'll copy all of them. If this is {@code null}, then it'll
+         * copy the {@code null}.
+         */
+        Builder copyFrom(BooleanBlock block, int position);
 
         @Override
         Builder appendNull();
@@ -192,20 +277,6 @@ public sealed interface BooleanBlock extends Block permits FilterBooleanBlock, B
 
         @Override
         Builder mvOrdering(Block.MvOrdering mvOrdering);
-
-        // TODO boolean containsMvDups();
-
-        /**
-         * Appends the all values of the given block into a the current position
-         * in this builder.
-         */
-        Builder appendAllValuesToCurrentPosition(Block block);
-
-        /**
-         * Appends the all values of the given block into a the current position
-         * in this builder.
-         */
-        Builder appendAllValuesToCurrentPosition(BooleanBlock block);
 
         @Override
         BooleanBlock build();

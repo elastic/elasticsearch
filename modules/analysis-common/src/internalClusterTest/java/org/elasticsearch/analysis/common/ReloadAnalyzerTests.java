@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.analysis.common;
@@ -11,10 +12,9 @@ package org.elasticsearch.analysis.common;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeAction;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeAction.AnalyzeToken;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeAction.Response;
-import org.elasticsearch.action.admin.indices.analyze.ReloadAnalyzerAction;
 import org.elasticsearch.action.admin.indices.analyze.ReloadAnalyzersRequest;
 import org.elasticsearch.action.admin.indices.analyze.ReloadAnalyzersResponse;
-import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.admin.indices.analyze.TransportReloadAnalyzersAction;
 import org.elasticsearch.index.mapper.MapperException;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
@@ -56,10 +56,8 @@ public class ReloadAnalyzerTests extends ESSingleNodeTestCase {
 
         checkAnalyzerTokens(List.of("foo", "baz", "buzz"));
 
-        SearchResponse response = client().prepareSearch(INDEX_NAME).setQuery(QueryBuilders.matchQuery("field", "baz")).get();
-        assertHitCount(response, 1L);
-        response = client().prepareSearch(INDEX_NAME).setQuery(QueryBuilders.matchQuery("field", "buzz")).get();
-        assertHitCount(response, 1L);
+        assertHitCount(client().prepareSearch(INDEX_NAME).setQuery(QueryBuilders.matchQuery("field", "baz")), 1L);
+        assertHitCount(client().prepareSearch(INDEX_NAME).setQuery(QueryBuilders.matchQuery("field", "buzz")), 1L);
     }
 
     public void testSynonymsAreNotUpdatedOnPreview() throws IOException {
@@ -69,10 +67,8 @@ public class ReloadAnalyzerTests extends ESSingleNodeTestCase {
 
         checkAnalyzerTokens(List.of("foo", "baz"));
 
-        SearchResponse response = client().prepareSearch(INDEX_NAME).setQuery(QueryBuilders.matchQuery("field", "baz")).get();
-        assertHitCount(response, 1L);
-        response = client().prepareSearch(INDEX_NAME).setQuery(QueryBuilders.matchQuery("field", "buzz")).get();
-        assertHitCount(response, 0L);
+        assertHitCount(client().prepareSearch(INDEX_NAME).setQuery(QueryBuilders.matchQuery("field", "baz")), 1L);
+        assertHitCount(client().prepareSearch(INDEX_NAME).setQuery(QueryBuilders.matchQuery("field", "buzz")), 0L);
     }
 
     private Path setupSynonyms() throws IOException {
@@ -96,13 +92,11 @@ public class ReloadAnalyzerTests extends ESSingleNodeTestCase {
                 .setMapping("field", "type=text,analyzer=standard,search_analyzer=" + SYNONYM_ANALYZER_NAME)
         );
 
-        client().prepareIndex(INDEX_NAME).setId("1").setSource("field", "Foo").get();
-        assertNoFailures(indicesAdmin().prepareRefresh(INDEX_NAME).execute().actionGet());
+        prepareIndex(INDEX_NAME).setId("1").setSource("field", "Foo").get();
+        assertNoFailures(indicesAdmin().prepareRefresh(INDEX_NAME).get());
 
-        SearchResponse response = client().prepareSearch(INDEX_NAME).setQuery(QueryBuilders.matchQuery("field", "baz")).get();
-        assertHitCount(response, 1L);
-        response = client().prepareSearch(INDEX_NAME).setQuery(QueryBuilders.matchQuery("field", "buzz")).get();
-        assertHitCount(response, 0L);
+        assertHitCount(client().prepareSearch(INDEX_NAME).setQuery(QueryBuilders.matchQuery("field", "baz")), 1L);
+        assertHitCount(client().prepareSearch(INDEX_NAME).setQuery(QueryBuilders.matchQuery("field", "buzz")), 0L);
 
         {
             for (String analyzerName : new String[] { SYNONYM_ANALYZER_NAME, SYNONYM_GRAPH_ANALYZER_NAME }) {
@@ -128,7 +122,7 @@ public class ReloadAnalyzerTests extends ESSingleNodeTestCase {
             out.println("foo, baz, buzz");
         }
         ReloadAnalyzersResponse reloadResponse = client().execute(
-            ReloadAnalyzerAction.INSTANCE,
+            TransportReloadAnalyzersAction.TYPE,
             new ReloadAnalyzersRequest(null, preview, INDEX_NAME)
         ).actionGet();
         assertNoFailures(reloadResponse);
@@ -168,13 +162,11 @@ public class ReloadAnalyzerTests extends ESSingleNodeTestCase {
                 .setMapping("field", "type=text,analyzer=standard,search_analyzer=" + SYNONYM_ANALYZER_NAME)
         );
 
-        client().prepareIndex(INDEX_NAME).setId("1").setSource("field", "foo").get();
-        assertNoFailures(indicesAdmin().prepareRefresh(INDEX_NAME).execute().actionGet());
+        prepareIndex(INDEX_NAME).setId("1").setSource("field", "foo").get();
+        assertNoFailures(indicesAdmin().prepareRefresh(INDEX_NAME).get());
 
-        SearchResponse response = client().prepareSearch(INDEX_NAME).setQuery(QueryBuilders.matchQuery("field", "baz")).get();
-        assertHitCount(response, 1L);
-        response = client().prepareSearch(INDEX_NAME).setQuery(QueryBuilders.matchQuery("field", "buzz")).get();
-        assertHitCount(response, 0L);
+        assertHitCount(client().prepareSearch(INDEX_NAME).setQuery(QueryBuilders.matchQuery("field", "baz")), 1L);
+        assertHitCount(client().prepareSearch(INDEX_NAME).setQuery(QueryBuilders.matchQuery("field", "buzz")), 0L);
 
         Response analyzeResponse = indicesAdmin().prepareAnalyze(INDEX_NAME, "foo").setAnalyzer(SYNONYM_ANALYZER_NAME).get();
         assertEquals(2, analyzeResponse.getTokens().size());
@@ -192,7 +184,7 @@ public class ReloadAnalyzerTests extends ESSingleNodeTestCase {
             out.println("foo, baz, buzz");
         }
         ReloadAnalyzersResponse reloadResponse = client().execute(
-            ReloadAnalyzerAction.INSTANCE,
+            TransportReloadAnalyzersAction.TYPE,
             new ReloadAnalyzersRequest(null, false, INDEX_NAME)
         ).actionGet();
         assertNoFailures(reloadResponse);
@@ -208,16 +200,14 @@ public class ReloadAnalyzerTests extends ESSingleNodeTestCase {
         assertTrue(tokens.contains("baz"));
         assertTrue(tokens.contains("buzz"));
 
-        response = client().prepareSearch(INDEX_NAME).setQuery(QueryBuilders.matchQuery("field", "baz")).get();
-        assertHitCount(response, 1L);
-        response = client().prepareSearch(INDEX_NAME).setQuery(QueryBuilders.matchQuery("field", "buzz")).get();
-        assertHitCount(response, 1L);
+        assertHitCount(client().prepareSearch(INDEX_NAME).setQuery(QueryBuilders.matchQuery("field", "baz")), 1L);
+        assertHitCount(client().prepareSearch(INDEX_NAME).setQuery(QueryBuilders.matchQuery("field", "buzz")), 1L);
     }
 
     public void testUpdateableSynonymsRejectedAtIndexTime() throws FileNotFoundException, IOException {
         String synonymsFileName = "synonyms.txt";
         setupResourceFile(synonymsFileName, "foo, baz");
-        Path configDir = node().getEnvironment().configFile();
+        Path configDir = node().getEnvironment().configDir();
         if (Files.exists(configDir) == false) {
             Files.createDirectory(configDir);
         }
@@ -314,7 +304,7 @@ public class ReloadAnalyzerTests extends ESSingleNodeTestCase {
         }
 
         ReloadAnalyzersResponse reloadResponse = client().execute(
-            ReloadAnalyzerAction.INSTANCE,
+            TransportReloadAnalyzersAction.TYPE,
             new ReloadAnalyzersRequest(null, false, INDEX_NAME)
         ).actionGet();
         assertNoFailures(reloadResponse);
@@ -329,7 +319,7 @@ public class ReloadAnalyzerTests extends ESSingleNodeTestCase {
     }
 
     private Path setupResourceFile(String fileName, String... content) throws IOException {
-        Path configDir = node().getEnvironment().configFile();
+        Path configDir = node().getEnvironment().configDir();
         if (Files.exists(configDir) == false) {
             Files.createDirectory(configDir);
         }

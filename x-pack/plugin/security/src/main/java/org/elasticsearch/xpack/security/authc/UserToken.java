@@ -74,7 +74,7 @@ public final class UserToken implements Writeable, ToXContentObject {
         this.id = input.readString();
         this.authentication = new Authentication(input);
         this.expirationTime = Instant.ofEpochSecond(input.readLong(), input.readInt());
-        this.metadata = input.readMap();
+        this.metadata = input.readGenericMap();
     }
 
     @Override

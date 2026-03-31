@@ -1,12 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.fielddata;
+
+import org.apache.lucene.search.DoubleValues;
 
 import java.io.IOException;
 
@@ -17,14 +20,14 @@ import java.io.IOException;
  * that works for single or multi-valued types.
  */
 final class SingletonSortedNumericDoubleValues extends SortedNumericDoubleValues {
-    private final NumericDoubleValues in;
+    private final DoubleValues in;
 
-    SingletonSortedNumericDoubleValues(NumericDoubleValues in) {
+    SingletonSortedNumericDoubleValues(DoubleValues in) {
         this.in = in;
     }
 
-    /** Return the wrapped {@link NumericDoubleValues} */
-    public NumericDoubleValues getNumericDoubleValues() {
+    /** Return the wrapped {@link DoubleValues} */
+    public DoubleValues getNumericDoubleValues() {
         return in;
     }
 

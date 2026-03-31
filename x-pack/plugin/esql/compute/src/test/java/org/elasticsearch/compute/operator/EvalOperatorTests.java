@@ -7,49 +7,100 @@
 
 package org.elasticsearch.compute.operator;
 
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.compute.operator.EvalOperator.EvalOperatorFactory;
+import org.elasticsearch.compute.test.OperatorTestCase;
+import org.elasticsearch.compute.test.TestDriverRunner;
+import org.elasticsearch.compute.test.operator.blocksource.TupleLongLongBlockSourceOperator;
 import org.elasticsearch.core.Tuple;
+import org.hamcrest.Matcher;
 
 import java.util.List;
+import java.util.Set;
+import java.util.TreeSet;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 
+import static org.hamcrest.Matchers.equalTo;
+
 public class EvalOperatorTests extends OperatorTestCase {
     @Override
-    protected SourceOperator simpleInput(int end) {
-        return new TupleBlockSourceOperator(LongStream.range(0, end).mapToObj(l -> Tuple.tuple(l, end - l)));
+    protected SourceOperator simpleInput(BlockFactory blockFactory, int end) {
+        return new TupleLongLongBlockSourceOperator(blockFactory, LongStream.range(0, end).mapToObj(l -> Tuple.tuple(l, end - l)));
     }
 
-    record Addition(int lhs, int rhs) implements EvalOperator.ExpressionEvaluator {
+    record Addition(DriverContext driverContext, int lhs, int rhs) implements ExpressionEvaluator {
         @Override
         public Block eval(Page page) {
             LongVector lhsVector = page.<LongBlock>getBlock(0).asVector();
             LongVector rhsVector = page.<LongBlock>getBlock(1).asVector();
-            LongVector.Builder result = LongVector.newVectorBuilder(page.getPositionCount());
-            for (int p = 0; p < page.getPositionCount(); p++) {
-                result.appendLong(lhsVector.getLong(p) + rhsVector.getLong(p));
+            try (LongVector.FixedBuilder result = driverContext.blockFactory().newLongVectorFixedBuilder(page.getPositionCount())) {
+                for (int p = 0; p < page.getPositionCount(); p++) {
+                    result.appendLong(lhsVector.getLong(p) + rhsVector.getLong(p));
+                }
+                return result.build().asBlock();
             }
-            return result.build().asBlock();
         }
+
+        @Override
+        public long baseRamBytesUsed() {
+            return 1;
+        }
+
+        @Override
+        public String toString() {
+            return "Addition[lhs=" + lhs + ", rhs=" + rhs + ']';
+        }
+
+        @Override
+        public void close() {}
+    }
+
+    record LoadFromPage(int channel) implements ExpressionEvaluator {
+        @Override
+        public Block eval(Page page) {
+            Block block = page.getBlock(channel);
+            block.incRef();
+            return block;
+        }
+
+        @Override
+        public long baseRamBytesUsed() {
+            return 2;
+        }
+
+        @Override
+        public void close() {}
     }
 
     @Override
-    protected Operator.OperatorFactory simple(BigArrays bigArrays) {
-        return new EvalOperator.EvalOperatorFactory(dvrCtx -> new Addition(0, 1));
+    protected Operator.OperatorFactory simple(SimpleOptions options) {
+        return new EvalOperator.EvalOperatorFactory(new ExpressionEvaluator.Factory() {
+            @Override
+            public ExpressionEvaluator get(DriverContext context) {
+                return new Addition(context, 0, 1);
+            }
+
+            @Override
+            public String toString() {
+                return "Addition[lhs=0, rhs=1]";
+            }
+        });
     }
 
     @Override
-    protected String expectedDescriptionOfSimple() {
-        return "EvalOperator[evaluator=Addition[lhs=0, rhs=1]]";
+    protected Matcher<String> expectedDescriptionOfSimple() {
+        return equalTo("EvalOperator[evaluator=Addition[lhs=0, rhs=1]]");
     }
 
     @Override
-    protected String expectedToStringOfSimple() {
+    protected Matcher<String> expectedToStringOfSimple() {
         return expectedDescriptionOfSimple();
     }
 
@@ -64,9 +115,17 @@ public class EvalOperatorTests extends OperatorTestCase {
         }
     }
 
-    @Override
-    protected ByteSizeValue smallEnoughToCircuitBreak() {
-        assumeTrue("doesn't use big arrays so can't break", false);
-        return null;
+    public void testReadFromBlock() {
+        var runner = new TestDriverRunner().builder(driverContext());
+        runner.input(simpleInput(runner.blockFactory(), 10));
+        List<Page> results = runner.run(new EvalOperatorFactory(dvrCtx -> new LoadFromPage(0)));
+        Set<Long> found = new TreeSet<>();
+        for (var page : results) {
+            LongBlock lb = page.getBlock(2);
+            IntStream.range(0, lb.getPositionCount()).forEach(pos -> found.add(lb.getLong(pos)));
+        }
+        assertThat(found, equalTo(LongStream.range(0, 10).mapToObj(Long::valueOf).collect(Collectors.toSet())));
+        results.forEach(Page::releaseBlocks);
+        assertThat(runner.context().breaker().getUsed(), equalTo(0L));
     }
 }

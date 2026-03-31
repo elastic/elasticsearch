@@ -9,18 +9,24 @@ package org.elasticsearch.compute.operator.topn;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 
 /**
  * Builds {@link Block}s from keys and values encoded into {@link BytesRef}s.
  */
-interface ResultBuilder {
+interface ResultBuilder extends Releasable {
     /**
      * Called for each sort key before {@link #decodeValue} to consume the sort key and
      * store the value of the key for {@link #decodeValue} can use it to reconstruct
      * the value. This will only be called if the value is part of the key.
+     * @param asc Is the sort ascending ({@code true}) or descending ({@code false})?
+     *            Keys are encoded with their bits flipped when sorting descending. This
+     *            undoes that.
      */
-    void decodeKey(BytesRef keys);
+    void decodeKey(BytesRef keys, boolean asc);
 
     /**
      * Called once per row to decode the value and write to the internal {@link Block.Builder}.
@@ -36,15 +42,33 @@ interface ResultBuilder {
      */
     Block build();
 
-    static ResultBuilder resultBuilderFor(ElementType elementType, TopNEncoder encoder, boolean inKey, int positions) {
+    /**
+     * An estimate of the number of bytes the {@link Block} created by
+     * {@link #build} will use. This may overestimate the size but shouldn't
+     * underestimate it.
+     */
+    long estimatedBytes();
+
+    static ResultBuilder resultBuilderFor(
+        BlockFactory blockFactory,
+        ElementType elementType,
+        TopNEncoder encoder,
+        boolean inKey,
+        int positions
+    ) {
         return switch (elementType) {
-            case BOOLEAN -> new ResultBuilderForBoolean(encoder, inKey, positions);
-            case BYTES_REF -> new ResultBuilderForBytesRef(encoder, inKey, positions);
-            case INT -> new ResultBuilderForInt(encoder, inKey, positions);
-            case LONG -> new ResultBuilderForLong(encoder, inKey, positions);
-            case DOUBLE -> new ResultBuilderForDouble(encoder, inKey, positions);
-            case NULL -> new ResultBuilderForNull();
-            case DOC -> new ResultBuilderForDoc(positions);
+            case BOOLEAN -> new ResultBuilderForBoolean(blockFactory, encoder, inKey, positions);
+            case BYTES_REF -> new ResultBuilderForBytesRef(blockFactory, encoder, inKey, positions);
+            case INT -> new ResultBuilderForInt(blockFactory, encoder, inKey, positions);
+            case LONG -> new ResultBuilderForLong(blockFactory, encoder, inKey, positions);
+            case FLOAT -> new ResultBuilderForFloat(blockFactory, encoder, inKey, positions);
+            case DOUBLE -> new ResultBuilderForDouble(blockFactory, encoder, inKey, positions);
+            case NULL -> new ResultBuilderForNull(blockFactory);
+            case DOC -> new ResultBuilderForDoc(blockFactory, (DocVectorEncoder) encoder, positions);
+            case AGGREGATE_METRIC_DOUBLE -> new ResultBuilderForAggregateMetricDouble(blockFactory, positions);
+            case LONG_RANGE -> new ResultBuilderForLongRange(blockFactory, positions);
+            case EXPONENTIAL_HISTOGRAM -> new ResultBuilderForExponentialHistogram(blockFactory, positions);
+            case TDIGEST -> new ResultBuilderForTDigest(blockFactory, positions);
             default -> {
                 assert false : "Result builder for [" + elementType + "]";
                 throw new UnsupportedOperationException("Result builder for [" + elementType + "]");
@@ -52,4 +76,17 @@ interface ResultBuilder {
         };
     }
 
+    static Block[] buildAll(ResultBuilder[] builders) {
+        Block[] blocks = new Block[builders.length];
+        try {
+            for (int b = 0; b < blocks.length; b++) {
+                blocks[b] = builders[b].build();
+            }
+        } finally {
+            if (blocks[blocks.length - 1] == null) {
+                Releasables.closeExpectNoException(blocks);
+            }
+        }
+        return blocks;
+    }
 }

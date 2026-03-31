@@ -1,22 +1,22 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.search;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.TransportVersions;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
-import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
+import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.VersionCheckingStreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchService;
@@ -39,34 +39,38 @@ public final class TransportSearchHelper {
         return new InternalScrollSearchRequest(request, id);
     }
 
-    static String buildScrollId(AtomicArray<? extends SearchPhaseResult> searchPhaseResults) {
-        final BytesReference bytesReference;
-        try (var encodedStreamOutput = new BytesStreamOutput()) {
-            try (var out = new OutputStreamStreamOutput(Base64.getUrlEncoder().wrap(encodedStreamOutput))) {
-                out.writeString(INCLUDE_CONTEXT_UUID);
-                out.writeString(
-                    searchPhaseResults.length() == 1 ? ParsedScrollId.QUERY_AND_FETCH_TYPE : ParsedScrollId.QUERY_THEN_FETCH_TYPE
-                );
-                out.writeCollection(searchPhaseResults.asList(), (o, searchPhaseResult) -> {
-                    o.writeString(searchPhaseResult.getContextId().getSessionId());
-                    o.writeLong(searchPhaseResult.getContextId().getId());
-                    SearchShardTarget searchShardTarget = searchPhaseResult.getSearchShardTarget();
-                    if (searchShardTarget.getClusterAlias() != null) {
-                        o.writeString(
-                            RemoteClusterAware.buildRemoteIndexName(searchShardTarget.getClusterAlias(), searchShardTarget.getNodeId())
-                        );
-                    } else {
-                        o.writeString(searchShardTarget.getNodeId());
-                    }
-                });
-            }
-            bytesReference = encodedStreamOutput.bytes();
+    /**
+     * Encodes a scroll id including the search type used for subsequent scroll requests.
+     *
+     * @param isMultiShard whether this search targets more than one logical shard on the coordinator (including shards
+     *                     skipped by can_match). Must not be derived from {@code searchPhaseResults.length()} alone,
+     *                     which counts only shards that executed the query phase.
+     */
+    static String buildScrollId(
+        AtomicArray<? extends SearchPhaseResult> searchPhaseResults,
+        Recycler<BytesRef> bytesRefRecycler,
+        boolean isMultiShard
+    ) {
+        try (var out = new RecyclerBytesStreamOutput(bytesRefRecycler)) {
+            out.writeString(INCLUDE_CONTEXT_UUID);
+            out.writeString(isMultiShard ? ParsedScrollId.QUERY_THEN_FETCH_TYPE : ParsedScrollId.QUERY_AND_FETCH_TYPE);
+            out.writeCollection(searchPhaseResults.asList(), (o, searchPhaseResult) -> {
+                o.writeString(searchPhaseResult.getContextId().getSessionId());
+                o.writeLong(searchPhaseResult.getContextId().getId());
+                SearchShardTarget searchShardTarget = searchPhaseResult.getSearchShardTarget();
+                if (searchShardTarget.getClusterAlias() != null) {
+                    o.writeString(
+                        RemoteClusterAware.buildRemoteIndexName(searchShardTarget.getClusterAlias(), searchShardTarget.getNodeId())
+                    );
+                } else {
+                    o.writeString(searchShardTarget.getNodeId());
+                }
+            });
+            return out.toBase64String(Base64.getUrlEncoder());
         } catch (IOException e) {
             assert false : e;
             throw new UncheckedIOException(e);
         }
-        final BytesRef bytesRef = bytesReference.toBytesRef();
-        return new String(bytesRef.bytes, bytesRef.offset, bytesRef.length, StandardCharsets.ISO_8859_1);
     }
 
     static ParsedScrollId parseScrollId(String scrollId) {
@@ -93,7 +97,7 @@ public final class TransportSearchHelper {
             if (in.available() > 0) {
                 throw new IllegalArgumentException("Not all bytes were read");
             }
-            return new ParsedScrollId(scrollId, type, context);
+            return new ParsedScrollId(type, context);
         } catch (Exception e) {
             throw new IllegalArgumentException("Cannot parse scroll id", e);
         }
@@ -109,15 +113,9 @@ public final class TransportSearchHelper {
 
     private static SearchContextIdForNode innerReadSearchContextIdForNode(String contextUUID, StreamInput in) throws IOException {
         long id = in.readLong();
-        String target = in.readString();
-        String clusterAlias;
-        final int index = target.indexOf(RemoteClusterAware.REMOTE_CLUSTER_INDEX_SEPARATOR);
-        if (index == -1) {
-            clusterAlias = null;
-        } else {
-            clusterAlias = target.substring(0, index);
-            target = target.substring(index + 1);
-        }
+        String[] split = RemoteClusterAware.splitIndexName(in.readString());
+        String clusterAlias = split[0];
+        String target = split[1];
         return new SearchContextIdForNode(clusterAlias, target, new ShardSearchContextId(contextUUID, id));
     }
 
@@ -132,14 +130,14 @@ public final class TransportSearchHelper {
     */
     public static void checkCCSVersionCompatibility(Writeable writeableRequest) {
         try {
-            writeableRequest.writeTo(new VersionCheckingStreamOutput(TransportVersions.MINIMUM_CCS_VERSION));
+            writeableRequest.writeTo(new VersionCheckingStreamOutput(TransportVersion.minimumCCSVersion()));
         } catch (Exception e) {
             // if we cannot serialize, raise this as an error to indicate to the caller that CCS has problems with this request
             throw new IllegalArgumentException(
                 "["
                     + writeableRequest.getClass()
                     + "] is not compatible with version "
-                    + TransportVersions.MINIMUM_CCS_VERSION
+                    + TransportVersion.minimumCCSVersion().toReleaseVersion()
                     + " and the '"
                     + SearchService.CCS_VERSION_CHECK_SETTING.getKey()
                     + "' setting is enabled.",

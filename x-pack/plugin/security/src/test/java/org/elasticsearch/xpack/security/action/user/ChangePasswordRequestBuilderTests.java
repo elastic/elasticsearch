@@ -16,7 +16,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.action.user.ChangePasswordRequest;
-import org.elasticsearch.xpack.core.security.action.user.ChangePasswordRequestBuilder;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 
 import java.io.IOException;
@@ -77,7 +76,7 @@ public class ChangePasswordRequestBuilderTests extends ESTestCase {
     }
 
     public void testWithHashedPasswordNotHash() {
-        final Hasher systemHasher = Hasher.valueOf(randomFrom(Hasher.getAvailableAlgoStoredHash()).toUpperCase(Locale.ROOT));
+        final Hasher systemHasher = Hasher.valueOf(randomFrom(Hasher.getAvailableAlgoStoredPasswordHash()).toUpperCase(Locale.ROOT));
         final char[] hash = randomAlphaOfLength(20).toCharArray();
         final String json = Strings.format("""
             {

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.search;
@@ -22,12 +23,17 @@ import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
 import java.util.Queue;
+import java.util.concurrent.ExecutionException;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 
@@ -36,6 +42,13 @@ public class SearchShardsIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return CollectionUtils.appendToCopy(super.nodePlugins(), MockTransportService.TestPlugin.class);
+    }
+
+    private static void assertGroupsSortedByShardId(Collection<SearchShardsGroup> groups) {
+        List<SearchShardsGroup> list = new ArrayList<>(groups);
+        for (int i = 1; i < list.size(); i++) {
+            assertThat(list.get(i).shardId().compareTo(list.get(i - 1).shardId()), greaterThanOrEqualTo(0));
+        }
     }
 
     public void testBasic() {
@@ -47,7 +60,7 @@ public class SearchShardsIT extends ESIntegTestCase {
             );
             int numDocs = randomIntBetween(1, 10);
             for (int j = 0; j < numDocs; j++) {
-                client().prepareIndex(index).setSource("value", i).setId(Integer.toString(i)).get();
+                prepareIndex(index).setSource("value", i).setId(Integer.toString(i)).get();
             }
             indicesAdmin().prepareRefresh(index).get();
         }
@@ -70,22 +83,20 @@ public class SearchShardsIT extends ESIntegTestCase {
                 randomBoolean(),
                 randomBoolean() ? null : randomAlphaOfLength(10)
             );
-            var resp = client().execute(SearchShardsAction.INSTANCE, request).actionGet();
-            assertThat(resp.getGroups(), hasSize(indicesWithData + indicesWithoutData));
-            int skipped = 0;
+            var resp = client().execute(TransportSearchShardsAction.TYPE, request).actionGet();
+            assertThat(resp.getGroups(), hasSize(indicesWithData));
             for (SearchShardsGroup g : resp.getGroups()) {
                 String indexName = g.shardId().getIndexName();
                 assertThat(g.allocatedNodes(), not(empty()));
                 if (indexName.contains("without")) {
                     assertTrue(g.skipped());
-                    skipped++;
                 } else {
                     assertFalse(g.skipped());
                 }
             }
-            assertThat(skipped, equalTo(indicesWithoutData));
+            assertGroupsSortedByShardId(resp.getGroups());
+            assertThat(resp.getNumSkippedShards(), equalTo(indicesWithoutData));
         }
-        // Match all
         {
             MatchAllQueryBuilder matchAll = new MatchAllQueryBuilder();
             var request = new SearchShardsRequest(
@@ -97,15 +108,16 @@ public class SearchShardsIT extends ESIntegTestCase {
                 randomBoolean(),
                 randomBoolean() ? null : randomAlphaOfLength(10)
             );
-            SearchShardsResponse resp = client().execute(SearchShardsAction.INSTANCE, request).actionGet();
+            SearchShardsResponse resp = client().execute(TransportSearchShardsAction.TYPE, request).actionGet();
             assertThat(resp.getGroups(), hasSize(indicesWithData + indicesWithoutData));
             for (SearchShardsGroup g : resp.getGroups()) {
                 assertFalse(g.skipped());
             }
+            assertGroupsSortedByShardId(resp.getGroups());
         }
     }
 
-    public void testRandom() {
+    public void testRandom() throws ExecutionException, InterruptedException {
         int numIndices = randomIntBetween(1, 10);
         for (int i = 0; i < numIndices; i++) {
             String index = "index-" + i;
@@ -115,7 +127,7 @@ public class SearchShardsIT extends ESIntegTestCase {
             );
             int numDocs = randomIntBetween(10, 1000);
             for (int j = 0; j < numDocs; j++) {
-                client().prepareIndex(index).setSource("value", i).setId(Integer.toString(i)).get();
+                prepareIndex(index).setSource("value", i).setId(Integer.toString(i)).get();
             }
             indicesAdmin().prepareRefresh(index).get();
         }
@@ -127,21 +139,23 @@ public class SearchShardsIT extends ESIntegTestCase {
             RangeQueryBuilder rangeQuery = new RangeQueryBuilder("value").from(from).to(to).includeUpper(true).includeLower(true);
             SearchRequest searchRequest = new SearchRequest().indices("index-*").source(new SearchSourceBuilder().query(rangeQuery));
             searchRequest.setPreFilterShardSize(1);
-            SearchResponse searchResponse = client().search(searchRequest).actionGet();
-            var searchShardsRequest = new SearchShardsRequest(
-                new String[] { "index-*" },
-                SearchRequest.DEFAULT_INDICES_OPTIONS,
-                rangeQuery,
-                null,
-                preference,
-                randomBoolean(),
-                randomBoolean() ? null : randomAlphaOfLength(10)
-            );
-            var searchShardsResponse = client().execute(SearchShardsAction.INSTANCE, searchShardsRequest).actionGet();
+            assertResponse(client().search(searchRequest), searchResponse -> {
+                var searchShardsRequest = new SearchShardsRequest(
+                    new String[] { "index-*" },
+                    SearchRequest.DEFAULT_INDICES_OPTIONS,
+                    rangeQuery,
+                    null,
+                    preference,
+                    randomBoolean(),
+                    randomBoolean() ? null : randomAlphaOfLength(10)
+                );
+                var searchShardsResponse = client().execute(TransportSearchShardsAction.TYPE, searchShardsRequest).actionGet();
 
-            assertThat(searchShardsResponse.getGroups(), hasSize(searchResponse.getTotalShards()));
-            long skippedShards = searchShardsResponse.getGroups().stream().filter(SearchShardsGroup::skipped).count();
-            assertThat(skippedShards, equalTo((long) searchResponse.getSkippedShards()));
+                assertThat(searchShardsResponse.getGroups(), hasSize(searchResponse.getTotalShards()));
+                long skippedShards = searchShardsResponse.getGroups().stream().filter(SearchShardsGroup::skipped).count();
+                assertThat(skippedShards, equalTo((long) searchResponse.getSkippedShards()));
+                assertGroupsSortedByShardId(searchShardsResponse.getGroups());
+            });
         }
     }
 
@@ -169,7 +183,7 @@ public class SearchShardsIT extends ESIntegTestCase {
                 totalShards += numShards;
                 int numDocs = randomIntBetween(10, 100);
                 for (int j = 0; j < numDocs; j++) {
-                    client().prepareIndex(index).setSource("value", i).setId(Integer.toString(i)).get();
+                    prepareIndex(index).setSource("value", i).setId(Integer.toString(i)).get();
                 }
                 indicesAdmin().prepareRefresh(index).get();
             }
@@ -182,7 +196,7 @@ public class SearchShardsIT extends ESIntegTestCase {
                 randomBoolean(),
                 null
             );
-            SearchShardsResponse resp = client().execute(SearchShardsAction.INSTANCE, request).actionGet();
+            SearchShardsResponse resp = client().execute(TransportSearchShardsAction.TYPE, request).actionGet();
             assertThat(resp.getGroups(), hasSize(totalShards));
             for (SearchShardsGroup group : resp.getGroups()) {
                 assertFalse(group.skipped());

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.engine;
@@ -26,6 +27,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.index.seqno.SequenceNumbers.NO_OPS_PERFORMED;
@@ -97,6 +99,36 @@ public class CombinedDeletionPolicyTests extends ESTestCase {
         );
     }
 
+    public void testReusePreviousSafeCommitInfo() throws Exception {
+        final AtomicLong globalCheckpoint = new AtomicLong();
+        final AtomicInteger getDocCountCalls = new AtomicInteger();
+        CombinedDeletionPolicy indexPolicy = new CombinedDeletionPolicy(
+            logger,
+            new TranslogDeletionPolicy(),
+            new SoftDeletesPolicy(globalCheckpoint::get, NO_OPS_PERFORMED, between(0, 100), () -> RetentionLeases.EMPTY),
+            globalCheckpoint::get,
+            null
+        ) {
+            @Override
+            protected int getDocCountOfCommit(IndexCommit indexCommit) {
+                getDocCountCalls.incrementAndGet();
+                return between(0, 1000);
+            }
+        };
+
+        final long seqNo = between(1, 10000);
+        final List<IndexCommit> commitList = new ArrayList<>();
+        final var translogUUID = UUID.randomUUID();
+        commitList.add(mockIndexCommit(seqNo, seqNo, translogUUID));
+        globalCheckpoint.set(seqNo);
+        indexPolicy.onCommit(commitList);
+        assertEquals(1, getDocCountCalls.get());
+
+        commitList.add(mockIndexCommit(seqNo, seqNo, translogUUID));
+        indexPolicy.onCommit(commitList);
+        assertEquals(1, getDocCountCalls.get());
+    }
+
     public void testAcquireIndexCommit() throws Exception {
         final AtomicLong globalCheckpoint = new AtomicLong();
         final int extraRetainedOps = between(0, 100);
@@ -161,7 +193,7 @@ public class CombinedDeletionPolicyTests extends ESTestCase {
                 final IndexCommit lastCommit = commitList.get(commitList.size() - 1);
                 safeCommit = CombinedDeletionPolicy.findSafeCommitPoint(commitList, globalCheckpoint.get());
                 assertThat(
-                    indexPolicy.releaseCommit(snapshot),
+                    indexPolicy.releaseIndexCommit(snapshot),
                     equalTo(pendingSnapshots == 0 && snapshot.equals(lastCommit) == false && snapshot.equals(safeCommit) == false)
                 );
             }
@@ -179,7 +211,7 @@ public class CombinedDeletionPolicyTests extends ESTestCase {
                 )
             );
         }
-        snapshottingCommits.forEach(indexPolicy::releaseCommit);
+        snapshottingCommits.forEach(indexPolicy::releaseIndexCommit);
         globalCheckpoint.set(randomLongBetween(lastMaxSeqNo, Long.MAX_VALUE));
         commitList.forEach(this::resetDeletion);
         indexPolicy.onCommit(commitList);
@@ -318,8 +350,8 @@ public class CombinedDeletionPolicyTests extends ESTestCase {
             }
 
             @Override
-            synchronized boolean releaseCommit(IndexCommit indexCommit) {
-                return super.releaseCommit(wrapCommit(indexCommit));
+            public synchronized boolean releaseIndexCommit(IndexCommit acquiredCommit) {
+                return super.releaseIndexCommit(wrapCommit(acquiredCommit));
             }
         };
 
@@ -351,7 +383,7 @@ public class CombinedDeletionPolicyTests extends ESTestCase {
         assertThat(deletedCommits, hasSize(0));
         assertThat(newCommitFiles, containsInAnyOrder(equalTo("_1.cfe"), equalTo("_1.si"), equalTo("_1.cfs"), equalTo("segments_2")));
 
-        boolean maybeCleanUpCommits = combinedDeletionPolicy.releaseCommit(commit0);
+        boolean maybeCleanUpCommits = combinedDeletionPolicy.releaseIndexCommit(commit0);
         assertThat(maybeCleanUpCommits, equalTo(true));
 
         globalCheckpoint.set(20L);
@@ -422,7 +454,7 @@ public class CombinedDeletionPolicyTests extends ESTestCase {
             )
         );
 
-        maybeCleanUpCommits = combinedDeletionPolicy.releaseCommit(commit2);
+        maybeCleanUpCommits = combinedDeletionPolicy.releaseIndexCommit(commit2);
         assertThat("No commits to clean up (commit #2 is the safe commit)", maybeCleanUpCommits, equalTo(false));
 
         globalCheckpoint.set(30L);
@@ -467,13 +499,13 @@ public class CombinedDeletionPolicyTests extends ESTestCase {
         assertThat(deletedCommits, contains(commit0, commit2));
         assertThat(newCommitFiles, containsInAnyOrder(equalTo("_4.cfe"), equalTo("_4.si"), equalTo("_4.cfs"), equalTo("segments_4")));
 
-        maybeCleanUpCommits = combinedDeletionPolicy.releaseCommit(commit3);
+        maybeCleanUpCommits = combinedDeletionPolicy.releaseIndexCommit(commit3);
         assertThat("No commits to clean up (commit #3 is the safe commit)", maybeCleanUpCommits, equalTo(false));
 
-        maybeCleanUpCommits = combinedDeletionPolicy.releaseCommit(commit4);
+        maybeCleanUpCommits = combinedDeletionPolicy.releaseIndexCommit(commit4);
         assertThat("No commits to clean up (commit #4 is the last commit)", maybeCleanUpCommits, equalTo(false));
 
-        maybeCleanUpCommits = combinedDeletionPolicy.releaseCommit(commit1);
+        maybeCleanUpCommits = combinedDeletionPolicy.releaseIndexCommit(commit1);
         assertThat(maybeCleanUpCommits, equalTo(true));
 
         final boolean globalCheckpointCatchUp = randomBoolean();
@@ -528,7 +560,7 @@ public class CombinedDeletionPolicyTests extends ESTestCase {
         }
         assertThat(newCommitFiles, containsInAnyOrder(equalTo("_5.cfe"), equalTo("_5.si"), equalTo("_5.cfs"), equalTo("segments_5")));
 
-        maybeCleanUpCommits = combinedDeletionPolicy.releaseCommit(commit5);
+        maybeCleanUpCommits = combinedDeletionPolicy.releaseIndexCommit(commit5);
         assertThat("No commits to clean up (commit #5 is the last commit)", maybeCleanUpCommits, equalTo(false));
     }
 

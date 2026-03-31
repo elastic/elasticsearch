@@ -22,12 +22,12 @@ import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.util.OptionalLong;
 
+import static org.elasticsearch.xpack.core.ml.MachineLearningField.MAX_LAZY_ML_NODES;
+import static org.elasticsearch.xpack.core.ml.MachineLearningField.USE_AUTO_MACHINE_MEMORY_PERCENT;
 import static org.elasticsearch.xpack.ml.MachineLearning.MACHINE_MEMORY_NODE_ATTR;
 import static org.elasticsearch.xpack.ml.MachineLearning.MAX_JVM_SIZE_NODE_ATTR;
-import static org.elasticsearch.xpack.ml.MachineLearning.MAX_LAZY_ML_NODES;
 import static org.elasticsearch.xpack.ml.MachineLearning.MAX_MACHINE_MEMORY_PERCENT;
 import static org.elasticsearch.xpack.ml.MachineLearning.MAX_ML_NODE_SIZE;
-import static org.elasticsearch.xpack.ml.MachineLearning.USE_AUTO_MACHINE_MEMORY_PERCENT;
 
 public final class NativeMemoryCalculator {
 
@@ -291,7 +291,7 @@ public final class NativeMemoryCalculator {
         }
         // When the ML memory percent is being set automatically and no explicit max model memory limit is set,
         // max model memory limit is considered to be the max model memory limit that will fit in the cluster
-        Boolean autoMemory = clusterSettings.get(MachineLearning.USE_AUTO_MACHINE_MEMORY_PERCENT);
+        Boolean autoMemory = clusterSettings.get(MachineLearningField.USE_AUTO_MACHINE_MEMORY_PERCENT);
         if (autoMemory) {
             DiscoveryNodes nodes = clusterService.state().getNodes();
             ByteSizeValue modelMemoryLimitToFit = calculateMaxModelMemoryLimitToFit(clusterSettings, nodes);

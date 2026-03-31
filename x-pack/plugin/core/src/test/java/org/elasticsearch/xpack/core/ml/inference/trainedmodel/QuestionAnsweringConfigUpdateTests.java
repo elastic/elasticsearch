@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xcontent.XContentParser;
@@ -36,15 +35,6 @@ public class QuestionAnsweringConfigUpdateTests extends AbstractNlpConfigUpdateT
     }
 
     public static QuestionAnsweringConfigUpdate mutateForVersion(QuestionAnsweringConfigUpdate instance, TransportVersion version) {
-        if (version.before(TransportVersions.V_8_1_0)) {
-            return new QuestionAnsweringConfigUpdate(
-                instance.getQuestion(),
-                instance.getNumTopClasses(),
-                instance.getMaxAnswerLength(),
-                instance.getResultsField(),
-                null
-            );
-        }
         return instance;
     }
 
@@ -122,11 +112,12 @@ public class QuestionAnsweringConfigUpdateTests extends AbstractNlpConfigUpdateT
                 originalConfig.getResultsField()
             ),
             equalTo(
-                new QuestionAnsweringConfigUpdate.Builder().setQuestion("Are you my mother?")
-                    .setNumTopClasses(4)
-                    .setMaxAnswerLength(40)
-                    .build()
-                    .apply(originalConfig)
+                originalConfig.apply(
+                    new QuestionAnsweringConfigUpdate.Builder().setQuestion("Are you my mother?")
+                        .setNumTopClasses(4)
+                        .setMaxAnswerLength(40)
+                        .build()
+                )
             )
         );
         assertThat(
@@ -139,10 +130,9 @@ public class QuestionAnsweringConfigUpdateTests extends AbstractNlpConfigUpdateT
                 "updated-field"
             ),
             equalTo(
-                new QuestionAnsweringConfigUpdate.Builder().setQuestion("Are you my mother?")
-                    .setResultsField("updated-field")
-                    .build()
-                    .apply(originalConfig)
+                originalConfig.apply(
+                    new QuestionAnsweringConfigUpdate.Builder().setQuestion("Are you my mother?").setResultsField("updated-field").build()
+                )
             )
         );
 
@@ -158,10 +148,11 @@ public class QuestionAnsweringConfigUpdateTests extends AbstractNlpConfigUpdateT
                 originalConfig.getResultsField()
             ),
             equalTo(
-                new QuestionAnsweringConfigUpdate.Builder().setQuestion("Are you my mother?")
-                    .setTokenizationUpdate(createTokenizationUpdate(originalConfig.getTokenization(), truncate, null))
-                    .build()
-                    .apply(originalConfig)
+                originalConfig.apply(
+                    new QuestionAnsweringConfigUpdate.Builder().setQuestion("Are you my mother?")
+                        .setTokenizationUpdate(createTokenizationUpdate(originalConfig.getTokenization(), truncate, null))
+                        .build()
+                )
             )
         );
     }

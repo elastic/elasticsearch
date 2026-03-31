@@ -6,27 +6,24 @@
  */
 package org.elasticsearch.xpack.core.security.action.role;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.elasticsearch.action.support.TransportAction.localOnly;
 
 /**
  * Request to retrieve roles from the security index
  */
-public class GetRolesRequest extends ActionRequest {
+public class GetRolesRequest extends LegacyActionRequest {
 
     private String[] names = Strings.EMPTY_ARRAY;
 
-    public GetRolesRequest(StreamInput in) throws IOException {
-        super(in);
-        names = in.readStringArray();
-    }
+    private boolean nativeOnly = false;
 
     public GetRolesRequest() {}
 
@@ -47,9 +44,16 @@ public class GetRolesRequest extends ActionRequest {
         return names;
     }
 
+    public void nativeOnly(boolean nativeOnly) {
+        this.nativeOnly = nativeOnly;
+    }
+
+    public boolean nativeOnly() {
+        return this.nativeOnly;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeStringArray(names);
+        localOnly();
     }
 }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -15,6 +16,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.LongScriptFieldData;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
+import org.elasticsearch.index.mapper.blockloader.script.LongScriptBlockDocValuesReader;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.CompositeFieldScript;
 import org.elasticsearch.script.LongFieldScript;
@@ -43,7 +45,7 @@ public final class LongScriptFieldType extends AbstractScriptFieldType<LongField
         }
 
         @Override
-        AbstractScriptFieldType<?> createFieldType(
+        protected AbstractScriptFieldType<?> createFieldType(
             String name,
             LongFieldScript.Factory factory,
             Script script,
@@ -54,12 +56,14 @@ public final class LongScriptFieldType extends AbstractScriptFieldType<LongField
         }
 
         @Override
-        LongFieldScript.Factory getParseFromSourceFactory() {
+        protected LongFieldScript.Factory getParseFromSourceFactory() {
             return LongFieldScript.PARSE_FROM_SOURCE;
         }
 
         @Override
-        LongFieldScript.Factory getCompositeLeafFactory(Function<SearchLookup, CompositeFieldScript.LeafFactory> parentScriptFactory) {
+        protected LongFieldScript.Factory getCompositeLeafFactory(
+            Function<SearchLookup, CompositeFieldScript.LeafFactory> parentScriptFactory
+        ) {
             return LongFieldScript.leafAdapter(parentScriptFactory);
         }
     }
@@ -80,7 +84,8 @@ public final class LongScriptFieldType extends AbstractScriptFieldType<LongField
             searchLookup -> scriptFactory.newFactory(name, script.getParams(), searchLookup, onScriptError),
             script,
             scriptFactory.isResultDeterministic(),
-            meta
+            meta,
+            scriptFactory.isParsedFromSource()
         );
     }
 
@@ -101,6 +106,26 @@ public final class LongScriptFieldType extends AbstractScriptFieldType<LongField
             return DocValueFormat.RAW;
         }
         return new DocValueFormat.Decimal(format);
+    }
+
+    @Override
+    public BlockLoader blockLoader(BlockLoaderContext blContext) {
+        var fallbackSyntheticSourceBlockLoader = numericFallbackSyntheticSourceBlockLoader(
+            blContext,
+            NumberType.LONG,
+            BlockLoader.BlockFactory::longs,
+            (values, blockBuilder) -> {
+                var builder = (BlockLoader.LongBuilder) blockBuilder;
+                for (var value : values) {
+                    builder.appendLong(value.longValue());
+                }
+            }
+        );
+        if (fallbackSyntheticSourceBlockLoader != null) {
+            return fallbackSyntheticSourceBlockLoader;
+        } else {
+            return new LongScriptBlockDocValuesReader.LongScriptBlockLoader(leafFactory(blContext.lookup()), blContext.scriptByteSize());
+        }
     }
 
     @Override
@@ -146,7 +171,7 @@ public final class LongScriptFieldType extends AbstractScriptFieldType<LongField
     @Override
     public Query termsQuery(Collection<?> values, SearchExecutionContext context) {
         if (values.isEmpty()) {
-            return Queries.newMatchAllQuery();
+            return Queries.ALL_DOCS_INSTANCE;
         }
         Set<Long> terms = Sets.newHashSetWithExpectedSize(values.size());
         for (Object value : values) {

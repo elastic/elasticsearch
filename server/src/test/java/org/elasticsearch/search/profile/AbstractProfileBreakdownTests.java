@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.profile;
@@ -11,7 +12,6 @@ package org.elasticsearch.search.profile;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Map;
-import java.util.concurrent.CountDownLatch;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -107,35 +107,21 @@ public class AbstractProfileBreakdownTests extends ESTestCase {
 
     public void testMultiThreaded() throws InterruptedException {
         TestProfileBreakdown testBreakdown = new TestProfileBreakdown();
-        Thread[] threads = new Thread[200];
-        final CountDownLatch latch = new CountDownLatch(1);
+        final int threads = 200;
         int startsPerThread = between(1, 5);
-        for (int t = 0; t < threads.length; t++) {
-            final TestTimingTypes timingType = randomFrom(TestTimingTypes.values());
-            threads[t] = new Thread(() -> {
-                try {
-                    latch.await();
-                } catch (InterruptedException e) {
-                    throw new RuntimeException(e);
-                }
-                Timer timer = testBreakdown.getNewTimer(timingType);
-                for (int runs = 0; runs < startsPerThread; runs++) {
-                    timer.start();
-                    timer.stop();
-                }
-            });
-            threads[t].start();
-        }
         // starting all threads simultaneously increases the likelihood of failure in case we don't synchronize timer access properly
-        latch.countDown();
-        for (Thread t : threads) {
-            t.join();
-        }
+        startInParallel(threads, t -> {
+            final TestTimingTypes timingType = randomFrom(TestTimingTypes.values());
+            Timer timer = testBreakdown.getNewTimer(timingType);
+            for (int runs = 0; runs < startsPerThread; runs++) {
+                timer.start();
+                timer.stop();
+            }
+        });
         Map<String, Long> breakdownMap = testBreakdown.toBreakdownMap();
         long totalCounter = breakdownMap.get(TestTimingTypes.ONE + "_count") + breakdownMap.get(TestTimingTypes.TWO + "_count")
             + breakdownMap.get(TestTimingTypes.THREE + "_count");
-        assertEquals(threads.length * startsPerThread, totalCounter);
-
+        assertEquals(threads * startsPerThread, totalCounter);
     }
 
     private void runTimerNTimes(Timer t, int n) {

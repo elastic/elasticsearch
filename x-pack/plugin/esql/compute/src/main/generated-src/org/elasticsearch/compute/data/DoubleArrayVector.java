@@ -7,23 +7,64 @@
 
 package org.elasticsearch.compute.data;
 
+// begin generated imports
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.BytesRefArray;
+import org.elasticsearch.core.ReleasableIterator;
+import org.elasticsearch.core.Releasables;
 
-import java.util.Arrays;
+import java.io.IOException;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
+// end generated imports
 
 /**
  * Vector implementation that stores an array of double values.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-ArrayVector.java.st} instead.
  */
-public final class DoubleArrayVector extends AbstractVector implements DoubleVector {
+final class DoubleArrayVector extends AbstractVector implements DoubleVector {
 
-    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(DoubleArrayVector.class);
+    static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(DoubleArrayVector.class)
+        // TODO: remove these extra bytes once `asBlock` returns a block with a separate reference to the vector.
+        + RamUsageEstimator.shallowSizeOfInstance(DoubleVectorBlock.class)
+        // TODO: remove this if/when we account for memory used by Pages
+        + Block.PAGE_MEM_OVERHEAD_PER_BLOCK;
 
     private final double[] values;
 
-    public DoubleArrayVector(double[] values, int positionCount) {
-        super(positionCount);
+    DoubleArrayVector(double[] values, int positionCount, BlockFactory blockFactory) {
+        super(positionCount, blockFactory);
         this.values = values;
+    }
+
+    static DoubleArrayVector readArrayVector(int positions, StreamInput in, BlockFactory blockFactory) throws IOException {
+        final long preAdjustedBytes = RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) positions * Double.BYTES;
+        blockFactory.adjustBreaker(preAdjustedBytes);
+        boolean success = false;
+        try {
+            double[] values = new double[positions];
+            for (int i = 0; i < positions; i++) {
+                values[i] = in.readDouble();
+            }
+            final var block = new DoubleArrayVector(values, positions, blockFactory);
+            blockFactory.adjustBreaker(block.ramBytesUsed() - preAdjustedBytes);
+            success = true;
+            return block;
+        } finally {
+            if (success == false) {
+                blockFactory.adjustBreaker(-preAdjustedBytes);
+            }
+        }
+    }
+
+    void writeArrayVector(int positions, StreamOutput out) throws IOException {
+        for (int i = 0; i < positions; i++) {
+            out.writeDouble(values[i]);
+        }
     }
 
     @Override
@@ -37,6 +78,11 @@ public final class DoubleArrayVector extends AbstractVector implements DoubleVec
     }
 
     @Override
+    public void copyTo(int srcPosition, double[] dst, int dstPosition, int length) {
+        System.arraycopy(values, srcPosition, dst, dstPosition, length);
+    }
+
+    @Override
     public ElementType elementType() {
         return ElementType.DOUBLE;
     }
@@ -47,12 +93,62 @@ public final class DoubleArrayVector extends AbstractVector implements DoubleVec
     }
 
     @Override
-    public DoubleVector filter(int... positions) {
-        return new FilterDoubleVector(this, positions);
+    public DoubleVector filter(boolean mayContainDuplicates, int... positions) {
+        try (DoubleVector.Builder builder = blockFactory().newDoubleVectorBuilder(positions.length)) {
+            for (int pos : positions) {
+                builder.appendDouble(values[pos]);
+            }
+            return builder.build();
+        }
+    }
+
+    @Override
+    public DoubleBlock keepMask(BooleanVector mask) {
+        if (getPositionCount() == 0) {
+            incRef();
+            return new DoubleVectorBlock(this);
+        }
+        if (mask.isConstant()) {
+            if (mask.getBoolean(0)) {
+                incRef();
+                return new DoubleVectorBlock(this);
+            }
+            return (DoubleBlock) blockFactory().newConstantNullBlock(getPositionCount());
+        }
+        try (DoubleBlock.Builder builder = blockFactory().newDoubleBlockBuilder(getPositionCount())) {
+            // TODO if X-ArrayBlock used BooleanVector for it's null mask then we could shuffle references here.
+            for (int p = 0; p < getPositionCount(); p++) {
+                if (mask.getBoolean(p)) {
+                    builder.appendDouble(getDouble(p));
+                } else {
+                    builder.appendNull();
+                }
+            }
+            return builder.build();
+        }
+    }
+
+    @Override
+    public ReleasableIterator<DoubleBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize) {
+        return new DoubleLookup(asBlock(), positions, targetBlockSize);
     }
 
     public static long ramBytesEstimated(double[] values) {
         return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(values);
+    }
+
+    @Override
+    public DoubleVector slice(int beginInclusive, int endExclusive) {
+        if (beginInclusive == 0 && endExclusive == getPositionCount()) {
+            incRef();
+            return this;
+        }
+        try (DoubleVector.FixedBuilder builder = blockFactory().newDoubleVectorFixedBuilder(endExclusive - beginInclusive)) {
+            for (int i = beginInclusive; i < endExclusive; i++) {
+                builder.appendDouble(getDouble(i));
+            }
+            return builder.build();
+        }
     }
 
     @Override
@@ -75,11 +171,11 @@ public final class DoubleArrayVector extends AbstractVector implements DoubleVec
 
     @Override
     public String toString() {
-        return getClass().getSimpleName() + "[positions=" + getPositionCount() + ", values=" + Arrays.toString(values) + ']';
+        String valuesString = IntStream.range(0, getPositionCount())
+            .limit(10)
+            .mapToObj(n -> String.valueOf(values[n]))
+            .collect(Collectors.joining(", ", "[", getPositionCount() > 10 ? ", ...]" : "]"));
+        return getClass().getSimpleName() + "[positions=" + getPositionCount() + ", values=" + valuesString + ']';
     }
 
-    @Override
-    public void close() {
-        // no-op
-    }
 }

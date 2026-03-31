@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.monitoring.collector.indices;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
-import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequestBuilder;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
@@ -36,6 +35,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
@@ -71,7 +71,7 @@ public class IndexStatsCollectorTests extends BaseCollectorTestCase {
         whenClusterStateWithUUID(clusterUUID);
 
         final RoutingTable routingTable = mock(RoutingTable.class);
-        when(clusterState.routingTable()).thenReturn(routingTable);
+        when(clusterState.routingTable(any())).thenReturn(routingTable);
 
         final IndicesStatsResponse indicesStatsResponse = mock(IndicesStatsResponse.class);
         final MonitoringDoc.Node node = randomMonitoringNode(random());
@@ -102,7 +102,7 @@ public class IndexStatsCollectorTests extends BaseCollectorTestCase {
             }
             if (i >= createdIndices) {
                 indicesMetadata.put(index, indexMetadata);
-                when(metadata.index(index)).thenReturn(indexMetadata);
+                when(projectMetadata.index(index)).thenReturn(indexMetadata);
 
                 indicesRoutingTable.put(index, indexRoutingTable);
                 when(routingTable.index(index)).thenReturn(indexRoutingTable);
@@ -115,11 +115,9 @@ public class IndexStatsCollectorTests extends BaseCollectorTestCase {
         when(indicesStatsResponse.getShardFailures()).thenReturn(new DefaultShardOperationFailedException[0]);
 
         final String[] indexNames = indicesMetadata.keySet().toArray(new String[0]);
-        when(metadata.getConcreteAllIndices()).thenReturn(indexNames);
+        when(projectMetadata.getConcreteAllIndices()).thenReturn(indexNames);
 
-        final IndicesStatsRequestBuilder indicesStatsRequestBuilder = spy(
-            new IndicesStatsRequestBuilder(mock(ElasticsearchClient.class), IndicesStatsAction.INSTANCE)
-        );
+        final IndicesStatsRequestBuilder indicesStatsRequestBuilder = spy(new IndicesStatsRequestBuilder(mock(ElasticsearchClient.class)));
         doReturn(indicesStatsResponse).when(indicesStatsRequestBuilder).get();
 
         final IndicesAdminClient indicesAdminClient = mock(IndicesAdminClient.class);
@@ -141,7 +139,7 @@ public class IndexStatsCollectorTests extends BaseCollectorTestCase {
         verify(indicesStatsRequestBuilder).setTimeout(timeout);
 
         verify(indicesStatsResponse, times(existingIndices + deletedIndices)).getIndex(anyString());
-        verify(metadata, times(existingIndices)).index(anyString());
+        verify(projectMetadata, times(existingIndices)).index(anyString());
         verify(routingTable, times(existingIndices)).index(anyString());
         verify(metadata).clusterUUID();
 
@@ -174,7 +172,7 @@ public class IndexStatsCollectorTests extends BaseCollectorTestCase {
 
         assertWarnings(
             "[xpack.monitoring.collection.index.stats.timeout] setting was deprecated in Elasticsearch and will be removed "
-                + "in a future release."
+                + "in a future release. See the deprecation documentation for the next major version."
         );
     }
 
@@ -196,9 +194,7 @@ public class IndexStatsCollectorTests extends BaseCollectorTestCase {
                 ) }
         );
 
-        final IndicesStatsRequestBuilder indicesStatsRequestBuilder = spy(
-            new IndicesStatsRequestBuilder(mock(ElasticsearchClient.class), IndicesStatsAction.INSTANCE)
-        );
+        final IndicesStatsRequestBuilder indicesStatsRequestBuilder = spy(new IndicesStatsRequestBuilder(mock(ElasticsearchClient.class)));
         doReturn(indicesStatsResponse).when(indicesStatsRequestBuilder).get();
 
         final IndicesAdminClient indicesAdminClient = mock(IndicesAdminClient.class);
@@ -217,7 +213,7 @@ public class IndexStatsCollectorTests extends BaseCollectorTestCase {
 
         assertWarnings(
             "[xpack.monitoring.collection.index.stats.timeout] setting was deprecated in Elasticsearch and will be removed "
-                + "in a future release."
+                + "in a future release. See the deprecation documentation for the next major version."
         );
     }
 

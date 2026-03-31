@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.ingest.common;
@@ -52,34 +53,32 @@ public final class Processors {
     }
 
     /**
-     * Uses {@link JsonProcessor} to convert a JSON string to a structured JSON
-     * object.
+     * Uses {@link JsonProcessor} to parse a string containing JSON data to a structured object or other value.
      *
-     * @param fieldValue JSON string
-     * @return structured JSON object
+     * @param fieldValue JSON data
+     * @return parsed JSON value
      */
     public static Object json(Object fieldValue) {
         return JsonProcessor.apply(fieldValue, false, true);
     }
 
     /**
-     * Uses {@link JsonProcessor} to convert a JSON string to a structured JSON
-     * object. This method is a more lenient version of {@link #json(Object)}. For example if given fieldValue "123 foo",
+     * Uses {@link JsonProcessor} to parse a string containing JSON data to a structured object or other value.
+     * This method is a more lenient version of {@link #json(Object)}. For example if given fieldValue "123 foo",
      * this method will return 123 rather than throwing an IllegalArgumentException.
      *
-     * @param fieldValue JSON string
-     * @return structured JSON object
+     * @param fieldValue JSON data
+     * @return parsed JSON value
      */
     public static Object jsonLenient(Object fieldValue) {
         return JsonProcessor.apply(fieldValue, false, false);
     }
 
     /**
-     * Uses {@link JsonProcessor} to convert a JSON string to a structured JSON
-     * object.
+     * Uses {@link JsonProcessor} to parse a string containing JSON data to a structured object.
      *
      * @param map map that contains the JSON string and will receive the
-     *            structured JSON content
+     *            structured content
      * @param field key that identifies the entry in <code>map</code> that
      *             contains the JSON string
      */
@@ -88,10 +87,10 @@ public final class Processors {
     }
 
     /**
-     * Uses {@link JsonProcessor} to convert a JSON string to a structured JSON
-     * object. This method is a more lenient version of {@link #json(Map, String)}. For example if given fieldValue
+     * Uses {@link JsonProcessor} to parse a JSON string to a structured object.
+     * This method is a more lenient version of {@link #json(Map, String)}. For example if given fieldValue
      * "{"foo":"bar"} 123",
-     * this method will return a map with key-vale pair "foo" and "bar" rather than throwing an IllegalArgumentException.
+     * this method will return a map with key-value pair "foo" and "bar" rather than throwing an IllegalArgumentException.
      *
      * @param map map that contains the JSON string and will receive the
      *            structured JSON content

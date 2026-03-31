@@ -13,13 +13,23 @@ import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
-import static java.util.stream.Collectors.joining;
-
 /**
  * Sink operator that calls a given listener for each page received. The listener receives both the page as well as schema information,
  * i.e. the names of the rows that are outputted.
  */
 public class OutputOperator extends SinkOperator {
+
+    /**
+     * Interface for DriverContext implementations that provide a collectedPages list.
+     * This allows OutputOperatorFactory to retrieve collectedPages without creating a circular dependency.
+     */
+    public interface CollectedPagesProvider {
+        /**
+         * Returns the collectedPages list that should be used by OutputOperator.
+         * @return the collectedPages list
+         */
+        List<Page> collectedPages();
+    }
 
     private final List<String> columns;
     private final Consumer<Page> pageConsumer;
@@ -31,12 +41,19 @@ public class OutputOperator extends SinkOperator {
 
         @Override
         public SinkOperator get(DriverContext driverContext) {
-            return new OutputOperator(columns, mapper, pageConsumer);
+            // If this DriverContext provides collectedPages, use them
+            if (driverContext instanceof CollectedPagesProvider collectedPagesProvider) {
+                List<Page> collectedPages = collectedPagesProvider.collectedPages();
+                return new OutputOperator(columns, mapper, collectedPages::add);
+            } else {
+                // Normal execution path: use the provided pageConsumer
+                return new OutputOperator(columns, mapper, pageConsumer);
+            }
         }
 
         @Override
         public String describe() {
-            return "OutputOperator[columns = " + columns.stream().collect(joining(", ")) + "]";
+            return OutputOperator.describe(columns);
         }
     }
 
@@ -44,6 +61,10 @@ public class OutputOperator extends SinkOperator {
         this.columns = columns;
         this.mapper = mapper;
         this.pageConsumer = pageConsumer;
+    }
+
+    public List<String> getColumns() {
+        return columns;
     }
 
     boolean finished = false;
@@ -64,7 +85,7 @@ public class OutputOperator extends SinkOperator {
     }
 
     @Override
-    public void addInput(Page page) {
+    protected void doAddInput(Page page) {
         pageConsumer.accept(mapper.apply(page));
     }
 
@@ -75,10 +96,18 @@ public class OutputOperator extends SinkOperator {
 
     @Override
     public String toString() {
+        return describe(columns);
+    }
+
+    private static String describe(List<String> columns) {
         StringBuilder sb = new StringBuilder();
-        sb.append(this.getClass().getSimpleName()).append("[");
-        sb.append("columns=").append(columns).append(", ");
-        sb.append("pageConsumer=").append(pageConsumer);
+        sb.append("OutputOperator").append("[");
+        sb.append("columns = ");
+        if (columns.size() <= 10) {
+            sb.append(columns);
+        } else {
+            sb.append('[').append(columns.size()).append(" columns").append(']');
+        }
         sb.append("]");
         return sb.toString();
     }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.indices;
@@ -12,7 +13,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.support.RefCountingRunnable;
@@ -22,13 +22,18 @@ import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.health.ClusterIndexHealth;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.SystemIndexMetadataUpgradeService;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -64,6 +69,7 @@ public class SystemIndexMappingUpdateService implements ClusterStateListener {
 
     private final SystemIndices systemIndices;
     private final Client client;
+    private final ProjectResolver projectResolver;
     private final AtomicBoolean isUpgradeInProgress;
 
     /**
@@ -71,9 +77,10 @@ public class SystemIndexMappingUpdateService implements ClusterStateListener {
      * @param systemIndices the indices to manage
      * @param client used to update the cluster
      */
-    public SystemIndexMappingUpdateService(SystemIndices systemIndices, Client client) {
+    public SystemIndexMappingUpdateService(SystemIndices systemIndices, Client client, ProjectResolver projectResolver) {
         this.systemIndices = systemIndices;
         this.client = client;
+        this.projectResolver = projectResolver;
         this.isUpgradeInProgress = new AtomicBoolean(false);
     }
 
@@ -93,7 +100,7 @@ public class SystemIndexMappingUpdateService implements ClusterStateListener {
         }
 
         // if we're in a mixed-version cluster, exit
-        if (state.nodes().getMaxNodeVersion().after(state.nodes().getSmallestNonClientNodeVersion())) {
+        if (state.nodes().isMixedVersionCluster()) {
             logger.debug("Skipping system indices up-to-date check as cluster has mixed versions");
             return;
         }
@@ -102,18 +109,27 @@ public class SystemIndexMappingUpdateService implements ClusterStateListener {
             // Use a RefCountingRunnable so that we only release the lock once all upgrade attempts have succeeded or failed.
             // The failures are logged in upgradeIndexMetadata(), so we don't actually care about them here.
             try (var refs = new RefCountingRunnable(() -> isUpgradeInProgress.set(false))) {
-                for (SystemIndexDescriptor systemIndexDescriptor : getEligibleDescriptors(state.getMetadata())) {
-                    UpgradeStatus upgradeStatus;
-                    try {
-                        upgradeStatus = getUpgradeStatus(state, systemIndexDescriptor);
-                    } catch (Exception e) {
-                        logger.warn("Failed to calculate upgrade status: {}" + e.getMessage(), e);
-                        continue;
+                state.forEachProject(project -> {
+                    for (SystemIndexDescriptor systemIndexDescriptor : getEligibleDescriptors(project.metadata())) {
+                        UpgradeStatus upgradeStatus;
+                        try {
+                            upgradeStatus = getUpgradeStatus(project, systemIndexDescriptor);
+                        } catch (Exception e) {
+                            logger.warn(
+                                Strings.format(
+                                    "Failed to calculate upgrade status for project [%s]: %s",
+                                    project.projectId(),
+                                    e.getMessage()
+                                ),
+                                e
+                            );
+                            continue;
+                        }
+                        if (upgradeStatus == UpgradeStatus.NEEDS_MAPPINGS_UPDATE) {
+                            upgradeIndexMappings(project.projectId(), systemIndexDescriptor, ActionListener.releasing(refs.acquire()));
+                        }
                     }
-                    if (upgradeStatus == UpgradeStatus.NEEDS_MAPPINGS_UPDATE) {
-                        upgradeIndexMappings(systemIndexDescriptor, ActionListener.releasing(refs.acquire()));
-                    }
-                }
+                });
             }
         } else {
             logger.trace("Update already in progress");
@@ -123,14 +139,14 @@ public class SystemIndexMappingUpdateService implements ClusterStateListener {
     /**
      * Checks all known system index descriptors, looking for those that correspond to
      * indices that can be automatically managed and that have already been created.
-     * @param metadata the cluster state metadata to consult
+     * @param projectMetadata the project metadata to consult
      * @return a list of descriptors that could potentially be updated
      */
-    List<SystemIndexDescriptor> getEligibleDescriptors(Metadata metadata) {
+    List<SystemIndexDescriptor> getEligibleDescriptors(ProjectMetadata projectMetadata) {
         return this.systemIndices.getSystemIndexDescriptors()
             .stream()
             .filter(SystemIndexDescriptor::isAutomaticallyManaged)
-            .filter(d -> metadata.hasIndexAbstraction(d.getPrimaryIndex()))
+            .filter(d -> projectMetadata.hasIndexAbstraction(d.getPrimaryIndex()))
             .toList();
     }
 
@@ -146,12 +162,12 @@ public class SystemIndexMappingUpdateService implements ClusterStateListener {
      * Determines an index's current state, with respect to whether its mappings can
      * be updated.
      *
-     * @param clusterState the cluster state to use when calculating the upgrade state
+     * @param projectState the project state to use when calculating the upgrade state
      * @param descriptor information about the system index to check
      * @return a value that indicates the index's state.
      */
-    static UpgradeStatus getUpgradeStatus(ClusterState clusterState, SystemIndexDescriptor descriptor) {
-        final State indexState = calculateIndexState(clusterState, descriptor);
+    static UpgradeStatus getUpgradeStatus(ProjectState projectState, SystemIndexDescriptor descriptor) {
+        final State indexState = calculateIndexState(projectState, descriptor);
 
         final String indexDescription = "[" + descriptor.getPrimaryIndex() + "] (alias [" + descriptor.getAliasName() + "])";
 
@@ -194,30 +210,36 @@ public class SystemIndexMappingUpdateService implements ClusterStateListener {
      * @param descriptor information about the system index
      * @param listener a listener to call upon success or failure
      */
-    private void upgradeIndexMappings(SystemIndexDescriptor descriptor, ActionListener<AcknowledgedResponse> listener) {
-        final String indexName = descriptor.getPrimaryIndex();
+    private void upgradeIndexMappings(
+        ProjectId projectId,
+        SystemIndexDescriptor descriptor,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
+        projectResolver.executeOnProject(projectId, () -> {
+            final String indexName = descriptor.getPrimaryIndex();
 
-        PutMappingRequest request = new PutMappingRequest(indexName).source(descriptor.getMappings(), XContentType.JSON);
+            PutMappingRequest request = new PutMappingRequest(indexName).source(descriptor.getMappings(), XContentType.JSON);
 
-        final OriginSettingClient originSettingClient = new OriginSettingClient(this.client, descriptor.getOrigin());
+            final OriginSettingClient originSettingClient = new OriginSettingClient(this.client, descriptor.getOrigin());
 
-        originSettingClient.admin().indices().putMapping(request, new ActionListener<>() {
-            @Override
-            public void onResponse(AcknowledgedResponse response) {
-                if (response.isAcknowledged() == false) {
-                    String message = "Put mapping request for [" + indexName + "] was not acknowledged";
-                    logger.error(message);
-                    listener.onFailure(new ElasticsearchException(message));
-                } else {
-                    listener.onResponse(response);
+            originSettingClient.admin().indices().putMapping(request, new ActionListener<>() {
+                @Override
+                public void onResponse(AcknowledgedResponse response) {
+                    if (response.isAcknowledged() == false) {
+                        String message = "Put mapping request for [" + indexName + "] was not acknowledged";
+                        logger.error(message);
+                        listener.onFailure(new ElasticsearchException(message));
+                    } else {
+                        listener.onResponse(response);
+                    }
                 }
-            }
 
-            @Override
-            public void onFailure(Exception e) {
-                logger.error("Put mapping request for [" + indexName + "] failed", e);
-                listener.onFailure(e);
-            }
+                @Override
+                public void onFailure(Exception e) {
+                    logger.error("Put mapping request for [" + indexName + "] failed", e);
+                    listener.onFailure(e);
+                }
+            });
         });
     }
 
@@ -227,8 +249,8 @@ public class SystemIndexMappingUpdateService implements ClusterStateListener {
      * @param descriptor the system index to check
      * @return a summary of the index state, or <code>null</code> if the index doesn't exist
      */
-    static State calculateIndexState(ClusterState state, SystemIndexDescriptor descriptor) {
-        final IndexMetadata indexMetadata = state.metadata().index(descriptor.getPrimaryIndex());
+    static State calculateIndexState(ProjectState state, SystemIndexDescriptor descriptor) {
+        IndexMetadata indexMetadata = getSystemIndexMetadata(state, descriptor);
 
         if (indexMetadata == null) {
             return null;
@@ -250,11 +272,26 @@ public class SystemIndexMappingUpdateService implements ClusterStateListener {
                 descriptor.getAliasName()
             );
         } else {
-            final IndexRoutingTable routingTable = state.getRoutingTable().index(indexMetadata.getIndex());
+            final IndexRoutingTable routingTable = state.routingTable().index(indexMetadata.getIndex());
             indexHealth = new ClusterIndexHealth(indexMetadata, routingTable).getStatus();
         }
 
         return new State(indexState, indexHealth, isIndexUpToDate, isMappingIsUpToDate);
+    }
+
+    private static IndexMetadata getSystemIndexMetadata(ProjectState state, SystemIndexDescriptor descriptor) {
+        String primaryIndexName = descriptor.getPrimaryIndex();
+        ProjectMetadata projectMetadata = state.metadata();
+        IndexMetadata indexMetadata = projectMetadata.index(primaryIndexName);
+        if (indexMetadata == null) {
+            // The primary index name might be an alias pointing to the concrete index
+            // (e.g. ".fleet-agents-7" → ".fleet-agents-7-reindexed-for-9").
+            IndexAbstraction indexAbstraction = projectMetadata.getIndicesLookup().get(primaryIndexName);
+            if (indexAbstraction != null && indexAbstraction.getWriteIndex() != null) {
+                indexMetadata = projectMetadata.getIndexSafe(indexAbstraction.getWriteIndex());
+            }
+        }
+        return indexMetadata;
     }
 
     /**
@@ -267,13 +304,13 @@ public class SystemIndexMappingUpdateService implements ClusterStateListener {
             return false;
         }
 
-        return Version.CURRENT.onOrBefore(readMappingVersion(descriptor, mappingMetadata));
+        return descriptor.getMappingsVersion().version() <= readMappingVersion(descriptor, mappingMetadata);
     }
 
     /**
      * Fetches the mapping version from an index's mapping's `_meta` info.
      */
-    private static Version readMappingVersion(SystemIndexDescriptor descriptor, MappingMetadata mappingMetadata) {
+    private static int readMappingVersion(SystemIndexDescriptor descriptor, MappingMetadata mappingMetadata) {
         final String indexName = descriptor.getPrimaryIndex();
         try {
             @SuppressWarnings("unchecked")
@@ -286,28 +323,28 @@ public class SystemIndexMappingUpdateService implements ClusterStateListener {
                 );
                 // This can happen with old system indices, such as .watches, which were created before we had the convention of
                 // storing a version under `_meta.` We should just replace the template to be sure.
-                return Version.V_EMPTY;
+                return -1;
             }
 
-            final Object rawVersion = meta.get(descriptor.getMappingsNodeVersionMetaKey());
-            if (rawVersion instanceof Integer) {
-                // This can happen with old system indices, such as .tasks, which were created before we used an Elasticsearch
-                // version here. We should just replace the template to be sure.
-                return Version.V_EMPTY;
-            }
-            final String versionString = rawVersion != null ? rawVersion.toString() : null;
-            if (versionString == null) {
+            final Object rawVersion = meta.get(SystemIndexDescriptor.VERSION_META_KEY);
+            if (rawVersion == null) {
                 logger.warn(
                     "No value found in mappings for [_meta.{}], assuming mappings update required",
-                    descriptor.getMappingsNodeVersionMetaKey()
+                    SystemIndexDescriptor.VERSION_META_KEY
                 );
-                // If we called `Version.fromString(null)`, it would return `Version.CURRENT` and we wouldn't update the mappings
-                return Version.V_EMPTY;
+                return -1;
             }
-            return Version.fromString(versionString);
+            if (rawVersion instanceof Integer == false) {
+                logger.warn(
+                    "Value in [_meta.{}] was not an integer, assuming mappings update required",
+                    SystemIndexDescriptor.VERSION_META_KEY
+                );
+                return -1;
+            }
+            return (int) rawVersion;
         } catch (ElasticsearchParseException | IllegalArgumentException e) {
             logger.error(() -> "Cannot parse the mapping for index [" + indexName + "]", e);
-            return Version.V_EMPTY;
+            return -1;
         }
     }
 

@@ -1,15 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.internal;
 
 import org.gradle.api.Buildable;
 import org.gradle.api.artifacts.Configuration;
+import org.gradle.api.file.FileCollection;
 import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.provider.Property;
 import org.gradle.api.tasks.TaskDependency;
@@ -30,15 +32,17 @@ public class Jdk implements Buildable, Iterable<File> {
         "(\\d+)(\\.\\d+\\.\\d+(?:\\.\\d+)?)?\\+(\\d+(?:\\.\\d+)?)(@([a-f0-9]{32}))?"
     );
     private static final Pattern LEGACY_VERSION_PATTERN = Pattern.compile("(\\d)(u\\d+)\\+(b\\d+?)(@([a-f0-9]{32}))?");
+    private static final Pattern EA_VERSION_PATTERN = Pattern.compile("(\\d+)-(?:ea|rc)\\+(\\d+)(@([a-f0-9]{32}))?");
 
     private final String name;
-    private final Configuration configuration;
+    private final FileCollection configuration;
 
     private final Property<String> vendor;
     private final Property<String> version;
     private final Property<String> platform;
     private final Property<String> architecture;
     private final Property<String> distributionVersion;
+    private final String configurationName;
     private String baseVersion;
     private String major;
     private String build;
@@ -46,6 +50,7 @@ public class Jdk implements Buildable, Iterable<File> {
 
     Jdk(String name, Configuration configuration, ObjectFactory objectFactory) {
         this.name = name;
+        this.configurationName = configuration.getName();
         this.configuration = configuration;
         this.vendor = objectFactory.property(String.class);
         this.version = objectFactory.property(String.class);
@@ -74,7 +79,9 @@ public class Jdk implements Buildable, Iterable<File> {
     }
 
     public void setVersion(String version) {
-        if (VERSION_PATTERN.matcher(version).matches() == false && LEGACY_VERSION_PATTERN.matcher(version).matches() == false) {
+        if (VERSION_PATTERN.matcher(version).matches() == false
+            && LEGACY_VERSION_PATTERN.matcher(version).matches() == false
+            && EA_VERSION_PATTERN.matcher(version).matches() == false) {
             throw new IllegalArgumentException("malformed version [" + version + "] for jdk [" + name + "]");
         }
         parseVersion(version);
@@ -108,7 +115,7 @@ public class Jdk implements Buildable, Iterable<File> {
     }
 
     public String getDistributionVersion() {
-        return distributionVersion.get();
+        return distributionVersion.getOrNull();
     }
 
     public void setDistributionVersion(String distributionVersion) {
@@ -136,7 +143,7 @@ public class Jdk implements Buildable, Iterable<File> {
     }
 
     public String getConfigurationName() {
-        return configuration.getName();
+        return configurationName;
     }
 
     @Override
@@ -214,9 +221,17 @@ public class Jdk implements Buildable, Iterable<File> {
         if (jdkVersionMatcher.matches() == false) {
             // Try again with the pre-Java9 version format
             jdkVersionMatcher = LEGACY_VERSION_PATTERN.matcher(version);
-
             if (jdkVersionMatcher.matches() == false) {
-                throw new IllegalArgumentException("Malformed jdk version [" + version + "]");
+                // Try again with the pre-Java9 version format
+                jdkVersionMatcher = EA_VERSION_PATTERN.matcher(version);
+                if (jdkVersionMatcher.matches() == false) {
+                    throw new IllegalArgumentException("Malformed jdk version [" + version + "]");
+                }
+                baseVersion = version;
+                major = jdkVersionMatcher.group(1);
+                build = jdkVersionMatcher.group(2);
+                hash = null;
+                return;
             }
         }
 

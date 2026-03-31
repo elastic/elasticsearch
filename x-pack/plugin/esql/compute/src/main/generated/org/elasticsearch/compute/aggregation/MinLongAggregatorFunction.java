@@ -16,27 +16,27 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 
 /**
  * {@link AggregatorFunction} implementation for {@link MinLongAggregator}.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code AggregatorImplementer} instead.
  */
 public final class MinLongAggregatorFunction implements AggregatorFunction {
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
       new IntermediateStateDesc("min", ElementType.LONG),
       new IntermediateStateDesc("seen", ElementType.BOOLEAN)  );
 
+  private final DriverContext driverContext;
+
   private final LongState state;
 
   private final List<Integer> channels;
 
-  public MinLongAggregatorFunction(List<Integer> channels, LongState state) {
+  MinLongAggregatorFunction(DriverContext driverContext, List<Integer> channels) {
+    this.driverContext = driverContext;
     this.channels = channels;
-    this.state = state;
-  }
-
-  public static MinLongAggregatorFunction create(List<Integer> channels) {
-    return new MinLongAggregatorFunction(channels, new LongState(MinLongAggregator.init()));
+    this.state = new LongState(MinLongAggregator.init());
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -49,37 +49,86 @@ public final class MinLongAggregatorFunction implements AggregatorFunction {
   }
 
   @Override
-  public void addRawInput(Page page) {
-    Block uncastBlock = page.getBlock(channels.get(0));
-    if (uncastBlock.areAllValuesNull()) {
+  public void addRawInput(Page page, BooleanVector mask) {
+    if (mask.allFalse()) {
+      // Entire page masked away
+    } else if (mask.allTrue()) {
+      addRawInputNotMasked(page);
+    } else {
+      addRawInputMasked(page, mask);
+    }
+  }
+
+  private void addRawInputMasked(Page page, BooleanVector mask) {
+    LongBlock vBlock = page.getBlock(channels.get(0));
+    LongVector vVector = vBlock.asVector();
+    if (vVector == null) {
+      addRawBlock(vBlock, mask);
       return;
     }
-    LongBlock block = (LongBlock) uncastBlock;
-    LongVector vector = block.asVector();
-    if (vector != null) {
-      addRawVector(vector);
-    } else {
-      addRawBlock(block);
-    }
+    addRawVector(vVector, mask);
   }
 
-  private void addRawVector(LongVector vector) {
+  private void addRawInputNotMasked(Page page) {
+    LongBlock vBlock = page.getBlock(channels.get(0));
+    LongVector vVector = vBlock.asVector();
+    if (vVector == null) {
+      addRawBlock(vBlock);
+      return;
+    }
+    addRawVector(vVector);
+  }
+
+  private void addRawVector(LongVector vVector) {
     state.seen(true);
-    for (int i = 0; i < vector.getPositionCount(); i++) {
-      state.longValue(MinLongAggregator.combine(state.longValue(), vector.getLong(i)));
+    for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
+      long vValue = vVector.getLong(valuesPosition);
+      state.longValue(MinLongAggregator.combine(state.longValue(), vValue));
     }
   }
 
-  private void addRawBlock(LongBlock block) {
-    for (int p = 0; p < block.getPositionCount(); p++) {
-      if (block.isNull(p)) {
+  private void addRawVector(LongVector vVector, BooleanVector mask) {
+    state.seen(true);
+    for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
+      if (mask.getBoolean(valuesPosition) == false) {
+        continue;
+      }
+      long vValue = vVector.getLong(valuesPosition);
+      state.longValue(MinLongAggregator.combine(state.longValue(), vValue));
+    }
+  }
+
+  private void addRawBlock(LongBlock vBlock) {
+    for (int p = 0; p < vBlock.getPositionCount(); p++) {
+      int vValueCount = vBlock.getValueCount(p);
+      if (vValueCount == 0) {
         continue;
       }
       state.seen(true);
-      int start = block.getFirstValueIndex(p);
-      int end = start + block.getValueCount(p);
-      for (int i = start; i < end; i++) {
-        state.longValue(MinLongAggregator.combine(state.longValue(), block.getLong(i)));
+      int vStart = vBlock.getFirstValueIndex(p);
+      int vEnd = vStart + vValueCount;
+      for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
+        long vValue = vBlock.getLong(vOffset);
+        state.longValue(MinLongAggregator.combine(state.longValue(), vValue));
+      }
+    }
+  }
+
+  private void addRawBlock(LongBlock vBlock, BooleanVector mask) {
+    for (int p = 0; p < vBlock.getPositionCount(); p++) {
+      if (mask.getBoolean(p) == false) {
+        continue;
+      }
+      int vValueCount = vBlock.getValueCount(p);
+      if (vValueCount == 0) {
+        continue;
+      }
+      state.seen(true);
+      int vStart = vBlock.getFirstValueIndex(p);
+      int vEnd = vStart + vValueCount;
+      for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
+        long vValue = vBlock.getLong(vOffset);
+        state.longValue(MinLongAggregator.combine(state.longValue(), vValue));
       }
     }
   }
@@ -88,10 +137,18 @@ public final class MinLongAggregatorFunction implements AggregatorFunction {
   public void addIntermediateInput(Page page) {
     assert channels.size() == intermediateBlockCount();
     assert page.getBlockCount() >= channels.get(0) + intermediateStateDesc().size();
-    LongVector min = page.<LongBlock>getBlock(channels.get(0)).asVector();
-    BooleanVector seen = page.<BooleanBlock>getBlock(channels.get(1)).asVector();
+    Block minUncast = page.getBlock(channels.get(0));
+    if (minUncast.areAllValuesNull()) {
+      return;
+    }
+    LongVector min = ((LongBlock) minUncast).asVector();
     assert min.getPositionCount() == 1;
-    assert min.getPositionCount() == seen.getPositionCount();
+    Block seenUncast = page.getBlock(channels.get(1));
+    if (seenUncast.areAllValuesNull()) {
+      return;
+    }
+    BooleanVector seen = ((BooleanBlock) seenUncast).asVector();
+    assert seen.getPositionCount() == 1;
     if (seen.getBoolean(0)) {
       state.longValue(MinLongAggregator.combine(state.longValue(), min.getLong(0)));
       state.seen(true);
@@ -99,17 +156,17 @@ public final class MinLongAggregatorFunction implements AggregatorFunction {
   }
 
   @Override
-  public void evaluateIntermediate(Block[] blocks, int offset) {
-    state.toIntermediate(blocks, offset);
+  public void evaluateIntermediate(Block[] blocks, int offset, DriverContext driverContext) {
+    state.toIntermediate(blocks, offset, driverContext);
   }
 
   @Override
-  public void evaluateFinal(Block[] blocks, int offset) {
+  public void evaluateFinal(Block[] blocks, int offset, DriverContext driverContext) {
     if (state.seen() == false) {
-      blocks[offset] = Block.constantNullBlock(1);
+      blocks[offset] = driverContext.blockFactory().newConstantNullBlock(1);
       return;
     }
-    blocks[offset] = LongBlock.newConstantBlockWith(state.longValue(), 1);
+    blocks[offset] = driverContext.blockFactory().newConstantLongBlockWith(state.longValue(), 1);
   }
 
   @Override

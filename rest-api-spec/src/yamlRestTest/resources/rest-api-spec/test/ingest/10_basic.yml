@@ -155,8 +155,8 @@
 
 ---
 "Test Get Summarized Pipelines":
-  - skip:
-      version: " - 7.12.99"
+  - requires:
+      cluster_features: ["gte_v7.13.0"]
       reason:  "summary option added in 7.13"
 
   - do:

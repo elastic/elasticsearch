@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.reindex;
@@ -112,14 +113,20 @@ public class ReindexRestClientSslTests extends ESTestCase {
     }
 
     public void testClientFailsWithUntrustedCertificate() throws IOException {
-        assumeFalse("https://github.com/elastic/elasticsearch/issues/49094", inFipsJvm());
         final List<Thread> threads = new ArrayList<>();
         final Settings.Builder builder = Settings.builder().put("path.home", createTempDir());
         final Settings settings = builder.build();
         final Environment environment = TestEnvironment.newEnvironment(settings);
         final ReindexSslConfig ssl = new ReindexSslConfig(settings, environment, mock(ResourceWatcherService.class));
         try (RestClient client = Reindexer.buildRestClient(getRemoteInfo(), ssl, 1L, threads)) {
-            expectThrows(SSLHandshakeException.class, () -> client.performRequest(new Request("GET", "/")));
+            if (inFipsJvm()) {
+                // Bouncy Castle throws a different exception
+                IOException exception = expectThrows(IOException.class, () -> client.performRequest(new Request("GET", "/")));
+                assertThat(exception.getCause(), Matchers.instanceOf(javax.net.ssl.SSLException.class));
+            } else {
+                expectThrows(SSLHandshakeException.class, () -> client.performRequest(new Request("GET", "/")));
+
+            }
         }
     }
 

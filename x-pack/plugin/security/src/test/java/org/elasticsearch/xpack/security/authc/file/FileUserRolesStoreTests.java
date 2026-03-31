@@ -280,19 +280,19 @@ public class FileUserRolesStoreTests extends ESTestCase {
 
     private Path writeUsersRoles(String input) throws Exception {
         Path file = getUsersRolesPath();
-        Files.write(file, input.getBytes(StandardCharsets.UTF_8));
+        Files.writeString(file, input);
         return file;
     }
 
     private Path getUsersRolesPath() throws IOException {
-        Path xpackConf = env.configFile();
+        Path xpackConf = env.configDir();
         Files.createDirectories(xpackConf);
         return xpackConf.resolve("users_roles");
     }
 
     private void assertInvalidInputIsSilentlyIgnored(String input) throws Exception {
         Path file = createTempFile();
-        Files.write(file, input.getBytes(StandardCharsets.UTF_8));
+        Files.writeString(file, input);
         Map<String, String[]> usersRoles = FileUserRolesStore.parseFile(file, null);
         String reason = Strings.format("Expected userRoles to be empty, but was %s", usersRoles.keySet());
         assertThat(reason, usersRoles.keySet(), hasSize(0));

@@ -7,15 +7,10 @@
 
 package org.elasticsearch.xpack.spatial.search.aggregations.metrics;
 
-import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.plugins.SearchPlugin;
-import org.elasticsearch.search.aggregations.Aggregation;
-import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.test.InternalAggregationTestCase;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.spatial.LocalStateSpatialPlugin;
 
 import java.util.HashMap;
@@ -32,18 +27,6 @@ public class InternalCartesianBoundsTests extends InternalAggregationTestCase<In
     @Override
     protected SearchPlugin registerPlugin() {
         return new LocalStateSpatialPlugin();
-    }
-
-    @Override
-    protected List<NamedXContentRegistry.Entry> getNamedXContents() {
-        return CollectionUtils.appendToCopy(
-            super.getNamedXContents(),
-            new NamedXContentRegistry.Entry(
-                Aggregation.class,
-                new ParseField(CartesianBoundsAggregationBuilder.NAME),
-                (p, c) -> ParsedCartesianBounds.fromXContent(p, (String) c)
-            )
-        );
     }
 
     @Override
@@ -90,15 +73,6 @@ public class InternalCartesianBoundsTests extends InternalAggregationTestCase<In
         assertValueClose(sampled.bottom, reduced.bottom);
         assertValueClose(sampled.left, reduced.left);
         assertValueClose(sampled.right, reduced.right);
-    }
-
-    @Override
-    protected void assertFromXContent(InternalCartesianBounds aggregation, ParsedAggregation parsedAggregation) {
-        assertTrue(parsedAggregation instanceof ParsedCartesianBounds);
-        ParsedCartesianBounds parsed = (ParsedCartesianBounds) parsedAggregation;
-
-        assertEquals(aggregation.topLeft(), parsed.topLeft());
-        assertEquals(aggregation.bottomRight(), parsed.bottomRight());
     }
 
     @Override

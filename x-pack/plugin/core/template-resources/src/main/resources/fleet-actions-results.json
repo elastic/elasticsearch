@@ -4,6 +4,9 @@
   ],
   "data_stream": {},
   "template": {
+    "lifecycle": {
+      "data_retention": "90d"
+    },
     "settings": {
       "index.lifecycle.name": ".fleet-actions-results-ilm-policy",
       "index.auto_expand_replicas": "0-1"
@@ -53,6 +56,9 @@
         },
         "completed_at": {
           "type": "date"
+        },
+        "namespaces": {
+          "type": "keyword"
         }
       }
     }

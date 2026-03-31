@@ -1,14 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index;
 
+import org.apache.logging.log4j.Level;
+import org.elasticsearch.Build;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
 import org.elasticsearch.common.settings.AbstractScopedSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -16,14 +20,23 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.codec.CodecService;
+import org.elasticsearch.index.engine.EngineConfig;
+import org.elasticsearch.index.mapper.MapperMetrics;
+import org.elasticsearch.index.mapper.MapperRegistry;
+import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.index.IndexVersionUtils;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.hamcrest.Matchers;
 
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -38,6 +51,8 @@ import static org.elasticsearch.index.IndexSettings.STATELESS_DEFAULT_REFRESH_IN
 import static org.elasticsearch.index.IndexSettings.STATELESS_MIN_NON_FAST_REFRESH_INTERVAL;
 import static org.elasticsearch.index.IndexSettings.TIME_SERIES_END_TIME;
 import static org.elasticsearch.index.IndexSettings.TIME_SERIES_START_TIME;
+import static org.elasticsearch.index.engine.EngineConfig.INDEX_CODEC_SETTING;
+import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPER_DYNAMIC_SETTING;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.core.StringContains.containsString;
@@ -225,6 +240,27 @@ public class IndexSettingsTests extends ESTestCase {
         assertEquals(metadata.getSettings(), settings.getSettings());
     }
 
+    public void testDenseVectorExperimentalFeaturesDefaultsFromBuildType() {
+        assertEquals(Build.current().isSnapshot(), IndexSettings.DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING.get(Settings.EMPTY));
+    }
+
+    @TestLogging(reason = "testing warning logging", value = "org.elasticsearch.index.IndexSettings:WARN")
+    public void testDenseVectorExperimentalFeaturesWarnsWhenExplicitlyEnabled() {
+        MockLog.assertThatLogger(() -> {
+            Settings settings = Settings.builder().put(IndexSettings.DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING.getKey(), true).build();
+            new IndexSettings(newIndexMeta("index", settings), Settings.EMPTY);
+        },
+            IndexSettings.class,
+            new MockLog.SeenEventExpectation(
+                "dense vector warning",
+                IndexSettings.class.getCanonicalName(),
+                Level.WARN,
+                "*The setting [index.dense_vector.experimental_features] is enabled; "
+                    + "backwards compatibility is not guaranteed for index [index]*"
+            )
+        );
+    }
+
     public IndexSettings newIndexSettings(IndexMetadata metadata, Settings nodeSettings, Setting<?>... settings) {
         Set<Setting<?>> settingSet = new HashSet<>(IndexScopedSettings.BUILT_IN_INDEX_SETTINGS);
         if (settings.length > 0) {
@@ -260,6 +296,10 @@ public class IndexSettingsTests extends ESTestCase {
 
     public static IndexMetadata newIndexMeta(String name, Settings indexSettings) {
         return IndexMetadata.builder(name).settings(indexSettings(IndexVersion.current(), 1, 1).put(indexSettings)).build();
+    }
+
+    public static IndexMetadata newIndexMeta(String name, Settings indexSettings, IndexVersion indexVersion) {
+        return IndexMetadata.builder(name).settings(indexSettings(indexVersion, 1, 1).put(indexSettings)).build();
     }
 
     public void testUpdateDurability() {
@@ -385,7 +425,7 @@ public class IndexSettingsTests extends ESTestCase {
                 .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                 .put(EXISTING_SHARDS_ALLOCATOR_SETTING.getKey(), "stateless")
                 .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), "2s")
-                .put(SETTING_INDEX_VERSION_CREATED.getKey(), IndexVersion.V_8_10_0.id() + 1)
+                .put(SETTING_INDEX_VERSION_CREATED.getKey(), IndexVersions.V_8_10_0.id() + 1)
                 .build()
         );
         final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new IndexSettings(metadata, Settings.EMPTY));
@@ -774,7 +814,7 @@ public class IndexSettingsTests extends ESTestCase {
 
     public void testSoftDeletesDefaultSetting() {
         // enabled by default on 7.0+ or later
-        IndexVersion createdVersion = IndexVersionUtils.randomCompatibleVersion(random());
+        IndexVersion createdVersion = IndexVersionUtils.randomCompatibleVersion();
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, createdVersion).build();
         assertTrue(IndexSettings.INDEX_SOFT_DELETES_SETTING.get(settings));
     }
@@ -838,6 +878,41 @@ public class IndexSettingsTests extends ESTestCase {
         assertThat(e.getMessage(), Matchers.containsString("index.time_series.end_time must be larger than index.time_series.start_time"));
     }
 
+    public void testIndexMapperDynamic() {
+        Settings settings = Settings.builder().put(INDEX_MAPPER_DYNAMIC_SETTING.getKey(), randomBoolean()).build();
+
+        INDEX_MAPPER_DYNAMIC_SETTING.get(settings);
+        assertWarnings(
+            "[index.mapper.dynamic] setting was deprecated in the previous Elasticsearch release and is removed in this release."
+        );
+
+        IndexMetadata idxMetaData = newIndexMeta("test", settings);
+        IndexMetadataVerifier indexMetadataVerifier = new IndexMetadataVerifier(
+            Settings.EMPTY,
+            null,
+            xContentRegistry(),
+            new MapperRegistry(
+                Collections.emptyMap(),
+                Collections.emptyMap(),
+                Collections.emptyMap(),
+                MapperPlugin.NOOP_FIELD_FILTER,
+                null
+            ),
+            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+            null,
+            MapperMetrics.NOOP
+        );
+        IndexMetadata verifiedMetaData = indexMetadataVerifier.verifyIndexMetadata(
+            idxMetaData,
+            IndexVersions.MINIMUM_COMPATIBLE,
+            IndexVersions.MINIMUM_READONLY_COMPATIBLE
+        );
+        assertEquals(idxMetaData, verifiedMetaData);
+        assertWarnings(
+            "[index.mapper.dynamic] setting was deprecated in the previous Elasticsearch release and is removed in this release."
+        );
+    }
+
     public void testSame() {
         final var indexSettingKey = "index.example.setting";
         final var archivedSettingKey = "archived.example.setting";
@@ -879,5 +954,265 @@ public class IndexSettingsTests extends ESTestCase {
             differentOtherSettingBuilder.put(otherSettingKey, randomAlphaOfLength(11));
         }
         assertTrue(IndexSettings.same(settings, differentOtherSettingBuilder.build()));
+    }
+
+    public void testSyntheticIdCorrectSettings() {
+        assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
+        IndexVersion version = IndexVersionUtils.randomVersionBetween(
+            IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_94,
+            IndexVersion.current()
+        );
+        IndexMode mode = IndexMode.TIME_SERIES;
+        String codec = CodecService.DEFAULT_CODEC;
+
+        Settings settings = Settings.builder()
+            .put(IndexSettings.SYNTHETIC_ID.getKey(), true)
+            .put(EngineConfig.INDEX_CODEC_SETTING.getKey(), codec)
+            .put(IndexSettings.MODE.getKey(), mode)
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "some-routing")
+            .build();
+        IndexMetadata indexMetadata = newIndexMeta("some-index", settings, version);
+
+        IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
+        assertTrue(indexSettings.useTimeSeriesSyntheticId());
+        assertTrue(indexMetadata.useTimeSeriesSyntheticId());
+    }
+
+    public void testSyntheticIdDefaultValueTrue() {
+        assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
+        IndexVersion version = IndexVersionUtils.randomVersionBetween(
+            IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_DEFAULT,
+            IndexVersion.current()
+        );
+        IndexMode mode = IndexMode.TIME_SERIES;
+        String codec = CodecService.DEFAULT_CODEC;
+
+        Settings settings = Settings.builder()
+            .put(EngineConfig.INDEX_CODEC_SETTING.getKey(), codec)
+            .put(IndexSettings.MODE.getKey(), mode)
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "some-routing")
+            .build();
+        IndexMetadata indexMetadata = newIndexMeta("some-index", settings, version);
+
+        IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
+        assertTrue(indexSettings.useTimeSeriesSyntheticId());
+        assertTrue(indexMetadata.useTimeSeriesSyntheticId());
+    }
+
+    public void testSyntheticIdDefaultValueFalse() {
+        assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
+        IndexVersion version = IndexVersionUtils.getPreviousVersion(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_DEFAULT);
+        IndexMode mode = IndexMode.TIME_SERIES;
+        String codec = CodecService.DEFAULT_CODEC;
+
+        Settings settings = Settings.builder()
+            .put(EngineConfig.INDEX_CODEC_SETTING.getKey(), codec)
+            .put(IndexSettings.MODE.getKey(), mode)
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "some-routing")
+            .build();
+        IndexMetadata indexMetadata = newIndexMeta("some-index", settings, version);
+
+        IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
+        assertFalse(indexSettings.useTimeSeriesSyntheticId());
+        assertFalse(indexMetadata.useTimeSeriesSyntheticId());
+    }
+
+    public void testSyntheticIdBadVersion() {
+        assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
+        IndexVersion badVersion = IndexVersionUtils.getPreviousVersion(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_94);
+        IndexMode mode = IndexMode.TIME_SERIES;
+        String codec = CodecService.DEFAULT_CODEC;
+
+        Settings settings = Settings.builder()
+            .put(IndexSettings.SYNTHETIC_ID.getKey(), true)
+            .put(EngineConfig.INDEX_CODEC_SETTING.getKey(), codec)
+            .put(IndexSettings.MODE.getKey(), mode)
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "some-routing")
+            .build();
+        IndexMetadata indexMetadata = newIndexMeta("some-index", settings, badVersion);
+
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () -> new IndexSettings(indexMetadata, Settings.EMPTY));
+        assertThat(
+            e.getMessage(),
+            Matchers.containsString(
+                String.format(
+                    Locale.ROOT,
+                    "The setting [%s] is only permitted for indexVersion [%s] or later. Current indexVersion: [%s].",
+                    IndexSettings.SYNTHETIC_ID.getKey(),
+                    IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_94,
+                    badVersion
+                )
+            )
+        );
+    }
+
+    public void testSyntheticIdBadCodec() {
+        assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
+        IndexVersion version = IndexVersionUtils.randomVersionBetween(
+            IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_94,
+            IndexVersion.current()
+        );
+        IndexMode mode = IndexMode.TIME_SERIES;
+        String badCodec = randomFrom(
+            CodecService.BEST_COMPRESSION_CODEC,
+            CodecService.LEGACY_BEST_COMPRESSION_CODEC,
+            CodecService.LEGACY_DEFAULT_CODEC,
+            CodecService.LUCENE_DEFAULT_CODEC
+        );
+
+        Settings settings = Settings.builder()
+            .put(IndexSettings.SYNTHETIC_ID.getKey(), true)
+            .put(EngineConfig.INDEX_CODEC_SETTING.getKey(), badCodec)
+            .put(IndexSettings.MODE.getKey(), mode)
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "some-routing")
+            .build();
+        IndexMetadata indexMetadata = newIndexMeta("some-index", settings, version);
+
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () -> new IndexSettings(indexMetadata, Settings.EMPTY));
+        assertThat(
+            e.getMessage(),
+            Matchers.containsString(
+                String.format(
+                    Locale.ROOT,
+                    "The setting [%s] is only permitted when [%s] is set to [%s]. Current mode: [%s].",
+                    IndexSettings.SYNTHETIC_ID.getKey(),
+                    INDEX_CODEC_SETTING.getKey(),
+                    CodecService.DEFAULT_CODEC,
+                    badCodec
+                )
+            )
+        );
+    }
+
+    public void testSyntheticIdBadMode() {
+        assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
+        IndexVersion version = IndexVersionUtils.randomVersionBetween(
+            IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_94,
+            IndexVersion.current()
+        );
+        IndexMode badMode = randomValueOtherThan(IndexMode.TIME_SERIES, () -> randomFrom(IndexMode.values()));
+        String codec = CodecService.DEFAULT_CODEC;
+
+        Settings settings = Settings.builder()
+            .put(IndexSettings.SYNTHETIC_ID.getKey(), true)
+            .put(EngineConfig.INDEX_CODEC_SETTING.getKey(), codec)
+            .put(IndexSettings.MODE.getKey(), badMode)
+            .build();
+        IndexMetadata indexMetadata = newIndexMeta("some-index", settings, version);
+
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () -> new IndexSettings(indexMetadata, Settings.EMPTY));
+        assertThat(
+            e.getMessage(),
+            Matchers.containsString(
+                String.format(
+                    Locale.ROOT,
+                    "The setting [%s] is only permitted when [%s] is set to [%s]. Current mode: [%s].",
+                    IndexSettings.SYNTHETIC_ID.getKey(),
+                    IndexSettings.MODE.getKey(),
+                    IndexMode.TIME_SERIES.name(),
+                    badMode.name()
+                )
+            )
+        );
+    }
+
+    public void testDisableSequenceNumbersSetting() {
+        assumeTrue("Test should only run with feature flag", IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG);
+        IndexVersion indexVersion = IndexVersionUtils.randomVersionBetween(IndexVersions.DISABLE_SEQUENCE_NUMBERS, IndexVersion.current());
+
+        var disabled = randomBoolean();
+        Settings settings = Settings.builder()
+            .put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), disabled)
+            .put(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(), SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY)
+            .build();
+        IndexMetadata indexMetadata = newIndexMeta("some-index", settings, indexVersion);
+        IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
+        assertThat(indexSettings.sequenceNumbersDisabled(), is(equalTo(disabled)));
+    }
+
+    public void testDisableSequenceNumbersImpliesDocValuesOnly() {
+        assumeTrue("Test should only run with feature flag", IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG);
+        final var indexVersion = IndexVersionUtils.randomVersionBetween(IndexVersions.DISABLE_SEQUENCE_NUMBERS, IndexVersion.current());
+
+        var builder = Settings.builder().put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true);
+        var indexMetadata = newIndexMeta("some-index", builder.build(), indexVersion);
+
+        assertThat(
+            IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.get(indexMetadata.getSettings()),
+            equalTo(SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY)
+        );
+    }
+
+    public void testDisableSequenceNumbersRequiresDocValuesOnly() {
+        assumeTrue("Test should only run with feature flag", IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG);
+        final var indexVersion = IndexVersionUtils.randomVersionBetween(IndexVersions.DISABLE_SEQUENCE_NUMBERS, IndexVersion.current());
+
+        var builder = Settings.builder().put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true);
+        builder.put(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(), SeqNoFieldMapper.SeqNoIndexOptions.POINTS_AND_DOC_VALUES);
+        var indexMetadata = newIndexMeta("some-index", builder.build(), indexVersion);
+        var e = assertThrows(IllegalArgumentException.class, () -> new IndexSettings(indexMetadata, Settings.EMPTY));
+        assertThat(
+            e.getMessage(),
+            Matchers.containsString(
+                String.format(
+                    Locale.ROOT,
+                    "The setting [%s] is only permitted when [%s] is set to [%s]. Current value: [%s].",
+                    IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(),
+                    IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(),
+                    SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY,
+                    SeqNoFieldMapper.SeqNoIndexOptions.POINTS_AND_DOC_VALUES
+                )
+            )
+        );
+    }
+
+    public void testDisableSequenceNumbersRequiresDocValuesOnlyForNonStandardModes() {
+        assumeTrue("Test should only run with feature flag", IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG);
+        IndexVersion indexVersion = IndexVersionUtils.randomVersionBetween(IndexVersions.DISABLE_SEQUENCE_NUMBERS, IndexVersion.current());
+
+        IndexMode mode = randomFrom(IndexMode.TIME_SERIES, IndexMode.LOGSDB);
+        Settings.Builder builder = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), mode.getName())
+            .put(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(), SeqNoFieldMapper.SeqNoIndexOptions.POINTS_AND_DOC_VALUES)
+            .put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true);
+        if (mode == IndexMode.TIME_SERIES) {
+            builder.put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "foo");
+        }
+        IndexMetadata indexMetadata = newIndexMeta("some-index", builder.build(), indexVersion);
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () -> new IndexSettings(indexMetadata, Settings.EMPTY));
+        assertThat(
+            e.getMessage(),
+            Matchers.containsString(
+                String.format(
+                    Locale.ROOT,
+                    "The setting [%s] is only permitted when [%s] is set to [%s]. Current value: [%s].",
+                    IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(),
+                    IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(),
+                    SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY,
+                    SeqNoFieldMapper.SeqNoIndexOptions.POINTS_AND_DOC_VALUES
+                )
+            )
+        );
+    }
+
+    public void testDisableSequenceNumbersValidationWithInvalidVersion() {
+        assumeTrue("Test should only run with feature flag", IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG);
+        IndexVersion badVersion = IndexVersionUtils.getPreviousVersion(IndexVersions.DISABLE_SEQUENCE_NUMBERS);
+
+        Settings settings = Settings.builder().put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true).build();
+        IndexMetadata indexMetadata = newIndexMeta("some-index", settings, badVersion);
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () -> new IndexSettings(indexMetadata, Settings.EMPTY));
+        assertThat(
+            e.getMessage(),
+            Matchers.containsString(
+                String.format(
+                    Locale.ROOT,
+                    "The setting [%s] is only permitted for indexVersion [%s] or later. Current indexVersion: [%s].",
+                    IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(),
+                    IndexVersions.DISABLE_SEQUENCE_NUMBERS,
+                    badVersion
+                )
+            )
+        );
     }
 }

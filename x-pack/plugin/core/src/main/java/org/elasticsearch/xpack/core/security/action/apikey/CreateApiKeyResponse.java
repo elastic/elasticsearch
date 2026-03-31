@@ -67,18 +67,9 @@ public final class CreateApiKeyResponse extends ActionResponse implements ToXCon
     }
 
     public CreateApiKeyResponse(StreamInput in) throws IOException {
-        super(in);
         this.name = in.readString();
         this.id = in.readString();
-        byte[] bytes = null;
-        try {
-            bytes = in.readByteArray();
-            this.key = new SecureString(CharArrays.utf8BytesToChars(bytes));
-        } finally {
-            if (bytes != null) {
-                Arrays.fill(bytes, (byte) 0);
-            }
-        }
+        this.key = in.readSecureString();
         this.expiration = in.readOptionalInstant();
     }
 

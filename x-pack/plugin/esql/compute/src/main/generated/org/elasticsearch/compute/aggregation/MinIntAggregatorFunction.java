@@ -16,27 +16,27 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 
 /**
  * {@link AggregatorFunction} implementation for {@link MinIntAggregator}.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code AggregatorImplementer} instead.
  */
 public final class MinIntAggregatorFunction implements AggregatorFunction {
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
       new IntermediateStateDesc("min", ElementType.INT),
       new IntermediateStateDesc("seen", ElementType.BOOLEAN)  );
 
+  private final DriverContext driverContext;
+
   private final IntState state;
 
   private final List<Integer> channels;
 
-  public MinIntAggregatorFunction(List<Integer> channels, IntState state) {
+  MinIntAggregatorFunction(DriverContext driverContext, List<Integer> channels) {
+    this.driverContext = driverContext;
     this.channels = channels;
-    this.state = state;
-  }
-
-  public static MinIntAggregatorFunction create(List<Integer> channels) {
-    return new MinIntAggregatorFunction(channels, new IntState(MinIntAggregator.init()));
+    this.state = new IntState(MinIntAggregator.init());
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -49,37 +49,86 @@ public final class MinIntAggregatorFunction implements AggregatorFunction {
   }
 
   @Override
-  public void addRawInput(Page page) {
-    Block uncastBlock = page.getBlock(channels.get(0));
-    if (uncastBlock.areAllValuesNull()) {
+  public void addRawInput(Page page, BooleanVector mask) {
+    if (mask.allFalse()) {
+      // Entire page masked away
+    } else if (mask.allTrue()) {
+      addRawInputNotMasked(page);
+    } else {
+      addRawInputMasked(page, mask);
+    }
+  }
+
+  private void addRawInputMasked(Page page, BooleanVector mask) {
+    IntBlock vBlock = page.getBlock(channels.get(0));
+    IntVector vVector = vBlock.asVector();
+    if (vVector == null) {
+      addRawBlock(vBlock, mask);
       return;
     }
-    IntBlock block = (IntBlock) uncastBlock;
-    IntVector vector = block.asVector();
-    if (vector != null) {
-      addRawVector(vector);
-    } else {
-      addRawBlock(block);
-    }
+    addRawVector(vVector, mask);
   }
 
-  private void addRawVector(IntVector vector) {
+  private void addRawInputNotMasked(Page page) {
+    IntBlock vBlock = page.getBlock(channels.get(0));
+    IntVector vVector = vBlock.asVector();
+    if (vVector == null) {
+      addRawBlock(vBlock);
+      return;
+    }
+    addRawVector(vVector);
+  }
+
+  private void addRawVector(IntVector vVector) {
     state.seen(true);
-    for (int i = 0; i < vector.getPositionCount(); i++) {
-      state.intValue(MinIntAggregator.combine(state.intValue(), vector.getInt(i)));
+    for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
+      int vValue = vVector.getInt(valuesPosition);
+      state.intValue(MinIntAggregator.combine(state.intValue(), vValue));
     }
   }
 
-  private void addRawBlock(IntBlock block) {
-    for (int p = 0; p < block.getPositionCount(); p++) {
-      if (block.isNull(p)) {
+  private void addRawVector(IntVector vVector, BooleanVector mask) {
+    state.seen(true);
+    for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
+      if (mask.getBoolean(valuesPosition) == false) {
+        continue;
+      }
+      int vValue = vVector.getInt(valuesPosition);
+      state.intValue(MinIntAggregator.combine(state.intValue(), vValue));
+    }
+  }
+
+  private void addRawBlock(IntBlock vBlock) {
+    for (int p = 0; p < vBlock.getPositionCount(); p++) {
+      int vValueCount = vBlock.getValueCount(p);
+      if (vValueCount == 0) {
         continue;
       }
       state.seen(true);
-      int start = block.getFirstValueIndex(p);
-      int end = start + block.getValueCount(p);
-      for (int i = start; i < end; i++) {
-        state.intValue(MinIntAggregator.combine(state.intValue(), block.getInt(i)));
+      int vStart = vBlock.getFirstValueIndex(p);
+      int vEnd = vStart + vValueCount;
+      for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
+        int vValue = vBlock.getInt(vOffset);
+        state.intValue(MinIntAggregator.combine(state.intValue(), vValue));
+      }
+    }
+  }
+
+  private void addRawBlock(IntBlock vBlock, BooleanVector mask) {
+    for (int p = 0; p < vBlock.getPositionCount(); p++) {
+      if (mask.getBoolean(p) == false) {
+        continue;
+      }
+      int vValueCount = vBlock.getValueCount(p);
+      if (vValueCount == 0) {
+        continue;
+      }
+      state.seen(true);
+      int vStart = vBlock.getFirstValueIndex(p);
+      int vEnd = vStart + vValueCount;
+      for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
+        int vValue = vBlock.getInt(vOffset);
+        state.intValue(MinIntAggregator.combine(state.intValue(), vValue));
       }
     }
   }
@@ -88,10 +137,18 @@ public final class MinIntAggregatorFunction implements AggregatorFunction {
   public void addIntermediateInput(Page page) {
     assert channels.size() == intermediateBlockCount();
     assert page.getBlockCount() >= channels.get(0) + intermediateStateDesc().size();
-    IntVector min = page.<IntBlock>getBlock(channels.get(0)).asVector();
-    BooleanVector seen = page.<BooleanBlock>getBlock(channels.get(1)).asVector();
+    Block minUncast = page.getBlock(channels.get(0));
+    if (minUncast.areAllValuesNull()) {
+      return;
+    }
+    IntVector min = ((IntBlock) minUncast).asVector();
     assert min.getPositionCount() == 1;
-    assert min.getPositionCount() == seen.getPositionCount();
+    Block seenUncast = page.getBlock(channels.get(1));
+    if (seenUncast.areAllValuesNull()) {
+      return;
+    }
+    BooleanVector seen = ((BooleanBlock) seenUncast).asVector();
+    assert seen.getPositionCount() == 1;
     if (seen.getBoolean(0)) {
       state.intValue(MinIntAggregator.combine(state.intValue(), min.getInt(0)));
       state.seen(true);
@@ -99,17 +156,17 @@ public final class MinIntAggregatorFunction implements AggregatorFunction {
   }
 
   @Override
-  public void evaluateIntermediate(Block[] blocks, int offset) {
-    state.toIntermediate(blocks, offset);
+  public void evaluateIntermediate(Block[] blocks, int offset, DriverContext driverContext) {
+    state.toIntermediate(blocks, offset, driverContext);
   }
 
   @Override
-  public void evaluateFinal(Block[] blocks, int offset) {
+  public void evaluateFinal(Block[] blocks, int offset, DriverContext driverContext) {
     if (state.seen() == false) {
-      blocks[offset] = Block.constantNullBlock(1);
+      blocks[offset] = driverContext.blockFactory().newConstantNullBlock(1);
       return;
     }
-    blocks[offset] = IntBlock.newConstantBlockWith(state.intValue(), 1);
+    blocks[offset] = driverContext.blockFactory().newConstantIntBlockWith(state.intValue(), 1);
   }
 
   @Override

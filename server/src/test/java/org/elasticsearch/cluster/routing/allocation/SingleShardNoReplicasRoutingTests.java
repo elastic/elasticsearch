@@ -1,15 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing.allocation;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -44,7 +43,6 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 public class SingleShardNoReplicasRoutingTests extends ESAllocationTestCase {
-    private final Logger logger = LogManager.getLogger(SingleShardNoReplicasRoutingTests.class);
 
     public void testSingleIndexStartedShard() {
         AllocationService strategy = createAllocationService(
@@ -58,7 +56,7 @@ public class SingleShardNoReplicasRoutingTests extends ESAllocationTestCase {
             .build();
 
         RoutingTable initialRoutingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-            .addAsNew(metadata.index("test"))
+            .addAsNew(metadata.getProject().index("test"))
             .build();
 
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(initialRoutingTable).build();
@@ -158,7 +156,7 @@ public class SingleShardNoReplicasRoutingTests extends ESAllocationTestCase {
             .build();
 
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-            .addAsNew(metadata.index("test"));
+            .addAsNew(metadata.getProject().index("test"));
 
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(metadata)
@@ -222,7 +220,7 @@ public class SingleShardNoReplicasRoutingTests extends ESAllocationTestCase {
 
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
         for (int i = 0; i < numberOfIndices; i++) {
-            routingTableBuilder.addAsNew(metadata.index("test" + i));
+            routingTableBuilder.addAsNew(metadata.getProject().index("test" + i));
         }
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(metadata)
@@ -334,7 +332,7 @@ public class SingleShardNoReplicasRoutingTests extends ESAllocationTestCase {
 
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
         for (int i = 0; i < numberOfIndices; i++) {
-            routingTableBuilder.addAsNew(metadata.index("test" + i));
+            routingTableBuilder.addAsNew(metadata.getProject().index("test" + i));
         }
 
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.security.rest.action.user;
 
-import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.License;
@@ -40,9 +39,10 @@ public class RestPutUserActionTests extends ESTestCase {
             .withParams(Map.of("username", "you-sir-naim"))
             .withContent(new BytesArray("{ \"password\":\"blah-blah-blah\" }"), XContentType.JSON)
             .build();
-        final FakeRestChannel channel = new FakeRestChannel(request, true, 1);
+        final FakeRestChannel channel = new FakeRestChannel(request, true);
 
-        try (NodeClient nodeClient = new NoOpNodeClient(this.getTestName())) {
+        try (var threadPool = createThreadPool()) {
+            final var nodeClient = new NoOpNodeClient(threadPool);
             action.handleRequest(request, channel, nodeClient);
         }
 

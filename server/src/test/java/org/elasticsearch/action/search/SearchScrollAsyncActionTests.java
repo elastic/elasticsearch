@@ -1,13 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -15,17 +17,17 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.search.Scroll;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.InternalScrollSearchRequest;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.Transport;
 
-import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
@@ -52,16 +54,22 @@ public class SearchScrollAsyncActionTests extends ESTestCase {
 
         AtomicArray<SearchAsyncActionTests.TestSearchPhaseResult> results = new AtomicArray<>(scrollId.getContext().length);
         SearchScrollRequest request = new SearchScrollRequest();
-        request.scroll(new Scroll(TimeValue.timeValueMinutes(1)));
+        request.scroll(TimeValue.timeValueMinutes(1));
         CountDownLatch latch = new CountDownLatch(1);
         AtomicInteger movedCounter = new AtomicInteger(0);
-        SearchScrollAsyncAction<SearchAsyncActionTests.TestSearchPhaseResult> action = new SearchScrollAsyncAction<
-            SearchAsyncActionTests.TestSearchPhaseResult>(scrollId, logger, discoveryNodes, dummyListener(), request, null) {
+        SearchScrollAsyncAction<SearchAsyncActionTests.TestSearchPhaseResult> action = new SearchScrollAsyncAction<>(
+            scrollId,
+            logger,
+            discoveryNodes,
+            dummyListener(),
+            request,
+            null
+        ) {
             @Override
             protected void executeInitialPhase(
                 Transport.Connection connection,
                 InternalScrollSearchRequest internalRequest,
-                SearchActionListener<SearchAsyncActionTests.TestSearchPhaseResult> searchActionListener
+                ActionListener<SearchAsyncActionTests.TestSearchPhaseResult> searchActionListener
             ) {
                 new Thread(() -> {
                     SearchAsyncActionTests.TestSearchPhaseResult testSearchPhaseResult = new SearchAsyncActionTests.TestSearchPhaseResult(
@@ -85,7 +93,7 @@ public class SearchScrollAsyncActionTests extends ESTestCase {
                 assertEquals(1, movedCounter.incrementAndGet());
                 return new SearchPhase("test") {
                     @Override
-                    public void run() throws IOException {
+                    protected void run() {
                         latch.countDown();
                     }
                 };
@@ -126,10 +134,10 @@ public class SearchScrollAsyncActionTests extends ESTestCase {
 
         AtomicArray<SearchAsyncActionTests.TestSearchPhaseResult> results = new AtomicArray<>(scrollId.getContext().length);
         SearchScrollRequest request = new SearchScrollRequest();
-        request.scroll(new Scroll(TimeValue.timeValueMinutes(1)));
+        request.scroll(TimeValue.timeValueMinutes(1));
         CountDownLatch latch = new CountDownLatch(1);
         AtomicInteger movedCounter = new AtomicInteger(0);
-        ActionListener<SearchResponse> listener = new ActionListener<SearchResponse>() {
+        ActionListener<SearchResponse> listener = new ActionListener<>() {
             @Override
             public void onResponse(SearchResponse o) {
                 try {
@@ -152,13 +160,19 @@ public class SearchScrollAsyncActionTests extends ESTestCase {
                 }
             }
         };
-        SearchScrollAsyncAction<SearchAsyncActionTests.TestSearchPhaseResult> action = new SearchScrollAsyncAction<
-            SearchAsyncActionTests.TestSearchPhaseResult>(scrollId, logger, discoveryNodes, listener, request, null) {
+        SearchScrollAsyncAction<SearchAsyncActionTests.TestSearchPhaseResult> action = new SearchScrollAsyncAction<>(
+            scrollId,
+            logger,
+            discoveryNodes,
+            listener,
+            request,
+            null
+        ) {
             @Override
             protected void executeInitialPhase(
                 Transport.Connection connection,
                 InternalScrollSearchRequest internalRequest,
-                SearchActionListener<SearchAsyncActionTests.TestSearchPhaseResult> searchActionListener
+                ActionListener<SearchAsyncActionTests.TestSearchPhaseResult> searchActionListener
             ) {
                 new Thread(() -> {
                     SearchAsyncActionTests.TestSearchPhaseResult testSearchPhaseResult = new SearchAsyncActionTests.TestSearchPhaseResult(
@@ -182,7 +196,7 @@ public class SearchScrollAsyncActionTests extends ESTestCase {
                 assertEquals(1, movedCounter.incrementAndGet());
                 return new SearchPhase("TEST_PHASE") {
                     @Override
-                    public void run() throws IOException {
+                    protected void run() {
                         throw new IllegalArgumentException("BOOM");
                     }
                 };
@@ -222,16 +236,22 @@ public class SearchScrollAsyncActionTests extends ESTestCase {
 
         AtomicArray<SearchAsyncActionTests.TestSearchPhaseResult> results = new AtomicArray<>(scrollId.getContext().length);
         SearchScrollRequest request = new SearchScrollRequest();
-        request.scroll(new Scroll(TimeValue.timeValueMinutes(1)));
+        request.scroll(TimeValue.timeValueMinutes(1));
         CountDownLatch latch = new CountDownLatch(1);
         AtomicInteger movedCounter = new AtomicInteger(0);
-        SearchScrollAsyncAction<SearchAsyncActionTests.TestSearchPhaseResult> action = new SearchScrollAsyncAction<
-            SearchAsyncActionTests.TestSearchPhaseResult>(scrollId, logger, discoveryNodes, dummyListener(), request, null) {
+        SearchScrollAsyncAction<SearchAsyncActionTests.TestSearchPhaseResult> action = new SearchScrollAsyncAction<>(
+            scrollId,
+            logger,
+            discoveryNodes,
+            dummyListener(),
+            request,
+            null
+        ) {
             @Override
             protected void executeInitialPhase(
                 Transport.Connection connection,
                 InternalScrollSearchRequest internalRequest,
-                SearchActionListener<SearchAsyncActionTests.TestSearchPhaseResult> searchActionListener
+                ActionListener<SearchAsyncActionTests.TestSearchPhaseResult> searchActionListener
             ) {
                 try {
                     assertNotEquals("node2 is not available", "node2", connection.getNode().getId());
@@ -260,7 +280,7 @@ public class SearchScrollAsyncActionTests extends ESTestCase {
                 assertEquals(1, movedCounter.incrementAndGet());
                 return new SearchPhase("test") {
                     @Override
-                    public void run() throws IOException {
+                    protected void run() {
                         latch.countDown();
                     }
                 };
@@ -276,8 +296,7 @@ public class SearchScrollAsyncActionTests extends ESTestCase {
         latch.await();
         ShardSearchFailure[] shardSearchFailures = action.buildShardFailures();
         assertEquals(1, shardSearchFailures.length);
-        // .reason() returns the full stack trace
-        assertThat(shardSearchFailures[0].reason(), startsWith("java.lang.IllegalStateException: node [node2] is not available"));
+        assertThat(shardSearchFailures[0].reason(), startsWith("org.elasticsearch.action.search.SearchContextMissingNodesException"));
 
         SearchContextIdForNode[] context = scrollId.getContext();
         for (int i = 0; i < results.length(); i++) {
@@ -289,6 +308,174 @@ public class SearchScrollAsyncActionTests extends ESTestCase {
                 assertEquals(context[i].getNode(), results.get(i).node.getId());
             }
         }
+    }
+
+    public void testAllNodesUnavailableReturns404() throws InterruptedException {
+        ParsedScrollId scrollId = getParsedScrollId(
+            new SearchContextIdForNode(null, "node1", new ShardSearchContextId("", 1)),
+            new SearchContextIdForNode(null, "node2", new ShardSearchContextId("", 2)),
+            new SearchContextIdForNode(null, "node3", new ShardSearchContextId("", 17))
+        );
+
+        DiscoveryNodes discoveryNodes = DiscoveryNodes.builder()
+            .add(DiscoveryNodeUtils.create("node4"))
+            .add(DiscoveryNodeUtils.create("node5"))
+            .build();
+
+        SearchScrollRequest request = new SearchScrollRequest();
+        request.scroll(TimeValue.timeValueMinutes(1));
+
+        CountDownLatch latch = new CountDownLatch(1);
+        ActionListener<SearchResponse> listener = new ActionListener<>() {
+            @Override
+            public void onResponse(SearchResponse o) {
+                try {
+                    fail("Expected failure but got success");
+                } finally {
+                    latch.countDown();
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                try {
+                    assertTrue(
+                        "Expected SearchContextMissingNodesException but got: " + e.getClass().getName(),
+                        e instanceof SearchContextMissingNodesException
+                    );
+                    SearchContextMissingNodesException ex = (SearchContextMissingNodesException) e;
+                    assertEquals(RestStatus.NOT_FOUND, ex.status());
+                    assertEquals(SearchContextMissingNodesException.ContextType.SCROLL, ex.getContextType());
+                    assertEquals(Set.of("node3", "node2", "node1"), ex.getMissingNodeIds());
+                } finally {
+                    latch.countDown();
+                }
+            }
+        };
+
+        SearchScrollAsyncAction<SearchAsyncActionTests.TestSearchPhaseResult> action = new SearchScrollAsyncAction<>(
+            scrollId,
+            logger,
+            discoveryNodes,
+            listener,
+            request,
+            null
+        ) {
+            @Override
+            protected void executeInitialPhase(
+                Transport.Connection connection,
+                InternalScrollSearchRequest internalRequest,
+                ActionListener<SearchAsyncActionTests.TestSearchPhaseResult> searchActionListener
+            ) {
+                new Thread(() -> {
+                    SearchAsyncActionTests.TestSearchPhaseResult testSearchPhaseResult = new SearchAsyncActionTests.TestSearchPhaseResult(
+                        internalRequest.contextId(),
+                        connection.getNode()
+                    );
+                    testSearchPhaseResult.setSearchShardTarget(
+                        new SearchShardTarget(connection.getNode().getId(), new ShardId("test", "_na_", 1), null)
+                    );
+                    searchActionListener.onResponse(testSearchPhaseResult);
+                }).start();
+            }
+
+            @Override
+            protected Transport.Connection getConnection(String clusterAlias, DiscoveryNode node) {
+                return new SearchAsyncActionTests.MockConnection(node);
+            }
+
+            @Override
+            protected SearchPhase moveToNextPhase(BiFunction<String, String, DiscoveryNode> clusterNodeLookup) {
+                fail("Should not move to next phase when all shards fail");
+                return null;
+            }
+
+            @Override
+            protected void onFirstPhaseResult(int shardId, SearchAsyncActionTests.TestSearchPhaseResult result) {
+                fail("Should not have results when all nodes are unavailable");
+            }
+        };
+
+        action.run();
+        latch.await();
+    }
+
+    public void testSearchContextMissingNodesExceptionMetadata() throws InterruptedException {
+        String expectedScrollId = "test-scroll-id-12345";
+        ParsedScrollId scrollId = new ParsedScrollId(
+            expectedScrollId,
+            new SearchContextIdForNode[] { new SearchContextIdForNode(null, "missing-node", new ShardSearchContextId("", 1)) }
+        );
+
+        DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().add(DiscoveryNodeUtils.create("other-node")).build();
+
+        SearchScrollRequest request = new SearchScrollRequest(expectedScrollId);
+        request.scroll(TimeValue.timeValueMinutes(1));
+        CountDownLatch latch = new CountDownLatch(1);
+
+        ActionListener<SearchResponse> listener = new ActionListener<>() {
+            @Override
+            public void onResponse(SearchResponse o) {
+                try {
+                    fail("Expected failure");
+                } finally {
+                    latch.countDown();
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                try {
+                    assertTrue(
+                        "Expected SearchContextMissingNodesException but got: " + e.getClass().getName(),
+                        e instanceof SearchContextMissingNodesException
+                    );
+                    SearchContextMissingNodesException ex = (SearchContextMissingNodesException) e;
+                    assertEquals(RestStatus.NOT_FOUND, ex.status());
+                    assertEquals(SearchContextMissingNodesException.ContextType.SCROLL, ex.getContextType());
+                    assertTrue(ex.getMissingNodeIds().contains("missing-node"));
+                } finally {
+                    latch.countDown();
+                }
+            }
+        };
+
+        SearchScrollAsyncAction<SearchAsyncActionTests.TestSearchPhaseResult> action = new SearchScrollAsyncAction<>(
+            scrollId,
+            logger,
+            discoveryNodes,
+            listener,
+            request,
+            null
+        ) {
+            @Override
+            protected void executeInitialPhase(
+                Transport.Connection connection,
+                InternalScrollSearchRequest internalRequest,
+                ActionListener<SearchAsyncActionTests.TestSearchPhaseResult> searchActionListener
+            ) {
+                fail("Should not execute when node is unavailable");
+            }
+
+            @Override
+            protected Transport.Connection getConnection(String clusterAlias, DiscoveryNode node) {
+                return new SearchAsyncActionTests.MockConnection(node);
+            }
+
+            @Override
+            protected SearchPhase moveToNextPhase(BiFunction<String, String, DiscoveryNode> clusterNodeLookup) {
+                fail("Should not move to next phase");
+                return null;
+            }
+
+            @Override
+            protected void onFirstPhaseResult(int shardId, SearchAsyncActionTests.TestSearchPhaseResult result) {
+                fail("Should not have results");
+            }
+        };
+
+        action.run();
+        latch.await();
     }
 
     public void testShardFailures() throws InterruptedException {
@@ -307,16 +494,22 @@ public class SearchScrollAsyncActionTests extends ESTestCase {
 
         AtomicArray<SearchAsyncActionTests.TestSearchPhaseResult> results = new AtomicArray<>(scrollId.getContext().length);
         SearchScrollRequest request = new SearchScrollRequest();
-        request.scroll(new Scroll(TimeValue.timeValueMinutes(1)));
+        request.scroll(TimeValue.timeValueMinutes(1));
         CountDownLatch latch = new CountDownLatch(1);
         AtomicInteger movedCounter = new AtomicInteger(0);
-        SearchScrollAsyncAction<SearchAsyncActionTests.TestSearchPhaseResult> action = new SearchScrollAsyncAction<
-            SearchAsyncActionTests.TestSearchPhaseResult>(scrollId, logger, discoveryNodes, dummyListener(), request, null) {
+        SearchScrollAsyncAction<SearchAsyncActionTests.TestSearchPhaseResult> action = new SearchScrollAsyncAction<>(
+            scrollId,
+            logger,
+            discoveryNodes,
+            dummyListener(),
+            request,
+            null
+        ) {
             @Override
             protected void executeInitialPhase(
                 Transport.Connection connection,
                 InternalScrollSearchRequest internalRequest,
-                SearchActionListener<SearchAsyncActionTests.TestSearchPhaseResult> searchActionListener
+                ActionListener<SearchAsyncActionTests.TestSearchPhaseResult> searchActionListener
             ) {
                 new Thread(() -> {
                     if (internalRequest.contextId().getId() == 17) {
@@ -342,7 +535,7 @@ public class SearchScrollAsyncActionTests extends ESTestCase {
                 assertEquals(1, movedCounter.incrementAndGet());
                 return new SearchPhase("test") {
                     @Override
-                    public void run() throws IOException {
+                    protected void run() {
                         latch.countDown();
                     }
                 };
@@ -388,9 +581,9 @@ public class SearchScrollAsyncActionTests extends ESTestCase {
 
         AtomicArray<SearchAsyncActionTests.TestSearchPhaseResult> results = new AtomicArray<>(scrollId.getContext().length);
         SearchScrollRequest request = new SearchScrollRequest();
-        request.scroll(new Scroll(TimeValue.timeValueMinutes(1)));
+        request.scroll(TimeValue.timeValueMinutes(1));
         CountDownLatch latch = new CountDownLatch(1);
-        ActionListener<SearchResponse> listener = new ActionListener<SearchResponse>() {
+        ActionListener<SearchResponse> listener = new ActionListener<>() {
             @Override
             public void onResponse(SearchResponse o) {
                 try {
@@ -413,13 +606,19 @@ public class SearchScrollAsyncActionTests extends ESTestCase {
                 }
             }
         };
-        SearchScrollAsyncAction<SearchAsyncActionTests.TestSearchPhaseResult> action = new SearchScrollAsyncAction<
-            SearchAsyncActionTests.TestSearchPhaseResult>(scrollId, logger, discoveryNodes, listener, request, null) {
+        SearchScrollAsyncAction<SearchAsyncActionTests.TestSearchPhaseResult> action = new SearchScrollAsyncAction<>(
+            scrollId,
+            logger,
+            discoveryNodes,
+            listener,
+            request,
+            null
+        ) {
             @Override
             protected void executeInitialPhase(
                 Transport.Connection connection,
                 InternalScrollSearchRequest internalRequest,
-                SearchActionListener<SearchAsyncActionTests.TestSearchPhaseResult> searchActionListener
+                ActionListener<SearchAsyncActionTests.TestSearchPhaseResult> searchActionListener
             ) {
                 new Thread(() -> searchActionListener.onFailure(new IllegalArgumentException("BOOM on shard"))).start();
             }
@@ -457,20 +656,10 @@ public class SearchScrollAsyncActionTests extends ESTestCase {
     private static ParsedScrollId getParsedScrollId(SearchContextIdForNode... idsForNodes) {
         List<SearchContextIdForNode> searchContextIdForNodes = Arrays.asList(idsForNodes);
         Collections.shuffle(searchContextIdForNodes, random());
-        return new ParsedScrollId("", "test", searchContextIdForNodes.toArray(new SearchContextIdForNode[0]));
+        return new ParsedScrollId("test", searchContextIdForNodes.toArray(new SearchContextIdForNode[0]));
     }
 
     private ActionListener<SearchResponse> dummyListener() {
-        return new ActionListener<SearchResponse>() {
-            @Override
-            public void onResponse(SearchResponse response) {
-                fail("dummy");
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                throw new AssertionError(e);
-            }
-        };
+        return ActionTestUtils.assertNoFailureListener(response -> fail("dummy"));
     }
 }

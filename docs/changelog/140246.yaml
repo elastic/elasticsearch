@@ -1,0 +1,5 @@
+pr: 140246
+summary: Store flattened field data in binary doc values
+area: Mapping
+type: enhancement
+issues: []

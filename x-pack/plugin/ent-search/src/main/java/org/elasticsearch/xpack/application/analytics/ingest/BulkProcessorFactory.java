@@ -13,34 +13,45 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.core.UpdateForV10;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ENT_SEARCH_ORIGIN;
 
 /**
  * Event ingest is done through a {@link BulkProcessor2}. This class is responsible for instantiating the bulk processor.
+ * @deprecated in 9.0
  */
+@Deprecated
+@UpdateForV10(owner = UpdateForV10.Owner.ENTERPRISE_SEARCH)
 public class BulkProcessorFactory {
     private static final Logger logger = LogManager.getLogger(AnalyticsEventEmitter.class);
 
     private final AnalyticsEventIngestConfig config;
 
-    private final Client client;
+    private final Supplier<BulkProcessor2.Builder> builderSupplier;
 
     @Inject
     public BulkProcessorFactory(Client client, AnalyticsEventIngestConfig config) {
-        this.client = new OriginSettingClient(client, ENT_SEARCH_ORIGIN);
+        Client originClient = new OriginSettingClient(client, ENT_SEARCH_ORIGIN);
+        this.builderSupplier = () -> BulkProcessor2.builder(originClient::bulk, new BulkProcessorListener(), originClient.threadPool());
+        this.config = config;
+    }
+
+    protected BulkProcessorFactory(AnalyticsEventIngestConfig config, Supplier<BulkProcessor2.Builder> builderSupplier) {
+        this.builderSupplier = builderSupplier;
         this.config = config;
     }
 
     public BulkProcessor2 create() {
-        return BulkProcessor2.builder(client::bulk, new BulkProcessorListener(), client.threadPool())
+        return builderSupplier.get()
             .setMaxNumberOfRetries(config.maxNumberOfRetries())
             .setBulkActions(config.maxNumberOfEventsPerBulk())
             .setFlushInterval(config.flushDelay())

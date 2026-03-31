@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.analysis;
 
@@ -11,6 +12,7 @@ import org.apache.lucene.analysis.Analyzer;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.analysis.PreBuiltAnalyzers;
@@ -51,7 +53,11 @@ public class PreBuiltAnalyzerTests extends ESSingleNodeTestCase {
     public void testThatInstancesAreTheSameAlwaysForKeywordAnalyzer() {
         assertThat(
             PreBuiltAnalyzers.KEYWORD.getAnalyzer(IndexVersion.current()),
-            is(PreBuiltAnalyzers.KEYWORD.getAnalyzer(IndexVersion.MINIMUM_COMPATIBLE))
+            is(PreBuiltAnalyzers.KEYWORD.getAnalyzer(IndexVersions.MINIMUM_COMPATIBLE))
+        );
+        assertThat(
+            PreBuiltAnalyzers.KEYWORD.getAnalyzer(IndexVersion.current()),
+            is(PreBuiltAnalyzers.KEYWORD.getAnalyzer(IndexVersions.MINIMUM_READONLY_COMPATIBLE))
         );
     }
 
@@ -61,15 +67,15 @@ public class PreBuiltAnalyzerTests extends ESSingleNodeTestCase {
             PreBuiltAnalyzers.STANDARD.getAnalyzer(IndexVersion.current())
         );
         // same index version should be cached
-        IndexVersion v = IndexVersionUtils.randomVersion(random());
+        IndexVersion v = IndexVersionUtils.randomVersion();
         assertSame(PreBuiltAnalyzers.STANDARD.getAnalyzer(v), PreBuiltAnalyzers.STANDARD.getAnalyzer(v));
         assertNotSame(
             PreBuiltAnalyzers.STANDARD.getAnalyzer(IndexVersion.current()),
-            PreBuiltAnalyzers.STANDARD.getAnalyzer(IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersion.current()))
+            PreBuiltAnalyzers.STANDARD.getAnalyzer(IndexVersionUtils.randomPreviousCompatibleVersion(IndexVersion.current()))
         );
 
         // Same Lucene version should be cached:
-        IndexVersion v1 = IndexVersionUtils.randomVersion(random());
+        IndexVersion v1 = IndexVersionUtils.randomVersion();
         IndexVersion v2 = new IndexVersion(v1.id() - 1, v1.luceneVersion());
         assertSame(PreBuiltAnalyzers.STOP.getAnalyzer(v1), PreBuiltAnalyzers.STOP.getAnalyzer(v2));
     }
@@ -79,7 +85,7 @@ public class PreBuiltAnalyzerTests extends ESSingleNodeTestCase {
         PreBuiltAnalyzers randomPreBuiltAnalyzer = PreBuiltAnalyzers.values()[randomInt];
         String analyzerName = randomPreBuiltAnalyzer.name().toLowerCase(Locale.ROOT);
 
-        IndexVersion randomVersion = IndexVersionUtils.randomVersion(random());
+        IndexVersion randomVersion = IndexVersionUtils.randomWriteVersion();
         Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, randomVersion).build();
 
         NamedAnalyzer namedAnalyzer = new PreBuiltAnalyzerProvider(

@@ -1,0 +1,162 @@
+setup:
+  - requires:
+      cluster_features: [ "rank_vectors" ]
+      reason: "requires rank_vectors feature"
+---
+"Test create multi-vector field":
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              vector1:
+                type: rank_vectors
+                dims: 3
+  - do:
+      index:
+        index: test
+        id: "1"
+        body:
+          vector1: [[2, -1, 1]]
+  - do:
+      index:
+        index: test
+        id: "2"
+        body:
+          vector1: [[2, -1, 1], [3, 4, 5]]
+  - do:
+      index:
+        index: test
+        id: "3"
+        body:
+          vector1: [[2, -1, 1], [3, 4, 5], [6, 7, 8]]
+  - do:
+      indices.refresh: {}
+---
+"Test create dynamic dim multi-vector field":
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              name:
+                type: keyword
+              vector1:
+                type: rank_vectors
+  - do:
+      index:
+        index: test
+        id: "1"
+        body:
+          vector1: [[2, -1, 1]]
+  - do:
+      index:
+        index: test
+        id: "2"
+        body:
+          vector1: [[2, -1, 1], [3, 4, 5]]
+  - do:
+      index:
+        index: test
+        id: "3"
+        body:
+          vector1: [[2, -1, 1], [3, 4, 5], [6, 7, 8]]
+  - do:
+      cluster.health:
+        wait_for_events: languid
+
+  # verify some other dimension will fail
+  - do:
+      catch: bad_request
+      index:
+        index: test
+        id: "4"
+        body:
+          vector1: [[2, -1, 1], [3, 4, 5], [6, 7, 8, 9]]
+---
+"Test dynamic dim mismatch fails multi-vector field":
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              vector1:
+                type: rank_vectors
+  - do:
+      catch: bad_request
+      index:
+        index: test
+        id: "1"
+        body:
+          vector1: [[2, -1, 1], [2]]
+---
+"Test static dim mismatch fails multi-vector field":
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              vector1:
+                type: rank_vectors
+                dims: 3
+  - do:
+      catch: bad_request
+      index:
+        index: test
+        id: "1"
+        body:
+          vector1: [[2, -1, 1], [2]]
+---
+"Test poorly formatted multi-vector field":
+  - do:
+      indices.create:
+        index: poorly_formatted_vector
+        body:
+          mappings:
+            properties:
+              vector1:
+                type: rank_vectors
+                dims: 3
+  - do:
+      catch: bad_request
+      index:
+        index: poorly_formatted_vector
+        id: "1"
+        body:
+          vector1: [[[2, -1, 1]]]
+  - do:
+      catch: bad_request
+      index:
+        index: poorly_formatted_vector
+        id: "1"
+        body:
+          vector1: [[2, -1, 1], [[2, -1, 1]]]
+---
+"Updating dim to null is not allowed":
+  - requires:
+      cluster_features: "mapper.npe_on_dims_update_fix"
+      reason: "dims update fix"
+  - do:
+      indices.create:
+        index: test_index
+
+  - do:
+      indices.put_mapping:
+        index: test_index
+        body:
+          properties:
+            embedding:
+              type: rank_vectors
+              dims: 4
+  - do:
+      catch: bad_request
+      indices.put_mapping:
+        index: test_index
+        body:
+          properties:
+            embedding:
+              type: rank_vectors

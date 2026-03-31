@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.datastreams;
 
@@ -22,6 +23,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.rest.action.search.RestSearchAction.TOTAL_HITS_AS_INT_PARAM;
@@ -39,11 +41,16 @@ public class DataStreamUpgradeRestIT extends DisabledSecurityDataStreamTestCase 
 
     @Override
     protected Settings restClientSettings() {
-        Settings.Builder builder = Settings.builder();
-        if (System.getProperty("tests.rest.client_path_prefix") != null) {
-            builder.put(CLIENT_PATH_PREFIX, System.getProperty("tests.rest.client_path_prefix"));
+        // If this test is running in a test frameowrk that handles its own authorization, we don't want to overwrite it.
+        if (super.restClientSettings().keySet().contains(ThreadContext.PREFIX + ".Authorization")) {
+            return super.restClientSettings();
+        } else {
+            Settings.Builder builder = Settings.builder();
+            if (System.getProperty("tests.rest.client_path_prefix") != null) {
+                builder.put(CLIENT_PATH_PREFIX, System.getProperty("tests.rest.client_path_prefix"));
+            }
+            return builder.put(ThreadContext.PREFIX + ".Authorization", BASIC_AUTH_VALUE).build();
         }
-        return builder.put(ThreadContext.PREFIX + ".Authorization", BASIC_AUTH_VALUE).build();
     }
 
     public void testCompatibleMappingUpgrade() throws Exception {
@@ -60,7 +67,7 @@ public class DataStreamUpgradeRestIT extends DisabledSecurityDataStreamTestCase 
             {
               "index_patterns": [ "logs-mysql-*" ],
               "priority": 200,
-              "composed_of": [ "logs-mappings", "logs-settings" ],
+              "composed_of": [ "logs@mappings", "logs@settings" ],
               "data_stream": {},
               "template": {
                 "mappings": {
@@ -98,7 +105,7 @@ public class DataStreamUpgradeRestIT extends DisabledSecurityDataStreamTestCase 
             {
               "index_patterns": [ "logs-mysql-*" ],
               "priority": 200,
-              "composed_of": [ "logs-mappings", "logs-settings" ],
+              "composed_of": [ "logs@mappings", "logs@settings" ],
               "data_stream": {},
               "template": {
                 "mappings": {
@@ -163,7 +170,7 @@ public class DataStreamUpgradeRestIT extends DisabledSecurityDataStreamTestCase 
             {
               "index_patterns": [ "logs-mysql-*" ],
               "priority": 200,
-              "composed_of": [ "logs-mappings", "logs-settings" ],
+              "composed_of": [ "logs@mappings", "logs@settings" ],
               "data_stream": {},
               "template": {
                 "mappings": {
@@ -200,7 +207,7 @@ public class DataStreamUpgradeRestIT extends DisabledSecurityDataStreamTestCase 
             {
               "index_patterns": [ "logs-mysql-*" ],
               "priority": 200,
-              "composed_of": [ "logs-mappings", "logs-settings" ],
+              "composed_of": [ "logs@mappings", "logs@settings" ],
               "data_stream": {},
               "template": {
                 "mappings": {
@@ -280,7 +287,7 @@ public class DataStreamUpgradeRestIT extends DisabledSecurityDataStreamTestCase 
     private void waitForLogsComponentTemplateInitialization() throws Exception {
         assertBusy(() -> {
             try {
-                Request logsComponentTemplateRequest = new Request("GET", "/_component_template/logs-*");
+                Request logsComponentTemplateRequest = new Request("GET", "/_component_template/logs@*");
                 Response response = client().performRequest(logsComponentTemplateRequest);
                 assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
 
@@ -292,7 +299,7 @@ public class DataStreamUpgradeRestIT extends DisabledSecurityDataStreamTestCase 
                 List<?> componentTemplates = (List<?>) responseBody.get("component_templates");
                 assertThat(componentTemplates.size(), equalTo(2));
                 Set<String> names = componentTemplates.stream().map(m -> ((Map<String, String>) m).get("name")).collect(Collectors.toSet());
-                assertThat(names, containsInAnyOrder("logs-mappings", "logs-settings"));
+                assertThat(names, containsInAnyOrder("logs@mappings", "logs@settings"));
             } catch (ResponseException responseException) {
                 // Retry in case of a 404, maybe they haven't been initialized yet.
                 if (responseException.getResponse().getStatusLine().getStatusCode() == 404) {
@@ -301,6 +308,6 @@ public class DataStreamUpgradeRestIT extends DisabledSecurityDataStreamTestCase 
                 // Throw the exception, if it was an error we did not anticipate
                 throw responseException;
             }
-        });
+        }, 15, TimeUnit.SECONDS);
     }
 }

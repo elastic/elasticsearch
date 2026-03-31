@@ -1,0 +1,45 @@
+{
+  "inference.sparse_embedding": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-inference",
+      "description": "Perform sparse embedding inference on the service"
+    },
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_inference/sparse_embedding/{inference_id}",
+          "methods": [
+            "POST"
+          ],
+          "parts": {
+            "inference_id": {
+              "type": "string",
+              "description": "The inference Id"
+            }
+          }
+        }
+      ]
+    },
+    "body": {
+      "description": "The inference payload",
+      "required": true
+    },
+    "params": {
+      "timeout": {
+        "type": "time",
+        "description": "Specifies the amount of time to wait for the inference request to complete.",
+        "default": "30s"
+      }
+    }
+  }
+}

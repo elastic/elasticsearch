@@ -1,17 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.transport;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.logging.DeprecationCategory;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -23,34 +22,14 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Map;
 
-import static org.elasticsearch.core.Booleans.parseBoolean;
-
 public class TransportInfo implements ReportingService.Info {
-
-    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(TransportInfo.class);
-
-    /** Whether to add hostname to publish host field when serializing. */
-    private static final boolean CNAME_IN_PUBLISH_ADDRESS = parseBoolean(
-        System.getProperty("es.transport.cname_in_publish_address"),
-        false
-    );
 
     private final BoundTransportAddress address;
     private Map<String, BoundTransportAddress> profileAddresses;
-    private final boolean cnameInPublishAddressProperty;
 
     public TransportInfo(BoundTransportAddress address, @Nullable Map<String, BoundTransportAddress> profileAddresses) {
-        this(address, profileAddresses, CNAME_IN_PUBLISH_ADDRESS);
-    }
-
-    public TransportInfo(
-        BoundTransportAddress address,
-        @Nullable Map<String, BoundTransportAddress> profileAddresses,
-        boolean cnameInPublishAddressProperty
-    ) {
         this.address = address;
         this.profileAddresses = profileAddresses;
-        this.cnameInPublishAddressProperty = cnameInPublishAddressProperty;
     }
 
     public TransportInfo(StreamInput in) throws IOException {
@@ -64,7 +43,6 @@ public class TransportInfo implements ReportingService.Info {
                 profileAddresses.put(key, value);
             }
         }
-        this.cnameInPublishAddressProperty = CNAME_IN_PUBLISH_ADDRESS;
     }
 
     @Override
@@ -94,16 +72,7 @@ public class TransportInfo implements ReportingService.Info {
         String publishAddressString = publishAddress.toString();
         String hostString = publishAddress.address().getHostString();
         if (InetAddresses.isInetAddress(hostString) == false) {
-            publishAddressString = hostString + '/' + publishAddress.toString();
-            if (cnameInPublishAddressProperty) {
-                deprecationLogger.warn(
-                    DeprecationCategory.SETTINGS,
-                    "cname_in_publish_address",
-                    "es.transport.cname_in_publish_address system property is deprecated and no longer affects "
-                        + propertyName
-                        + " formatting. Remove this property to get rid of this deprecation warning."
-                );
-            }
+            publishAddressString = hostString + '/' + publishAddress;
         }
         return publishAddressString;
     }

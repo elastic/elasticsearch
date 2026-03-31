@@ -15,14 +15,14 @@ setup:
       security.put_privileges:
         body: >
           {
-            "myapp": {
+            "apm": {
               "read": {
-                "application": "myapp",
+                "application": "apm",
                 "name": "read",
                 "actions": [ "data:read/*" ]
               },
               "write": {
-                "application": "myapp",
+                "application": "apm",
                 "name": "write",
                 "actions": [ "data:write/*" ]
               }
@@ -33,7 +33,7 @@ setup:
 teardown:
   - do:
       security.delete_privileges:
-        application: myapp
+        application: apm
         name: "read,write"
         ignore: 404
 
@@ -254,7 +254,7 @@ teardown:
                   ],
                   "applications": [
                     {
-                      "application": "myapp",
+                      "application": "apm",
                       "privileges": ["read"],
                       "resources": ["*"]
                     }
@@ -299,7 +299,7 @@ teardown:
             ],
             "application": [
               {
-                "application" : "myapp",
+                "application" : "apm",
                 "resources" : [ "*", "some-other-res" ],
                 "privileges" : [ "data:read/me", "data:write/me" ]
               }
@@ -324,7 +324,7 @@ teardown:
       }
     } }
   - match: { "application" : {
-      "myapp" : {
+      "apm" : {
         "*" : {
           "data:read/me" : true,
           "data:write/me" : false

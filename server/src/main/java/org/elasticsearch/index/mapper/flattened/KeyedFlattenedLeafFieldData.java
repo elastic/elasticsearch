@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper.flattened;
@@ -56,27 +57,13 @@ public class KeyedFlattenedLeafFieldData implements LeafOrdinalsFieldData {
 
     @Override
     public SortedSetDocValues getOrdinalsValues() {
-        BytesRef keyBytes = new BytesRef(key);
         SortedSetDocValues values = delegate.getOrdinalsValues();
 
-        long minOrd, maxOrd;
         try {
-            minOrd = findMinOrd(keyBytes, values);
-            if (minOrd < 0) {
-                return DocValues.emptySortedSet();
-            }
-            maxOrd = findMaxOrd(keyBytes, values);
-            assert maxOrd >= 0;
+            return getKeyFilteredSortedSetDocValues(values, key);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
-
-        return new KeyedFlattenedDocValues(keyBytes, values, minOrd, maxOrd);
-    }
-
-    @Override
-    public void close() {
-        delegate.close();
     }
 
     @Override
@@ -87,6 +74,24 @@ public class KeyedFlattenedLeafFieldData implements LeafOrdinalsFieldData {
     @Override
     public SortedBinaryDocValues getBytesValues() {
         return FieldData.toString(getOrdinalsValues());
+    }
+
+    /**
+     * Returns key-filtered view on the provided SortedSetDocValues, for use by block loaders.
+     * If the segment has no terms for the given key, returns an empty SortedSetDocValues.
+     */
+    static SortedSetDocValues getKeyFilteredSortedSetDocValues(SortedSetDocValues dv, String key) throws IOException {
+        if (dv.getValueCount() == 0) {
+            return DocValues.emptySortedSet();
+        }
+        BytesRef keyBytes = new BytesRef(key);
+        long minOrd = findMinOrd(keyBytes, dv);
+        if (minOrd < 0) {
+            return DocValues.emptySortedSet();
+        }
+        long maxOrd = findMaxOrd(keyBytes, dv);
+        assert maxOrd >= 0;
+        return new KeyedFlattenedDocValues(keyBytes, dv, minOrd, maxOrd);
     }
 
     /**
@@ -204,12 +209,8 @@ public class KeyedFlattenedLeafFieldData implements LeafOrdinalsFieldData {
             }
 
             long ord = delegate.nextOrd();
-            if (ord != NO_MORE_ORDS && ord <= maxOrd) {
-                assert ord >= minOrd;
-                return mapOrd(ord);
-            } else {
-                return NO_MORE_ORDS;
-            }
+            assert ord <= maxOrd;
+            return mapOrd(ord);
         }
 
         @Override
@@ -222,9 +223,9 @@ public class KeyedFlattenedLeafFieldData implements LeafOrdinalsFieldData {
             if (delegate.advanceExact(target)) {
 
                 int count = 0;
-                while (true) {
+                for (int i = 0; i < delegate.docValueCount(); i++) {
                     long ord = delegate.nextOrd();
-                    if (ord == NO_MORE_ORDS || ord > maxOrd) {
+                    if (ord > maxOrd) {
                         break;
                     }
                     if (ord >= minOrd) {
@@ -245,7 +246,7 @@ public class KeyedFlattenedLeafFieldData implements LeafOrdinalsFieldData {
 
                 while (true) {
                     long ord = delegate.nextOrd();
-                    if (ord == NO_MORE_ORDS || ord > maxOrd) {
+                    if (ord > maxOrd) {
                         break;
                     }
 

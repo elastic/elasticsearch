@@ -7,27 +7,55 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.ann.Evaluator;
-import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.xpack.esql.expression.function.Named;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.tree.NodeInfo;
-import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.Param;
 
+import java.io.IOException;
 import java.util.List;
 
 /**
  * Cosine hyperbolic function.
  */
 public class Cosh extends AbstractTrigonometricFunction {
-    public Cosh(Source source, @Named("n") Expression n) {
-        super(source, n);
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Cosh", Cosh::new);
+
+    @FunctionInfo(
+        returnType = "double",
+        description = "Returns the {wikipedia}/Hyperbolic_functions[hyperbolic cosine] of a number.",
+        examples = @Example(file = "floats", tag = "cosh")
+    )
+    public Cosh(
+        Source source,
+        @Param(
+            name = "number",
+            type = { "double", "integer", "long", "unsigned_long" },
+            description = "Numeric expression. If `null`, the function returns `null`."
+
+        ) Expression angle
+    ) {
+        super(source, angle);
+    }
+
+    private Cosh(StreamInput in) throws IOException {
+        super(in);
     }
 
     @Override
-    protected EvalOperator.ExpressionEvaluator doubleEvaluator(EvalOperator.ExpressionEvaluator field, DriverContext dvrCtx) {
-        return new CoshEvaluator(source(), field, dvrCtx);
+    public String getWriteableName() {
+        return ENTRY.name;
+    }
+
+    @Override
+    protected ExpressionEvaluator.Factory doubleEvaluator(ExpressionEvaluator.Factory field) {
+        return new CoshEvaluator.Factory(source(), field);
     }
 
     @Override

@@ -1,6 +1,6 @@
 "global agg with a terms filtered alias":
-  - skip:
-      version: "- 8.9.99"
+  - requires:
+      cluster_features: "gte_v8.10.0"
       reason: Fixed in 8.10
 
   - do:

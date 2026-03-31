@@ -43,6 +43,7 @@ import java.util.function.BiConsumer;
 
 import static org.elasticsearch.test.SecuritySettingsSource.addSecureSettings;
 import static org.elasticsearch.test.TestMatchers.throwableWithMessage;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.instanceOf;
@@ -375,7 +376,7 @@ public class SSLErrorMessageFileTests extends ESTestCase {
             + " ["
             + fileName
             + "] because access to read the file is blocked; SSL resources should be placed in the ["
-            + env.configFile().toAbsolutePath().toString()
+            + env.configDir().toAbsolutePath().toString()
             + "] directory";
 
         Throwable exception = expectFailure(settings);
@@ -387,7 +388,7 @@ public class SSLErrorMessageFileTests extends ESTestCase {
         assertThat(exception, instanceOf(SslConfigException.class));
 
         exception = exception.getCause();
-        assertThat(exception, instanceOf(AccessControlException.class));
+        assertThat(exception, anyOf(instanceOf(AccessControlException.class), instanceOf(IOException.class)));
         assertThat(exception, throwableWithMessage(containsString(fileName)));
     }
 
@@ -477,7 +478,7 @@ public class SSLErrorMessageFileTests extends ESTestCase {
     private ElasticsearchException expectFailure(Settings.Builder settings) {
         return expectThrows(
             ElasticsearchException.class,
-            () -> new SSLService(new Environment(buildEnvSettings(settings.build()), env.configFile()))
+            () -> new SSLService(new Environment(buildEnvSettings(settings.build()), env.configDir()))
         );
     }
 

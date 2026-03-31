@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.node;
@@ -16,6 +17,7 @@ import org.elasticsearch.common.ExponentiallyWeightedMovingAverage;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 
@@ -36,6 +38,8 @@ public final class ResponseCollectorService implements ClusterStateListener {
      * The weight parameter used for all moving averages of parameters.
      */
     public static final double ALPHA = 0.3;
+
+    public static final FeatureFlag ARS_FORMULA_ADJUSTMENT_FEATURE_FLAG = new FeatureFlag("ars_formula_adjustment");
 
     private final ConcurrentMap<String, NodeStatistics> nodeIdToStats = ConcurrentCollections.newConcurrentMap();
 
@@ -171,8 +175,12 @@ public final class ResponseCollectorService implements ClusterStateListener {
             // defines service time as the inverse of service rate (muBarS).
             double muBarSInverse = serviceTime / FACTOR;
 
-            // The final formula
-            return rS - muBarSInverse + Math.pow(qHatS, queueAdjustmentFactor) * muBarSInverse;
+            double innerRank = Math.pow(qHatS, queueAdjustmentFactor) * muBarSInverse;
+            // When the feature flag is enabled, the rS - muBarSInverse term is dropped.
+            if (ARS_FORMULA_ADJUSTMENT_FEATURE_FLAG.isEnabled() == false) {
+                innerRank += rS - muBarSInverse;
+            }
+            return innerRank;
         }
 
         public double rank(long outstandingRequests) {

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.benchmark.index.codec.tsdb.internal;
@@ -23,9 +24,9 @@ public class IncreasingIntegerSupplier extends AbstractLongArraySupplier {
     @Override
     public long[] get() {
         final long[] data = new long[size];
-        long max = 1L << bitsPerValue;
+        final long max = 1L << bitsPerValue;
         for (int i = 0; i < size; i++) {
-            data[i] = random.nextLong(max);
+            data[i] = bitsPerValue == 64 ? random.nextLong() : random.nextLong(max);
         }
         Arrays.sort(data);
         return data;

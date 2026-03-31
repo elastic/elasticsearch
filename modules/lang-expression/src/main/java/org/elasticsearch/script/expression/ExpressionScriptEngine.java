@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.script.expression;
@@ -23,7 +24,6 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.script.AggregationScript;
 import org.elasticsearch.script.BucketAggregationScript;
 import org.elasticsearch.script.BucketAggregationSelectorScript;
-import org.elasticsearch.script.ClassPermission;
 import org.elasticsearch.script.DoubleValuesScript;
 import org.elasticsearch.script.FieldScript;
 import org.elasticsearch.script.FilterScript;
@@ -35,9 +35,8 @@ import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.script.TermsSetQueryScript;
 import org.elasticsearch.search.lookup.SearchLookup;
 
-import java.security.AccessControlContext;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -155,36 +154,14 @@ public class ExpressionScriptEngine implements ScriptEngine {
 
     @Override
     public <T> T compile(String scriptName, String scriptSource, ScriptContext<T> context, Map<String, String> params) {
-        // classloader created here
-        final SecurityManager sm = System.getSecurityManager();
         SpecialPermission.check();
-        Expression expr = AccessController.doPrivileged(new PrivilegedAction<Expression>() {
-            @Override
-            public Expression run() {
-                try {
-                    // snapshot our context here, we check on behalf of the expression
-                    AccessControlContext engineContext = AccessController.getContext();
-                    ClassLoader loader = getClass().getClassLoader();
-                    if (sm != null) {
-                        loader = new ClassLoader(loader) {
-                            @Override
-                            protected Class<?> loadClass(String name, boolean resolve) throws ClassNotFoundException {
-                                try {
-                                    engineContext.checkPermission(new ClassPermission(name));
-                                } catch (SecurityException e) {
-                                    throw new ClassNotFoundException(name, e);
-                                }
-                                return super.loadClass(name, resolve);
-                            }
-                        };
-                    }
-                    // NOTE: validation is delayed to allow runtime vars, and we don't have access to per index stuff here
-                    return JavascriptCompiler.compile(scriptSource, JavascriptCompiler.DEFAULT_FUNCTIONS, loader);
-                } catch (ParseException e) {
-                    throw convertToScriptException("compile error", scriptSource, scriptSource, e);
-                }
-            }
-        });
+        Expression expr;
+        try {
+            // NOTE: validation is delayed to allow runtime vars, and we don't have access to per index stuff here
+            expr = JavascriptCompiler.compile(scriptSource, JavascriptCompiler.DEFAULT_FUNCTIONS);
+        } catch (ParseException e) {
+            throw convertToScriptException("compile error", scriptSource, scriptSource, e);
+        }
         if (contexts.containsKey(context) == false) {
             throw new IllegalArgumentException("expression engine does not know how to handle script context [" + context.name + "]");
         }
@@ -232,7 +209,11 @@ public class ExpressionScriptEngine implements ScriptEngine {
                             placeholder.setValue(((Number) value).doubleValue());
                         }
                     });
-                    return expr.evaluate(functionValuesArray);
+                    try {
+                        return expr.evaluate(functionValuesArray);
+                    } catch (IOException e) {
+                        throw new UncheckedIOException(e);
+                    }
                 }
             };
         };
@@ -371,7 +352,6 @@ public class ExpressionScriptEngine implements ScriptEngine {
         // NOTE: if we need to do anything complicated with bindings in the future, we can just extend Bindings,
         // instead of complicating SimpleBindings (which should stay simple)
         SimpleBindings bindings = new SimpleBindings();
-        ReplaceableConstDoubleValueSource specialValue = null;
         boolean needsScores = false;
         for (String variable : expr.variables) {
             try {
@@ -379,8 +359,7 @@ public class ExpressionScriptEngine implements ScriptEngine {
                     bindings.add("_score", DoubleValuesSource.SCORES);
                     needsScores = true;
                 } else if (variable.equals("_value")) {
-                    specialValue = new ReplaceableConstDoubleValueSource();
-                    bindings.add("_value", specialValue);
+                    bindings.add("_value", DoubleValuesSource.constant(0));
                     // noop: _value is special for aggregations, and is handled in ExpressionScriptBindings
                     // TODO: if some uses it in a scoring expression, they will get a nasty failure when evaluating...need a
                     // way to know this is for aggregations and so _value is ok to have...

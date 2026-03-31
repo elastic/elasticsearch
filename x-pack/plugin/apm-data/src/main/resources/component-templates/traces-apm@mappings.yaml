@@ -1,0 +1,69 @@
+---
+version: ${xpack.apmdata.template.version}
+_meta:
+  description: Default mappings for traces-apm* data streams
+  managed: true
+template:
+  mappings:
+    properties:
+      # NOTE(axw) processor.event may be either "span" or "transaction".
+      #
+      # This field should eventually be removed, and we should end up
+      # with only spans. Some of those spans may be identified as local
+      # roots, equivalent in concept to transactions.
+      processor.event:
+        type: keyword
+
+      # event.*
+      event.success_count:
+        type: byte
+        index: false
+
+      # http.*
+      http.request.headers:
+        type: flattened
+      http.response.headers:
+        type: flattened
+      http.request.cookies:
+        type: object
+        dynamic: false
+      http.request.body:
+        type: object
+        dynamic: false
+      http.response.transfer_size:
+        type: long
+        index: false
+      http.response.encoded_body_size:
+        type: long
+        index: false
+      http.response.decoded_body_size:
+        type: long
+        index: false
+
+      # span.*
+      span.duration.us:
+        type: long
+        meta:
+          unit: micros
+      span.representative_count:
+        type: scaled_float
+        scaling_factor: 1000
+        index: false
+      span.stacktrace:
+        type: object
+        dynamic: false
+
+      # transaction.*
+      transaction.custom:
+        type: object
+        dynamic: false
+      transaction.duration.us:
+        type: long
+        meta:
+          unit: micros
+      transaction.representative_count:
+        type: scaled_float
+        scaling_factor: 1000
+        index: false
+      transaction.profiler_stack_trace_ids:
+        type: counted_keyword

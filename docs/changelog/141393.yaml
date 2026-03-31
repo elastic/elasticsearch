@@ -1,0 +1,5 @@
+pr: 141393
+summary: "[Inference API] Expose Endpoint Heuristics through Inference API"
+area: Inference
+type: enhancement
+issues: []

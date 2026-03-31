@@ -65,6 +65,7 @@ import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.ql.parser.ParserUtils.source;
 import static org.elasticsearch.xpack.ql.parser.ParserUtils.text;
 import static org.elasticsearch.xpack.ql.tree.Source.synthetic;
+import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
 
 public abstract class LogicalPlanBuilder extends ExpressionBuilder {
 
@@ -102,7 +103,7 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
             if (ctx.pipe().size() > 0) {
                 throw new ParsingException(source(ctx.pipe().get(0)), "Samples do not support pipes yet");
             }
-            return new LimitWithOffset(plan.source(), new Literal(Source.EMPTY, params.size(), DataTypes.INTEGER), 0, plan);
+            return new LimitWithOffset(plan.source(), new Literal(Source.EMPTY, params.size(), INTEGER), 0, plan);
         }
         //
         // Add implicit blocks
@@ -125,7 +126,7 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
         plan = new OrderBy(defaultOrderSource, plan, orders);
 
         // add the default limit only if specified
-        Literal defaultSize = new Literal(synthetic("<default-size>"), params.size(), DataTypes.INTEGER);
+        Literal defaultSize = new Literal(synthetic("<default-size>"), params.size(), INTEGER);
         Source defaultLimitSource = synthetic("<default-limit>");
 
         LogicalPlan previous = plan;
@@ -329,6 +330,9 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
 
         // until is already parsed through sequenceTerm() above
         if (ctx.until != null) {
+            if (queries.size() == 2) {
+                throw new ParsingException(source, "A sequence requires a minimum of 2 queries (excluding UNTIL clause), found [1]");
+            }
             until = queries.remove(queries.size() - 1);
         } else {
             until = defaultUntil(source);
@@ -339,7 +343,7 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
         }
 
         if (queries.stream().allMatch(KeyedFilter::isMissingEventFilter)) {
-            throw new IllegalStateException("A sequence requires at least one positive event query; found none");
+            throw new ParsingException(source, "A sequence requires at least one positive event query; found none");
         }
 
         return new Sequence(source, queries, until, maxSpan, fieldTimestamp(), fieldTiebreaker(), resultPosition());
@@ -521,8 +525,16 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
 
     private Expression pipeIntArgument(Source source, String pipeName, List<BooleanExpressionContext> exps) {
         Expression expression = onlyOnePipeArgument(source, pipeName, exps);
+        boolean foldableInt = expression.foldable() && expression.dataType().isInteger();
+        Number value = null;
 
-        if (expression.dataType().isInteger() == false || expression.foldable() == false || (int) expression.fold() < 0) {
+        if (foldableInt) {
+            try {
+                value = (Number) expression.fold();
+            } catch (ArithmeticException ae) {}
+        }
+
+        if (foldableInt == false || value == null || value.intValue() != value.longValue() || value.intValue() < 0) {
             throw new ParsingException(
                 expression.source(),
                 "Pipe [{}] expects a positive integer but found [{}]",
@@ -531,6 +543,8 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
             );
         }
 
-        return expression;
+        // 2147483650 - 4 will yield an integer (Integer.MAX_VALUE - 1) but the expression itself (SUB) will be of type LONG
+        // and this type will be used when being folded later on
+        return new Literal(expression.source(), value.intValue(), INTEGER);
     }
 }

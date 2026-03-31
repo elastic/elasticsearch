@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.lookup;
@@ -20,12 +21,14 @@ import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafCollector;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.index.mapper.MappingLookup;
+import org.elasticsearch.index.mapper.SourceFieldMetrics;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -45,7 +48,7 @@ public class SourceProviderTests extends ESTestCase {
             try (IndexReader reader = iw.getReader()) {
                 LeafReaderContext readerContext = reader.leaves().get(0);
 
-                SourceProvider sourceProvider = SourceProvider.fromStoredFields();
+                SourceProvider sourceProvider = SourceProvider.fromLookup(MappingLookup.EMPTY, null, SourceFieldMetrics.NOOP);
                 Source source = sourceProvider.getSource(readerContext, 0);
 
                 assertNotNull(source.internalSourceRef());
@@ -81,7 +84,7 @@ public class SourceProviderTests extends ESTestCase {
 
             int numIterations = 20;
             for (int i = 0; i < numIterations; i++) {
-                searcher.search(new MatchAllDocsQuery(), assertingCollectorManager());
+                searcher.search(Queries.ALL_DOCS_INSTANCE, assertingCollectorManager());
             }
 
             reader.close();
@@ -120,7 +123,7 @@ public class SourceProviderTests extends ESTestCase {
     }
 
     private static CollectorManager<SourceAssertingCollector, ?> assertingCollectorManager() {
-        SourceProvider sourceProvider = SourceProvider.fromStoredFields();
+        SourceProvider sourceProvider = SourceProvider.fromLookup(MappingLookup.EMPTY, null, SourceFieldMetrics.NOOP);
         return new CollectorManager<>() {
             @Override
             public SourceAssertingCollector newCollector() {

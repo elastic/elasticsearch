@@ -8,8 +8,13 @@
 package org.elasticsearch.compute.operator.topn;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 
+/**
+ * Builds the resulting {@link BytesRefBlock} for some column in a top-n.
+ * This class is generated. Edit {@code X-ResultBuilder.java.st} instead.
+ */
 class ResultBuilderForBytesRef implements ResultBuilder {
     private final BytesRefBlock.Builder builder;
 
@@ -24,16 +29,16 @@ class ResultBuilderForBytesRef implements ResultBuilder {
      */
     private BytesRef key;
 
-    ResultBuilderForBytesRef(TopNEncoder encoder, boolean inKey, int initialSize) {
+    ResultBuilderForBytesRef(BlockFactory blockFactory, TopNEncoder encoder, boolean inKey, int initialSize) {
         this.encoder = encoder;
         this.inKey = inKey;
-        this.builder = BytesRefBlock.newBlockBuilder(initialSize);
+        this.builder = blockFactory.newBytesRefBlockBuilder(initialSize);
     }
 
     @Override
-    public void decodeKey(BytesRef keys) {
+    public void decodeKey(BytesRef keys, boolean asc) {
         assert inKey;
-        key = encoder.toSortable().decodeBytesRef(keys, scratch);
+        key = encoder.toSortable(asc).decodeBytesRef(keys, scratch);
     }
 
     @Override
@@ -64,7 +69,17 @@ class ResultBuilderForBytesRef implements ResultBuilder {
     }
 
     @Override
+    public long estimatedBytes() {
+        return builder.estimatedBytes();
+    }
+
+    @Override
     public String toString() {
         return "ResultBuilderForBytesRef[inKey=" + inKey + "]";
+    }
+
+    @Override
+    public void close() {
+        builder.close();
     }
 }

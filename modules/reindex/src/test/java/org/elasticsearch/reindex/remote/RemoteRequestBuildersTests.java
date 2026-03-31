@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.reindex.remote;
@@ -25,11 +26,14 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 import java.util.Map;
 
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
 import static org.elasticsearch.reindex.remote.RemoteRequestBuilders.clearScroll;
+import static org.elasticsearch.reindex.remote.RemoteRequestBuilders.closePit;
 import static org.elasticsearch.reindex.remote.RemoteRequestBuilders.initialSearch;
+import static org.elasticsearch.reindex.remote.RemoteRequestBuilders.openPit;
 import static org.elasticsearch.reindex.remote.RemoteRequestBuilders.scroll;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
@@ -39,6 +43,8 @@ import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.startsWith;
 
 /**
  * Tests for {@link RemoteRequestBuilders} which builds requests for remote version of
@@ -149,7 +155,7 @@ public class RemoteRequestBuildersTests extends ESTestCase {
 
         TimeValue scroll = null;
         if (randomBoolean()) {
-            scroll = TimeValue.parseTimeValue(randomPositiveTimeValue(), "test");
+            scroll = randomPositiveTimeValue();
             searchRequest.scroll(scroll);
         }
         int size = between(0, Integer.MAX_VALUE);
@@ -210,14 +216,29 @@ public class RemoteRequestBuildersTests extends ESTestCase {
 
         SearchRequest searchRequest = new SearchRequest();
         searchRequest.source(new SearchSourceBuilder());
+        // always set by AbstractAsyncBulkByScrollAction#prepareSearchRequest
+        searchRequest.source().excludeVectors(false);
         String query = "{\"match_all\":{}}";
         HttpEntity entity = initialSearch(searchRequest, new BytesArray(query), remoteVersion).getEntity();
         assertEquals(ContentType.APPLICATION_JSON.toString(), entity.getContentType().getValue());
         if (remoteVersion.onOrAfter(Version.fromId(1000099))) {
-            assertEquals(
-                "{\"query\":" + query + ",\"_source\":true}",
-                Streams.copyToString(new InputStreamReader(entity.getContent(), StandardCharsets.UTF_8))
-            );
+            if (remoteVersion.onOrAfter(Version.V_9_1_0)) {
+                // vectors are automatically included on recent versions
+                assertEquals(XContentHelper.stripWhitespace(Strings.format("""
+                    {
+                      "query": %s,
+                      "_source": {
+                        "exclude_vectors":false,
+                        "includes": [],
+                        "excludes": []
+                      }
+                    }""", query)), Streams.copyToString(new InputStreamReader(entity.getContent(), StandardCharsets.UTF_8)));
+            } else {
+                assertEquals(
+                    "{\"query\":" + query + ",\"_source\":true}",
+                    Streams.copyToString(new InputStreamReader(entity.getContent(), StandardCharsets.UTF_8))
+                );
+            }
         } else {
             assertEquals(
                 "{\"query\":" + query + "}",
@@ -229,14 +250,27 @@ public class RemoteRequestBuildersTests extends ESTestCase {
         searchRequest.source().fetchSource(new String[] { "in1", "in2" }, new String[] { "out" });
         entity = initialSearch(searchRequest, new BytesArray(query), remoteVersion).getEntity();
         assertEquals(ContentType.APPLICATION_JSON.toString(), entity.getContentType().getValue());
-        assertEquals(XContentHelper.stripWhitespace(Strings.format("""
-            {
-              "query": %s,
-              "_source": {
-                "includes": [ "in1", "in2" ],
-                "excludes": [ "out" ]
-              }
-            }""", query)), Streams.copyToString(new InputStreamReader(entity.getContent(), StandardCharsets.UTF_8)));
+        if (remoteVersion.onOrAfter(Version.V_9_1_0)) {
+            // vectors are automatically included on recent versions
+            assertEquals(XContentHelper.stripWhitespace(Strings.format("""
+                {
+                  "query": %s,
+                  "_source": {
+                    "exclude_vectors":false,
+                    "includes": [ "in1", "in2" ],
+                    "excludes": [ "out" ]
+                  }
+                }""", query)), Streams.copyToString(new InputStreamReader(entity.getContent(), StandardCharsets.UTF_8)));
+        } else {
+            assertEquals(XContentHelper.stripWhitespace(Strings.format("""
+                {
+                  "query": %s,
+                  "_source": {
+                    "includes": [ "in1", "in2" ],
+                    "excludes": [ "out" ]
+                  }
+                }""", query)), Streams.copyToString(new InputStreamReader(entity.getContent(), StandardCharsets.UTF_8)));
+        }
 
         // Invalid XContent fails
         RuntimeException e = expectThrows(
@@ -248,10 +282,25 @@ public class RemoteRequestBuildersTests extends ESTestCase {
         assertThat(e.getCause().getMessage(), containsString("Unexpected end-of-input"));
     }
 
+    public void testInitialSearchProjectRouting() throws IOException {
+        Version remoteVersion = Version.fromId(between(0, Version.CURRENT.id));
+        String query = "{\"match_all\":{}}";
+        SearchRequest searchRequest = new SearchRequest().source(new SearchSourceBuilder());
+        String projectRouting = "_alias:linked";
+        searchRequest.setProjectRouting(projectRouting);
+        String body = Streams.copyToString(
+            new InputStreamReader(
+                initialSearch(searchRequest, new BytesArray(query), remoteVersion).getEntity().getContent(),
+                StandardCharsets.UTF_8
+            )
+        );
+        assertThat(body, containsString("\"project_routing\":\"" + projectRouting + "\""));
+    }
+
     public void testScrollParams() {
         String scroll = randomAlphaOfLength(30);
         Version remoteVersion = Version.fromId(between(0, Version.CURRENT.id));
-        TimeValue keepAlive = TimeValue.parseTimeValue(randomPositiveTimeValue(), "test");
+        TimeValue keepAlive = randomPositiveTimeValue();
         assertScroll(remoteVersion, scroll(scroll, keepAlive, remoteVersion).getParameters(), keepAlive);
     }
 
@@ -285,5 +334,135 @@ public class RemoteRequestBuildersTests extends ESTestCase {
         assertEquals(ContentType.TEXT_PLAIN.toString(), request.getEntity().getContentType().getValue());
         assertEquals(scroll, Streams.copyToString(new InputStreamReader(request.getEntity().getContent(), StandardCharsets.UTF_8)));
         assertThat(request.getParameters().keySet(), empty());
+    }
+
+    /**
+     * Verifies that openPit builds a POST request to the correct path for a single index.
+     */
+    public void testOpenPitSingleIndex() {
+        String index = randomAlphaOfLength(between(1, 20));
+        TimeValue keepAlive = randomPositiveTimeValue();
+        Request request = openPit(new String[] { index }, keepAlive);
+        assertEquals("POST", request.getMethod());
+        assertEquals("/" + index + "/_pit", request.getEndpoint());
+        assertThat(request.getParameters(), hasEntry("keep_alive", keepAlive.getStringRep()));
+        assertThat(request.getParameters(), hasEntry("allow_partial_search_results", "false"));
+    }
+
+    /**
+     * Verifies that openPit builds a POST request to the correct path for multiple indices.
+     */
+    public void testOpenPitMultipleIndices() {
+        int numIndices = between(2, 10);
+        String[] indices = new String[numIndices];
+        StringBuilder expectedPath = new StringBuilder("/");
+        for (int i = 0; i < numIndices; i++) {
+            indices[i] = randomAlphaOfLength(between(1, 10));
+            if (i > 0) {
+                expectedPath.append(",");
+            }
+            expectedPath.append(indices[i]);
+        }
+        expectedPath.append("/_pit");
+        TimeValue keepAlive = randomPositiveTimeValue();
+        Request request = openPit(indices, keepAlive);
+        assertEquals("POST", request.getMethod());
+        assertEquals(expectedPath.toString(), request.getEndpoint());
+        assertThat(request.getParameters(), hasEntry("keep_alive", keepAlive.getStringRep()));
+        assertThat(request.getParameters(), hasEntry("allow_partial_search_results", "false"));
+    }
+
+    /**
+     * Verifies that openPit uses /_pit when indices are null or empty, matching addIndices behavior.
+     */
+    public void testOpenPitNullOrEmptyIndices() {
+        TimeValue keepAlive = randomPositiveTimeValue();
+        Request nullRequest = openPit(null, keepAlive);
+        assertEquals("POST", nullRequest.getMethod());
+        assertEquals("/_pit", nullRequest.getEndpoint());
+        assertThat(nullRequest.getParameters(), hasEntry("keep_alive", keepAlive.getStringRep()));
+        assertThat(nullRequest.getParameters(), hasEntry("allow_partial_search_results", "false"));
+
+        Request emptyRequest = openPit(new String[] {}, keepAlive);
+        assertEquals("POST", emptyRequest.getMethod());
+        assertEquals("/_pit", emptyRequest.getEndpoint());
+        assertThat(emptyRequest.getParameters(), hasEntry("keep_alive", keepAlive.getStringRep()));
+        assertThat(emptyRequest.getParameters(), hasEntry("allow_partial_search_results", "false"));
+    }
+
+    /**
+     * Verifies that openPit URL-encodes index names containing special characters (comma, slash).
+     */
+    public void testOpenPitEncodesSpecialCharactersInIndices() {
+        String prefix1 = randomAlphaOfLength(between(1, 5));
+        String prefix2 = randomAlphaOfLength(between(1, 5));
+        Request request = openPit(new String[] { prefix1 + ",", prefix2 + "/" }, randomPositiveTimeValue());
+        assertEquals("POST", request.getMethod());
+        assertEquals("/" + prefix1 + "%2C," + prefix2 + "%2F/_pit", request.getEndpoint());
+        assertThat(request.getParameters(), hasEntry("allow_partial_search_results", "false"));
+    }
+
+    /**
+     * Verifies that openPit passes through various TimeValue formats for keep_alive.
+     */
+    public void testOpenPitKeepAliveParameter() {
+        String index = randomAlphaOfLength(between(1, 10));
+        long millis = between(1, 100000);
+        var params = openPit(new String[] { index }, timeValueMillis(millis)).getParameters();
+        assertThat(params, hasEntry("allow_partial_search_results", "false"));
+        assertThat(params, hasEntry("keep_alive", TimeValue.timeValueMillis(millis).getStringRep()));
+        int minutes = between(1, 60);
+        assertThat(
+            openPit(new String[] { index }, TimeValue.timeValueMinutes(minutes)).getParameters(),
+            hasEntry("keep_alive", TimeValue.timeValueMinutes(minutes).getStringRep())
+        );
+        int hours = between(1, 24);
+        assertThat(
+            openPit(new String[] { index }, TimeValue.timeValueHours(hours)).getParameters(),
+            hasEntry("keep_alive", TimeValue.timeValueHours(hours).getStringRep())
+        );
+    }
+
+    /**
+     * Verifies that closePit builds a DELETE request to /_pit with a JSON body containing the base64-encoded PIT id.
+     */
+    public void testClosePitRequestStructure() throws IOException {
+        byte[] pitIdBytes = randomByteArrayOfLength(between(1, 64));
+        BytesReference pitId = new BytesArray(pitIdBytes);
+        Request request = closePit(pitId);
+        assertEquals("DELETE", request.getMethod());
+        assertEquals("/_pit", request.getEndpoint());
+        assertThat(request.getEntity(), not(nullValue()));
+        assertEquals(ContentType.APPLICATION_JSON.toString(), request.getEntity().getContentType().getValue());
+        String body = Streams.copyToString(new InputStreamReader(request.getEntity().getContent(), StandardCharsets.UTF_8));
+        String expectedId = Base64.getUrlEncoder().encodeToString(pitIdBytes);
+        assertThat(body, containsString("\"id\":\"" + expectedId + "\""));
+    }
+
+    /**
+     * Verifies that closePit correctly encodes the PIT id for binary-like content.
+     */
+    public void testClosePitEncodesBinaryPitId() throws IOException {
+        byte[] pitIdBytes = randomByteArrayOfLength(between(1, 32));
+        BytesReference pitId = new BytesArray(pitIdBytes);
+        Request request = closePit(pitId);
+        String body = Streams.copyToString(new InputStreamReader(request.getEntity().getContent(), StandardCharsets.UTF_8));
+        String expectedId = Base64.getUrlEncoder().encodeToString(pitIdBytes);
+        assertThat(body, containsString("\"id\":\"" + expectedId + "\""));
+    }
+
+    /**
+     * Verifies that closePit produces valid JSON with an id field containing the base64-encoded PIT id.
+     */
+    public void testClosePitProducesValidJson() throws IOException {
+        String pitIdStr = randomAlphaOfLength(between(1, 50));
+        BytesReference pitId = new BytesArray(pitIdStr.getBytes(StandardCharsets.UTF_8));
+        Request request = closePit(pitId);
+        String body = Streams.copyToString(new InputStreamReader(request.getEntity().getContent(), StandardCharsets.UTF_8));
+        String expectedId = Base64.getUrlEncoder().encodeToString(pitIdStr.getBytes(StandardCharsets.UTF_8));
+        assertThat(body, containsString("\"id\""));
+        assertThat(body, containsString(expectedId));
+        assertThat(body.trim(), startsWith("{"));
+        assertThat(body.trim(), endsWith("}"));
     }
 }

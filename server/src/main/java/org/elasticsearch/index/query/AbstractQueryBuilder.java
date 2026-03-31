@@ -1,16 +1,20 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.BoostQuery;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchNoDocsQuery;
+import org.apache.lucene.search.NamedMatches;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
@@ -19,6 +23,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.SuggestingErrorOnUnknown;
+import org.elasticsearch.plugins.internal.rewriter.QueryRewriteInterceptor;
+import org.elasticsearch.search.internal.MaxClauseCountQueryVisitor;
 import org.elasticsearch.xcontent.AbstractObjectParser;
 import org.elasticsearch.xcontent.FilterXContentParser;
 import org.elasticsearch.xcontent.FilterXContentParserWrapper;
@@ -42,8 +48,8 @@ import java.util.function.Consumer;
 import static org.elasticsearch.search.SearchModule.INDICES_MAX_NESTED_DEPTH_SETTING;
 
 /**
- * Base class for all classes producing lucene queries.
- * Supports conversion to BytesReference and creation of lucene Query objects.
+ * Base class for query builders that produce Lucene queries.
+ * Provides XContent/stream serialization, boost and query-name handling, and the rewrite entry point.
  */
 public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> implements QueryBuilder {
 
@@ -61,6 +67,7 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
 
     }
 
+    @SuppressWarnings("this-escape")
     protected AbstractQueryBuilder(StreamInput in) throws IOException {
         boost = in.readFloat();
         checkNegativeBoost(boost);
@@ -112,7 +119,21 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
 
     @Override
     public final Query toQuery(SearchExecutionContext context) throws IOException {
-        Query query = doToQuery(context);
+        MaxClauseCountQueryVisitor visitor = new MaxClauseCountQueryVisitor(IndexSearcher.getMaxClauseCount());
+        Query query = toQuery(context, visitor);
+        assert query == null || assertBooleanClauses(query, visitor.getNumClauses()) : "inconsistent count of boolean clauses";
+        return query;
+    }
+
+    private static boolean assertBooleanClauses(Query query, int numClauses) {
+        MaxClauseCountQueryVisitor visitor = new MaxClauseCountQueryVisitor(Integer.MAX_VALUE);
+        query.visit(visitor);
+        return visitor.getNumClauses() == numClauses;
+    }
+
+    @Override
+    public final Query toQuery(SearchExecutionContext context, MaxClauseCountQueryVisitor visitor) throws IOException {
+        Query query = doToQuery(context, visitor);
         if (query != null) {
             if (boost != DEFAULT_BOOST) {
                 if (query instanceof MatchNoDocsQuery == false) {
@@ -120,13 +141,27 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
                 }
             }
             if (queryName != null) {
+                if (context.rewriteToNamedQuery()) {
+                    query = NamedMatches.wrapQuery(queryName, query);
+                }
                 context.addNamedQuery(queryName, query);
             }
         }
         return query;
     }
 
-    protected abstract Query doToQuery(SearchExecutionContext context) throws IOException;
+    /**
+     * Builds the Lucene {@link Query} for this builder.
+     * <p>
+     * Implementations should use the provided {@link QueryVisitor} to visit any generated query or sub-queries.
+     * Boost and named-query handling are applied by {@link QueryBuilder#toQuery(SearchExecutionContext, MaxClauseCountQueryVisitor)}.
+     * {@link LeafQueryBuilder} implementations get this visitor handling automatically.
+     *
+     * @param context additional information needed to construct the query
+     * @param visitor query MaxClauseCountQueryVisitor used to account for clauses while building the query
+     * @return the {@link Query} or {@code null} if this query should be ignored upstream
+     */
+    protected abstract Query doToQuery(SearchExecutionContext context, MaxClauseCountQueryVisitor visitor) throws IOException;
 
     /**
      * Sets the query name for the query.
@@ -210,12 +245,12 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
      * @return the same input object or a {@link BytesRef} representation if input was of type string
      */
     static Object maybeConvertToBytesRef(Object obj) {
-        if (obj instanceof String) {
-            return BytesRefs.toBytesRef(obj);
-        } else if (obj instanceof CharBuffer) {
-            return new BytesRef((CharBuffer) obj);
-        } else if (obj instanceof BigInteger) {
-            return BytesRefs.toBytesRef(obj);
+        if (obj instanceof String v) {
+            return BytesRefs.checkIndexableLength(BytesRefs.toExactSizedBytesRef(v));
+        } else if (obj instanceof CharBuffer v) {
+            return BytesRefs.checkIndexableLength(new BytesRef(v));
+        } else if (obj instanceof BigInteger v) {
+            return BytesRefs.toBytesRef(v);
         }
         return obj;
     }
@@ -241,12 +276,13 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
      * their {@link QueryBuilder#toQuery(SearchExecutionContext)} method are not added to the
      * resulting collection.
      */
-    static Collection<Query> toQueries(Collection<QueryBuilder> queryBuilders, SearchExecutionContext context) throws QueryShardException,
-        IOException {
+    static Collection<Query> toQueries(Collection<QueryBuilder> queryBuilders, SearchExecutionContext context, QueryVisitor queryVisitor)
+        throws QueryShardException, IOException {
         List<Query> queries = new ArrayList<>(queryBuilders.size());
         for (QueryBuilder queryBuilder : queryBuilders) {
             Query query = queryBuilder.rewrite(context).toQuery(context);
             if (query != null) {
+                query.visit(queryVisitor);
                 queries.add(query);
             }
         }
@@ -272,6 +308,14 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
 
     @Override
     public final QueryBuilder rewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+        QueryRewriteInterceptor queryRewriteInterceptor = queryRewriteContext.getQueryRewriteInterceptor();
+        if (queryRewriteInterceptor != null) {
+            var rewritten = queryRewriteInterceptor.interceptAndRewrite(queryRewriteContext, this);
+            if (rewritten != this) {
+                return new InterceptedQueryBuilderWrapper(rewritten);
+            }
+        }
+
         QueryBuilder rewritten = doRewrite(queryRewriteContext);
         if (rewritten == this) {
             return rewritten;
@@ -290,6 +334,10 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
         // which returns `null` in the default implementation.
         if (queryRewriteContext == null) {
             return this;
+        }
+        final InnerHitsRewriteContext ihrc = queryRewriteContext.convertToInnerHitsRewriteContext();
+        if (ihrc != null) {
+            return doInnerHitsRewrite(ihrc);
         }
         final CoordinatorRewriteContext crc = queryRewriteContext.convertToCoordinatorRewriteContext();
         if (crc != null) {
@@ -334,6 +382,16 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
      * @return A {@link QueryBuilder} representing the rewritten query, that could be used to determine whether this query yields result.
      */
     protected QueryBuilder doIndexMetadataRewrite(final QueryRewriteContext context) throws IOException {
+        return this;
+    }
+
+    /**
+     * Optional rewrite logic that allows for optimization for extracting inner hits
+     * @param context an {@link InnerHitsRewriteContext} instance
+     * @return A {@link QueryBuilder} representing the rewritten query optimized for inner hit extraction
+     * @throws IOException if an error occurs while rewriting the query
+     */
+    protected QueryBuilder doInnerHitsRewrite(final InnerHitsRewriteContext context) throws IOException {
         return this;
     }
 

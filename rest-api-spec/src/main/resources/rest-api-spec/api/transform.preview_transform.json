@@ -1,49 +1,53 @@
 {
-  "transform.preview_transform":{
-    "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/preview-transform.html",
-      "description":"Previews a transform."
+  "transform.preview_transform": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-transform-preview-transform",
+      "description": "Preview a transform"
     },
-    "stability":"stable",
-    "visibility":"public",
-    "headers":{
-      "accept": [ "application/json"],
-      "content_type": ["application/json"]
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
     },
-    "url":{
-      "paths":[
+    "url": {
+      "paths": [
         {
-          "path":"/_transform/{transform_id}/_preview",
-          "methods":[
+          "path": "/_transform/{transform_id}/_preview",
+          "methods": [
             "GET",
             "POST"
           ],
-          "parts":{
-            "transform_id":{
-              "type":"string",
-              "description":"The id of the transform to preview."
+          "parts": {
+            "transform_id": {
+              "type": "string",
+              "description": "The id of the transform to preview."
             }
           }
         },
         {
-          "path":"/_transform/_preview",
-          "methods":[
+          "path": "/_transform/_preview",
+          "methods": [
             "GET",
             "POST"
           ]
         }
       ]
     },
-    "params":{
-      "timeout":{
-        "type":"time",
-        "required":false,
-        "description":"Controls the time to wait for the preview"
+    "params": {
+      "timeout": {
+        "type": "time",
+        "default": "30s",
+        "description": "Controls the time to wait for the preview"
       }
     },
-    "body":{
-      "description":"The definition for the transform to preview",
-      "required":false
+    "body": {
+      "description": "The definition for the transform to preview",
+      "required": false
     }
   }
 }

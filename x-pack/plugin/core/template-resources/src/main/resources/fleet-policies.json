@@ -13,6 +13,9 @@
         "coordinator_idx": {
           "type": "integer"
         },
+        "namespaces": {
+          "type": "keyword"
+        },
         "data": {
           "enabled": false,
           "type": "object"

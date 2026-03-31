@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.internal.precommit
@@ -37,7 +38,7 @@ class LicenseHeadersPrecommitPluginFuncTest extends AbstractGradleInternalPlugin
         assertOutputContains(result.output, "> Check failed. License header problems were found. Full details: ./build/reports/licenseHeaders/rat.xml")
         assertOutputContains(result.output, "./src/main/java/org/acme/UnknownLicensed.java")
         assertOutputContains(result.output, "./src/main/java/org/acme/UnapprovedLicensed.java")
-        result.output.contains("./src/main/java/org/acme/DualLicensed.java") == false
+        assertOutputMissing(result.output, "./src/main/java/org/acme/DualLicensed.java")
     }
 
     def "can filter source files"() {
@@ -87,7 +88,7 @@ class LicenseHeadersPrecommitPluginFuncTest extends AbstractGradleInternalPlugin
     }
 
     private File unapprovedSourceFile(String filePath = "src/main/java/org/acme/UnapprovedLicensed.java") {
-        File sourceFile = file(filePath);
+        File sourceFile = file(filePath)
         sourceFile << """
 /*
  * Copyright (C) 2007 Google Inc.
@@ -113,7 +114,7 @@ class LicenseHeadersPrecommitPluginFuncTest extends AbstractGradleInternalPlugin
     }
 
     private File unknownSourceFile(String filePath = "src/main/java/org/acme/UnknownLicensed.java") {
-        File sourceFile = file(filePath);
+        File sourceFile = file(filePath)
         sourceFile << """
 /*
  * Blubb my custom license shrug!
@@ -130,10 +131,11 @@ class LicenseHeadersPrecommitPluginFuncTest extends AbstractGradleInternalPlugin
         file("src/main/java/org/acme/DualLicensed.java") << """
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
  package org.acme;

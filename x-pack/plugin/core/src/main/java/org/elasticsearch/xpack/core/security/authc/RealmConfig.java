@@ -34,6 +34,7 @@ public class RealmConfig {
     private final Settings settings;
     private final ThreadContext threadContext;
 
+    @SuppressWarnings("this-escape")
     public RealmConfig(RealmIdentifier identifier, Settings settings, Environment env, ThreadContext threadContext) {
         this.identifier = identifier;
         this.settings = settings;
@@ -260,7 +261,7 @@ public class RealmConfig {
         }
     }
 
-    public static ConstructingObjectParser<RealmIdentifier, Void> REALM_IDENTIFIER_PARSER = new ConstructingObjectParser<>(
+    public static final ConstructingObjectParser<RealmIdentifier, Void> REALM_IDENTIFIER_PARSER = new ConstructingObjectParser<>(
         "realm_identifier",
         false,
         (args, v) -> new RealmIdentifier((String) args[0], (String) args[1])

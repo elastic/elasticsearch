@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.test.cluster.local.distribution;
@@ -25,7 +26,7 @@ public class LocalDistributionResolver implements DistributionResolver {
 
     @Override
     public DistributionDescriptor resolve(Version version, DistributionType type) {
-        if (version.equals(Version.CURRENT)) {
+        if (version.equals(Version.CURRENT) && version.isDetached() == false) {
             String testDistributionPath = System.getProperty(type.getSystemProperty());
 
             if (testDistributionPath == null) {
@@ -41,7 +42,7 @@ public class LocalDistributionResolver implements DistributionResolver {
                             + "tasks.named('"
                             + taskName
                             + "') {\n"
-                            + "  usesDefaultDistribution()\n"
+                            + "  usesDefaultDistribution(\"Reason why default distribution is required\")\n"
                             + "}"
                     );
                 } else {

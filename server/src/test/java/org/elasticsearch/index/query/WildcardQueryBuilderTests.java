@@ -1,25 +1,29 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.AutomatonQuery;
-import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.WildcardQuery;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.test.AbstractQueryTestCase;
+import org.hamcrest.CoreMatchers;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -74,7 +78,7 @@ public class WildcardQueryBuilderTests extends AbstractQueryTestCase<WildcardQue
                 assertThat(text, equalTo(text));
             }
         } else {
-            Query expected = new MatchNoDocsQuery("unknown field [" + expectedFieldName + "]");
+            Query expected = Queries.NO_DOCS_INSTANCE;
             assertEquals(expected, query);
         }
     }
@@ -111,6 +115,7 @@ public class WildcardQueryBuilderTests extends AbstractQueryTestCase<WildcardQue
         checkGeneratedJson(json, parsed);
         assertEquals(json, "ki*y", parsed.value());
         assertEquals(json, 2.0, parsed.boost(), 0.0001);
+        assertEquals(new WildcardQueryBuilder("user", "ki*y", false).caseInsensitive(true).boost(2.0f), parsed);
     }
 
     public void testParseFailsWithMultipleFields() throws IOException {
@@ -164,5 +169,50 @@ public class WildcardQueryBuilderTests extends AbstractQueryTestCase<WildcardQue
         WildcardQueryBuilder queryBuilder = new WildcardQueryBuilder("unmapped_field", "foo");
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> queryBuilder.toQuery(context));
         assertEquals("Rewrite first", e.getMessage());
+    }
+
+    public void testCoordinatorTierRewriteToMatchAll() throws IOException {
+        QueryBuilder query = new WildcardQueryBuilder("_tier", "data_fr*");
+        final String timestampFieldName = "@timestamp";
+        long minTimestamp = 1685714000000L;
+        long maxTimestamp = 1685715000000L;
+        final CoordinatorRewriteContext coordinatorRewriteContext = createCoordinatorRewriteContext(
+            new DateFieldMapper.DateFieldType(timestampFieldName),
+            minTimestamp,
+            maxTimestamp,
+            "data_frozen"
+        );
+
+        QueryBuilder rewritten = query.rewrite(coordinatorRewriteContext);
+        assertThat(rewritten, CoreMatchers.instanceOf(MatchAllQueryBuilder.class));
+    }
+
+    public void testCoordinatorTierRewriteToMatchNone() throws IOException {
+        QueryBuilder query = QueryBuilders.boolQuery().mustNot(new WildcardQueryBuilder("_tier", "data_fro*"));
+        final String timestampFieldName = "@timestamp";
+        long minTimestamp = 1685714000000L;
+        long maxTimestamp = 1685715000000L;
+        final CoordinatorRewriteContext coordinatorRewriteContext = createCoordinatorRewriteContext(
+            new DateFieldMapper.DateFieldType(timestampFieldName),
+            minTimestamp,
+            maxTimestamp,
+            "data_frozen"
+        );
+
+        QueryBuilder rewritten = query.rewrite(coordinatorRewriteContext);
+        assertThat(rewritten, CoreMatchers.instanceOf(MatchNoneQueryBuilder.class));
+    }
+
+    public void testWildcardQueryCircuitBreakerAccounting() throws IOException {
+        assertCircuitBreakerAccountsForQuery(new WildcardQueryBuilder(TEXT_FIELD_NAME, "test*pattern*with*wildcards*"));
+    }
+
+    public void testCircuitBreakerTripsWithLowLimit() {
+        assertCircuitBreakerTripsOnQueryConstruction("1mb", () -> {
+            BoolQueryBuilder boolQuery = new BoolQueryBuilder();
+            IntStream.range(0, 100)
+                .forEach(i -> boolQuery.should(new WildcardQueryBuilder(TEXT_FIELD_NAME, "*a*b*c*d*e*f*g*h*i*j*k*l*m*n*o*p*" + i + "*")));
+            return boolQuery;
+        });
     }
 }

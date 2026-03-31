@@ -7,20 +7,28 @@
 
 package org.elasticsearch.compute.data;
 
+// begin generated imports
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.ReleasableIterator;
+import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.ReleasableIterator;
+
+import java.util.Arrays;
+// end generated imports
 
 /**
  * Vector implementation that stores a constant boolean value.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-ConstantVector.java.st} instead.
  */
-public final class ConstantBooleanVector extends AbstractVector implements BooleanVector {
+final class ConstantBooleanVector extends AbstractVector implements BooleanVector {
 
-    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ConstantBooleanVector.class);
+    static final long RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ConstantBooleanVector.class);
 
     private final boolean value;
 
-    public ConstantBooleanVector(boolean value, int positionCount) {
-        super(positionCount);
+    ConstantBooleanVector(boolean value, int positionCount, BlockFactory blockFactory) {
+        super(positionCount, blockFactory);
         this.value = value;
     }
 
@@ -30,13 +38,91 @@ public final class ConstantBooleanVector extends AbstractVector implements Boole
     }
 
     @Override
+    public void copyTo(int srcPosition, boolean[] dst, int dstPosition, int length) {
+        Arrays.fill(dst, dstPosition, dstPosition + length, value);
+    }
+
+    @Override
     public BooleanBlock asBlock() {
         return new BooleanVectorBlock(this);
     }
 
     @Override
-    public BooleanVector filter(int... positions) {
-        return new ConstantBooleanVector(value, positions.length);
+    public BooleanVector filter(boolean mayContainDuplicates, int... positions) {
+        return blockFactory().newConstantBooleanVector(value, positions.length);
+    }
+
+    @Override
+    public BooleanBlock keepMask(BooleanVector mask) {
+        if (getPositionCount() == 0) {
+            incRef();
+            return new BooleanVectorBlock(this);
+        }
+        if (mask.isConstant()) {
+            if (mask.getBoolean(0)) {
+                incRef();
+                return new BooleanVectorBlock(this);
+            }
+            return (BooleanBlock) blockFactory().newConstantNullBlock(getPositionCount());
+        }
+        try (BooleanBlock.Builder builder = blockFactory().newBooleanBlockBuilder(getPositionCount())) {
+            // TODO if X-ArrayBlock used BooleanVector for it's null mask then we could shuffle references here.
+            for (int p = 0; p < getPositionCount(); p++) {
+                if (mask.getBoolean(p)) {
+                    builder.appendBoolean(value);
+                } else {
+                    builder.appendNull();
+                }
+            }
+            return builder.build();
+        }
+    }
+
+    @Override
+    public ReleasableIterator<BooleanBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize) {
+        if (positions.getPositionCount() == 0) {
+            return ReleasableIterator.empty();
+        }
+        IntVector positionsVector = positions.asVector();
+        if (positionsVector == null) {
+            return new BooleanLookup(asBlock(), positions, targetBlockSize);
+        }
+        int min = positionsVector.min();
+        if (min < 0) {
+            throw new IllegalArgumentException("invalid position [" + min + "]");
+        }
+        if (min > getPositionCount()) {
+            return ReleasableIterator.single((BooleanBlock) positions.blockFactory().newConstantNullBlock(positions.getPositionCount()));
+        }
+        if (positionsVector.max() < getPositionCount()) {
+            return ReleasableIterator.single(positions.blockFactory().newConstantBooleanBlockWith(value, positions.getPositionCount()));
+        }
+        return new BooleanLookup(asBlock(), positions, targetBlockSize);
+    }
+
+    /**
+     * Are all values {@code true}? This will scan all values to check and always answer accurately.
+     */
+    @Override
+    public boolean allTrue() {
+        return value;
+    }
+
+    /**
+     * Are all values {@code false}? This will scan all values to check and always answer accurately.
+     */
+    @Override
+    public boolean allFalse() {
+        return value == false;
+    }
+
+    @Override
+    public BooleanVector slice(int beginInclusive, int endExclusive) {
+        if (beginInclusive == 0 && endExclusive == getPositionCount()) {
+            incRef();
+            return this;
+        }
+        return blockFactory().newConstantBooleanVector(value, endExclusive - beginInclusive);
     }
 
     @Override
@@ -50,8 +136,13 @@ public final class ConstantBooleanVector extends AbstractVector implements Boole
     }
 
     @Override
+    public BooleanVector deepCopy(BlockFactory blockFactory) {
+        return blockFactory.newConstantBooleanVector(value, getPositionCount());
+    }
+
+    @Override
     public long ramBytesUsed() {
-        return BASE_RAM_BYTES_USED + RamUsageEstimator.shallowSizeOfInstance(boolean.class);
+        return RAM_BYTES_USED;
     }
 
     @Override
@@ -69,10 +160,5 @@ public final class ConstantBooleanVector extends AbstractVector implements Boole
 
     public String toString() {
         return getClass().getSimpleName() + "[positions=" + getPositionCount() + ", value=" + value + ']';
-    }
-
-    @Override
-    public void close() {
-        // no-op
     }
 }

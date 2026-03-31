@@ -11,6 +11,8 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -19,6 +21,7 @@ import org.elasticsearch.xpack.core.ml.action.DeleteExpiredDataAction;
 import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.job.retention.MlDataRemover;
+import org.elasticsearch.xpack.ml.job.retention.WritableIndexExpander;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.junit.After;
 import org.junit.Before;
@@ -38,7 +41,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.mockito.Mockito.when;
 
 public class TransportDeleteExpiredDataActionTests extends ESTestCase {
 
@@ -59,18 +61,14 @@ public class TransportDeleteExpiredDataActionTests extends ESTestCase {
     @Before
     public void setup() {
         threadPool = new TestThreadPool("TransportDeleteExpiredDataActionTests thread pool");
-        TransportService transportService = mock(TransportService.class);
-
-        // TODO: temporary, remove in #97879
-        when(transportService.getThreadPool()).thenReturn(threadPool);
-
         Client client = mock(Client.class);
         ClusterService clusterService = mock(ClusterService.class);
+        WritableIndexExpander.initialize(clusterService, TestIndexNameExpressionResolver.newInstance());
         auditor = mock(AnomalyDetectionAuditor.class);
         transportDeleteExpiredDataAction = new TransportDeleteExpiredDataAction(
             threadPool,
-            ThreadPool.Names.SAME,
-            transportService,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            mock(TransportService.class),
             new ActionFilters(Collections.emptySet()),
             client,
             clusterService,

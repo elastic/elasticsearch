@@ -11,35 +11,41 @@ import io.netty.channel.ChannelOption;
 import io.netty.channel.socket.nio.NioChannelOption;
 import io.netty.handler.ssl.SslHandshakeTimeoutException;
 
+import org.apache.logging.log4j.Level;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.TestPlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
+import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.SslClientAuthenticationMode;
-import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.mocksocket.MockServerSocket;
+import org.elasticsearch.mocksocket.MockSocket;
+import org.elasticsearch.test.MockLog;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.test.transport.StubbableTransport;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -57,12 +63,13 @@ import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.transport.netty4.Netty4TcpChannel;
 import org.elasticsearch.transport.netty4.SharedGroupFactory;
 import org.elasticsearch.xpack.core.XPackSettings;
-import org.elasticsearch.xpack.core.common.socket.SocketAccess;
 import org.elasticsearch.xpack.core.ssl.SSLService;
+import org.elasticsearch.xpack.core.ssl.SslProfile;
 import org.elasticsearch.xpack.security.authc.CrossClusterAccessAuthenticationService;
 import org.elasticsearch.xpack.security.transport.SSLEngineUtils;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 
+import java.io.EOFException;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.net.InetAddress;
@@ -80,6 +87,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
@@ -115,7 +123,6 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleTran
     @Override
     protected Transport build(Settings settings, TransportVersion version, ClusterSettings clusterSettings, boolean doHandshake) {
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
-        NetworkService networkService = new NetworkService(Collections.emptyList());
         Settings settings1 = Settings.builder().put(settings).put("xpack.security.transport.ssl.enabled", true).build();
         return new TestSecurityNetty4ServerTransport(
             settings1,
@@ -168,19 +175,16 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleTran
     }
 
     public void testConnectException() throws UnknownHostException {
-        try {
-            connectToNode(
-                serviceA,
-                DiscoveryNodeUtils.create("C", new TransportAddress(InetAddress.getByName("localhost"), 9876), emptyMap(), emptySet())
-            );
-            fail("Expected ConnectTransportException");
-        } catch (ConnectTransportException e) {
-            assertThat(e.getMessage(), containsString("connect_exception"));
-            assertThat(e.getMessage(), containsString("[127.0.0.1:9876]"));
-            Throwable cause = ExceptionsHelper.unwrap(e, IOException.class);
-            assertThat(cause, instanceOf(IOException.class));
-        }
-
+        final InetAddress loopback = InetAddress.getLoopbackAddress();
+        final ConnectTransportException e = connectToNodeExpectFailure(
+            serviceA,
+            DiscoveryNodeUtils.create("C", new TransportAddress(loopback, 9876), emptyMap(), emptySet()),
+            null
+        );
+        assertThat(e.getMessage(), containsString("connect_exception"));
+        assertThat(e.getMessage(), containsString("[" + NetworkAddress.format(loopback, 9876) + "]"));
+        Throwable cause = ExceptionsHelper.unwrap(e, IOException.class);
+        assertThat(cause, instanceOf(IOException.class));
     }
 
     @Override
@@ -190,15 +194,13 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleTran
 
         ConnectionProfile connectionProfile = ConnectionProfile.buildDefaultConnectionProfile(Settings.EMPTY);
         try (TransportService service = buildService("TS_TPC", VersionInformation.CURRENT, TransportVersion.current(), Settings.EMPTY)) {
-            DiscoveryNode node = new DiscoveryNode(
-                "TS_TPC",
-                "TS_TPC",
-                service.boundAddress().publishAddress(),
-                emptyMap(),
-                emptySet(),
-                version0
-            );
-            PlainActionFuture<Transport.Connection> future = PlainActionFuture.newFuture();
+            DiscoveryNode node = DiscoveryNodeUtils.builder("TS_TPC")
+                .name("TS_TPC")
+                .address(service.boundAddress().publishAddress())
+                .roles(emptySet())
+                .version(version0)
+                .build();
+            PlainActionFuture<Transport.Connection> future = new PlainActionFuture<>();
             originalTransport.openConnection(node, connectionProfile, future);
             try (TcpTransport.NodeChannels connection = (TcpTransport.NodeChannels) future.actionGet()) {
                 assertEquals(TransportVersion.current(), connection.getTransportVersion());
@@ -213,10 +215,10 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleTran
         SSLService sslService = createSSLService(
             Settings.builder().put("xpack.security.transport.ssl.supported_protocols", "TLSv1.2").build()
         );
-        final SslConfiguration sslConfiguration = sslService.getSSLConfiguration("xpack.security.transport.ssl");
-        SocketFactory factory = sslService.sslSocketFactory(sslConfiguration);
+        final SslProfile sslProfile = sslService.profile("xpack.security.transport.ssl");
+        final SocketFactory factory = sslProfile.socketFactory();
         try (SSLSocket socket = (SSLSocket) factory.createSocket()) {
-            SocketAccess.doPrivileged(() -> socket.connect(serviceA.boundAddress().publishAddress().address()));
+            socket.connect(serviceA.boundAddress().publishAddress().address());
 
             CountDownLatch handshakeLatch = new CountDownLatch(1);
             HandshakeCompletedListener firstListener = event -> handshakeLatch.countDown();
@@ -265,8 +267,8 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleTran
         assumeFalse("Can't run in a FIPS JVM, TrustAllConfig is not a SunJSSE TrustManagers", inFipsJvm());
         SSLService sslService = createSSLService();
 
-        final SslConfiguration sslConfiguration = sslService.getSSLConfiguration("xpack.security.transport.ssl");
-        SSLContext sslContext = sslService.sslContext(sslConfiguration);
+        final SslProfile sslProfile = sslService.profile("xpack.security.transport.ssl");
+        final SSLContext sslContext = sslProfile.sslContext();
         final SSLServerSocketFactory serverSocketFactory = sslContext.getServerSocketFactory();
         final String sniIp = "sni-hostname";
         final SNIHostName sniHostName = new SNIHostName(sniIp);
@@ -287,11 +289,11 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleTran
             }));
             sslServerSocket.setSSLParameters(sslParameters);
 
-            SocketAccess.doPrivileged(() -> sslServerSocket.bind(getLocalEphemeral()));
+            sslServerSocket.bind(getLocalEphemeral());
 
             new Thread(() -> {
                 try {
-                    SSLSocket acceptedSocket = (SSLSocket) SocketAccess.doPrivileged(sslServerSocket::accept);
+                    SSLSocket acceptedSocket = (SSLSocket) sslServerSocket.accept();
 
                     // A read call will execute the handshake
                     int byteRead = acceptedSocket.getInputStream().read();
@@ -303,7 +305,7 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleTran
                 }
             }).start();
 
-            InetSocketAddress serverAddress = (InetSocketAddress) SocketAccess.doPrivileged(sslServerSocket::getLocalSocketAddress);
+            InetSocketAddress serverAddress = (InetSocketAddress) sslServerSocket.getLocalSocketAddress();
 
             Settings settings = Settings.builder().put("xpack.security.transport.ssl.verification_mode", "none").build();
             try (MockTransportService serviceC = buildService("TS_C", version0, transportVersion0, settings)) {
@@ -317,11 +319,8 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleTran
                 );
 
                 new Thread(() -> {
-                    try {
-                        connectToNode(serviceC, node, TestProfiles.LIGHT_PROFILE);
-                    } catch (ConnectTransportException ex) {
-                        // Ignore. The other side is not setup to do the ES handshake. So this will fail.
-                    }
+                    // noinspection ThrowableNotThrown
+                    connectToNodeExpectFailure(serviceC, node, TestProfiles.LIGHT_PROFILE);
                 }).start();
 
                 latch.await();
@@ -333,24 +332,24 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleTran
         assumeFalse("Can't run in a FIPS JVM, TrustAllConfig is not a SunJSSE TrustManagers", inFipsJvm());
         SSLService sslService = createSSLService();
 
-        final SslConfiguration sslConfiguration = sslService.getSSLConfiguration("xpack.security.transport.ssl");
-        SSLContext sslContext = sslService.sslContext(sslConfiguration);
+        final SslProfile sslProfile = sslService.profile("xpack.security.transport.ssl");
+        final SSLContext sslContext = sslProfile.sslContext();
         final SSLServerSocketFactory serverSocketFactory = sslContext.getServerSocketFactory();
         final String sniIp = "invalid_hostname";
 
         try (SSLServerSocket sslServerSocket = (SSLServerSocket) serverSocketFactory.createServerSocket()) {
-            SocketAccess.doPrivileged(() -> sslServerSocket.bind(getLocalEphemeral()));
+            sslServerSocket.bind(getLocalEphemeral());
 
             new Thread(() -> {
                 try {
-                    SocketAccess.doPrivileged(sslServerSocket::accept);
+                    sslServerSocket.accept();
                 } catch (IOException e) {
                     // We except an IOException from the `accept` call because the server socket will be
                     // closed before the call returns.
                 }
             }).start();
 
-            InetSocketAddress serverAddress = (InetSocketAddress) SocketAccess.doPrivileged(sslServerSocket::getLocalSocketAddress);
+            InetSocketAddress serverAddress = (InetSocketAddress) sslServerSocket.getLocalSocketAddress();
 
             Settings settings = Settings.builder().put("xpack.security.transport.ssl.verification_mode", "none").build();
             try (MockTransportService serviceC = buildService("TS_C", version0, transportVersion0, settings)) {
@@ -363,12 +362,10 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleTran
                     DiscoveryNodeRole.roles()
                 );
 
-                ConnectTransportException connectException = expectThrows(
-                    ConnectTransportException.class,
-                    () -> connectToNode(serviceC, node, TestProfiles.LIGHT_PROFILE)
+                assertThat(
+                    connectToNodeExpectFailure(serviceC, node, TestProfiles.LIGHT_PROFILE).getMessage(),
+                    containsString("invalid DiscoveryNode server_name [invalid_hostname]")
                 );
-
-                assertThat(connectException.getMessage(), containsString("invalid DiscoveryNode server_name [invalid_hostname]"));
             }
         }
     }
@@ -463,7 +460,7 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleTran
             DiscoveryNode node = DiscoveryNodeUtils.create(
                 service.getLocalNode().getId(),
                 clientAddress,
-                service.getLocalNode().getVersion()
+                service.getLocalNode().getVersionInformation()
             );
             try (Transport.Connection connection2 = openConnection(serviceA, node, TestProfiles.LIGHT_PROFILE)) {
                 sslEngine = getEngineFromAcceptedChannel(originalTransport, connection2);
@@ -495,7 +492,7 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleTran
             DiscoveryNode node = DiscoveryNodeUtils.create(
                 service.getLocalNode().getId(),
                 clientAddress,
-                service.getLocalNode().getVersion()
+                service.getLocalNode().getVersionInformation()
             );
             try (Transport.Connection connection2 = openConnection(serviceA, node, TestProfiles.LIGHT_PROFILE)) {
                 sslEngine = getEngineFromAcceptedChannel(originalTransport, connection2);
@@ -527,7 +524,7 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleTran
             DiscoveryNode node = DiscoveryNodeUtils.create(
                 service.getLocalNode().getId(),
                 clientAddress,
-                service.getLocalNode().getVersion()
+                service.getLocalNode().getVersionInformation()
             );
             try (Transport.Connection connection2 = openConnection(serviceA, node, TestProfiles.LIGHT_PROFILE)) {
                 sslEngine = getEngineFromAcceptedChannel(originalTransport, connection2);
@@ -571,19 +568,20 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleTran
             final DiscoveryNode node = DiscoveryNodeUtils.create(
                 fcService.getLocalNode().getId(),
                 remoteAccessAddress,
-                fcService.getLocalNode().getVersion()
+                fcService.getLocalNode().getVersionInformation()
             );
 
             // 1. Connection will fail because FC server certificate is not trusted by default
             final Settings qcSettings1 = Settings.builder().build();
             try (MockTransportService qcService = buildService("QC", VersionInformation.CURRENT, TransportVersion.current(), qcSettings1)) {
-                final ConnectTransportException e = expectThrows(
-                    ConnectTransportException.class,
-                    () -> openConnection(qcService, node, connectionProfile)
-                );
+                final ConnectTransportException e = openConnectionExpectFailure(qcService, node, connectionProfile);
                 assertThat(
                     e.getRootCause().getMessage(),
-                    anyOf(containsString("unable to find valid certification path"), containsString("Unable to find certificate chain"))
+                    anyOf(
+                        containsString("unable to find valid certification path"),
+                        containsString("Unable to find certificate chain"),
+                        containsString("Unable to construct a valid chain")
+                    )
                 );
             }
 
@@ -691,7 +689,7 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleTran
             final DiscoveryNode node = DiscoveryNodeUtils.create(
                 fcService.getLocalNode().getId(),
                 remoteAccessAddress,
-                fcService.getLocalNode().getVersion()
+                fcService.getLocalNode().getVersionInformation()
             );
             final Settings qcSettings = Settings.builder().put("xpack.security.remote_cluster_client.ssl.enabled", "false").build();
             try (
@@ -861,8 +859,8 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleTran
         assumeFalse("Can't run in a FIPS JVM, TrustAllConfig is not a SunJSSE TrustManagers", inFipsJvm());
         SSLService sslService = createSSLService();
 
-        final SslConfiguration sslConfiguration = sslService.getSSLConfiguration("xpack.security.transport.ssl");
-        SSLContext sslContext = sslService.sslContext(sslConfiguration);
+        final SslProfile sslProfile = sslService.profile("xpack.security.transport.ssl");
+        final SSLContext sslContext = sslProfile.sslContext();
         final SSLServerSocketFactory serverSocketFactory = sslContext.getServerSocketFactory();
         // use latch to to ensure that the accepted socket below isn't closed before the handshake times out
         final CountDownLatch doneLatch = new CountDownLatch(1);
@@ -872,11 +870,11 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleTran
             new Thread(() -> {
                 SSLSocket acceptedSocket = null;
                 try {
-                    acceptedSocket = (SSLSocket) SocketAccess.doPrivileged(socket::accept);
+                    acceptedSocket = (SSLSocket) socket.accept();
                     // A read call will execute the ssl handshake
                     int byteRead = acceptedSocket.getInputStream().read();
                     assertEquals('E', byteRead);
-                    doneLatch.await();
+                    safeAwait(doneLatch);
                 } catch (Exception e) {
                     throw new AssertionError(e);
                 } finally {
@@ -900,18 +898,25 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleTran
             builder.setHandshakeTimeout(TimeValue.timeValueMillis(1));
             Settings settings = Settings.builder().put("xpack.security.transport.ssl.verification_mode", "none").build();
             try (MockTransportService serviceC = buildService("TS_C", version0, transportVersion0, settings)) {
-                ConnectTransportException ex = expectThrows(
-                    ConnectTransportException.class,
-                    () -> connectToNode(serviceC, dummy, builder.build())
+                assertEquals(
+                    "[][" + dummy.getAddress() + "] handshake_timeout[1ms]",
+                    connectToNodeExpectFailure(serviceC, dummy, builder.build()).getMessage()
                 );
-                assertEquals("[][" + dummy.getAddress() + "] handshake_timeout[1ms]", ex.getMessage());
             }
         } finally {
             doneLatch.countDown();
         }
     }
 
+    @TestLogging(reason = "inbound timeout is reported at TRACE", value = "org.elasticsearch.transport.netty4.ESLoggingHandler:TRACE")
     public void testTlsHandshakeTimeout() throws IOException {
+        runOutboundTlsHandshakeTimeoutTest(null);
+        runOutboundTlsHandshakeTimeoutTest(randomLongBetween(1, 500));
+        runInboundTlsHandshakeTimeoutTest(null);
+        runInboundTlsHandshakeTimeoutTest(randomLongBetween(1, 500));
+    }
+
+    private void runOutboundTlsHandshakeTimeoutTest(@Nullable /* to use the default */ Long handshakeTimeoutMillis) throws IOException {
         final CountDownLatch doneLatch = new CountDownLatch(1);
         try (ServerSocket socket = new MockServerSocket()) {
             socket.bind(getLocalEphemeral(), 1);
@@ -937,14 +942,53 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleTran
                 TransportRequestOptions.Type.REG,
                 TransportRequestOptions.Type.STATE
             );
-            ConnectTransportException ex = expectThrows(
-                ConnectTransportException.class,
-                () -> connectToNode(serviceA, dummy, builder.build())
-            );
-            assertEquals("[][" + dummy.getAddress() + "] connect_exception", ex.getMessage());
-            assertNotNull(ExceptionsHelper.unwrap(ex, SslHandshakeTimeoutException.class));
+            final ConnectTransportException exception;
+            final var transportSettings = Settings.builder();
+            if (handshakeTimeoutMillis == null) {
+                handshakeTimeoutMillis = 10000L; // default
+            } else {
+                transportSettings.put("xpack.security.transport.ssl.handshake_timeout", TimeValue.timeValueMillis(handshakeTimeoutMillis));
+            }
+            try (var service = buildService(getTestName(), version0, transportVersion0, transportSettings.build())) {
+                final var future = new TestPlainActionFuture<Releasable>();
+                service.connectToNode(dummy, builder.build(), future);
+                exception = expectThrows(ExecutionException.class, ConnectTransportException.class, future::get); // long wait
+                assertEquals("[][" + dummy.getAddress() + "] connect_exception", exception.getMessage());
+                assertThat(
+                    asInstanceOf(SslHandshakeTimeoutException.class, exception.getCause()).getMessage(),
+                    equalTo("handshake timed out after " + handshakeTimeoutMillis + "ms")
+                );
+            }
         } finally {
             doneLatch.countDown();
+        }
+    }
+
+    @SuppressForbidden(reason = "test needs a simple TCP connection")
+    private void runInboundTlsHandshakeTimeoutTest(@Nullable /* to use the default */ Long handshakeTimeoutMillis) throws IOException {
+        final var transportSettings = Settings.builder();
+        if (handshakeTimeoutMillis == null) {
+            handshakeTimeoutMillis = 10000L; // default
+        } else {
+            transportSettings.put("xpack.security.transport.ssl.handshake_timeout", TimeValue.timeValueMillis(handshakeTimeoutMillis));
+        }
+        try (
+            var service = buildService(getTestName(), version0, transportVersion0, transportSettings.build());
+            Socket clientSocket = new MockSocket();
+            MockLog mockLog = MockLog.capture("org.elasticsearch.transport.netty4.ESLoggingHandler")
+        ) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "timeout event message",
+                    "org.elasticsearch.transport.netty4.ESLoggingHandler",
+                    Level.TRACE,
+                    "SslHandshakeTimeoutException: handshake timed out after " + handshakeTimeoutMillis + "ms"
+                )
+            );
+
+            clientSocket.connect(service.boundAddress().boundAddresses()[0].address());
+            expectThrows(EOFException.class, () -> clientSocket.getInputStream().skipNBytes(Long.MAX_VALUE));
+            mockLog.assertAllExpectationsMatched();
         }
     }
 
@@ -952,8 +996,8 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleTran
         assumeFalse("Can't run in a FIPS JVM, TrustAllConfig is not a SunJSSE TrustManagers", inFipsJvm());
         SSLService sslService = createSSLService();
 
-        final SslConfiguration sslConfiguration = sslService.getSSLConfiguration("xpack.security.transport.ssl");
-        SSLContext sslContext = sslService.sslContext(sslConfiguration);
+        final SslProfile sslProfile = sslService.profile("xpack.security.transport.ssl");
+        final SSLContext sslContext = sslProfile.sslContext();
         final SSLServerSocketFactory serverSocketFactory = sslContext.getServerSocketFactory();
         try (ServerSocket socket = serverSocketFactory.createServerSocket()) {
             socket.bind(getLocalEphemeral(), 1);
@@ -964,7 +1008,7 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleTran
                 .version(version0)
                 .build();
             Thread t = new Thread(() -> {
-                try (Socket accept = SocketAccess.doPrivileged(socket::accept)) {
+                try (Socket accept = socket.accept()) {
                     // A read call will execute the ssl handshake
                     int byteRead = accept.getInputStream().read();
                     assertEquals('E', byteRead);
@@ -985,10 +1029,7 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleTran
             builder.setHandshakeTimeout(TimeValue.timeValueHours(1));
             Settings settings = Settings.builder().put("xpack.security.transport.ssl.verification_mode", "none").build();
             try (MockTransportService serviceC = buildService("TS_C", version0, transportVersion0, settings)) {
-                ConnectTransportException ex = expectThrows(
-                    ConnectTransportException.class,
-                    () -> connectToNode(serviceC, dummy, builder.build())
-                );
+                ConnectTransportException ex = connectToNodeExpectFailure(serviceC, dummy, builder.build());
                 assertEquals("[][" + dummy.getAddress() + "] general node connection failure", ex.getMessage());
                 assertThat(ex.getCause().getMessage(), startsWith("handshake failed"));
             }
@@ -1029,6 +1070,7 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleTran
 
     static class TestSecurityNetty4ServerTransport extends SecurityNetty4ServerTransport {
         private final boolean doHandshake;
+        private final TransportVersion version;
 
         TestSecurityNetty4ServerTransport(
             Settings settings,
@@ -1056,6 +1098,7 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleTran
                 sharedGroupFactory,
                 mock(CrossClusterAccessAuthenticationService.class)
             );
+            this.version = version;
             this.doHandshake = doHandshake;
         }
 
@@ -1069,8 +1112,8 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleTran
             if (doHandshake) {
                 super.executeHandshake(node, channel, profile, listener);
             } else {
-                assert getVersion().equals(TransportVersion.current());
-                listener.onResponse(TransportVersions.MINIMUM_COMPATIBLE);
+                assert version.equals(TransportVersion.current());
+                listener.onResponse(TransportVersion.minimumCompatible());
             }
         }
 

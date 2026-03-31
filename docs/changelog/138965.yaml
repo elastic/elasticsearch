@@ -1,0 +1,5 @@
+pr: 138965
+summary: Add `project_routing` to CLI
+area: SQL
+type: enhancement
+issues: []

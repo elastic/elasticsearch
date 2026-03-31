@@ -7,12 +7,13 @@
 
 package org.elasticsearch.compute.aggregation;
 
-import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.LongDoubleTupleBlockSourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.compute.test.operator.blocksource.LongDoubleTupleBlockSourceOperator;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.aggregations.metrics.TDigestState;
 import org.junit.Before;
@@ -32,8 +33,8 @@ public class PercentileDoubleGroupingAggregatorFunctionTests extends GroupingAgg
     }
 
     @Override
-    protected AggregatorFunctionSupplier aggregatorFunction(BigArrays bigArrays, List<Integer> inputChannels) {
-        return new PercentileDoubleAggregatorFunctionSupplier(bigArrays, inputChannels, percentile);
+    protected AggregatorFunctionSupplier aggregatorFunction() {
+        return new PercentileDoubleAggregatorFunctionSupplier(percentile);
     }
 
     @Override
@@ -42,22 +43,24 @@ public class PercentileDoubleGroupingAggregatorFunctionTests extends GroupingAgg
     }
 
     @Override
-    protected SourceOperator simpleInput(int end) {
+    protected SourceOperator simpleInput(BlockFactory blockFactory, int end) {
         return new LongDoubleTupleBlockSourceOperator(
+            blockFactory,
             LongStream.range(0, end).mapToObj(l -> Tuple.tuple(randomLongBetween(0, 4), randomDouble()))
         );
     }
 
     @Override
     protected void assertSimpleGroup(List<Page> input, Block result, int position, Long group) {
-        TDigestState td = TDigestState.create(QuantileStates.DEFAULT_COMPRESSION);
-        input.stream().flatMapToDouble(p -> allDoubles(p, group)).forEach(td::add);
-        if (td.size() > 0) {
-            double expected = td.quantile(percentile / 100);
-            double value = ((DoubleBlock) result).getDouble(position);
-            assertThat(value, closeTo(expected, expected * 0.1));
-        } else {
-            assertTrue(result.isNull(position));
+        try (TDigestState td = TDigestState.create(newLimitedBreaker(ByteSizeValue.ofMb(100)), QuantileStates.DEFAULT_COMPRESSION)) {
+            input.stream().flatMapToDouble(p -> allDoubles(p, group)).forEach(td::add);
+            if (td.size() > 0) {
+                double expected = td.quantile(percentile / 100);
+                double value = ((DoubleBlock) result).getDouble(position);
+                assertThat(value, closeTo(expected, expected * 0.1));
+            } else {
+                assertTrue(result.isNull(position));
+            }
         }
     }
 }

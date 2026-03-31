@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.indices.analysis.wrappers;
@@ -75,7 +76,10 @@ public class StableApiWrappersTests extends ESTestCase {
             IllegalStateException.class,
             () -> oldTokenFilter.get(null, mock(Environment.class), null, null)
         );
-        assertThat(illegalStateException.getMessage(), equalTo("Missing @Inject annotation for constructor with settings."));
+        assertThat(
+            illegalStateException.getMessage(),
+            equalTo("Missing @org.elasticsearch.plugin.Inject annotation for constructor with settings.")
+        );
     }
 
     public void testAnalyzerFactoryDelegation() throws IOException {

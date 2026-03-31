@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.action.admin.indices.rollover;
 
@@ -14,8 +15,8 @@ import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.common.settings.Settings;
 
 public class RolloverRequestBuilder extends MasterNodeOperationRequestBuilder<RolloverRequest, RolloverResponse, RolloverRequestBuilder> {
-    public RolloverRequestBuilder(ElasticsearchClient client, RolloverAction action) {
-        super(client, action, new RolloverRequest());
+    public RolloverRequestBuilder(ElasticsearchClient client) {
+        super(client, RolloverAction.INSTANCE, new RolloverRequest());
     }
 
     public RolloverRequestBuilder setRolloverTarget(String rolloverTarget) {
@@ -40,6 +41,11 @@ public class RolloverRequestBuilder extends MasterNodeOperationRequestBuilder<Ro
 
     public RolloverRequestBuilder dryRun(boolean dryRun) {
         this.request.dryRun(dryRun);
+        return this;
+    }
+
+    public RolloverRequestBuilder lazy(boolean lazy) {
+        this.request.lazy(lazy);
         return this;
     }
 

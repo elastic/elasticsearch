@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.client.internal;
@@ -24,23 +25,23 @@ public class OriginSettingClientTests extends ESTestCase {
     public void testSetsParentId() {
         String origin = randomAlphaOfLength(7);
 
-        /*
-         * This mock will do nothing but verify that origin is set in the
-         * thread context before executing the action.
-         */
-        NoOpClient mock = new NoOpClient(getTestName()) {
-            @Override
-            protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
-                ActionType<Response> action,
-                Request request,
-                ActionListener<Response> listener
-            ) {
-                assertEquals(origin, threadPool().getThreadContext().getTransient(ThreadContext.ACTION_ORIGIN_TRANSIENT_NAME));
-                super.doExecute(action, request, listener);
-            }
-        };
+        try (var threadPool = createThreadPool()) {
+            /*
+             * This mock will do nothing but verify that origin is set in the
+             * thread context before executing the action.
+             */
+            final var mock = new NoOpClient(threadPool) {
+                @Override
+                protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+                    ActionType<Response> action,
+                    Request request,
+                    ActionListener<Response> listener
+                ) {
+                    assertEquals(origin, threadPool().getThreadContext().getTransient(ThreadContext.ACTION_ORIGIN_TRANSIENT_NAME));
+                }
+            };
 
-        try (OriginSettingClient client = new OriginSettingClient(mock, origin)) {
+            final var client = new OriginSettingClient(mock, origin);
             // All of these should have the origin set
             client.bulk(new BulkRequest());
             client.search(new SearchRequest());

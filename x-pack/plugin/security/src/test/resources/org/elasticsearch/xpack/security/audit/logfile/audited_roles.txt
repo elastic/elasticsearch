@@ -7,6 +7,6 @@ role_descriptor2
 role_descriptor3
 {"cluster":[],"indices":[],"applications":[{"application":"maps","privileges":["{","}","\n","\\","\""],"resources":["raster:*"]},{"application":"maps","privileges":["*:*"],"resources":["noooooo!!\n\n\f\\\\r","{"]}],"run_as":["jack","nich*","//\""],"metadata":{"some meta":42}}
 role_descriptor4
-{"cluster":["manage_ml","grant_api_key","manage_rollup"],"global":{"application":{"manage":{"applications":["a+b+|b+a+"]}},"profile":{}},"indices":[{"names":["/. ? + * | { } [ ] ( ) \" \\/","*"],"privileges":["read","read_cross_cluster"],"field_security":{"grant":["almost","all*"],"except":["denied*"]}}],"applications":[],"run_as":["//+a+\"[a]/"],"metadata":{"?list":["e1","e2","*"],"some other meta":{"r":"t"}}}
+{"cluster":["manage_ml","grant_api_key","manage_rollup"],"global":{"application":{"manage":{"applications":["a+b+|b+a+"]}},"profile":{},"role":{}},"indices":[{"names":["/. ? + * | { } [ ] ( ) \" \\/","*"],"privileges":["read","read_cross_cluster"],"field_security":{"grant":["almost","all*"],"except":["denied*"]}}],"applications":[],"run_as":["//+a+\"[a]/"],"metadata":{"?list":["e1","e2","*"],"some other meta":{"r":"t"}}}
 role_descriptor5
-{"cluster":["all"],"global":{"application":{"manage":{"applications":["\""]}},"profile":{"write":{"applications":["","\""]}}},"indices":[],"applications":[],"run_as":["\"[a]/"]}
+{"cluster":["all"],"global":{"application":{"manage":{"applications":["\""]}},"profile":{"write":{"applications":["","\""]}},"role":{"manage":{"indices":[{"names":["test*"],"privileges":["read","write"]}]}}},"indices":[],"applications":[],"run_as":["\"[a]/"]}

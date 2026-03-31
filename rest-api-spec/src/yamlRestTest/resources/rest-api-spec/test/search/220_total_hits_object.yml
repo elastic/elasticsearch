@@ -55,8 +55,8 @@ setup:
 
 ---
 "hits.total as an object":
-  - skip:
-      version: " - 7.99.99"
+  - requires:
+      cluster_features: ["gte_v8.0.0"]
       reason: hits.total is rendered as an object in 7.0.0
 
   - do:

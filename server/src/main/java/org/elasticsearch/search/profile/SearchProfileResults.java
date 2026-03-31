@@ -1,38 +1,31 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.profile;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.search.profile.aggregation.AggregationProfileShardResult;
-import org.elasticsearch.search.profile.query.QueryProfileShardResult;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.TreeSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-
-import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
 /**
  * Profile results for all shards.
@@ -40,12 +33,12 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
 public final class SearchProfileResults implements Writeable, ToXContentFragment {
 
     private static final Logger logger = LogManager.getLogger(SearchProfileResults.class);
-    private static final String ID_FIELD = "id";
+    public static final String ID_FIELD = "id";
     private static final String NODE_ID_FIELD = "node_id";
     private static final String CLUSTER_FIELD = "cluster";
     private static final String INDEX_NAME_FIELD = "index";
     private static final String SHARD_ID_FIELD = "shard_id";
-    private static final String SHARDS_FIELD = "shards";
+    public static final String SHARDS_FIELD = "shards";
     public static final String PROFILE_FIELD = "profile";
 
     // map key is the composite "id" of form [nodeId][(clusterName:)indexName][shardId] created from SearchShardTarget.toString
@@ -56,22 +49,12 @@ public final class SearchProfileResults implements Writeable, ToXContentFragment
     }
 
     public SearchProfileResults(StreamInput in) throws IOException {
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_16_0)) {
-            shardResults = in.readMap(SearchProfileShardResult::new);
-        } else {
-            // Before 8.0.0 we only send the query phase result
-            shardResults = in.readMap(i -> new SearchProfileShardResult(new SearchProfileQueryPhaseResult(i), null));
-        }
+        shardResults = in.readMap(SearchProfileShardResult::new);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_16_0)) {
-            out.writeMap(shardResults, StreamOutput::writeWriteable);
-        } else {
-            // Before 8.0.0 we only send the query phase
-            out.writeMap(shardResults, (o, r) -> r.getQueryPhase().writeTo(o));
-        }
+        out.writeMap(shardResults, StreamOutput::writeWriteable);
     }
 
     public Map<String, SearchProfileShardResult> getShardResults() {
@@ -128,75 +111,6 @@ public final class SearchProfileResults implements Writeable, ToXContentFragment
         return Strings.toString(this);
     }
 
-    public static SearchProfileResults fromXContent(XContentParser parser) throws IOException {
-        XContentParser.Token token = parser.currentToken();
-        ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
-        Map<String, SearchProfileShardResult> profileResults = new HashMap<>();
-        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            if (token == XContentParser.Token.START_ARRAY) {
-                if (SHARDS_FIELD.equals(parser.currentName())) {
-                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                        parseProfileResultsEntry(parser, profileResults);
-                    }
-                } else {
-                    parser.skipChildren();
-                }
-            } else if (token == XContentParser.Token.START_OBJECT) {
-                parser.skipChildren();
-            }
-        }
-        return new SearchProfileResults(profileResults);
-    }
-
-    private static void parseProfileResultsEntry(XContentParser parser, Map<String, SearchProfileShardResult> searchProfileResults)
-        throws IOException {
-        XContentParser.Token token = parser.currentToken();
-        ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
-        SearchProfileDfsPhaseResult searchProfileDfsPhaseResult = null;
-        List<QueryProfileShardResult> queryProfileResults = new ArrayList<>();
-        AggregationProfileShardResult aggProfileShardResult = null;
-        ProfileResult fetchResult = null;
-        String id = null;
-        String currentFieldName = null;
-        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            if (token == XContentParser.Token.FIELD_NAME) {
-                currentFieldName = parser.currentName();
-            } else if (token.isValue()) {
-                if (ID_FIELD.equals(currentFieldName)) {
-                    id = parser.text();
-                } else {
-                    parser.skipChildren();
-                }
-            } else if (token == XContentParser.Token.START_ARRAY) {
-                if ("searches".equals(currentFieldName)) {
-                    while ((parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                        queryProfileResults.add(QueryProfileShardResult.fromXContent(parser));
-                    }
-                } else if (AggregationProfileShardResult.AGGREGATIONS.equals(currentFieldName)) {
-                    aggProfileShardResult = AggregationProfileShardResult.fromXContent(parser);
-                } else {
-                    parser.skipChildren();
-                }
-            } else if (token == XContentParser.Token.START_OBJECT) {
-                if ("dfs".equals(currentFieldName)) {
-                    searchProfileDfsPhaseResult = SearchProfileDfsPhaseResult.fromXContent(parser);
-                } else if ("fetch".equals(currentFieldName)) {
-                    fetchResult = ProfileResult.fromXContent(parser);
-                } else {
-                    parser.skipChildren();
-                }
-            } else {
-                parser.skipChildren();
-            }
-        }
-        SearchProfileShardResult result = new SearchProfileShardResult(
-            new SearchProfileQueryPhaseResult(queryProfileResults, aggProfileShardResult),
-            fetchResult
-        );
-        result.getQueryPhase().setSearchProfileDfsPhaseResult(searchProfileDfsPhaseResult);
-        searchProfileResults.put(id, result);
-    }
-
     /**
      * Parsed representation of a composite id used for shards in a profile.
      * The composite id format is specified/created via the {@code SearchShardTarget} method.
@@ -230,15 +144,10 @@ public final class SearchProfileResults implements Writeable, ToXContentFragment
         Matcher m = SHARD_ID_DECOMPOSITION.matcher(compositeId);
         if (m.find()) {
             String nodeId = m.group(1);
-            String indexName = m.group(2);
+            String[] tokens = RemoteClusterAware.splitIndexName(m.group(2));
+            String cluster = tokens[0];
+            String indexName = tokens[1];
             int shardId = Integer.parseInt(m.group(3));
-            String cluster = null;
-            if (indexName.contains(":")) {
-                // index names and cluster names cannot contain a ':', so this split should be accurate
-                String[] tokens = indexName.split(":", 2);
-                cluster = tokens[0];
-                indexName = tokens[1];
-            }
             return new ShardProfileId(nodeId, indexName, shardId, cluster);
         } else {
             assert false : "Unable to match input against expected pattern of [nodeId][indexName][shardId]. Input: " + compositeId;

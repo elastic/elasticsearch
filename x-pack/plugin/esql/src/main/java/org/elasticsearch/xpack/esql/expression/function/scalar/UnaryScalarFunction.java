@@ -7,24 +7,35 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar;
 
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.TypeResolutions;
-import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
-import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
+import java.io.IOException;
 import java.util.Arrays;
-import java.util.Objects;
 
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isNumeric;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNumeric;
 
-public abstract class UnaryScalarFunction extends ScalarFunction {
+public abstract class UnaryScalarFunction extends EsqlScalarFunction {
     protected final Expression field;
 
     public UnaryScalarFunction(Source source, Expression field) {
         super(source, Arrays.asList(field));
         this.field = field;
+    }
+
+    protected UnaryScalarFunction(StreamInput in) throws IOException {
+        this(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(Expression.class));
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        source().writeTo(out);
+        out.writeNamedWriteable(field);
     }
 
     @Override
@@ -47,25 +58,6 @@ public abstract class UnaryScalarFunction extends ScalarFunction {
 
     @Override
     public DataType dataType() {
-        return field.dataType();
-    }
-
-    @Override
-    public final int hashCode() {
-        return Objects.hash(field);
-    }
-
-    @Override
-    public final boolean equals(Object obj) {
-        if (obj == null || obj.getClass() != getClass()) {
-            return false;
-        }
-        UnaryScalarFunction other = (UnaryScalarFunction) obj;
-        return Objects.equals(other.field, field);
-    }
-
-    @Override
-    public final ScriptTemplate asScript() {
-        throw new UnsupportedOperationException("functions do not support scripting");
+        return field.dataType().noText();
     }
 }

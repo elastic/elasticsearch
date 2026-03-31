@@ -1,14 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.test.rest;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.Build;
 import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.ESRestTestCase.VersionSensitiveWarningsHandler;
@@ -21,7 +22,7 @@ import java.util.function.Consumer;
 public class VersionSensitiveWarningsHandlerTests extends ESTestCase {
 
     public void testSameVersionCluster() throws IOException {
-        WarningsHandler handler = expectVersionSpecificWarnings(Set.of(Version.CURRENT), v -> v.current("expectedCurrent1"));
+        WarningsHandler handler = expectVersionSpecificWarnings(Set.of(Build.current().version()), v -> v.current("expectedCurrent1"));
         assertFalse(handler.warningsShouldFailRequest(List.of("expectedCurrent1")));
         assertTrue(handler.warningsShouldFailRequest(List.of("expectedCurrent1", "unexpected")));
         assertTrue(handler.warningsShouldFailRequest(List.of()));
@@ -30,7 +31,7 @@ public class VersionSensitiveWarningsHandlerTests extends ESTestCase {
 
     public void testMixedVersionCluster() throws IOException {
         WarningsHandler handler = expectVersionSpecificWarnings(
-            Set.of(Version.CURRENT, Version.CURRENT.minimumCompatibilityVersion()),
+            Set.of(Build.current().version(), Build.current().minWireCompatVersion()),
             v -> {
                 v.current("expectedCurrent1");
                 v.compatible("Expected legacy warning");
@@ -45,7 +46,7 @@ public class VersionSensitiveWarningsHandlerTests extends ESTestCase {
     }
 
     private static WarningsHandler expectVersionSpecificWarnings(
-        Set<Version> nodeVersions,
+        Set<String> nodeVersions,
         Consumer<VersionSensitiveWarningsHandler> expectationsSetter
     ) {
         // Based on EsRestTestCase.expectVersionSpecificWarnings helper method but without ESRestTestCase dependency

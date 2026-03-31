@@ -1,0 +1,22 @@
+---
+version: ${xpack.apmdata.template.version}
+_meta:
+  managed: true
+description: |
+  Built-in default ingest pipeline for traces-apm.rum-* data streams.
+
+  This pipeline exists purely for routing, which cannot be
+  performed in a final pipeline, and for invoking user-defined
+  custom pipelines. All built-in processing occurs in the final
+  pipeline.
+processors:
+# Invoke user-defined custom pipelines, in ascending order of specificity:
+- pipeline:
+    name: global@custom
+    ignore_missing_pipeline: true
+- pipeline:
+    name: traces@custom
+    ignore_missing_pipeline: true
+- pipeline:
+    name: traces-apm.rum@custom
+    ignore_missing_pipeline: true

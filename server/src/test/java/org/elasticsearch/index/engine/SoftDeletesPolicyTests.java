@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.engine;
@@ -12,6 +13,7 @@ import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.seqno.RetentionLease;
 import org.elasticsearch.index.seqno.RetentionLeases;
 import org.elasticsearch.test.ESTestCase;
@@ -73,7 +75,7 @@ public class SoftDeletesPolicyTests extends ESTestCase {
             releasingLocks.forEach(Releasable::close);
 
             // getting the query has side effects, updating the internal state of the policy
-            final Query query = policy.getRetentionQuery();
+            final Query query = policy.getRetentionQuery(SeqNoFieldMapper.SeqNoIndexOptions.POINTS_AND_DOC_VALUES);
             assertThat(query, instanceOf(PointRangeQuery.class));
             final PointRangeQuery retentionQuery = (PointRangeQuery) query;
 

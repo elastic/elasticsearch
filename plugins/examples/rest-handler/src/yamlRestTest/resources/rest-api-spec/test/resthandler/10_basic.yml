@@ -3,7 +3,6 @@
   # Use the Cat Plugins API to retrieve the list of plugins
   - do:
       cat.plugins:
-        local: true
         h: component
 
   - match:

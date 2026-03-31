@@ -1,19 +1,20 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.core.internal.provider;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.PrivilegedOperations;
 import org.elasticsearch.test.compiler.InMemoryJavaCompiler;
 import org.elasticsearch.test.jar.JarUtils;
 
 import java.lang.module.ModuleDescriptor;
+import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.nio.file.Files;
@@ -116,12 +117,8 @@ public class ProviderLocatorTests extends ESTestCase {
         Path topLevelDir = createTempDir(getTestName());
         Path outerJar = topLevelDir.resolve("impl.jar");
         JarUtils.createJarWithEntries(outerJar, jarEntries);
-        URLClassLoader parent = URLClassLoader.newInstance(
-            new URL[] { outerJar.toUri().toURL() },
-            ProviderLocatorTests.class.getClassLoader()
-        );
 
-        try {
+        try (URLClassLoader parent = loader(outerJar)) {
             // test scenario
             ProviderLocator<IntSupplier> locator = new ProviderLocator<>("x-foo", IntSupplier.class, parent, "x.foo.impl", Set.of(), true);
             IntSupplier impl = locator.get();
@@ -138,8 +135,6 @@ public class ProviderLocatorTests extends ESTestCase {
             assertThat(md.exports(), containsInAnyOrder(exportsOf("p")));
             assertThat(md.opens(), containsInAnyOrder(opensOf("q")));
             assertThat(md.packages(), containsInAnyOrder(equalTo("p"), equalTo("q"), equalTo("r")));
-        } finally {
-            PrivilegedOperations.closeURLClassLoader(parent);
         }
     }
 
@@ -171,12 +166,8 @@ public class ProviderLocatorTests extends ESTestCase {
         Path topLevelDir = createTempDir(getTestName());
         Path outerJar = topLevelDir.resolve("impl.jar");
         JarUtils.createJarWithEntries(outerJar, jarEntries);
-        URLClassLoader parent = URLClassLoader.newInstance(
-            new URL[] { outerJar.toUri().toURL() },
-            ProviderLocatorTests.class.getClassLoader()
-        );
 
-        try {
+        try (URLClassLoader parent = loader(outerJar)) {
             // test scenario
             ProviderLocator<LongSupplier> locator = new ProviderLocator<>("x-foo", LongSupplier.class, parent, "", Set.of(), false);
             LongSupplier impl = locator.get();
@@ -184,8 +175,6 @@ public class ProviderLocatorTests extends ESTestCase {
             assertThat(impl.toString(), equalTo("Hello from FooLongSupplier - non-modular!"));
             assertThat(impl.getClass().getName(), equalTo("p.FooLongSupplier"));
             assertThat(impl.getClass().getModule().isNamed(), is(false));
-        } finally {
-            PrivilegedOperations.closeURLClassLoader(parent);
         }
     }
 
@@ -214,12 +203,7 @@ public class ProviderLocatorTests extends ESTestCase {
         Path pb = Files.createDirectories(barRoot.resolve("pb"));
         Files.write(pb.resolve("BarIntSupplier.class"), classToBytes.get("pb.BarIntSupplier"));
 
-        URLClassLoader parent = URLClassLoader.newInstance(
-            new URL[] { topLevelDir.toUri().toURL() },
-            ProviderLocatorTests.class.getClassLoader()
-        );
-
-        try {
+        try (URLClassLoader parent = loader(topLevelDir)) {
             // test scenario
             ProviderLocator<IntSupplier> locator = new ProviderLocator<>("y-bar", IntSupplier.class, parent, "", Set.of(), false);
             IntSupplier impl = locator.get();
@@ -227,8 +211,10 @@ public class ProviderLocatorTests extends ESTestCase {
             assertThat(impl.toString(), equalTo("Hello from BarIntSupplier - exploded non-modular!"));
             assertThat(impl.getClass().getName(), equalTo("pb.BarIntSupplier"));
             assertThat(impl.getClass().getModule().isNamed(), is(false));
-        } finally {
-            PrivilegedOperations.closeURLClassLoader(parent);
         }
+    }
+
+    private static URLClassLoader loader(Path jar) throws MalformedURLException {
+        return URLClassLoader.newInstance(new URL[] { jar.toUri().toURL() }, ProviderLocatorTests.class.getClassLoader());
     }
 }

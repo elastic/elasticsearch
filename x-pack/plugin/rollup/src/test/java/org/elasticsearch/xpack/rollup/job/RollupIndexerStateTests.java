@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.rollup.job;
 
-import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -14,17 +13,14 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.SearchResponseSections;
 import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
-import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
+import org.elasticsearch.search.aggregations.bucket.composite.InternalComposite;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.rollup.ConfigTestHelpers;
 import org.elasticsearch.xpack.core.rollup.RollupField;
@@ -34,7 +30,6 @@ import org.elasticsearch.xpack.core.rollup.job.RollupJobConfig;
 import org.hamcrest.Matchers;
 import org.mockito.stubbing.Answer;
 
-import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -47,9 +42,12 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.when;
 
 public class RollupIndexerStateTests extends ESTestCase {
     private static class EmptyRollupIndexer extends RollupIndexer {
@@ -74,49 +72,14 @@ public class RollupIndexerStateTests extends ESTestCase {
 
         @Override
         protected void doNextSearch(long waitTimeInNanos, ActionListener<SearchResponse> nextPhase) {
-            // TODO Should use InternalComposite constructor but it is package protected in core.
-            Aggregations aggs = new Aggregations(Collections.singletonList(new CompositeAggregation() {
-                @Override
-                public List<? extends Bucket> getBuckets() {
-                    return Collections.emptyList();
-                }
+            InternalComposite composite = mock(InternalComposite.class);
+            when(composite.getBuckets()).thenReturn(List.of());
+            when(composite.getName()).thenReturn(AGGREGATION_NAME);
 
-                @Override
-                public Map<String, Object> afterKey() {
-                    return null;
-                }
-
-                @Override
-                public String getName() {
-                    return AGGREGATION_NAME;
-                }
-
-                @Override
-                public String getType() {
-                    return null;
-                }
-
-                @Override
-                public Map<String, Object> getMetadata() {
-                    return null;
-                }
-
-                @Override
-                public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-                    return null;
-                }
-            }));
-            final SearchResponseSections sections = new SearchResponseSections(
-                new SearchHits(new SearchHit[0], new TotalHits(0, TotalHits.Relation.EQUAL_TO), 0),
-                aggs,
-                null,
-                false,
-                null,
-                null,
-                1
+            ActionListener.respondAndRelease(
+                nextPhase,
+                SearchResponseUtils.response(SearchHits.EMPTY_WITH_TOTAL_HITS).aggregations(InternalAggregations.from(composite)).build()
             );
-            final SearchResponse response = new SearchResponse(sections, null, 1, 1, 0, 0, new ShardSearchFailure[0], null);
-            nextPhase.onResponse(response);
         }
 
         @Override
@@ -198,18 +161,6 @@ public class RollupIndexerStateTests extends ESTestCase {
             Map<String, Object> initialPosition,
             Function<SearchRequest, SearchResponse> searchFunction,
             Function<BulkRequest, BulkResponse> bulkFunction,
-            Consumer<Exception> failureConsumer
-        ) {
-            this(threadPool, job, initialState, initialPosition, searchFunction, bulkFunction, failureConsumer, (i, m) -> {});
-        }
-
-        NonEmptyRollupIndexer(
-            ThreadPool threadPool,
-            RollupJob job,
-            AtomicReference<IndexerState> initialState,
-            Map<String, Object> initialPosition,
-            Function<SearchRequest, SearchResponse> searchFunction,
-            Function<BulkRequest, BulkResponse> bulkFunction,
             Consumer<Exception> failureConsumer,
             BiConsumer<IndexerState, Map<String, Object>> saveStateCheck
         ) {
@@ -234,8 +185,7 @@ public class RollupIndexerStateTests extends ESTestCase {
             }
 
             try {
-                SearchResponse response = searchFunction.apply(buildSearchRequest());
-                nextPhase.onResponse(response);
+                ActionListener.respondAndRelease(nextPhase, searchFunction.apply(buildSearchRequest()));
             } catch (Exception e) {
                 nextPhase.onFailure(e);
             }
@@ -450,52 +400,22 @@ public class RollupIndexerStateTests extends ESTestCase {
                     } catch (InterruptedException e) {
                         throw new IllegalStateException(e);
                     }
-                    // TODO Should use InternalComposite constructor but it is package protected in core.
-                    Aggregations aggs = new Aggregations(Collections.singletonList(new CompositeAggregation() {
-                        @Override
-                        public List<? extends Bucket> getBuckets() {
-                            // Abort immediately before we are attempting to finish the job because the response
-                            // was empty
-                            state.set(IndexerState.ABORTING);
-                            return Collections.emptyList();
-                        }
 
-                        @Override
-                        public Map<String, Object> afterKey() {
-                            return null;
-                        }
+                    InternalComposite composite = mock(InternalComposite.class);
+                    when(composite.getBuckets()).thenAnswer(invocation -> {
+                        // Abort immediately before we are attempting to finish the job because the response
+                        // was empty
+                        state.set(IndexerState.ABORTING);
+                        return List.of();
+                    });
+                    when(composite.getName()).thenReturn(AGGREGATION_NAME);
 
-                        @Override
-                        public String getName() {
-                            return AGGREGATION_NAME;
-                        }
-
-                        @Override
-                        public String getType() {
-                            return null;
-                        }
-
-                        @Override
-                        public Map<String, Object> getMetadata() {
-                            return null;
-                        }
-
-                        @Override
-                        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-                            return null;
-                        }
-                    }));
-                    final SearchResponseSections sections = new SearchResponseSections(
-                        new SearchHits(new SearchHit[0], new TotalHits(0, TotalHits.Relation.EQUAL_TO), 0),
-                        aggs,
-                        null,
-                        false,
-                        null,
-                        null,
-                        1
+                    ActionListener.respondAndRelease(
+                        nextPhase,
+                        SearchResponseUtils.response(SearchHits.EMPTY_WITH_TOTAL_HITS)
+                            .aggregations(InternalAggregations.from(composite))
+                            .build()
                     );
-                    final SearchResponse response = new SearchResponse(sections, null, 1, 1, 0, 0, ShardSearchFailure.EMPTY_ARRAY, null);
-                    nextPhase.onResponse(response);
                 }
 
                 @Override
@@ -599,33 +519,29 @@ public class RollupIndexerStateTests extends ESTestCase {
         AtomicReference<IndexerState> state = new AtomicReference<>(IndexerState.STOPPED);
         final ThreadPool threadPool = new TestThreadPool(getTestName());
         try {
-            final AtomicBoolean isAborted = new AtomicBoolean(false);
-            DelayedEmptyRollupIndexer indexer = new DelayedEmptyRollupIndexer(threadPool, job, state, null) {
-                @Override
-                protected void onAbort() {
-                    isAborted.set(true);
-                }
-            };
+            DelayedEmptyRollupIndexer indexer = new DelayedEmptyRollupIndexer(threadPool, job, state, null);
             indexer.start();
             for (int i = 0; i < 5; i++) {
                 final CountDownLatch latch = indexer.newLatch();
                 assertThat(indexer.getState(), equalTo(IndexerState.STARTED));
-                assertTrue(indexer.maybeTriggerAsyncJob(System.currentTimeMillis()));
+                // This may take more than one attempt due to a cleanup/transition phase
+                // that happens after state change to STARTED (`isJobFinishing`).
+                assertBusy(() -> assertTrue(indexer.maybeTriggerAsyncJob(System.currentTimeMillis())));
                 assertThat(indexer.getState(), equalTo(IndexerState.INDEXING));
                 assertFalse(indexer.maybeTriggerAsyncJob(System.currentTimeMillis()));
                 assertThat(indexer.getState(), equalTo(IndexerState.INDEXING));
                 latch.countDown();
                 assertBusy(() -> assertThat(indexer.getState(), equalTo(IndexerState.STARTED)));
-                assertThat(indexer.getStats().getNumInvocations(), equalTo((long) i + 1));
                 assertThat(indexer.getStats().getNumPages(), equalTo((long) i + 1));
             }
             final CountDownLatch latch = indexer.newLatch();
-            assertTrue(indexer.maybeTriggerAsyncJob(System.currentTimeMillis()));
+            assertBusy(() -> assertTrue(indexer.maybeTriggerAsyncJob(System.currentTimeMillis())));
             assertThat(indexer.stop(), equalTo(IndexerState.STOPPING));
             assertThat(indexer.getState(), Matchers.either(Matchers.is(IndexerState.STOPPING)).or(Matchers.is(IndexerState.STOPPED)));
             latch.countDown();
             assertBusy(() -> assertThat(indexer.getState(), equalTo(IndexerState.STOPPED)));
             assertTrue(indexer.abort());
+            assertThat(indexer.getStats().getNumInvocations(), greaterThanOrEqualTo(6L));
         } finally {
             ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
         }
@@ -638,74 +554,19 @@ public class RollupIndexerStateTests extends ESTestCase {
         RollupJob job = new RollupJob(ConfigTestHelpers.randomRollupJobConfig(random()), Collections.emptyMap());
         AtomicReference<IndexerState> state = new AtomicReference<>(IndexerState.STOPPED);
         Function<SearchRequest, SearchResponse> searchFunction = searchRequest -> {
-            Aggregations aggs = new Aggregations(Collections.singletonList(new CompositeAggregation() {
-                @Override
-                public List<? extends Bucket> getBuckets() {
-                    Bucket b = new Bucket() {
-                        @Override
-                        public Map<String, Object> getKey() {
-                            return Collections.singletonMap("foo", "bar");
-                        }
 
-                        @Override
-                        public String getKeyAsString() {
-                            return null;
-                        }
+            InternalComposite.InternalBucket bucket = mock(InternalComposite.InternalBucket.class);
+            when(bucket.getKey()).thenReturn(Map.of("foo", "bar"));
+            when(bucket.getDocCount()).thenReturn(1L);
+            when(bucket.getAggregations()).thenReturn(InternalAggregations.EMPTY);
 
-                        @Override
-                        public long getDocCount() {
-                            return 1;
-                        }
+            InternalComposite composite = mock(InternalComposite.class);
+            when(composite.getBuckets()).thenReturn(List.of(bucket));
+            when(composite.getName()).thenReturn(RollupField.NAME);
 
-                        @Override
-                        public Aggregations getAggregations() {
-                            return InternalAggregations.EMPTY;
-                        }
-
-                        @Override
-                        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-                            return null;
-                        }
-                    };
-
-                    return Collections.singletonList(b);
-                }
-
-                @Override
-                public Map<String, Object> afterKey() {
-                    return null;
-                }
-
-                @Override
-                public String getName() {
-                    return RollupField.NAME;
-                }
-
-                @Override
-                public String getType() {
-                    return null;
-                }
-
-                @Override
-                public Map<String, Object> getMetadata() {
-                    return null;
-                }
-
-                @Override
-                public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-                    return null;
-                }
-            }));
-            final SearchResponseSections sections = new SearchResponseSections(
-                new SearchHits(new SearchHit[0], new TotalHits(0, TotalHits.Relation.EQUAL_TO), 0),
-                aggs,
-                null,
-                false,
-                null,
-                null,
-                1
-            );
-            return new SearchResponse(sections, null, 1, 1, 0, 0, ShardSearchFailure.EMPTY_ARRAY, null);
+            return SearchResponseUtils.response(SearchHits.EMPTY_WITH_TOTAL_HITS)
+                .aggregations(InternalAggregations.from(composite))
+                .build();
         };
 
         Function<BulkRequest, BulkResponse> bulkFunction = bulkRequest -> new BulkResponse(new BulkItemResponse[0], 100);
@@ -761,75 +622,22 @@ public class RollupIndexerStateTests extends ESTestCase {
         RollupJob job = new RollupJob(ConfigTestHelpers.randomRollupJobConfig(random()), Collections.emptyMap());
         AtomicReference<IndexerState> state = new AtomicReference<>(IndexerState.STOPPED);
         Function<SearchRequest, SearchResponse> searchFunction = searchRequest -> {
-            Aggregations aggs = new Aggregations(Collections.singletonList(new CompositeAggregation() {
-                @Override
-                public List<? extends Bucket> getBuckets() {
-                    Bucket b = new Bucket() {
-                        @Override
-                        public Map<String, Object> getKey() {
-                            state.set(IndexerState.STOPPING); // <- Force a stop so we can see how error + non-INDEXING state is handled
-                            return Collections.singletonMap("foo", "bar");  // This will throw an exception
-                        }
 
-                        @Override
-                        public String getKeyAsString() {
-                            return null;
-                        }
+            InternalComposite.InternalBucket bucket = mock(InternalComposite.InternalBucket.class);
+            when(bucket.getKey()).thenAnswer(invocation -> {
+                state.set(IndexerState.STOPPING); // <- Force a stop so we can see how error + non-INDEXING state is handled
+                return Collections.singletonMap("foo", "bar");  // This will throw an exception
+            });
+            when(bucket.getDocCount()).thenReturn(1L);
+            when(bucket.getAggregations()).thenReturn(InternalAggregations.EMPTY);
 
-                        @Override
-                        public long getDocCount() {
-                            return 1;
-                        }
+            InternalComposite composite = mock(InternalComposite.class);
+            when(composite.getBuckets()).thenReturn(List.of(bucket));
+            when(composite.getName()).thenReturn(RollupField.NAME);
 
-                        @Override
-                        public Aggregations getAggregations() {
-                            return InternalAggregations.EMPTY;
-                        }
-
-                        @Override
-                        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-                            return null;
-                        }
-                    };
-
-                    return Collections.singletonList(b);
-                }
-
-                @Override
-                public Map<String, Object> afterKey() {
-                    return null;
-                }
-
-                @Override
-                public String getName() {
-                    return RollupField.NAME;
-                }
-
-                @Override
-                public String getType() {
-                    return null;
-                }
-
-                @Override
-                public Map<String, Object> getMetadata() {
-                    return null;
-                }
-
-                @Override
-                public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-                    return null;
-                }
-            }));
-            final SearchResponseSections sections = new SearchResponseSections(
-                new SearchHits(new SearchHit[0], new TotalHits(0, TotalHits.Relation.EQUAL_TO), 0),
-                aggs,
-                null,
-                false,
-                null,
-                null,
-                1
-            );
-            return new SearchResponse(sections, null, 1, 1, 0, 0, ShardSearchFailure.EMPTY_ARRAY, null);
+            return SearchResponseUtils.response(SearchHits.EMPTY_WITH_TOTAL_HITS)
+                .aggregations(InternalAggregations.from(composite))
+                .build();
         };
 
         Function<BulkRequest, BulkResponse> bulkFunction = bulkRequest -> new BulkResponse(new BulkItemResponse[0], 100);
@@ -935,74 +743,19 @@ public class RollupIndexerStateTests extends ESTestCase {
         RollupJob job = new RollupJob(ConfigTestHelpers.randomRollupJobConfig(random()), Collections.emptyMap());
         AtomicReference<IndexerState> state = new AtomicReference<>(IndexerState.STOPPED);
         Function<SearchRequest, SearchResponse> searchFunction = searchRequest -> {
-            Aggregations aggs = new Aggregations(Collections.singletonList(new CompositeAggregation() {
-                @Override
-                public List<? extends Bucket> getBuckets() {
-                    Bucket b = new Bucket() {
-                        @Override
-                        public Map<String, Object> getKey() {
-                            return Collections.singletonMap("foo.terms", "bar");
-                        }
 
-                        @Override
-                        public String getKeyAsString() {
-                            return null;
-                        }
+            InternalComposite.InternalBucket bucket = mock(InternalComposite.InternalBucket.class);
+            when(bucket.getKey()).thenReturn(Map.of("foo.terms", "bar"));
+            when(bucket.getDocCount()).thenReturn(1L);
+            when(bucket.getAggregations()).thenReturn(InternalAggregations.EMPTY);
 
-                        @Override
-                        public long getDocCount() {
-                            return 1;
-                        }
+            InternalComposite composite = mock(InternalComposite.class);
+            when(composite.getName()).thenReturn(RollupField.NAME);
+            when(composite.getBuckets()).thenReturn(List.of(bucket));
 
-                        @Override
-                        public Aggregations getAggregations() {
-                            return InternalAggregations.EMPTY;
-                        }
-
-                        @Override
-                        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-                            return null;
-                        }
-                    };
-
-                    return Collections.singletonList(b);
-                }
-
-                @Override
-                public Map<String, Object> afterKey() {
-                    return null;
-                }
-
-                @Override
-                public String getName() {
-                    return RollupField.NAME;
-                }
-
-                @Override
-                public String getType() {
-                    return null;
-                }
-
-                @Override
-                public Map<String, Object> getMetadata() {
-                    return null;
-                }
-
-                @Override
-                public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-                    return null;
-                }
-            }));
-            final SearchResponseSections sections = new SearchResponseSections(
-                new SearchHits(new SearchHit[0], new TotalHits(0, TotalHits.Relation.EQUAL_TO), 0),
-                aggs,
-                null,
-                false,
-                null,
-                null,
-                1
-            );
-            return new SearchResponse(sections, null, 1, 1, 0, 0, ShardSearchFailure.EMPTY_ARRAY, null);
+            return SearchResponseUtils.response(SearchHits.EMPTY_WITH_TOTAL_HITS)
+                .aggregations(InternalAggregations.from(composite))
+                .build();
         };
 
         Function<BulkRequest, BulkResponse> bulkFunction = bulkRequest -> {

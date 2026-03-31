@@ -7,22 +7,25 @@
 
 package org.elasticsearch.compute.data;
 
+// begin generated imports
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
+// end generated imports
 
 /**
- * Block view of a BytesRefVector.
- * This class is generated. Do not edit it.
+ * Block view of a {@link BytesRefVector}. Cannot represent multi-values or nulls.
+ * This class is generated. Edit {@code X-VectorBlock.java.st} instead.
  */
 public final class BytesRefVectorBlock extends AbstractVectorBlock implements BytesRefBlock {
 
-    private static final long RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(BytesRefVectorBlock.class);
-
     private final BytesRefVector vector;
 
+    /**
+     * @param vector considered owned by the current block; must not be used in any other {@code Block}
+     */
     BytesRefVectorBlock(BytesRefVector vector) {
-        super(vector.getPositionCount());
         this.vector = vector;
     }
 
@@ -32,12 +35,22 @@ public final class BytesRefVectorBlock extends AbstractVectorBlock implements By
     }
 
     @Override
+    public OrdinalBytesRefBlock asOrdinals() {
+        var ordinals = vector.asOrdinals();
+        if (ordinals != null) {
+            return ordinals.asBlock();
+        } else {
+            return null;
+        }
+    }
+
+    @Override
     public BytesRef getBytesRef(int valueIndex, BytesRef dest) {
         return vector.getBytesRef(valueIndex, dest);
     }
 
     @Override
-    public int getTotalValueCount() {
+    public int getPositionCount() {
         return vector.getPositionCount();
     }
 
@@ -47,13 +60,39 @@ public final class BytesRefVectorBlock extends AbstractVectorBlock implements By
     }
 
     @Override
-    public BytesRefBlock filter(int... positions) {
-        return new FilterBytesRefVector(vector, positions).asBlock();
+    public BytesRefBlock slice(int beginInclusive, int endExclusive) {
+        return vector.slice(beginInclusive, endExclusive).asBlock();
+    }
+
+    @Override
+    public BytesRefBlock filter(boolean mayContainDuplicates, int... positions) {
+        return vector.filter(mayContainDuplicates, positions).asBlock();
+    }
+
+    @Override
+    public BytesRefBlock keepMask(BooleanVector mask) {
+        return vector.keepMask(mask);
+    }
+
+    @Override
+    public BytesRefBlock deepCopy(BlockFactory blockFactory) {
+        return vector.deepCopy(blockFactory).asBlock();
+    }
+
+    @Override
+    public ReleasableIterator<? extends BytesRefBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize) {
+        return vector.lookup(positions, targetBlockSize);
+    }
+
+    @Override
+    public BytesRefBlock expand() {
+        incRef();
+        return this;
     }
 
     @Override
     public long ramBytesUsed() {
-        return RAM_BYTES_USED + RamUsageEstimator.sizeOf(vector);
+        return vector.ramBytesUsed();
     }
 
     @Override
@@ -75,7 +114,18 @@ public final class BytesRefVectorBlock extends AbstractVectorBlock implements By
     }
 
     @Override
-    public void close() {
+    public void closeInternal() {
+        assert (vector.isReleased() == false) : "can't release block [" + this + "] containing already released vector";
         Releasables.closeExpectNoException(vector);
+    }
+
+    @Override
+    public void allowPassingToDifferentDriver() {
+        vector.allowPassingToDifferentDriver();
+    }
+
+    @Override
+    public BlockFactory blockFactory() {
+        return vector.blockFactory();
     }
 }

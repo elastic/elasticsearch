@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.indices;
@@ -16,7 +17,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.cache.CacheLoader;
-import org.elasticsearch.common.cache.RemovalListener;
 import org.elasticsearch.common.cache.RemovalNotification;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Setting;
@@ -44,11 +44,8 @@ import java.util.concurrent.ConcurrentMap;
  * <p>
  * Currently, the cache is only enabled for count requests, and can only be opted in on an index
  * level setting that can be dynamically changed and defaults to false.
- * <p>
- * There are still several TODOs left in this class, some easily addressable, some more complex, but the support
- * is functional.
  */
-public final class IndicesRequestCache implements RemovalListener<IndicesRequestCache.Key, BytesReference>, Closeable {
+public final class IndicesRequestCache implements Closeable {
 
     /**
      * A setting to enable or disable request caching on an index level. Its dynamic by default
@@ -73,18 +70,14 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
 
     private final ConcurrentMap<CleanupKey, Boolean> registeredClosedListeners = ConcurrentCollections.newConcurrentMap();
     private final Set<CleanupKey> keysToClean = ConcurrentCollections.newConcurrentSet();
-    private final ByteSizeValue size;
-    private final TimeValue expire;
     private final Cache<Key, BytesReference> cache;
 
     IndicesRequestCache(Settings settings) {
-        this.size = INDICES_CACHE_QUERY_SIZE.get(settings);
-        this.expire = INDICES_CACHE_QUERY_EXPIRE.exists(settings) ? INDICES_CACHE_QUERY_EXPIRE.get(settings) : null;
-        long sizeInBytes = size.getBytes();
+        TimeValue expire = INDICES_CACHE_QUERY_EXPIRE.exists(settings) ? INDICES_CACHE_QUERY_EXPIRE.get(settings) : null;
         CacheBuilder<Key, BytesReference> cacheBuilder = CacheBuilder.<Key, BytesReference>builder()
-            .setMaximumWeight(sizeInBytes)
+            .setMaximumWeight(INDICES_CACHE_QUERY_SIZE.get(settings).getBytes())
             .weigher((k, v) -> k.ramBytesUsed() + v.ramBytesUsed())
-            .removalListener(this);
+            .removalListener(notification -> notification.getKey().entity.onRemoval(notification));
         if (expire != null) {
             cacheBuilder.setExpireAfterAccess(expire);
         }
@@ -101,11 +94,6 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
         cleanCache();
     }
 
-    @Override
-    public void onRemoval(RemovalNotification<Key, BytesReference> notification) {
-        notification.getKey().entity.onRemoval(notification);
-    }
-
     BytesReference getOrCompute(
         CacheEntity cacheEntity,
         CheckedSupplier<BytesReference, IOException> loader,
@@ -120,7 +108,7 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
         BytesReference value = cache.computeIfAbsent(key, cacheLoader);
         if (cacheLoader.isLoaded()) {
             key.entity.onMiss();
-            // see if its the first time we see this reader, and make sure to register a cleanup key
+            // see if it's the first time we see this reader, and make sure to register a cleanup key
             CleanupKey cleanupKey = new CleanupKey(cacheEntity, cacheHelper.getKey());
             if (registeredClosedListeners.containsKey(cleanupKey) == false) {
                 Boolean previous = registeredClosedListeners.putIfAbsent(cleanupKey, Boolean.TRUE);
@@ -144,14 +132,16 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
     }
 
     /**
-     * Invalidates the given the cache entry for the given key and it's context
+     * Invalidates the given cache entry for the given key and its context
      * @param cacheEntity the cache entity to invalidate for
+     * @param mappingCacheKey the mapping cache key to invalidate the cache entry for
      * @param reader the reader to invalidate the cache entry for
      * @param cacheKey the cache key to invalidate
      */
     void invalidate(CacheEntity cacheEntity, MappingLookup.CacheKey mappingCacheKey, DirectoryReader reader, BytesReference cacheKey) {
-        assert reader.getReaderCacheHelper() != null;
-        cache.invalidate(new Key(cacheEntity, mappingCacheKey, reader.getReaderCacheHelper().getKey(), cacheKey));
+        final ESCacheHelper cacheHelper = ElasticsearchDirectoryReader.getESReaderCacheHelper(reader);
+        assert cacheHelper != null;
+        cache.invalidate(new Key(cacheEntity, mappingCacheKey, cacheHelper.getKey(), cacheKey));
     }
 
     private static class Loader implements CacheLoader<Key, BytesReference> {
@@ -267,7 +257,7 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
                 + entity.getCacheIdentity()
                 + ",value=" // BytesRef's toString already has [] so we don't add it here
                 + value.toBytesRef() // BytesRef has a readable toString
-                + ")";
+                + "])";
         }
     }
 

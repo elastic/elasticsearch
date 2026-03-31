@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -100,6 +99,28 @@ public class FillMaskConfig implements NlpConfig {
     }
 
     @Override
+    public InferenceConfig apply(InferenceConfigUpdate update) {
+        if (update instanceof FillMaskConfigUpdate configUpdate) {
+            FillMaskConfig.Builder builder = new FillMaskConfig.Builder(this);
+            if (configUpdate.getNumTopClasses() != null) {
+                builder.setNumTopClasses(configUpdate.getNumTopClasses());
+            }
+            if (configUpdate.getResultsField() != null) {
+                builder.setResultsField(configUpdate.getResultsField());
+            }
+            if (configUpdate.getTokenizationUpdate() != null) {
+                builder.setTokenization(configUpdate.getTokenizationUpdate().apply(this.getTokenization()));
+            }
+            return builder.build();
+        } else if (update instanceof TokenizationConfigUpdate tokenizationUpdate) {
+            FillMaskConfig.Builder builder = new FillMaskConfig.Builder(this);
+            return builder.setTokenization(this.getTokenization().updateWindowSettings(tokenizationUpdate.getSpanSettings())).build();
+        } else {
+            throw incompatibleUpdateException(update.getName());
+        }
+    }
+
+    @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(VOCABULARY.getPreferredName(), vocabularyConfig, params);
@@ -140,7 +161,7 @@ public class FillMaskConfig implements NlpConfig {
 
     @Override
     public TransportVersion getMinimalSupportedTransportVersion() {
-        return TransportVersions.V_8_0_0;
+        return TransportVersion.minimumCompatible();
     }
 
     @Override

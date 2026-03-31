@@ -1,15 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -29,21 +29,22 @@ public class IndexRequestBuilderIT extends ESIntegTestCase {
         Map<String, Object> map = new HashMap<>();
         map.put("test_field", "foobar");
         IndexRequestBuilder[] builders = new IndexRequestBuilder[] {
-            client().prepareIndex("test").setSource((Object) "test_field", (Object) "foobar"),
-            client().prepareIndex("test").setSource("{\"test_field\" : \"foobar\"}", XContentType.JSON),
-            client().prepareIndex("test").setSource(new BytesArray("{\"test_field\" : \"foobar\"}"), XContentType.JSON),
-            client().prepareIndex("test").setSource(new BytesArray("{\"test_field\" : \"foobar\"}"), XContentType.JSON),
-            client().prepareIndex("test")
-                .setSource(BytesReference.toBytes(new BytesArray("{\"test_field\" : \"foobar\"}")), XContentType.JSON),
-            client().prepareIndex("test").setSource(map) };
+            prepareIndex("test").setSource((Object) "test_field", (Object) "foobar"),
+            prepareIndex("test").setSource("{\"test_field\" : \"foobar\"}", XContentType.JSON),
+            prepareIndex("test").setSource(new BytesArray("{\"test_field\" : \"foobar\"}"), XContentType.JSON),
+            prepareIndex("test").setSource(new BytesArray("{\"test_field\" : \"foobar\"}"), XContentType.JSON),
+            prepareIndex("test").setSource(BytesReference.toBytes(new BytesArray("{\"test_field\" : \"foobar\"}")), XContentType.JSON),
+            prepareIndex("test").setSource(map) };
         indexRandom(true, builders);
-        SearchResponse searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.termQuery("test_field", "foobar")).get();
-        ElasticsearchAssertions.assertHitCount(searchResponse, builders.length);
+        ElasticsearchAssertions.assertHitCount(
+            prepareSearch("test").setQuery(QueryBuilders.termQuery("test_field", "foobar")),
+            builders.length
+        );
     }
 
     public void testOddNumberOfSourceObjects() {
         try {
-            client().prepareIndex("test").setSource("test_field", "foobar", new Object());
+            prepareIndex("test").setSource("test_field", "foobar", new Object());
             fail("Expected IllegalArgumentException");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), containsString("The number of object passed must be even but was [3]"));

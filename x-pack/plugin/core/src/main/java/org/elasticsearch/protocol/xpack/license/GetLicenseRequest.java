@@ -9,12 +9,16 @@ package org.elasticsearch.protocol.xpack.license;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.core.TimeValue;
 
 import java.io.IOException;
 
 public class GetLicenseRequest extends MasterNodeReadRequest<GetLicenseRequest> {
 
-    public GetLicenseRequest() {}
+    public GetLicenseRequest(TimeValue masterNodeTimeout) {
+        super(masterNodeTimeout);
+        local = true; // default to a local response, no need to forward to the master in most cases
+    }
 
     public GetLicenseRequest(StreamInput in) throws IOException {
         super(in);

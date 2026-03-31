@@ -22,7 +22,7 @@ public class SearchHitBuilder {
     private final SearchHit hit;
 
     public SearchHitBuilder(int docId) {
-        hit = new SearchHit(docId, null);
+        hit = SearchHit.unpooled(docId, null);
     }
 
     public SearchHitBuilder addField(String name, Object value) {
@@ -30,7 +30,7 @@ public class SearchHitBuilder {
     }
 
     public SearchHitBuilder addField(String name, List<Object> values) {
-        hit.setDocumentField(name, new DocumentField(name, values));
+        hit.setDocumentField(new DocumentField(name, values));
         return this;
     }
 

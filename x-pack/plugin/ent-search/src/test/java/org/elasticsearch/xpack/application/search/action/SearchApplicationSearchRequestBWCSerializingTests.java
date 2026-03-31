@@ -9,11 +9,12 @@ package org.elasticsearch.xpack.application.search.action;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.test.AbstractBWCSerializationTestCase;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xpack.application.search.SearchApplicationTestUtils;
-import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
+import org.elasticsearch.xpack.application.EnterpriseSearchModuleTestUtils;
 
 import java.io.IOException;
+import java.util.Map;
 
 public class SearchApplicationSearchRequestBWCSerializingTests extends AbstractBWCSerializationTestCase<SearchApplicationSearchRequest> {
 
@@ -26,13 +27,20 @@ public class SearchApplicationSearchRequestBWCSerializingTests extends AbstractB
     protected SearchApplicationSearchRequest createTestInstance() {
         return new SearchApplicationSearchRequest(
             randomAlphaOfLengthBetween(1, 10),
-            SearchApplicationTestUtils.randomSearchApplicationQueryParams()
+            EnterpriseSearchModuleTestUtils.randomSearchApplicationQueryParams()
         );
     }
 
     @Override
     protected SearchApplicationSearchRequest mutateInstance(SearchApplicationSearchRequest instance) throws IOException {
-        return randomValueOtherThan(instance, this::createTestInstance);
+        String name = instance.name();
+        Map<String, Object> queryParams = instance.queryParams();
+        switch (randomIntBetween(0, 1)) {
+            case 0 -> name = randomValueOtherThan(name, () -> randomAlphaOfLengthBetween(1, 10));
+            case 1 -> queryParams = randomValueOtherThan(queryParams, EnterpriseSearchModuleTestUtils::randomSearchApplicationQueryParams);
+            default -> throw new AssertionError("Illegal randomisation branch");
+        }
+        return new SearchApplicationSearchRequest(name, queryParams);
     }
 
     @Override

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.seqno;
@@ -47,7 +48,7 @@ public class RetentionLeaseStatsTests extends ESSingleNodeTestCase {
             latch.await();
         }
 
-        final IndicesStatsResponse indicesStats = client().admin().indices().prepareStats("index").execute().actionGet();
+        final IndicesStatsResponse indicesStats = client().admin().indices().prepareStats("index").get();
         assertThat(indicesStats.getShards(), arrayWithSize(1));
         final RetentionLeaseStats retentionLeaseStats = indicesStats.getShards()[0].getRetentionLeaseStats();
         assertThat(

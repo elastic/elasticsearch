@@ -7,7 +7,6 @@
 package org.elasticsearch.license;
 
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -17,12 +16,7 @@ import java.util.Objects;
 
 public class GetBasicStatusResponse extends ActionResponse implements ToXContentObject {
 
-    private boolean eligibleToStartBasic;
-
-    GetBasicStatusResponse(StreamInput in) throws IOException {
-        super(in);
-        eligibleToStartBasic = in.readBoolean();
-    }
+    private final boolean eligibleToStartBasic;
 
     public GetBasicStatusResponse(boolean eligibleToStartBasic) {
         this.eligibleToStartBasic = eligibleToStartBasic;

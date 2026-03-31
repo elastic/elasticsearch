@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.indices.analysis;
@@ -21,6 +22,7 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.IndexService.IndexCreationContext;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.Analysis;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.CharFilterFactory;
@@ -112,7 +114,6 @@ public class AnalysisModuleTests extends ESTestCase {
     public void testSimpleConfigurationYaml() throws IOException {
         Settings settings = loadFromClasspath("/org/elasticsearch/index/analysis/test1.yml");
         testSimpleConfiguration(settings);
-        assertWarnings("Setting [version] on analysis component [custom7] has no effect and is deprecated");
     }
 
     private void testSimpleConfiguration(Settings settings) throws IOException {
@@ -191,7 +192,7 @@ public class AnalysisModuleTests extends ESTestCase {
         // cacheing bug meant that it was still possible to create indexes using a standard
         // filter until 7.6
         {
-            IndexVersion version = IndexVersionUtils.randomVersionBetween(random(), IndexVersion.V_7_6_0, IndexVersion.current());
+            IndexVersion version = IndexVersionUtils.randomVersionBetween(IndexVersions.V_7_6_0, IndexVersion.current());
             final Settings settings = Settings.builder()
                 .put("index.analysis.analyzer.my_standard.tokenizer", "standard")
                 .put("index.analysis.analyzer.my_standard.filter", "standard")
@@ -202,7 +203,7 @@ public class AnalysisModuleTests extends ESTestCase {
             assertThat(exc.getMessage(), equalTo("The [standard] token filter has been removed."));
         }
         {
-            IndexVersion version = IndexVersionUtils.randomVersionBetween(random(), IndexVersion.V_7_0_0, IndexVersion.V_7_5_2);
+            IndexVersion version = IndexVersionUtils.randomVersionBetween(IndexVersions.V_7_0_0, IndexVersions.V_7_5_2);
             final Settings settings = Settings.builder()
                 .put("index.analysis.analyzer.my_standard.tokenizer", "standard")
                 .put("index.analysis.analyzer.my_standard.filter", "standard")
@@ -261,7 +262,7 @@ public class AnalysisModuleTests extends ESTestCase {
             new StablePluginsRegistry()
         ).getAnalysisRegistry();
 
-        IndexVersion version = IndexVersionUtils.randomVersion(random());
+        IndexVersion version = IndexVersionUtils.randomVersion();
         IndexAnalyzers analyzers = getIndexAnalyzers(
             registry,
             Settings.builder()
@@ -330,7 +331,7 @@ public class AnalysisModuleTests extends ESTestCase {
             new StablePluginsRegistry()
         ).getAnalysisRegistry();
 
-        IndexVersion version = IndexVersionUtils.randomVersion(random());
+        IndexVersion version = IndexVersionUtils.randomVersion();
         IndexAnalyzers analyzers = getIndexAnalyzers(
             registry,
             Settings.builder()
@@ -417,7 +418,7 @@ public class AnalysisModuleTests extends ESTestCase {
             new StablePluginsRegistry()
         ).getAnalysisRegistry();
 
-        IndexVersion version = IndexVersionUtils.randomVersion(random());
+        IndexVersion version = IndexVersionUtils.randomVersion();
         IndexAnalyzers analyzers = getIndexAnalyzers(
             registry,
             Settings.builder()
@@ -452,7 +453,7 @@ public class AnalysisModuleTests extends ESTestCase {
         InputStream aff = getClass().getResourceAsStream("/indices/analyze/conf_dir/hunspell/en_US/en_US.aff");
         InputStream dic = getClass().getResourceAsStream("/indices/analyze/conf_dir/hunspell/en_US/en_US.dic");
         Dictionary dictionary;
-        try (Directory tmp = newFSDirectory(environment.tmpFile())) {
+        try (Directory tmp = newFSDirectory(environment.tmpDir())) {
             dictionary = new Dictionary(tmp, "hunspell", aff, dic);
         }
         AnalysisModule module = new AnalysisModule(environment, singletonList(new AnalysisPlugin() {

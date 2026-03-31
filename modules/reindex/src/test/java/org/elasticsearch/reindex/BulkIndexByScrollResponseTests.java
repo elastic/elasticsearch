@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.reindex;
@@ -12,7 +13,7 @@ import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.BulkByScrollTask;
-import org.elasticsearch.index.reindex.ScrollableHitSource.SearchFailure;
+import org.elasticsearch.index.reindex.PaginatedSearchFailure;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
@@ -30,7 +31,7 @@ public class BulkIndexByScrollResponseTests extends ESTestCase {
         int took = between(1000, 10000);
         int tookIndex = between(0, mergeCount - 1);
         List<BulkItemResponse.Failure> allBulkFailures = new ArrayList<>();
-        List<SearchFailure> allSearchFailures = new ArrayList<>();
+        List<PaginatedSearchFailure> allSearchFailures = new ArrayList<>();
         boolean timedOut = false;
         String reasonCancelled = rarely() ? randomAlphaOfLength(5) : null;
 
@@ -61,9 +62,9 @@ public class BulkIndexByScrollResponseTests extends ESTestCase {
                     .mapToObj(j -> new BulkItemResponse.Failure("idx", "id", new Exception()))
                     .collect(Collectors.toList());
             allBulkFailures.addAll(bulkFailures);
-            List<SearchFailure> searchFailures = frequently()
+            List<PaginatedSearchFailure> searchFailures = frequently()
                 ? emptyList()
-                : IntStream.range(0, between(1, 3)).mapToObj(j -> new SearchFailure(new Exception())).collect(Collectors.toList());
+                : IntStream.range(0, between(1, 3)).mapToObj(j -> new PaginatedSearchFailure(new Exception())).collect(Collectors.toList());
             allSearchFailures.addAll(searchFailures);
             boolean thisTimedOut = rarely();
             timedOut |= thisTimedOut;

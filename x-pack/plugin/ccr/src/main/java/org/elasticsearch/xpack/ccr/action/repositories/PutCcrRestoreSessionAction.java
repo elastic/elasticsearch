@@ -9,14 +9,15 @@ package org.elasticsearch.xpack.ccr.action.repositories;
 
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.RemoteClusterActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -25,6 +26,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ccr.repository.CcrRestoreSourceService;
@@ -37,13 +39,21 @@ public class PutCcrRestoreSessionAction extends ActionType<PutCcrRestoreSessionA
     public static final String INTERNAL_NAME = "internal:admin/ccr/restore/session/put";
     public static final String NAME = "indices:internal/admin/ccr/restore/session/put";
     public static final PutCcrRestoreSessionAction INSTANCE = new PutCcrRestoreSessionAction(NAME);
+    public static final RemoteClusterActionType<PutCcrRestoreSessionResponse> REMOTE_TYPE = new RemoteClusterActionType<>(
+        NAME,
+        PutCcrRestoreSessionResponse::new
+    );
+    public static final RemoteClusterActionType<PutCcrRestoreSessionResponse> REMOTE_INTERNAL_TYPE = new RemoteClusterActionType<>(
+        INTERNAL_NAME,
+        PutCcrRestoreSessionResponse::new
+    );
 
     private PutCcrRestoreSessionAction() {
-        super(INTERNAL_NAME, PutCcrRestoreSessionResponse::new);
+        super(INTERNAL_NAME);
     }
 
     private PutCcrRestoreSessionAction(String name) {
-        super(name, PutCcrRestoreSessionResponse::new);
+        super(name);
     }
 
     abstract static class TransportPutCcrRestoreSessionAction extends TransportSingleShardAction<
@@ -58,6 +68,7 @@ public class PutCcrRestoreSessionAction extends ActionType<PutCcrRestoreSessionA
             ThreadPool threadPool,
             ClusterService clusterService,
             ActionFilters actionFilters,
+            ProjectResolver projectResolver,
             IndexNameExpressionResolver resolver,
             TransportService transportService,
             IndicesService indicesService,
@@ -69,9 +80,10 @@ public class PutCcrRestoreSessionAction extends ActionType<PutCcrRestoreSessionA
                 clusterService,
                 transportService,
                 actionFilters,
+                projectResolver,
                 resolver,
                 PutCcrRestoreSessionRequest::new,
-                ThreadPool.Names.GENERIC
+                threadPool.executor(ThreadPool.Names.GENERIC)
             );
             this.indicesService = indicesService;
             this.ccrRestoreService = ccrRestoreService;
@@ -99,7 +111,7 @@ public class PutCcrRestoreSessionAction extends ActionType<PutCcrRestoreSessionA
         }
 
         @Override
-        protected ShardsIterator shards(ClusterState state, InternalRequest request) {
+        protected ShardsIterator shards(ProjectState state, InternalRequest request) {
             final ShardId shardId = request.request().getShardId();
             return state.routingTable().shardRoutingTable(shardId).primaryShardIt();
         }
@@ -111,12 +123,23 @@ public class PutCcrRestoreSessionAction extends ActionType<PutCcrRestoreSessionA
             ThreadPool threadPool,
             ClusterService clusterService,
             ActionFilters actionFilters,
+            ProjectResolver projectResolver,
             IndexNameExpressionResolver resolver,
             TransportService transportService,
             IndicesService indicesService,
             CcrRestoreSourceService ccrRestoreService
         ) {
-            super(INTERNAL_NAME, threadPool, clusterService, actionFilters, resolver, transportService, indicesService, ccrRestoreService);
+            super(
+                INTERNAL_NAME,
+                threadPool,
+                clusterService,
+                actionFilters,
+                projectResolver,
+                resolver,
+                transportService,
+                indicesService,
+                ccrRestoreService
+            );
         }
     }
 
@@ -126,12 +149,23 @@ public class PutCcrRestoreSessionAction extends ActionType<PutCcrRestoreSessionA
             ThreadPool threadPool,
             ClusterService clusterService,
             ActionFilters actionFilters,
+            ProjectResolver projectResolver,
             IndexNameExpressionResolver resolver,
             TransportService transportService,
             IndicesService indicesService,
             CcrRestoreSourceService ccrRestoreService
         ) {
-            super(NAME, threadPool, clusterService, actionFilters, resolver, transportService, indicesService, ccrRestoreService);
+            super(
+                NAME,
+                threadPool,
+                clusterService,
+                actionFilters,
+                projectResolver,
+                resolver,
+                transportService,
+                indicesService,
+                ccrRestoreService
+            );
         }
     }
 
@@ -148,7 +182,6 @@ public class PutCcrRestoreSessionAction extends ActionType<PutCcrRestoreSessionA
         }
 
         PutCcrRestoreSessionResponse(StreamInput in) throws IOException {
-            super(in);
             node = new DiscoveryNode(in);
             storeFileMetadata = Store.MetadataSnapshot.readFrom(in);
             mappingVersion = in.readVLong();

@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.application.rules.action;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
@@ -43,14 +42,13 @@ public class RestPutQueryRulesetAction extends EnterpriseSearchBaseRestHandler {
     protected RestChannelConsumer innerPrepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         PutQueryRulesetAction.Request request = new PutQueryRulesetAction.Request(
             restRequest.param("ruleset_id"),
-            restRequest.content(),
+            restRequest.requiredContent(),
             restRequest.getXContentType()
         );
-        return channel -> client.execute(PutQueryRulesetAction.INSTANCE, request, new RestToXContentListener<>(channel) {
-            @Override
-            protected RestStatus getStatus(PutQueryRulesetAction.Response response) {
-                return response.status();
-            }
-        });
+        return channel -> client.execute(
+            PutQueryRulesetAction.INSTANCE,
+            request,
+            new RestToXContentListener<>(channel, PutQueryRulesetAction.Response::status, r -> null)
+        );
     }
 }

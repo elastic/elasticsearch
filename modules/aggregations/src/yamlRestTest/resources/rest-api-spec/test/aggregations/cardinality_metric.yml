@@ -3,6 +3,8 @@ setup:
       indices.create:
           index: test_1
           body:
+            settings:
+              number_of_shards: 1
             mappings:
               properties:
                 int_field:
@@ -45,6 +47,8 @@ setup:
       indices.create:
         index: test_2
         body:
+          settings:
+            number_of_shards: 1
           mappings:
             properties:
               other_field:
@@ -239,8 +243,8 @@ setup:
 
 ---
 "profiler int":
-  - skip:
-      version: " - 7.9.99"
+  - requires:
+      cluster_features: ["gte_v7.10.0"]
       reason: introduced in 7.10.0
   - do:
       search:
@@ -266,8 +270,8 @@ setup:
 
 ---
 "profiler double":
-  - skip:
-      version: " - 7.9.99"
+  - requires:
+      cluster_features: ["gte_v7.10.0"]
       reason: introduced in 7.10.0
   - do:
       search:
@@ -293,8 +297,8 @@ setup:
 
 ---
 "profiler string":
-  - skip:
-      version: " - 7.9.99"
+  - requires:
+      cluster_features: ["gte_v7.10.0"]
       reason: introduced in 7.10.0
   - do:
       search:
@@ -315,8 +319,8 @@ setup:
   - gt: { profile.shards.0.aggregations.0.breakdown.post_collection: 0 }
 ---
 "profiler string save memory hint":
-  - skip:
-      version: " - 8.3.99"
+  - requires:
+      cluster_features: ["gte_v8.4.0"]
       reason: execution hints introduced in 8.4.0
   - do:
       search:
@@ -338,8 +342,8 @@ setup:
   - gt: { profile.shards.0.aggregations.0.breakdown.post_collection: 0 }
 ---
 "profiler string save time hint":
-  - skip:
-      version: " - 8.3.99"
+  - requires:
+      cluster_features: ["gte_v8.4.0"]
       reason: execution hints introduced in 8.4.0
   - do:
       search:
@@ -361,8 +365,8 @@ setup:
   - gt: { profile.shards.0.aggregations.0.breakdown.post_collection: 0 }
 ---
 "profiler string global ords hint":
-  - skip:
-      version: " - 8.3.99"
+  - requires:
+      cluster_features: ["gte_v8.4.0"]
       reason: execution hints introduced in 8.4.0
   - do:
       search:
@@ -384,8 +388,8 @@ setup:
   - gt: { profile.shards.0.aggregations.0.breakdown.post_collection: 0 }
 ---
 "profiler string segment ords hint":
-  - skip:
-      version: " - 8.3.99"
+  - requires:
+      cluster_features: ["gte_v8.4.0"]
       reason: execution hints introduced in 8.4.0
   - do:
       search:
@@ -410,8 +414,8 @@ setup:
   - match: { profile.shards.0.aggregations.0.debug.string_hashing_collectors_used: 0 }
 ---
 "profiler string direct hint":
-  - skip:
-      version: " - 8.3.99"
+  - requires:
+      cluster_features: ["gte_v8.4.0"]
       reason: execution hints introduced in 8.4.0
   - do:
       search:
@@ -436,8 +440,8 @@ setup:
   - gt: { profile.shards.0.aggregations.0.debug.string_hashing_collectors_used: 0 }
 ---
 "invalid execution hint throws":
-  - skip:
-      version: " - 8.3.99"
+  - requires:
+      cluster_features: ["gte_v8.4.0"]
       reason: execution hints introduced in 8.4.0
   - do:
       catch: /Invalid execution mode for cardinality aggregation/

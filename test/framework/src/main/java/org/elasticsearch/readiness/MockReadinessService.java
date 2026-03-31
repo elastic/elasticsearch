@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.readiness;
@@ -23,11 +24,19 @@ import java.nio.channels.SocketChannel;
 import java.nio.channels.spi.SelectorProvider;
 import java.util.Set;
 
+import static org.elasticsearch.test.ESTestCase.assertBusy;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
+
 public class MockReadinessService extends ReadinessService {
     /**
      * Marker plugin used by {@link MockNode} to enable {@link MockReadinessService}.
      */
     public static class TestPlugin extends Plugin {}
+
+    private static final int RETRIES = 30;
+
+    private static final int RETRY_DELAY_IN_MILLIS = 100;
 
     private static final String METHOD_NOT_MOCKED = "This method has not been mocked";
 
@@ -90,20 +99,16 @@ public class MockReadinessService extends ReadinessService {
         super(clusterService, environment, MockServerSocketChannel::openMock);
     }
 
-    static void tcpReadinessProbeTrue(ReadinessService readinessService) {
+    private static boolean socketIsOpen(ReadinessService readinessService) {
         ServerSocketChannel mockedSocket = readinessService.serverChannel();
-        if (mockedSocket == null) {
-            throw new AssertionError("Mocked socket not created for this node");
-        }
-        if (mockedSocket.isOpen() == false) {
-            throw new AssertionError("Readiness socket should be open");
-        }
+        return mockedSocket != null && mockedSocket.isOpen();
     }
 
-    static void tcpReadinessProbeFalse(ReadinessService readinessService) {
-        ServerSocketChannel mockedSocket = readinessService.serverChannel();
-        if (mockedSocket != null && mockedSocket.isOpen()) {
-            throw new AssertionError("Readiness socket should be closed");
-        }
+    public static void tcpReadinessProbeTrue(ReadinessService readinessService) throws Exception {
+        assertBusy(() -> assertTrue("Readiness socket should be open", socketIsOpen(readinessService)));
+    }
+
+    public static void tcpReadinessProbeFalse(ReadinessService readinessService) throws Exception {
+        assertBusy(() -> assertFalse("Readiness socket should be close", socketIsOpen(readinessService)));
     }
 }

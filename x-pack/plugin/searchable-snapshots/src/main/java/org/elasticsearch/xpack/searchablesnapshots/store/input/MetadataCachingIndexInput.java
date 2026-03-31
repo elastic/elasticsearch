@@ -20,6 +20,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.blobcache.common.BlobCacheBufferedIndexInput;
 import org.elasticsearch.blobcache.common.ByteRange;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Channels;
 import org.elasticsearch.core.Releasable;
@@ -98,8 +99,7 @@ public abstract class MetadataCachingIndexInput extends BlobCacheBufferedIndexIn
     protected final BlobStoreIndexShardSnapshot.FileInfo fileInfo;
     protected final IOContext context;
     protected final IndexInputStats stats;
-    private final long offset;
-    private final long length;
+    protected final long offset;
 
     // the following are only mutable so they can be adjusted after cloning/slicing
     private volatile boolean isClone;
@@ -121,7 +121,7 @@ public abstract class MetadataCachingIndexInput extends BlobCacheBufferedIndexIn
         ByteRange headerBlobCacheByteRange,
         ByteRange footerBlobCacheByteRange
     ) {
-        super(name, context);
+        super(name, context, length);
         this.isCfs = IndexFileNames.matchesExtension(name, "cfs");
         this.logger = Objects.requireNonNull(logger);
         this.fileInfo = Objects.requireNonNull(fileInfo);
@@ -130,7 +130,6 @@ public abstract class MetadataCachingIndexInput extends BlobCacheBufferedIndexIn
             : "this method should only be used with blobs that are NOT stored in metadata's hash field " + "(fileInfo: " + fileInfo + ')';
         this.stats = Objects.requireNonNull(stats);
         this.offset = offset;
-        this.length = length;
         this.closed = new AtomicBoolean(false);
         this.isClone = false;
         this.directory = Objects.requireNonNull(directory);
@@ -159,7 +158,7 @@ public abstract class MetadataCachingIndexInput extends BlobCacheBufferedIndexIn
             input.stats,
             input.offset,
             input.compoundFileOffset,
-            input.length,
+            input.length(),
             input.cacheFileReference,
             input.defaultRangeSize,
             input.recoveryRangeSize,
@@ -222,8 +221,8 @@ public abstract class MetadataCachingIndexInput extends BlobCacheBufferedIndexIn
             ThreadPool.Names.SNAPSHOT,
             ThreadPool.Names.GENERIC,
             ThreadPool.Names.SEARCH,
-            ThreadPool.Names.SEARCH_WORKER,
-            ThreadPool.Names.SEARCH_THROTTLED,
+            ThreadPool.Names.GET,
+            ThreadPool.Names.ANALYZE,
 
             // Cache asynchronous fetching runs on a dedicated thread pool.
             SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME,
@@ -527,7 +526,7 @@ public abstract class MetadataCachingIndexInput extends BlobCacheBufferedIndexIn
             assert position + readLength <= fileInfo.length()
                 : "cannot read [" + position + "-" + (position + readLength) + "] from [" + fileInfo + "]";
             stats.addBlobStoreBytesRequested(readLength);
-            return directory.blobContainer().readBlob(fileInfo.name(), position, readLength);
+            return directory.blobContainer().readBlob(OperationPurpose.SNAPSHOT_DATA, fileInfo.name(), position, readLength);
         }
         return openInputStreamMultipleParts(position, readLength);
     }
@@ -539,14 +538,6 @@ public abstract class MetadataCachingIndexInput extends BlobCacheBufferedIndexIn
     private SlicedInputStream openInputStreamMultipleParts(long position, long readLength) {
         final int startPart = getPartNumberForPosition(position);
         final int endPart = getPartNumberForPosition(position + readLength - 1);
-
-        for (int currentPart = startPart; currentPart <= endPart; currentPart++) {
-            final long startInPart = (currentPart == startPart) ? getRelativePositionInPart(position) : 0L;
-            final long endInPart;
-            endInPart = currentPart == endPart ? getRelativePositionInPart(position + readLength - 1) + 1 : fileInfo.partBytes(currentPart);
-            stats.addBlobStoreBytesRequested(endInPart - startInPart);
-        }
-
         return new SlicedInputStream(endPart - startPart + 1) {
             @Override
             protected InputStream openSlice(int slice) throws IOException {
@@ -556,7 +547,15 @@ public abstract class MetadataCachingIndexInput extends BlobCacheBufferedIndexIn
                 endInPart = currentPart == endPart
                     ? getRelativePositionInPart(position + readLength - 1) + 1
                     : fileInfo.partBytes(currentPart);
-                return directory.blobContainer().readBlob(fileInfo.partName(currentPart), startInPart, endInPart - startInPart);
+                final long length = endInPart - startInPart;
+                stats.addBlobStoreBytesRequested(length);
+                return directory.blobContainer()
+                    .readBlob(OperationPurpose.SNAPSHOT_DATA, fileInfo.partName(currentPart), startInPart, length);
+            }
+
+            @Override
+            public boolean markSupported() {
+                return false;
             }
         };
     }
@@ -644,12 +643,11 @@ public abstract class MetadataCachingIndexInput extends BlobCacheBufferedIndexIn
     }
 
     @Override
-    public final long length() {
-        return length;
-    }
-
-    @Override
-    public MetadataCachingIndexInput clone() {
+    public IndexInput clone() {
+        var bufferClone = tryCloneBuffer();
+        if (bufferClone != null) {
+            return bufferClone;
+        }
         final MetadataCachingIndexInput clone = (MetadataCachingIndexInput) super.clone();
         clone.closed = new AtomicBoolean(false);
         clone.isClone = true;
@@ -672,6 +670,10 @@ public abstract class MetadataCachingIndexInput extends BlobCacheBufferedIndexIn
 
     @Override
     public IndexInput slice(String sliceName, long sliceOffset, long sliceLength) {
+        var bufferSlice = trySliceBuffer(sliceName, sliceOffset, sliceLength);
+        if (bufferSlice != null) {
+            return bufferSlice;
+        }
         BlobCacheUtils.ensureSlice(sliceName, sliceOffset, sliceLength, this);
 
         // Are we creating a slice from a CFS file?

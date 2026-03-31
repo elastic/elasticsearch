@@ -71,7 +71,7 @@ public abstract class CustomDateFormatTestCase extends BaseRestSqlTestCase {
         }
     }
 
-    private void createIndex() throws IOException {
+    private static void createIndex() throws IOException {
         Request request = new Request("PUT", "/test");
         XContentBuilder index = JsonXContent.contentBuilder().prettyPrint().startObject();
 

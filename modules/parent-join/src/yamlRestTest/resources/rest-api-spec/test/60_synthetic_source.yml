@@ -1,18 +1,57 @@
-unsupported:
-  - skip:
-      version: " - 8.2.99"
-      reason: introduced in 8.3.0
+supported:
+  - requires:
+      cluster_features: [ "mapper.source.mode_from_index_setting" ]
+      reason: "Source mode configured through index setting"
 
   - do:
-      catch: bad_request
       indices.create:
         index: test
         body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               join_field:
                 type: join
                 relations:
                   parent: child
+
+  - do:
+      index:
+        index: test
+        id:    "1"
+        body:  {"foo": "bar", "join_field": {"name" : "parent"} }
+
+  - do:
+      index:
+        index: test
+        id:    "2"
+        routing: "1"
+        body:  {"zab": "baz", "join_field": { "name" : "child", "parent": "1"} }
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      get:
+        index: test
+        id: "1"
+
+  - match:
+      _source:
+        foo: "bar"
+        join_field:
+          name: "parent"
+
+  - do:
+      get:
+        index: test
+        id: "2"
+
+  - match:
+      _source:
+        join_field:
+          name: "child"
+          parent: "1"
+        zab: "baz"

@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 141719
+summary: Add APM telemetry for SET statement
+type: enhancement

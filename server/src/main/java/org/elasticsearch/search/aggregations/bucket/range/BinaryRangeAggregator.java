@@ -1,15 +1,21 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations.bucket.range;
 
+import org.apache.lucene.index.BinaryDocValues;
+import org.apache.lucene.index.DocValues;
+import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.util.LongArray;
+import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
@@ -92,17 +98,29 @@ public final class BinaryRangeAggregator extends BucketsAggregator {
         return super.scoreMode();
     }
 
+    @FunctionalInterface
+    private interface BucketCollector {
+        void accept(LeafBucketCollector sub, int doc, long subBucketOrdinal) throws IOException;
+    }
+
     @Override
     protected LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, LeafBucketCollector sub) throws IOException {
         if (valuesSource == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
+        }
+        BucketCollector collector;
+        if (parent() == null) {
+            grow(ranges.length);
+            collector = this::collectExistingBucket;
+        } else {
+            collector = this::collectBucket;
         }
         if (valuesSource instanceof ValuesSource.Bytes.WithOrdinals) {
             SortedSetDocValues values = ((ValuesSource.Bytes.WithOrdinals) valuesSource).ordinalsValues(aggCtx.getLeafReaderContext());
             return new SortedSetRangeLeafCollector(values, ranges, sub) {
                 @Override
                 protected void doCollect(LeafBucketCollector sub, int doc, long bucket) throws IOException {
-                    collectBucket(sub, doc, bucket);
+                    collector.accept(sub, doc, bucket);
                 }
             };
         } else {
@@ -110,7 +128,7 @@ public final class BinaryRangeAggregator extends BucketsAggregator {
             return new SortedBinaryRangeLeafCollector(values, ranges, sub) {
                 @Override
                 protected void doCollect(LeafBucketCollector sub, int doc, long bucket) throws IOException {
-                    collectBucket(sub, doc, bucket);
+                    collector.accept(sub, doc, bucket);
                 }
             };
         }
@@ -118,9 +136,9 @@ public final class BinaryRangeAggregator extends BucketsAggregator {
 
     abstract static class SortedSetRangeLeafCollector extends LeafBucketCollectorBase {
 
-        final long[] froms, tos, maxTos;
-        final SortedSetDocValues values;
-        final LeafBucketCollector sub;
+        private final long[] froms, tos, maxTos;
+        private final DocCollector collector;
+        private final LeafBucketCollector sub;
 
         SortedSetRangeLeafCollector(SortedSetDocValues values, Range[] ranges, LeafBucketCollector sub) throws IOException {
             super(sub, values);
@@ -129,7 +147,24 @@ public final class BinaryRangeAggregator extends BucketsAggregator {
                     throw new IllegalArgumentException("Ranges must be sorted");
                 }
             }
-            this.values = values;
+            final SortedDocValues singleton = DocValues.unwrapSingleton(values);
+            if (singleton != null) {
+                this.collector = (doc, bucket) -> {
+                    if (singleton.advanceExact(doc)) {
+                        collect(doc, singleton.ordValue(), bucket, 0);
+                    }
+                };
+            } else {
+                this.collector = (doc, bucket) -> {
+                    if (values.advanceExact(doc)) {
+                        int lo = 0;
+                        for (int i = 0; i < values.docValueCount(); i++) {
+                            long ord = values.nextOrd();
+                            lo = collect(doc, ord, bucket, lo);
+                        }
+                    }
+                };
+            }
             this.sub = sub;
             froms = new long[ranges.length];
             tos = new long[ranges.length]; // inclusive
@@ -162,12 +197,7 @@ public final class BinaryRangeAggregator extends BucketsAggregator {
 
         @Override
         public void collect(int doc, long bucket) throws IOException {
-            if (values.advanceExact(doc)) {
-                int lo = 0;
-                for (long ord = values.nextOrd(); ord != SortedSetDocValues.NO_MORE_ORDS; ord = values.nextOrd()) {
-                    lo = collect(doc, ord, bucket, lo);
-                }
-            }
+            collector.collect(doc, bucket);
         }
 
         private int collect(int doc, long ord, long bucket, int lowBound) throws IOException {
@@ -224,10 +254,10 @@ public final class BinaryRangeAggregator extends BucketsAggregator {
 
     abstract static class SortedBinaryRangeLeafCollector extends LeafBucketCollectorBase {
 
-        final Range[] ranges;
-        final BytesRef[] maxTos;
-        final SortedBinaryDocValues values;
-        final LeafBucketCollector sub;
+        private final Range[] ranges;
+        private final BytesRef[] maxTos;
+        private final DocCollector collector;
+        private final LeafBucketCollector sub;
 
         SortedBinaryRangeLeafCollector(SortedBinaryDocValues values, Range[] ranges, LeafBucketCollector sub) {
             super(sub, values);
@@ -236,7 +266,22 @@ public final class BinaryRangeAggregator extends BucketsAggregator {
                     throw new IllegalArgumentException("Ranges must be sorted");
                 }
             }
-            this.values = values;
+            final BinaryDocValues singleton = FieldData.unwrapSingleton(values);
+            if (singleton != null) {
+                this.collector = (doc, bucket) -> {
+                    if (singleton.advanceExact(doc)) {
+                        collect(doc, singleton.binaryValue(), bucket, 0);
+                    }
+                };
+            } else {
+                this.collector = (doc, bucket) -> {
+                    if (values.advanceExact(doc)) {
+                        for (int i = 0, lo = 0; i < values.docValueCount(); ++i) {
+                            lo = collect(doc, values.nextValue(), bucket, lo);
+                        }
+                    }
+                };
+            }
             this.sub = sub;
             this.ranges = ranges;
             maxTos = new BytesRef[ranges.length];
@@ -254,13 +299,7 @@ public final class BinaryRangeAggregator extends BucketsAggregator {
 
         @Override
         public void collect(int doc, long bucket) throws IOException {
-            if (values.advanceExact(doc)) {
-                final int valuesCount = values.docValueCount();
-                for (int i = 0, lo = 0; i < valuesCount; ++i) {
-                    final BytesRef value = values.nextValue();
-                    lo = collect(doc, value, bucket, lo);
-                }
-            }
+            collector.collect(doc, bucket);
         }
 
         private int collect(int doc, BytesRef value, long bucket, int lowBound) throws IOException {
@@ -315,14 +354,19 @@ public final class BinaryRangeAggregator extends BucketsAggregator {
         protected abstract void doCollect(LeafBucketCollector sub, int doc, long bucket) throws IOException;
     }
 
+    @FunctionalInterface
+    private interface DocCollector {
+        void collect(int doc, long bucket) throws IOException;
+    }
+
     @Override
-    public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
+    public InternalAggregation[] buildAggregations(LongArray owningBucketOrds) throws IOException {
         return buildAggregationsForFixedBucketCount(
             owningBucketOrds,
             ranges.length,
             (offsetInOwningOrd, docCount, subAggregationResults) -> {
                 Range range = ranges[offsetInOwningOrd];
-                return new InternalBinaryRange.Bucket(format, keyed, range.key, range.from, range.to, docCount, subAggregationResults);
+                return new InternalBinaryRange.Bucket(format, range.key, range.from, range.to, docCount, subAggregationResults);
             },
             buckets -> new InternalBinaryRange(name, format, keyed, buckets, metadata())
         );
@@ -334,7 +378,7 @@ public final class BinaryRangeAggregator extends BucketsAggregator {
         InternalAggregations subAggs = buildEmptySubAggregations();
         List<InternalBinaryRange.Bucket> buckets = new ArrayList<>(ranges.length);
         for (Range range : ranges) {
-            InternalBinaryRange.Bucket bucket = new InternalBinaryRange.Bucket(format, keyed, range.key, range.from, range.to, 0, subAggs);
+            InternalBinaryRange.Bucket bucket = new InternalBinaryRange.Bucket(format, range.key, range.from, range.to, 0, subAggs);
             buckets.add(bucket);
         }
         return new InternalBinaryRange(name, format, keyed, buckets, metadata());

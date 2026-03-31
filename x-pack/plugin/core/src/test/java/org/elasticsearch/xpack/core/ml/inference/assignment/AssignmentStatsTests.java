@@ -50,6 +50,7 @@ public class AssignmentStatsTests extends AbstractWireSerializingTestCase<Assign
             modelId,
             randomBoolean() ? null : randomIntBetween(1, 8),
             randomBoolean() ? null : randomIntBetween(1, 8),
+            null,
             randomBoolean() ? null : randomIntBetween(1, 10000),
             randomBoolean() ? null : ByteSizeValue.ofBytes(randomLongBetween(1, 10000000)),
             Instant.now(),
@@ -90,6 +91,7 @@ public class AssignmentStatsTests extends AbstractWireSerializingTestCase<Assign
             randomIntBetween(0, 100),
             randomIntBetween(0, 100),
             avgInferenceTimeLastPeriod,
+            randomLongBetween(0, 100),
             randomLongBetween(0, 100)
         );
     }
@@ -102,6 +104,7 @@ public class AssignmentStatsTests extends AbstractWireSerializingTestCase<Assign
             modelId,
             randomBoolean() ? null : randomIntBetween(1, 8),
             randomBoolean() ? null : randomIntBetween(1, 8),
+            null,
             randomBoolean() ? null : randomIntBetween(1, 10000),
             randomBoolean() ? null : ByteSizeValue.ofBytes(randomLongBetween(1, 1000000)),
             Instant.now(),
@@ -123,7 +126,8 @@ public class AssignmentStatsTests extends AbstractWireSerializingTestCase<Assign
                     randomNonNegativeLong(),
                     randomNonNegativeLong(),
                     null,
-                    1L
+                    1L,
+                    randomNonNegativeLong()
                 ),
                 AssignmentStats.NodeStats.forStartedState(
                     DiscoveryNodeUtils.create("node_started_2"),
@@ -142,7 +146,8 @@ public class AssignmentStatsTests extends AbstractWireSerializingTestCase<Assign
                     randomNonNegativeLong(),
                     randomNonNegativeLong(),
                     null,
-                    1L
+                    1L,
+                    randomNonNegativeLong()
                 ),
                 AssignmentStats.NodeStats.forNotStartedState(
                     DiscoveryNodeUtils.create("node_not_started_3"),
@@ -166,6 +171,7 @@ public class AssignmentStatsTests extends AbstractWireSerializingTestCase<Assign
             modelId,
             randomBoolean() ? null : randomIntBetween(1, 8),
             randomBoolean() ? null : randomIntBetween(1, 8),
+            null,
             randomBoolean() ? null : randomIntBetween(1, 10000),
             randomBoolean() ? null : ByteSizeValue.ofBytes(randomLongBetween(1, 1000000)),
             Instant.now(),
@@ -187,6 +193,7 @@ public class AssignmentStatsTests extends AbstractWireSerializingTestCase<Assign
             modelId,
             randomBoolean() ? null : randomIntBetween(1, 8),
             randomBoolean() ? null : randomIntBetween(1, 8),
+            null,
             randomBoolean() ? null : randomIntBetween(1, 10000),
             randomBoolean() ? null : ByteSizeValue.ofBytes(randomLongBetween(1, 1000000)),
             Instant.now(),
@@ -208,6 +215,12 @@ public class AssignmentStatsTests extends AbstractWireSerializingTestCase<Assign
         assertThat(stats.getModelId(), equalTo(modelId));
         assertThat(stats.getInferenceCount(), equalTo(0L));
         assertThat(stats.getFailureCount(), equalTo(0L));
+    }
+
+    public void testCopyConstructor() {
+        AssignmentStats original = randomDeploymentStats();
+        AssignmentStats copy = new AssignmentStats(original);
+        assertThat(copy, equalTo(original));
     }
 
     @Override

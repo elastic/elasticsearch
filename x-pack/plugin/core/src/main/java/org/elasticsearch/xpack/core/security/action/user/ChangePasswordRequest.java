@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.core.security.action.user;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -22,7 +22,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  * Request to change a user's password.
  */
-public class ChangePasswordRequest extends ActionRequest implements UserRequest, WriteRequest<ChangePasswordRequest> {
+public class ChangePasswordRequest extends LegacyActionRequest implements UserRequest, WriteRequest<ChangePasswordRequest> {
 
     private String username;
     private char[] passwordHash;
@@ -33,7 +33,7 @@ public class ChangePasswordRequest extends ActionRequest implements UserRequest,
     public ChangePasswordRequest(StreamInput in) throws IOException {
         super(in);
         username = in.readString();
-        passwordHash = CharArrays.utf8BytesToChars(BytesReference.toBytes(in.readBytesReference()));
+        passwordHash = CharArrays.utf8BytesToChars(BytesReference.toBytes(in.readSlicedBytesReference()));
         refreshPolicy = RefreshPolicy.readFrom(in);
     }
 

@@ -7,6 +7,9 @@
 package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.license.License;
 import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 import org.elasticsearch.xpack.core.ml.action.InferModelAction;
@@ -17,7 +20,6 @@ import org.elasticsearch.xpack.core.ml.inference.TrainedModelInput;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelType;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.OneHotEncoding;
 import org.elasticsearch.xpack.core.ml.inference.results.ClassificationInferenceResults;
-import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.SingleValueInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfigUpdate;
@@ -30,6 +32,7 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree.Tree;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree.TreeNode;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.ml.MlSingleNodeTestCase;
+import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelCacheMetadataService;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 import org.junit.Before;
 
@@ -52,14 +55,23 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.mock;
 
 public class ModelInferenceActionIT extends MlSingleNodeTestCase {
 
     private TrainedModelProvider trainedModelProvider;
 
     @Before
+    @SuppressWarnings("unchecked")
     public void createComponents() throws Exception {
-        trainedModelProvider = new TrainedModelProvider(client(), xContentRegistry());
+        TrainedModelCacheMetadataService modelCacheMetadataService = mock(TrainedModelCacheMetadataService.class);
+        doAnswer(invocationOnMock -> {
+            invocationOnMock.getArgument(0, ActionListener.class).onResponse(AcknowledgedResponse.TRUE);
+            return Void.TYPE;
+        }).when(modelCacheMetadataService).updateCacheVersion(any(ActionListener.class));
+        trainedModelProvider = new TrainedModelProvider(client(), modelCacheMetadataService, xContentRegistry());
         waitForMlTemplates();
     }
 
@@ -175,7 +187,8 @@ public class ModelInferenceActionIT extends MlSingleNodeTestCase {
             modelId1,
             toInfer,
             RegressionConfigUpdate.EMPTY_PARAMS,
-            true
+            true,
+            InferModelAction.Request.DEFAULT_TIMEOUT_FOR_INGEST
         );
         InferModelAction.Response response = client().execute(InferModelAction.INSTANCE, request).actionGet();
         assertThat(
@@ -183,7 +196,13 @@ public class ModelInferenceActionIT extends MlSingleNodeTestCase {
             contains(1.3, 1.25)
         );
 
-        request = InferModelAction.Request.forIngestDocs(modelId1, toInfer2, RegressionConfigUpdate.EMPTY_PARAMS, true);
+        request = InferModelAction.Request.forIngestDocs(
+            modelId1,
+            toInfer2,
+            RegressionConfigUpdate.EMPTY_PARAMS,
+            true,
+            InferModelAction.Request.DEFAULT_TIMEOUT_FOR_INGEST
+        );
         response = client().execute(InferModelAction.INSTANCE, request).actionGet();
         assertThat(
             response.getInferenceResults().stream().map(i -> ((SingleValueInferenceResults) i).value()).collect(Collectors.toList()),
@@ -191,7 +210,13 @@ public class ModelInferenceActionIT extends MlSingleNodeTestCase {
         );
 
         // Test classification
-        request = InferModelAction.Request.forIngestDocs(modelId2, toInfer, ClassificationConfigUpdate.EMPTY_PARAMS, true);
+        request = InferModelAction.Request.forIngestDocs(
+            modelId2,
+            toInfer,
+            ClassificationConfigUpdate.EMPTY_PARAMS,
+            true,
+            InferModelAction.Request.DEFAULT_TIMEOUT_FOR_INGEST
+        );
         response = client().execute(InferModelAction.INSTANCE, request).actionGet();
         assertThat(
             response.getInferenceResults()
@@ -206,7 +231,8 @@ public class ModelInferenceActionIT extends MlSingleNodeTestCase {
             modelId2,
             toInfer,
             new ClassificationConfigUpdate(2, null, null, null, null),
-            true
+            true,
+            InferModelAction.Request.DEFAULT_TIMEOUT_FOR_INGEST
         );
         response = client().execute(InferModelAction.INSTANCE, request).actionGet();
 
@@ -234,7 +260,8 @@ public class ModelInferenceActionIT extends MlSingleNodeTestCase {
             modelId2,
             toInfer2,
             new ClassificationConfigUpdate(1, null, null, null, null),
-            true
+            true,
+            InferModelAction.Request.DEFAULT_TIMEOUT_FOR_INGEST
         );
         response = client().execute(InferModelAction.INSTANCE, request).actionGet();
 
@@ -338,7 +365,8 @@ public class ModelInferenceActionIT extends MlSingleNodeTestCase {
             modelId,
             toInfer,
             ClassificationConfigUpdate.EMPTY_PARAMS,
-            true
+            true,
+            InferModelAction.Request.DEFAULT_TIMEOUT_FOR_INGEST
         );
         InferModelAction.Response response = client().execute(InferModelAction.INSTANCE, request).actionGet();
         assertThat(
@@ -349,7 +377,13 @@ public class ModelInferenceActionIT extends MlSingleNodeTestCase {
             contains("option_0", "option_2")
         );
 
-        request = InferModelAction.Request.forIngestDocs(modelId, toInfer2, ClassificationConfigUpdate.EMPTY_PARAMS, true);
+        request = InferModelAction.Request.forIngestDocs(
+            modelId,
+            toInfer2,
+            ClassificationConfigUpdate.EMPTY_PARAMS,
+            true,
+            InferModelAction.Request.DEFAULT_TIMEOUT_FOR_INGEST
+        );
         response = client().execute(InferModelAction.INSTANCE, request).actionGet();
         assertThat(
             response.getInferenceResults()
@@ -360,7 +394,13 @@ public class ModelInferenceActionIT extends MlSingleNodeTestCase {
         );
 
         // Get top classes
-        request = InferModelAction.Request.forIngestDocs(modelId, toInfer, new ClassificationConfigUpdate(3, null, null, null, null), true);
+        request = InferModelAction.Request.forIngestDocs(
+            modelId,
+            toInfer,
+            new ClassificationConfigUpdate(3, null, null, null, null),
+            true,
+            InferModelAction.Request.DEFAULT_TIMEOUT_FOR_INGEST
+        );
         response = client().execute(InferModelAction.INSTANCE, request).actionGet();
 
         ClassificationInferenceResults classificationInferenceResults = (ClassificationInferenceResults) response.getInferenceResults()
@@ -382,7 +422,8 @@ public class ModelInferenceActionIT extends MlSingleNodeTestCase {
             model,
             Collections.emptyList(),
             RegressionConfigUpdate.EMPTY_PARAMS,
-            true
+            true,
+            InferModelAction.Request.DEFAULT_TIMEOUT_FOR_INGEST
         );
         try {
             client().execute(InferModelAction.INSTANCE, request).actionGet();
@@ -428,7 +469,8 @@ public class ModelInferenceActionIT extends MlSingleNodeTestCase {
             modelId,
             toInferMissingField,
             RegressionConfigUpdate.EMPTY_PARAMS,
-            true
+            true,
+            InferModelAction.Request.DEFAULT_TIMEOUT_FOR_INGEST
         );
         try {
             InferenceResults result = client().execute(InferModelAction.INSTANCE, request).actionGet().getInferenceResults().get(0);

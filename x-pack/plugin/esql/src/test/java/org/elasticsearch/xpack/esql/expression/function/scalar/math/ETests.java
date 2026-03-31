@@ -10,14 +10,12 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractScalarFunctionTestCase;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.hamcrest.Matcher;
 
 import java.util.List;
 import java.util.function.Supplier;
@@ -31,14 +29,21 @@ public class ETests extends AbstractScalarFunctionTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        return parameterSuppliersFromTypedData(List.of(new TestCaseSupplier("E Test", () -> {
-            return new TestCaseSupplier.TestCase(
-                List.of(new TestCaseSupplier.TypedData(1, DataTypes.INTEGER, "foo")),
-                "LiteralsEvaluator[block=2.718281828459045]",
-                DataTypes.DOUBLE,
-                equalTo(Math.E)
-            );
-        })));
+        return parameterSuppliersFromTypedDataWithDefaultChecks(
+            true,
+            List.of(
+                new TestCaseSupplier(
+                    "E Test",
+                    List.of(),
+                    () -> new TestCaseSupplier.TestCase(
+                        List.of(),
+                        "LiteralsEvaluator[lit=2.718281828459045]",
+                        DataType.DOUBLE,
+                        equalTo(Math.E)
+                    )
+                )
+            )
+        );
     }
 
     @Override
@@ -47,17 +52,7 @@ public class ETests extends AbstractScalarFunctionTestCase {
     }
 
     @Override
-    protected List<ArgumentSpec> argSpec() {
-        return List.of();
-    }
-
-    @Override
-    protected DataType expectedType(List<DataType> argTypes) {
-        return DataTypes.DOUBLE;
-    }
-
-    @Override
-    protected void assertSimpleWithNulls(List<Object> data, Block value, int nullBlock) {
-        assertThat(((DoubleBlock) value).asVector().getDouble(0), equalTo(Math.E));
+    protected Matcher<Object> allNullsMatcher() {
+        return equalTo(Math.E);
     }
 }

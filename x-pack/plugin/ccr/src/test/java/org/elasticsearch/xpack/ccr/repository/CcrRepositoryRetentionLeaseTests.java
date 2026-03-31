@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.RemoteClusterClient;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -68,7 +69,7 @@ public class CcrRepositoryRetentionLeaseTests extends ESTestCase {
         );
 
         // simulate that the retention lease already exists on the leader, and verify that we attempt to renew it
-        final Client remoteClient = mock(Client.class);
+        final RemoteClusterClient remoteClient = mock(RemoteClusterClient.class);
         final ArgumentCaptor<RetentionLeaseActions.AddRequest> addRequestCaptor = ArgumentCaptor.forClass(
             RetentionLeaseActions.AddRequest.class
         );
@@ -77,7 +78,7 @@ public class CcrRepositoryRetentionLeaseTests extends ESTestCase {
             final ActionListener<ActionResponse.Empty> listener = (ActionListener<ActionResponse.Empty>) invocationOnMock.getArguments()[2];
             listener.onFailure(new RetentionLeaseAlreadyExistsException(retentionLeaseId));
             return null;
-        }).when(remoteClient).execute(same(RetentionLeaseActions.Add.INSTANCE), addRequestCaptor.capture(), any());
+        }).when(remoteClient).execute(same(RetentionLeaseActions.REMOTE_ADD), addRequestCaptor.capture(), any());
         final ArgumentCaptor<RetentionLeaseActions.RenewRequest> renewRequestCaptor = ArgumentCaptor.forClass(
             RetentionLeaseActions.RenewRequest.class
         );
@@ -86,17 +87,17 @@ public class CcrRepositoryRetentionLeaseTests extends ESTestCase {
             final ActionListener<ActionResponse.Empty> listener = (ActionListener<ActionResponse.Empty>) invocationOnMock.getArguments()[2];
             listener.onResponse(ActionResponse.Empty.INSTANCE);
             return null;
-        }).when(remoteClient).execute(same(RetentionLeaseActions.Renew.INSTANCE), renewRequestCaptor.capture(), any());
+        }).when(remoteClient).execute(same(RetentionLeaseActions.REMOTE_RENEW), renewRequestCaptor.capture(), any());
 
         repository.acquireRetentionLeaseOnLeader(followerShardId, retentionLeaseId, leaderShardId, remoteClient);
 
-        verify(remoteClient).execute(same(RetentionLeaseActions.Add.INSTANCE), any(RetentionLeaseActions.AddRequest.class), any());
+        verify(remoteClient).execute(same(RetentionLeaseActions.REMOTE_ADD), any(RetentionLeaseActions.AddRequest.class), any());
         assertThat(addRequestCaptor.getValue().getShardId(), equalTo(leaderShardId));
         assertThat(addRequestCaptor.getValue().getId(), equalTo(retentionLeaseId));
         assertThat(addRequestCaptor.getValue().getRetainingSequenceNumber(), equalTo(RETAIN_ALL));
         assertThat(addRequestCaptor.getValue().getSource(), equalTo("ccr"));
 
-        verify(remoteClient).execute(same(RetentionLeaseActions.Renew.INSTANCE), any(RetentionLeaseActions.RenewRequest.class), any());
+        verify(remoteClient).execute(same(RetentionLeaseActions.REMOTE_RENEW), any(RetentionLeaseActions.RenewRequest.class), any());
         assertThat(renewRequestCaptor.getValue().getShardId(), equalTo(leaderShardId));
         assertThat(renewRequestCaptor.getValue().getId(), equalTo(retentionLeaseId));
         assertThat(renewRequestCaptor.getValue().getRetainingSequenceNumber(), equalTo(RETAIN_ALL));
@@ -109,13 +110,17 @@ public class CcrRepositoryRetentionLeaseTests extends ESTestCase {
         final ThreadPool threadPool = mock(ThreadPool.class);
         final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         when(threadPool.getThreadContext()).thenReturn(threadContext);
-        return new CcrRepository(
+        final var projectId = randomProjectIdOrDefault();
+        final CcrRepository ccrRepository = new CcrRepository(
+            projectId,
             repositoryMetadata,
             mock(Client.class),
             Settings.EMPTY,
             new CcrSettings(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, settings)),
             threadPool
         );
+        assertThat(ccrRepository.getProjectId(), equalTo(projectId));
+        return ccrRepository;
     }
 
     public void testWhenRetentionLeaseExpiresBeforeWeCanRenewIt() {
@@ -139,7 +144,7 @@ public class CcrRepositoryRetentionLeaseTests extends ESTestCase {
         );
 
         // simulate that the retention lease already exists on the leader, expires before we renew, and verify that we attempt to add it
-        final Client remoteClient = mock(Client.class);
+        final RemoteClusterClient remoteClient = mock(RemoteClusterClient.class);
         final ArgumentCaptor<RetentionLeaseActions.AddRequest> addRequestCaptor = ArgumentCaptor.forClass(
             RetentionLeaseActions.AddRequest.class
         );
@@ -162,7 +167,7 @@ public class CcrRepositoryRetentionLeaseTests extends ESTestCase {
                 return null;
             }
 
-        }).when(remoteClient).execute(same(RetentionLeaseActions.Add.INSTANCE), addRequestCaptor.capture(), any());
+        }).when(remoteClient).execute(same(RetentionLeaseActions.REMOTE_ADD), addRequestCaptor.capture(), any());
         final ArgumentCaptor<RetentionLeaseActions.RenewRequest> renewRequestCaptor = ArgumentCaptor.forClass(
             RetentionLeaseActions.RenewRequest.class
         );
@@ -171,21 +176,17 @@ public class CcrRepositoryRetentionLeaseTests extends ESTestCase {
             final ActionListener<ActionResponse.Empty> listener = (ActionListener<ActionResponse.Empty>) invocationOnMock.getArguments()[2];
             listener.onFailure(new RetentionLeaseNotFoundException(retentionLeaseId));
             return null;
-        }).when(remoteClient).execute(same(RetentionLeaseActions.Renew.INSTANCE), renewRequestCaptor.capture(), any());
+        }).when(remoteClient).execute(same(RetentionLeaseActions.REMOTE_RENEW), renewRequestCaptor.capture(), any());
 
         repository.acquireRetentionLeaseOnLeader(followerShardId, retentionLeaseId, leaderShardId, remoteClient);
 
-        verify(remoteClient, times(2)).execute(
-            same(RetentionLeaseActions.Add.INSTANCE),
-            any(RetentionLeaseActions.AddRequest.class),
-            any()
-        );
+        verify(remoteClient, times(2)).execute(same(RetentionLeaseActions.REMOTE_ADD), any(RetentionLeaseActions.AddRequest.class), any());
         assertThat(addRequestCaptor.getValue().getShardId(), equalTo(leaderShardId));
         assertThat(addRequestCaptor.getValue().getId(), equalTo(retentionLeaseId));
         assertThat(addRequestCaptor.getValue().getRetainingSequenceNumber(), equalTo(RETAIN_ALL));
         assertThat(addRequestCaptor.getValue().getSource(), equalTo("ccr"));
 
-        verify(remoteClient).execute(same(RetentionLeaseActions.Renew.INSTANCE), any(RetentionLeaseActions.RenewRequest.class), any());
+        verify(remoteClient).execute(same(RetentionLeaseActions.REMOTE_RENEW), any(RetentionLeaseActions.RenewRequest.class), any());
         assertThat(renewRequestCaptor.getValue().getShardId(), equalTo(leaderShardId));
         assertThat(renewRequestCaptor.getValue().getId(), equalTo(retentionLeaseId));
         assertThat(renewRequestCaptor.getValue().getRetainingSequenceNumber(), equalTo(RETAIN_ALL));

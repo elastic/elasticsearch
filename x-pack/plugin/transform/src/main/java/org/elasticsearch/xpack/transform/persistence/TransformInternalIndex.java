@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.transform.persistence;
 
 import org.elasticsearch.ResourceAlreadyExistsException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
@@ -25,6 +24,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -69,6 +69,22 @@ public final class TransformInternalIndex {
      * version 7 (7.13):add mapping for config::pivot, config::latest, config::retention_policy and config::sync
      */
 
+    /**
+     * The new system index mappings version used in preference to <code>version</code>
+     * since 8.10. A value of 1 for this constant corresponds to version 7 in the table
+     * of changes above. Increment this constant by one at the same time as adding a new
+     * entry to the table of changes above.
+     */
+    public static final int TRANSFORM_INDEX_MAPPINGS_VERSION = 1;
+    /**
+     * No longer used for determining the age of mappings, but system index descriptor
+     * code requires <em>something</em> be set. We use a value that can be parsed by
+     * old nodes in mixed-version clusters, just in case any old code exists that
+     * tries to parse <code>version</code> from index metadata, and that will indicate
+     * to these old nodes that the mappings are newer than they are.
+     */
+    private static final String LEGACY_VERSION_FIELD_VALUE = "8.11.0";
+
     // constants for mappings
     public static final String DYNAMIC = "dynamic";
     public static final String PROPERTIES = "properties";
@@ -87,7 +103,6 @@ public final class TransformInternalIndex {
     public static final String KEYWORD = "keyword";
     public static final String BOOLEAN = "boolean";
     public static final String FLATTENED = "flattened";
-    public static final int TRANSFORM_INDEX_MAPPINGS_VERSION = 1;
 
     public static SystemIndexDescriptor getSystemIndexDescriptor(Settings transformInternalIndexAdditionalSettings) throws IOException {
         return SystemIndexDescriptor.builder()
@@ -96,7 +111,6 @@ public final class TransformInternalIndex {
             .setDescription("Contains Transform configuration data")
             .setMappings(mappings())
             .setSettings(settings(transformInternalIndexAdditionalSettings))
-            .setVersionMetaKey("version")
             .setOrigin(TRANSFORM_ORIGIN)
             .build();
     }
@@ -359,23 +373,26 @@ public final class TransformInternalIndex {
      */
     private static XContentBuilder addMetaInformation(XContentBuilder builder) throws IOException {
         return builder.startObject("_meta")
-            .field("version", Version.CURRENT)
+            .field("version", LEGACY_VERSION_FIELD_VALUE)
             .field(SystemIndexDescriptor.VERSION_META_KEY, TRANSFORM_INDEX_MAPPINGS_VERSION)
             .endObject();
     }
 
     protected static boolean hasLatestVersionedIndex(ClusterState state) {
-        return state.getMetadata().hasIndexAbstraction(TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME);
+        return state.getMetadata().getProject().hasIndexAbstraction(TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME);
     }
 
     protected static boolean allPrimaryShardsActiveForLatestVersionedIndex(ClusterState state) {
         IndexRoutingTable indexRouting = state.routingTable().index(TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME);
 
-        return indexRouting != null && indexRouting.allPrimaryShardsActive();
+        return indexRouting != null && indexRouting.allPrimaryShardsActive() && indexRouting.readyForSearch();
     }
 
     private static void waitForLatestVersionedIndexShardsActive(Client client, ActionListener<Void> listener) {
-        ClusterHealthRequest request = new ClusterHealthRequest(TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME)
+        ClusterHealthRequest request = new ClusterHealthRequest(
+            TimeValue.THIRTY_SECONDS /* TODO should this be longer/configurable? */,
+            TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME
+        )
             // cluster health does not wait for active shards per default
             .waitForActiveShards(ActiveShardCount.ONE);
         ActionListener<ClusterHealthResponse> innerListener = ActionListener.wrap(r -> listener.onResponse(null), listener::onFailure);

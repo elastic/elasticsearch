@@ -9,29 +9,62 @@ package org.elasticsearch.compute.operator;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.test.MappingSourceOperator;
 
+/**
+ * Merges adjacent pairs of positions together into one, block by block.
+ * <p>
+ *     For example:
+ * </p>
+ * <pre>{@code
+ *    a   |   b
+ *  ----- | -----
+ *    1   |   a
+ *    2   |   b
+ *   3, 4 | c, d
+ *   5, 6 | e, f
+ *    7   | null  <---- nulls count as empty lists
+ *   null |   g
+ *    4   |   d   <---- if the input is odd, trailing rows are dropped
+ * }</pre>
+ * becomes
+ * <pre>{@code
+ *       a     |     b
+ *  ---------- | ----------
+ *     1, 2    |   a, b
+ *  3, 4, 5, 6 | c, d, e, f
+ *       7     |     g
+ * }</pre>
+ */
 public class PositionMergingSourceOperator extends MappingSourceOperator {
-    public PositionMergingSourceOperator(SourceOperator delegate) {
+    final BlockFactory blockFactory;
+
+    public PositionMergingSourceOperator(SourceOperator delegate, BlockFactory blockFactory) {
         super(delegate);
+        this.blockFactory = blockFactory;
     }
 
     @Override
     protected Page map(Page page) {
         Block[] merged = new Block[page.getBlockCount()];
         for (int b = 0; b < page.getBlockCount(); b++) {
-            merged[b] = merge(b, page.getBlock(b));
+            try (var block = page.getBlock(b)) {
+                merged[b] = merge(b, block);
+            }
         }
         return new Page(merged);
     }
 
     protected Block merge(int blockIndex, Block block) {
-        Block.Builder builder = block.elementType().newBlockBuilder(block.getPositionCount());
+        Block.Builder builder = block.elementType().newBlockBuilder(block.getPositionCount(), blockFactory);
         for (int p = 0; p + 1 < block.getPositionCount(); p += 2) {
             if (block.isNull(p) || block.isNull(p + 1)) {
                 builder.appendNull();
@@ -68,6 +101,7 @@ public class PositionMergingSourceOperator extends MappingSourceOperator {
             switch (in.elementType()) {
                 case BOOLEAN -> ((BooleanBlock.Builder) builder).appendBoolean(((BooleanBlock) in).getBoolean(i));
                 case BYTES_REF -> ((BytesRefBlock.Builder) builder).appendBytesRef(((BytesRefBlock) in).getBytesRef(i, scratch));
+                case FLOAT -> ((FloatBlock.Builder) builder).appendFloat(((FloatBlock) in).getFloat(i));
                 case DOUBLE -> ((DoubleBlock.Builder) builder).appendDouble(((DoubleBlock) in).getDouble(i));
                 case INT -> ((IntBlock.Builder) builder).appendInt(((IntBlock) in).getInt(i));
                 case LONG -> ((LongBlock.Builder) builder).appendLong(((LongBlock) in).getLong(i));

@@ -7,51 +7,83 @@
 
 package org.elasticsearch.compute.operator;
 
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.compute.test.OperatorTestCase;
+import org.elasticsearch.compute.test.TestDriverRunner;
+import org.elasticsearch.compute.test.operator.blocksource.SequenceBooleanBlockSourceOperator;
+import org.elasticsearch.compute.test.operator.blocksource.TupleLongLongBlockSourceOperator;
 import org.elasticsearch.core.Tuple;
+import org.hamcrest.Matcher;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 
 import static org.hamcrest.Matchers.equalTo;
 
 public class FilterOperatorTests extends OperatorTestCase {
     @Override
-    protected SourceOperator simpleInput(int end) {
-        return new TupleBlockSourceOperator(LongStream.range(0, end).mapToObj(l -> Tuple.tuple(l, end - l)));
+    protected SourceOperator simpleInput(BlockFactory blockFactory, int end) {
+        return new TupleLongLongBlockSourceOperator(blockFactory, LongStream.range(0, end).mapToObj(l -> Tuple.tuple(l, end - l)));
     }
 
-    record SameLastDigit(int lhs, int rhs) implements EvalOperator.ExpressionEvaluator {
+    record SameLastDigit(DriverContext context, int lhs, int rhs) implements ExpressionEvaluator {
         @Override
         public Block eval(Page page) {
             LongVector lhsVector = page.<LongBlock>getBlock(0).asVector();
             LongVector rhsVector = page.<LongBlock>getBlock(1).asVector();
-            BooleanVector.Builder result = BooleanVector.newVectorBuilder(page.getPositionCount());
+            BooleanVector.FixedBuilder result = context.blockFactory().newBooleanVectorFixedBuilder(page.getPositionCount());
             for (int p = 0; p < page.getPositionCount(); p++) {
                 result.appendBoolean(lhsVector.getLong(p) % 10 == rhsVector.getLong(p) % 10);
             }
             return result.build().asBlock();
         }
+
+        @Override
+        public long baseRamBytesUsed() {
+            return 0;
+        }
+
+        @Override
+        public String toString() {
+            return "SameLastDigit[lhs=" + lhs + ", rhs=" + rhs + ']';
+        }
+
+        @Override
+        public void close() {}
     }
 
     @Override
-    protected Operator.OperatorFactory simple(BigArrays bigArrays) {
-        return new FilterOperator.FilterOperatorFactory(dvrCtx -> new SameLastDigit(0, 1));
+    protected Operator.OperatorFactory simple(SimpleOptions options) {
+        return new FilterOperator.FilterOperatorFactory(new ExpressionEvaluator.Factory() {
+
+            @Override
+            public ExpressionEvaluator get(DriverContext context) {
+                return new SameLastDigit(context, 0, 1);
+            }
+
+            @Override
+            public String toString() {
+                return "SameLastDigit[lhs=0, rhs=1]";
+            }
+        });
     }
 
     @Override
-    protected String expectedDescriptionOfSimple() {
-        return "FilterOperator[evaluator=SameLastDigit[lhs=0, rhs=1]]";
+    protected Matcher<String> expectedDescriptionOfSimple() {
+        return equalTo("FilterOperator[evaluator=SameLastDigit[lhs=0, rhs=1]]");
     }
 
     @Override
-    protected String expectedToStringOfSimple() {
+    protected Matcher<String> expectedToStringOfSimple() {
         return expectedDescriptionOfSimple();
     }
 
@@ -79,9 +111,21 @@ public class FilterOperatorTests extends OperatorTestCase {
         assertThat(actualCount, equalTo(expectedCount));
     }
 
-    @Override
-    protected ByteSizeValue smallEnoughToCircuitBreak() {
-        assumeTrue("doesn't use big arrays so can't break", false);
-        return null;
+    public void testNoResults() {
+        assertSimple(driverContext(), 3);
+    }
+
+    public void testReadFromBlock() {
+        var runner = new TestDriverRunner().builder(driverContext());
+        runner.input(new SequenceBooleanBlockSourceOperator(runner.blockFactory(), List.of(true, false, true, false)));
+        List<Page> results = runner.run(new FilterOperator.FilterOperatorFactory(dvrCtx -> new EvalOperatorTests.LoadFromPage(0)));
+        List<Boolean> found = new ArrayList<>();
+        for (var page : results) {
+            BooleanVector lb = page.<BooleanBlock>getBlock(0).asVector();
+            IntStream.range(0, lb.getPositionCount()).forEach(pos -> found.add(lb.getBoolean(pos)));
+        }
+        assertThat(found, equalTo(List.of(true, true)));
+        results.forEach(Page::releaseBlocks);
+        assertThat(runner.context().breaker().getUsed(), equalTo(0L));
     }
 }

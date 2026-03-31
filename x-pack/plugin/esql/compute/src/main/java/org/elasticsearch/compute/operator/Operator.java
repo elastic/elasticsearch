@@ -8,7 +8,7 @@
 package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.action.support.SubscribableListener;
-import org.elasticsearch.common.io.stream.NamedWriteable;
+import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.data.Block;
@@ -39,7 +39,7 @@ public interface Operator extends Releasable {
      * non-trivial overhead and it's just not worth building even
      * smaller blocks without under normal circumstances.
      */
-    int MIN_TARGET_PAGE_SIZE = 10;
+    int MIN_TARGET_PAGE_SIZE = 32;
 
     /**
      * whether the given operator can accept more input pages
@@ -61,6 +61,22 @@ public interface Operator extends Releasable {
      * whether the operator has finished processing all input pages and made the corresponding output pages available
      */
     boolean isFinished();
+
+    /**
+     * Returns true if the operator can produce more output pages without requiring additional input pages.
+     * This is useful for operators that buffer data or have internal state that can produce multiple output pages.
+     * <p>
+     * Operators that do not buffer data should return {@code false} - they cannot produce pages out of thin air.
+     * Examples of operators that may return {@code true}:
+     * <ul>
+     *   <li>Operators with internal buffers (e.g., {@link AsyncOperator} with pending results)</li>
+     *   <li>Operators processing a single input page into multiple output pages</li>
+     *   <li>Aggregation operators that buffer partial results</li>
+     * </ul>
+     *
+     * @return {@code true} if the operator has buffered data that can produce output, {@code false} otherwise
+     */
+    boolean canProduceMoreDataWithoutExtraInput();
 
     /**
      * returns non-null if output page available. Only called when isFinished() == false
@@ -88,11 +104,11 @@ public interface Operator extends Releasable {
      * If the operator is not blocked, this method returns {@link #NOT_BLOCKED} which is an already
      * completed future.
      */
-    default SubscribableListener<Void> isBlocked() {
+    default IsBlockedResult isBlocked() {
         return NOT_BLOCKED;
     }
 
-    SubscribableListener<Void> NOT_BLOCKED = SubscribableListener.newSucceeded(null);
+    IsBlockedResult NOT_BLOCKED = new IsBlockedResult(SubscribableListener.nullSuccess(), "not blocked");
 
     /**
      * A factory for creating intermediate operators.
@@ -105,5 +121,21 @@ public interface Operator extends Releasable {
     /**
      * Status of an {@link Operator} to be returned by the tasks API.
      */
-    interface Status extends ToXContentObject, NamedWriteable {}
+    interface Status extends ToXContentObject, VersionedNamedWriteable {
+        /**
+         * The number of documents found by this operator. Most operators
+         * don't find documents and will return {@code 0} here.
+         */
+        default long documentsFound() {
+            return 0;
+        }
+
+        /**
+         * The number of values loaded by this operator. Most operators
+         * don't load values and will return {@code 0} here.
+         */
+        default long valuesLoaded() {
+            return 0;
+        }
+    }
 }

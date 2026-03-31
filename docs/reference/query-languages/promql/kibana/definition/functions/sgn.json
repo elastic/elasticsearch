@@ -1,0 +1,25 @@
+{
+  "comment" : "PromQL function definition for Kibana. See https://prometheus.io/docs/prometheus/latest/querying/functions/",
+  "type" : "value_transformation",
+  "name" : "sgn",
+  "description" : "Returns the sign of the sample values: -1 for negative, 0 for zero, and 1 for positive values.",
+  "signatures" : [
+    {
+      "params" : [
+        {
+          "name" : "v",
+          "type" : "instant_vector",
+          "optional" : false,
+          "description" : "Instant vector input."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "instant_vector"
+    }
+  ],
+  "examples" : [
+    "sgn(delta(queue_depth[5m]))"
+  ],
+  "preview" : true,
+  "snapshot_only" : false
+}

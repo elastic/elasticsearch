@@ -7,15 +7,14 @@
 
 package org.elasticsearch.xpack.application.search.action;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -31,16 +30,14 @@ import java.util.Objects;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
-public class PutSearchApplicationAction extends ActionType<PutSearchApplicationAction.Response> {
+public class PutSearchApplicationAction {
 
-    public static final PutSearchApplicationAction INSTANCE = new PutSearchApplicationAction();
     public static final String NAME = "cluster:admin/xpack/application/search_application/put";
+    public static final ActionType<Response> INSTANCE = new ActionType<>(NAME);
 
-    public PutSearchApplicationAction() {
-        super(NAME, PutSearchApplicationAction.Response::new);
-    }
+    private PutSearchApplicationAction() {/* no instances */}
 
-    public static class Request extends ActionRequest implements ToXContentObject {
+    public static class Request extends LegacyActionRequest implements ToXContentObject {
 
         private final SearchApplication searchApp;
         private final boolean create;
@@ -104,8 +101,8 @@ public class PutSearchApplicationAction extends ActionType<PutSearchApplicationA
             return Objects.hash(searchApp, create);
         }
 
-        public static ParseField SEARCH_APPLICATION = new ParseField("searchApp");
-        public static ParseField CREATE = new ParseField("create");
+        public static final ParseField SEARCH_APPLICATION = new ParseField("searchApp");
+        public static final ParseField CREATE = new ParseField("create");
 
         @SuppressWarnings("unchecked")
         private static final ConstructingObjectParser<Request, String> PARSER = new ConstructingObjectParser<>(
@@ -113,6 +110,7 @@ public class PutSearchApplicationAction extends ActionType<PutSearchApplicationA
             false,
             (params) -> new Request((SearchApplication) params[0], (boolean) params[1])
         );
+
         static {
             PARSER.declareObject(constructorArg(), (p, c) -> SearchApplication.fromXContent(c, p), SEARCH_APPLICATION);
             PARSER.declareBoolean(constructorArg(), CREATE);
@@ -133,12 +131,11 @@ public class PutSearchApplicationAction extends ActionType<PutSearchApplicationA
         }
     }
 
-    public static class Response extends ActionResponse implements StatusToXContentObject {
+    public static class Response extends ActionResponse implements ToXContentObject {
 
         final DocWriteResponse.Result result;
 
         public Response(StreamInput in) throws IOException {
-            super(in);
             result = DocWriteResponse.Result.readFrom(in);
         }
 
@@ -159,7 +156,6 @@ public class PutSearchApplicationAction extends ActionType<PutSearchApplicationA
             return builder;
         }
 
-        @Override
         public RestStatus status() {
             return switch (result) {
                 case CREATED -> RestStatus.CREATED;

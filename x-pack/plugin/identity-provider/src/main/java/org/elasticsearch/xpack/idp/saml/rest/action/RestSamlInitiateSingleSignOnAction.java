@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.idp.action.SamlInitiateSingleSignOnAction;
 import org.elasticsearch.xpack.idp.action.SamlInitiateSingleSignOnRequest;
 import org.elasticsearch.xpack.idp.action.SamlInitiateSingleSignOnResponse;
 import org.elasticsearch.xpack.idp.saml.support.SamlAuthenticationState;
+import org.elasticsearch.xpack.idp.saml.support.SamlInitiateSingleSignOnAttributes;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -40,6 +41,11 @@ public class RestSamlInitiateSingleSignOnAction extends IdpBaseRestHandler {
             SamlInitiateSingleSignOnRequest::setSamlAuthenticationState,
             (p, c) -> SamlAuthenticationState.fromXContent(p),
             new ParseField("authn_state")
+        );
+        PARSER.declareObject(
+            SamlInitiateSingleSignOnRequest::setAttributes,
+            (p, c) -> SamlInitiateSingleSignOnAttributes.fromXContent(p),
+            new ParseField("attributes")
         );
     }
 
@@ -68,13 +74,7 @@ public class RestSamlInitiateSingleSignOnAction extends IdpBaseRestHandler {
                     @Override
                     public RestResponse buildResponse(SamlInitiateSingleSignOnResponse response, XContentBuilder builder) throws Exception {
                         builder.startObject();
-                        builder.field("post_url", response.getPostUrl());
-                        builder.field("saml_response", response.getSamlResponse());
-                        builder.field("saml_status", response.getSamlStatus());
-                        builder.field("error", response.getError());
-                        builder.startObject("service_provider");
-                        builder.field("entity_id", response.getEntityId());
-                        builder.endObject();
+                        response.toXContent(builder);
                         builder.endObject();
                         return new RestResponse(RestStatus.OK, builder);
                     }

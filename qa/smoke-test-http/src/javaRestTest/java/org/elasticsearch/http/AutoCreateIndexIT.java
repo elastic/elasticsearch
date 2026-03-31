@@ -1,30 +1,34 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.http;
 
+import org.apache.http.util.EntityUtils;
 import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.xcontent.ObjectPath;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.util.Map;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.hamcrest.Matchers.containsString;
 
-public class AutoCreateIndexIT extends ESRestTestCase {
+public class AutoCreateIndexIT extends AbstractHttpSmokeTestIT {
 
     /**
      * Check that setting {@link AutoCreateIndex#AUTO_CREATE_INDEX_SETTING} to <code>false</code>
@@ -76,6 +80,22 @@ public class AutoCreateIndexIT extends ESRestTestCase {
         assertThat(
             Streams.copyToString(new InputStreamReader(responseException.getResponse().getEntity().getContent(), UTF_8)),
             containsString("no such index [composable template [recipe*] forbids index auto creation]")
+        );
+    }
+
+    public void testRequireAliasImplicitValueIsTrue() throws IOException {
+        final Request indexDocumentRequest = new Request("POST", "/_bulk?require_alias");
+        indexDocumentRequest.setJsonEntity("""
+            { "index" : { "_index" : "test", "_id" : "1" } }
+            { "field1" : "value1" }
+            """);
+        String resp = EntityUtils.toString(client().performRequest(indexDocumentRequest).getEntity());
+        Map<String, Object> respDoc = XContentHelper.convertToMap(JsonXContent.jsonXContent, resp, false);
+        assertTrue("there should be errors in the bulk response", ObjectPath.eval("errors", respDoc));
+        assertThat(
+            "there should be errors in the bulk response",
+            "" + ObjectPath.eval("items.0.index.error.reason", respDoc),
+            containsString("no such index [test] and [require_alias] request flag is [true] and [test] is not an alias")
         );
     }
 

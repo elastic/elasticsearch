@@ -7,17 +7,21 @@
 
 package org.elasticsearch.compute.data;
 
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamInput;
+// begin generated imports
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.ReleasableIterator;
+import org.elasticsearch.index.mapper.BlockLoader;
 
 import java.io.IOException;
+// end generated imports
 
 /**
  * Block that stores double values.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-Block.java.st} instead.
  */
-public sealed interface DoubleBlock extends Block permits FilterDoubleBlock, DoubleArrayBlock, DoubleVectorBlock {
+public sealed interface DoubleBlock extends Block permits DoubleArrayBlock, DoubleVectorBlock, ConstantNullBlock, DoubleBigArrayBlock,
+    org.elasticsearch.compute.data.arrow.DoubleArrowBufBlock {
 
     /**
      * Retrieves the double value stored at the given value index.
@@ -30,60 +34,157 @@ public sealed interface DoubleBlock extends Block permits FilterDoubleBlock, Dou
      */
     double getDouble(int valueIndex);
 
+    /**
+     * Checks if this block has the given value at position. If at this index we have a
+     * multivalue, then it returns true if any values match.
+     *
+     * @param position the index at which we should check the value(s)
+     * @param value the value to check against
+     */
+    default boolean hasValue(int position, double value) {
+        final var count = getValueCount(position);
+        final var startIndex = getFirstValueIndex(position);
+        final var BINARYSEARCH_THRESHOLD = 16;
+        if (count > BINARYSEARCH_THRESHOLD && mvSortedAscending()) {
+            return binarySearch(this, position, count, value) >= 0;
+        }
+
+        for (int index = startIndex; index < startIndex + count; index++) {
+            if (value == getDouble(index)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Perform a binary search on this block
+     *
+     * @param block to search in
+     * @param startIndex
+     * @param count number of positions to search beyond the startIndex
+     * @param value to search for
+     * @return position or negative number if not found
+     */
+    static int binarySearch(DoubleBlock block, int startIndex, int count, double value) {
+        int low = startIndex;
+        int high = count - 1;
+
+        while (low <= high) {
+            int mid = (low + high) >>> 1;
+            double midVal = block.getDouble(mid);
+
+            if (midVal < value) low = mid + 1;
+            else if (midVal > value) high = mid - 1;
+            else return mid; // key found
+        }
+        return -(low + 1);  // key not found.
+    }
+
     @Override
     DoubleVector asVector();
 
     @Override
-    DoubleBlock filter(int... positions);
-
-    NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Block.class, "DoubleBlock", DoubleBlock::of);
-
-    @Override
-    default String getWriteableName() {
-        return "DoubleBlock";
+    default DoubleBlock slice(int beginInclusive, int endExclusive) {
+        if (beginInclusive == 0 && endExclusive == getPositionCount()) {
+            incRef();
+            return this;
+        }
+        try (DoubleBlock.Builder builder = blockFactory().newDoubleBlockBuilder(endExclusive - beginInclusive)) {
+            builder.copyFrom(this, beginInclusive, endExclusive);
+            return builder.build();
+        }
     }
 
-    static DoubleBlock of(StreamInput in) throws IOException {
-        final boolean isVector = in.readBoolean();
-        if (isVector) {
-            return DoubleVector.of(in).asBlock();
+    @Override
+    DoubleBlock filter(boolean mayContainDuplicates, int... positions);
+
+    /**
+     * Make a deep copy of this {@link Block} using the provided {@link BlockFactory},
+     * likely copying all data.
+     */
+    @Override
+    default DoubleBlock deepCopy(BlockFactory blockFactory) {
+        try (DoubleBlock.Builder builder = blockFactory.newDoubleBlockBuilder(getPositionCount())) {
+            builder.copyFrom(this, 0, getPositionCount());
+            builder.mvOrdering(mvOrdering());
+            return builder.build();
         }
-        final int positions = in.readVInt();
-        var builder = newBlockBuilder(positions);
-        for (int i = 0; i < positions; i++) {
-            if (in.readBoolean()) {
-                builder.appendNull();
-            } else {
-                final int valueCount = in.readVInt();
-                builder.beginPositionEntry();
-                for (int valueIndex = 0; valueIndex < valueCount; valueIndex++) {
-                    builder.appendDouble(in.readDouble());
-                }
-                builder.endPositionEntry();
+    }
+
+    @Override
+    DoubleBlock keepMask(BooleanVector mask);
+
+    @Override
+    ReleasableIterator<? extends DoubleBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize);
+
+    @Override
+    DoubleBlock expand();
+
+    static DoubleBlock readFrom(BlockStreamInput in) throws IOException {
+        final byte serializationType = in.readByte();
+        return switch (serializationType) {
+            case SERIALIZE_BLOCK_VALUES -> DoubleBlock.readValues(in);
+            case SERIALIZE_BLOCK_VECTOR -> DoubleVector.readFrom(in.blockFactory(), in).asBlock();
+            case SERIALIZE_BLOCK_ARRAY -> DoubleArrayBlock.readArrayBlock(in.blockFactory(), in);
+            case SERIALIZE_BLOCK_BIG_ARRAY -> DoubleBigArrayBlock.readArrayBlock(in.blockFactory(), in);
+            default -> {
+                assert false : "invalid block serialization type " + serializationType;
+                throw new IllegalStateException("invalid serialization type " + serializationType);
             }
+        };
+    }
+
+    private static DoubleBlock readValues(BlockStreamInput in) throws IOException {
+        final int positions = in.readVInt();
+        try (DoubleBlock.Builder builder = in.blockFactory().newDoubleBlockBuilder(positions)) {
+            for (int i = 0; i < positions; i++) {
+                if (in.readBoolean()) {
+                    builder.appendNull();
+                } else {
+                    final int valueCount = in.readVInt();
+                    builder.beginPositionEntry();
+                    for (int valueIndex = 0; valueIndex < valueCount; valueIndex++) {
+                        builder.appendDouble(in.readDouble());
+                    }
+                    builder.endPositionEntry();
+                }
+            }
+            return builder.build();
         }
-        return builder.build();
     }
 
     @Override
     default void writeTo(StreamOutput out) throws IOException {
         DoubleVector vector = asVector();
-        out.writeBoolean(vector != null);
+        final var version = out.getTransportVersion();
         if (vector != null) {
+            out.writeByte(SERIALIZE_BLOCK_VECTOR);
             vector.writeTo(out);
+        } else if (this instanceof DoubleArrayBlock b) {
+            out.writeByte(SERIALIZE_BLOCK_ARRAY);
+            b.writeArrayBlock(out);
+        } else if (this instanceof DoubleBigArrayBlock b) {
+            out.writeByte(SERIALIZE_BLOCK_BIG_ARRAY);
+            b.writeArrayBlock(out);
         } else {
-            final int positions = getPositionCount();
-            out.writeVInt(positions);
-            for (int pos = 0; pos < positions; pos++) {
-                if (isNull(pos)) {
-                    out.writeBoolean(true);
-                } else {
-                    out.writeBoolean(false);
-                    final int valueCount = getValueCount(pos);
-                    out.writeVInt(valueCount);
-                    for (int valueIndex = 0; valueIndex < valueCount; valueIndex++) {
-                        out.writeDouble(getDouble(getFirstValueIndex(pos) + valueIndex));
-                    }
+            out.writeByte(SERIALIZE_BLOCK_VALUES);
+            DoubleBlock.writeValues(this, out);
+        }
+    }
+
+    private static void writeValues(DoubleBlock block, StreamOutput out) throws IOException {
+        final int positions = block.getPositionCount();
+        out.writeVInt(positions);
+        for (int pos = 0; pos < positions; pos++) {
+            if (block.isNull(pos)) {
+                out.writeBoolean(true);
+            } else {
+                out.writeBoolean(false);
+                final int valueCount = block.getValueCount(pos);
+                out.writeVInt(valueCount);
+                for (int valueIndex = 0; valueIndex < valueCount; valueIndex++) {
+                    out.writeDouble(block.getDouble(block.getFirstValueIndex(pos) + valueIndex));
                 }
             }
         }
@@ -107,6 +208,9 @@ public sealed interface DoubleBlock extends Block permits FilterDoubleBlock, Dou
      * equals method works properly across different implementations of the DoubleBlock interface.
      */
     static boolean equals(DoubleBlock block1, DoubleBlock block2) {
+        if (block1 == block2) {
+            return true;
+        }
         final int positions = block1.getPositionCount();
         if (positions != block2.getPositionCount()) {
             return false;
@@ -158,19 +262,14 @@ public sealed interface DoubleBlock extends Block permits FilterDoubleBlock, Dou
         return result;
     }
 
-    static Builder newBlockBuilder(int estimatedSize) {
-        return new DoubleBlockBuilder(estimatedSize);
-    }
-
-    static DoubleBlock newConstantBlockWith(double value, int positions) {
-        return new ConstantDoubleVector(value, positions).asBlock();
-    }
-
-    sealed interface Builder extends Block.Builder permits DoubleBlockBuilder {
-
+    /**
+     * Builder for {@link DoubleBlock}
+     */
+    sealed interface Builder extends Block.Builder, BlockLoader.DoubleBuilder permits DoubleBlockBuilder {
         /**
          * Appends a double to the current entry.
          */
+        @Override
         Builder appendDouble(double value);
 
         /**
@@ -178,6 +277,14 @@ public sealed interface DoubleBlock extends Block permits FilterDoubleBlock, Dou
          * {@code endExclusive} into this builder.
          */
         Builder copyFrom(DoubleBlock block, int beginInclusive, int endExclusive);
+
+        /**
+         * Copy the values in {@code block} at {@code position}. If this position
+         * has a single value, this'll copy a single value. If this positions has
+         * many values, it'll copy all of them. If this is {@code null}, then it'll
+         * copy the {@code null}.
+         */
+        Builder copyFrom(DoubleBlock block, int position);
 
         @Override
         Builder appendNull();
@@ -193,20 +300,6 @@ public sealed interface DoubleBlock extends Block permits FilterDoubleBlock, Dou
 
         @Override
         Builder mvOrdering(Block.MvOrdering mvOrdering);
-
-        // TODO boolean containsMvDups();
-
-        /**
-         * Appends the all values of the given block into a the current position
-         * in this builder.
-         */
-        Builder appendAllValuesToCurrentPosition(Block block);
-
-        /**
-         * Appends the all values of the given block into a the current position
-         * in this builder.
-         */
-        Builder appendAllValuesToCurrentPosition(DoubleBlock block);
 
         @Override
         DoubleBlock build();

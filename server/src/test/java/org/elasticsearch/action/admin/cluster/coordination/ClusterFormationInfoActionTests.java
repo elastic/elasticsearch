@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.coordination;
@@ -21,6 +22,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
+import org.elasticsearch.test.MockUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -60,15 +62,18 @@ public class ClusterFormationInfoActionTests extends ESTestCase {
                 ClusterFormationFailureHelper.ClusterFormationState newClusterFormationState =
                     new ClusterFormationFailureHelper.ClusterFormationState(
                         clusterFormationState.initialMasterNodesSetting(),
-                        clusterFormationState.localNode(),
-                        clusterFormationState.masterEligibleNodes(),
-                        clusterFormationState.clusterStateVersion() + 1,
-                        clusterFormationState.acceptedTerm(),
-                        clusterFormationState.lastAcceptedConfiguration(),
-                        clusterFormationState.lastCommittedConfiguration(),
+                        new ClusterFormationFailureHelper.ClusterFormationClusterStateView(
+                            clusterFormationState.clusterFormationClusterStateView().localNode(),
+                            clusterFormationState.clusterFormationClusterStateView().masterEligibleNodes(),
+                            clusterFormationState.clusterFormationClusterStateView().lastAcceptedVersion() + 1,
+                            clusterFormationState.clusterFormationClusterStateView().lastAcceptedTerm(),
+                            clusterFormationState.clusterFormationClusterStateView().lastAcceptedConfiguration(),
+                            clusterFormationState.clusterFormationClusterStateView().lastCommittedConfiguration(),
+                            clusterFormationState.clusterFormationClusterStateView().currentTerm()
+                        ),
                         clusterFormationState.resolvedAddresses(),
                         clusterFormationState.foundPeers(),
-                        clusterFormationState.currentTerm(),
+                        clusterFormationState.mastersOfPeers(),
                         clusterFormationState.hasDiscoveredQuorum(),
                         clusterFormationState.statusInfo(),
                         clusterFormationState.inFlightJoinStatuses()
@@ -79,15 +84,18 @@ public class ClusterFormationInfoActionTests extends ESTestCase {
                 ClusterFormationFailureHelper.ClusterFormationState newClusterFormationState =
                     new ClusterFormationFailureHelper.ClusterFormationState(
                         clusterFormationState.initialMasterNodesSetting(),
-                        clusterFormationState.localNode(),
-                        clusterFormationState.masterEligibleNodes(),
-                        clusterFormationState.clusterStateVersion(),
-                        clusterFormationState.acceptedTerm() + 1,
-                        clusterFormationState.lastAcceptedConfiguration(),
-                        clusterFormationState.lastCommittedConfiguration(),
+                        new ClusterFormationFailureHelper.ClusterFormationClusterStateView(
+                            clusterFormationState.clusterFormationClusterStateView().localNode(),
+                            clusterFormationState.clusterFormationClusterStateView().masterEligibleNodes(),
+                            clusterFormationState.clusterFormationClusterStateView().lastAcceptedVersion(),
+                            clusterFormationState.clusterFormationClusterStateView().lastAcceptedTerm() + 1,
+                            clusterFormationState.clusterFormationClusterStateView().lastAcceptedConfiguration(),
+                            clusterFormationState.clusterFormationClusterStateView().lastCommittedConfiguration(),
+                            clusterFormationState.clusterFormationClusterStateView().currentTerm()
+                        ),
                         clusterFormationState.resolvedAddresses(),
                         clusterFormationState.foundPeers(),
-                        clusterFormationState.currentTerm(),
+                        clusterFormationState.mastersOfPeers(),
                         clusterFormationState.hasDiscoveredQuorum(),
                         clusterFormationState.statusInfo(),
                         clusterFormationState.inFlightJoinStatuses()
@@ -98,15 +106,10 @@ public class ClusterFormationInfoActionTests extends ESTestCase {
                 ClusterFormationFailureHelper.ClusterFormationState newClusterFormationState =
                     new ClusterFormationFailureHelper.ClusterFormationState(
                         clusterFormationState.initialMasterNodesSetting(),
-                        clusterFormationState.localNode(),
-                        clusterFormationState.masterEligibleNodes(),
-                        clusterFormationState.clusterStateVersion(),
-                        clusterFormationState.acceptedTerm(),
-                        clusterFormationState.lastAcceptedConfiguration(),
-                        clusterFormationState.lastCommittedConfiguration(),
+                        clusterFormationState.clusterFormationClusterStateView(),
                         clusterFormationState.resolvedAddresses(),
                         clusterFormationState.foundPeers(),
-                        clusterFormationState.currentTerm(),
+                        clusterFormationState.mastersOfPeers(),
                         clusterFormationState.hasDiscoveredQuorum() == false,
                         clusterFormationState.statusInfo(),
                         clusterFormationState.inFlightJoinStatuses()
@@ -139,15 +142,18 @@ public class ClusterFormationInfoActionTests extends ESTestCase {
         DiscoveryNode localNode = masterEligibleNodesMap.values().stream().findAny().get();
         return new ClusterFormationFailureHelper.ClusterFormationState(
             initialMasterNodesSetting,
-            localNode,
-            Map.copyOf(masterEligibleNodesMap),
-            randomLong(),
-            randomLong(),
-            new CoordinationMetadata.VotingConfiguration(Collections.emptySet()),
-            new CoordinationMetadata.VotingConfiguration(Collections.emptySet()),
+            new ClusterFormationFailureHelper.ClusterFormationClusterStateView(
+                localNode,
+                Map.copyOf(masterEligibleNodesMap),
+                randomLong(),
+                randomLong(),
+                new CoordinationMetadata.VotingConfiguration(Collections.emptySet()),
+                new CoordinationMetadata.VotingConfiguration(Collections.emptySet()),
+                randomLong()
+            ),
             Collections.emptyList(),
             Collections.emptyList(),
-            randomLong(),
+            Collections.emptySet(),
             randomBoolean(),
             new StatusInfo(randomFrom(StatusInfo.Status.HEALTHY, StatusInfo.Status.UNHEALTHY), randomAlphaOfLength(20)),
             Collections.emptyList()
@@ -155,17 +161,15 @@ public class ClusterFormationInfoActionTests extends ESTestCase {
     }
 
     public void testTransportDoExecute() {
-        TransportService transportService = mock(TransportService.class);
+        ThreadPool threadPool = mock(ThreadPool.class);
+        when(threadPool.relativeTimeInMillis()).thenReturn(System.currentTimeMillis());
+        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor(threadPool);
         ActionFilters actionFilters = mock(ActionFilters.class);
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
-        ThreadPool threadPool = mock(ThreadPool.class);
-        when(threadPool.relativeTimeInMillis()).thenReturn(System.currentTimeMillis());
         Coordinator coordinator = mock(Coordinator.class);
         ClusterFormationFailureHelper.ClusterFormationState clusterFormationState = getClusterFormationState();
         when(coordinator.getClusterFormationState()).thenReturn(clusterFormationState);
-
-        // TODO: temporary, remove in #97879
         when(transportService.getThreadPool()).thenReturn(threadPool);
         when(threadPool.executor(anyString())).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
         ClusterFormationInfoAction.TransportAction action = new ClusterFormationInfoAction.TransportAction(

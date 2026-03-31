@@ -6,9 +6,8 @@
  */
 package org.elasticsearch.xpack.core.security.action.oidc;
 
-import org.elasticsearch.TransportVersions;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -20,7 +19,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  * Represents a request for authentication using OpenID Connect
  */
-public class OpenIdConnectAuthenticateRequest extends ActionRequest {
+public class OpenIdConnectAuthenticateRequest extends LegacyActionRequest {
 
     /**
      * The URI where the OP redirected the browser after the authentication attempt. This is passed as is from the
@@ -54,10 +53,7 @@ public class OpenIdConnectAuthenticateRequest extends ActionRequest {
         redirectUri = in.readString();
         state = in.readString();
         nonce = in.readString();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_4_0)) {
-            realm = in.readOptionalString();
-        }
-
+        realm = in.readOptionalString();
     }
 
     public String getRedirectUri() {
@@ -113,9 +109,7 @@ public class OpenIdConnectAuthenticateRequest extends ActionRequest {
         out.writeString(redirectUri);
         out.writeString(state);
         out.writeString(nonce);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_4_0)) {
-            out.writeOptionalString(realm);
-        }
+        out.writeOptionalString(realm);
     }
 
     public String toString() {

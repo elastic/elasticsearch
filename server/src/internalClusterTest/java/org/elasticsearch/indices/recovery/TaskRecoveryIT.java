@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.indices.recovery;
@@ -86,7 +87,7 @@ public class TaskRecoveryIT extends ESIntegTestCase {
         } finally {
             // Release the EngineTestPlugin, which will allow translog recovery to complete
             StreamSupport.stream(internalCluster().getInstances(PluginsService.class).spliterator(), false)
-                .flatMap(ps -> ps.filterPlugins(EnginePlugin.class).stream())
+                .flatMap(ps -> ps.filterPlugins(EnginePlugin.class))
                 .map(EngineTestPlugin.class::cast)
                 .forEach(EngineTestPlugin::release);
         }
@@ -109,11 +110,7 @@ public class TaskRecoveryIT extends ESIntegTestCase {
 
                 @Override
                 public void skipTranslogRecovery() {
-                    try {
-                        latch.await();
-                    } catch (InterruptedException e) {
-                        throw new AssertionError(e);
-                    }
+                    safeAwait(latch);
                     super.skipTranslogRecovery();
                 }
             });

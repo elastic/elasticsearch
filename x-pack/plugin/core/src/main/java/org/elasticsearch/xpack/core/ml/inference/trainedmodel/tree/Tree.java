@@ -9,8 +9,6 @@ package org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.Accountables;
 import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -287,15 +285,7 @@ public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedM
         return Collections.unmodifiableCollection(accountables);
     }
 
-    @Override
-    public TransportVersion getMinimalCompatibilityVersion() {
-        if (nodes.stream().filter(TreeNode::isLeaf).anyMatch(t -> t.getLeafValue().length > 1)) {
-            return TransportVersions.V_7_7_0;
-        }
-        return TransportVersions.V_7_6_0;
-    }
-
-    public static class Builder {
+    public static final class Builder {
         private List<String> featureNames;
         private ArrayList<TreeNode.Builder> nodes;
         private int numNodes;

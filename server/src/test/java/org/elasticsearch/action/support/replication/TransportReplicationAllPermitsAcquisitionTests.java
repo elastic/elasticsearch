@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.action.support.replication;
 
@@ -32,6 +33,7 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexService;
@@ -67,7 +69,7 @@ import java.util.concurrent.Executor;
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_CREATION_DATE;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_UUID;
-import static org.elasticsearch.cluster.routing.TestShardRouting.newShardRouting;
+import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
 import static org.hamcrest.Matchers.allOf;
@@ -119,13 +121,9 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
         state.nodes(DiscoveryNodes.builder().add(node1).add(node2).localNodeId(node1.getId()).masterNodeId(node1.getId()));
 
         shardId = new ShardId("index", UUID.randomUUID().toString(), 0);
-        ShardRouting shardRouting = newShardRouting(
-            shardId,
-            node1.getId(),
-            true,
-            ShardRoutingState.INITIALIZING,
+        ShardRouting shardRouting = shardRoutingBuilder(shardId, node1.getId(), true, ShardRoutingState.INITIALIZING).withRecoverySource(
             RecoverySource.EmptyStoreRecoverySource.INSTANCE
-        );
+        ).build();
 
         Settings indexSettings = indexSettings(IndexVersion.current(), 1, 1).put(SETTING_INDEX_UUID, shardId.getIndex().getUUID())
             .put(SETTING_CREATION_DATE, System.currentTimeMillis())
@@ -180,7 +178,7 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
                         }
 
                         @Override
-                        public Executor executor(ThreadPool threadPool) {
+                        public Executor executor() {
                             return TransportResponseHandler.TRANSPORT_WORKER;
                         }
 
@@ -393,6 +391,10 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
                 }
             }
         }
+        assertWarnings(
+            "[indices.merge.scheduler.use_thread_pool] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                + "See the breaking changes documentation for the next major version."
+        );
     }
 
     private void assertSuccessfulOperation(final TestAction action, final Response response) {
@@ -459,7 +461,10 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
                 new ActionFilters(new HashSet<>()),
                 Request::new,
                 Request::new,
-                ThreadPool.Names.SAME
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                SyncGlobalCheckpointAfterOperation.DoNotSync,
+                PrimaryActionExecution.RejectOnOverload,
+                ReplicaActionExecution.SubjectToCircuitBreaker
             );
             this.shardId = Objects.requireNonNull(shardId);
             this.primary = Objects.requireNonNull(primary);

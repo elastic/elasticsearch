@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.bulk;
@@ -11,6 +12,7 @@ package org.elasticsearch.action.bulk;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.support.replication.TransportWriteAction;
@@ -19,6 +21,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.translog.Translog;
 
 import java.util.Arrays;
+import java.util.List;
 
 /**
  * This is a utility class that holds the per request state needed to perform bulk operations on the primary.
@@ -59,6 +62,7 @@ class BulkPrimaryExecutionContext {
     private DocWriteRequest<?> requestToExecute;
     private BulkItemResponse executionResult;
     private int updateRetryCounter;
+    private long noopMappingUpdateRetryForMappingVersion;
 
     BulkPrimaryExecutionContext(BulkShardRequest request, IndexShard primary) {
         this.request = request;
@@ -87,6 +91,7 @@ class BulkPrimaryExecutionContext {
         updateRetryCounter = 0;
         requestToExecute = null;
         executionResult = null;
+        noopMappingUpdateRetryForMappingVersion = -1;
         assert assertInvariants(ItemProcessingState.INITIAL);
     }
 
@@ -189,12 +194,39 @@ class BulkPrimaryExecutionContext {
         resetForExecutionRetry();
     }
 
+    /**
+     * Don't bother the master node if the mapping update is a noop.
+     * This may happen if there was a concurrent mapping update that added the same field.
+     *
+     * @param mappingVersion the current mapping version. This is used to guard against infinite loops.
+     * @throws IllegalStateException if retried multiple times with the same mapping version, to guard against infinite loops.
+     */
+    public void resetForNoopMappingUpdateRetry(long mappingVersion) {
+        assert assertInvariants(ItemProcessingState.TRANSLATED);
+        if (noopMappingUpdateRetryForMappingVersion == mappingVersion) {
+            // this should never happen, if we end up here, there's probably a bug
+            // seems like we're in a live lock/infinite loop here
+            // we've already re-tried and are about to retry again
+            // as no state has changed in the meantime (the mapping version is still the same),
+            // we can't expect another retry would yield a different result
+            // a possible cause:
+            // maybe we added more dynamic mappers in DocumentParserContext.getDynamicMapper than possible according to the field limit
+            // the additional fields are then ignored by the mapping merge and the process repeats
+            String message = "On retry, this indexing request resulted in another noop mapping update. "
+                + "Failing the indexing operation to prevent an infinite retry loop.";
+            assert false : message;
+            throw new IllegalStateException(message);
+        }
+        resetForExecutionRetry();
+        noopMappingUpdateRetryForMappingVersion = mappingVersion;
+    }
+
     /** resets the current item state, prepare for a new execution */
     private void resetForExecutionRetry() {
-        assert assertInvariants(ItemProcessingState.WAIT_FOR_MAPPING_UPDATE, ItemProcessingState.EXECUTED);
         currentItemState = ItemProcessingState.INITIAL;
         requestToExecute = null;
         executionResult = null;
+        noopMappingUpdateRetryForMappingVersion = -1;
         assert assertInvariants(ItemProcessingState.INITIAL);
     }
 
@@ -231,13 +263,20 @@ class BulkPrimaryExecutionContext {
                 final DocWriteResponse response;
                 if (result.getOperationType() == Engine.Operation.TYPE.INDEX) {
                     Engine.IndexResult indexResult = (Engine.IndexResult) result;
+                    List<String> executedPipelines;
+                    if (docWriteRequest instanceof IndexRequest indexRequest) {
+                        executedPipelines = indexRequest.getExecutedPipelines();
+                    } else {
+                        executedPipelines = null;
+                    }
                     response = new IndexResponse(
                         primary.shardId(),
                         indexResult.getId(),
                         result.getSeqNo(),
                         result.getTerm(),
                         indexResult.getVersion(),
-                        indexResult.isCreated()
+                        indexResult.isCreated(),
+                        executedPipelines
                     );
                 } else if (result.getOperationType() == Engine.Operation.TYPE.DELETE) {
                     Engine.DeleteResult deleteResult = (Engine.DeleteResult) result;
@@ -255,7 +294,7 @@ class BulkPrimaryExecutionContext {
                 }
                 executionResult = BulkItemResponse.success(current.id(), current.request().opType(), response);
                 // set a blank ShardInfo so we can safely send it to the replicas. We won't use it in the real response though.
-                executionResult.getResponse().setShardInfo(new ReplicationResponse.ShardInfo());
+                executionResult.getResponse().setShardInfo(ReplicationResponse.ShardInfo.EMPTY);
                 locationToSync = TransportWriteAction.locationToSync(locationToSync, result.getTranslogLocation());
             }
             case FAILURE -> {

@@ -10,10 +10,7 @@ package org.elasticsearch.xpack.spatial.search.aggregations.metrics;
 import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalCentroid;
-import org.elasticsearch.search.aggregations.support.SamplingContext;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.spatial.common.CartesianPoint;
 
 import java.io.IOException;
@@ -25,14 +22,21 @@ import java.util.Map;
 public class InternalCartesianCentroid extends InternalCentroid implements CartesianCentroid {
 
     public InternalCartesianCentroid(String name, SpatialPoint centroid, long count, Map<String, Object> metadata) {
-        super(name, centroid, count, metadata, new FieldExtractor("x", SpatialPoint::getX), new FieldExtractor("y", SpatialPoint::getY));
+        super(name, centroid, count, metadata);
+    }
+
+    /**
+     * Constructor for shape centroid results that carry raw weighted sums for correct cross-shard reduction.
+     */
+    public InternalCartesianCentroid(String name, SpatialPoint centroid, long count, ShapeData shapeData, Map<String, Object> metadata) {
+        super(name, centroid, count, shapeData, metadata);
     }
 
     /**
      * Read from a stream.
      */
     public InternalCartesianCentroid(StreamInput in) throws IOException {
-        super(in, new FieldExtractor("x", SpatialPoint::getX), new FieldExtractor("y", SpatialPoint::getY));
+        super(in);
     }
 
     @Override
@@ -76,12 +80,33 @@ public class InternalCartesianCentroid extends InternalCentroid implements Carte
     }
 
     @Override
-    public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
-        return new InternalCartesianCentroid(name, centroid, samplingContext.scaleUp(count), getMetadata());
+    protected InternalCartesianCentroid copyWithShapeFields(ShapeData shapeData, long count) {
+        final CartesianPoint result = shapeData.totalWeight() > 0
+            ? new CartesianPoint(
+                shapeData.firstWeightedSum() / shapeData.totalWeight(),
+                shapeData.secondWeightedSum() / shapeData.totalWeight()
+            )
+            : null;
+        return new InternalCartesianCentroid(name, result, count, shapeData, getMetadata());
     }
 
-    static class Fields {
-        static final ParseField CENTROID_X = new ParseField("x");
-        static final ParseField CENTROID_Y = new ParseField("y");
+    @Override
+    protected String nameFirst() {
+        return "x";
+    }
+
+    @Override
+    protected double extractFirst(SpatialPoint point) {
+        return point.getX();
+    }
+
+    @Override
+    protected String nameSecond() {
+        return "y";
+    }
+
+    @Override
+    protected double extractSecond(SpatialPoint point) {
+        return point.getY();
     }
 }

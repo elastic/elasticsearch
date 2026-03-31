@@ -16,22 +16,22 @@ more than 1:
   - do:
       index:
         index:   source
-        id:      1
-        routing: 1
+        id:      "1"
+        routing: "1"
         body:    { "foo": "hello world" }
 
   - do:
       index:
         index:   source
-        id:      2
-        routing: 2
+        id:      "2"
+        routing: "2"
         body:    { "foo": "hello world 2" }
 
   - do:
       index:
         index:   source
-        id:      3
-        routing: 3
+        id:      "3"
+        routing: "3"
         body:    { "foo": "hello world 3" }
 
   # make it read-only
@@ -66,8 +66,8 @@ more than 1:
   - do:
       get:
         index:   target
-        routing: 1
-        id:      1
+        routing: "1"
+        id:      "1"
 
   - match: { _index:   target }
   - match: { _id:      "1"     }
@@ -76,8 +76,8 @@ more than 1:
   - do:
       get:
         index:   target
-        routing: 2
-        id:      2
+        routing: "2"
+        id:      "2"
 
   - match: { _index:   target }
   - match: { _id:      "2"     }
@@ -86,8 +86,8 @@ more than 1:
   - do:
       get:
         index:   target
-        routing: 3
-        id:      3
+        routing: "3"
+        id:      "3"
 
   - match: { _index:   target }
   - match: { _id:      "3"     }
@@ -117,22 +117,22 @@ exactly 1:
   - do:
       index:
         index:   source
-        id:      1
-        routing: 1
+        id:      "1"
+        routing: "1"
         body:    { "foo": "hello world" }
 
   - do:
       index:
         index:   source
-        id:      2
-        routing: 2
+        id:      "2"
+        routing: "2"
         body:    { "foo": "hello world 2" }
 
   - do:
       index:
         index:   source
-        id:      3
-        routing: 3
+        id:      "3"
+        routing: "3"
         body:    { "foo": "hello world 3" }
 
   # make it read-only
@@ -167,8 +167,8 @@ exactly 1:
   - do:
       get:
         index:   target
-        routing: 1
-        id:      1
+        routing: "1"
+        id:      "1"
 
   - match: { _index:   target }
   - match: { _id:      "1"     }
@@ -177,8 +177,8 @@ exactly 1:
   - do:
       get:
         index:   target
-        routing: 2
-        id:      2
+        routing: "2"
+        id:      "2"
 
   - match: { _index:   target }
   - match: { _id:      "2"     }
@@ -187,8 +187,8 @@ exactly 1:
   - do:
       get:
         index:   target
-        routing: 3
-        id:      3
+        routing: "3"
+        id:      "3"
 
   - match: { _index:   target }
   - match: { _id:      "3"     }
@@ -221,22 +221,22 @@ nested:
   - do:
       index:
         index:   source
-        id:      1
-        routing: 1
+        id:      "1"
+        routing: "1"
         body:    { "foo": "hello world", "n": [{"foo": "goodbye world"}, {"foo": "more words"}] }
 
   - do:
       index:
         index:   source
-        id:      2
-        routing: 2
+        id:      "2"
+        routing: "2"
         body:    { "foo": "hello world 2" }
 
   - do:
       index:
         index:   source
-        id:      3
-        routing: 3
+        id:      "3"
+        routing: "3"
         body:    { "foo": "hello world 3" }
 
   # make it read-only
@@ -271,8 +271,8 @@ nested:
   - do:
       get:
         index:   target
-        routing: 1
-        id:      1
+        routing: "1"
+        id:      "1"
 
   - match: { _index:   target }
   - match: { _id:      "1"     }
@@ -281,8 +281,8 @@ nested:
   - do:
       get:
         index:   target
-        routing: 2
-        id:      2
+        routing: "2"
+        id:      "2"
 
   - match: { _index:   target }
   - match: { _id:      "2"     }
@@ -291,8 +291,8 @@ nested:
   - do:
       get:
         index:   target
-        routing: 3
-        id:      3
+        routing: "3"
+        id:      "3"
 
   - match: { _index:   target }
   - match: { _id:      "3"     }

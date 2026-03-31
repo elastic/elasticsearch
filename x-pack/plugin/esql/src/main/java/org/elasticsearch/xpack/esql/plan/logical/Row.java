@@ -7,19 +7,24 @@
 
 package org.elasticsearch.xpack.esql.plan.logical;
 
-import org.elasticsearch.xpack.ql.capabilities.Resolvables;
-import org.elasticsearch.xpack.ql.expression.Alias;
-import org.elasticsearch.xpack.ql.expression.Attribute;
-import org.elasticsearch.xpack.ql.expression.Expressions;
-import org.elasticsearch.xpack.ql.plan.logical.LeafPlan;
-import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.ql.tree.NodeInfo;
-import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
+import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
+import org.elasticsearch.xpack.esql.common.Failures;
+import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.util.List;
 import java.util.Objects;
 
-public class Row extends LeafPlan {
+import static org.elasticsearch.xpack.esql.common.Failure.fail;
+import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
+
+public class Row extends LeafPlan implements PostAnalysisVerificationAware, TelemetryAware {
 
     private final List<Alias> fields;
 
@@ -28,13 +33,23 @@ public class Row extends LeafPlan {
         this.fields = fields;
     }
 
+    @Override
+    public void writeTo(StreamOutput out) {
+        throw new UnsupportedOperationException("not serialized");
+    }
+
+    @Override
+    public String getWriteableName() {
+        throw new UnsupportedOperationException("not serialized");
+    }
+
     public List<Alias> fields() {
         return fields;
     }
 
     @Override
     public List<Attribute> output() {
-        return Expressions.asAttributes(fields);
+        return mergeOutputAttributes(fields, List.of());
     }
 
     @Override
@@ -58,5 +73,14 @@ public class Row extends LeafPlan {
     @Override
     public int hashCode() {
         return Objects.hash(fields);
+    }
+
+    @Override
+    public void postAnalysisVerification(Failures failures) {
+        fields.forEach(a -> {
+            if (DataType.isRepresentable(a.dataType()) == false) {
+                failures.add(fail(a.child(), "cannot use [{}] directly in a row assignment", a.child().sourceText()));
+            }
+        });
     }
 }

@@ -7,24 +7,75 @@
 
 package org.elasticsearch.compute.data;
 
+// begin generated imports
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.ReleasableIterator;
 
 import java.io.IOException;
+// end generated imports
 
 /**
  * Vector that stores boolean values.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-Vector.java.st} instead.
  */
-public sealed interface BooleanVector extends Vector permits ConstantBooleanVector, FilterBooleanVector, BooleanArrayVector,
-    BooleanBigArrayVector {
+public sealed interface BooleanVector extends Vector permits ConstantBooleanVector, BooleanArrayVector, BooleanBigArrayVector,
+    ConstantNullVector, org.elasticsearch.compute.data.arrow.BooleanArrowBufVector {
     boolean getBoolean(int position);
+
+    /**
+     * Copies values from this vector into the destination array.
+     */
+    default void copyTo(int srcPosition, boolean[] dst, int dstPosition, int length) {
+        for (int i = 0; i < length; i++) {
+            dst[dstPosition + i] = getBoolean(srcPosition + i);
+        }
+    }
 
     @Override
     BooleanBlock asBlock();
 
     @Override
-    BooleanVector filter(int... positions);
+    BooleanVector filter(boolean mayContainDuplicates, int... positions);
+
+    @Override
+    BooleanBlock keepMask(BooleanVector mask);
+
+    /**
+     * Make a deep copy of this {@link Vector} using the provided {@link BlockFactory},
+     * likely copying all data.
+     */
+    @Override
+    default BooleanVector deepCopy(BlockFactory blockFactory) {
+        try (BooleanBlock.Builder builder = blockFactory.newBooleanBlockBuilder(getPositionCount())) {
+            builder.copyFrom(asBlock(), 0, getPositionCount());
+            builder.mvOrdering(Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING);
+            return builder.build().asVector();
+        }
+    }
+
+    @Override
+    ReleasableIterator<? extends BooleanBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize);
+
+    /**
+     * Return a subset of this vector from {@code beginInclusive} to
+     * {@code endExclusive}. This <strong>may</strong> return the same
+     * instance if the range covers all positions, but if it does it
+     * will {@link #incRef()} it.
+     */
+    @Override
+    BooleanVector slice(int beginInclusive, int endExclusive);
+
+    /**
+     * Are all values {@code true}? This will scan all values to check and always answer accurately.
+     */
+    boolean allTrue();
+
+    /**
+     * Are all values {@code false}? This will scan all values to check and always answer accurately.
+     */
+    boolean allFalse();
 
     /**
      * Compares the given object with this vector for equality. Returns {@code true} if and only if the
@@ -72,39 +123,60 @@ public sealed interface BooleanVector extends Vector permits ConstantBooleanVect
     }
 
     /** Deserializes a Vector from the given stream input. */
-    static BooleanVector of(StreamInput in) throws IOException {
+    static BooleanVector readFrom(BlockFactory blockFactory, StreamInput in) throws IOException {
         final int positions = in.readVInt();
-        final boolean constant = in.readBoolean();
-        if (constant && positions > 0) {
-            return new ConstantBooleanVector(in.readBoolean(), positions);
-        } else {
-            var builder = BooleanVector.newVectorBuilder(positions);
-            for (int i = 0; i < positions; i++) {
-                builder.appendBoolean(in.readBoolean());
+        final byte serializationType = in.readByte();
+        return switch (serializationType) {
+            case SERIALIZE_VECTOR_VALUES -> readValues(positions, in, blockFactory);
+            case SERIALIZE_VECTOR_CONSTANT -> blockFactory.newConstantBooleanVector(in.readBoolean(), positions);
+            case SERIALIZE_VECTOR_ARRAY -> BooleanArrayVector.readArrayVector(positions, in, blockFactory);
+            case SERIALIZE_VECTOR_BIG_ARRAY -> BooleanBigArrayVector.readArrayVector(positions, in, blockFactory);
+            default -> {
+                assert false : "invalid vector serialization type [" + serializationType + "]";
+                throw new IllegalStateException("invalid vector serialization type [" + serializationType + "]");
             }
-            return builder.build();
-        }
+        };
     }
 
     /** Serializes this Vector to the given stream output. */
     default void writeTo(StreamOutput out) throws IOException {
         final int positions = getPositionCount();
+        final var version = out.getTransportVersion();
         out.writeVInt(positions);
-        out.writeBoolean(isConstant());
         if (isConstant() && positions > 0) {
+            out.writeByte(SERIALIZE_VECTOR_CONSTANT);
             out.writeBoolean(getBoolean(0));
+        } else if (this instanceof BooleanArrayVector v) {
+            out.writeByte(SERIALIZE_VECTOR_ARRAY);
+            v.writeArrayVector(positions, out);
+        } else if (this instanceof BooleanBigArrayVector v) {
+            out.writeByte(SERIALIZE_VECTOR_BIG_ARRAY);
+            v.writeArrayVector(positions, out);
         } else {
-            for (int i = 0; i < positions; i++) {
-                out.writeBoolean(getBoolean(i));
-            }
+            out.writeByte(SERIALIZE_VECTOR_VALUES);
+            writeValues(this, positions, out);
         }
     }
 
-    static Builder newVectorBuilder(int estimatedSize) {
-        return new BooleanVectorBuilder(estimatedSize);
+    private static BooleanVector readValues(int positions, StreamInput in, BlockFactory blockFactory) throws IOException {
+        try (var builder = blockFactory.newBooleanVectorFixedBuilder(positions)) {
+            for (int i = 0; i < positions; i++) {
+                builder.appendBoolean(i, in.readBoolean());
+            }
+            return builder.build();
+        }
     }
 
-    sealed interface Builder extends Vector.Builder permits BooleanVectorBuilder {
+    private static void writeValues(BooleanVector v, int positions, StreamOutput out) throws IOException {
+        for (int i = 0; i < positions; i++) {
+            out.writeBoolean(v.getBoolean(i));
+        }
+    }
+
+    /**
+     * A builder that grows as needed.
+     */
+    sealed interface Builder extends Vector.Builder permits BooleanVectorBuilder, FixedBuilder {
         /**
          * Appends a boolean to the current entry.
          */
@@ -112,5 +184,19 @@ public sealed interface BooleanVector extends Vector permits ConstantBooleanVect
 
         @Override
         BooleanVector build();
+    }
+
+    /**
+     * A builder that never grows.
+     */
+    sealed interface FixedBuilder extends Builder permits BooleanVectorFixedBuilder {
+        /**
+         * Appends a boolean to the current entry.
+         */
+        @Override
+        FixedBuilder appendBoolean(boolean value);
+
+        FixedBuilder appendBoolean(int index, boolean value);
+
     }
 }

@@ -9,25 +9,24 @@ package org.elasticsearch.xpack.eql.execution.payload;
 
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.xpack.eql.action.EqlSearchResponse.Event;
-import org.elasticsearch.xpack.eql.execution.search.RuntimeUtils;
 
 import java.util.ArrayList;
 import java.util.List;
-
-import static org.elasticsearch.xpack.eql.util.SearchHitUtils.qualifiedIndex;
 
 public class EventPayload extends AbstractPayload {
 
     private final List<Event> values;
 
     public EventPayload(SearchResponse response) {
-        super(response.isTimedOut(), response.getTook());
+        super(response.isTimedOut(), response.getTook(), response.getShardFailures());
 
-        List<SearchHit> hits = RuntimeUtils.searchHits(response);
-        values = new ArrayList<>(hits.size());
+        SearchHits hits = response.getHits();
+        values = new ArrayList<>(hits.getHits().length);
         for (SearchHit hit : hits) {
-            values.add(new Event(qualifiedIndex(hit), hit.getId(), hit.getSourceRef(), hit.getDocumentFields()));
+            // TODO: remove unpooled usage
+            values.add(new Event(hit.asUnpooled()));
         }
     }
 

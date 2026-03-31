@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.test.tasks;
@@ -17,14 +18,15 @@ import org.elasticsearch.tasks.RemovedTaskListener;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskAwareRequest;
 import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.tracing.Tracer;
 
 import java.util.Collection;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.mockito.Mockito.spy;
 
 /**
  * A mock task manager that allows adding listeners for events
@@ -39,10 +41,23 @@ public class MockTaskManager extends TaskManager {
         Property.NodeScope
     );
 
+    public static final Setting<Boolean> SPY_TASK_MANAGER_SETTING = Setting.boolSetting(
+        "tests.spy.taskmanager.enabled",
+        false,
+        Property.NodeScope
+    );
+
     private final Collection<MockTaskManagerListener> listeners = new CopyOnWriteArrayList<>();
 
     public MockTaskManager(Settings settings, ThreadPool threadPool, Set<String> taskHeaders) {
         super(settings, threadPool, taskHeaders, Tracer.NOOP);
+    }
+
+    public static TaskManager create(Settings settings, ThreadPool threadPool, Set<String> taskHeaders, Tracer tracer, String nodeId) {
+        var taskManager = MockTaskManager.USE_MOCK_TASK_MANAGER_SETTING.get(settings)
+            ? new MockTaskManager(settings, threadPool, taskHeaders)
+            : new TaskManager(settings, threadPool, taskHeaders, tracer, nodeId);
+        return MockTaskManager.SPY_TASK_MANAGER_SETTING.get(settings) ? spy(taskManager) : taskManager;
     }
 
     @Override
@@ -78,19 +93,23 @@ public class MockTaskManager extends TaskManager {
         return removedTask;
     }
 
-    @Override
-    public void registerRemovedTaskListener(RemovedTaskListener removedTaskListener) {
-        for (MockTaskManagerListener listener : listeners) {
-            listener.subscribeForRemovedTasks(removedTaskListener);
-        }
-        super.registerRemovedTaskListener(removedTaskListener);
-    }
-
     public void addListener(MockTaskManagerListener listener) {
         listeners.add(listener);
     }
 
     public void removeListener(MockTaskManagerListener listener) {
         listeners.remove(listener);
+    }
+
+    @Override
+    public void registerRemovedTaskListener(RemovedTaskListener removedTaskListener) {
+        super.registerRemovedTaskListener(removedTaskListener);
+        for (MockTaskManagerListener listener : listeners) {
+            try {
+                listener.onRemovedTaskListenerRegistered(removedTaskListener);
+            } catch (Exception e) {
+                logger.warn("failed to notify task manager listener about a registered removed task listener", e);
+            }
+        }
     }
 }

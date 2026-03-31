@@ -68,7 +68,7 @@ public class FrozenShardsDeciderServiceTests extends AutoscalingTestCase {
         );
         assertThat(defaultSettingsResult.reason().summary(), equalTo("shard count [" + (shards * (replicas + 1) + "]")));
 
-        ByteSizeValue memoryPerShard = new ByteSizeValue(
+        ByteSizeValue memoryPerShard = ByteSizeValue.of(
             randomLongBetween(0, 1000),
             randomFrom(ByteSizeUnit.BYTES, ByteSizeUnit.KB, ByteSizeUnit.MB)
         );

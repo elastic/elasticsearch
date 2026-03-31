@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.test.rest.yaml.section;
 
@@ -23,6 +24,7 @@ import static java.util.Collections.unmodifiableMap;
 public class ApiCallSection {
 
     private final String api;
+    private String method;
     private final Map<String, String> params = new HashMap<>();
     private final Map<String, String> headers = new HashMap<>();
     private final List<Map<String, Object>> bodies = new ArrayList<>();
@@ -34,6 +36,34 @@ public class ApiCallSection {
 
     public String getApi() {
         return api;
+    }
+
+    public ApiCallSection copyWithNewApi(String api) {
+        ApiCallSection copy = new ApiCallSection(api);
+        for (var e : params.entrySet()) {
+            copy.addParam(e.getKey(), e.getValue());
+        }
+        copy.addHeaders(headers);
+        for (var b : bodies) {
+            copy.addBody(b);
+        }
+        copy.nodeSelector = nodeSelector;
+        copy.method = method;
+        return copy;
+    }
+
+    /**
+     * Gets the HTTP method override for this request, or null if not specified to randomly pick one of the methods specified in the spec.
+     */
+    public String getMethod() {
+        return method;
+    }
+
+    /**
+     * Sets the HTTP method override for this request. If null, a method will be randomly picked from the ones specified in the spec.
+     */
+    public void setMethod(String method) {
+        this.method = method;
     }
 
     public Map<String, String> getParams() {

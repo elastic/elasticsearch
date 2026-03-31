@@ -9,46 +9,57 @@ package org.elasticsearch.compute.operator.topn;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.DocVector;
-import org.elasticsearch.compute.data.IntArrayVector;
 
 class ResultBuilderForDoc implements ResultBuilder {
-    private final int[] shards;
-    private final int[] segments;
-    private final int[] docs;
-    private int position;
+    private final DocVectorEncoder encoder;
+    private final DocBlock.Builder builder;
 
-    ResultBuilderForDoc(int positions) {
-        this.shards = new int[positions];
-        this.segments = new int[positions];
-        this.docs = new int[positions];
+    ResultBuilderForDoc(BlockFactory blockFactory, DocVectorEncoder encoder, int positions) {
+        this.encoder = encoder;
+        this.builder = DocBlock.newBlockBuilder(blockFactory, positions);
     }
 
     @Override
-    public void decodeKey(BytesRef keys) {
+    public void decodeKey(BytesRef keys, boolean asc) {
         throw new AssertionError("_doc can't be a key");
     }
 
     @Override
     public void decodeValue(BytesRef values) {
-        shards[position] = TopNEncoder.DEFAULT_UNSORTABLE.decodeInt(values);
-        segments[position] = TopNEncoder.DEFAULT_UNSORTABLE.decodeInt(values);
-        docs[position] = TopNEncoder.DEFAULT_UNSORTABLE.decodeInt(values);
-        position++;
+        int shard = encoder.decodeInt(values);
+        int segment = encoder.decodeInt(values);
+        int doc = encoder.decodeInt(values);
+
+        // Since rows can be closed before build is called, we need to increment the ref count to ensure the shard context isn't closed.
+        encoder.refCounteds().get(shard).mustIncRef();
+
+        builder.appendShard(shard);
+        builder.appendSegment(segment);
+        builder.appendDoc(doc);
     }
 
     @Override
     public Block build() {
-        return new DocVector(
-            new IntArrayVector(shards, position),
-            new IntArrayVector(segments, position),
-            new IntArrayVector(docs, position),
-            null
-        ).asBlock();
+        DocVector.Config config = DocVector.config().dontIncrementShardRefCounts().mayContainDuplicates();
+        // TODO figure out when we don't need to set mayContainDuplicates
+        return builder.shardRefCounters(encoder.refCounteds()).build(config);
+    }
+
+    @Override
+    public long estimatedBytes() {
+        return builder.estimatedBytes();
     }
 
     @Override
     public String toString() {
         return "ValueExtractorForDoc";
+    }
+
+    @Override
+    public void close() {
+        builder.close();
     }
 }

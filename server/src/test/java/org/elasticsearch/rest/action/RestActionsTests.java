@@ -1,14 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.rest.action;
 
 import org.elasticsearch.action.ShardOperationFailedException;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.ParsingException;
@@ -41,6 +43,8 @@ import java.util.Map;
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.index.query.QueryStringQueryBuilder.DEFAULT_OPERATOR;
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 
 public class RestActionsTests extends ESTestCase {
 
@@ -230,6 +234,51 @@ public class RestActionsTests extends ESTestCase {
                 + "but missing query string parameter 'q'.",
             iae.getMessage()
         );
+    }
+
+    public void testParseWithProjectRouting() throws IOException {
+        QueryBuilder query = new MatchQueryBuilder("foo", "bar");
+        String requestBody1 = """
+            {
+              "query": _QUERY_,
+              "project_routing": "_alias:_origin"
+            }
+            """;
+        String requestBody2 = """
+            {
+              "project_routing": "_csp:aws AND (_region:us* OR _region:eu-west-1)",
+              "query": _QUERY_
+            }
+            """;
+
+        {
+            String requestBody = randomFrom(requestBody1, requestBody2).replaceFirst("_QUERY_", query.toString());
+            try (XContentParser parser = createParser(JsonXContent.jsonXContent, requestBody)) {
+                // if no SearchRequest passed in, an error should be thrown that project_routing is not supported for that endpoint
+                ParsingException e = expectThrows(ParsingException.class, () -> RestActions.getQueryContent(parser));
+                assertEquals(e.getMessage(), "request does not support [project_routing]");
+            }
+        }
+        {
+            SearchRequest searchRequest = new SearchRequest("index");
+            String requestBody = requestBody1.replaceFirst("_QUERY_", query.toString());
+            try (XContentParser parser = createParser(JsonXContent.jsonXContent, requestBody)) {
+                assertNull(searchRequest.getProjectRouting());
+                QueryBuilder actual = RestActions.getQueryContent(parser, searchRequest);
+                assertEquals(query, actual);
+                assertEquals(searchRequest.getProjectRouting(), "_alias:_origin");
+            }
+        }
+        {
+            String requestBody = requestBody2.replaceFirst("_QUERY_", query.toString());
+            try (XContentParser parser = createParser(JsonXContent.jsonXContent, requestBody)) {
+                SearchRequest searchRequest = new SearchRequest("index");
+                assertNull(searchRequest.getProjectRouting());
+                QueryBuilder actual = RestActions.getQueryContent(parser, searchRequest);
+                assertEquals(query, actual);
+                assertEquals(searchRequest.getProjectRouting(), "_csp:aws AND (_region:us* OR _region:eu-west-1)");
+            }
+        }
     }
 
     private static ShardSearchFailure createShardFailureParsingException(String nodeId, int shardId, String clusterAlias) {

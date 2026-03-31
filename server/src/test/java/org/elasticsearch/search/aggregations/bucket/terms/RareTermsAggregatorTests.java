@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations.bucket.terms;
 
@@ -18,14 +19,13 @@ import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.FieldExistsQuery;
-import org.apache.lucene.search.MatchAllDocsQuery;
-import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -40,17 +40,14 @@ import org.elasticsearch.index.mapper.RangeFieldMapper;
 import org.elasticsearch.index.mapper.RangeType;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
-import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
-import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
-import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregationBuilder;
-import org.elasticsearch.search.aggregations.bucket.global.InternalGlobal;
 import org.elasticsearch.search.aggregations.bucket.nested.InternalNested;
 import org.elasticsearch.search.aggregations.bucket.nested.NestedAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.nested.NestedAggregatorTests;
@@ -72,7 +69,6 @@ import java.util.function.Consumer;
 import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.index.mapper.SeqNoFieldMapper.PRIMARY_TERM_NAME;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
 
 public class RareTermsAggregatorTests extends AggregatorTestCase {
 
@@ -92,13 +88,13 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
 
     public void testMatchNoDocs() throws IOException {
         testSearchCase(
-            new MatchNoDocsQuery(),
+            Queries.NO_DOCS_INSTANCE,
             dataset,
             aggregation -> aggregation.field(KEYWORD_FIELD).maxDocCount(1),
             agg -> assertEquals(0, agg.getBuckets().size())
         );
         testSearchCase(
-            new MatchNoDocsQuery(),
+            Queries.NO_DOCS_INSTANCE,
             dataset,
             aggregation -> aggregation.field(LONG_FIELD).maxDocCount(1),
             agg -> assertEquals(0, agg.getBuckets().size())
@@ -106,7 +102,7 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
     }
 
     public void testMatchAllDocs() throws IOException {
-        Query query = new MatchAllDocsQuery();
+        Query query = Queries.ALL_DOCS_INSTANCE;
 
         testSearchCase(query, dataset, aggregation -> aggregation.field(LONG_FIELD).maxDocCount(1), agg -> {
             assertEquals(1, agg.getBuckets().size());
@@ -123,7 +119,7 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
     }
 
     public void testManyDocsOneRare() throws IOException {
-        Query query = new MatchAllDocsQuery();
+        Query query = Queries.ALL_DOCS_INSTANCE;
 
         List<Long> d = new ArrayList<>(500);
         for (int i = 1; i < 500; i++) {
@@ -149,7 +145,7 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
     }
 
     public void testIncludeExclude() throws IOException {
-        Query query = new MatchAllDocsQuery();
+        Query query = Queries.ALL_DOCS_INSTANCE;
 
         testSearchCase(
             query,
@@ -167,7 +163,7 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
     }
 
     public void testEmbeddedMaxAgg() throws IOException {
-        Query query = new MatchAllDocsQuery();
+        Query query = Queries.ALL_DOCS_INSTANCE;
 
         testSearchCase(query, dataset, aggregation -> {
             MaxAggregationBuilder max = new MaxAggregationBuilder("the_max").field(LONG_FIELD);
@@ -178,7 +174,7 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
             assertThat(bucket.getKey(), equalTo(1L));
             assertThat(bucket.getDocCount(), equalTo(1L));
 
-            Aggregations children = bucket.getAggregations();
+            InternalAggregations children = bucket.getAggregations();
             assertThat(children.asList().size(), equalTo(1));
             assertThat(children.asList().get(0).getName(), equalTo("the_max"));
             assertThat(((Max) (children.asList().get(0))).value(), equalTo(1.0));
@@ -192,7 +188,7 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
             assertThat(bucket.getKey(), equalTo("1"));
             assertThat(bucket.getDocCount(), equalTo(1L));
 
-            Aggregations children = bucket.getAggregations();
+            InternalAggregations children = bucket.getAggregations();
             assertThat(children.asList().size(), equalTo(1));
             assertThat(children.asList().get(0).getName(), equalTo("the_max"));
             assertThat(((Max) (children.asList().get(0))).value(), equalTo(1.0));
@@ -200,7 +196,7 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
     }
 
     public void testEmpty() throws IOException {
-        Query query = new MatchAllDocsQuery();
+        Query query = Queries.ALL_DOCS_INSTANCE;
 
         testSearchCase(
             query,
@@ -281,7 +277,7 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
     }
 
     public void testNestedTerms() throws IOException {
-        Query query = new MatchAllDocsQuery();
+        Query query = Queries.ALL_DOCS_INSTANCE;
 
         testSearchCase(query, dataset, aggregation -> {
             TermsAggregationBuilder terms = new TermsAggregationBuilder("the_terms").field(KEYWORD_FIELD);
@@ -292,7 +288,7 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
             assertThat(bucket.getKey(), equalTo(1L));
             assertThat(bucket.getDocCount(), equalTo(1L));
 
-            Aggregations children = bucket.getAggregations();
+            InternalAggregations children = bucket.getAggregations();
             assertThat(children.asList().size(), equalTo(1));
             assertThat(children.asList().get(0).getName(), equalTo("the_terms"));
             assertThat(((Terms) (children.asList().get(0))).getBuckets().size(), equalTo(1));
@@ -308,7 +304,7 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
             assertThat(bucket.getKey(), equalTo("1"));
             assertThat(bucket.getDocCount(), equalTo(1L));
 
-            Aggregations children = bucket.getAggregations();
+            InternalAggregations children = bucket.getAggregations();
             assertThat(children.asList().size(), equalTo(1));
             assertThat(children.asList().get(0).getName(), equalTo("the_terms"));
             assertThat(((Terms) (children.asList().get(0))).getBuckets().size(), equalTo(1));
@@ -320,7 +316,7 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
         for (String field : new String[] { KEYWORD_FIELD, LONG_FIELD }) {
             AggregationBuilder builder = new TermsAggregationBuilder("terms").field("even_odd")
                 .subAggregation(new RareTermsAggregationBuilder("rare").field(field).maxDocCount(2));
-            StringTerms terms = executeTestCase(new MatchAllDocsQuery(), dataset, builder);
+            StringTerms terms = executeTestCase(Queries.ALL_DOCS_INSTANCE, dataset, builder);
 
             StringTerms.Bucket even = terms.getBucketByKey("even");
             InternalRareTerms<?, ?> evenRare = even.getAggregations().get("rare");
@@ -331,47 +327,6 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
             InternalRareTerms<?, ?> oddRare = odd.getAggregations().get("rare");
             assertEquals(oddRare.getBuckets().stream().map(InternalRareTerms.Bucket::getKeyAsString).collect(toList()), List.of("1"));
             assertEquals(oddRare.getBuckets().stream().map(InternalRareTerms.Bucket::getDocCount).collect(toList()), List.of(1L));
-        }
-    }
-
-    public void testGlobalAggregationWithScore() throws IOException {
-        try (Directory directory = newDirectory()) {
-            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
-                Document document = new Document();
-                document.add(new SortedDocValuesField("keyword", new BytesRef("a")));
-                indexWriter.addDocument(document);
-                document = new Document();
-                document.add(new SortedDocValuesField("keyword", new BytesRef("c")));
-                indexWriter.addDocument(document);
-                document = new Document();
-                document.add(new SortedDocValuesField("keyword", new BytesRef("e")));
-                indexWriter.addDocument(document);
-                try (DirectoryReader indexReader = maybeWrapReaderEs(indexWriter.getReader())) {
-                    GlobalAggregationBuilder globalBuilder = new GlobalAggregationBuilder("global").subAggregation(
-                        new RareTermsAggregationBuilder("terms").field("keyword")
-                            .subAggregation(
-                                new RareTermsAggregationBuilder("sub_terms").field("keyword")
-                                    .subAggregation(new TopHitsAggregationBuilder("top_hits").storedField("_none_"))
-                            )
-                    );
-
-                    MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("keyword");
-
-                    InternalGlobal result = searchAndReduce(indexReader, new AggTestConfig(globalBuilder, fieldType));
-                    InternalMultiBucketAggregation<?, ?> terms = result.getAggregations().get("terms");
-                    assertThat(terms.getBuckets().size(), equalTo(3));
-                    for (MultiBucketsAggregation.Bucket bucket : terms.getBuckets()) {
-                        InternalMultiBucketAggregation<?, ?> subTerms = bucket.getAggregations().get("sub_terms");
-                        assertThat(subTerms.getBuckets().size(), equalTo(1));
-                        MultiBucketsAggregation.Bucket subBucket = subTerms.getBuckets().get(0);
-                        InternalTopHits topHits = subBucket.getAggregations().get("top_hits");
-                        assertThat(topHits.getHits().getHits().length, equalTo(1));
-                        for (SearchHit hit : topHits.getHits()) {
-                            assertThat(hit.getScore(), greaterThan(0f));
-                        }
-                    }
-                }
-            }
         }
     }
 
@@ -458,7 +413,7 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
                                 InternalTopHits topHits = bucket.getAggregations().get("top_hits");
                                 TotalHits hits = topHits.getHits().getTotalHits();
                                 assertNotNull(hits);
-                                assertThat(hits.value, equalTo(counter));
+                                assertThat(hits.value(), equalTo(counter));
                                 assertThat(topHits.getHits().getMaxScore(), equalTo(Float.NaN));
                                 counter += 1;
                             }
@@ -469,7 +424,9 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
         }
     }
 
-    private final SeqNoFieldMapper.SequenceIDFields sequenceIDFields = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
+    private final SeqNoFieldMapper.SequenceIDFields sequenceIDFields = SeqNoFieldMapper.SequenceIDFields.emptySeqID(
+        SeqNoFieldMapper.SeqNoIndexOptions.POINTS_AND_DOC_VALUES
+    );
 
     private List<Iterable<IndexableField>> generateDocsWithNested(String id, int value, int[] nestedValues) {
         List<Iterable<IndexableField>> documents = new ArrayList<>();

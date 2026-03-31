@@ -1,16 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.stats;
 
 import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
@@ -72,7 +73,7 @@ public class IndicesStatsTests extends ESSingleNodeTestCase {
                 .setSettings(Settings.builder().put("index.store.type", storeType.getSettingsKey()))
         );
         ensureGreen("test");
-        client().prepareIndex("test").setId("1").setSource("foo", "bar", "bar", "baz", "baz", 42).get();
+        prepareIndex("test").setId("1").setSource("foo", "bar", "bar", "baz", "baz", 42).get();
         indicesAdmin().prepareRefresh("test").get();
 
         IndicesStatsResponse rsp = indicesAdmin().prepareStats("test").get();
@@ -80,7 +81,7 @@ public class IndicesStatsTests extends ESSingleNodeTestCase {
         assertThat(stats.getCount(), greaterThan(0L));
 
         // now check multiple segments stats are merged together
-        client().prepareIndex("test").setId("2").setSource("foo", "bar", "bar", "baz", "baz", 43).get();
+        prepareIndex("test").setId("2").setSource("foo", "bar", "bar", "baz", "baz", 43).get();
         indicesAdmin().prepareRefresh("test").get();
 
         rsp = indicesAdmin().prepareStats("test").get();
@@ -107,8 +108,7 @@ public class IndicesStatsTests extends ESSingleNodeTestCase {
         createIndex("test", Settings.builder().put("refresh_interval", -1).build());
 
         // Index a document asynchronously so the request will only return when document is refreshed
-        ActionFuture<IndexResponse> index = client().prepareIndex("test")
-            .setId("test")
+        ActionFuture<DocWriteResponse> index = prepareIndex("test").setId("test")
             .setSource("test", "test")
             .setRefreshPolicy(RefreshPolicy.WAIT_UNTIL)
             .execute();

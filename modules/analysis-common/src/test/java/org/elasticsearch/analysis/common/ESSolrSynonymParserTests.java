@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.analysis.common;
@@ -16,18 +17,24 @@ import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.analysis.standard.StandardTokenizer;
 import org.apache.lucene.analysis.synonym.SynonymFilter;
 import org.apache.lucene.analysis.synonym.SynonymMap;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.breaker.TestCircuitBreaker;
 import org.elasticsearch.test.ESTokenStreamTestCase;
 
 import java.io.IOException;
 import java.io.StringReader;
 import java.text.ParseException;
 
+import static org.apache.lucene.tests.analysis.BaseTokenStreamTestCase.assertTokenStreamContents;
 import static org.hamcrest.Matchers.containsString;
 
 public class ESSolrSynonymParserTests extends ESTokenStreamTestCase {
+    private static final CircuitBreaker NOOP_CIRCUIT_BREAKER = new NoopCircuitBreaker("noop");
 
     public void testLenientParser() throws IOException, ParseException {
-        ESSolrSynonymParser parser = new ESSolrSynonymParser(true, false, true, new StandardAnalyzer());
+        ESSolrSynonymParser parser = new ESSolrSynonymParser(true, false, true, new StandardAnalyzer(), NOOP_CIRCUIT_BREAKER);
         String rules = """
             &,and
             come,advance,approach
@@ -44,7 +51,7 @@ public class ESSolrSynonymParserTests extends ESTokenStreamTestCase {
     public void testLenientParserWithSomeIncorrectLines() throws IOException, ParseException {
         CharArraySet stopSet = new CharArraySet(1, true);
         stopSet.add("bar");
-        ESSolrSynonymParser parser = new ESSolrSynonymParser(true, false, true, new StandardAnalyzer(stopSet));
+        ESSolrSynonymParser parser = new ESSolrSynonymParser(true, false, true, new StandardAnalyzer(stopSet), NOOP_CIRCUIT_BREAKER);
         String rules = "foo,bar,baz";
         StringReader rulesReader = new StringReader(rules);
         parser.parse(rulesReader);
@@ -56,7 +63,7 @@ public class ESSolrSynonymParserTests extends ESTokenStreamTestCase {
     }
 
     public void testNonLenientParser() {
-        ESSolrSynonymParser parser = new ESSolrSynonymParser(true, false, false, new StandardAnalyzer());
+        ESSolrSynonymParser parser = new ESSolrSynonymParser(true, false, false, new StandardAnalyzer(), NOOP_CIRCUIT_BREAKER);
         String rules = """
             &,and=>and
             come,advance,approach
@@ -64,5 +71,19 @@ public class ESSolrSynonymParserTests extends ESTokenStreamTestCase {
         StringReader rulesReader = new StringReader(rules);
         ParseException ex = expectThrows(ParseException.class, () -> parser.parse(rulesReader));
         assertThat(ex.getMessage(), containsString("Invalid synonym rule at line 1"));
+    }
+
+    public void testCircuitBreaker() {
+        TestCircuitBreaker circuitBreaker = new TestCircuitBreaker();
+        circuitBreaker.startBreaking();
+
+        // Circuit breaker should be called on the first rule and every 1024th rule afterward, so even a single-rule synonym set should
+        // be able to trip the breaker
+        ESSolrSynonymParser parser = new ESSolrSynonymParser(true, false, true, new StandardAnalyzer(), circuitBreaker);
+        String rules = """
+            foo, bar, baz
+            """;
+        StringReader rulesReader = new StringReader(rules);
+        assertThrows(CircuitBreakingException.class, () -> parser.parse(rulesReader));
     }
 }

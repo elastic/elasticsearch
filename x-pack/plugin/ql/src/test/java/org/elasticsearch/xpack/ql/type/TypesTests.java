@@ -238,7 +238,8 @@ public class TypesTests extends ESTestCase {
     private static Map<String, EsField> loadMapping(DataTypeRegistry registry, InputStream stream, Boolean ordered) {
         boolean order = ordered != null ? ordered.booleanValue() : randomBoolean();
         try (InputStream in = stream) {
-            return Types.fromEs(registry, XContentHelper.convertToMap(JsonXContent.jsonXContent, in, order));
+            Map<String, Object> map = XContentHelper.convertToMap(JsonXContent.jsonXContent, in, order);
+            return Types.fromEs(registry, map);
         } catch (IOException ex) {
             throw new RuntimeException(ex);
         }

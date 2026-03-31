@@ -100,15 +100,18 @@ public class WebhookIntegrationTests extends AbstractWatcherIntegrationTestCase 
         assertThat(webServer.requests().get(0).getBody(), is("_body"));
 
         SearchResponse response = searchWatchRecords(b -> QueryBuilders.termQuery(WatchRecord.STATE.getPreferredName(), "executed"));
-
-        assertNoFailures(response);
-        XContentSource source = xContentSource(response.getHits().getAt(0).getSourceRef());
-        String body = source.getValue("result.actions.0.webhook.response.body");
-        assertThat(body, notNullValue());
-        assertThat(body, is("body"));
-        Number status = source.getValue("result.actions.0.webhook.response.status");
-        assertThat(status, notNullValue());
-        assertThat(status.intValue(), is(200));
+        try {
+            assertNoFailures(response);
+            XContentSource source = xContentSource(response.getHits().getAt(0).getSourceRef());
+            String body = source.getValue("result.actions.0.webhook.response.body");
+            assertThat(body, notNullValue());
+            assertThat(body, is("body"));
+            Number status = source.getValue("result.actions.0.webhook.response.status");
+            assertThat(status, notNullValue());
+            assertThat(status.intValue(), is(200));
+        } finally {
+            response.decRef();
+        }
     }
 
     public void testWebhookWithBasicAuth() throws Exception {
@@ -148,8 +151,8 @@ public class WebhookIntegrationTests extends AbstractWatcherIntegrationTestCase 
         HttpServerTransport serverTransport = internalCluster().getDataNodeInstance(HttpServerTransport.class);
         TransportAddress publishAddress = serverTransport.boundAddress().publishAddress();
 
-        String host = publishAddress.address().getHostString();
-        HttpRequestTemplate.Builder builder = HttpRequestTemplate.builder(host, publishAddress.getPort())
+        // Use "localhost" as the host since it resolves correctly for both IPv4 and IPv6
+        HttpRequestTemplate.Builder builder = HttpRequestTemplate.builder("localhost", publishAddress.getPort())
             .path(new TextTemplate("/%3Clogstash-%7Bnow%2Fd%7D%3E/_doc/1"))
             .body(new TextTemplate("{\"foo\":\"bar\"}"))
             .putHeader("Content-Type", new TextTemplate("application/json"))

@@ -9,66 +9,83 @@ package org.elasticsearch.xpack.watcher.transport.actions;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.action.support.master.TransportMasterNodeAction;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.action.support.ChannelActionListener;
+import org.elasticsearch.action.support.local.TransportLocalProjectMetadataAction;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.UpdateForV10;
+import org.elasticsearch.injection.guice.Inject;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.watcher.transport.actions.put.GetWatcherSettingsAction;
-import org.elasticsearch.xpack.core.watcher.transport.actions.put.UpdateWatcherSettingsAction;
 
+import static org.elasticsearch.xpack.core.watcher.transport.actions.put.UpdateWatcherSettingsAction.ALLOWED_SETTINGS_PREFIXES;
+import static org.elasticsearch.xpack.core.watcher.transport.actions.put.UpdateWatcherSettingsAction.ALLOWED_SETTING_KEYS;
+import static org.elasticsearch.xpack.core.watcher.transport.actions.put.UpdateWatcherSettingsAction.EXPLICITLY_DENIED_SETTINGS;
 import static org.elasticsearch.xpack.watcher.transport.actions.TransportUpdateWatcherSettingsAction.WATCHER_INDEX_NAME;
+import static org.elasticsearch.xpack.watcher.transport.actions.TransportUpdateWatcherSettingsAction.WATCHER_INDEX_REQUEST;
 
-public class TransportGetWatcherSettingsAction extends TransportMasterNodeAction<
+public class TransportGetWatcherSettingsAction extends TransportLocalProjectMetadataAction<
     GetWatcherSettingsAction.Request,
     GetWatcherSettingsAction.Response> {
 
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
+
+    /**
+     * NB prior to 9.0 this was a TransportMasterNodeReadAction so for BwC it must be registered with the TransportService until
+     * we no longer need to support calling this action remotely.
+     */
+    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED)
+    @SuppressWarnings("this-escape")
     @Inject
     public TransportGetWatcherSettingsAction(
         TransportService transportService,
         ClusterService clusterService,
-        ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        ProjectResolver projectResolver
     ) {
         super(
             GetWatcherSettingsAction.NAME,
-            transportService,
-            clusterService,
-            threadPool,
             actionFilters,
-            GetWatcherSettingsAction.Request::new,
-            indexNameExpressionResolver,
-            GetWatcherSettingsAction.Response::new,
-            ThreadPool.Names.SAME
+            transportService.getTaskManager(),
+            clusterService,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            projectResolver
+        );
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
+
+        transportService.registerRequestHandler(
+            actionName,
+            executor,
+            false,
+            true,
+            GetWatcherSettingsAction.Request::readFrom,
+            (request, channel, task) -> executeDirect(task, request, new ChannelActionListener<>(channel))
         );
     }
 
     @Override
-    protected void masterOperation(
+    protected void localClusterStateOperation(
         Task task,
         GetWatcherSettingsAction.Request request,
-        ClusterState state,
+        ProjectState state,
         ActionListener<GetWatcherSettingsAction.Response> listener
     ) {
-        final ThreadContext threadContext = threadPool.getThreadContext();
-        // Stashing and un-stashing the context allows warning headers about accessing a system index to be ignored.
-        try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
-            IndexMetadata metadata = state.metadata().index(WATCHER_INDEX_NAME);
-            if (metadata == null) {
-                listener.onResponse(new GetWatcherSettingsAction.Response(Settings.EMPTY));
-            } else {
-                listener.onResponse(new GetWatcherSettingsAction.Response(filterSettableSettings(metadata.getSettings())));
-            }
+        ((CancellableTask) task).ensureNotCancelled();
+        IndexMetadata metadata = state.metadata().index(WATCHER_INDEX_NAME);
+        if (metadata == null) {
+            listener.onResponse(new GetWatcherSettingsAction.Response(Settings.EMPTY));
+        } else {
+            listener.onResponse(new GetWatcherSettingsAction.Response(filterSettableSettings(metadata.getSettings())));
         }
     }
 
@@ -77,24 +94,28 @@ public class TransportGetWatcherSettingsAction extends TransportMasterNodeAction
      */
     private static Settings filterSettableSettings(Settings settings) {
         Settings.Builder builder = Settings.builder();
-        for (String settingName : UpdateWatcherSettingsAction.ALLOWED_SETTING_KEYS) {
-            if (settings.hasValue(settingName)) {
-                builder.put(settingName, settings.get(settingName));
-            }
-        }
+        settings.keySet()
+            .stream()
+            .filter(
+                setting -> (ALLOWED_SETTING_KEYS.contains(setting)
+                    || ALLOWED_SETTINGS_PREFIXES.stream().anyMatch(prefix -> setting.startsWith(prefix + ".")))
+                    && EXPLICITLY_DENIED_SETTINGS.contains(setting) == false
+            )
+            .forEach(setting -> builder.put(setting, settings.get(setting)));
         return builder.build();
     }
 
     @Override
-    protected ClusterBlockException checkBlock(GetWatcherSettingsAction.Request request, ClusterState state) {
+    protected ClusterBlockException checkBlock(GetWatcherSettingsAction.Request request, ProjectState state) {
         ClusterBlockException globalBlock = state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
         if (globalBlock != null) {
             return globalBlock;
         }
         return state.blocks()
             .indicesBlockedException(
+                state.projectId(),
                 ClusterBlockLevel.METADATA_READ,
-                indexNameExpressionResolver.concreteIndexNames(state, IndicesOptions.LENIENT_EXPAND_OPEN, WATCHER_INDEX_NAME)
+                indexNameExpressionResolver.concreteIndexNamesWithSystemIndexAccess(state.metadata(), WATCHER_INDEX_REQUEST)
             );
     }
 }

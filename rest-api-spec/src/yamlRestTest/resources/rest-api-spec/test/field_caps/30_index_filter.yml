@@ -59,8 +59,8 @@ setup:
 
 ---
 "Field caps with index filter":
-  - skip:
-      version: " - 7.8.99"
+  - requires:
+      cluster_features: ["gte_v7.9.0"]
       reason: Index filter support was added in 7.9
 
   - do:

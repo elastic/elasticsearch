@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.indices.recovery;
@@ -32,7 +33,8 @@ public class StatelessPrimaryRelocationActionTests extends AbstractWireSerializi
             randomNonNegativeLong(),
             new ShardId(randomIdentifier(), UUIDs.randomBase64UUID(), randomIntBetween(0, 99)),
             newDiscoveryNode(),
-            UUIDs.randomBase64UUID()
+            UUIDs.randomBase64UUID(),
+            randomNonNegativeLong()
         );
     }
 
@@ -43,30 +45,41 @@ public class StatelessPrimaryRelocationActionTests extends AbstractWireSerializi
     @Override
     protected StatelessPrimaryRelocationAction.Request mutateInstance(StatelessPrimaryRelocationAction.Request instance)
         throws IOException {
-        return switch (between(1, 4)) {
+        return switch (between(1, 5)) {
             case 1 -> new StatelessPrimaryRelocationAction.Request(
                 randomValueOtherThan(instance.recoveryId(), ESTestCase::randomNonNegativeLong),
                 instance.shardId(),
                 instance.targetNode(),
-                instance.targetAllocationId()
+                instance.targetAllocationId(),
+                instance.clusterStateVersion()
             );
             case 2 -> new StatelessPrimaryRelocationAction.Request(
                 instance.recoveryId(),
                 ShardIdTests.mutate(instance.shardId()),
                 instance.targetNode(),
-                instance.targetAllocationId()
+                instance.targetAllocationId(),
+                instance.clusterStateVersion()
             );
             case 3 -> new StatelessPrimaryRelocationAction.Request(
                 instance.recoveryId(),
                 instance.shardId(),
                 randomValueOtherThan(instance.targetNode(), StatelessPrimaryRelocationActionTests::newDiscoveryNode),
-                instance.targetAllocationId()
+                instance.targetAllocationId(),
+                instance.clusterStateVersion()
             );
             case 4 -> new StatelessPrimaryRelocationAction.Request(
                 instance.recoveryId(),
                 instance.shardId(),
                 instance.targetNode(),
-                randomValueOtherThan(instance.targetAllocationId(), UUIDs::randomBase64UUID)
+                randomValueOtherThan(instance.targetAllocationId(), UUIDs::randomBase64UUID),
+                instance.clusterStateVersion()
+            );
+            case 5 -> new StatelessPrimaryRelocationAction.Request(
+                instance.recoveryId(),
+                instance.shardId(),
+                instance.targetNode(),
+                instance.targetAllocationId(),
+                randomValueOtherThan(instance.clusterStateVersion(), ESTestCase::randomNonNegativeLong)
             );
             default -> throw new AssertionError("impossible");
         };

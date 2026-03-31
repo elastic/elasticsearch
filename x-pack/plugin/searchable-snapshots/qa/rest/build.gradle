@@ -1,3 +1,5 @@
+import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
+
 apply plugin: 'elasticsearch.legacy-java-rest-test'
 apply plugin: 'elasticsearch.legacy-yaml-rest-test'
 apply plugin: 'elasticsearch.legacy-yaml-rest-compat-test'
@@ -15,12 +17,12 @@ restResources {
 }
 
 tasks.withType(Test).configureEach {
-  systemProperty 'tests.path.repo', repoDir
+  nonInputProperties.systemProperty 'tests.path.repo', repoDir
 }
 
 testClusters.configureEach {
   testDistribution = 'DEFAULT'
-  setting 'path.repo', repoDir.absolutePath
+  setting 'path.repo', repoDir.absolutePath, IGNORE_VALUE
   setting 'xpack.license.self_generated.type', 'trial'
 
   setting 'xpack.searchable.snapshot.shared_cache.size', '16MB'

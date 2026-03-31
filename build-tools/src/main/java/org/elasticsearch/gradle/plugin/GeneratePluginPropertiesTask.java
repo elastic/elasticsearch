@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.plugin;
@@ -18,10 +19,13 @@ import org.gradle.api.file.ProjectLayout;
 import org.gradle.api.file.RegularFileProperty;
 import org.gradle.api.provider.ListProperty;
 import org.gradle.api.provider.Property;
+import org.gradle.api.tasks.CacheableTask;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.Optional;
 import org.gradle.api.tasks.OutputFile;
+import org.gradle.api.tasks.PathSensitive;
+import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.api.tasks.TaskAction;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.tree.ClassNode;
@@ -35,14 +39,18 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 
 import javax.inject.Inject;
 
+@CacheableTask
 public abstract class GeneratePluginPropertiesTask extends DefaultTask {
 
     public static final String PROPERTIES_FILENAME = "plugin-descriptor.properties";
     public static final String STABLE_PROPERTIES_FILENAME = "stable-plugin-descriptor.properties";
     private static final String DESCRIPTION = "Generates Elasticsearch Plugin descriptor file";
+
+    private static final Set<String> DEPLOYMENT_TARGETS = Set.of("ALL", "STATELESS_ONLY", "STATEFUL_ONLY");
 
     @Inject
     public GeneratePluginPropertiesTask(ProjectLayout projectLayout) {
@@ -81,6 +89,7 @@ public abstract class GeneratePluginPropertiesTask extends DefaultTask {
     public abstract Property<Boolean> getIsLicensed();
 
     @InputFiles
+    @PathSensitive(PathSensitivity.RELATIVE)
     public abstract ConfigurableFileCollection getModuleInfoFile();
 
     @OutputFile
@@ -88,6 +97,10 @@ public abstract class GeneratePluginPropertiesTask extends DefaultTask {
 
     @Input
     public abstract Property<Boolean> getIsStable();
+
+    @Input
+    @Optional
+    public abstract Property<String> getDeploymentTarget();
 
     @TaskAction
     public void generatePropertiesFile() throws IOException {
@@ -112,6 +125,14 @@ public abstract class GeneratePluginPropertiesTask extends DefaultTask {
         props.put("requiresKeystore", getRequiresKeystore().get());
         props.put("licensed", getIsLicensed().get());
         props.put("modulename", findModuleName());
+
+        String deploymentTarget = getDeploymentTarget().getOrElse("ALL");
+        if (DEPLOYMENT_TARGETS.contains(deploymentTarget) == false) {
+            throw new InvalidUserDataException(
+                "invalid deploymentTarget '" + deploymentTarget + "', expected one of " + DEPLOYMENT_TARGETS
+            );
+        }
+        props.put("deploymentTarget", deploymentTarget);
 
         SimpleTemplateEngine engine = new SimpleTemplateEngine();
         Path outputFile = getOutputFile().get().getAsFile().toPath();

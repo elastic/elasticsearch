@@ -11,7 +11,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.tasks.Task;
@@ -20,7 +19,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.ilm.action.StopILMAction;
+import org.elasticsearch.xpack.core.ilm.action.ILMActions;
 import org.elasticsearch.xpack.core.slm.action.StopSLMAction;
 import org.mockito.ArgumentMatcher;
 
@@ -40,18 +39,17 @@ public class TransportStopSLMActionTests extends ESTestCase {
             transportService,
             clusterService,
             threadPool,
-            mock(ActionFilters.class),
-            mock(IndexNameExpressionResolver.class)
+            mock(ActionFilters.class)
         );
         Task task = new Task(
             randomLong(),
             "transport",
-            StopILMAction.NAME,
+            ILMActions.STOP.name(),
             "description",
             new TaskId(randomLong() + ":" + randomLong()),
             emptyMap()
         );
-        StopSLMAction.Request request = new StopSLMAction.Request();
+        StopSLMAction.Request request = new StopSLMAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
         transportStopSLMAction.masterOperation(task, request, ClusterState.EMPTY_STATE, ActionListener.noop());
 
         verify(clusterService).submitUnbatchedStateUpdateTask(

@@ -1,5 +1,0 @@
-pr: 98878
-summary: Fix percolator query for stored queries that expand on wildcard field names
-area: Percolator
-type: bug
-issues: []

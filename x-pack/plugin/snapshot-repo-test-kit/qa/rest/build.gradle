@@ -1,3 +1,5 @@
+import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
+
 apply plugin: 'elasticsearch.legacy-yaml-rest-test'
 apply plugin: 'elasticsearch.rest-resources'
 
@@ -9,17 +11,17 @@ dependencies {
 final File repoDir = file("$buildDir/testclusters/repo")
 
 tasks.named("yamlRestTest").configure {
-  systemProperty 'tests.path.repo', repoDir
+  nonInputProperties.systemProperty 'tests.path.repo', repoDir
 }
 
 testClusters.matching { it.name == "yamlRestTest" }.configureEach {
   testDistribution = 'DEFAULT'
-  setting 'path.repo', repoDir.absolutePath
+  setting 'path.repo', repoDir.absolutePath, IGNORE_VALUE
   setting 'xpack.security.enabled', 'false'
 }
 
 tasks.named('yamlRestTestTestingConventions').configure {
-  baseClass 'org.elasticsearch.repositories.blobstore.testkit.AbstractSnapshotRepoTestKitRestTestCase'
+  baseClass 'org.elasticsearch.repositories.blobstore.testkit.analyze.AbstractRepositoryAnalysisRestTestCase'
   baseClass 'org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase'
 }
 

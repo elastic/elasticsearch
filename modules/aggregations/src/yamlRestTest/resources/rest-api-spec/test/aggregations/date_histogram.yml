@@ -1,6 +1,6 @@
 setup:
-  - skip:
-      version: " - 7.1.99"
+  - requires:
+      cluster_features: ["gte_v7.2.0"]
       reason:  calendar_interval introduced in 7.2.0
 
   - do:
@@ -127,8 +127,8 @@ setup:
 
 ---
 "date_histogram on range with hard bounds":
-  - skip:
-      version: " - 7.9.99"
+  - requires:
+      cluster_features: ["gte_v7.10.0"]
       reason:  hard_bounds introduced in 7.10.0
 
   - do:
@@ -156,8 +156,8 @@ setup:
 
 ---
 "date_histogram on date_nanos without timezone fixed interval":
-  - skip:
-      version: " - 7.6.0"
+  - requires:
+      cluster_features: ["gte_v7.6.1"]
       reason: bug fixed in 7.6.1
   - do:
       search:
@@ -186,8 +186,8 @@ setup:
 
 ---
 "date_histogram on date_nanos with timezone fixed interval":
-  - skip:
-      version: " - 7.6.0"
+  - requires:
+      cluster_features: ["gte_v7.6.1"]
       reason: bug fixed in 7.6.1
   - do:
       search:
@@ -216,8 +216,8 @@ setup:
 
 ---
 "date_histogram on date_nanos without timezone calendar interval":
-  - skip:
-      version: " - 7.6.0"
+  - requires:
+      cluster_features: ["gte_v7.6.1"]
       reason: bug fixed in 7.6.1
   - do:
       search:
@@ -246,8 +246,8 @@ setup:
 
 ---
 "date_histogram on date_nanos with timezone calendar interval":
-  - skip:
-      version: " - 7.6.0"
+  - requires:
+      cluster_features: ["gte_v7.6.1"]
       reason: bug fixed in 7.6.1
   - do:
       search:
@@ -276,8 +276,8 @@ setup:
 
 ---
 "date_histogram and date_histogram_composite timezone":
-  - skip:
-      version: " - 7.16.99"
+  - requires:
+      cluster_features: ["gte_v7.17.0"]
       reason: bug fixed somewhere between 7.2 and 7.17
   - do:
       search:
@@ -337,8 +337,8 @@ setup:
 
 ---
 "Multi-value date histogram":
-  - skip:
-      version: " - 8.1.99"
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
       reason:  Bug fixed in 8.2.0
 
   - do:
@@ -359,8 +359,8 @@ setup:
 
 ---
 "Multi-value date histogram docvalues only":
-  - skip:
-      version: " - 8.1.99"
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
       reason: Bug fixed in 8.2.0
 
   - do:
@@ -382,9 +382,9 @@ setup:
 
 ---
 "Daylight with offset date_histogram test":
-  - skip:
-      version: "- 7.16.99"
-      reason: Bug fixed before 7.16.99
+  - requires:
+      cluster_features: "gte_v7.17.0"
+      reason: Bug fixed with 7.17
 
   - do:
       search:

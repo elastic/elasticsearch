@@ -1,18 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.transport;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Releasable;
-
-import java.io.IOException;
 
 public class TaskTransportChannel implements TransportChannel {
 
@@ -32,12 +30,7 @@ public class TaskTransportChannel implements TransportChannel {
     }
 
     @Override
-    public String getChannelType() {
-        return channel.getChannelType();
-    }
-
-    @Override
-    public void sendResponse(TransportResponse response) throws IOException {
+    public void sendResponse(TransportResponse response) {
         try {
             channel.sendResponse(response);
         } finally {
@@ -46,7 +39,7 @@ public class TaskTransportChannel implements TransportChannel {
     }
 
     @Override
-    public void sendResponse(Exception exception) throws IOException {
+    public void sendResponse(Exception exception) {
         try {
             channel.sendResponse(exception);
         } finally {
@@ -65,6 +58,6 @@ public class TaskTransportChannel implements TransportChannel {
 
     @Override
     public String toString() {
-        return Strings.format("TaskTransportChannel{task=%d}{%s}", taskId, channel);
+        return "TaskTransportChannel{task=" + taskId + "}{" + channel + "}";
     }
 }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.logging;
@@ -22,7 +23,6 @@ public class DeprecatedMessage {
     public static final String ELASTIC_ORIGIN_FIELD_NAME = "elasticsearch.elastic_product_origin";
     public static final String KEY_FIELD_NAME = "event.code";
     public static final String X_OPAQUE_ID_FIELD_NAME = "elasticsearch.http.request.x_opaque_id";
-    public static final String ECS_VERSION = "1.2.0";
 
     @SuppressLoggerChecks(reason = "safely delegates to logger")
     public static ESLogMessage of(
@@ -56,16 +56,18 @@ public class DeprecatedMessage {
         String messagePattern,
         Object[] args
     ) {
-        ESLogMessage esLogMessage = new ESLogMessage(messagePattern, args).field("data_stream.dataset", "deprecation.elasticsearch")
+        ESLogMessage esLogMessage = new ESLogMessage(messagePattern, args).field("data_stream.dataset", "elasticsearch.deprecation")
             .field("data_stream.type", "logs")
             .field("data_stream.namespace", "default")
             .field(KEY_FIELD_NAME, key)
             .field("elasticsearch.event.category", category.name().toLowerCase(Locale.ROOT));
 
-        if (Strings.isNullOrEmpty(xOpaqueId)) {
-            return esLogMessage;
+        if (Strings.isNullOrEmpty(xOpaqueId) == false) {
+            esLogMessage.field(X_OPAQUE_ID_FIELD_NAME, xOpaqueId);
         }
-
-        return esLogMessage.field(X_OPAQUE_ID_FIELD_NAME, xOpaqueId).field(ELASTIC_ORIGIN_FIELD_NAME, productOrigin);
+        if (Strings.isNullOrEmpty(productOrigin) == false) {
+            esLogMessage.field(ELASTIC_ORIGIN_FIELD_NAME, productOrigin);
+        }
+        return esLogMessage;
     }
 }

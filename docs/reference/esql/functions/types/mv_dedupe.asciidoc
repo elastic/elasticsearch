@@ -1,9 +1,0 @@
-[%header.monospaced.styled,format=dsv,separator=|]
-|===
-arg1 | result
-boolean | boolean
-double | double
-integer | integer
-keyword | keyword
-long | long
-|===

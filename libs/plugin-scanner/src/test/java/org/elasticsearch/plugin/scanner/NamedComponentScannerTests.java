@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.plugin.scanner;
@@ -39,10 +40,8 @@ public class NamedComponentScannerTests extends ESTestCase {
         return createTempDir();
     }
 
-    NamedComponentScanner namedComponentScanner = new NamedComponentScanner();
-
     public void testFindNamedComponentInSingleClass() throws URISyntaxException {
-        Map<String, Map<String, String>> namedComponents = namedComponentScanner.scanForNamedClasses(
+        Map<String, Map<String, String>> namedComponents = NamedComponentScanner.scanForNamedClasses(
             classReaderStream(TestNamedComponent.class, ExtensibleInterface.class)
         );
 
@@ -82,7 +81,7 @@ public class NamedComponentScannerTests extends ESTestCase {
         )// contains plugin-api
             .toList();
 
-        Map<String, Map<String, String>> namedComponents = namedComponentScanner.scanForNamedClasses(classReaderStream);
+        Map<String, Map<String, String>> namedComponents = NamedComponentScanner.scanForNamedClasses(classReaderStream);
 
         org.hamcrest.MatcherAssert.assertThat(
             namedComponents,
@@ -158,7 +157,7 @@ public class NamedComponentScannerTests extends ESTestCase {
         List<ClassReader> classReaders = Stream.concat(ClassReaders.ofDirWithJars(dirWithJar).stream(), classPath)// contains plugin-api
             .toList();
 
-        Map<String, Map<String, String>> namedComponents = namedComponentScanner.scanForNamedClasses(classReaders);
+        Map<String, Map<String, String>> namedComponents = NamedComponentScanner.scanForNamedClasses(classReaders);
 
         org.hamcrest.MatcherAssert.assertThat(
             namedComponents,
@@ -189,7 +188,7 @@ public class NamedComponentScannerTests extends ESTestCase {
         mapToWrite.put(ExtensibleInterface.class.getCanonicalName(), extensibleInterfaceComponents);
 
         Path path = tmpDir().resolve("file.json");
-        namedComponentScanner.writeToFile(mapToWrite, path);
+        NamedComponentScanner.writeToFile(mapToWrite, path);
 
         String jsonMap = Files.readString(path);
         assertThat(jsonMap, equalTo("""

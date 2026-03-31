@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.rest.action;
@@ -11,6 +12,7 @@ package org.elasticsearch.rest.action;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.ShardOperationFailedException;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.broadcast.BaseBroadcastResponse;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
@@ -46,6 +48,7 @@ public class RestActions {
     public static final ParseField SKIPPED_FIELD = new ParseField("skipped");
     public static final ParseField FAILED_FIELD = new ParseField("failed");
     public static final ParseField FAILURES_FIELD = new ParseField("failures");
+    public static final ParseField PROJECT_ROUTING = new ParseField("project_routing");
 
     public static long parseVersion(RestRequest request) {
         if (request.hasParam("version")) {
@@ -63,9 +66,9 @@ public class RestActions {
         return (version == Versions.MATCH_ANY) ? defaultVersion : version;
     }
 
-    public static void buildBroadcastShardsHeader(XContentBuilder builder, Params params, BaseBroadcastResponse response)
+    public static XContentBuilder buildBroadcastShardsHeader(XContentBuilder builder, Params params, BaseBroadcastResponse response)
         throws IOException {
-        buildBroadcastShardsHeader(
+        return buildBroadcastShardsHeader(
             builder,
             params,
             response.getTotalShards(),
@@ -76,7 +79,7 @@ public class RestActions {
         );
     }
 
-    public static void buildBroadcastShardsHeader(
+    public static XContentBuilder buildBroadcastShardsHeader(
         XContentBuilder builder,
         Params params,
         int total,
@@ -99,7 +102,7 @@ public class RestActions {
             }
             builder.endArray();
         }
-        builder.endObject();
+        return builder.endObject();
     }
 
     /**
@@ -110,7 +113,7 @@ public class RestActions {
      * @param response The response containing individual, node-level responses.
      * @see #buildNodesHeader(XContentBuilder, Params, int, int, int, List)
      */
-    public static <NodeResponse extends BaseNodeResponse> void buildNodesHeader(
+    public static <NodeResponse extends BaseNodeResponse> XContentBuilder buildNodesHeader(
         final XContentBuilder builder,
         final Params params,
         final BaseNodesResponse<NodeResponse> response
@@ -119,6 +122,7 @@ public class RestActions {
         final int failed = response.failures().size();
 
         buildNodesHeader(builder, params, successful + failed, successful, failed, response.failures());
+        return builder;
     }
 
     /**
@@ -258,10 +262,14 @@ public class RestActions {
 
     }
 
+    public static QueryBuilder getQueryContent(XContentParser parser) {
+        return getQueryContent(parser, null);
+    }
+
     /**
      * Parses a top level query including the query element that wraps it
      */
-    public static QueryBuilder getQueryContent(XContentParser parser) {
+    public static QueryBuilder getQueryContent(XContentParser parser, SearchRequest searchRequest) {
         try {
             QueryBuilder queryBuilder = null;
             XContentParser.Token first = parser.nextToken();
@@ -279,6 +287,9 @@ public class RestActions {
                     String currentName = parser.currentName();
                     if ("query".equals(currentName)) {
                         queryBuilder = parseTopLevelQuery(parser);
+                    } else if (PROJECT_ROUTING.match(currentName, parser.getDeprecationHandler()) && searchRequest != null) {
+                        parser.nextToken();
+                        searchRequest.setProjectRouting(parser.text());
                     } else {
                         throw new ParsingException(parser.getTokenLocation(), "request does not support [" + parser.currentName() + "]");
                     }

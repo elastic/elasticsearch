@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.indices;
@@ -21,6 +22,7 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.bytes.AbstractBytesReference;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -30,6 +32,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.cache.request.ShardRequestCache;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.MappingLookup;
@@ -202,7 +205,8 @@ public class IndicesRequestCacheTests extends ESTestCase {
     public void testCacheDifferentMapping() throws Exception {
         IndicesRequestCache cache = new IndicesRequestCache(Settings.EMPTY);
         MappingLookup.CacheKey mappingKey1 = MappingLookup.EMPTY.cacheKey();
-        MappingLookup.CacheKey mappingKey2 = MappingLookup.fromMappers(Mapping.EMPTY, emptyList(), emptyList(), emptyList()).cacheKey();
+        MappingLookup.CacheKey mappingKey2 = MappingLookup.fromMappers(Mapping.EMPTY, emptyList(), emptyList(), IndexMode.STANDARD)
+            .cacheKey();
         AtomicBoolean indexShard = new AtomicBoolean(true);
         ShardRequestCache requestCacheStats = new ShardRequestCache();
         Directory dir = newDirectory();
@@ -362,14 +366,15 @@ public class IndicesRequestCacheTests extends ESTestCase {
 
         writer.updateDocument(new Term("id", "0"), newDoc(0, "bar"));
         DirectoryReader secondReader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(writer), new ShardId("foo", "bar", 1));
-        MappingLookup.CacheKey secondMappingKey = MappingLookup.fromMappers(Mapping.EMPTY, emptyList(), emptyList(), emptyList())
+        MappingLookup.CacheKey secondMappingKey = MappingLookup.fromMappers(Mapping.EMPTY, emptyList(), emptyList(), IndexMode.STANDARD)
             .cacheKey();
         TestEntity secondEntity = new TestEntity(requestCacheStats, indexShard);
         Loader secondLoader = new Loader(secondReader, 0);
 
         writer.updateDocument(new Term("id", "0"), newDoc(0, "baz"));
         DirectoryReader thirdReader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(writer), new ShardId("foo", "bar", 1));
-        MappingLookup.CacheKey thirdMappingKey = MappingLookup.fromMappers(Mapping.EMPTY, emptyList(), emptyList(), emptyList()).cacheKey();
+        MappingLookup.CacheKey thirdMappingKey = MappingLookup.fromMappers(Mapping.EMPTY, emptyList(), emptyList(), IndexMode.STANDARD)
+            .cacheKey();
         AtomicBoolean differentIdentity = new AtomicBoolean(true);
         TestEntity thirdEntity = new TestEntity(requestCacheStats, differentIdentity);
         Loader thirdLoader = new Loader(thirdReader, 0);
@@ -420,8 +425,8 @@ public class IndicesRequestCacheTests extends ESTestCase {
             try (BytesStreamOutput out = new BytesStreamOutput()) {
                 IndexSearcher searcher = newSearcher(reader);
                 TopDocs topDocs = searcher.search(new TermQuery(new Term("id", Integer.toString(id))), 1);
-                assertEquals(1, topDocs.totalHits.value);
-                Document document = reader.document(topDocs.scoreDocs[0].doc);
+                assertEquals(1, topDocs.totalHits.value());
+                Document document = reader.storedFields().document(topDocs.scoreDocs[0].doc);
                 out.writeString(document.get("value"));
                 loadedFromCache = false;
                 return out.bytes();
@@ -501,11 +506,65 @@ public class IndicesRequestCacheTests extends ESTestCase {
         assertEquals(0, cache.numRegisteredCloseListeners());
     }
 
+    public void testInvalidateWithCustomCacheHelper() throws Exception {
+        ShardRequestCache requestCacheStats = new ShardRequestCache();
+        IndicesRequestCache cache = new IndicesRequestCache(Settings.EMPTY);
+        Directory dir = newDirectory();
+        IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig());
+
+        writer.addDocument(newDoc(0, "foo"));
+        MappingLookup.CacheKey mappingKey = MappingLookup.EMPTY.cacheKey();
+
+        // Wrap with a custom ESCacheHelper whose key differs from Lucene's native reader cache key,
+        // simulating FrozenEngine behavior where a stable cacheIdentity outlives individual readers.
+        Object cacheIdentity = new Object();
+        ESCacheHelper customCacheHelper = new ESCacheHelper() {
+            @Override
+            public Object getKey() {
+                return cacheIdentity;
+            }
+
+            @Override
+            public void addClosedListener(ClosedListener listener) {}
+        };
+        DirectoryReader reader = ElasticsearchDirectoryReader.wrap(
+            DirectoryReader.open(writer),
+            new ShardId("foo", "bar", 1),
+            customCacheHelper
+        );
+        TermQueryBuilder termQuery = new TermQueryBuilder("id", "0");
+        BytesReference termBytes = XContentHelper.toXContent(termQuery, XContentType.JSON, false);
+        AtomicBoolean indexShard = new AtomicBoolean(true);
+
+        // populate the cache
+        TestEntity entity = new TestEntity(requestCacheStats, indexShard);
+        Loader loader = new Loader(reader, 0);
+        BytesReference value = cache.getOrCompute(entity, loader, mappingKey, reader, termBytes);
+        assertEquals("foo", value.streamInput().readString());
+        assertFalse(loader.loadedFromCache);
+        assertEquals(1, cache.count());
+
+        // invalidate should remove the entry even though the ES cache key differs from Lucene's native key
+        entity = new TestEntity(requestCacheStats, indexShard);
+        cache.invalidate(entity, mappingKey, reader, termBytes);
+        assertEquals(0, cache.count());
+
+        // subsequent get should be a cache miss
+        entity = new TestEntity(requestCacheStats, indexShard);
+        loader = new Loader(reader, 0);
+        value = cache.getOrCompute(entity, loader, mappingKey, reader, termBytes);
+        assertEquals("foo", value.streamInput().readString());
+        assertFalse(loader.loadedFromCache);
+        assertEquals(2, requestCacheStats.stats().getMissCount());
+
+        IOUtils.close(reader, writer, dir, cache);
+    }
+
     public void testKeyEqualsAndHashCode() throws IOException {
         AtomicBoolean trueBoolean = new AtomicBoolean(true);
         AtomicBoolean falseBoolean = new AtomicBoolean(false);
         MappingLookup.CacheKey mKey1 = MappingLookup.EMPTY.cacheKey();
-        MappingLookup.CacheKey mKey2 = MappingLookup.fromMappers(Mapping.EMPTY, emptyList(), emptyList(), emptyList()).cacheKey();
+        MappingLookup.CacheKey mKey2 = MappingLookup.fromMappers(Mapping.EMPTY, emptyList(), emptyList(), IndexMode.STANDARD).cacheKey();
         Directory dir = newDirectory();
         IndexWriterConfig config = newIndexWriterConfig();
         IndexWriter writer = new IndexWriter(dir, config);
@@ -596,6 +655,11 @@ public class IndicesRequestCacheTests extends ESTestCase {
         @Override
         public BytesRef toBytesRef() {
             return null;
+        }
+
+        @Override
+        public BytesRefIterator iterator() {
+            return BytesRefIterator.EMPTY;
         }
 
         @Override

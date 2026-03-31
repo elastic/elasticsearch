@@ -1,15 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.util.concurrent;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.test.TestEsExecutors;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.security.AccessControlException;
@@ -31,6 +33,8 @@ public class EsThreadPoolExecutorTests extends ESSingleNodeTestCase {
     protected Settings nodeSettings() {
         return Settings.builder()
             .put("node.name", "es-thread-pool-executor-tests")
+            .put("thread_pool.write_coordination.size", 1)
+            .put("thread_pool.write_coordination.queue_size", 0)
             .put("thread_pool.write.size", 1)
             .put("thread_pool.write.queue_size", 0)
             .put("thread_pool.search.size", 1)
@@ -40,7 +44,7 @@ public class EsThreadPoolExecutorTests extends ESSingleNodeTestCase {
 
     public void testRejectedExecutionExceptionContainsNodeName() {
         // we test a fixed and an auto-queue executor but not scaling since it does not reject
-        runThreadPoolExecutorTest(1, ThreadPool.Names.WRITE);
+        runThreadPoolExecutorTest(1, randomFrom(ThreadPool.Names.WRITE_COORDINATION, ThreadPool.Names.WRITE));
         runThreadPoolExecutorTest(2, ThreadPool.Names.SEARCH);
 
     }
@@ -142,7 +146,7 @@ public class EsThreadPoolExecutorTests extends ESSingleNodeTestCase {
                 public boolean offer(Runnable r) {
                     throw exception;
                 }
-            }, EsExecutors.daemonThreadFactory("test"), new ThreadContext(Settings.EMPTY));
+            }, TestEsExecutors.testOnlyDaemonThreadFactory("test"), new ThreadContext(Settings.EMPTY));
         }
 
         @Override

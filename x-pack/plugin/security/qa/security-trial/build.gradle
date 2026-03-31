@@ -6,10 +6,9 @@ dependencies {
   javaRestTestImplementation project(path: xpackModule('core'))
   javaRestTestImplementation(testArtifact(project(xpackModule('security'))))
   javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
-  javaRestTestImplementation project(":client:rest-high-level")
 }
 
 tasks.named('javaRestTest') {
-  usesDefaultDistribution()
+  usesDefaultDistribution("to be triaged")
 }
 

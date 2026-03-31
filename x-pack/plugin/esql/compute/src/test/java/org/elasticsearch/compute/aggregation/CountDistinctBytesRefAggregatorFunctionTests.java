@@ -8,31 +8,33 @@
 package org.elasticsearch.compute.aggregation;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.compute.data.BasicBlockTests;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.LongBlock;
-import org.elasticsearch.compute.operator.BytesRefBlockSourceOperator;
+import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.compute.test.operator.blocksource.BytesRefBlockSourceOperator;
 
 import java.util.List;
 import java.util.stream.LongStream;
 
+import static org.elasticsearch.compute.test.BlockTestUtils.valuesAtPositions;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 
 public class CountDistinctBytesRefAggregatorFunctionTests extends AggregatorFunctionTestCase {
     @Override
-    protected SourceOperator simpleInput(int size) {
+    protected SourceOperator simpleInput(BlockFactory blockFactory, int size) {
         int max = between(1, Math.min(Integer.MAX_VALUE, Integer.MAX_VALUE / size));
         return new BytesRefBlockSourceOperator(
+            blockFactory,
             LongStream.range(0, size).mapToObj(l -> new BytesRef(String.valueOf(between(-max, max)))).toList()
         );
     }
 
     @Override
-    protected AggregatorFunctionSupplier aggregatorFunction(BigArrays bigArrays, List<Integer> inputChannels) {
-        return new CountDistinctBytesRefAggregatorFunctionSupplier(bigArrays, inputChannels, 40000);
+    protected AggregatorFunctionSupplier aggregatorFunction() {
+        return new CountDistinctBytesRefAggregatorFunctionSupplier(40000);
     }
 
     @Override
@@ -41,8 +43,8 @@ public class CountDistinctBytesRefAggregatorFunctionTests extends AggregatorFunc
     }
 
     @Override
-    protected void assertSimpleOutput(List<Block> input, Block result) {
-        long expected = input.stream().flatMap(b -> allBytesRefs(b)).distinct().count();
+    protected void assertSimpleOutput(List<Page> input, Block result) {
+        long expected = input.stream().flatMap(p -> allBytesRefs(p.getBlock(0))).distinct().count();
         long count = ((LongBlock) result).getLong(0);
         // HLL is an approximation algorithm and precision depends on the number of values computed and the precision_threshold param
         // https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-metrics-cardinality-aggregation.html
@@ -53,6 +55,6 @@ public class CountDistinctBytesRefAggregatorFunctionTests extends AggregatorFunc
     @Override
     protected void assertOutputFromEmpty(Block b) {
         assertThat(b.getPositionCount(), equalTo(1));
-        assertThat(BasicBlockTests.valuesAtPositions(b, 0, 1), equalTo(List.of(List.of(0L))));
+        assertThat(valuesAtPositions(b, 0, 1), equalTo(List.of(List.of(0L))));
     }
 }

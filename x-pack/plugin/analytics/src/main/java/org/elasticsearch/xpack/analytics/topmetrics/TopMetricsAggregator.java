@@ -8,8 +8,9 @@
 package org.elasticsearch.xpack.analytics.topmetrics;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
+import org.apache.lucene.search.DoubleValues;
+import org.apache.lucene.search.LongValues;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.BytesRef;
@@ -20,7 +21,6 @@ import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
@@ -40,11 +40,9 @@ import org.elasticsearch.xpack.core.common.search.aggregations.MissingHelper;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
-import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.xpack.analytics.topmetrics.TopMetricsAggregationBuilder.REGISTRY_KEY;
 
 /**
@@ -148,14 +146,19 @@ class TopMetricsAggregator extends NumericMetricsAggregator.MultiValue {
 
     static class Metrics implements BucketedSort.ExtraData, Releasable {
         private final MetricValues[] values;
+        private final List<String> names;
 
         Metrics(MetricValues[] values) {
             this.values = values;
+            names = new ArrayList<>(values.length);
+            for (MetricValues value : values) {
+                names.add(value.name);
+            }
         }
 
         boolean needsScores() {
-            for (int i = 0; i < values.length; i++) {
-                if (values[i].needsScores()) {
+            for (MetricValues value : values) {
+                if (value.needsScores()) {
                     return true;
                 }
             }
@@ -174,21 +177,21 @@ class TopMetricsAggregator extends NumericMetricsAggregator.MultiValue {
         BucketedSort.ResultBuilder<InternalTopMetrics.TopMetric> resultBuilder(DocValueFormat sortFormat) {
             return (index, sortValue) -> {
                 List<InternalTopMetrics.MetricValue> result = new ArrayList<>(values.length);
-                for (int i = 0; i < values.length; i++) {
-                    result.add(values[i].metricValue(index));
+                for (MetricValues value : values) {
+                    result.add(value.metricValue(index));
                 }
                 return new InternalTopMetrics.TopMetric(sortFormat, sortValue, result);
             };
         }
 
         List<String> names() {
-            return Arrays.stream(values).map(v -> v.name).collect(toList());
+            return names;
         }
 
         @Override
         public void swap(long lhs, long rhs) {
-            for (int i = 0; i < values.length; i++) {
-                values[i].swap(lhs, rhs);
+            for (MetricValues value : values) {
+                value.swap(lhs, rhs);
             }
         }
 
@@ -199,8 +202,8 @@ class TopMetricsAggregator extends NumericMetricsAggregator.MultiValue {
                 loaders[i] = values[i].loader(ctx);
             }
             return (index, doc) -> {
-                for (int i = 0; i < loaders.length; i++) {
-                    loaders[i].loadFromDoc(index, doc);
+                for (Loader loader : loaders) {
+                    loader.loadFromDoc(index, doc);
                 }
             };
         }
@@ -310,7 +313,7 @@ class TopMetricsAggregator extends NumericMetricsAggregator.MultiValue {
         @Override
         public Loader loader(LeafReaderContext ctx) throws IOException {
             // TODO allow configuration of value mode
-            NumericDoubleValues metricValues = MultiValueMode.AVG.select(valuesSource.doubleValues(ctx));
+            DoubleValues metricValues = MultiValueMode.AVG.select(valuesSource.doubleValues(ctx));
             return (index, doc) -> {
                 if (index >= values.size()) {
                     values = bigArrays.grow(values, index + 1);
@@ -376,7 +379,7 @@ class TopMetricsAggregator extends NumericMetricsAggregator.MultiValue {
         @Override
         public Loader loader(LeafReaderContext ctx) throws IOException {
             // TODO allow configuration of value mode
-            NumericDocValues metricValues = MultiValueMode.AVG.select(valuesSource.longValues(ctx));
+            LongValues metricValues = MultiValueMode.AVG.select(valuesSource.longValues(ctx));
             return (index, doc) -> {
                 if (false == metricValues.advanceExact(doc)) {
                     empty.markMissing(index);

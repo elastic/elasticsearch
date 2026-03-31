@@ -1,15 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.bulk;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
@@ -52,7 +51,6 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 public class BulkProcessor2Tests extends ESTestCase {
 
     private ThreadPool threadPool;
-    private final Logger logger = LogManager.getLogger(BulkProcessor2Tests.class);
 
     @Before
     public void startThreadPool() {
@@ -177,7 +175,7 @@ public class BulkProcessor2Tests extends ESTestCase {
             countingListener(requestCount, successCount, failureCount, docCount, exceptionRef),
             maxBatchSize,
             ByteSizeValue.ofBytes(Integer.MAX_VALUE),
-            new ByteSizeValue(50, ByteSizeUnit.MB),
+            ByteSizeValue.of(50, ByteSizeUnit.MB),
             null,
             threadPool
         );
@@ -282,7 +280,7 @@ public class BulkProcessor2Tests extends ESTestCase {
             countingListener(requestCount, successCount, failureCount, docCount, exceptionRef),
             maxBatchSize,
             ByteSizeValue.ofBytes(Integer.MAX_VALUE),
-            new ByteSizeValue(50, ByteSizeUnit.MB),
+            ByteSizeValue.of(50, ByteSizeUnit.MB),
             TimeValue.timeValueMillis(simulateWorkTimeInMillis * 2),
             threadPool
         );

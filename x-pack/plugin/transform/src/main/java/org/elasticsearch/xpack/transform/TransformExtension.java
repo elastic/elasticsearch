@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.transform;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 
 public interface TransformExtension {
 
@@ -20,4 +21,10 @@ public interface TransformExtension {
      * source settings.
      */
     Settings getTransformDestinationIndexSettings();
+
+    // TODO(jkuipers): remove this default implementation after the ServerlessTransformPlugin
+    // in the elasticsearch-serverless project is updated.
+    default TimeValue getMinFrequency() {
+        return TimeValue.timeValueSeconds(1);
+    }
 }

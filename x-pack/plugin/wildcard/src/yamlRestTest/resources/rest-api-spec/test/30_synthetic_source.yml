@@ -1,0 +1,90 @@
+setup:
+  - requires:
+      cluster_features: [ "mapper.source.mode_from_index_setting" ]
+      reason: "Source mode configured through index setting"
+
+---
+synthetic source:
+  - do:
+      indices.create:
+        index: synthetic_source_test
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            properties:
+              name:
+                type: keyword
+              wildcard:
+                type: wildcard
+                ignore_above: 6
+
+  - do:
+      bulk:
+        index: synthetic_source_test
+        refresh: true
+        body: |
+          { "index": {"_id" : "1"} }
+          { "name": "A", "wildcard": "hello" }
+          { "index": {"_id" : "2"} }
+          { "name": "B", "wildcard": "long_hello" }
+
+  - do:
+      search:
+        index: synthetic_source_test
+        sort: name
+
+  - match: { "hits.total.value": 2 }
+  - match:
+      hits.hits.0._source.wildcard: "hello"
+  - match:
+      hits.hits.1._source.wildcard: "long_hello"
+
+---
+synthetic source with copy_to:
+  - do:
+      indices.create:
+        index: synthetic_source_test
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            properties:
+              name:
+                type: keyword
+              wildcard:
+                type: wildcard
+                copy_to: copy
+              copy:
+                type: keyword
+
+  - do:
+      bulk:
+        index: synthetic_source_test
+        refresh: true
+        body: |
+          { "index": {"_id" : "1"} }
+          { "name": "A", "wildcard": "hello" }
+          { "index": {"_id" : "2"} }
+          { "name": "B", "wildcard": "long_hello" }
+
+  - do:
+      search:
+        index: synthetic_source_test
+        sort: name
+        body:
+          fields: ["copy"]
+
+  - match: { "hits.total.value": 2 }
+
+  - match:
+      hits.hits.0._source.wildcard: "hello"
+  - match:
+      hits.hits.0.fields.copy.0: "hello"
+
+  - match:
+      hits.hits.1._source.wildcard: "long_hello"
+  - match:
+      hits.hits.1.fields.copy.0: "long_hello"

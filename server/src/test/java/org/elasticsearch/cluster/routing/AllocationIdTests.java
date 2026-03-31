@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing;
@@ -142,8 +143,10 @@ public class AllocationIdTests extends ESTestCase {
             allocationId = AllocationId.newRelocation(allocationId);
         }
         BytesReference bytes = BytesReference.bytes(allocationId.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS));
-        AllocationId parsedAllocationId = AllocationId.fromXContent(createParser(JsonXContent.jsonXContent, bytes));
-        assertEquals(allocationId, parsedAllocationId);
+        try (var parser = createParser(JsonXContent.jsonXContent, bytes)) {
+            AllocationId parsedAllocationId = AllocationId.fromXContent(parser);
+            assertEquals(allocationId, parsedAllocationId);
+        }
     }
 
     public void testEquals() {

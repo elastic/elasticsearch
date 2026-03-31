@@ -1,15 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.reindex;
 
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.UpdateByQueryRequest;
 import org.elasticsearch.script.ScriptService;
@@ -52,8 +52,6 @@ public class UpdateByQueryWithScriptTests extends AbstractAsyncBulkByScrollActio
     @Override
     protected TransportUpdateByQueryAction.AsyncIndexBySearchAction action(ScriptService scriptService, UpdateByQueryRequest request) {
         TransportService transportService = mock(TransportService.class);
-
-        // TODO: temporary, remove in #97879
         when(transportService.getThreadPool()).thenReturn(threadPool);
 
         TransportUpdateByQueryAction transportAction = new TransportUpdateByQueryAction(
@@ -62,6 +60,7 @@ public class UpdateByQueryWithScriptTests extends AbstractAsyncBulkByScrollActio
             null,
             transportService,
             scriptService,
+            null,
             null
         );
         return new TransportUpdateByQueryAction.AsyncIndexBySearchAction(
@@ -71,7 +70,6 @@ public class UpdateByQueryWithScriptTests extends AbstractAsyncBulkByScrollActio
             threadPool,
             scriptService,
             request,
-            ClusterState.EMPTY_STATE,
             listener()
         );
     }

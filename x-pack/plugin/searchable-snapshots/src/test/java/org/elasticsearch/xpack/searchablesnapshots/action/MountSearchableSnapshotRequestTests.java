@@ -33,6 +33,7 @@ public class MountSearchableSnapshotRequestTests extends AbstractWireSerializing
 
     private MountSearchableSnapshotRequest randomState(MountSearchableSnapshotRequest instance) {
         return new MountSearchableSnapshotRequest(
+            TEST_REQUEST_TIMEOUT,
             randomBoolean() ? instance.mountedIndexName() : mutateString(instance.mountedIndexName()),
             randomBoolean() ? instance.repositoryName() : mutateString(instance.repositoryName()),
             randomBoolean() ? instance.snapshotName() : mutateString(instance.snapshotName()),
@@ -48,6 +49,7 @@ public class MountSearchableSnapshotRequestTests extends AbstractWireSerializing
     protected MountSearchableSnapshotRequest createTestInstance() {
         return randomState(
             new MountSearchableSnapshotRequest(
+                TEST_REQUEST_TIMEOUT,
                 randomAlphaOfLength(5),
                 randomAlphaOfLength(5),
                 randomAlphaOfLength(5),
@@ -69,6 +71,7 @@ public class MountSearchableSnapshotRequestTests extends AbstractWireSerializing
     protected MountSearchableSnapshotRequest mutateInstance(MountSearchableSnapshotRequest req) {
         return switch (randomInt(8)) {
             case 0 -> new MountSearchableSnapshotRequest(
+                TEST_REQUEST_TIMEOUT,
                 mutateString(req.mountedIndexName()),
                 req.repositoryName(),
                 req.snapshotName(),
@@ -79,6 +82,7 @@ public class MountSearchableSnapshotRequestTests extends AbstractWireSerializing
                 req.storage()
             ).masterNodeTimeout(req.masterNodeTimeout());
             case 1 -> new MountSearchableSnapshotRequest(
+                TEST_REQUEST_TIMEOUT,
                 req.mountedIndexName(),
                 mutateString(req.repositoryName()),
                 req.snapshotName(),
@@ -89,6 +93,7 @@ public class MountSearchableSnapshotRequestTests extends AbstractWireSerializing
                 req.storage()
             ).masterNodeTimeout(req.masterNodeTimeout());
             case 2 -> new MountSearchableSnapshotRequest(
+                TEST_REQUEST_TIMEOUT,
                 req.mountedIndexName(),
                 req.repositoryName(),
                 mutateString(req.snapshotName()),
@@ -99,6 +104,7 @@ public class MountSearchableSnapshotRequestTests extends AbstractWireSerializing
                 req.storage()
             ).masterNodeTimeout(req.masterNodeTimeout());
             case 3 -> new MountSearchableSnapshotRequest(
+                TEST_REQUEST_TIMEOUT,
                 req.mountedIndexName(),
                 req.repositoryName(),
                 req.snapshotName(),
@@ -109,6 +115,7 @@ public class MountSearchableSnapshotRequestTests extends AbstractWireSerializing
                 req.storage()
             ).masterNodeTimeout(req.masterNodeTimeout());
             case 4 -> new MountSearchableSnapshotRequest(
+                TEST_REQUEST_TIMEOUT,
                 req.mountedIndexName(),
                 req.repositoryName(),
                 req.snapshotName(),
@@ -119,6 +126,7 @@ public class MountSearchableSnapshotRequestTests extends AbstractWireSerializing
                 req.storage()
             ).masterNodeTimeout(req.masterNodeTimeout());
             case 5 -> new MountSearchableSnapshotRequest(
+                TEST_REQUEST_TIMEOUT,
                 req.mountedIndexName(),
                 req.repositoryName(),
                 req.snapshotName(),
@@ -129,6 +137,7 @@ public class MountSearchableSnapshotRequestTests extends AbstractWireSerializing
                 req.storage()
             ).masterNodeTimeout(req.masterNodeTimeout());
             case 6 -> new MountSearchableSnapshotRequest(
+                TEST_REQUEST_TIMEOUT,
                 req.mountedIndexName(),
                 req.repositoryName(),
                 req.snapshotName(),
@@ -139,6 +148,7 @@ public class MountSearchableSnapshotRequestTests extends AbstractWireSerializing
                 req.storage()
             ).masterNodeTimeout(req.masterNodeTimeout());
             case 7 -> new MountSearchableSnapshotRequest(
+                TEST_REQUEST_TIMEOUT,
                 req.mountedIndexName(),
                 req.repositoryName(),
                 req.snapshotName(),
@@ -149,6 +159,7 @@ public class MountSearchableSnapshotRequestTests extends AbstractWireSerializing
                 randomValueOtherThan(req.storage(), () -> randomFrom(MountSearchableSnapshotRequest.Storage.values()))
             ).masterNodeTimeout(req.masterNodeTimeout());
             default -> new MountSearchableSnapshotRequest(
+                TEST_REQUEST_TIMEOUT,
                 req.mountedIndexName(),
                 req.repositoryName(),
                 req.snapshotName(),
@@ -196,6 +207,7 @@ public class MountSearchableSnapshotRequestTests extends AbstractWireSerializing
 
     public void testForbidsCustomDataPath() {
         final ActionRequestValidationException validationException = new MountSearchableSnapshotRequest(
+            TEST_REQUEST_TIMEOUT,
             randomAlphaOfLength(5),
             randomAlphaOfLength(5),
             randomAlphaOfLength(5),

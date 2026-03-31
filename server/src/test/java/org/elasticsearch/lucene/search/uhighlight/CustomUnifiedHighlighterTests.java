@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.lucene.search.uhighlight;
@@ -13,6 +14,10 @@ import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
 import org.apache.lucene.analysis.custom.CustomAnalyzer;
 import org.apache.lucene.analysis.ngram.EdgeNGramTokenizerFactory;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
+import org.apache.lucene.analysis.standard.StandardTokenizerFactory;
+import org.apache.lucene.analysis.synonym.SolrSynonymParser;
+import org.apache.lucene.analysis.synonym.SynonymFilterFactory;
+import org.apache.lucene.analysis.synonym.SynonymMap;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
@@ -25,7 +30,6 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Sort;
@@ -35,11 +39,16 @@ import org.apache.lucene.search.highlight.DefaultEncoder;
 import org.apache.lucene.search.uhighlight.UnifiedHighlighter;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.apache.lucene.util.ResourceLoader;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.IOException;
+import java.io.StringReader;
 import java.text.BreakIterator;
+import java.text.ParseException;
 import java.util.Locale;
 import java.util.Map;
 import java.util.TreeMap;
@@ -131,13 +140,13 @@ public class CustomUnifiedHighlighterTests extends ESTestCase {
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
                 iw.close();
-                TopDocs topDocs = searcher.search(new MatchAllDocsQuery(), 1, Sort.INDEXORDER);
-                assertThat(topDocs.totalHits.value, equalTo(1L));
+                TopDocs topDocs = searcher.search(Queries.ALL_DOCS_INSTANCE, 1, Sort.INDEXORDER);
+                assertThat(topDocs.totalHits.value(), equalTo(1L));
                 String rawValue = Strings.arrayToDelimitedString(inputs, String.valueOf(MULTIVAL_SEP_CHAR));
                 UnifiedHighlighter.Builder builder = UnifiedHighlighter.builder(searcher, analyzer);
                 builder.withBreakIterator(() -> breakIterator);
                 builder.withFieldMatcher(name -> "text".equals(name));
-                builder.withFormatter(new CustomPassageFormatter("<b>", "</b>", new DefaultEncoder()));
+                builder.withFormatter(new CustomPassageFormatter("<b>", "</b>", new DefaultEncoder(), 3));
                 CustomUnifiedHighlighter highlighter = new CustomUnifiedHighlighter(
                     builder,
                     offsetSource,
@@ -148,14 +157,14 @@ public class CustomUnifiedHighlighterTests extends ESTestCase {
                     noMatchSize,
                     expectedPassages.length,
                     maxAnalyzedOffset,
-                    queryMaxAnalyzedOffset,
+                    QueryMaxAnalyzedOffset.create(queryMaxAnalyzedOffset, maxAnalyzedOffset),
                     true,
                     true
                 );
                 final Snippet[] snippets = highlighter.highlightField(getOnlyLeafReader(reader), topDocs.scoreDocs[0].doc, () -> rawValue);
-                assertEquals(snippets.length, expectedPassages.length);
+                assertEquals(expectedPassages.length, snippets.length);
                 for (int i = 0; i < snippets.length; i++) {
-                    assertEquals(snippets[i].getText(), expectedPassages[i]);
+                    assertEquals(expectedPassages[i], snippets[i].getText());
                 }
             }
         }
@@ -354,6 +363,63 @@ public class CustomUnifiedHighlighterTests extends ESTestCase {
             .withTokenizer(EdgeNGramTokenizerFactory.class, "minGramSize", "1", "maxGramSize", "7")
             .build();
         assertHighlightOneDoc("text", inputs, analyzer, query, Locale.ROOT, BreakIterator.getSentenceInstance(Locale.ROOT), 0, outputs);
+    }
+
+    public static class NYCFilterFactory extends SynonymFilterFactory {
+        public NYCFilterFactory(Map<String, String> args) {
+            super(args);
+        }
+
+        @Override
+        protected SynonymMap loadSynonyms(ResourceLoader loader, String cname, boolean dedup, Analyzer analyzer) throws IOException,
+            ParseException {
+            SynonymMap.Parser parser = new SolrSynonymParser(false, false, analyzer);
+            parser.parse(new StringReader("new york city => nyc, new york city"));
+            return parser.build();
+        }
+    }
+
+    public void testOverlappingPositions() throws Exception {
+        final String[] inputs = { "new york city" };
+        final String[] outputs = { "<b>new york city</b>" };
+        BooleanQuery query = new BooleanQuery.Builder().add(
+            new BooleanQuery.Builder().add(new TermQuery(new Term("text", "nyc")), BooleanClause.Occur.SHOULD)
+                .add(
+                    new BooleanQuery.Builder().add(new TermQuery(new Term("text", "new")), BooleanClause.Occur.MUST)
+                        .add(new TermQuery(new Term("text", "york")), BooleanClause.Occur.MUST)
+                        .add(new TermQuery(new Term("text", "city")), BooleanClause.Occur.MUST)
+                        .build(),
+                    BooleanClause.Occur.SHOULD
+                )
+                .build(),
+            BooleanClause.Occur.MUST
+        ).build();
+        Analyzer analyzer = CustomAnalyzer.builder()
+            .withTokenizer(StandardTokenizerFactory.class)
+            .addTokenFilter(NYCFilterFactory.class, "synonyms", "N/A")
+            .build();
+        assertHighlightOneDoc("text", inputs, analyzer, query, Locale.ROOT, BreakIterator.getSentenceInstance(Locale.ROOT), 0, outputs);
+    }
+
+    public void testPhraseSpanningMultipleValues() throws Exception {
+        final String[] inputs = { "If you say things to a person that turn out not to be true", "the person is not going to believe" };
+        final String[] outputs = { "If you say things to a person that turn out not <b>to be true the person</b>" };
+        Query query = new PhraseQuery.Builder().add(new Term("text", "to"))
+            .add(new Term("text", "be"))
+            .add(new Term("text", "true"))
+            .add(new Term("text", "the"))
+            .add(new Term("text", "person"))
+            .build();
+        assertHighlightOneDoc(
+            "text",
+            inputs,
+            new StandardAnalyzer(),
+            query,
+            Locale.ROOT,
+            BoundedBreakIteratorScanner.getSentence(Locale.ROOT, 256),
+            0,
+            outputs
+        );
     }
 
     public void testExceedMaxAnalyzedOffset() throws Exception {

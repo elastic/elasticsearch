@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.launcher;
@@ -20,6 +21,8 @@ import org.elasticsearch.core.SuppressForbidden;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.io.OutputStream;
+import java.io.PrintStream;
 import java.util.Map;
 
 /**
@@ -48,7 +51,14 @@ class CliToolLauncher {
      * @param args args to the tool
      * @throws Exception if the tool fails with an unknown error
      */
+    @SuppressForbidden(reason = "uses System.out and System.err")
     public static void main(String[] args) throws Exception {
+        OutputStream originalStdOut = null;
+        if (isRedirectStdoutToStderr()) {
+            originalStdOut = System.out;
+            installOutputMux();
+        }
+
         ProcessInfo pinfo = ProcessInfo.fromSystem();
 
         // configure logging as early as possible
@@ -57,8 +67,8 @@ class CliToolLauncher {
         String toolname = getToolName(pinfo.sysprops());
         String libs = pinfo.sysprops().getOrDefault("cli.libs", "");
 
-        command = CliToolProvider.load(toolname, libs).create();
-        Terminal terminal = Terminal.DEFAULT;
+        command = CliToolProvider.load(pinfo.sysprops(), toolname, libs).create();
+        Terminal terminal = originalStdOut != null ? new RedirectedStdoutTerminal(originalStdOut) : Terminal.DEFAULT;
         Runtime.getRuntime().addShutdownHook(createShutdownHook(terminal, command));
 
         int exitCode = command.main(args, terminal, pinfo);
@@ -66,6 +76,23 @@ class CliToolLauncher {
         if (exitCode != ExitCodes.OK) {
             exit(exitCode);
         }
+    }
+
+    /**
+     * Returns true when stdout should be redirected to stderr so that the real
+     * stdout can be used for binary output (e.g. the launch descriptor).
+     */
+    @SuppressForbidden(reason = "Check redirect env and sysprop")
+    static boolean isRedirectStdoutToStderr() {
+        return "true".equalsIgnoreCase(System.getenv("ES_REDIRECT_STDOUT_TO_STDERR"))
+            || "true".equalsIgnoreCase(System.getProperty("cli.redirectStdoutToStderr", ""));
+    }
+
+    @SuppressForbidden(reason = "Multiplex stdout and stderr onto a single pipe so the launcher can demux them")
+    private static void installOutputMux() {
+        OutputStreamMux mux = new OutputStreamMux(System.err);
+        System.setOut(new PrintStream(mux.channel(OutputStreamMux.STDOUT_MODE), true));
+        System.setErr(new PrintStream(mux.channel(OutputStreamMux.STDERR_MODE), true));
     }
 
     // package private for tests
@@ -91,10 +118,10 @@ class CliToolLauncher {
             try {
                 closeable.close();
             } catch (final IOException e) {
-                e.printStackTrace(terminal.getErrorWriter());
+                terminal.errorPrintln(e);
             }
             terminal.flush(); // make sure to flush whatever the close or error might have written
-        });
+        }, "elasticsearch-cli-shutdown");
 
     }
 

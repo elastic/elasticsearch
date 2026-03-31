@@ -13,7 +13,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.license.XPackLicenseState;
@@ -46,22 +46,22 @@ public final class PhaseCacheManagement {
     /**
      * Rereads the phase JSON for the given index, returning a new cluster state.
      */
-    public static ClusterState refreshPhaseDefinition(
-        final ClusterState state,
+    public static ProjectMetadata refreshPhaseDefinition(
+        final ProjectMetadata projectMetadata,
         final String index,
         final LifecyclePolicyMetadata updatedPolicy
     ) {
-        final IndexMetadata idxMeta = state.metadata().index(index);
-        Metadata.Builder metadataBuilder = Metadata.builder(state.metadata());
-        refreshPhaseDefinition(metadataBuilder, idxMeta, updatedPolicy);
-        return ClusterState.builder(state).metadata(metadataBuilder.build()).build();
+        IndexMetadata idxMeta = projectMetadata.index(index);
+        ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(projectMetadata);
+        refreshPhaseDefinition(projectMetadataBuilder, idxMeta, updatedPolicy);
+        return projectMetadataBuilder.build();
     }
 
     /**
      * Rereads the phase JSON for the given index, and updates the provided metadata.
      */
     public static void refreshPhaseDefinition(
-        final Metadata.Builder metadataBuilder,
+        final ProjectMetadata.Builder projectMetadataBuilder,
         final IndexMetadata idxMeta,
         final LifecyclePolicyMetadata updatedPolicy
     ) {
@@ -83,7 +83,7 @@ public final class PhaseCacheManagement {
             .setPhaseDefinition(Strings.toString(pei, false, false))
             .build();
 
-        metadataBuilder.put(IndexMetadata.builder(idxMeta).putCustom(ILM_CUSTOM_METADATA_KEY, newExState.asMap()));
+        projectMetadataBuilder.put(IndexMetadata.builder(idxMeta).putCustom(ILM_CUSTOM_METADATA_KEY, newExState.asMap()));
     }
 
     /**
@@ -112,19 +112,19 @@ public final class PhaseCacheManagement {
     /**
      * For the given new policy, returns a new cluster with all updateable indices' phase JSON refreshed.
      */
-    public static ClusterState updateIndicesForPolicy(
-        final ClusterState state,
+    public static ProjectMetadata updateIndicesForPolicy(
+        final ProjectMetadata projectMetadata,
         final NamedXContentRegistry xContentRegistry,
         final Client client,
         final LifecyclePolicy oldPolicy,
         final LifecyclePolicyMetadata newPolicy,
         XPackLicenseState licenseState
     ) {
-        Metadata.Builder mb = Metadata.builder(state.metadata());
-        if (updateIndicesForPolicy(mb, state, xContentRegistry, client, oldPolicy, newPolicy, licenseState)) {
-            return ClusterState.builder(state).metadata(mb).build();
+        ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(projectMetadata);
+        if (updateIndicesForPolicy(projectMetadataBuilder, projectMetadata, xContentRegistry, client, oldPolicy, newPolicy, licenseState)) {
+            return projectMetadataBuilder.build();
         }
-        return state;
+        return projectMetadata;
     }
 
     /**
@@ -133,8 +133,8 @@ public final class PhaseCacheManagement {
      * Users of this API should consider the returned value and only create a new {@link ClusterState} if `true` is returned.
      */
     public static boolean updateIndicesForPolicy(
-        final Metadata.Builder mb,
-        final ClusterState currentState,
+        final ProjectMetadata.Builder projectMetadataBuilder,
+        final ProjectMetadata projectMetadata,
         final NamedXContentRegistry xContentRegistry,
         final Client client,
         final LifecyclePolicy oldPolicy,
@@ -150,8 +150,7 @@ public final class PhaseCacheManagement {
             return false;
         }
 
-        final List<IndexMetadata> indicesThatCanBeUpdated = currentState.metadata()
-            .indices()
+        final List<IndexMetadata> indicesThatCanBeUpdated = projectMetadata.indices()
             .values()
             .stream()
             .filter(meta -> newPolicy.getName().equals(meta.getLifecyclePolicyName()))
@@ -161,7 +160,7 @@ public final class PhaseCacheManagement {
         final List<String> refreshedIndices = new ArrayList<>(indicesThatCanBeUpdated.size());
         for (IndexMetadata index : indicesThatCanBeUpdated) {
             try {
-                refreshPhaseDefinition(mb, index, newPolicy);
+                refreshPhaseDefinition(projectMetadataBuilder, index, newPolicy);
                 refreshedIndices.add(index.getIndex().getName());
             } catch (Exception e) {
                 logger.warn(() -> format("[%s] unable to refresh phase definition for updated policy [%s]", index, newPolicy.getName()), e);
@@ -230,11 +229,7 @@ public final class PhaseCacheManagement {
         final Set<Step.StepKey> newPhaseStepKeys = readStepKeys(xContentRegistry, client, peiJson, currentPhase, licenseState);
         if (newPhaseStepKeys == null) {
             logger.debug(
-                () -> format(
-                    "[%s] unable to parse phase definition for policy [%s] " + "to determine if it could be refreshed",
-                    index,
-                    policyId
-                )
+                () -> format("[%s] unable to parse phase definition for policy [%s] to determine if it could be refreshed", index, policyId)
             );
             return false;
         }

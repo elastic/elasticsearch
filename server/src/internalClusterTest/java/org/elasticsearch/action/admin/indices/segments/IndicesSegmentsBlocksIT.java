@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.segments;
@@ -29,7 +30,7 @@ public class IndicesSegmentsBlocksIT extends ESIntegTestCase {
 
         int docs = between(10, 100);
         for (int i = 0; i < docs; i++) {
-            client().prepareIndex("test-blocks").setId("" + i).setSource("test", "init").execute().actionGet();
+            prepareIndex("test-blocks").setId("" + i).setSource("test", "init").get();
         }
         indicesAdmin().prepareFlush("test-blocks").get();
 
@@ -42,7 +43,7 @@ public class IndicesSegmentsBlocksIT extends ESIntegTestCase {
         )) {
             try {
                 enableIndexBlock("test-blocks", blockSetting);
-                IndicesSegmentResponse response = indicesAdmin().prepareSegments("test-blocks").execute().actionGet();
+                IndicesSegmentResponse response = indicesAdmin().prepareSegments("test-blocks").get();
                 assertNoFailures(response);
             } finally {
                 disableIndexBlock("test-blocks", blockSetting);

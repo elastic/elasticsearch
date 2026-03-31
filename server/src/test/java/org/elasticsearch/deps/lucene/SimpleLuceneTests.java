@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.deps.lucene;
@@ -25,7 +26,6 @@ import org.apache.lucene.index.StoredFieldVisitor;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TermQuery;
@@ -35,6 +35,7 @@ import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -57,7 +58,7 @@ public class SimpleLuceneTests extends ESTestCase {
             }
             try (IndexReader reader = DirectoryReader.open(indexWriter)) {
                 IndexSearcher searcher = newSearcher(reader);
-                TopFieldDocs docs = searcher.search(new MatchAllDocsQuery(), 10, new Sort(new SortField("str", SortField.Type.STRING)));
+                TopFieldDocs docs = searcher.search(Queries.ALL_DOCS_INSTANCE, 10, new Sort(new SortField("str", SortField.Type.STRING)));
                 for (int i = 0; i < 10; i++) {
                     FieldDoc fieldDoc = (FieldDoc) docs.scoreDocs[i];
                     assertThat(
@@ -83,12 +84,12 @@ public class SimpleLuceneTests extends ESTestCase {
             try (IndexReader reader = DirectoryReader.open(indexWriter)) {
                 IndexSearcher searcher = newSearcher(reader);
                 TopDocs topDocs = searcher.search(new TermQuery(new Term("_id", "1")), 1);
-                Document doc = searcher.doc(topDocs.scoreDocs[0].doc);
+                Document doc = searcher.storedFields().document(topDocs.scoreDocs[0].doc);
                 IndexableField f = doc.getField("test");
                 assertThat(f.numericValue(), equalTo(2));
 
                 topDocs = searcher.search(IntPoint.newExactQuery("test", 2), 1);
-                doc = searcher.doc(topDocs.scoreDocs[0].doc);
+                doc = searcher.storedFields().document(topDocs.scoreDocs[0].doc);
                 f = doc.getField("test");
                 assertThat(f.stringValue(), equalTo("2"));
             }
@@ -114,7 +115,7 @@ public class SimpleLuceneTests extends ESTestCase {
                 IndexSearcher searcher = newSearcher(reader);
                 TopDocs topDocs = searcher.search(new TermQuery(new Term("_id", "1")), 1);
                 final ArrayList<String> fieldsOrder = new ArrayList<>();
-                searcher.doc(topDocs.scoreDocs[0].doc, new StoredFieldVisitor() {
+                searcher.storedFields().document(topDocs.scoreDocs[0].doc, new StoredFieldVisitor() {
                     @Override
                     public Status needsField(FieldInfo fieldInfo) throws IOException {
                         fieldsOrder.add(fieldInfo.name);

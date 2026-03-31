@@ -37,6 +37,7 @@ public abstract class AbstractTransportQlAsyncGetResultsAction<Response extends 
     private final AsyncResultsService<AsyncTask, StoredAsyncResponse<Response>> resultsService;
     private final TransportService transportService;
 
+    @SuppressWarnings("this-escape")
     public AbstractTransportQlAsyncGetResultsAction(
         String actionName,
         TransportService transportService,
@@ -48,7 +49,7 @@ public abstract class AbstractTransportQlAsyncGetResultsAction<Response extends 
         BigArrays bigArrays,
         Class<? extends AsyncTask> asynkTaskClass
     ) {
-        super(actionName, transportService, actionFilters, GetAsyncResultRequest::new);
+        super(actionName, transportService, actionFilters, GetAsyncResultRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.actionName = actionName;
         this.transportService = transportService;
         this.resultsService = createResultsService(
@@ -86,7 +87,13 @@ public abstract class AbstractTransportQlAsyncGetResultsAction<Response extends 
             store,
             false,
             asyncTaskClass,
-            (task, listener, timeout) -> AsyncTaskManagementService.addCompletionListener(threadPool, task, listener, timeout),
+            (task, listener, timeout, returnIntermediateResults) -> AsyncTaskManagementService.addCompletionListener(
+                threadPool,
+                task,
+                listener,
+                timeout,
+                returnIntermediateResults
+            ),
             transportService.getTaskManager(),
             clusterService
         );

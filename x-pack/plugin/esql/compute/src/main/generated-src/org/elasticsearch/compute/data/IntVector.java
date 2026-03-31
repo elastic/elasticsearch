@@ -7,24 +7,75 @@
 
 package org.elasticsearch.compute.data;
 
+// begin generated imports
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.ReleasableIterator;
 
 import java.io.IOException;
+// end generated imports
 
 /**
  * Vector that stores int values.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-Vector.java.st} instead.
  */
-public sealed interface IntVector extends Vector permits ConstantIntVector, FilterIntVector, IntArrayVector, IntBigArrayVector {
-
+public sealed interface IntVector extends Vector permits ConstantIntVector, IntArrayVector, IntBigArrayVector, IntRangeVector,
+    ConstantNullVector, org.elasticsearch.compute.data.arrow.IntArrowBufVector {
     int getInt(int position);
+
+    /**
+     * Copies values from this vector into the destination array.
+     */
+    default void copyTo(int srcPosition, int[] dst, int dstPosition, int length) {
+        for (int i = 0; i < length; i++) {
+            dst[dstPosition + i] = getInt(srcPosition + i);
+        }
+    }
 
     @Override
     IntBlock asBlock();
 
     @Override
-    IntVector filter(int... positions);
+    IntVector filter(boolean mayContainDuplicates, int... positions);
+
+    @Override
+    IntBlock keepMask(BooleanVector mask);
+
+    /**
+     * Make a deep copy of this {@link Vector} using the provided {@link BlockFactory},
+     * likely copying all data.
+     */
+    @Override
+    default IntVector deepCopy(BlockFactory blockFactory) {
+        try (IntBlock.Builder builder = blockFactory.newIntBlockBuilder(getPositionCount())) {
+            builder.copyFrom(asBlock(), 0, getPositionCount());
+            builder.mvOrdering(Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING);
+            return builder.build().asVector();
+        }
+    }
+
+    @Override
+    ReleasableIterator<? extends IntBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize);
+
+    /**
+     * Return a subset of this vector from {@code beginInclusive} to
+     * {@code endExclusive}. This <strong>may</strong> return the same
+     * instance if the range covers all positions, but if it does it
+     * will {@link #incRef()} it.
+     */
+    @Override
+    IntVector slice(int beginInclusive, int endExclusive);
+
+    /**
+     * The minimum value in the Vector. An empty Vector will return {@link Integer#MAX_VALUE}.
+     */
+    int min();
+
+    /**
+     * The maximum value in the Vector. An empty Vector will return {@link Integer#MIN_VALUE}.
+     */
+    int max();
 
     /**
      * Compares the given object with this vector for equality. Returns {@code true} if and only if the
@@ -72,48 +123,60 @@ public sealed interface IntVector extends Vector permits ConstantIntVector, Filt
     }
 
     /** Deserializes a Vector from the given stream input. */
-    static IntVector of(StreamInput in) throws IOException {
+    static IntVector readFrom(BlockFactory blockFactory, StreamInput in) throws IOException {
         final int positions = in.readVInt();
-        final boolean constant = in.readBoolean();
-        if (constant && positions > 0) {
-            return new ConstantIntVector(in.readInt(), positions);
-        } else {
-            var builder = IntVector.newVectorBuilder(positions);
-            for (int i = 0; i < positions; i++) {
-                builder.appendInt(in.readInt());
+        final byte serializationType = in.readByte();
+        return switch (serializationType) {
+            case SERIALIZE_VECTOR_VALUES -> readValues(positions, in, blockFactory);
+            case SERIALIZE_VECTOR_CONSTANT -> blockFactory.newConstantIntVector(in.readInt(), positions);
+            case SERIALIZE_VECTOR_ARRAY -> IntArrayVector.readArrayVector(positions, in, blockFactory);
+            case SERIALIZE_VECTOR_BIG_ARRAY -> IntBigArrayVector.readArrayVector(positions, in, blockFactory);
+            default -> {
+                assert false : "invalid vector serialization type [" + serializationType + "]";
+                throw new IllegalStateException("invalid vector serialization type [" + serializationType + "]");
             }
-            return builder.build();
-        }
+        };
     }
 
     /** Serializes this Vector to the given stream output. */
     default void writeTo(StreamOutput out) throws IOException {
         final int positions = getPositionCount();
+        final var version = out.getTransportVersion();
         out.writeVInt(positions);
-        out.writeBoolean(isConstant());
         if (isConstant() && positions > 0) {
+            out.writeByte(SERIALIZE_VECTOR_CONSTANT);
             out.writeInt(getInt(0));
+        } else if (this instanceof IntArrayVector v) {
+            out.writeByte(SERIALIZE_VECTOR_ARRAY);
+            v.writeArrayVector(positions, out);
+        } else if (this instanceof IntBigArrayVector v) {
+            out.writeByte(SERIALIZE_VECTOR_BIG_ARRAY);
+            v.writeArrayVector(positions, out);
         } else {
+            out.writeByte(SERIALIZE_VECTOR_VALUES);
+            writeValues(this, positions, out);
+        }
+    }
+
+    private static IntVector readValues(int positions, StreamInput in, BlockFactory blockFactory) throws IOException {
+        try (var builder = blockFactory.newIntVectorFixedBuilder(positions)) {
             for (int i = 0; i < positions; i++) {
-                out.writeInt(getInt(i));
+                builder.appendInt(i, in.readInt());
             }
+            return builder.build();
         }
     }
 
-    static Builder newVectorBuilder(int estimatedSize) {
-        return new IntVectorBuilder(estimatedSize);
-    }
-
-    /** Create a vector for a range of ints. */
-    static IntVector range(int startInclusive, int endExclusive) {
-        int[] values = new int[endExclusive - startInclusive];
-        for (int i = 0; i < values.length; i++) {
-            values[i] = startInclusive + i;
+    private static void writeValues(IntVector v, int positions, StreamOutput out) throws IOException {
+        for (int i = 0; i < positions; i++) {
+            out.writeInt(v.getInt(i));
         }
-        return new IntArrayVector(values, values.length);
     }
 
-    sealed interface Builder extends Vector.Builder permits IntVectorBuilder {
+    /**
+     * A builder that grows as needed.
+     */
+    sealed interface Builder extends Vector.Builder permits IntVectorBuilder, FixedBuilder {
         /**
          * Appends a int to the current entry.
          */
@@ -121,5 +184,19 @@ public sealed interface IntVector extends Vector permits ConstantIntVector, Filt
 
         @Override
         IntVector build();
+    }
+
+    /**
+     * A builder that never grows.
+     */
+    sealed interface FixedBuilder extends Builder permits IntVectorFixedBuilder {
+        /**
+         * Appends a int to the current entry.
+         */
+        @Override
+        FixedBuilder appendInt(int value);
+
+        FixedBuilder appendInt(int index, int value);
+
     }
 }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.geo;
 
@@ -168,7 +169,9 @@ public abstract class GeoShapeQueryBuilderTestCase extends AbstractQueryTestCase
         );
         assertEquals("query must be rewritten first", e.getMessage());
         QueryBuilder rewrite = rewriteAndFetch(query, createSearchExecutionContext());
-        GeoShapeQueryBuilder geoShapeQueryBuilder = new GeoShapeQueryBuilder(query.fieldName(), indexedShapeToReturn);
+        GeoShapeQueryBuilder geoShapeQueryBuilder = new GeoShapeQueryBuilder(query.fieldName(), indexedShapeToReturn).ignoreUnmapped(
+            query.ignoreUnmapped()
+        );
         geoShapeQueryBuilder.strategy(query.strategy());
         geoShapeQueryBuilder.relation(query.relation());
         assertEquals(geoShapeQueryBuilder, rewrite);
@@ -179,7 +182,9 @@ public abstract class GeoShapeQueryBuilderTestCase extends AbstractQueryTestCase
         QueryBuilder builder = new BoolQueryBuilder().should(shape).should(shape);
 
         builder = rewriteAndFetch(builder, createSearchExecutionContext());
-        GeoShapeQueryBuilder expectedShape = new GeoShapeQueryBuilder(shape.fieldName(), indexedShapeToReturn);
+        GeoShapeQueryBuilder expectedShape = new GeoShapeQueryBuilder(shape.fieldName(), indexedShapeToReturn).ignoreUnmapped(
+            shape.ignoreUnmapped()
+        );
         expectedShape.strategy(shape.strategy());
         expectedShape.relation(shape.relation());
         QueryBuilder expected = new BoolQueryBuilder().should(expectedShape).should(expectedShape);

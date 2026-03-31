@@ -17,6 +17,6 @@ public class GetWatchAction extends ActionType<GetWatchResponse> {
     public static final String NAME = "cluster:monitor/xpack/watcher/watch/get";
 
     private GetWatchAction() {
-        super(NAME, GetWatchResponse::new);
+        super(NAME);
     }
 }

@@ -1,27 +1,28 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.StoredField;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefIterator;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.util.ByteUtils;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
-import java.math.BigDecimal;
-import java.math.BigInteger;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
@@ -29,42 +30,95 @@ import java.util.stream.Stream;
 import static java.util.Collections.emptyList;
 
 /**
- * Saves malformed values to stored fields so they can be loaded for synthetic
- * {@code _source}.
+ * Saves malformed values to stored fields or binary doc values so they can be loaded for synthetic {@code _source}.
  */
 public abstract class IgnoreMalformedStoredValues {
+
+    public static final String IGNORE_MALFORMED_FIELD_NAME_SUFFIX = "._ignore_malformed";
+
     /**
-     * Build a {@link StoredField} for the value on which the parser is
-     * currently positioned.
-     * <p>
-     * We try to use {@link StoredField}'s native types for fields where
-     * possible but we have to preserve more type information than
-     * stored fields support, so we encode all of those into stored fields'
-     * {@code byte[]} type and then encode type information in the first byte.
-     * </p>
+     * Stores a malformed value in binary doc values (new indices) or in stored fields (old indices) in order to support synthetic source.
      */
-    public static StoredField storedField(String fieldName, XContentParser parser) throws IOException {
-        String name = name(fieldName);
-        return switch (parser.currentToken()) {
-            case VALUE_STRING -> new StoredField(name, parser.text());
-            case VALUE_NUMBER -> switch (parser.numberType()) {
-                case INT -> new StoredField(name, parser.intValue());
-                case LONG -> new StoredField(name, parser.longValue());
-                case DOUBLE -> new StoredField(name, parser.doubleValue());
-                case FLOAT -> new StoredField(name, parser.floatValue());
-                case BIG_INTEGER -> new StoredField(name, encode((BigInteger) parser.numberValue()));
-                case BIG_DECIMAL -> new StoredField(name, encode((BigDecimal) parser.numberValue()));
-            };
-            case VALUE_BOOLEAN -> new StoredField(name, new byte[] { parser.booleanValue() ? (byte) 't' : (byte) 'f' });
-            case VALUE_EMBEDDED_OBJECT -> new StoredField(name, encode(parser.binaryValue()));
-            case START_OBJECT, START_ARRAY -> {
-                try (XContentBuilder builder = XContentBuilder.builder(parser.contentType().xContent())) {
-                    builder.copyCurrentStructure(parser);
-                    yield new StoredField(name, encode(builder));
-                }
-            }
-            default -> throw new IllegalArgumentException("synthetic _source doesn't support malformed objects");
-        };
+    public static void storeMalformedValueForSyntheticSource(DocumentParserContext context, String fieldPath, XContentParser parser)
+        throws IOException {
+        IndexVersion indexVersion = context.indexSettings().getIndexVersionCreated();
+        if (indexVersion.onOrAfter(IndexVersions.STORE_IGNORED_MALFORMED_IN_BINARY_DOC_VALUES)) {
+            BytesRef encoded = XContentDataHelper.encodeToken(parser);
+            saveToBinaryDocValues(context, fieldPath, encoded);
+        } else {
+            context.doc().add(storedField(fieldPath, parser));
+        }
+    }
+
+    /**
+     * Stores a malformed value in binary doc values (new indices) or in stored fields (old indices) in order to support synthetic source.
+     */
+    public static void storeMalformedValueForSyntheticSource(DocumentParserContext context, String fieldPath, XContentBuilder builder)
+        throws IOException {
+        IndexVersion indexVersion = context.indexSettings().getIndexVersionCreated();
+        if (indexVersion.onOrAfter(IndexVersions.STORE_IGNORED_MALFORMED_IN_BINARY_DOC_VALUES)) {
+            BytesRef encoded = encodeBuilderAsJson(builder);
+            saveToBinaryDocValues(context, fieldPath, encoded);
+        } else {
+            context.doc().add(storedField(fieldPath, builder));
+        }
+    }
+
+    /**
+     * Encodes an XContentBuilder's content, normalizing to JSON regardless of the builder's original content type.
+     *
+     * Malformed values are sorted by their encoded {@link BytesRef}. The encoding prefix byte is content-type-specific ('j' for
+     * JSON, 'c' for CBOR, etc.), so without normalization the sort order would depend on which content type the client used when
+     * indexing — an implementation detail that should not affect user-visible {@code _source} output. Normalizing to JSON is cheap in
+     * practice: the extra parse/serialize round-trip only runs when the content type is non-JSON AND the document has a malformed value,
+     * both of which are rare conditions.
+     */
+    private static BytesRef encodeBuilderAsJson(XContentBuilder builder) throws IOException {
+        XContentType originalType = builder.contentType();
+        if (originalType == XContentType.JSON) {
+            return XContentDataHelper.encodeXContentBuilder(builder);
+        }
+        BytesReference rawBytes = BytesReference.bytes(builder);
+        try (XContentParser parser = XContentHelper.createParserNotCompressed(XContentParserConfiguration.EMPTY, rawBytes, originalType)) {
+            XContentBuilder jsonBuilder = JsonXContent.contentBuilder();
+            parser.nextToken();
+            jsonBuilder.copyCurrentStructure(parser);
+            return XContentDataHelper.encodeXContentBuilder(jsonBuilder);
+        }
+    }
+
+    private static void saveToBinaryDocValues(DocumentParserContext context, String fieldPath, BytesRef encoded) {
+        final String fieldName = name(fieldPath);
+        MultiValuedBinaryDocValuesField field = (MultiValuedBinaryDocValuesField) context.doc().getByKey(fieldName);
+        if (field == null) {
+            field = new MultiValuedBinaryDocValuesField.IntegratedCount(fieldName, true);
+            context.doc().addWithKey(fieldName, field);
+        }
+        field.add(encoded);
+    }
+
+    /**
+     * Creates a stored field that stores malformed data to be used in synthetic source.
+     * Name of the stored field is original name of the field with added conventional suffix.
+     * @param name original name of the field
+     * @param parser parser to grab field content from
+     * @return
+     * @throws IOException
+     */
+    public static StoredField storedField(String name, XContentParser parser) throws IOException {
+        return XContentDataHelper.storedField(name(name), parser);
+    }
+
+    /**
+     * Creates a stored field that stores malformed data to be used in synthetic source.
+     * Name of the stored field is original name of the field with added conventional suffix.
+     * @param name original name of the field
+     * @param builder malformed data
+     * @return
+     * @throws IOException
+     */
+    public static StoredField storedField(String name, XContentBuilder builder) throws IOException {
+        return XContentDataHelper.storedField(name(name), builder);
     }
 
     /**
@@ -82,10 +136,30 @@ public abstract class IgnoreMalformedStoredValues {
     }
 
     /**
+     * Build the appropriate {@link IgnoreMalformedStoredValues} for loading malformed values during synthetic source reconstruction.
+     * Uses binary doc values for new indices and stored fields for old indices.
+     */
+    public static IgnoreMalformedStoredValues forSyntheticSource(String fieldName, IndexVersion indexVersion) {
+        if (indexVersion.onOrAfter(IndexVersions.STORE_IGNORED_MALFORMED_IN_BINARY_DOC_VALUES)) {
+            return new DocValues(fieldName);
+        } else {
+            return new Stored(fieldName);
+        }
+    }
+
+    /**
      * A {@link Stream} mapping stored field paths to a place to put them
      * so they can be included in the next document.
      */
     public abstract Stream<Map.Entry<String, SourceLoader.SyntheticFieldLoader.StoredFieldLoader>> storedFieldLoaders();
+
+    /**
+     * Create a doc values loader for loading malformed values from binary doc values.
+     * Returns {@code null} if this implementation does not use doc values or if there are no doc values to load.
+     */
+    public SourceLoader.SyntheticFieldLoader.DocValuesLoader docValuesLoader(LeafReader reader) throws IOException {
+        return null;
+    }
 
     /**
      * How many values has this field loaded for this document?
@@ -96,6 +170,11 @@ public abstract class IgnoreMalformedStoredValues {
      * Write values for this document.
      */
     public abstract void write(XContentBuilder b) throws IOException;
+
+    /**
+     * Remove stored values for this document and return to clean state to process next document.
+     */
+    public abstract void reset();
 
     private static final Empty EMPTY = new Empty();
 
@@ -112,6 +191,9 @@ public abstract class IgnoreMalformedStoredValues {
 
         @Override
         public void write(XContentBuilder b) throws IOException {}
+
+        @Override
+        public void reset() {}
     }
 
     private static class Stored extends IgnoreMalformedStoredValues {
@@ -125,7 +207,7 @@ public abstract class IgnoreMalformedStoredValues {
 
         @Override
         public Stream<Map.Entry<String, SourceLoader.SyntheticFieldLoader.StoredFieldLoader>> storedFieldLoaders() {
-            return Stream.of(Map.entry(name(fieldName), values -> this.values = values));
+            return Stream.of(Map.entry(name(fieldName), newValues -> values = newValues));
         }
 
         @Override
@@ -137,113 +219,60 @@ public abstract class IgnoreMalformedStoredValues {
         public void write(XContentBuilder b) throws IOException {
             for (Object v : values) {
                 if (v instanceof BytesRef r) {
-                    decodeAndWrite(b, r);
+                    XContentDataHelper.decodeAndWrite(b, r);
                 } else {
                     b.value(v);
                 }
             }
+            reset();
+        }
+
+        @Override
+        public void reset() {
             values = emptyList();
         }
+    }
 
-        private void decodeAndWrite(XContentBuilder b, BytesRef r) throws IOException {
-            switch (r.bytes[r.offset]) {
-                case 'b':
-                    b.value(r.bytes, r.offset + 1, r.length - 1);
-                    return;
-                case 'c':
-                    decodeAndWriteXContent(b, XContentType.CBOR, r);
-                    return;
-                case 'd':
-                    if (r.length < 5) {
-                        throw new IllegalArgumentException("Can't decode " + r);
-                    }
-                    int scale = ByteUtils.readIntLE(r.bytes, r.offset + 1);
-                    b.value(new BigDecimal(new BigInteger(r.bytes, r.offset + 5, r.length - 5), scale));
-                    return;
-                case 'f':
-                    if (r.length != 1) {
-                        throw new IllegalArgumentException("Can't decode " + r);
-                    }
-                    b.value(false);
-                    return;
-                case 'i':
-                    b.value(new BigInteger(r.bytes, r.offset + 1, r.length - 1));
-                    return;
-                case 'j':
-                    decodeAndWriteXContent(b, XContentType.JSON, r);
-                    return;
-                case 's':
-                    decodeAndWriteXContent(b, XContentType.SMILE, r);
-                    return;
-                case 't':
-                    if (r.length != 1) {
-                        throw new IllegalArgumentException("Can't decode " + r);
-                    }
-                    b.value(true);
-                    return;
-                case 'y':
-                    decodeAndWriteXContent(b, XContentType.YAML, r);
-                    return;
-                default:
-                    throw new IllegalArgumentException("Can't decode " + r);
-            }
+    private static class DocValues extends IgnoreMalformedStoredValues {
+
+        private final BinaryDocValuesSyntheticFieldLoaderLayer delegate;
+
+        DocValues(String fieldName) {
+            this.delegate = new BinaryDocValuesSyntheticFieldLoaderLayer(name(fieldName)) {
+                @Override
+                protected void writeValue(XContentBuilder b, BytesRef value) throws IOException {
+                    XContentDataHelper.decodeAndWrite(b, value);
+                }
+            };
         }
 
-        private void decodeAndWriteXContent(XContentBuilder b, XContentType type, BytesRef r) throws IOException {
-            BytesReference ref = new BytesArray(r.bytes, r.offset + 1, r.length - 1);
-            try (XContentParser parser = type.xContent().createParser(XContentParserConfiguration.EMPTY, ref.streamInput())) {
-                b.copyCurrentStructure(parser);
-            }
+        @Override
+        public Stream<Map.Entry<String, SourceLoader.SyntheticFieldLoader.StoredFieldLoader>> storedFieldLoaders() {
+            return Stream.empty();
+        }
+
+        @Override
+        public SourceLoader.SyntheticFieldLoader.DocValuesLoader docValuesLoader(LeafReader reader) throws IOException {
+            return delegate.docValuesLoader(reader, null);
+        }
+
+        @Override
+        public int count() {
+            return (int) delegate.valueCount();
+        }
+
+        @Override
+        public void write(XContentBuilder b) throws IOException {
+            delegate.write(b);
+        }
+
+        @Override
+        public void reset() {
+            // no-op: BinaryDocValuesSyntheticFieldLoaderLayer resets state on advanceToDoc
         }
     }
 
-    private static String name(String fieldName) {
-        return fieldName + "._ignore_malformed";
-    }
-
-    private static byte[] encode(BigInteger n) {
-        byte[] twosCompliment = n.toByteArray();
-        byte[] encoded = new byte[1 + twosCompliment.length];
-        encoded[0] = 'i';
-        System.arraycopy(twosCompliment, 0, encoded, 1, twosCompliment.length);
-        return encoded;
-    }
-
-    private static byte[] encode(BigDecimal n) {
-        byte[] twosCompliment = n.unscaledValue().toByteArray();
-        byte[] encoded = new byte[5 + twosCompliment.length];
-        encoded[0] = 'd';
-        ByteUtils.writeIntLE(n.scale(), encoded, 1);
-        System.arraycopy(twosCompliment, 0, encoded, 5, twosCompliment.length);
-        return encoded;
-    }
-
-    private static byte[] encode(byte[] b) {
-        byte[] encoded = new byte[1 + b.length];
-        encoded[0] = 'b';
-        System.arraycopy(b, 0, encoded, 1, b.length);
-        return encoded;
-    }
-
-    private static byte[] encode(XContentBuilder builder) throws IOException {
-        BytesReference b = BytesReference.bytes(builder);
-        byte[] encoded = new byte[1 + b.length()];
-        encoded[0] = switch (builder.contentType()) {
-            case JSON -> 'j';
-            case SMILE -> 's';
-            case YAML -> 'y';
-            case CBOR -> 'c';
-            default -> throw new IllegalArgumentException("unsupported type " + builder.contentType());
-        };
-
-        int position = 1;
-        BytesRefIterator itr = b.iterator();
-        BytesRef ref;
-        while ((ref = itr.next()) != null) {
-            System.arraycopy(ref.bytes, ref.offset, encoded, position, ref.length);
-            position += ref.length;
-        }
-        assert position == encoded.length;
-        return encoded;
+    public static String name(String fieldName) {
+        return fieldName + IGNORE_MALFORMED_FIELD_NAME_SUFFIX;
     }
 }

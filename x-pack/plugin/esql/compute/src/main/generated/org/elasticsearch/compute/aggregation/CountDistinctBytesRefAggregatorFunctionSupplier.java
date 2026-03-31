@@ -8,34 +8,39 @@ import java.lang.Integer;
 import java.lang.Override;
 import java.lang.String;
 import java.util.List;
-import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.compute.operator.DriverContext;
 
 /**
  * {@link AggregatorFunctionSupplier} implementation for {@link CountDistinctBytesRefAggregator}.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code AggregatorFunctionSupplierImplementer} instead.
  */
 public final class CountDistinctBytesRefAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
-  private final BigArrays bigArrays;
-
-  private final List<Integer> channels;
-
   private final int precision;
 
-  public CountDistinctBytesRefAggregatorFunctionSupplier(BigArrays bigArrays,
-      List<Integer> channels, int precision) {
-    this.bigArrays = bigArrays;
-    this.channels = channels;
+  public CountDistinctBytesRefAggregatorFunctionSupplier(int precision) {
     this.precision = precision;
   }
 
   @Override
-  public CountDistinctBytesRefAggregatorFunction aggregator() {
-    return CountDistinctBytesRefAggregatorFunction.create(channels, bigArrays, precision);
+  public List<IntermediateStateDesc> nonGroupingIntermediateStateDesc() {
+    return CountDistinctBytesRefAggregatorFunction.intermediateStateDesc();
   }
 
   @Override
-  public CountDistinctBytesRefGroupingAggregatorFunction groupingAggregator() {
-    return CountDistinctBytesRefGroupingAggregatorFunction.create(channels, bigArrays, precision);
+  public List<IntermediateStateDesc> groupingIntermediateStateDesc() {
+    return CountDistinctBytesRefGroupingAggregatorFunction.intermediateStateDesc();
+  }
+
+  @Override
+  public CountDistinctBytesRefAggregatorFunction aggregator(DriverContext driverContext,
+      List<Integer> channels) {
+    return new CountDistinctBytesRefAggregatorFunction(driverContext, channels, precision);
+  }
+
+  @Override
+  public CountDistinctBytesRefGroupingAggregatorFunction groupingAggregator(
+      DriverContext driverContext, List<Integer> channels) {
+    return new CountDistinctBytesRefGroupingAggregatorFunction(channels, driverContext, precision);
   }
 
   @Override

@@ -7,20 +7,28 @@
 
 package org.elasticsearch.compute.data;
 
+// begin generated imports
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.ReleasableIterator;
+import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.ReleasableIterator;
+
+import java.util.Arrays;
+// end generated imports
 
 /**
  * Vector implementation that stores a constant double value.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-ConstantVector.java.st} instead.
  */
-public final class ConstantDoubleVector extends AbstractVector implements DoubleVector {
+final class ConstantDoubleVector extends AbstractVector implements DoubleVector {
 
-    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ConstantDoubleVector.class);
+    static final long RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ConstantDoubleVector.class);
 
     private final double value;
 
-    public ConstantDoubleVector(double value, int positionCount) {
-        super(positionCount);
+    ConstantDoubleVector(double value, int positionCount, BlockFactory blockFactory) {
+        super(positionCount, blockFactory);
         this.value = value;
     }
 
@@ -30,13 +38,75 @@ public final class ConstantDoubleVector extends AbstractVector implements Double
     }
 
     @Override
+    public void copyTo(int srcPosition, double[] dst, int dstPosition, int length) {
+        Arrays.fill(dst, dstPosition, dstPosition + length, value);
+    }
+
+    @Override
     public DoubleBlock asBlock() {
         return new DoubleVectorBlock(this);
     }
 
     @Override
-    public DoubleVector filter(int... positions) {
-        return new ConstantDoubleVector(value, positions.length);
+    public DoubleVector filter(boolean mayContainDuplicates, int... positions) {
+        return blockFactory().newConstantDoubleVector(value, positions.length);
+    }
+
+    @Override
+    public DoubleBlock keepMask(BooleanVector mask) {
+        if (getPositionCount() == 0) {
+            incRef();
+            return new DoubleVectorBlock(this);
+        }
+        if (mask.isConstant()) {
+            if (mask.getBoolean(0)) {
+                incRef();
+                return new DoubleVectorBlock(this);
+            }
+            return (DoubleBlock) blockFactory().newConstantNullBlock(getPositionCount());
+        }
+        try (DoubleBlock.Builder builder = blockFactory().newDoubleBlockBuilder(getPositionCount())) {
+            // TODO if X-ArrayBlock used BooleanVector for it's null mask then we could shuffle references here.
+            for (int p = 0; p < getPositionCount(); p++) {
+                if (mask.getBoolean(p)) {
+                    builder.appendDouble(value);
+                } else {
+                    builder.appendNull();
+                }
+            }
+            return builder.build();
+        }
+    }
+
+    @Override
+    public ReleasableIterator<DoubleBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize) {
+        if (positions.getPositionCount() == 0) {
+            return ReleasableIterator.empty();
+        }
+        IntVector positionsVector = positions.asVector();
+        if (positionsVector == null) {
+            return new DoubleLookup(asBlock(), positions, targetBlockSize);
+        }
+        int min = positionsVector.min();
+        if (min < 0) {
+            throw new IllegalArgumentException("invalid position [" + min + "]");
+        }
+        if (min > getPositionCount()) {
+            return ReleasableIterator.single((DoubleBlock) positions.blockFactory().newConstantNullBlock(positions.getPositionCount()));
+        }
+        if (positionsVector.max() < getPositionCount()) {
+            return ReleasableIterator.single(positions.blockFactory().newConstantDoubleBlockWith(value, positions.getPositionCount()));
+        }
+        return new DoubleLookup(asBlock(), positions, targetBlockSize);
+    }
+
+    @Override
+    public DoubleVector slice(int beginInclusive, int endExclusive) {
+        if (beginInclusive == 0 && endExclusive == getPositionCount()) {
+            incRef();
+            return this;
+        }
+        return blockFactory().newConstantDoubleVector(value, endExclusive - beginInclusive);
     }
 
     @Override
@@ -50,8 +120,13 @@ public final class ConstantDoubleVector extends AbstractVector implements Double
     }
 
     @Override
+    public DoubleVector deepCopy(BlockFactory blockFactory) {
+        return blockFactory.newConstantDoubleVector(value, getPositionCount());
+    }
+
+    @Override
     public long ramBytesUsed() {
-        return BASE_RAM_BYTES_USED + RamUsageEstimator.shallowSizeOfInstance(double.class);
+        return RAM_BYTES_USED;
     }
 
     @Override
@@ -69,10 +144,5 @@ public final class ConstantDoubleVector extends AbstractVector implements Double
 
     public String toString() {
         return getClass().getSimpleName() + "[positions=" + getPositionCount() + ", value=" + value + ']';
-    }
-
-    @Override
-    public void close() {
-        // no-op
     }
 }

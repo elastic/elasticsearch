@@ -1,0 +1,8 @@
+pr: 140556
+summary: Fix potential NPE in `SyntheticIdField` empty token stream
+area: Store
+type: bug
+issues:
+ - 140624
+ - 140665
+ - 140492

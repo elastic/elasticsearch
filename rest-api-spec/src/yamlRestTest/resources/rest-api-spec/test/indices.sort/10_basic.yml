@@ -101,7 +101,7 @@
         index: test
         body:
           sort: ["rank"]
-          query: {"range": { "rank": { "from": 0 } } }
+          query: {"range": { "rank": { "gte": 0 } } }
           track_total_hits: false
           size: 1
 
@@ -142,7 +142,7 @@
         index: test
         body:
           sort: ["rank"]
-          query: {"range": { "rank": { "from": 0 } } }
+          query: {"range": { "rank": { "gte": 0 } } }
           track_total_hits: false
           size: 3
 
@@ -160,6 +160,6 @@
         scroll: 1m
         body:
           sort: ["rank"]
-          query: {"range": { "rank": { "from": 0 } } }
+          query: {"range": { "rank": { "gte": 0 } } }
           track_total_hits: false
           size: 3

@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
@@ -19,7 +18,6 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
@@ -64,6 +62,8 @@ import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeSta
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.Quantiles;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.TimingStats;
+import org.elasticsearch.xpack.core.ml.job.results.Result;
+import org.elasticsearch.xpack.core.ml.utils.MlIndexAndAlias;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 import org.elasticsearch.xpack.ml.MlSingleNodeTestCase;
 import org.elasticsearch.xpack.ml.inference.ingest.InferenceProcessor;
@@ -127,7 +127,10 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
                     OperationRouting.USE_ADAPTIVE_REPLICA_SELECTION_SETTING,
                     ResultsPersisterService.PERSIST_RESULTS_MAX_RETRIES,
                     ClusterService.USER_DEFINED_METADATA,
-                    ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING
+                    ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
+                    ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_THREAD_DUMP_TIMEOUT_SETTING,
+                    ClusterApplierService.CLUSTER_APPLIER_THREAD_WATCHDOG_INTERVAL,
+                    ClusterApplierService.CLUSTER_APPLIER_THREAD_WATCHDOG_QUIET_TIME
                 )
             )
         );
@@ -139,7 +142,7 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
         // We can't change the signature of createComponents to e.g. pass differing values of includeNodeInfo to pass to the
         // AnomalyDetectionAuditor constructor. Instead we generate a random boolean value for that purpose.
         boolean includeNodeInfo = randomBoolean();
-        auditor = new AnomalyDetectionAuditor(client(), clusterService, includeNodeInfo);
+        auditor = new AnomalyDetectionAuditor(client(), clusterService, TestIndexNameExpressionResolver.newInstance(), includeNodeInfo);
         waitForMlTemplates();
     }
 
@@ -152,7 +155,8 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
         // Put fist job. This should create the results index as it's the first job.
         client().execute(PutJobAction.INSTANCE, new PutJobAction.Request(job1)).actionGet();
 
-        String sharedResultsIndex = AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT;
+        String sharedResultsIndex = AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT
+            + MlIndexAndAlias.FIRST_INDEX_SIX_DIGIT_SUFFIX;
         Map<String, Object> mappingProperties = getIndexMappingProperties(sharedResultsIndex);
 
         // Assert mappings have a few fields from the template
@@ -205,7 +209,7 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
 
         client().execute(PutJobAction.INSTANCE, new PutJobAction.Request(job)).actionGet();
 
-        String customIndex = AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + "custom-bar";
+        String customIndex = AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + "custom-bar-000001";
         Map<String, Object> mappingProperties = getIndexMappingProperties(customIndex);
 
         // Assert mappings have a few fields from the template
@@ -254,7 +258,7 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
 
         // Assert that the mappings contain all the additional fields: field1, field2, field3, etc.
         String sharedResultsIndex = AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT;
-        GetMappingsRequest request = new GetMappingsRequest().indices(sharedResultsIndex);
+        GetMappingsRequest request = new GetMappingsRequest(TEST_REQUEST_TIMEOUT).indices(sharedResultsIndex);
         GetMappingsResponse response = client().execute(GetMappingsAction.INSTANCE, request).actionGet();
         Map<String, MappingMetadata> indexMappings = response.getMappings();
         assertNotNull(indexMappings);
@@ -505,7 +509,7 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
     }
 
     private Map<String, Object> getIndexMappingProperties(String index) {
-        GetMappingsRequest request = new GetMappingsRequest().indices(index);
+        GetMappingsRequest request = new GetMappingsRequest(TEST_REQUEST_TIMEOUT).indices(index);
         GetMappingsResponse response = client().execute(GetMappingsAction.INSTANCE, request).actionGet();
         Map<String, MappingMetadata> indexMappings = response.getMappings();
         assertNotNull(indexMappings);
@@ -519,7 +523,8 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
         @SuppressWarnings("unchecked")
         Map<String, Object> meta = (Map<String, Object>) mappings.get("_meta");
         assertThat(meta.keySet(), hasItem("version"));
-        assertThat(meta.get("version"), equalTo(Version.CURRENT.toString()));
+        assertThat(meta.get("version"), equalTo(MlIndexAndAlias.BWC_MAPPINGS_VERSION));
+        assertThat(meta.get("managed_index_mappings_version"), equalTo(AnomalyDetectorsIndex.RESULTS_INDEX_MAPPINGS_VERSION));
 
         @SuppressWarnings("unchecked")
         Map<String, Object> properties = (Map<String, Object>) mappings.get("properties");
@@ -528,7 +533,10 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
     }
 
     private Set<String> getAliases(String index) {
-        GetAliasesResponse getAliasesResponse = client().admin().indices().getAliases(new GetAliasesRequest().indices(index)).actionGet();
+        GetAliasesResponse getAliasesResponse = client().admin()
+            .indices()
+            .getAliases(new GetAliasesRequest(TEST_REQUEST_TIMEOUT).indices(index))
+            .actionGet();
         Map<String, List<AliasMetadata>> aliases = getAliasesResponse.getAliases();
         assertThat(aliases.containsKey(index), is(true));
         List<AliasMetadata> aliasMetadataList = aliases.get(index);
@@ -791,8 +799,7 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
                 .build()
         );
         // Add a snapshot WITHOUT a min version.
-        client().prepareIndex(AnomalyDetectorsIndex.jobResultsAliasedName("other_job"))
-            .setId(ModelSnapshot.documentId("other_job", "11"))
+        prepareIndex(AnomalyDetectorsIndex.jobResultsAliasedName("other_job")).setId(ModelSnapshot.documentId("other_job", "11"))
             .setSource("""
                 {"job_id":"other_job","snapshot_id":"11", "snapshot_doc_count":1,"retain":false}""", XContentType.JSON)
             .get();
@@ -846,6 +853,16 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
         assertNull(snapshots.get(3).getQuantiles());
         assertNull(snapshots.get(4).getQuantiles());
 
+        // test get single snapshot
+        PlainActionFuture<Result<ModelSnapshot>> singleFuture = new PlainActionFuture<>();
+        jobProvider.getModelSnapshot(jobId, "snap_1", true, singleFuture::onResponse, singleFuture::onFailure);
+        ModelSnapshot withQuantiles = singleFuture.actionGet().result;
+        assertThat(withQuantiles.getQuantiles().getTimestamp().getTime(), equalTo(11L));
+
+        singleFuture = new PlainActionFuture<>();
+        jobProvider.getModelSnapshot(jobId, "snap_2", false, singleFuture::onResponse, singleFuture::onFailure);
+        ModelSnapshot withoutQuantiles = singleFuture.actionGet().result;
+        assertNull(withoutQuantiles.getQuantiles());
     }
 
     public void testGetAutodetectParams() throws Exception {
@@ -1039,7 +1056,7 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
                 bulkRequest.add(indexRequest);
             }
         }
-        BulkResponse response = bulkRequest.execute().actionGet();
+        BulkResponse response = bulkRequest.get();
         if (response.hasFailures()) {
             throw new IllegalStateException(Strings.toString(response));
         }
@@ -1064,7 +1081,7 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
                 bulkRequest.add(indexRequest);
             }
         }
-        bulkRequest.execute().actionGet();
+        bulkRequest.get();
     }
 
     private void indexModelSizeStats(ModelSizeStats modelSizeStats) {
@@ -1089,7 +1106,7 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
             client(),
             ClusterState.EMPTY_STATE,
             TestIndexNameExpressionResolver.newInstance(),
-            MasterNodeRequest.DEFAULT_MASTER_NODE_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
             future
         );
         future.actionGet();
@@ -1114,6 +1131,6 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
                 bulkRequest.add(indexRequest);
             }
         }
-        bulkRequest.execute().actionGet();
+        bulkRequest.get();
     }
 }

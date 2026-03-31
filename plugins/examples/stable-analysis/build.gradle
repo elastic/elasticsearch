@@ -2,8 +2,8 @@ apply plugin: 'elasticsearch.stable-esplugin'
 apply plugin: 'elasticsearch.yaml-rest-test'
 
 esplugin {
-  name 'stable-analysis-plugin'
-  description 'An example analysis plugin using stable plugin api'
+  name = 'stable-analysis-plugin'
+  description = 'An example analysis plugin using stable plugin api'
 }
 //TODO write module-info
 

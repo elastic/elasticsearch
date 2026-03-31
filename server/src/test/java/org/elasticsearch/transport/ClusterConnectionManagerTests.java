@@ -1,16 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.transport;
 
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -23,12 +23,15 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.AbstractRefCounted;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.elasticsearch.threadpool.DefaultBuiltInExecutorBuilders;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
@@ -38,7 +41,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutionException;
@@ -54,6 +56,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
@@ -69,7 +72,7 @@ public class ClusterConnectionManagerTests extends ESTestCase {
     @Before
     public void createConnectionManager() {
         Settings settings = Settings.builder().put("node.name", ClusterConnectionManagerTests.class.getSimpleName()).build();
-        threadPool = new ThreadPool(settings);
+        threadPool = new ThreadPool(settings, MeterRegistry.NOOP, new DefaultBuiltInExecutorBuilders());
         transport = mock(Transport.class);
         connectionManager = new ClusterConnectionManager(settings, transport, threadPool.getThreadContext());
         TimeValue oneSecond = new TimeValue(1000);
@@ -99,13 +102,15 @@ public class ClusterConnectionManagerTests extends ESTestCase {
             }
 
             @Override
-            public void onNodeDisconnected(DiscoveryNode node, Transport.Connection connection) {
+            public void onNodeDisconnected(DiscoveryNode node, @Nullable Exception closeException) {
                 nodeDisconnectedCount.incrementAndGet();
             }
         });
 
         DiscoveryNode node = DiscoveryNodeUtils.create("", new TransportAddress(InetAddress.getLoopbackAddress(), 0));
         Transport.Connection connection = new TestConnect(node);
+        PlainActionFuture<Void> closeListener = new PlainActionFuture<>();
+        connection.addCloseListener(closeListener);
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")
             ActionListener<Transport.Connection> listener = (ActionListener<Transport.Connection>) invocationOnMock.getArguments()[2];
@@ -120,7 +125,7 @@ public class ClusterConnectionManagerTests extends ESTestCase {
             validatedConnectionRef.set(c);
             l.onResponse(null);
         };
-        PlainActionFuture.get(fut -> connectionManager.connectToNode(node, connectionProfile, validator, fut.map(x -> null)));
+        safeAwait(listener -> connectionManager.connectToNode(node, connectionProfile, validator, listener.map(x -> null)));
 
         assertFalse(connection.isClosed());
         assertTrue(connectionManager.nodeConnected(node));
@@ -136,6 +141,7 @@ public class ClusterConnectionManagerTests extends ESTestCase {
             connection.close();
         }
         assertTrue(connection.isClosed());
+        assertThat(closeListener.actionGet(), nullValue());
         assertEquals(0, connectionManager.size());
         assertEquals(1, nodeConnectedCount.get());
         assertEquals(1, nodeDisconnectedCount.get());
@@ -167,33 +173,35 @@ public class ClusterConnectionManagerTests extends ESTestCase {
         final ConnectionManager.ConnectionValidator validator = (c, p, l) -> l.onResponse(null);
         final AtomicReference<Releasable> toClose = new AtomicReference<>();
 
-        PlainActionFuture.get(f -> connectionManager.connectToNode(remoteClose, connectionProfile, validator, f.map(x -> null)));
-        PlainActionFuture.get(f -> connectionManager.connectToNode(shutdownClose, connectionProfile, validator, f.map(x -> null)));
-        PlainActionFuture.get(f -> connectionManager.connectToNode(localClose, connectionProfile, validator, f.map(toClose::getAndSet)));
+        safeAwait(l -> connectionManager.connectToNode(remoteClose, connectionProfile, validator, l.map(x -> null)));
+        safeAwait(l -> connectionManager.connectToNode(shutdownClose, connectionProfile, validator, l.map(x -> null)));
+        safeAwait(l -> connectionManager.connectToNode(localClose, connectionProfile, validator, l.map(toClose::getAndSet)));
 
         final Releasable localConnectionRef = toClose.getAndSet(null);
         assertThat(localConnectionRef, notNullValue());
 
-        final MockLogAppender appender = new MockLogAppender();
-        try (var ignored = appender.capturing(ClusterConnectionManager.class)) {
-            appender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+        try (var mockLog = MockLog.capture(ClusterConnectionManager.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
                     "locally-triggered close message",
                     ClusterConnectionManager.class.getCanonicalName(),
                     Level.DEBUG,
                     "closing unused transport connection to [" + localClose + "]"
                 )
             );
-            appender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
                     "remotely-triggered close message",
                     ClusterConnectionManager.class.getCanonicalName(),
                     Level.INFO,
-                    "transport connection to [" + remoteClose.descriptionWithoutAttributes() + "] closed by remote"
+                    "transport connection to ["
+                        + remoteClose.descriptionWithoutAttributes()
+                        + "] closed by remote; "
+                        + "if unexpected, see [https://www.elastic.co/docs/*] for troubleshooting guidance"
                 )
             );
-            appender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
                     "shutdown-triggered close message",
                     ClusterConnectionManager.class.getCanonicalName(),
                     Level.TRACE,
@@ -205,12 +213,12 @@ public class ClusterConnectionManagerTests extends ESTestCase {
             connectionManager.disconnectFromNode(remoteClose);
             connectionManager.close();
 
-            appender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         }
     }
 
     public void testConcurrentConnects() throws Exception {
-        Set<Transport.Connection> connections = Collections.newSetFromMap(new ConcurrentHashMap<>());
+        Set<Transport.Connection> connections = ConcurrentCollections.newConcurrentSet();
 
         DiscoveryNode node = DiscoveryNodeUtils.create("", new TransportAddress(InetAddress.getLoopbackAddress(), 0));
         doAnswer(invocationOnMock -> {
@@ -311,7 +319,7 @@ public class ClusterConnectionManagerTests extends ESTestCase {
 
         if (nodeConnectedCount.get() == 0) {
             // Any successful connections were closed
-            assertTrue(pendingCloses.tryAcquire(threadCount, 10, TimeUnit.SECONDS));
+            safeAcquire(threadCount, pendingCloses);
             pendingCloses.release(threadCount);
             assertTrue(connections.stream().allMatch(Transport.Connection::isClosed));
             assertEquals(0, connectionManager.size());
@@ -322,7 +330,7 @@ public class ClusterConnectionManagerTests extends ESTestCase {
 
         if (randomBoolean()) {
             Releasables.close(releasables);
-            assertTrue(pendingCloses.tryAcquire(threadCount, 10, TimeUnit.SECONDS));
+            safeAcquire(threadCount, pendingCloses);
             pendingCloses.release(threadCount);
             assertEquals(0, connectionManager.size());
             assertTrue(connections.stream().allMatch(Transport.Connection::isClosed));
@@ -433,15 +441,13 @@ public class ClusterConnectionManagerTests extends ESTestCase {
         assertTrue(pendingConnectionPermits.tryAcquire(10, TimeUnit.SECONDS));
         // ... and then send a connection attempt through the system to ensure that the lagging has started
         Releasables.closeExpectNoException(
-            PlainActionFuture.<Releasable, RuntimeException>get(
-                fut -> connectionManager.connectToNode(
+            safeAwait(
+                (ActionListener<Releasable> listener) -> connectionManager.connectToNode(
                     DiscoveryNodeUtils.create("", new TransportAddress(InetAddress.getLoopbackAddress(), 0)),
                     connectionProfile,
                     validator,
-                    fut
-                ),
-                30,
-                TimeUnit.SECONDS
+                    listener
+                )
             )
         );
 
@@ -470,7 +476,7 @@ public class ClusterConnectionManagerTests extends ESTestCase {
 
         final ConnectionManager.ConnectionValidator validator = (c, p, l) -> {
             assertTrue(validatorPermits.tryAcquire());
-            threadPool.executor(randomFrom(ThreadPool.Names.GENERIC, ThreadPool.Names.SAME)).execute(() -> {
+            randomExecutor(threadPool).execute(() -> {
                 try {
                     l.onResponse(null);
                 } finally {
@@ -510,7 +516,7 @@ public class ClusterConnectionManagerTests extends ESTestCase {
                                 connectionPermits.release();
                                 runAgain();
                             } else {
-                                throw new AssertionError("unexpected", e);
+                                fail(e);
                             }
                         }
 
@@ -548,7 +554,7 @@ public class ClusterConnectionManagerTests extends ESTestCase {
 
         final ConnectionManager.ConnectionValidator validator = (c, p, l) -> {
             assertTrue(validatorPermits.tryAcquire());
-            threadPool.executor(randomFrom(ThreadPool.Names.GENERIC, ThreadPool.Names.SAME)).execute(() -> {
+            randomExecutor(threadPool).execute(() -> {
                 try {
                     l.onResponse(null);
                 } finally {
@@ -592,7 +598,7 @@ public class ClusterConnectionManagerTests extends ESTestCase {
                                 && e.getMessage().contains("concurrently connecting and disconnecting")) {
                                 runAgain();
                             } else {
-                                throw new AssertionError("unexpected", e);
+                                fail(e);
                             }
                         }
 
@@ -653,7 +659,7 @@ public class ClusterConnectionManagerTests extends ESTestCase {
             }
 
             @Override
-            public void onNodeDisconnected(DiscoveryNode node, Transport.Connection connection) {
+            public void onNodeDisconnected(DiscoveryNode node, @Nullable Exception closeException) {
                 nodeDisconnectedCount.incrementAndGet();
             }
         });
@@ -693,7 +699,7 @@ public class ClusterConnectionManagerTests extends ESTestCase {
             }
 
             @Override
-            public void onNodeDisconnected(DiscoveryNode node, Transport.Connection connection) {
+            public void onNodeDisconnected(DiscoveryNode node, @Nullable Exception closeException) {
                 nodeDisconnectedCount.incrementAndGet();
             }
         });
@@ -753,11 +759,6 @@ public class ClusterConnectionManagerTests extends ESTestCase {
         @Override
         public DiscoveryNode getNode() {
             return node;
-        }
-
-        @Override
-        public Version getVersion() {
-            return node.getVersion();
         }
 
         @Override

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -23,7 +24,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
 
-enum BinaryRangeUtil {
+public enum BinaryRangeUtil {
 
     ;
 
@@ -69,7 +70,7 @@ enum BinaryRangeUtil {
         return out.bytes().toBytesRef();
     }
 
-    static List<RangeFieldMapper.Range> decodeLongRanges(BytesRef encodedRanges) throws IOException {
+    public static List<RangeFieldMapper.Range> decodeLongRanges(BytesRef encodedRanges) throws IOException {
         return decodeRanges(encodedRanges, RangeType.LONG, BinaryRangeUtil::decodeLong);
     }
 
@@ -96,6 +97,14 @@ enum BinaryRangeUtil {
 
     static List<RangeFieldMapper.Range> decodeFloatRanges(BytesRef encodedRanges) throws IOException {
         return decodeRanges(encodedRanges, RangeType.FLOAT, BinaryRangeUtil::decodeFloat);
+    }
+
+    static List<RangeFieldMapper.Range> decodeDateRanges(BytesRef encodedRanges) throws IOException {
+        return decodeRanges(encodedRanges, RangeType.DATE, BinaryRangeUtil::decodeLong);
+    }
+
+    static List<RangeFieldMapper.Range> decodeIntegerRanges(BytesRef encodedRanges) throws IOException {
+        return decodeRanges(encodedRanges, RangeType.INTEGER, BinaryRangeUtil::decodeInt);
     }
 
     static List<RangeFieldMapper.Range> decodeRanges(
@@ -178,6 +187,14 @@ enum BinaryRangeUtil {
             sign = 0;
         }
         return encode(number, sign);
+    }
+
+    static int decodeInt(byte[] bytes, int offset, int length) {
+        // We encode integers same as longs but we know
+        // that during parsing we got actual integers.
+        // So every decoded long should be inside the range of integers.
+        long longValue = decodeLong(bytes, offset, length);
+        return Math.toIntExact(longValue);
     }
 
     static long decodeLong(byte[] bytes, int offset, int length) {

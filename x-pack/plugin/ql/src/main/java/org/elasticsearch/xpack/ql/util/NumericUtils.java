@@ -132,4 +132,38 @@ public abstract class NumericUtils {
     private static long twosComplement(long l) {
         return l ^ TWOS_COMPLEMENT_BITMASK;
     }
+
+    /**
+     * Check if the provided double is both finite and a number (i.e. not Double.NaN).
+     * @param dbl The double to verify.
+     * @return The input value.
+     * @throws ArithmeticException if the provided double is either infinite or not a number.
+     */
+    public static double asFiniteNumber(double dbl) {
+        if (Double.isNaN(dbl) || Double.isInfinite(dbl)) {
+            throw new ArithmeticException("not a finite double number: " + dbl);
+        }
+        return dbl;
+    }
+
+    /**
+     * Converts a number to an integer, saturating that integer if the number doesn't fit naturally.  That is to say, values
+     * greater than Integer.MAX_VALUE yield Integer.MAX_VALUE and values less than Integer.MIN_VALUE yield Integer.MIN_VALUE
+     *
+     * This function exists because Long::intValue() yields -1 and 0 for Long.MAX_VALUE and Long.MIN_VALUE, respectively.
+     *
+     * @param n the nubmer to convert
+     * @return a valid integer
+     */
+    public static int saturatingIntValue(Number n) {
+        if (n instanceof Long ln) {
+            if (ln > Integer.MAX_VALUE) {
+                return Integer.MAX_VALUE;
+            }
+            if (ln < Integer.MIN_VALUE) {
+                return Integer.MIN_VALUE;
+            }
+        }
+        return n.intValue();
+    }
 }

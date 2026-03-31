@@ -120,7 +120,7 @@ public class JreHttpUrlConnection implements Closeable {
         // con.setRequestProperty("Accept-Encoding", GZIP);
 
         setupSSL(cfg);
-        setupBasicAuth(cfg);
+        setupAuth(cfg);
     }
 
     private void setupSSL(ConnectionConfiguration cfg) {
@@ -134,8 +134,12 @@ public class JreHttpUrlConnection implements Closeable {
         }
     }
 
-    private void setupBasicAuth(ConnectionConfiguration cfg) {
-        if (StringUtils.hasText(cfg.authUser())) {
+    private void setupAuth(ConnectionConfiguration cfg) {
+        if (StringUtils.hasText(cfg.apiKey())) {
+            // API key authentication: Authorization: ApiKey <encoded_api_key>
+            con.setRequestProperty("Authorization", "ApiKey " + cfg.apiKey());
+        } else if (StringUtils.hasText(cfg.authUser())) {
+            // Basic authentication: Authorization: Basic <base64(user:pass)>
             String basicValue = cfg.authUser() + ":" + cfg.authPass();
             String encoded = StringUtils.asUTFString(Base64.getEncoder().encode(StringUtils.toUTF(basicValue)));
             con.setRequestProperty("Authorization", "Basic " + encoded);
@@ -187,7 +191,7 @@ public class JreHttpUrlConnection implements Closeable {
         }
     }
 
-    private Function<String, List<String>> getHeaderFields(URLConnection con) {
+    private static Function<String, List<String>> getHeaderFields(URLConnection con) {
         return header -> {
             List<String> values = new LinkedList<>();
             for (Map.Entry<String, List<String>> entry : con.getHeaderFields().entrySet()) {
@@ -199,7 +203,7 @@ public class JreHttpUrlConnection implements Closeable {
         };
     }
 
-    private boolean shouldParseBody(int responseCode) {
+    private static boolean shouldParseBody(int responseCode) {
         return responseCode == 200 || responseCode == 201 || responseCode == 202;
     }
 
@@ -345,6 +349,7 @@ public class JreHttpUrlConnection implements Closeable {
                 case "analysis_exception":
                 case "resource_not_found_exception":
                 case "verification_exception":
+                case "invalid_argument_exception":
                     return DATA;
                 case "planning_exception":
                 case "mapping_exception":

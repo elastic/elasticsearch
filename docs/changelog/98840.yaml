@@ -1,6 +1,0 @@
-pr: 98840
-summary: Don't ignore empty index template that have no template definition
-area: TSDB
-type: bug
-issues:
- - 98834

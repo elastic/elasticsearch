@@ -8,30 +8,36 @@ import java.lang.Integer;
 import java.lang.Override;
 import java.lang.String;
 import java.util.List;
-import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.compute.operator.DriverContext;
 
 /**
  * {@link AggregatorFunctionSupplier} implementation for {@link SumDoubleAggregator}.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code AggregatorFunctionSupplierImplementer} instead.
  */
 public final class SumDoubleAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
-  private final BigArrays bigArrays;
-
-  private final List<Integer> channels;
-
-  public SumDoubleAggregatorFunctionSupplier(BigArrays bigArrays, List<Integer> channels) {
-    this.bigArrays = bigArrays;
-    this.channels = channels;
+  public SumDoubleAggregatorFunctionSupplier() {
   }
 
   @Override
-  public SumDoubleAggregatorFunction aggregator() {
-    return SumDoubleAggregatorFunction.create(channels);
+  public List<IntermediateStateDesc> nonGroupingIntermediateStateDesc() {
+    return SumDoubleAggregatorFunction.intermediateStateDesc();
   }
 
   @Override
-  public SumDoubleGroupingAggregatorFunction groupingAggregator() {
-    return SumDoubleGroupingAggregatorFunction.create(channels, bigArrays);
+  public List<IntermediateStateDesc> groupingIntermediateStateDesc() {
+    return SumDoubleGroupingAggregatorFunction.intermediateStateDesc();
+  }
+
+  @Override
+  public SumDoubleAggregatorFunction aggregator(DriverContext driverContext,
+      List<Integer> channels) {
+    return new SumDoubleAggregatorFunction(driverContext, channels);
+  }
+
+  @Override
+  public SumDoubleGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
+      List<Integer> channels) {
+    return new SumDoubleGroupingAggregatorFunction(channels, driverContext);
   }
 
   @Override

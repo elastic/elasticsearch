@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.core.termsenum;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
@@ -66,11 +65,12 @@ public class TransportTermsEnumActionTests extends ESSingleNodeTestCase {
     }
 
     /**
-     * Test that triggering the CCS compatibility check with a query that shouldn't go to the minor before Version.CURRENT works
+     * Test that triggering the CCS compatibility check with a query that shouldn't go to the minor before
+     * TransportVersion.minimumCCSVersion() works
      */
     public void testCCSCheckCompatibility() throws Exception {
         TermsEnumRequest request = new TermsEnumRequest().field("field").timeout(TimeValue.timeValueSeconds(5));
-        TransportVersion version = TransportVersionUtils.getNextVersion(TransportVersions.MINIMUM_CCS_VERSION, true);
+        TransportVersion version = TransportVersionUtils.getNextVersion(TransportVersion.minimumCCSVersion(), true);
         request.indexFilter(new DummyQueryBuilder() {
             @Override
             public TransportVersion getMinimalSupportedVersion() {
@@ -83,7 +83,9 @@ public class TransportTermsEnumActionTests extends ESSingleNodeTestCase {
         assertThat(
             ex.getCause().getCause().getMessage(),
             containsString(
-                "was released first in version " + version + ", failed compatibility check trying to send it to node with version"
+                "was released first in version "
+                    + version.toReleaseVersion()
+                    + ", failed compatibility check trying to send it to node with version"
             )
         );
     }

@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.analytics.cumulativecardinality;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
@@ -29,9 +28,11 @@ public class CumulativeCardinalityPipelineAggregationBuilder extends AbstractPip
     public static final String NAME = "cumulative_cardinality";
 
     public static final ConstructingObjectParser<CumulativeCardinalityPipelineAggregationBuilder, String> PARSER =
-        new ConstructingObjectParser<>(NAME, false, (args, name) -> {
-            return new CumulativeCardinalityPipelineAggregationBuilder(name, (String) args[0]);
-        });
+        new ConstructingObjectParser<>(
+            NAME,
+            false,
+            (args, name) -> new CumulativeCardinalityPipelineAggregationBuilder(name, (String) args[0])
+        );
     static {
         PARSER.declareString(constructorArg(), BUCKETS_PATH_FIELD);
         PARSER.declareString(CumulativeCardinalityPipelineAggregationBuilder::format, FORMAT);
@@ -131,6 +132,6 @@ public class CumulativeCardinalityPipelineAggregationBuilder extends AbstractPip
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_7_4_0;
+        return TransportVersion.zero();
     }
 }

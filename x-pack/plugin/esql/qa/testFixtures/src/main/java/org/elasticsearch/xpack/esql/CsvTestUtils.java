@@ -9,27 +9,68 @@ package org.elasticsearch.xpack.esql;
 
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.Strings;
+import org.elasticsearch.Build;
+import org.elasticsearch.Version;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.time.DateFormatters;
+import org.elasticsearch.common.time.DateUtils;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.xcontent.XContentParserUtils;
+import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.BlockUtils.BuilderWrapper;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.LongRangeBlockBuilder;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.data.TDigestHolder;
 import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogramXContent;
+import org.elasticsearch.geometry.utils.Geohash;
+import org.elasticsearch.h3.H3;
+import org.elasticsearch.index.mapper.DocumentParsingException;
+import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
-import org.elasticsearch.xpack.ql.util.StringUtils;
-import org.elasticsearch.xpack.versionfield.Version;
+import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.core.analytics.mapper.EncodedTDigest;
+import org.elasticsearch.xpack.core.analytics.mapper.TDigestParser;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.action.ResponseValueUtils;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.StringUtils;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
+import org.junit.AssumptionViolatedException;
 import org.supercsv.io.CsvListReader;
 import org.supercsv.prefs.CsvPreference;
 
 import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.StringReader;
+import java.io.UncheckedIOException;
 import java.math.BigDecimal;
 import java.net.URL;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -38,52 +79,330 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.stream.Stream;
 
-import static org.elasticsearch.common.Strings.delimitedListToStringArray;
+import static org.apache.lucene.tests.util.LuceneTestCase.assumeFalse;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
-import static org.elasticsearch.xpack.ql.SpecReader.shouldSkipLine;
-import static org.elasticsearch.xpack.ql.type.DataTypeConverter.safeToUnsignedLong;
-import static org.elasticsearch.xpack.ql.util.DateUtils.UTC_DATE_TIME_FORMATTER;
-import static org.elasticsearch.xpack.ql.util.NumericUtils.asLongUnsigned;
+import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.elasticsearch.test.ESTestCase.assertThat;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.reader;
+import static org.elasticsearch.xpack.esql.SpecReader.shouldSkipLine;
+import static org.elasticsearch.xpack.esql.core.type.DataTypeConverter.safeToUnsignedLong;
+import static org.elasticsearch.xpack.esql.core.util.DateUtils.ISO_DATE_WITH_NANOS;
+import static org.elasticsearch.xpack.esql.core.util.DateUtils.UTC_DATE_TIME_FORMATTER;
+import static org.elasticsearch.xpack.esql.core.util.NumericUtils.asLongUnsigned;
+import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
+import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToAggregateMetricDoubleLiteral;
+import static org.hamcrest.Matchers.everyItem;
+import static org.hamcrest.Matchers.in;
 
 public final class CsvTestUtils {
-    private static final int MAX_WIDTH = 20;
+    private static final Logger LOGGER = LogManager.getLogger(CsvTestUtils.class);
+
+    private static final int MAX_WIDTH = 80;
     private static final CsvPreference CSV_SPEC_PREFERENCES = new CsvPreference.Builder('"', '|', "\r\n").build();
     private static final String NULL_VALUE = "null";
+    private static final char ESCAPE_CHAR = '\\';
+    public static final String COMMA_ESCAPING_REGEX = "(?<!\\" + ESCAPE_CHAR + "),";
+    public static final String ESCAPED_COMMA_SEQUENCE = ESCAPE_CHAR + ",";
+
+    /**
+     * Matches any value.
+     */
+    public static final String ANY = "{any}";
+
+    /**
+     * Matches any value in the range [lowerBound, upperBound].
+     */
+    public record Range(Object lowerBound, Object upperBound) {
+        @SuppressWarnings("unchecked")
+        <T extends Comparable<T>> boolean includes(Object value) {
+            if (value == null || value instanceof List) {
+                return false;
+            }
+            return ((T) value).compareTo((T) lowerBound) >= 0 && ((T) value).compareTo((T) upperBound) <= 0;
+        }
+    }
+
+    /** Pattern to match template placeholders like {{employees}} */
+    public static final Pattern TEMPLATE_PATTERN = Pattern.compile("\\{\\{(\\w+)}}");
+
+    /** Bootstrap resource: directory for data files. Fallback to a known file if directory is null (e.g. in JAR). */
+    private static final String DATA_DIR_RESOURCE = "/data/";
 
     private CsvTestUtils() {}
 
-    public static boolean isEnabled(String testName) {
-        return testName.endsWith("-Ignore") == false;
+    /**
+     * Creates and returns the CSV data directory path. For file protocol, returns the data directory.
+     * For jar protocol, creates a new temp directory. Call once per test run and reuse the result.
+     */
+    public static Path createCsvDataDirectory() {
+        URL resource = CsvTestsDataLoader.class.getResource(DATA_DIR_RESOURCE);
+        if (resource == null) {
+            throw new IllegalStateException("Cannot find resource " + DATA_DIR_RESOURCE);
+        }
+        if ("file".equals(resource.getProtocol())) {
+            try {
+                Path path = PathUtils.get(resource.toURI());
+                return path.toFile().isDirectory() ? path.toAbsolutePath() : path.getParent().toAbsolutePath();
+            } catch (Exception e) {
+                throw new IllegalStateException("Failed to resolve data directory from " + resource, e);
+            }
+        }
+        if ("jar".equals(resource.getProtocol())) {
+            try {
+                Path dir = Files.createTempDirectory("csv-esql-fixtures-");
+                Runtime.getRuntime().addShutdownHook(new Thread(() -> cleanupDir(dir), "csv-esql-fixtures-cleanup"));
+                return dir;
+            } catch (IOException e) {
+                throw new UncheckedIOException("Failed to create temp directory for CSV fixtures", e);
+            }
+        }
+        throw new IllegalStateException("Unsupported resource protocol: " + resource.getProtocol());
     }
 
-    public static Tuple<Page, List<String>> loadPageFromCsv(URL source) throws Exception {
+    private static void cleanupDir(Path dir) {
+        try {
+            if (dir != null && Files.exists(dir)) {
+                Files.walk(dir).sorted((a, b) -> -a.compareTo(b)).forEach(p -> {
+                    try {
+                        Files.deleteIfExists(p);
+                    } catch (IOException ignored) {
+                        // Best-effort cleanup
+                    }
+                });
+            }
+        } catch (IOException ignored) {
+            // Best-effort cleanup on shutdown
+        }
+    }
 
-        record CsvColumn(String name, Type type, BuilderWrapper builderWrapper) {
+    /**
+     * Returns the directory path for CSV test data as a string. For backward compatibility.
+     * Each call creates a new dir in jar mode; prefer {@link #createCsvDataDirectory()} and reuse.
+     */
+    public static String getCsvDataDirectoryPath() {
+        return createCsvDataDirectory().toAbsolutePath().toString();
+    }
+
+    /**
+     * Returns a template resolver that maps CSV dataset names to file:// URLs.
+     * For jar protocol, extracts files to the given dataDir. Call once per test run with a stable path.
+     */
+    public static Function<String, String> csvFileTemplateResolver(Path dataDir) {
+        ConcurrentHashMap<String, String> cache = new ConcurrentHashMap<>();
+        return templateName -> {
+            CsvTestsDataLoader.TestDataset dataset = CsvTestsDataLoader.CSV_DATASET.get(templateName);
+            if (dataset == null || dataset.dataFileName() == null) {
+                throw new IllegalArgumentException("Failed to resolve CSV path for dataset [" + templateName + "]");
+            }
+            return cache.computeIfAbsent(templateName, k -> {
+                try {
+                    return resolveCsvFilePathLazy("/data/" + dataset.dataFileName(), dataDir);
+                } catch (IOException e) {
+                    throw new UncheckedIOException("Failed to resolve CSV path for dataset [" + templateName + "]", e);
+                }
+            });
+        };
+    }
+
+    /**
+     * No-arg overload for callers that create their own path (e.g. CsvTests). Creates a path per invocation.
+     */
+    public static Function<String, String> csvFileTemplateResolver() {
+        return csvFileTemplateResolver(createCsvDataDirectory());
+    }
+
+    /**
+     * Resolves a resource path to a file:// URL. For file protocol, returns the path directly.
+     * For jar protocol, extracts to dataDir on first use.
+     */
+    public static String resolveCsvFilePathLazy(String resourcePath, Path dataDir) throws IOException {
+        URL resource = CsvTestsDataLoader.class.getResource(resourcePath);
+        if (resource == null) {
+            throw new IllegalStateException("Cannot find resource " + resourcePath);
+        }
+        String protocol = resource.getProtocol();
+        if ("file".equals(protocol)) {
+            return normalizeFileUri(resource.toExternalForm());
+        }
+        if ("jar".equals(protocol)) {
+            String fileName = PathUtils.get(resourcePath).getFileName().toString();
+            Path targetFile = dataDir.resolve(fileName);
+            if (Files.exists(targetFile) == false) {
+                try (InputStream in = CsvTestsDataLoader.getResourceStream(resourcePath)) {
+                    Files.copy(in, targetFile, StandardCopyOption.REPLACE_EXISTING);
+                }
+            }
+            return normalizeFileUri(targetFile.toUri().toURL().toExternalForm());
+        }
+        throw new IllegalStateException("Unsupported resource protocol: " + protocol);
+    }
+
+    private static String normalizeFileUri(String uri) {
+        if (uri != null && uri.startsWith("file:/") && uri.startsWith("file:///") == false) {
+            return "file://" + uri.substring(5);
+        }
+        return uri;
+    }
+
+    /**
+     * Substitutes template placeholders like {{employees}} in the query using the given resolver.
+     */
+    public static String substituteTemplates(String query, Function<String, String> templateResolver) {
+        Matcher matcher = TEMPLATE_PATTERN.matcher(query);
+        StringBuilder result = new StringBuilder();
+        while (matcher.find()) {
+            String templateName = matcher.group(1);
+            String replacement = templateResolver.apply(templateName);
+            matcher.appendReplacement(result, Matcher.quoteReplacement(replacement != null ? replacement : matcher.group(0)));
+        }
+        matcher.appendTail(result);
+        return result.toString();
+    }
+
+    public static boolean isEnabled(String testName, String instructions, Version version) {
+        if (testName.endsWith("-Ignore")) {
+            return false;
+        }
+        Tuple<Version, Version> skipRange = skipVersionRange(testName, instructions);
+        if (skipRange != null && version.onOrAfter(skipRange.v1()) && version.onOrBefore(skipRange.v2())) {
+            return false;
+        }
+        return true;
+    }
+
+    public static void checkTestCapabilities(
+        EsqlCapabilities allCapabilities,
+        EsqlCapabilities enabledCapabilities,
+        List<String> requiredCapabilities
+    ) {
+        if (Build.current().isSnapshot()) {
+            assertThat(
+                "Capability is not included in the enabled list capabilities on a snapshot build. Spelling mistake?",
+                requiredCapabilities,
+                everyItem(in(allCapabilities.capabilities()))
+            );
+            assumeTrueLogging(
+                "Capability not supported in this build",
+                enabledCapabilities.capabilities().containsAll(requiredCapabilities)
+            );
+        } else {
+            for (EsqlCapabilities.Cap c : EsqlCapabilities.Cap.values()) {
+                if (false == c.isEnabled()) {
+                    assumeFalseLogging(
+                        c.capabilityName() + " is not supported in non-snapshot releases",
+                        requiredCapabilities.contains(c.capabilityName())
+                    );
+                }
+            }
+        }
+    }
+
+    public static void assumeTrueLogging(String message, boolean condition) {
+        assumeFalseLogging(message, condition == false);
+    }
+
+    public static void assumeFalseLogging(String message, boolean condition) {
+        try {
+            assumeFalse(message, condition);
+        } catch (AssumptionViolatedException ave) {
+            LOGGER.info("skipping test: " + ave.getMessage());
+            throw ave;
+        }
+    }
+
+    private static final Pattern INSTRUCTION_PATTERN = Pattern.compile("\\[(.*?)]");
+
+    public static Map<String, String> parseInstructions(String instructions) {
+        Matcher matcher = INSTRUCTION_PATTERN.matcher(instructions);
+        Map<String, String> pairs = new HashMap<>();
+        if (matcher.find()) {
+            String[] groups = matcher.group(1).split(",");
+            for (String group : groups) {
+                String[] kv = group.split(":");
+                if (kv.length != 2) {
+                    throw new IllegalArgumentException("expected instruction in [k1:v1,k2:v2] format; got " + matcher.group(1));
+                }
+                pairs.put(kv[0].trim(), kv[1].trim());
+            }
+        }
+        return pairs;
+    }
+
+    public static Tuple<Version, Version> skipVersionRange(String testName, String instructions) {
+        Map<String, String> pairs = parseInstructions(instructions);
+        String versionRange = pairs.get("skip");
+        if (versionRange != null) {
+            String[] skipVersions = versionRange.split("-", Integer.MAX_VALUE);
+            if (skipVersions.length != 2) {
+                throw new IllegalArgumentException("malformed version range : " + versionRange);
+            }
+            String lower = skipVersions[0].trim();
+            String upper = skipVersions[1].trim();
+            return Tuple.tuple(
+                lower.isEmpty() ? VersionUtils.getFirstVersion() : Version.fromString(lower),
+                upper.isEmpty() ? Version.CURRENT : Version.fromString(upper)
+            );
+        }
+        return null;
+    }
+
+    public static Tuple<Page, List<String>> loadPageFromCsv(InputStream source, Map<String, String> typeMapping) throws Exception {
+
+        record CsvColumn(String name, Type type, BuilderWrapper builderWrapper) implements Releasable {
             void append(String stringValue) {
-                if (stringValue.contains(",")) {// multi-value field
+                if (stringValue.startsWith("\"") && stringValue.endsWith("\"")) {
+                    // string value
+                    String[] mvStrings = stringValue.substring(1, stringValue.length() - 1).split("\",\\s*\"");
+                    if (mvStrings.length > 1) {
+                        builderWrapper().builder().beginPositionEntry();
+                        for (String mvString : mvStrings) {
+                            mvString = mvString.replace(ESCAPED_COMMA_SEQUENCE, ",");
+                            builderWrapper().append().accept(mvString.length() == 0 ? null : type.convert(mvString));
+                        }
+                        builderWrapper().builder().endPositionEntry();
+                        return;
+                    }
+                    stringValue = mvStrings[0].replace(ESCAPED_COMMA_SEQUENCE, ",");
+                } else if (stringValue.matches(".*" + COMMA_ESCAPING_REGEX + ".*") && type != Type.AGGREGATE_METRIC_DOUBLE) {// multi-value
+                                                                                                                             // field
                     builderWrapper().builder().beginPositionEntry();
 
-                    String[] arrayOfValues = delimitedListToStringArray(stringValue, ",");
+                    String[] arrayOfValues = stringValue.split(COMMA_ESCAPING_REGEX, -1);
                     List<Object> convertedValues = new ArrayList<>(arrayOfValues.length);
                     for (String value : arrayOfValues) {
-                        convertedValues.add(type.convert(value));
+                        convertedValues.add(type.convert(value.replace(ESCAPED_COMMA_SEQUENCE, ",")));
                     }
-                    convertedValues.stream().sorted().forEach(v -> builderWrapper().append().accept(v));
+                    Stream<Object> convertedValuesStream = convertedValues.stream();
+                    if (type.sortMultiValues()) {
+                        convertedValuesStream = convertedValuesStream.sorted();
+                    }
+                    convertedValuesStream.forEach(v -> builderWrapper().append().accept(v));
                     builderWrapper().builder().endPositionEntry();
 
                     return;
                 }
 
-                var converted = stringValue.length() == 0 ? null : type.convert(stringValue);
+                var converted = stringValue.length() == 0 ? null : type.convert(stringValue.replace(ESCAPED_COMMA_SEQUENCE, ","));
                 builderWrapper().append().accept(converted);
+            }
+
+            @Override
+            public void close() {
+                builderWrapper.close();
             }
         }
 
         CsvColumn[] columns = null;
 
-        try (BufferedReader reader = org.elasticsearch.xpack.ql.TestUtils.reader(source)) {
+        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+        try (BufferedReader reader = reader(source)) {
             String line;
             int lineNumber = 1;
 
@@ -96,21 +415,16 @@ public final class CsvTestUtils {
                     if (columns == null) {
                         columns = new CsvColumn[entries.length];
                         for (int i = 0; i < entries.length; i++) {
-                            int split = entries[i].indexOf(":");
-                            String name, typeName;
+                            String[] header = entries[i].split(":");
+                            String name = header[0].trim();
+                            String typeName = (typeMapping != null && typeMapping.containsKey(name)) ? typeMapping.get(name)
+                                : header.length > 1 ? header[1].trim()
+                                : null;
 
-                            if (split < 0) {
+                            if (typeName == null || typeName.isEmpty()) {
                                 throw new IllegalArgumentException(
                                     "A type is always expected in the schema definition; found " + entries[i]
                                 );
-                            } else {
-                                name = entries[i].substring(0, split).trim();
-                                typeName = entries[i].substring(split + 1).trim();
-                                if (typeName.length() == 0) {
-                                    throw new IllegalArgumentException(
-                                        "A type is always expected in the schema definition; found " + entries[i]
-                                    );
-                                }
                             }
                             Type type = Type.asType(typeName);
                             if (type == null) {
@@ -119,7 +433,11 @@ public final class CsvTestUtils {
                             if (type == Type.NULL) {
                                 throw new IllegalArgumentException("Null type is not allowed in the test data; found " + entries[i]);
                             }
-                            columns[i] = new CsvColumn(name, type, BlockUtils.wrapperFor(ElementType.fromJava(type.clazz()), 8));
+                            columns[i] = new CsvColumn(
+                                name,
+                                type,
+                                BlockUtils.wrapperFor(blockFactory, ElementType.fromJava(type.clazz()), 8)
+                            );
                         }
                     }
                     // data rows
@@ -151,17 +469,23 @@ public final class CsvTestUtils {
             }
         }
         var columnNames = new ArrayList<String>(columns.length);
-        var blocks = Arrays.stream(columns)
-            .peek(b -> columnNames.add(b.name))
-            .map(b -> b.builderWrapper.builder().build())
-            .toArray(Block[]::new);
-        return new Tuple<>(new Page(blocks), columnNames);
+        try {
+            var blocks = Arrays.stream(columns)
+                .peek(b -> columnNames.add(b.name))
+                .map(b -> b.builderWrapper.builder().build())
+                .toArray(Block[]::new);
+            return new Tuple<>(new Page(blocks), columnNames);
+        } finally {
+            Releasables.closeExpectNoException(columns);
+        }
     }
 
     /**
      * Takes a csv String and converts it to a String array. Also, it recognizes an opening bracket "[" in one string and a closing "]"
      * in another string and it creates a single concatenated comma-separated String of all the values between the opening bracket entry
      * and the closing bracket entry. In other words, entries enclosed by "[]" are returned as a single element.
+     *
+     * Commas can be escaped with \ (backslash) character.
      */
     static String[] multiValuesAwareCsvToStringArray(String csvLine, int lineNumber) {
         var mvCompressedEntries = new ArrayList<String>();
@@ -170,14 +494,20 @@ public final class CsvTestUtils {
 
         int pos = 0;          // current position in the csv String
         int commaPos;         // current "," character position
-        while ((commaPos = csvLine.indexOf(",", pos)) != -1 || pos <= csvLine.length()) {
+        int previousCommaPos = 0;
+        while ((commaPos = csvLine.indexOf(',', pos)) != -1 || pos <= csvLine.length()) {
+            if (commaPos > 0 && csvLine.charAt(commaPos - 1) == ESCAPE_CHAR) {// skip the escaped comma
+                pos = commaPos + 1;// moving on to the next character after comma
+                continue;
+            }
+
             boolean isLastElement = commaPos == -1;
-            String entry = csvLine.substring(pos, isLastElement ? csvLine.length() : commaPos).trim();
+            String entry = csvLine.substring(previousCommaPos, isLastElement ? csvLine.length() : commaPos).trim();
             if (entry.startsWith("[")) {
                 if (previousMvValue != null || (isLastElement && entry.endsWith("]") == false)) {
                     String message = "Error line [{}:{}]: Unexpected start of a multi-value field value; current token [{}], "
                         + (isLastElement ? "no closing point" : "previous token [{}]");
-                    throw new IllegalArgumentException(format(message, lineNumber, pos, entry, previousMvValue));
+                    throw new IllegalArgumentException(format(message, lineNumber, previousCommaPos, entry, previousMvValue));
                 }
                 if (entry.endsWith("]")) {
                     if (entry.length() > 2) {// single-valued multivalue field :shrug:
@@ -196,7 +526,7 @@ public final class CsvTestUtils {
                         format(
                             "Error line [{}:{}]: Unexpected end of a multi-value field value (no previous starting point); found [{}]",
                             lineNumber,
-                            pos,
+                            previousCommaPos,
                             entry
                         )
                     );
@@ -212,8 +542,8 @@ public final class CsvTestUtils {
                             format(
                                 "Error line [{}:{}]: Unexpected missing value in a multi-value column; found [{}]",
                                 lineNumber,
-                                pos,
-                                csvLine.substring(pos - 1)
+                                previousCommaPos,
+                                csvLine.substring(previousCommaPos - 1)
                             )
                         );
                     }
@@ -223,12 +553,22 @@ public final class CsvTestUtils {
                 }
             }
             pos = 1 + (isLastElement ? csvLine.length() : commaPos);// break out of the loop if it reached its last element
+            previousCommaPos = pos;
         }
         return mvCompressedEntries.toArray(String[]::new);
     }
 
     public record ExpectedResults(List<String> columnNames, List<Type> columnTypes, List<List<Object>> values) {}
 
+    /**
+     * The method loads a section of a .csv-spec file representing the results of executing the query of that section.
+     * It reads both the schema (field names and their types) and the row values.
+     * Values starting with an opening square bracket and ending with a closing square bracket are considered multi-values. Inside
+     * these multi-values, commas separate the individual values and escaped commas are allowed with a prefixed \
+     * default \ (backslash) character.
+     * @param csv a string representing the header and row values of a single query execution result
+     * @return data structure with column names, their types and values
+     */
     public static ExpectedResults loadCsvSpecValues(String csv) {
         List<String> columnNames;
         List<Type> columnTypes;
@@ -239,15 +579,15 @@ public final class CsvTestUtils {
             columnTypes = new ArrayList<>(header.length);
 
             for (String c : header) {
-                String[] nameWithType = Strings.split(c, ":");
-                if (nameWithType == null || nameWithType.length != 2) {
+                String[] nameWithType = escapeTypecast(c).split(":");
+                if (nameWithType.length != 2) {
                     throw new IllegalArgumentException("Invalid CSV header " + c);
                 }
-                String typeName = nameWithType[1].trim();
-                if (typeName.length() == 0) {
-                    throw new IllegalArgumentException("A type is always expected in the csv file; found " + nameWithType);
+                String typeName = unescapeTypecast(nameWithType[1]).trim();
+                if (typeName.isEmpty()) {
+                    throw new IllegalArgumentException("A type is always expected in the csv file; found " + Arrays.toString(nameWithType));
                 }
-                String name = nameWithType[0].trim();
+                String name = unescapeTypecast(nameWithType[0]).trim();
                 columnNames.add(name);
                 Type type = Type.asType(typeName);
                 if (type == null) {
@@ -262,23 +602,50 @@ public final class CsvTestUtils {
                 List<Object> rowValues = new ArrayList<>(row.size());
                 for (int i = 0; i < row.size(); i++) {
                     String value = row.get(i);
-                    if (value == null || value.trim().equalsIgnoreCase(NULL_VALUE)) {
-                        value = null;
-                        rowValues.add(columnTypes.get(i).convert(value));
+                    if (value == null) {
+                        // Empty cells are converted to null by SuperCSV. We convert them back to empty strings.
+                        rowValues.add("");
                         continue;
                     }
 
                     value = value.trim();
-                    if (value.startsWith("[") ^ value.endsWith("]")) {
-                        throw new IllegalArgumentException("Incomplete multi-value (opening and closing square brackets) found " + value);
+                    if (value.equalsIgnoreCase(NULL_VALUE)) {
+                        rowValues.add(null);
+                        continue;
                     }
-                    if (value.contains(",") && value.startsWith("[")) {// commas outside a multi-value should be ok
+                    if (value.startsWith("[")) {
+                        if (false == value.endsWith("]")) {
+                            throw new IllegalArgumentException(
+                                "Incomplete multi-value (opening and closing square brackets) found " + value + " on row " + values.size()
+                            );
+                        }
+                        // split on commas but ignoring escaped commas
+                        String[] multiValues = value.substring(1, value.length() - 1).split(COMMA_ESCAPING_REGEX);
+                        if (multiValues.length == 1) {
+                            rowValues.add(columnTypes.get(i).convert(multiValues[0].replace(ESCAPED_COMMA_SEQUENCE, ",")));
+                            continue;
+                        }
                         List<Object> listOfMvValues = new ArrayList<>();
-                        for (String mvValue : delimitedListToStringArray(value.substring(1, value.length() - 1), ",")) {
-                            listOfMvValues.add(columnTypes.get(i).convert(mvValue.trim()));
+                        for (String mvValue : multiValues) {
+                            try {
+                                listOfMvValues.add(columnTypes.get(i).convert(mvValue.trim().replace(ESCAPED_COMMA_SEQUENCE, ",")));
+                            } catch (IllegalArgumentException e) {
+                                throw new IllegalArgumentException(
+                                    "Error parsing multi-value field ["
+                                        + columnNames.get(i)
+                                        + "] with value ["
+                                        + mvValue
+                                        + "] on row "
+                                        + values.size(),
+                                    e
+                                );
+
+                            }
                         }
                         rowValues.add(listOfMvValues);
                     } else {
+                        // The value considered here is the one where any potential escaped comma is kept as is (with the escape char)
+                        // TODO if we'd want escaped commas outside multi-values fields, we'd have to adjust this value here as well
                         rowValues.add(columnTypes.get(i).convert(value));
                     }
                 }
@@ -289,6 +656,16 @@ public final class CsvTestUtils {
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    private static final String TYPECAST_SPACER = "__TYPECAST__";
+
+    private static String escapeTypecast(String typecast) {
+        return typecast.replace("::", TYPECAST_SPACER);
+    }
+
+    private static String unescapeTypecast(String typecast) {
+        return typecast.replace(TYPECAST_SPACER, "::");
     }
 
     public enum Type {
@@ -310,6 +687,7 @@ public final class CsvTestUtils {
         SCALED_FLOAT(s -> s == null ? null : scaledFloat(s, "100"), Double.class),
         KEYWORD(Object::toString, BytesRef.class),
         TEXT(Object::toString, BytesRef.class),
+        SEMANTIC_TEXT(Object::toString, BytesRef.class),
         IP(
             StringUtils::parseIP,
             (l, r) -> l instanceof String maybeIP
@@ -317,14 +695,49 @@ public final class CsvTestUtils {
                 : ((BytesRef) l).compareTo((BytesRef) r),
             BytesRef.class
         ),
-        VERSION(v -> new Version(v).toBytesRef(), BytesRef.class),
-        NULL(s -> null, Void.class),
+        IP_RANGE(InetAddresses::parseCidr, BytesRef.class),
+        JSON(s -> s == null ? null : new BytesRef(s), BytesRef.class),
+        DATE_RANGE(s -> EsqlDataTypeConverter.parseDateRange(s, ZoneOffset.UTC), LongRangeBlockBuilder.LongRange.class),
+        VERSION(v -> new org.elasticsearch.xpack.versionfield.Version(v).toBytesRef(), BytesRef.class),
+        NULL(s -> s, Void.class),
         DATETIME(
             x -> x == null ? null : DateFormatters.from(UTC_DATE_TIME_FORMATTER.parse(x)).toInstant().toEpochMilli(),
             (l, r) -> l instanceof Long maybeIP ? maybeIP.compareTo((Long) r) : l.toString().compareTo(r.toString()),
             Long.class
         ),
-        BOOLEAN(Booleans::parseBoolean, Boolean.class);
+        DATE_NANOS(x -> {
+            if (x == null) {
+                return null;
+            }
+            Instant parsed = DateFormatters.from(ISO_DATE_WITH_NANOS.parse(x)).toInstant();
+            return DateUtils.toLong(parsed);
+        }, (l, r) -> l instanceof Long maybeIP ? maybeIP.compareTo((Long) r) : l.toString().compareTo(r.toString()), Long.class),
+
+        BOOLEAN(Booleans::parseBoolean, Boolean.class),
+        GEO_POINT(x -> x == null ? null : GEO.wktToWkb(x), BytesRef.class),
+        CARTESIAN_POINT(x -> x == null ? null : CARTESIAN.wktToWkb(x), BytesRef.class),
+        GEO_SHAPE(x -> x == null ? null : GEO.wktToWkb(x), BytesRef.class),
+        CARTESIAN_SHAPE(x -> x == null ? null : CARTESIAN.wktToWkb(x), BytesRef.class),
+        GEOHASH(x -> x == null ? null : Geohash.longEncode(x), Long.class),
+        GEOTILE(x -> x == null ? null : GeoTileUtils.longEncode(x), Long.class),
+        GEOHEX(x -> x == null ? null : H3.stringToH3(x), Long.class),
+        AGGREGATE_METRIC_DOUBLE(
+            x -> x == null ? null : stringToAggregateMetricDoubleLiteral(x),
+            CsvTestUtils::compareAggregateMetricDouble,
+            AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral.class
+        ),
+        DENSE_VECTOR(Float::parseFloat, Float.class, false),
+        EXPONENTIAL_HISTOGRAM(CsvTestUtils::parseExponentialHistogram, ExponentialHistogram.class),
+        TDIGEST(CsvTestUtils::parseTDigest, TDigestHolder.class),
+        HISTOGRAM(CsvTestUtils::parseHistogram, BytesRef.class),
+        UNSUPPORTED(Type::convertUnsupported, Void.class);
+
+        private static Void convertUnsupported(String s) {
+            if (s != null) {
+                throw new IllegalArgumentException(Strings.format("Unsupported type should always be null, was '%s'", s));
+            }
+            return null;
+        }
 
         private static final Map<String, Type> LOOKUP = new HashMap<>();
 
@@ -332,11 +745,21 @@ public final class CsvTestUtils {
             for (Type value : Type.values()) {
                 LOOKUP.put(value.name(), value);
             }
+            // Types with a different field caps family type
+            LOOKUP.put("SEMANTIC_TEXT", TEXT);
+
             // widen smaller types
             LOOKUP.put("SHORT", INTEGER);
             LOOKUP.put("BYTE", INTEGER);
 
+            // counter types
+            LOOKUP.put("COUNTER_INTEGER", INTEGER);
+            LOOKUP.put("COUNTER_LONG", LONG);
+            LOOKUP.put("COUNTER_DOUBLE", DOUBLE);
+            LOOKUP.put("COUNTER_FLOAT", FLOAT);
+
             // add also the types with short names
+            LOOKUP.put("BOOL", BOOLEAN);
             LOOKUP.put("I", INTEGER);
             LOOKUP.put("L", LONG);
             LOOKUP.put("UL", UNSIGNED_LONG);
@@ -349,41 +772,76 @@ public final class CsvTestUtils {
             LOOKUP.put("DATE", DATETIME);
             LOOKUP.put("DT", DATETIME);
             LOOKUP.put("V", VERSION);
+
+            LOOKUP.put("DENSE_VECTOR", DENSE_VECTOR);
         }
 
         private final Function<String, Object> converter;
         private final Class<?> clazz;
         private final Comparator<Object> comparator;
+        private final boolean sortMultiValues;
+
+        Type(Function<String, Object> converter, Class<?> clazz) {
+            this(converter, clazz, true);
+        }
 
         @SuppressWarnings("unchecked")
-        Type(Function<String, Object> converter, Class<?> clazz) {
+        Type(Function<String, Object> converter, Class<?> clazz, boolean sortMultiValues) {
             this(
                 converter,
                 Comparable.class.isAssignableFrom(clazz) ? (a, b) -> ((Comparable) a).compareTo(b) : Comparator.comparing(Object::toString),
-                clazz
+                clazz,
+                sortMultiValues
             );
         }
 
         Type(Function<String, Object> converter, Comparator<Object> comparator, Class<?> clazz) {
+            this(converter, comparator, clazz, true);
+        }
+
+        Type(Function<String, Object> converter, Comparator<Object> comparator, Class<?> clazz, boolean sortMultiValues) {
             this.converter = converter;
             this.comparator = comparator;
             this.clazz = clazz;
+            this.sortMultiValues = sortMultiValues;
         }
 
         public static Type asType(String name) {
             return LOOKUP.get(name.toUpperCase(Locale.ROOT));
         }
 
-        public static Type asType(ElementType elementType) {
+        public static Type asType(ElementType elementType, Type actualType) {
+            if (actualType == Type.UNSUPPORTED) {
+                return UNSUPPORTED;
+            }
+            // Dense vectors use ElementType.FLOAT but should map to Type.DENSE_VECTOR
+            if (actualType == Type.DENSE_VECTOR) {
+                return DENSE_VECTOR;
+            }
             return switch (elementType) {
                 case INT -> INTEGER;
                 case LONG -> LONG;
+                case FLOAT -> FLOAT;
                 case DOUBLE -> DOUBLE;
                 case NULL -> NULL;
-                case BYTES_REF -> KEYWORD;
+                case BYTES_REF -> bytesRefBlockType(actualType);
                 case BOOLEAN -> BOOLEAN;
                 case DOC -> throw new IllegalArgumentException("can't assert on doc blocks");
+                case COMPOSITE -> throw new IllegalArgumentException("can't assert on composite blocks");
+                case AGGREGATE_METRIC_DOUBLE -> AGGREGATE_METRIC_DOUBLE;
+                case EXPONENTIAL_HISTOGRAM -> EXPONENTIAL_HISTOGRAM;
+                case TDIGEST -> TDIGEST;
+                case LONG_RANGE -> DATE_RANGE;
                 case UNKNOWN -> throw new IllegalArgumentException("Unknown block types cannot be handled");
+            };
+        }
+
+        private static Type bytesRefBlockType(Type actualType) {
+            return switch (actualType) {
+                case NULL -> NULL;
+                case GEO_POINT, CARTESIAN_POINT, GEO_SHAPE, CARTESIAN_SHAPE -> actualType;
+                case HISTOGRAM -> HISTOGRAM;
+                default -> KEYWORD;
             };
         }
 
@@ -391,7 +849,19 @@ public final class CsvTestUtils {
             if (value == null) {
                 return null;
             }
-            return converter.apply(value);
+            if (Number.class.isAssignableFrom(clazz) && value.contains("..")) {
+                // Numbers of the form "lower..upper" are parsed to a Range, indicating that
+                // the expected value is within that range.
+                int separator = value.indexOf("..");
+                Object lowerBound = converter.apply(value.substring(0, separator).trim());
+                Object upperBound = converter.apply(value.substring(separator + 2).trim());
+                return new Range(lowerBound, upperBound);
+            } else if (ANY.equals(value)) {
+                // The token "{any}" indicates that any value is accepted.
+                return ANY;
+            } else {
+                return converter.apply(value);
+            }
         }
 
         Class<?> clazz() {
@@ -401,21 +871,26 @@ public final class CsvTestUtils {
         public Comparator<Object> comparator() {
             return comparator;
         }
-    }
 
-    record ActualResults(
-        List<String> columnNames,
-        List<Type> columnTypes,
-        List<String> dataTypes,
-        List<Page> pages,
-        Map<String, List<String>> responseHeaders
-    ) {
-        Iterator<Iterator<Object>> values() {
-            return EsqlQueryResponse.pagesToValues(dataTypes(), pages);
+        public boolean sortMultiValues() {
+            return sortMultiValues;
         }
     }
 
-    static void logMetaData(List<String> actualColumnNames, List<Type> actualColumnTypes, Logger logger) {
+    record ActualResults(
+        ZoneId zoneId,
+        List<String> columnNames,
+        List<Type> columnTypes,
+        List<DataType> dataTypes,
+        List<Page> pages,
+        Map<String, List<String>> responseHeaders
+    ) {
+        List<List<Object>> values() {
+            return EsqlTestUtils.getValuesList(ResponseValueUtils.pagesToValues(dataTypes(), pages, zoneId));
+        }
+    }
+
+    public static void logMetaData(List<String> actualColumnNames, List<Type> actualColumnTypes, Logger logger) {
         // header
         StringBuilder sb = new StringBuilder();
         StringBuilder column = new StringBuilder();
@@ -441,21 +916,23 @@ public final class CsvTestUtils {
         logger.info(sb.toString());
     }
 
-    static void logData(List<List<Object>> values, Logger logger) {
-        for (List<Object> list : values) {
-            logger.info(rowAsString(list));
+    static void logData(Iterator<Iterator<Object>> values, Logger logger) {
+        while (values.hasNext()) {
+            var val = values.next();
+            logger.info(rowAsString(val));
         }
     }
 
-    private static String rowAsString(List<Object> list) {
+    private static String rowAsString(Iterator<Object> iterator) {
         StringBuilder sb = new StringBuilder();
         StringBuilder column = new StringBuilder();
-        for (int i = 0; i < list.size(); i++) {
+        for (int i = 0; iterator.hasNext(); i++) {
             column.setLength(0);
             if (i > 0) {
                 sb.append(" | ");
             }
-            sb.append(trimOrPad(column.append(list.get(i))));
+            var next = iterator.next();
+            sb.append(trimOrPad(column.append(next)));
         }
         return sb.toString();
     }
@@ -472,8 +949,140 @@ public final class CsvTestUtils {
 
     private static double scaledFloat(String value, String factor) {
         double scalingFactor = Double.parseDouble(factor);
-        // this extra division introduces extra imprecision in the following multiplication, but this is how ScaledFloatFieldMapper works.
-        double scalingFactorInverse = 1d / scalingFactor;
-        return new BigDecimal(value).multiply(BigDecimal.valueOf(scalingFactor)).longValue() * scalingFactorInverse;
+        return new BigDecimal(value).multiply(BigDecimal.valueOf(scalingFactor)).longValue() / scalingFactor;
+    }
+
+    private static ExponentialHistogram parseExponentialHistogram(@Nullable String json) {
+        if (json == null) {
+            return null;
+        }
+        try (XContentParser parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, json)) {
+            return ExponentialHistogramXContent.parseForTesting(parser);
+        } catch (IOException e) {
+            throw new IllegalArgumentException(e);
+        }
+    }
+
+    private static TDigestHolder parseTDigest(@Nullable String json) {
+        if (json == null) {
+            return null;
+        }
+        try (XContentParser parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, json)) {
+            if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
+                throw new IllegalArgumentException("Expected START_OBJECT but found: " + parser.currentToken());
+            }
+            parser.nextToken();
+            TDigestParser.ParsedTDigest parsed = TDigestParser.parse(
+                "field from test data",
+                parser,
+                DocumentParsingException::new,
+                XContentParserUtils::parsingException
+            );
+            TDigestHolder tdigest = new TDigestHolder();
+            tdigest.reset(
+                EncodedTDigest.encodeCentroids(parsed.centroids(), parsed.counts()),
+                parsed.min(),
+                parsed.max(),
+                parsed.sum(),
+                parsed.count()
+            );
+            return tdigest;
+        } catch (IOException e) {
+            throw new IllegalArgumentException(e);
+        }
+    }
+
+    public static BytesRef parseHistogram(@Nullable String json) {
+        if (json == null) {
+            return null;
+        }
+        try (XContentParser parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, json)) {
+            if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
+                throw new IllegalArgumentException("Expected START_OBJECT but found: " + parser.currentToken());
+            }
+            parser.nextToken();
+            // TODO: This is striaght up copied from HistogramParser. There are even fewer good places to put that for resue than
+            // for TDigest, but maybe we can do some sensible refactoring down the road
+            ArrayList<Double> values = null;
+            ArrayList<Long> counts = null;
+            XContentParser.Token token = parser.currentToken();
+            while (token != XContentParser.Token.END_OBJECT) {
+                // should be a field
+                ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
+                String fieldName = parser.currentName();
+                if (fieldName.equals("values")) {
+                    token = parser.nextToken();
+                    // should be an array
+                    ensureExpectedToken(XContentParser.Token.START_ARRAY, token, parser);
+                    values = new ArrayList<>();
+                    token = parser.nextToken();
+                    double previousVal = -Double.MAX_VALUE;
+                    while (token != XContentParser.Token.END_ARRAY) {
+                        // should be a number
+                        ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser);
+                        double val = parser.doubleValue();
+                        if (val < previousVal) {
+                            // values must be in increasing order
+                            ESTestCase.fail("Error parsing CSV histogram data, values out of order");
+                        }
+                        values.add(val);
+                        previousVal = val;
+                        token = parser.nextToken();
+                    }
+                } else if (fieldName.equals("counts")) {
+                    token = parser.nextToken();
+                    // should be an array
+                    ensureExpectedToken(XContentParser.Token.START_ARRAY, token, parser);
+                    counts = new ArrayList<>();
+                    token = parser.nextToken();
+                    while (token != XContentParser.Token.END_ARRAY) {
+                        // should be a number
+                        ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser);
+                        long count = parser.longValue();
+                        if (count < 0) {
+                            ESTestCase.fail("Error parsing CSV histogram data, negative count");
+                        }
+                        counts.add(count);
+                        token = parser.nextToken();
+                    }
+                } else {
+                    ESTestCase.fail("Error parsing CSV histogram data, unknown field: " + fieldName);
+                }
+                token = parser.nextToken();
+            }
+            if (values == null) {
+                ESTestCase.fail("Error parsing CSV histogram data, no values field");
+            }
+            if (counts == null) {
+                ESTestCase.fail("Error parsing CSV histogram data, no counts field");
+            }
+            if (values.size() != counts.size()) {
+                ESTestCase.fail("expected counts and values to be same length but got [" + values.size() + " != " + counts.size() + "]");
+            }
+            BytesStreamOutput streamOutput = new BytesStreamOutput();
+            for (int i = 0; i < values.size(); i++) {
+                long count = counts.get(i);
+                assert count >= 0;
+                // we do not add elements with count == 0
+                if (count > 0) {
+                    streamOutput.writeVLong(count);
+                    streamOutput.writeLong(Double.doubleToRawLongBits(values.get(i)));
+                }
+            }
+            BytesRef docValue = streamOutput.bytes().toBytesRef();
+            return docValue;
+        } catch (IOException e) {
+            throw new IllegalArgumentException(e);
+        }
+    }
+
+    static int compareAggregateMetricDouble(Object lhs, Object rhs) {
+        return toAggregateMetricDouble(lhs).compareTo(toAggregateMetricDouble(rhs));
+    }
+
+    static AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral toAggregateMetricDouble(Object v) {
+        return v instanceof AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral amd
+            ? amd
+            : stringToAggregateMetricDoubleLiteral(v.toString());
     }
 }

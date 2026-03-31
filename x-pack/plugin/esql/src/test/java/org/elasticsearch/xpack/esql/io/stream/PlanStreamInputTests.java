@@ -8,7 +8,13 @@
 package org.elasticsearch.xpack.esql.io.stream;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.ql.expression.NameId;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.NameId;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -16,7 +22,12 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.configuration;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
+import static org.elasticsearch.xpack.esql.SerializationTestUtils.serializeDeserialize;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -85,5 +96,59 @@ public class PlanStreamInputTests extends ESTestCase {
             longs.add(randomLong());
         }
         return longs.stream().toList();
+    }
+
+    public void testSourceSerialization() {
+        Function<String, String> queryFn = delimiter -> delimiter
+            + "FROM "
+            + delimiter
+            + " test "
+            + delimiter
+            + "| EVAL "
+            + delimiter
+            + " x = CONCAT(first_name, \"baz\")"
+            + delimiter
+            + "| EVAL last_name IN (\"foo\", "
+            + delimiter
+            + " \"bar\")"
+            + delimiter
+            + "| "
+            + delimiter
+            + "WHERE emp_no == abs("
+            + delimiter
+            + "emp_no)"
+            + delimiter;
+
+        Function<LogicalPlan, List<Source>> sources = plan -> {
+            List<Expression> exp = new ArrayList<>();
+            plan.forEachDown(p -> {
+                if (p instanceof Eval e) {
+                    e.fields().forEach(a -> exp.add(a.child()));
+                } else if (p instanceof Filter f) {
+                    exp.add(f.condition());
+                }
+            });
+            return exp.stream().map(Expression::source).toList();
+        };
+
+        for (var delim : new String[] { "", "\r", "\n", "\r\n" }) {
+            String query = queryFn.apply(delim);
+            Configuration config = configuration(query);
+
+            LogicalPlan planIn = analyzer().addEmployees("test").query(query);
+            LogicalPlan planOut = serializeDeserialize(
+                planIn,
+                PlanStreamOutput::writeNamedWriteable,
+                in -> in.readNamedWriteable(LogicalPlan.class),
+                config
+            );
+            assertThat(planIn, equalTo(planOut));
+            assertThat(sources.apply(planIn), equalTo(sources.apply(planOut)));
+        }
+    }
+
+    @Override
+    protected List<String> filteredWarnings() {
+        return withDefaultLimitWarning(super.filteredWarnings());
     }
 }

@@ -14,6 +14,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.test.rest.ObjectPath;
 
 import java.io.IOException;
@@ -48,7 +49,7 @@ public abstract class AbstractRemoteClusterSecurityDlsAndFlsRestIT extends Abstr
               "remote_indices": [
                 {
                   "names": ["remote_index*"],
-                  "privileges": ["read", "read_cross_cluster"],
+                  "privileges": ["read"],
                   "clusters": ["my_*_cluster*"]
                 }
               ]
@@ -60,7 +61,7 @@ public abstract class AbstractRemoteClusterSecurityDlsAndFlsRestIT extends Abstr
               "remote_indices": [
                 {
                   "names": ["remote_index*"],
-                  "privileges": ["read", "read_cross_cluster"],
+                  "privileges": ["read"],
                   "clusters": ["my_*_cluster*"],
                   "query": {
                      "bool": {
@@ -75,7 +76,7 @@ public abstract class AbstractRemoteClusterSecurityDlsAndFlsRestIT extends Abstr
                 },
                 {
                   "names": ["remote_index1", "remote_index2", "remote_index3"],
-                  "privileges": ["read", "read_cross_cluster"],
+                  "privileges": ["read"],
                   "clusters": ["my_remote_cluster*"],
                   "query": {
                      "bool": {
@@ -97,13 +98,13 @@ public abstract class AbstractRemoteClusterSecurityDlsAndFlsRestIT extends Abstr
               "remote_indices": [
                 {
                   "names": ["remote_index*"],
-                  "privileges": ["read", "read_cross_cluster"],
+                  "privileges": ["read"],
                   "clusters": ["my_*_cluster*"],
                   "query": {"bool": { "must_not": { "term" : {"field1" : "value1"}}}}
                 },
                 {
                   "names": ["remote_index*"],
-                  "privileges": ["read", "read_cross_cluster"],
+                  "privileges": ["read"],
                   "clusters": ["my_*_cluster*"],
                   "query": {"bool": { "must_not": { "term" : {"field2" : "value1"}}}}
                 }
@@ -116,13 +117,13 @@ public abstract class AbstractRemoteClusterSecurityDlsAndFlsRestIT extends Abstr
               "remote_indices": [
                 {
                   "names": ["remote_index*"],
-                  "privileges": ["read", "read_cross_cluster"],
+                  "privileges": ["read"],
                   "clusters": ["my_*_cluster*"],
                   "field_security": {"grant": [ "field1", "field2" ], "except": ["field2"]}
                 },
                 {
                   "names": ["remote_index*"],
-                  "privileges": ["read", "read_cross_cluster"],
+                  "privileges": ["read"],
                   "clusters": ["my_*_cluster*"],
                   "field_security": {"grant": [ "field3" ]}
                 }
@@ -172,12 +173,17 @@ public abstract class AbstractRemoteClusterSecurityDlsAndFlsRestIT extends Abstr
     ) {
         try {
             assertOK(searchResponse);
-            final var searchResult = Arrays.stream(SearchResponse.fromXContent(responseAsParser(searchResponse)).getHits().getHits())
-                .collect(Collectors.toMap(SearchHit::getIndex, SearchHit::getSourceAsMap));
+            var response = SearchResponseUtils.responseAsSearchResponse(searchResponse);
+            try {
+                final var searchResult = Arrays.stream(response.getHits().getHits())
+                    .collect(Collectors.toMap(SearchHit::getIndex, SearchHit::getSourceAsMap));
 
-            assertThat(searchResult.keySet(), containsInAnyOrder(expectedRemoteIndices));
-            for (String remoteIndex : expectedRemoteIndices) {
-                assertThat(searchResult.get(remoteIndex).keySet(), containsInAnyOrder(expectedFields));
+                assertThat(searchResult.keySet(), containsInAnyOrder(expectedRemoteIndices));
+                for (String remoteIndex : expectedRemoteIndices) {
+                    assertThat(searchResult.get(remoteIndex).keySet(), containsInAnyOrder(expectedFields));
+                }
+            } finally {
+                response.decRef();
             }
         } catch (IOException e) {
             throw new UncheckedIOException(e);
@@ -195,13 +201,18 @@ public abstract class AbstractRemoteClusterSecurityDlsAndFlsRestIT extends Abstr
     ) {
         try {
             assertOK(searchResponse);
-            final var searchResult = Arrays.stream(SearchResponse.fromXContent(responseAsParser(searchResponse)).getHits().getHits())
-                .collect(Collectors.toMap(SearchHit::getIndex, SearchHit::getSourceAsMap));
+            var response = SearchResponseUtils.responseAsSearchResponse(searchResponse);
+            try {
+                final var searchResult = Arrays.stream(response.getHits().getHits())
+                    .collect(Collectors.toMap(SearchHit::getIndex, SearchHit::getSourceAsMap));
 
-            assertThat(searchResult.keySet(), equalTo(expectedRemoteIndicesAndFields.keySet()));
-            for (String remoteIndex : expectedRemoteIndicesAndFields.keySet()) {
-                Set<String> expectedFields = expectedRemoteIndicesAndFields.get(remoteIndex);
-                assertThat(searchResult.get(remoteIndex).keySet(), equalTo(expectedFields));
+                assertThat(searchResult.keySet(), equalTo(expectedRemoteIndicesAndFields.keySet()));
+                for (String remoteIndex : expectedRemoteIndicesAndFields.keySet()) {
+                    Set<String> expectedFields = expectedRemoteIndicesAndFields.get(remoteIndex);
+                    assertThat(searchResult.get(remoteIndex).keySet(), equalTo(expectedFields));
+                }
+            } finally {
+                response.decRef();
             }
         } catch (IOException e) {
             throw new UncheckedIOException(e);
@@ -211,8 +222,12 @@ public abstract class AbstractRemoteClusterSecurityDlsAndFlsRestIT extends Abstr
     protected void assertSearchResponseContainsEmptyResult(Response response) {
         try {
             assertOK(response);
-            SearchResponse searchResponse = SearchResponse.fromXContent(responseAsParser(response));
-            assertThat(searchResponse.getHits().getTotalHits().value, equalTo(0L));
+            SearchResponse searchResponse = SearchResponseUtils.responseAsSearchResponse(response);
+            try {
+                assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(0L));
+            } finally {
+                searchResponse.decRef();
+            }
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

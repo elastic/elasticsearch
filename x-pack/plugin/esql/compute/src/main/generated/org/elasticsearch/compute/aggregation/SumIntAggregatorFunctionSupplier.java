@@ -8,30 +8,35 @@ import java.lang.Integer;
 import java.lang.Override;
 import java.lang.String;
 import java.util.List;
-import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.compute.operator.DriverContext;
 
 /**
  * {@link AggregatorFunctionSupplier} implementation for {@link SumIntAggregator}.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code AggregatorFunctionSupplierImplementer} instead.
  */
 public final class SumIntAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
-  private final BigArrays bigArrays;
-
-  private final List<Integer> channels;
-
-  public SumIntAggregatorFunctionSupplier(BigArrays bigArrays, List<Integer> channels) {
-    this.bigArrays = bigArrays;
-    this.channels = channels;
+  public SumIntAggregatorFunctionSupplier() {
   }
 
   @Override
-  public SumIntAggregatorFunction aggregator() {
-    return SumIntAggregatorFunction.create(channels);
+  public List<IntermediateStateDesc> nonGroupingIntermediateStateDesc() {
+    return SumIntAggregatorFunction.intermediateStateDesc();
   }
 
   @Override
-  public SumIntGroupingAggregatorFunction groupingAggregator() {
-    return SumIntGroupingAggregatorFunction.create(channels, bigArrays);
+  public List<IntermediateStateDesc> groupingIntermediateStateDesc() {
+    return SumIntGroupingAggregatorFunction.intermediateStateDesc();
+  }
+
+  @Override
+  public SumIntAggregatorFunction aggregator(DriverContext driverContext, List<Integer> channels) {
+    return new SumIntAggregatorFunction(driverContext, channels);
+  }
+
+  @Override
+  public SumIntGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
+      List<Integer> channels) {
+    return new SumIntGroupingAggregatorFunction(channels, driverContext);
   }
 
   @Override

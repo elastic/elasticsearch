@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.desirednodes;
@@ -18,17 +19,16 @@ import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.desirednodes.DesiredNodesSettingsValidator;
 import org.elasticsearch.cluster.desirednodes.VersionConflictException;
 import org.elasticsearch.cluster.metadata.DesiredNodes;
 import org.elasticsearch.cluster.metadata.DesiredNodesMetadata;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -40,17 +40,15 @@ import static java.lang.String.format;
 public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction<UpdateDesiredNodesRequest, UpdateDesiredNodesResponse> {
     private static final Logger logger = LogManager.getLogger(TransportUpdateDesiredNodesAction.class);
 
-    private final DesiredNodesSettingsValidator settingsValidator;
     private final MasterServiceTaskQueue<UpdateDesiredNodesTask> taskQueue;
 
     @Inject
     public TransportUpdateDesiredNodesAction(
         TransportService transportService,
         ClusterService clusterService,
+        RerouteService rerouteService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver,
-        DesiredNodesSettingsValidator settingsValidator,
         AllocationService allocationService
     ) {
         super(
@@ -61,15 +59,13 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
             threadPool,
             actionFilters,
             UpdateDesiredNodesRequest::new,
-            indexNameExpressionResolver,
             UpdateDesiredNodesResponse::new,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
-        this.settingsValidator = settingsValidator;
         this.taskQueue = clusterService.createTaskQueue(
             "update-desired-nodes",
             Priority.URGENT,
-            new UpdateDesiredNodesExecutor(clusterService.getRerouteService(), allocationService)
+            new UpdateDesiredNodesExecutor(rerouteService, allocationService)
         );
     }
 
@@ -85,27 +81,14 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
         ClusterState state,
         ActionListener<UpdateDesiredNodesResponse> responseListener
     ) throws Exception {
-        ActionListener.run(responseListener, listener -> {
-            settingsValidator.validate(request.getNodes());
-            taskQueue.submitTask("update-desired-nodes", new UpdateDesiredNodesTask(request, listener), request.masterNodeTimeout());
-        });
-    }
-
-    @Override
-    protected void doExecute(Task task, UpdateDesiredNodesRequest request, ActionListener<UpdateDesiredNodesResponse> listener) {
-        final var minNodeVersion = clusterService.state().nodes().getMinNodeVersion();
-        if (request.isCompatibleWithVersion(minNodeVersion) == false) {
-            listener.onFailure(
-                new IllegalArgumentException(
-                    "Unable to use processor ranges, floating-point (with greater precision) processors "
-                        + "in mixed-clusters with nodes in version: "
-                        + minNodeVersion
-                )
-            );
-            return;
-        }
-
-        super.doExecute(task, request, listener);
+        ActionListener.run(
+            responseListener,
+            listener -> taskQueue.submitTask(
+                "update-desired-nodes",
+                new UpdateDesiredNodesTask(request, listener),
+                request.masterNodeTimeout()
+            )
+        );
     }
 
     static ClusterState replaceDesiredNodes(ClusterState clusterState, DesiredNodes newDesiredNodes) {

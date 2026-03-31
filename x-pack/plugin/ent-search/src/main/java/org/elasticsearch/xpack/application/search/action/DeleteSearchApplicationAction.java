@@ -7,9 +7,9 @@
 
 package org.elasticsearch.xpack.application.search.action;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -25,19 +25,17 @@ import java.util.Objects;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
-public class DeleteSearchApplicationAction extends ActionType<AcknowledgedResponse> {
+public class DeleteSearchApplicationAction {
 
-    public static final DeleteSearchApplicationAction INSTANCE = new DeleteSearchApplicationAction();
     public static final String NAME = "cluster:admin/xpack/application/search_application/delete";
+    public static final ActionType<AcknowledgedResponse> INSTANCE = new ActionType<>(NAME);
 
-    private DeleteSearchApplicationAction() {
-        super(NAME, AcknowledgedResponse::readFrom);
-    }
+    private DeleteSearchApplicationAction() {/* no instances */}
 
-    public static class Request extends ActionRequest implements ToXContentObject {
+    public static class Request extends LegacyActionRequest implements ToXContentObject {
         private final String name;
 
-        public static ParseField NAME_FIELD = new ParseField("name");
+        public static final ParseField NAME_FIELD = new ParseField("name");
 
         public Request(StreamInput in) throws IOException {
             super(in);

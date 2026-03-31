@@ -1,0 +1,5 @@
+pr: 138611
+summary: "More actionable `PUT /{index}/_settings` error"
+area: Indices APIs
+type: enhancement
+issues: []

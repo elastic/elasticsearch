@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.common.lucene;
 
@@ -24,11 +25,11 @@ import org.apache.lucene.index.NoDeletionPolicy;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SoftDeletesRetentionMergePolicy;
+import org.apache.lucene.index.StoredFields;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreDoc;
@@ -43,19 +44,23 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.tests.analysis.MockAnalyzer;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.store.MockDirectoryWrapper;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
 import org.elasticsearch.index.fielddata.fieldcomparator.DoubleValuesComparatorSource;
 import org.elasticsearch.index.fielddata.fieldcomparator.FloatValuesComparatorSource;
+import org.elasticsearch.index.fielddata.fieldcomparator.HalfFloatValuesComparatorSource;
 import org.elasticsearch.index.fielddata.fieldcomparator.LongValuesComparatorSource;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.sort.ShardDocSortField;
@@ -73,7 +78,6 @@ import java.util.Set;
 import static org.hamcrest.Matchers.equalTo;
 
 public class LuceneTests extends ESTestCase {
-    private static final NamedWriteableRegistry EMPTY_REGISTRY = new NamedWriteableRegistry(Collections.emptyList());
 
     public void testCleanIndex() throws IOException {
         MockDirectoryWrapper dir = newMockDirectory();
@@ -171,10 +175,10 @@ public class LuceneTests extends ESTestCase {
         assertEquals(3, open.maxDoc());
 
         IndexSearcher s = newSearcher(open);
-        assertEquals(s.search(new TermQuery(new Term("id", "1")), 1).totalHits.value, 1);
-        assertEquals(s.search(new TermQuery(new Term("id", "2")), 1).totalHits.value, 1);
-        assertEquals(s.search(new TermQuery(new Term("id", "3")), 1).totalHits.value, 1);
-        assertEquals(s.search(new TermQuery(new Term("id", "4")), 1).totalHits.value, 0);
+        assertEquals(s.search(new TermQuery(new Term("id", "1")), 1).totalHits.value(), 1);
+        assertEquals(s.search(new TermQuery(new Term("id", "2")), 1).totalHits.value(), 1);
+        assertEquals(s.search(new TermQuery(new Term("id", "3")), 1).totalHits.value(), 1);
+        assertEquals(s.search(new TermQuery(new Term("id", "4")), 1).totalHits.value(), 0);
 
         for (String file : dir.listAll()) {
             assertFalse("unexpected file: " + file, file.equals("segments_3") || file.startsWith("_2"));
@@ -302,7 +306,7 @@ public class LuceneTests extends ESTestCase {
         try (DirectoryReader reader = w.getReader()) {
             // match_all does not match anything on an empty index
             IndexSearcher searcher = newSearcher(reader);
-            assertFalse(Lucene.exists(searcher, new MatchAllDocsQuery()));
+            assertFalse(Lucene.exists(searcher, Queries.ALL_DOCS_INSTANCE));
         }
 
         Document doc = new Document();
@@ -313,7 +317,7 @@ public class LuceneTests extends ESTestCase {
 
         try (DirectoryReader reader = w.getReader()) {
             IndexSearcher searcher = newSearcher(reader);
-            assertTrue(Lucene.exists(searcher, new MatchAllDocsQuery()));
+            assertTrue(Lucene.exists(searcher, Queries.ALL_DOCS_INSTANCE));
             assertFalse(Lucene.exists(searcher, new TermQuery(new Term("baz", "bar"))));
             assertTrue(Lucene.exists(searcher, new TermQuery(new Term("foo", "bar"))));
         }
@@ -403,11 +407,6 @@ public class LuceneTests extends ESTestCase {
                 }
 
                 @Override
-                public Scorer scorer(LeafReaderContext context) throws IOException {
-                    throw new UnsupportedOperationException();
-                }
-
-                @Override
                 public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
                     return new ScorerSupplier() {
 
@@ -463,22 +462,12 @@ public class LuceneTests extends ESTestCase {
         }
     }
 
-    /**
-     * Test that the "unmap hack" is detected as supported by lucene.
-     * This works around the following bug: https://bugs.openjdk.java.net/browse/JDK-4724038
-     * <p>
-     * While not guaranteed, current status is "Critical Internal API": http://openjdk.java.net/jeps/260
-     * Additionally this checks we did not screw up the security logic around the hack.
-     */
-    public void testMMapHackSupported() throws Exception {
-        // add assume's here if needed for certain platforms, but we should know if it does not work.
-        assertTrue("MMapDirectory does not support unmapping: " + MMapDirectory.UNMAP_NOT_SUPPORTED_REASON, MMapDirectory.UNMAP_SUPPORTED);
-    }
-
     public void testWrapAllDocsLive() throws Exception {
         Directory dir = newDirectory();
         IndexWriterConfig config = newIndexWriterConfig().setSoftDeletesField(Lucene.SOFT_DELETES_FIELD)
-            .setMergePolicy(new SoftDeletesRetentionMergePolicy(Lucene.SOFT_DELETES_FIELD, MatchAllDocsQuery::new, newMergePolicy()));
+            .setMergePolicy(
+                new SoftDeletesRetentionMergePolicy(Lucene.SOFT_DELETES_FIELD, () -> Queries.ALL_DOCS_INSTANCE, newMergePolicy())
+            );
         IndexWriter writer = new IndexWriter(dir, config);
         int numDocs = between(1, 10);
         Set<String> liveDocs = new HashSet<>();
@@ -506,9 +495,10 @@ public class LuceneTests extends ESTestCase {
             assertThat(reader.numDocs(), equalTo(liveDocs.size()));
             IndexSearcher searcher = newSearcher(reader);
             Set<String> actualDocs = new HashSet<>();
-            TopDocs topDocs = searcher.search(new MatchAllDocsQuery(), Integer.MAX_VALUE);
+            TopDocs topDocs = searcher.search(Queries.ALL_DOCS_INSTANCE, Integer.MAX_VALUE);
+            StoredFields storedFields = reader.storedFields();
             for (ScoreDoc scoreDoc : topDocs.scoreDocs) {
-                actualDocs.add(reader.document(scoreDoc.doc).get("id"));
+                actualDocs.add(storedFields.document(scoreDoc.doc).get("id"));
             }
             assertThat(actualDocs, equalTo(liveDocs));
         }
@@ -518,7 +508,9 @@ public class LuceneTests extends ESTestCase {
     public void testWrapLiveDocsNotExposeAbortedDocuments() throws Exception {
         Directory dir = newDirectory();
         IndexWriterConfig config = newIndexWriterConfig().setSoftDeletesField(Lucene.SOFT_DELETES_FIELD)
-            .setMergePolicy(new SoftDeletesRetentionMergePolicy(Lucene.SOFT_DELETES_FIELD, MatchAllDocsQuery::new, newMergePolicy()))
+            .setMergePolicy(
+                new SoftDeletesRetentionMergePolicy(Lucene.SOFT_DELETES_FIELD, () -> Queries.ALL_DOCS_INSTANCE, newMergePolicy())
+            )
             // disable merges on refresh as we will verify the deleted documents
             .setMaxFullFlushMergeWaitMillis(-1);
         IndexWriter writer = new IndexWriter(dir, config);
@@ -552,9 +544,10 @@ public class LuceneTests extends ESTestCase {
             assertThat(reader.numDocs(), equalTo(liveDocs.size()));
             IndexSearcher searcher = newSearcher(reader);
             List<String> actualDocs = new ArrayList<>();
-            TopDocs topDocs = searcher.search(new MatchAllDocsQuery(), Integer.MAX_VALUE);
+            TopDocs topDocs = searcher.search(Queries.ALL_DOCS_INSTANCE, Integer.MAX_VALUE);
+            StoredFields storedFields = reader.storedFields();
             for (ScoreDoc scoreDoc : topDocs.scoreDocs) {
-                actualDocs.add(reader.document(scoreDoc.doc).get("id"));
+                actualDocs.add(storedFields.document(scoreDoc.doc).get("id"));
             }
             assertThat(actualDocs, equalTo(liveDocs));
         }
@@ -565,24 +558,29 @@ public class LuceneTests extends ESTestCase {
         Tuple<SortField, SortField> sortFieldTuple = randomSortField();
         SortField deserialized = copyInstance(
             sortFieldTuple.v1(),
-            EMPTY_REGISTRY,
             Lucene::writeSortField,
             Lucene::readSortField,
-            TransportVersionUtils.randomVersion(random())
+            TransportVersionUtils.randomVersion()
         );
         assertEquals(sortFieldTuple.v2(), deserialized);
     }
 
     public void testSortValueSerialization() throws IOException {
         Object sortValue = randomSortValue();
-        Object deserialized = copyInstance(
-            sortValue,
-            EMPTY_REGISTRY,
-            Lucene::writeSortValue,
-            Lucene::readSortValue,
-            TransportVersionUtils.randomVersion(random())
-        );
+        Object deserialized = copyInstance(sortValue, Lucene::writeSortValue, Lucene::readSortValue, TransportVersionUtils.randomVersion());
         assertEquals(sortValue, deserialized);
+    }
+
+    private static <T> T copyInstance(T original, Writeable.Writer<T> writer, Writeable.Reader<T> reader, TransportVersion version)
+        throws IOException {
+        try (BytesStreamOutput output = new BytesStreamOutput()) {
+            output.setTransportVersion(version);
+            writer.write(output, original);
+            try (StreamInput in = output.bytes().streamInput()) {
+                in.setTransportVersion(version);
+                return reader.read(in);
+            }
+        }
     }
 
     public static Object randomSortValue() {
@@ -629,7 +627,7 @@ public class LuceneTests extends ESTestCase {
         IndexFieldData.XFieldComparatorSource comparatorSource;
         boolean reverse = randomBoolean();
         Object missingValue = null;
-        switch (randomIntBetween(0, 3)) {
+        switch (randomIntBetween(0, 4)) {
             case 0 -> comparatorSource = new LongValuesComparatorSource(
                 null,
                 randomBoolean() ? randomLong() : null,
@@ -649,7 +647,13 @@ public class LuceneTests extends ESTestCase {
                 randomFrom(MultiValueMode.values()),
                 null
             );
-            case 3 -> {
+            case 3 -> comparatorSource = new HalfFloatValuesComparatorSource(
+                null,
+                randomBoolean() ? randomFloat() : null,
+                randomFrom(MultiValueMode.values()),
+                null
+            );
+            case 4 -> {
                 comparatorSource = new BytesRefFieldComparatorSource(
                     null,
                     randomBoolean() ? "_first" : "_last",

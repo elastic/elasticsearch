@@ -35,7 +35,7 @@ public class SSLConfigurationSettingsTests extends ESTestCase {
         final Settings settings = Settings.builder()
             .put("cipher_suites.0", "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256")
             .put("cipher_suites.1", "TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256")
-            .put("cipher_suites.2", "TLS_RSA_WITH_AES_128_CBC_SHA256")
+            .put("cipher_suites.2", Runtime.version().feature() < 24 ? "TLS_RSA_WITH_AES_128_CBC_SHA256" : "TLS_AES_256_GCM_SHA384")
             .build();
         assertThat(
             ssl.ciphers.get(settings),
@@ -43,7 +43,7 @@ public class SSLConfigurationSettingsTests extends ESTestCase {
                 Arrays.asList(
                     "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256",
                     "TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256",
-                    "TLS_RSA_WITH_AES_128_CBC_SHA256"
+                    Runtime.version().feature() < 24 ? "TLS_RSA_WITH_AES_128_CBC_SHA256" : "TLS_AES_256_GCM_SHA384"
                 )
             )
         );

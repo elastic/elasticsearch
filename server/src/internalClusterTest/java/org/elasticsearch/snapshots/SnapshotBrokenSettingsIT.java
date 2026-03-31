@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.snapshots;
@@ -36,19 +37,17 @@ public class SnapshotBrokenSettingsIT extends AbstractSnapshotIntegTestCase {
         Client client = client();
         Consumer<String> setSettingValue = value -> client.admin()
             .cluster()
-            .prepareUpdateSettings()
+            .prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
             .setPersistentSettings(Settings.builder().put(BrokenSettingPlugin.BROKEN_SETTING.getKey(), value))
-            .execute()
-            .actionGet();
+            .get();
 
         Consumer<String> assertSettingValue = value -> assertThat(
             client.admin()
                 .cluster()
-                .prepareState()
+                .prepareState(TEST_REQUEST_TIMEOUT)
                 .setRoutingTable(false)
                 .setNodes(false)
-                .execute()
-                .actionGet()
+                .get()
                 .getState()
                 .getMetadata()
                 .persistentSettings()
@@ -74,10 +73,9 @@ public class SnapshotBrokenSettingsIT extends AbstractSnapshotIntegTestCase {
             IllegalArgumentException.class,
             client.admin()
                 .cluster()
-                .prepareRestoreSnapshot("test-repo", "test-snap")
+                .prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, "test-repo", "test-snap")
                 .setRestoreGlobalState(true)
                 .setWaitForCompletion(true)
-                .execute()::actionGet
         );
         assertEquals(BrokenSettingPlugin.EXCEPTION.getMessage(), ex.getMessage());
 

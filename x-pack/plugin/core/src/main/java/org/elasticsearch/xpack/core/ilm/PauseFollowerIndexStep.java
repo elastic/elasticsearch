@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.core.ilm;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.xpack.core.ccr.action.PauseFollowAction;
@@ -31,8 +31,8 @@ final class PauseFollowerIndexStep extends AbstractUnfollowIndexStep {
     }
 
     @Override
-    void innerPerformAction(String followerIndex, ClusterState currentClusterState, ActionListener<Void> listener) {
-        PersistentTasksCustomMetadata persistentTasksMetadata = currentClusterState.metadata().custom(PersistentTasksCustomMetadata.TYPE);
+    void innerPerformAction(String followerIndex, ProjectState currentState, ActionListener<Void> listener) {
+        PersistentTasksCustomMetadata persistentTasksMetadata = currentState.metadata().custom(PersistentTasksCustomMetadata.TYPE);
         if (persistentTasksMetadata == null) {
             listener.onResponse(null);
             return;
@@ -52,9 +52,8 @@ final class PauseFollowerIndexStep extends AbstractUnfollowIndexStep {
             return;
         }
 
-        PauseFollowAction.Request request = new PauseFollowAction.Request(followerIndex);
-        request.masterNodeTimeout(TimeValue.MAX_VALUE);
-        getClient().execute(PauseFollowAction.INSTANCE, request, listener.delegateFailureAndWrap((l, r) -> {
+        PauseFollowAction.Request request = new PauseFollowAction.Request(TimeValue.MAX_VALUE, followerIndex);
+        getClient(currentState.projectId()).execute(PauseFollowAction.INSTANCE, request, listener.delegateFailureAndWrap((l, r) -> {
             if (r.isAcknowledged() == false) {
                 throw new ElasticsearchException("pause follow request failed to be acknowledged");
             }

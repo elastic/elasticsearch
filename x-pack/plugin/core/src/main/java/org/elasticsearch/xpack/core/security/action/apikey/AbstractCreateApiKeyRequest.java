@@ -7,15 +7,15 @@
 
 package org.elasticsearch.xpack.core.security.action.apikey;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.LegacyActionRequest;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
-import org.elasticsearch.xpack.core.security.support.MetadataUtils;
+import org.elasticsearch.xpack.core.security.support.Validation;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -25,7 +25,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public abstract class AbstractCreateApiKeyRequest extends ActionRequest {
+public abstract class AbstractCreateApiKeyRequest extends LegacyActionRequest {
     protected final String id;
     protected String name;
     protected TimeValue expiration;
@@ -38,13 +38,6 @@ public abstract class AbstractCreateApiKeyRequest extends ActionRequest {
         // we generate the API key id soonest so it's part of the request body so it is audited
         this.id = UUIDs.base64UUID(); // because auditing can currently only catch requests but not responses,
     }
-
-    public AbstractCreateApiKeyRequest(StreamInput in) throws IOException {
-        super(in);
-        this.id = doReadId(in);
-    }
-
-    protected abstract String doReadId(StreamInput in) throws IOException;
 
     public String getId() {
         return id;
@@ -79,26 +72,20 @@ public abstract class AbstractCreateApiKeyRequest extends ActionRequest {
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
-        if (Strings.isNullOrEmpty(name)) {
-            validationException = addValidationError("api key name is required", validationException);
-        } else {
-            if (name.length() > 256) {
-                validationException = addValidationError("api key name may not be more than 256 characters long", validationException);
-            }
-            if (name.equals(name.trim()) == false) {
-                validationException = addValidationError("api key name may not begin or end with whitespace", validationException);
-            }
-            if (name.startsWith("_")) {
-                validationException = addValidationError("api key name may not begin with an underscore", validationException);
-            }
+        Validation.Error nameError = Validation.ApiKey.validateName(name);
+        if (nameError != null) {
+            validationException = addValidationError(nameError.toString(), validationException);
         }
-        if (metadata != null && MetadataUtils.containsReservedMetadata(metadata)) {
-            validationException = addValidationError(
-                "API key metadata keys may not start with [" + MetadataUtils.RESERVED_PREFIX + "]",
-                validationException
-            );
+        Validation.Error metadataError = Validation.ApiKey.validateMetadata(metadata);
+        if (metadataError != null) {
+            validationException = addValidationError(metadataError.toString(), validationException);
         }
         assert refreshPolicy != null : "refresh policy is required";
         return validationException;
+    }
+
+    @Override
+    public final void writeTo(StreamOutput out) throws IOException {
+        TransportAction.localOnly();
     }
 }

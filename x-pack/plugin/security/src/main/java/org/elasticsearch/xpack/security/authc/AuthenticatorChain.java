@@ -11,9 +11,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.xpack.core.common.IteratingActionListener;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
@@ -27,6 +27,8 @@ import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.operator.OperatorPrivileges.OperatorPrivilegesService;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
@@ -53,6 +55,7 @@ class AuthenticatorChain {
         OperatorPrivilegesService operatorPrivilegesService,
         AnonymousUser anonymousUser,
         AuthenticationContextSerializer authenticationSerializer,
+        PluggableAuthenticatorChain pluggableAuthenticatorChain,
         ServiceAccountAuthenticator serviceAccountAuthenticator,
         OAuth2TokenAuthenticator oAuth2TokenAuthenticator,
         ApiKeyAuthenticator apiKeyAuthenticator,
@@ -65,21 +68,35 @@ class AuthenticatorChain {
         this.isAnonymousUserEnabled = AnonymousUser.isAnonymousEnabled(settings);
         this.authenticationSerializer = authenticationSerializer;
         this.realmsAuthenticator = realmsAuthenticator;
-        this.allAuthenticators = List.of(serviceAccountAuthenticator, oAuth2TokenAuthenticator, apiKeyAuthenticator, realmsAuthenticator);
+
+        List<Authenticator> authenticators = new ArrayList<>();
+        if (pluggableAuthenticatorChain.hasCustomAuthenticators()) {
+            authenticators.add(pluggableAuthenticatorChain);
+        }
+        authenticators.add(serviceAccountAuthenticator);
+        authenticators.add(oAuth2TokenAuthenticator);
+        authenticators.add(apiKeyAuthenticator);
+        authenticators.add(realmsAuthenticator);
+        this.allAuthenticators = Collections.unmodifiableList(authenticators);
     }
 
-    void authenticateAsync(Authenticator.Context context, ActionListener<Authentication> originalListener) {
+    void authenticate(Authenticator.Context context, ActionListener<Authentication> originalListener) {
         assert false == context.getDefaultOrderedRealmList().isEmpty() : "realm list must not be empty";
         // Check whether authentication is an operator user and mark the threadContext if necessary
         // before returning the authentication object
-        final ActionListener<Authentication> listener = originalListener.map(authentication -> {
+        final ActionListener<Authentication> listener = ActionListener.wrap(authentication -> {
             assert authentication != null;
             operatorPrivilegesService.maybeMarkOperatorUser(authentication, context.getThreadContext());
-            return authentication;
+            logger.trace(() -> Strings.format("Authentication for [%s]", authentication));
+            originalListener.onResponse(authentication);
+        }, ex -> {
+            logger.debug(() -> Strings.format("Authentication for context [%s] failed", context), ex);
+            originalListener.onFailure(ex);
         });
+
         // If a token is directly provided in the context, authenticate with it
         if (context.getMostRecentAuthenticationToken() != null) {
-            authenticateAsyncWithExistingAuthenticationToken(context, listener);
+            doAuthenticate(context, listener);
             return;
         }
         final Authentication authentication;
@@ -93,23 +110,11 @@ class AuthenticatorChain {
             logger.trace("Found existing authentication [{}] in request [{}]", authentication, context.getRequest());
             listener.onResponse(authentication);
         } else {
-            doAuthenticate(context, true, ActionListener.runBefore(listener, context::close));
+            doAuthenticate(context, ActionListener.runBefore(listener, context::close));
         }
     }
 
-    /**
-     * Similar to {@link #authenticateAsync} but without extracting credentials. The credentials should
-     * be prepared by the called and made available in the context before calling this method.
-     * This method currently uses a shorter chain to match existing behaviour. But there is no reason
-     * why this could not use the same chain.
-     */
-    private void authenticateAsyncWithExistingAuthenticationToken(Authenticator.Context context, ActionListener<Authentication> listener) {
-        assert context.getMostRecentAuthenticationToken() != null : "existing authentication token must not be null";
-        context.setHandleNullToken(false);  // already has a token, should not try null token
-        doAuthenticate(context, false, listener);
-    }
-
-    private void doAuthenticate(Authenticator.Context context, boolean shouldExtractCredentials, ActionListener<Authentication> listener) {
+    private void doAuthenticate(Authenticator.Context context, ActionListener<Authentication> listener) {
         // The iterating listener walks through the list of Authenticators and attempts to authenticate using
         // each Authenticator (and optionally asks it to extract the authenticationToken).
         // Depending on the authentication result from each Authenticator, the iteration may stop earlier
@@ -121,6 +126,7 @@ class AuthenticatorChain {
                 if (result.getStatus() == AuthenticationResult.Status.SUCCESS) {
                     maybeLookupRunAsUser(context, result.getValue(), l);
                 } else {
+                    assert result.getStatus() == AuthenticationResult.Status.CONTINUE;
                     if (context.shouldHandleNullToken()) {
                         handleNullToken(context, l);
                     } else {
@@ -128,7 +134,7 @@ class AuthenticatorChain {
                     }
                 }
             }),
-            getAuthenticatorConsumer(context, shouldExtractCredentials),
+            getAuthenticatorConsumer(context),
             allAuthenticators,
             context.getThreadContext(),
             Function.identity(),
@@ -138,11 +144,10 @@ class AuthenticatorChain {
     }
 
     private static BiConsumer<Authenticator, ActionListener<AuthenticationResult<Authentication>>> getAuthenticatorConsumer(
-        Authenticator.Context context,
-        boolean shouldExtractCredentials
+        Authenticator.Context context
     ) {
         return (authenticator, listener) -> {
-            if (shouldExtractCredentials) {
+            if (context.shouldExtractCredentials()) {
                 final AuthenticationToken authenticationToken;
                 try {
                     authenticationToken = authenticator.extractCredentials(context);
@@ -161,7 +166,6 @@ class AuthenticatorChain {
                 }
                 context.addAuthenticationToken(authenticationToken);
             }
-            context.setHandleNullToken(context.shouldHandleNullToken() && authenticator.canBeFollowedByNullTokenHandler());
 
             final Consumer<Exception> onFailure = (e) -> {
                 assert e != null : "exception cannot be null";
@@ -302,7 +306,7 @@ class AuthenticatorChain {
                     ese.status(),
                     ese.getCause()
                 );
-                ese.getHeaderKeys().forEach(k -> eseWithPreviousCredentials.addHeader(k, ese.getHeader(k)));
+                ese.getBodyHeaderKeys().forEach(k -> eseWithPreviousCredentials.addBodyHeader(k, ese.getBodyHeader(k)));
                 addMetadata(context, eseWithPreviousCredentials);
                 listener.onFailure(eseWithPreviousCredentials);
             } else {
@@ -358,8 +362,8 @@ class AuthenticatorChain {
      * <ul>
      *     <li>The service has anonymous authentication enabled (see {@link #isAnonymousUserEnabled})</li>
      *     <li>Anonymous access is accepted for this request ({@code allowAnonymousOnThisRequest} parameter)
-     *     <li>The {@link ThreadContext} does not provide API Key or Bearer Token credentials. If these are present, we
-     *     treat the request as though it attempted to authenticate (even if that failed), and will not fall back to anonymous.</li>
+     *     <li>The request does NOT provide API Key or Bearer Token credentials. If any of these are present,
+     *     we consider the request as failed to authenticate, and will not fall back to anonymous.</li>
      * </ul>
      */
     private boolean shouldFallbackToAnonymous(Authenticator.Context context) {
@@ -369,10 +373,7 @@ class AuthenticatorChain {
         if (context.isAllowAnonymous() == false) {
             return false;
         }
-        String header = context.getThreadContext().getHeader("Authorization");
-        if (Strings.hasText(header)
-            && ((header.regionMatches(true, 0, "Bearer ", 0, "Bearer ".length()) && header.length() > "Bearer ".length())
-                || (header.regionMatches(true, 0, "ApiKey ", 0, "ApiKey ".length()) && header.length() > "ApiKey ".length()))) {
+        if (context.getBearerString() != null || context.getApiKeyString() != null) {
             return false;
         }
         return true;

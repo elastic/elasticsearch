@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.ingest.common;
@@ -74,17 +75,17 @@ public class DateFormatTests extends ESTestCase {
     public void testParseWeekBasedYearAndWeek() {
         String format = "YYYY-ww";
         ZoneId timezone = DateUtils.of("Europe/Amsterdam");
-        Function<String, ZonedDateTime> javaFunction = DateFormat.Java.getFunction(format, timezone, Locale.ROOT);
+        Function<String, ZonedDateTime> javaFunction = DateFormat.Java.getFunction(format, timezone, Locale.ENGLISH);
         ZonedDateTime dateTime = javaFunction.apply("2020-33");
-        assertThat(dateTime, equalTo(ZonedDateTime.of(2020, 8, 10, 0, 0, 0, 0, timezone)));
+        assertThat(dateTime, equalTo(ZonedDateTime.of(2020, 8, 9, 0, 0, 0, 0, timezone)));
     }
 
     public void testParseWeekBasedYear() {
         String format = "YYYY";
         ZoneId timezone = DateUtils.of("Europe/Amsterdam");
-        Function<String, ZonedDateTime> javaFunction = DateFormat.Java.getFunction(format, timezone, Locale.ROOT);
+        Function<String, ZonedDateTime> javaFunction = DateFormat.Java.getFunction(format, timezone, Locale.ENGLISH);
         ZonedDateTime dateTime = javaFunction.apply("2019");
-        assertThat(dateTime, equalTo(ZonedDateTime.of(2018, 12, 31, 0, 0, 0, 0, timezone)));
+        assertThat(dateTime, equalTo(ZonedDateTime.of(2018, 12, 30, 0, 0, 0, 0, timezone)));
     }
 
     public void testParseWeekBasedWithLocale() {

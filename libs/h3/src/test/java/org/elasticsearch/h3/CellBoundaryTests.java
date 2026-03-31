@@ -212,10 +212,28 @@ public class CellBoundaryTests extends ESTestCase {
             int lon2 = GeoEncodingUtils.encodeLongitude(latLng2.getLonDeg());
             int lat2 = GeoEncodingUtils.encodeLatitude(latLng2.getLatDeg());
             // edges are in opposite directions.
-            if (clon1 == lon2 & clat1 == lat2 && clon2 == lon1 && clat2 == lat1) {
+            if (clon1 == lon2 && clat1 == lat2 && clon2 == lon1 && clat2 == lat1) {
                 return true;
             }
         }
         return false;
+    }
+
+    public void testEqualsAndHashCode() {
+        final long h3 = H3.geoToH3(GeoTestUtil.nextLatitude(), GeoTestUtil.nextLongitude(), randomIntBetween(0, 15));
+        final CellBoundary boundary1 = H3.h3ToGeoBoundary(h3);
+        final CellBoundary boundary2 = H3.h3ToGeoBoundary(h3);
+        assertEquals(boundary1, boundary2);
+        assertEquals(boundary1.hashCode(), boundary2.hashCode());
+
+        final long otherH3 = H3.geoToH3(GeoTestUtil.nextLatitude(), GeoTestUtil.nextLongitude(), randomIntBetween(0, 15));
+        final CellBoundary otherCellBoundary = H3.h3ToGeoBoundary(otherH3);
+        if (otherH3 != h3) {
+            assertNotEquals(boundary1, otherCellBoundary);
+            assertNotEquals(boundary1.hashCode(), otherCellBoundary.hashCode());
+        } else {
+            assertEquals(boundary1, otherCellBoundary);
+            assertEquals(boundary1.hashCode(), otherCellBoundary.hashCode());
+        }
     }
 }

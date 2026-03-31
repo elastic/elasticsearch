@@ -25,7 +25,6 @@ public final class DeletePrivilegesResponse extends ActionResponse implements To
     private final Set<String> found;
 
     public DeletePrivilegesResponse(StreamInput in) throws IOException {
-        super(in);
         this.found = in.readCollectionAsImmutableSet(StreamInput::readString);
     }
 

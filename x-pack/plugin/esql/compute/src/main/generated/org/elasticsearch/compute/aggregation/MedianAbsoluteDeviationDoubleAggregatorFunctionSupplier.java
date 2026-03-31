@@ -8,31 +8,36 @@ import java.lang.Integer;
 import java.lang.Override;
 import java.lang.String;
 import java.util.List;
-import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.compute.operator.DriverContext;
 
 /**
  * {@link AggregatorFunctionSupplier} implementation for {@link MedianAbsoluteDeviationDoubleAggregator}.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code AggregatorFunctionSupplierImplementer} instead.
  */
 public final class MedianAbsoluteDeviationDoubleAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
-  private final BigArrays bigArrays;
+  public MedianAbsoluteDeviationDoubleAggregatorFunctionSupplier() {
+  }
 
-  private final List<Integer> channels;
+  @Override
+  public List<IntermediateStateDesc> nonGroupingIntermediateStateDesc() {
+    return MedianAbsoluteDeviationDoubleAggregatorFunction.intermediateStateDesc();
+  }
 
-  public MedianAbsoluteDeviationDoubleAggregatorFunctionSupplier(BigArrays bigArrays,
+  @Override
+  public List<IntermediateStateDesc> groupingIntermediateStateDesc() {
+    return MedianAbsoluteDeviationDoubleGroupingAggregatorFunction.intermediateStateDesc();
+  }
+
+  @Override
+  public MedianAbsoluteDeviationDoubleAggregatorFunction aggregator(DriverContext driverContext,
       List<Integer> channels) {
-    this.bigArrays = bigArrays;
-    this.channels = channels;
+    return new MedianAbsoluteDeviationDoubleAggregatorFunction(driverContext, channels);
   }
 
   @Override
-  public MedianAbsoluteDeviationDoubleAggregatorFunction aggregator() {
-    return MedianAbsoluteDeviationDoubleAggregatorFunction.create(channels);
-  }
-
-  @Override
-  public MedianAbsoluteDeviationDoubleGroupingAggregatorFunction groupingAggregator() {
-    return MedianAbsoluteDeviationDoubleGroupingAggregatorFunction.create(channels, bigArrays);
+  public MedianAbsoluteDeviationDoubleGroupingAggregatorFunction groupingAggregator(
+      DriverContext driverContext, List<Integer> channels) {
+    return new MedianAbsoluteDeviationDoubleGroupingAggregatorFunction(channels, driverContext);
   }
 
   @Override

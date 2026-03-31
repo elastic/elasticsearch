@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing.allocation.allocator;
@@ -23,6 +24,10 @@ import java.util.Queue;
 import static org.elasticsearch.cluster.service.ClusterApplierService.CLUSTER_UPDATE_THREAD_NAME;
 import static org.elasticsearch.cluster.service.MasterService.MASTER_UPDATE_THREAD_NAME;
 
+/**
+ * Registers listeners with an `index` number ({@link #add(long, ActionListener)}) and then completes them whenever the latest index number
+ * is greater or equal to a listener's index value ({@link #complete(long)}).
+ */
 public class PendingListenersQueue {
 
     private static final Logger logger = LogManager.getLogger(PendingListenersQueue.class);

@@ -7,24 +7,66 @@
 
 package org.elasticsearch.compute.data;
 
+// begin generated imports
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.ReleasableIterator;
 
 import java.io.IOException;
+// end generated imports
 
 /**
  * Vector that stores long values.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-Vector.java.st} instead.
  */
-public sealed interface LongVector extends Vector permits ConstantLongVector, FilterLongVector, LongArrayVector, LongBigArrayVector {
+public sealed interface LongVector extends Vector permits ConstantLongVector, LongArrayVector, LongBigArrayVector, ConstantNullVector,
+    org.elasticsearch.compute.data.arrow.LongArrowBufVector {
 
     long getLong(int position);
+
+    /**
+     * Copies values from this vector into the destination array.
+     */
+    default void copyTo(int srcPosition, long[] dst, int dstPosition, int length) {
+        for (int i = 0; i < length; i++) {
+            dst[dstPosition + i] = getLong(srcPosition + i);
+        }
+    }
 
     @Override
     LongBlock asBlock();
 
     @Override
-    LongVector filter(int... positions);
+    LongVector filter(boolean mayContainDuplicates, int... positions);
+
+    @Override
+    LongBlock keepMask(BooleanVector mask);
+
+    /**
+     * Make a deep copy of this {@link Vector} using the provided {@link BlockFactory},
+     * likely copying all data.
+     */
+    @Override
+    default LongVector deepCopy(BlockFactory blockFactory) {
+        try (LongBlock.Builder builder = blockFactory.newLongBlockBuilder(getPositionCount())) {
+            builder.copyFrom(asBlock(), 0, getPositionCount());
+            builder.mvOrdering(Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING);
+            return builder.build().asVector();
+        }
+    }
+
+    @Override
+    ReleasableIterator<? extends LongBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize);
+
+    /**
+     * Return a subset of this vector from {@code beginInclusive} to
+     * {@code endExclusive}. This <strong>may</strong> return the same
+     * instance if the range covers all positions, but if it does it
+     * will {@link #incRef()} it.
+     */
+    @Override
+    LongVector slice(int beginInclusive, int endExclusive);
 
     /**
      * Compares the given object with this vector for equality. Returns {@code true} if and only if the
@@ -73,39 +115,60 @@ public sealed interface LongVector extends Vector permits ConstantLongVector, Fi
     }
 
     /** Deserializes a Vector from the given stream input. */
-    static LongVector of(StreamInput in) throws IOException {
+    static LongVector readFrom(BlockFactory blockFactory, StreamInput in) throws IOException {
         final int positions = in.readVInt();
-        final boolean constant = in.readBoolean();
-        if (constant && positions > 0) {
-            return new ConstantLongVector(in.readLong(), positions);
-        } else {
-            var builder = LongVector.newVectorBuilder(positions);
-            for (int i = 0; i < positions; i++) {
-                builder.appendLong(in.readLong());
+        final byte serializationType = in.readByte();
+        return switch (serializationType) {
+            case SERIALIZE_VECTOR_VALUES -> readValues(positions, in, blockFactory);
+            case SERIALIZE_VECTOR_CONSTANT -> blockFactory.newConstantLongVector(in.readLong(), positions);
+            case SERIALIZE_VECTOR_ARRAY -> LongArrayVector.readArrayVector(positions, in, blockFactory);
+            case SERIALIZE_VECTOR_BIG_ARRAY -> LongBigArrayVector.readArrayVector(positions, in, blockFactory);
+            default -> {
+                assert false : "invalid vector serialization type [" + serializationType + "]";
+                throw new IllegalStateException("invalid vector serialization type [" + serializationType + "]");
             }
-            return builder.build();
-        }
+        };
     }
 
     /** Serializes this Vector to the given stream output. */
     default void writeTo(StreamOutput out) throws IOException {
         final int positions = getPositionCount();
+        final var version = out.getTransportVersion();
         out.writeVInt(positions);
-        out.writeBoolean(isConstant());
         if (isConstant() && positions > 0) {
+            out.writeByte(SERIALIZE_VECTOR_CONSTANT);
             out.writeLong(getLong(0));
+        } else if (this instanceof LongArrayVector v) {
+            out.writeByte(SERIALIZE_VECTOR_ARRAY);
+            v.writeArrayVector(positions, out);
+        } else if (this instanceof LongBigArrayVector v) {
+            out.writeByte(SERIALIZE_VECTOR_BIG_ARRAY);
+            v.writeArrayVector(positions, out);
         } else {
-            for (int i = 0; i < positions; i++) {
-                out.writeLong(getLong(i));
-            }
+            out.writeByte(SERIALIZE_VECTOR_VALUES);
+            writeValues(this, positions, out);
         }
     }
 
-    static Builder newVectorBuilder(int estimatedSize) {
-        return new LongVectorBuilder(estimatedSize);
+    private static LongVector readValues(int positions, StreamInput in, BlockFactory blockFactory) throws IOException {
+        try (var builder = blockFactory.newLongVectorFixedBuilder(positions)) {
+            for (int i = 0; i < positions; i++) {
+                builder.appendLong(i, in.readLong());
+            }
+            return builder.build();
+        }
     }
 
-    sealed interface Builder extends Vector.Builder permits LongVectorBuilder {
+    private static void writeValues(LongVector v, int positions, StreamOutput out) throws IOException {
+        for (int i = 0; i < positions; i++) {
+            out.writeLong(v.getLong(i));
+        }
+    }
+
+    /**
+     * A builder that grows as needed.
+     */
+    sealed interface Builder extends Vector.Builder permits LongVectorBuilder, FixedBuilder {
         /**
          * Appends a long to the current entry.
          */
@@ -113,5 +176,19 @@ public sealed interface LongVector extends Vector permits ConstantLongVector, Fi
 
         @Override
         LongVector build();
+    }
+
+    /**
+     * A builder that never grows.
+     */
+    sealed interface FixedBuilder extends Builder permits LongVectorFixedBuilder {
+        /**
+         * Appends a long to the current entry.
+         */
+        @Override
+        FixedBuilder appendLong(long value);
+
+        FixedBuilder appendLong(int index, long value);
+
     }
 }

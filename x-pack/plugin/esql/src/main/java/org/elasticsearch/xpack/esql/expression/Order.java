@@ -7,34 +7,151 @@
 
 package org.elasticsearch.xpack.esql.expression;
 
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.tree.NodeInfo;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Nullability;
+import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
+import java.io.IOException;
 import java.util.List;
+import java.util.Objects;
 
-public class Order extends org.elasticsearch.xpack.ql.expression.Order {
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isExact;
+
+public class Order extends Expression {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Order", Order::new);
+
+    private final Expression child;
+    private final OrderDirection direction;
+    private final NullsPosition nulls;
+
     public Order(Source source, Expression child, OrderDirection direction, NullsPosition nulls) {
-        super(source, child, direction, nulls);
+        super(source, List.of(child));
+        this.child = child;
+        this.direction = direction;
+        this.nulls = nulls;
+    }
+
+    public Order(StreamInput in) throws IOException {
+        this(
+            Source.readFrom((PlanStreamInput) in),
+            in.readNamedWriteable(Expression.class),
+            in.readEnum(OrderDirection.class),
+            NullsPosition.readFrom(in)
+        );
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        Source.EMPTY.writeTo(out);
+        out.writeNamedWriteable(child);
+        out.writeEnum(direction);
+        nulls.writeTo(out);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
     }
 
     @Override
     protected TypeResolution resolveType() {
-        if (DataTypes.isString(child().dataType())) {
+        if (DataType.isString(child.dataType())) {
             return TypeResolution.TYPE_RESOLVED;
         }
-        return super.resolveType();
+        return isExact(child, "ORDER BY cannot be applied to field of data type [{}]: {}");
+    }
+
+    @Override
+    public DataType dataType() {
+        return child.dataType();
     }
 
     @Override
     public Order replaceChildren(List<Expression> newChildren) {
-        return new Order(source(), newChildren.get(0), direction(), nullsPosition());
+        return new Order(source(), newChildren.get(0), direction, nulls);
     }
 
     @Override
-    protected NodeInfo<org.elasticsearch.xpack.ql.expression.Order> info() {
-        return NodeInfo.create(this, Order::new, child(), direction(), nullsPosition());
+    protected NodeInfo<Order> info() {
+        return NodeInfo.create(this, Order::new, child, direction, nulls);
+    }
+
+    @Override
+    public Nullability nullable() {
+        return Nullability.FALSE;
+    }
+
+    public Expression child() {
+        return child;
+    }
+
+    public OrderDirection direction() {
+        return direction;
+    }
+
+    public NullsPosition nullsPosition() {
+        return nulls;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(child, direction, nulls);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+
+        Order other = (Order) obj;
+        return Objects.equals(direction, other.direction) && Objects.equals(nulls, other.nulls) && Objects.equals(child, other.child);
+    }
+
+    public enum OrderDirection {
+        ASC,
+        DESC
+    }
+
+    private static final TransportVersion DROP_ALL = TransportVersion.fromName("esql_nulls_position_drop_all");
+
+    public enum NullsPosition implements Writeable {
+        FIRST,
+        LAST;
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeVInt(switch (this) {
+                case FIRST -> 0;
+                case LAST -> 1;
+            });
+        }
+
+        public static NullsPosition readFrom(StreamInput in) throws IOException {
+            int ord = in.readVInt();
+            if (in.getTransportVersion().supports(DROP_ALL) == false) {
+                if (ord == 2) {
+                    return NullsPosition.LAST;
+                }
+            }
+            return switch (ord) {
+                case 0 -> FIRST;
+                case 1 -> LAST;
+                default -> throw new IOException("unknown NullsPosition: " + ord);
+            };
+        }
     }
 
 }

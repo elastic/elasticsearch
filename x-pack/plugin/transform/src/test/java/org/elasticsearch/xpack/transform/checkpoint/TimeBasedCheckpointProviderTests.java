@@ -11,13 +11,11 @@ import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
-import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.SearchResponseSections;
-import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
@@ -25,12 +23,17 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.transport.StubLinkedProjectConfigService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.transform.TransformConfigVersion;
 import org.elasticsearch.xpack.core.transform.action.GetCheckpointAction;
+import org.elasticsearch.xpack.core.transform.transforms.QueryConfig;
 import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
+import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TimeSyncConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
@@ -49,6 +52,7 @@ import org.mockito.stubbing.Answer;
 
 import java.time.Clock;
 import java.util.Collections;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
@@ -71,6 +75,7 @@ public class TimeBasedCheckpointProviderTests extends ESTestCase {
 
     private Clock clock;
     private Client client;
+    private ParentTaskAssigningClient parentTaskClient;
     private IndexBasedTransformConfigManager transformConfigManager;
     private MockTransformAuditor transformAuditor;
 
@@ -78,10 +83,11 @@ public class TimeBasedCheckpointProviderTests extends ESTestCase {
     public void setUpMocks() {
         clock = mock(Clock.class);
         when(clock.millis()).thenReturn(123456789L);
-        client = mock(Client.class);
         ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
+        client = mock(Client.class);
         when(client.threadPool()).thenReturn(threadPool);
+        parentTaskClient = new ParentTaskAssigningClient(client, new TaskId("dummy-node:123456"));
         transformConfigManager = mock(IndexBasedTransformConfigManager.class);
         transformAuditor = MockTransformAuditor.createMockAuditor();
     }
@@ -91,7 +97,7 @@ public class TimeBasedCheckpointProviderTests extends ESTestCase {
             0,
             false,
             TransformCheckpoint.EMPTY,
-            TransformConfigVersionUtils.randomVersionBetween(random(), TransformConfigVersion.V_7_15_0, TransformConfigVersion.CURRENT),
+            TransformConfigVersionUtils.randomVersionBetween(TransformConfigVersion.V_7_15_0, TransformConfigVersion.CURRENT),
             TIMESTAMP_FIELD,
             TimeValue.timeValueMinutes(10),
             TimeValue.ZERO,
@@ -175,36 +181,41 @@ public class TimeBasedCheckpointProviderTests extends ESTestCase {
         TimeValue delay,
         Tuple<Long, Long> expectedRangeQueryBounds
     ) throws InterruptedException {
-        doAnswer(withResponse(newSearchResponse(totalHits))).when(client).execute(eq(SearchAction.INSTANCE), any(), any());
-        String transformId = getTestName();
-        TransformConfig transformConfig = newTransformConfigWithDateHistogram(
-            transformId,
-            transformVersion,
-            dateHistogramField,
-            dateHistogramInterval,
-            delay
-        );
-        TimeBasedCheckpointProvider provider = newCheckpointProvider(transformConfig);
+        final SearchResponse searchResponse = newSearchResponse(totalHits);
+        try {
+            doAnswer(withResponse(searchResponse)).when(client).execute(eq(TransportSearchAction.TYPE), any(), any());
+            String transformId = getTestName();
+            TransformConfig transformConfig = newTransformConfigWithDateHistogram(
+                transformId,
+                transformVersion,
+                dateHistogramField,
+                dateHistogramInterval,
+                delay
+            );
+            TimeBasedCheckpointProvider provider = newCheckpointProvider(transformConfig);
 
-        SetOnce<Boolean> hasChangedHolder = new SetOnce<>();
-        SetOnce<Exception> exceptionHolder = new SetOnce<>();
-        CountDownLatch latch = new CountDownLatch(1);
-        provider.sourceHasChanged(
-            lastCheckpoint,
-            new LatchedActionListener<>(ActionListener.wrap(hasChangedHolder::set, exceptionHolder::set), latch)
-        );
-        assertThat(latch.await(100, TimeUnit.MILLISECONDS), is(true));
+            SetOnce<Boolean> hasChangedHolder = new SetOnce<>();
+            SetOnce<Exception> exceptionHolder = new SetOnce<>();
+            CountDownLatch latch = new CountDownLatch(1);
+            provider.sourceHasChanged(
+                lastCheckpoint,
+                new LatchedActionListener<>(ActionListener.wrap(hasChangedHolder::set, exceptionHolder::set), latch)
+            );
+            assertThat(latch.await(100, TimeUnit.MILLISECONDS), is(true));
 
-        ArgumentCaptor<SearchRequest> searchRequestArgumentCaptor = ArgumentCaptor.forClass(SearchRequest.class);
-        verify(client).execute(eq(SearchAction.INSTANCE), searchRequestArgumentCaptor.capture(), any());
-        SearchRequest searchRequest = searchRequestArgumentCaptor.getValue();
-        BoolQueryBuilder boolQuery = (BoolQueryBuilder) searchRequest.source().query();
-        RangeQueryBuilder rangeQuery = (RangeQueryBuilder) boolQuery.filter().get(1);
-        assertThat(rangeQuery.from(), is(equalTo(expectedRangeQueryBounds.v1())));
-        assertThat(rangeQuery.to(), is(equalTo(expectedRangeQueryBounds.v2())));
+            ArgumentCaptor<SearchRequest> searchRequestArgumentCaptor = ArgumentCaptor.forClass(SearchRequest.class);
+            verify(client).execute(eq(TransportSearchAction.TYPE), searchRequestArgumentCaptor.capture(), any());
+            SearchRequest searchRequest = searchRequestArgumentCaptor.getValue();
+            BoolQueryBuilder boolQuery = (BoolQueryBuilder) searchRequest.source().query();
+            RangeQueryBuilder rangeQuery = (RangeQueryBuilder) boolQuery.filter().get(1);
+            assertThat(rangeQuery.from(), is(equalTo(expectedRangeQueryBounds.v1())));
+            assertThat(rangeQuery.to(), is(equalTo(expectedRangeQueryBounds.v2())));
 
-        assertThat(hasChangedHolder.get(), is(equalTo(expectedHasChangedValue)));
-        assertThat(exceptionHolder.get(), is(nullValue()));
+            assertThat(hasChangedHolder.get(), is(equalTo(expectedHasChangedValue)));
+            assertThat(exceptionHolder.get(), is(nullValue()));
+        } finally {
+            searchResponse.decRef();
+        }
     }
 
     public void testCreateNextCheckpoint_NoDelay() throws InterruptedException {
@@ -275,11 +286,51 @@ public class TimeBasedCheckpointProviderTests extends ESTestCase {
         assertThat(exceptionHolder.get(), is(nullValue()));
     }
 
+    public void testSourceHasChangedIncludesRuntimeMappings() throws InterruptedException {
+        // Arrange: create a config with explicit runtime_mappings
+        Map<String, Object> runtimeMappings = Map.of(
+            "total_price_with_tax",
+            Map.of("type", "double", "script", Map.of("source", "emit(1.0)"))
+        );
+        SourceConfig sourceWithRuntimeMappings = new SourceConfig(
+            new String[] { "source_index" },
+            QueryConfig.matchAll(),
+            runtimeMappings,
+            null
+        );
+        TransformConfig transformConfig = new TransformConfig.Builder(TransformConfigTests.randomTransformConfig()).setSource(
+            sourceWithRuntimeMappings
+        ).setSyncConfig(new TimeSyncConfig(TIMESTAMP_FIELD, TimeValue.ZERO)).build();
+
+        final SearchResponse searchResponse = newSearchResponse(0);
+        try {
+            doAnswer(withResponse(searchResponse)).when(client).execute(eq(TransportSearchAction.TYPE), any(), any());
+            TimeBasedCheckpointProvider provider = newCheckpointProvider(transformConfig);
+
+            // Act: call sourceHasChanged
+            CountDownLatch latch = new CountDownLatch(1);
+            provider.sourceHasChanged(TransformCheckpoint.EMPTY, new LatchedActionListener<>(ActionListener.wrap(r -> {}, e -> {}), latch));
+            assertThat(latch.await(100, TimeUnit.MILLISECONDS), is(true));
+
+            // Assert: the search request should include runtime_mappings
+            ArgumentCaptor<SearchRequest> searchRequestCaptor = ArgumentCaptor.forClass(SearchRequest.class);
+            verify(client).execute(eq(TransportSearchAction.TYPE), searchRequestCaptor.capture(), any());
+            SearchRequest capturedRequest = searchRequestCaptor.getValue();
+            assertThat(
+                "sourceHasChanged search should include runtime_mappings from the source config",
+                capturedRequest.source().runtimeMappings(),
+                is(equalTo(runtimeMappings))
+            );
+        } finally {
+            searchResponse.decRef();
+        }
+    }
+
     private TimeBasedCheckpointProvider newCheckpointProvider(TransformConfig transformConfig) {
         return new TimeBasedCheckpointProvider(
             clock,
-            client,
-            new RemoteClusterResolver(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
+            parentTaskClient,
+            new RemoteClusterResolver(Settings.EMPTY, StubLinkedProjectConfigService.INSTANCE),
             transformConfigManager,
             transformAuditor,
             transformConfig
@@ -334,24 +385,7 @@ public class TimeBasedCheckpointProviderTests extends ESTestCase {
     }
 
     private static SearchResponse newSearchResponse(long totalHits) {
-        return new SearchResponse(
-            new SearchResponseSections(
-                new SearchHits(SearchHits.EMPTY, new TotalHits(totalHits, TotalHits.Relation.EQUAL_TO), 0),
-                null,
-                null,
-                false,
-                false,
-                null,
-                0
-            ),
-            null,
-            1,
-            1,
-            0,
-            0,
-            ShardSearchFailure.EMPTY_ARRAY,
-            null
-        );
+        return SearchResponseUtils.successfulResponse(SearchHits.empty(new TotalHits(totalHits, TotalHits.Relation.EQUAL_TO), 0));
     }
 
     @SuppressWarnings("unchecked")

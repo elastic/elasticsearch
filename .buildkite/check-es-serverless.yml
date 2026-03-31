@@ -1,5 +1,5 @@
 steps:
-  - trigger: elasticsearch-serverless-update-submodule
+  - trigger: elasticsearch-serverless-validate-submodule
     label: ":elasticsearch: Check elasticsearch changes against serverless"
     build:
       message: "Validate latest elasticsearch changes"

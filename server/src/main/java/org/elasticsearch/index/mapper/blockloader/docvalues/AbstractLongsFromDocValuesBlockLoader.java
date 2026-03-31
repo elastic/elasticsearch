@@ -1,0 +1,154 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+package org.elasticsearch.index.mapper.blockloader.docvalues;
+
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NumericDocValues;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.index.mapper.blockloader.ConstantNull;
+import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.NumericDvSingletonOrSorted;
+import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingNumericDocValues;
+import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingSortedNumericDocValues;
+
+import java.io.IOException;
+
+/**
+ * Loads {@code long}s from doc values.
+ */
+public abstract class AbstractLongsFromDocValuesBlockLoader extends BlockDocValuesReader.DocValuesBlockLoader {
+    protected final String fieldName;
+
+    public AbstractLongsFromDocValuesBlockLoader(String fieldName) {
+        this.fieldName = fieldName;
+    }
+
+    @Override
+    public final Builder builder(BlockFactory factory, int expectedCount) {
+        return factory.longs(expectedCount);
+    }
+
+    @Override
+    public final ColumnAtATimeReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
+        NumericDvSingletonOrSorted dv = NumericDvSingletonOrSorted.get(breaker, context, fieldName);
+        if (dv == null) {
+            return ConstantNull.COLUMN_READER;
+        }
+        if (dv.singleton() != null) {
+            return singletonReader(dv.singleton());
+        }
+        return sortedReader(dv.sorted());
+    }
+
+    protected abstract ColumnAtATimeReader singletonReader(TrackingNumericDocValues docValues);
+
+    protected abstract ColumnAtATimeReader sortedReader(TrackingSortedNumericDocValues docValues);
+
+    public static class Singleton extends BlockDocValuesReader implements BlockDocValuesReader.NumericDocValuesAccessor {
+        private final TrackingNumericDocValues numericDocValues;
+
+        public Singleton(TrackingNumericDocValues numericDocValues) {
+            super(null);
+            this.numericDocValues = numericDocValues;
+        }
+
+        @Override
+        public Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException {
+            if (numericDocValues.docValues() instanceof OptionalColumnAtATimeReader direct) {
+                Block result = direct.tryRead(factory, docs, offset, nullsFiltered, null, false, false);
+                if (result != null) {
+                    return result;
+                }
+            }
+            try (LongBuilder builder = factory.longsFromDocValues(docs.count() - offset)) {
+                for (int i = offset; i < docs.count(); i++) {
+                    int doc = docs.get(i);
+                    if (numericDocValues.docValues().advanceExact(doc)) {
+                        builder.appendLong(numericDocValues.docValues().longValue());
+                    } else {
+                        builder.appendNull();
+                    }
+                }
+                return builder.build();
+            }
+        }
+
+        @Override
+        public int docId() {
+            return numericDocValues.docValues().docID();
+        }
+
+        @Override
+        public String toString() {
+            return "LongsFromDocValues.Singleton";
+        }
+
+        @Override
+        public NumericDocValues numericDocValues() {
+            return numericDocValues.docValues();
+        }
+
+        @Override
+        public void close() {
+            numericDocValues.close();
+        }
+    }
+
+    public static class Sorted extends BlockDocValuesReader {
+        private final TrackingSortedNumericDocValues numericDocValues;
+
+        Sorted(TrackingSortedNumericDocValues numericDocValues) {
+            super(null);
+            this.numericDocValues = numericDocValues;
+        }
+
+        @Override
+        public Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException {
+            try (LongBuilder builder = factory.longsFromDocValues(docs.count() - offset)) {
+                for (int i = offset; i < docs.count(); i++) {
+                    int doc = docs.get(i);
+                    read(doc, builder);
+                }
+                return builder.build();
+            }
+        }
+
+        private void read(int doc, LongBuilder builder) throws IOException {
+            if (false == numericDocValues.docValues().advanceExact(doc)) {
+                builder.appendNull();
+                return;
+            }
+            int count = numericDocValues.docValues().docValueCount();
+            if (count == 1) {
+                builder.appendLong(numericDocValues.docValues().nextValue());
+                return;
+            }
+            builder.beginPositionEntry();
+            for (int v = 0; v < count; v++) {
+                builder.appendLong(numericDocValues.docValues().nextValue());
+            }
+            builder.endPositionEntry();
+        }
+
+        @Override
+        public int docId() {
+            return numericDocValues.docValues().docID();
+        }
+
+        @Override
+        public String toString() {
+            return "LongsFromDocValues.Sorted";
+        }
+
+        @Override
+        public void close() {
+            numericDocValues.close();
+        }
+    }
+}

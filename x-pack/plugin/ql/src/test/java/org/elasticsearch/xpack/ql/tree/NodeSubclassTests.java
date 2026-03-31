@@ -12,6 +12,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.UnresolvedAttributeTests;
@@ -51,6 +52,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -186,16 +188,15 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
                     continue;
                 }
 
-                List<?> originalList = (List<?>) originalArgValue;
-
-                if (node.children().equals(originalList)) {
+                if (col instanceof List<?> originalList && node.children().equals(originalList)) {
                     // The arg we're looking at *is* the children
                     @SuppressWarnings("unchecked") // we pass a reasonable type so get reasonable results
                     List<B> newChildren = (List<B>) makeListOfSameSizeOtherThan(changedArgType, originalList);
                     B transformed = node.replaceChildren(newChildren);
                     assertTransformedOrReplacedChildren(node, transformed, ctor, nodeCtorArgs, changedArgOffset, newChildren);
-                } else if (false == originalList.isEmpty() && node.children().containsAll(originalList)) {
+                } else if (false == col.isEmpty() && node.children().containsAll(col)) {
                     // The arg we're looking at is a collection contained within the children
+                    List<?> originalList = (List<?>) originalArgValue;
 
                     // First make the new children
                     @SuppressWarnings("unchecked") // we pass a reasonable type so get reasonable results
@@ -368,6 +369,9 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
             if (pt.getRawType() == List.class) {
                 return makeList(toBuildClass, pt);
             }
+            if (pt.getRawType() == Set.class) {
+                return makeSet(toBuildClass, pt);
+            }
             if (pt.getRawType() == EnumSet.class) {
                 @SuppressWarnings("rawtypes")
                 Enum enm = (Enum) makeArg(toBuildClass, pt.getActualTypeArguments()[0]);
@@ -474,6 +478,10 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
              */
             return UnresolvedAttributeTests.randomUnresolvedAttribute();
         }
+        if (EnrichPolicy.class == argClass) {
+            List<String> enrichFields = randomSubsetOf(List.of("e1", "e2", "e3"));
+            return new EnrichPolicy(randomFrom("match", "range"), null, List.of(), randomFrom("m1", "m2"), enrichFields);
+        }
 
         if (Pipe.class == argClass) {
             /*
@@ -554,6 +562,18 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
 
     private List<?> makeList(Class<? extends Node<?>> toBuildClass, ParameterizedType listType, int size) throws Exception {
         List<Object> list = new ArrayList<>();
+        for (int i = 0; i < size; i++) {
+            list.add(makeArg(toBuildClass, listType.getActualTypeArguments()[0]));
+        }
+        return list;
+    }
+
+    private Set<?> makeSet(Class<? extends Node<?>> toBuildClass, ParameterizedType listType) throws Exception {
+        return makeSet(toBuildClass, listType, randomSizeForCollection(toBuildClass));
+    }
+
+    private Set<?> makeSet(Class<? extends Node<?>> toBuildClass, ParameterizedType listType, int size) throws Exception {
+        Set<Object> list = new HashSet<>();
         for (int i = 0; i < size; i++) {
             list.add(makeArg(toBuildClass, listType.getActualTypeArguments()[0]));
         }

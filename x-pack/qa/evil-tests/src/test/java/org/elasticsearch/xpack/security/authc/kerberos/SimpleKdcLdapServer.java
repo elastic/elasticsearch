@@ -17,6 +17,8 @@ import org.apache.kerby.kerberos.kerb.server.SimpleKdcServer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.network.NetworkAddress;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
@@ -25,7 +27,6 @@ import java.io.IOException;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.net.ServerSocket;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.AccessController;
@@ -37,6 +38,7 @@ import java.util.concurrent.TimeUnit;
 import javax.net.ServerSocketFactory;
 
 import static org.elasticsearch.test.ESTestCase.assertBusy;
+import static org.elasticsearch.test.ESTestCase.inFipsJvm;
 import static org.junit.Assert.assertTrue;
 
 /**
@@ -54,7 +56,7 @@ public class SimpleKdcLdapServer {
     // KDC properties
     private String transport = ESTestCase.randomFrom("TCP", "UDP");
     private int kdcPort = 0;
-    private String host;
+    private String host = NetworkAddress.format(InetAddress.getLoopbackAddress());
     private String realm;
     private boolean krb5DebugBackupConfigValue;
 
@@ -85,7 +87,7 @@ public class SimpleKdcLdapServer {
             @Override
             @SuppressForbidden(reason = "set or clear system property krb5 debug in kerberos tests")
             public Boolean run() throws Exception {
-                boolean oldDebugSetting = Boolean.parseBoolean(System.getProperty("sun.security.krb5.debug"));
+                boolean oldDebugSetting = Booleans.parseBoolean(System.getProperty("sun.security.krb5.debug", "false"));
                 System.setProperty("sun.security.krb5.debug", Boolean.TRUE.toString());
                 return oldDebugSetting;
             }
@@ -143,7 +145,9 @@ public class SimpleKdcLdapServer {
     private void createLdapBackendConf() throws IOException {
         String backendConf = KdcConfigKey.KDC_IDENTITY_BACKEND.getPropertyKey()
             + " = org.apache.kerby.kerberos.kdc.identitybackend.LdapIdentityBackend\n"
-            + "host=127.0.0.1\n"
+            + "host="
+            + host
+            + "\n"
             + "port="
             + ldapPort
             + "\n"
@@ -153,7 +157,7 @@ public class SimpleKdcLdapServer {
             + "admin_pw=secret\n"
             + "base_dn="
             + baseDn;
-        Files.write(this.workDir.resolve("backend.conf"), backendConf.getBytes(StandardCharsets.UTF_8));
+        Files.writeString(this.workDir.resolve("backend.conf"), backendConf);
         assert Files.exists(this.workDir.resolve("backend.conf"));
     }
 
@@ -183,6 +187,13 @@ public class SimpleKdcLdapServer {
         final TimeValue maxRenewableLifeTime = new TimeValue(7, TimeUnit.DAYS);
         simpleKdc.getKdcConfig().setLong(KdcConfigKey.MINIMUM_TICKET_LIFETIME, minimumTicketLifeTime.getMillis());
         simpleKdc.getKdcConfig().setLong(KdcConfigKey.MAXIMUM_RENEWABLE_LIFETIME, maxRenewableLifeTime.getMillis());
+        if (inFipsJvm()) {
+            // Triple DES is not allowed when running in FIPS mode
+            String encryptionTypes = (String) KdcConfigKey.ENCRYPTION_TYPES.getDefaultValue();
+            simpleKdc.getKdcConfig()
+                .setString(KdcConfigKey.ENCRYPTION_TYPES, encryptionTypes.toLowerCase().replace("des3-cbc-sha1-kd", ""));
+        }
+
         simpleKdc.init();
         simpleKdc.start();
     }
@@ -259,16 +270,14 @@ public class SimpleKdcLdapServer {
 
     private static int getServerPort(String transport) {
         if (transport != null && transport.trim().equalsIgnoreCase("TCP")) {
-            try (
-                ServerSocket serverSocket = ServerSocketFactory.getDefault().createServerSocket(0, 1, InetAddress.getByName("127.0.0.1"))
-            ) {
+            try (ServerSocket serverSocket = ServerSocketFactory.getDefault().createServerSocket(0, 1, InetAddress.getLoopbackAddress())) {
                 serverSocket.setReuseAddress(true);
                 return serverSocket.getLocalPort();
             } catch (Exception ex) {
                 throw new RuntimeException("Failed to get a TCP server socket point");
             }
         } else if (transport != null && transport.trim().equalsIgnoreCase("UDP")) {
-            try (DatagramSocket socket = new DatagramSocket(0, InetAddress.getByName("127.0.0.1"))) {
+            try (DatagramSocket socket = new DatagramSocket(0, InetAddress.getLoopbackAddress())) {
                 socket.setReuseAddress(true);
                 return socket.getLocalPort();
             } catch (Exception ex) {

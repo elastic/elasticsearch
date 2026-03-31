@@ -72,9 +72,10 @@ public class RoleRestrictionTests extends ESTestCase {
         final Restriction restriction = randomWorkflowsRestriction(1, 5);
         final XContentType xContentType = randomFrom(XContentType.values());
         final BytesReference xContentValue = toShuffledXContent(restriction, xContentType, ToXContent.EMPTY_PARAMS, false);
-        final XContentParser parser = xContentType.xContent().createParser(XContentParserConfiguration.EMPTY, xContentValue.streamInput());
-        final Restriction parsed = Restriction.parse(randomAlphaOfLengthBetween(3, 6), parser);
-        assertThat(parsed, equalTo(restriction));
+        try (XContentParser parser = xContentType.xContent().createParser(XContentParserConfiguration.EMPTY, xContentValue.streamInput())) {
+            final Restriction parsed = Restriction.parse(randomAlphaOfLengthBetween(3, 6), parser);
+            assertThat(parsed, equalTo(restriction));
+        }
     }
 
     public void testSerialization() throws IOException {

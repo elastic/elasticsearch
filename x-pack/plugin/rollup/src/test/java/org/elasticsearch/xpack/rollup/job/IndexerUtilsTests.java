@@ -19,10 +19,10 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
-import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
-import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
+import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.composite.DateHistogramValuesSourceBuilder;
@@ -306,7 +306,7 @@ public class IndexerUtilsTests extends AggregatorTestCase {
             keys = shuffleMap(keys, Collections.emptySet());
             when(bucket.getKey()).thenReturn(keys);
 
-            List<Aggregation> list = new ArrayList<>(3);
+            List<InternalAggregation> list = new ArrayList<>(3);
             InternalNumericMetricsAggregation.SingleValue mockAgg = mock(InternalNumericMetricsAggregation.SingleValue.class);
             when(mockAgg.getName()).thenReturn("123");
             list.add(mockAgg);
@@ -321,7 +321,7 @@ public class IndexerUtilsTests extends AggregatorTestCase {
 
             Collections.shuffle(list, random());
 
-            Aggregations aggs = new Aggregations(list);
+            InternalAggregations aggs = InternalAggregations.from(list);
             when(bucket.getAggregations()).thenReturn(aggs);
             when(bucket.getDocCount()).thenReturn(1L);
 
@@ -357,7 +357,7 @@ public class IndexerUtilsTests extends AggregatorTestCase {
             keys = shuffleMap(keys, Collections.emptySet());
             when(bucket.getKey()).thenReturn(keys);
 
-            List<Aggregation> list = new ArrayList<>(3);
+            List<InternalAggregation> list = new ArrayList<>(3);
             InternalNumericMetricsAggregation.SingleValue mockAgg = mock(InternalNumericMetricsAggregation.SingleValue.class);
             when(mockAgg.getName()).thenReturn("123");
             list.add(mockAgg);
@@ -372,7 +372,7 @@ public class IndexerUtilsTests extends AggregatorTestCase {
 
             Collections.shuffle(list, random());
 
-            Aggregations aggs = new Aggregations(list);
+            InternalAggregations aggs = InternalAggregations.from(list);
             when(bucket.getAggregations()).thenReturn(aggs);
             when(bucket.getDocCount()).thenReturn(1L);
 
@@ -400,7 +400,7 @@ public class IndexerUtilsTests extends AggregatorTestCase {
             keys.put("abc.histogram", null);
             when(bucket.getKey()).thenReturn(keys);
 
-            Aggregations aggs = new Aggregations(Collections.emptyList());
+            InternalAggregations aggs = InternalAggregations.from(Collections.emptyList());
             when(bucket.getAggregations()).thenReturn(aggs);
             when(bucket.getDocCount()).thenReturn(1L);
 

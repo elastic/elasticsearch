@@ -1,20 +1,26 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.junit.AssumptionViolatedException;
 
@@ -22,6 +28,8 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.util.Arrays;
 import java.util.Base64;
+import java.util.List;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.instanceOf;
@@ -110,7 +118,7 @@ public class BinaryFieldMapperTests extends MapperTestCase {
 
         // case 2: a value that looks compressed: this used to fail in 1.x
         BytesStreamOutput out = new BytesStreamOutput();
-        try (OutputStream compressed = CompressorFactory.COMPRESSOR.threadLocalOutputStream(out)) {
+        try (OutputStream compressed = CompressorFactory.COMPRESSOR.threadLocalStreamOutput(out)) {
             new BytesArray(binaryValue1).writeTo(compressed);
         }
         final byte[] binaryValue2 = BytesReference.toBytes(out.bytes());
@@ -128,6 +136,49 @@ public class BinaryFieldMapperTests extends MapperTestCase {
             Object originalValue = fieldType.valueForDisplay(indexedValue);
             assertEquals(new BytesArray(value), originalValue);
         }
+    }
+
+    public void testDefaultsForTimeSeriesIndex() throws IOException {
+        var isStored = randomBoolean();
+        boolean useSyntheticId = IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG && randomBoolean();
+
+        var indexSettingsBuilder = getIndexSettingsBuilder().put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+            .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "dimension")
+            .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2000-01-08T23:40:53.384Z")
+            .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2106-01-08T23:40:53.384Z");
+        if (IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG) {
+            indexSettingsBuilder.put(IndexSettings.SYNTHETIC_ID.getKey(), useSyntheticId);
+        }
+        var indexSettings = indexSettingsBuilder.build();
+
+        var mapping = mapping(b -> {
+            b.startObject("field");
+            b.field("type", "binary");
+            if (isStored) {
+                b.field("store", "true");
+            }
+            b.endObject();
+
+            b.startObject("@timestamp");
+            b.field("type", "date");
+            b.endObject();
+            b.startObject("dimension");
+            b.field("type", "keyword");
+            b.field("time_series_dimension", "true");
+            b.endObject();
+        });
+        DocumentMapper mapper = createMapperService(getVersion(), indexSettings, () -> true, mapping).documentMapper();
+
+        var source = source(null, b -> {
+            b.field("field", Base64.getEncoder().encodeToString(randomByteArrayOfLength(10)));
+            b.field("@timestamp", "2000-10-10T23:40:53.384Z");
+            b.field("dimension", "dimension1");
+        }, TimeSeriesRoutingHashFieldMapper.DUMMY_ENCODED_VALUE);
+        ParsedDocument doc = mapper.parse(source);
+
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        var docValuesField = fields.stream().filter(f -> f.fieldType().docValuesType() == DocValuesType.BINARY).findFirst();
+        assertTrue("Doc values are not present", docValuesField.isPresent());
     }
 
     @Override
@@ -154,11 +205,76 @@ public class BinaryFieldMapperTests extends MapperTestCase {
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
-        throw new AssumptionViolatedException("not supported");
+        return new SyntheticSourceSupport() {
+            @Override
+            public SyntheticSourceExample example(int maxValues) throws IOException {
+                if (randomBoolean()) {
+                    var value = generateValue();
+                    return new SyntheticSourceExample(value.v1(), value.v2(), this::mapping);
+                }
+
+                List<Tuple<String, byte[]>> values = randomList(1, maxValues, this::generateValue);
+
+                var in = values.stream().map(Tuple::v1).toList();
+
+                var outList = values.stream()
+                    .map(Tuple::v2)
+                    .map(BytesCompareUnsigned::new)
+                    .collect(Collectors.toSet())
+                    .stream()
+                    .sorted()
+                    .map(b -> encode(b.bytes))
+                    .toList();
+                Object out = outList.size() == 1 ? outList.get(0) : outList;
+
+                return new SyntheticSourceExample(in, out, this::mapping);
+            }
+
+            @Override
+            public List<SyntheticSourceInvalidExample> invalidExample() throws IOException {
+                return List.of();
+            }
+
+            private Tuple<String, byte[]> generateValue() {
+                var len = randomIntBetween(1, 256);
+                var bytes = randomByteArrayOfLength(len);
+
+                return Tuple.tuple(encode(bytes), bytes);
+            }
+
+            private String encode(byte[] bytes) {
+                return Base64.getEncoder().encodeToString(bytes);
+            }
+
+            private void mapping(XContentBuilder b) throws IOException {
+                b.field("type", "binary").field("doc_values", "true");
+
+                if (rarely()) {
+                    b.field("store", false);
+                }
+            }
+
+            private record BytesCompareUnsigned(byte[] bytes) implements Comparable<BytesCompareUnsigned> {
+                @Override
+                public int compareTo(BytesCompareUnsigned o) {
+                    return Arrays.compareUnsigned(bytes, o.bytes);
+                }
+            }
+        };
     }
 
     @Override
     protected IngestScriptSupport ingestScriptSupport() {
         throw new AssumptionViolatedException("not supported");
+    }
+
+    @Override
+    protected List<SortShortcutSupport> getSortShortcutSupport() {
+        return List.of();
+    }
+
+    @Override
+    protected boolean supportsDocValuesSkippers() {
+        return false;
     }
 }

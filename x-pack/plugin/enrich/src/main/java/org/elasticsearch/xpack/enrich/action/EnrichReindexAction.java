@@ -19,6 +19,6 @@ public class EnrichReindexAction extends ActionType<BulkByScrollResponse> {
     public static final EnrichReindexAction INSTANCE = new EnrichReindexAction();
 
     private EnrichReindexAction() {
-        super(NAME, BulkByScrollResponse::new);
+        super(NAME);
     }
 }

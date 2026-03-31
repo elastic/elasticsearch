@@ -30,7 +30,11 @@ import java.util.function.LongSupplier;
 
 import static org.elasticsearch.core.Strings.format;
 
-public class MlAutoscalingDeciderService implements AutoscalingDeciderService, LocalNodeMasterListener {
+/**
+ * This handles ML autoscaling just for classic cloud.
+ * For serverless, see: {@link MlAutoscalingResourceTracker}.
+ */
+public final class MlAutoscalingDeciderService implements AutoscalingDeciderService, LocalNodeMasterListener {
 
     private static final Logger logger = LogManager.getLogger(MlAutoscalingDeciderService.class);
 

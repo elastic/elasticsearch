@@ -1,5 +1,0 @@
-[%header.monospaced.styled,format=dsv,separator=|]
-|===
-arg1 | arg2 | result
-keyword | keyword | keyword
-|===

@@ -9,42 +9,30 @@ package org.elasticsearch.xpack.core;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.SpecialPermission;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.TransportAction;
-import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsFilter;
-import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
-import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.license.ClusterStateLicenseService;
-import org.elasticsearch.license.DeleteLicenseAction;
-import org.elasticsearch.license.GetBasicStatusAction;
 import org.elasticsearch.license.GetLicenseAction;
 import org.elasticsearch.license.GetTrialStatusAction;
 import org.elasticsearch.license.License;
@@ -83,14 +71,11 @@ import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.protocol.xpack.XPackInfoRequest;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
-import org.elasticsearch.repositories.RepositoriesService;
+import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.Repository;
-import org.elasticsearch.rest.RestController;
+import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.rest.RestHandler;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.snapshots.sourceonly.SourceOnlySnapshotRepository;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
@@ -98,6 +83,7 @@ import org.elasticsearch.xpack.cluster.routing.allocation.mapper.DataTierFieldMa
 import org.elasticsearch.xpack.core.action.DataStreamInfoTransportAction;
 import org.elasticsearch.xpack.core.action.DataStreamLifecycleUsageTransportAction;
 import org.elasticsearch.xpack.core.action.DataStreamUsageTransportAction;
+import org.elasticsearch.xpack.core.action.TimeSeriesUsageTransportAction;
 import org.elasticsearch.xpack.core.action.TransportXPackInfoAction;
 import org.elasticsearch.xpack.core.action.TransportXPackUsageAction;
 import org.elasticsearch.xpack.core.action.XPackInfoAction;
@@ -105,14 +91,18 @@ import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageResponse;
-import org.elasticsearch.xpack.core.async.DeleteAsyncResultAction;
 import org.elasticsearch.xpack.core.async.TransportDeleteAsyncResultAction;
+import org.elasticsearch.xpack.core.datatiers.DataTiersInfoTransportAction;
+import org.elasticsearch.xpack.core.datatiers.DataTiersUsageTransportAction;
+import org.elasticsearch.xpack.core.datatiers.NodesDataTiersUsageTransportAction;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.rest.action.RestXPackInfoAction;
 import org.elasticsearch.xpack.core.rest.action.RestXPackUsageAction;
 import org.elasticsearch.xpack.core.security.authc.TokenMetadata;
+import org.elasticsearch.xpack.core.security.authz.RoleMappingMetadata;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationReloader;
 import org.elasticsearch.xpack.core.ssl.SSLService;
+import org.elasticsearch.xpack.core.ssl.extension.SslProfileExtension;
 import org.elasticsearch.xpack.core.termsenum.action.TermsEnumAction;
 import org.elasticsearch.xpack.core.termsenum.action.TransportTermsEnumAction;
 import org.elasticsearch.xpack.core.termsenum.rest.RestTermsEnumAction;
@@ -121,8 +111,6 @@ import org.elasticsearch.xpack.core.watcher.WatcherMetadata;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -131,6 +119,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.LongSupplier;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -150,32 +139,15 @@ public class XPackPlugin extends XPackClientPlugin
 
     // TODO: clean up this library to not ask for write access to all system properties!
     static {
-        // invoke this clinit in unbound with permissions to access all system properties
-        SecurityManager sm = System.getSecurityManager();
-        if (sm != null) {
-            sm.checkPermission(new SpecialPermission());
-        }
+        // TODO: fix gradle to add all security resources (plugin metadata) to test classpath
+        // of watcher plugin, which depends on it directly. This prevents these plugins
+        // from being initialized correctly by the test framework, and means we have to
+        // have this leniency.
         try {
-            AccessController.doPrivileged(new PrivilegedAction<Void>() {
-                @Override
-                public Void run() {
-                    try {
-                        Class.forName("com.unboundid.util.Debug");
-                        Class.forName("com.unboundid.ldap.sdk.LDAPConnectionOptions");
-                    } catch (ClassNotFoundException e) {
-                        throw new RuntimeException(e);
-                    }
-                    return null;
-                }
-            });
-            // TODO: fix gradle to add all security resources (plugin metadata) to test classpath
-            // of watcher plugin, which depends on it directly. This prevents these plugins
-            // from being initialized correctly by the test framework, and means we have to
-            // have this leniency.
-        } catch (ExceptionInInitializerError bogus) {
-            if (bogus.getCause() instanceof SecurityException == false) {
-                throw bogus; // some other bug
-            }
+            Class.forName("com.unboundid.util.Debug");
+            Class.forName("com.unboundid.ldap.sdk.LDAPConnectionOptions");
+        } catch (ClassNotFoundException e) {
+            throw new RuntimeException(e);
         }
     }
 
@@ -186,6 +158,8 @@ public class XPackPlugin extends XPackClientPlugin
     private static SetOnce<LongSupplier> epochMillisSupplier = new SetOnce<>();
     private static SetOnce<XPackLicenseState> licenseState = new SetOnce<>();
     private static SetOnce<LicenseService> licenseService = new SetOnce<>();
+
+    private final List<SslProfileExtension> sslExtensions = new ArrayList<>();
 
     public XPackPlugin(final Settings settings) {
         super();
@@ -299,10 +273,15 @@ public class XPackPlugin extends XPackClientPlugin
     private static boolean alreadyContainsXPackCustomMetadata(ClusterState clusterState) {
         final Metadata metadata = clusterState.metadata();
         return metadata.custom(LicensesMetadata.TYPE) != null
-            || metadata.custom(MlMetadata.TYPE) != null
-            || metadata.custom(WatcherMetadata.TYPE) != null
             || clusterState.custom(TokenMetadata.TYPE) != null
-            || metadata.custom(TransformMetadata.TYPE) != null;
+            || metadata.projects().values().stream().anyMatch(XPackPlugin::alreadyContainsXPackCustomMetadata);
+    }
+
+    private static boolean alreadyContainsXPackCustomMetadata(ProjectMetadata project) {
+        return project.custom(MlMetadata.TYPE) != null
+            || project.custom(WatcherMetadata.TYPE) != null
+            || RoleMappingMetadata.getFromProject(project).isEmpty() == false
+            || project.custom(TransformMetadata.TYPE) != null;
     }
 
     @Override
@@ -321,33 +300,24 @@ public class XPackPlugin extends XPackClientPlugin
     }
 
     @Override
-    public Collection<Object> createComponents(
-        Client client,
-        ClusterService clusterService,
-        ThreadPool threadPool,
-        ResourceWatcherService resourceWatcherService,
-        ScriptService scriptService,
-        NamedXContentRegistry xContentRegistry,
-        Environment environment,
-        NodeEnvironment nodeEnvironment,
-        NamedWriteableRegistry namedWriteableRegistry,
-        IndexNameExpressionResolver expressionResolver,
-        Supplier<RepositoriesService> repositoriesServiceSupplier,
-        Tracer tracer,
-        AllocationService allocationService,
-        IndicesService indicesService
-    ) {
+    public Collection<?> createComponents(PluginServices services) {
         List<Object> components = new ArrayList<>();
 
-        final SSLService sslService = createSSLService(environment, resourceWatcherService);
+        final SSLService sslService = createSSLService(services.environment(), services.resourceWatcherService());
 
         LicenseService licenseService = getLicenseService();
         if (licenseService == null) {
-            licenseService = new ClusterStateLicenseService(settings, threadPool, clusterService, getClock(), getLicenseState());
+            licenseService = new ClusterStateLicenseService(
+                settings,
+                services.threadPool(),
+                services.clusterService(),
+                getClock(),
+                getLicenseState()
+            );
             setLicenseService(licenseService);
         }
 
-        setEpochMillisSupplier(threadPool::absoluteTimeInMillis);
+        setEpochMillisSupplier(services.threadPool()::absoluteTimeInMillis);
 
         // It is useful to override these as they are what guice is injecting into actions
         components.add(sslService);
@@ -359,27 +329,29 @@ public class XPackPlugin extends XPackClientPlugin
     }
 
     @Override
-    public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-        List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> actions = new ArrayList<>();
-        actions.add(new ActionHandler<>(XPackInfoAction.INSTANCE, getInfoAction()));
-        actions.add(new ActionHandler<>(XPackUsageAction.INSTANCE, getUsageAction()));
-        actions.add(new ActionHandler<>(PutLicenseAction.INSTANCE, TransportPutLicenseAction.class));
-        actions.add(new ActionHandler<>(GetLicenseAction.INSTANCE, TransportGetLicenseAction.class));
-        actions.add(new ActionHandler<>(DeleteLicenseAction.INSTANCE, TransportDeleteLicenseAction.class));
-        actions.add(new ActionHandler<>(PostStartTrialAction.INSTANCE, TransportPostStartTrialAction.class));
-        actions.add(new ActionHandler<>(GetTrialStatusAction.INSTANCE, TransportGetTrialStatusAction.class));
-        actions.add(new ActionHandler<>(PostStartBasicAction.INSTANCE, TransportPostStartBasicAction.class));
-        actions.add(new ActionHandler<>(GetBasicStatusAction.INSTANCE, TransportGetBasicStatusAction.class));
-        actions.add(new ActionHandler<>(TransportGetFeatureUsageAction.TYPE, TransportGetFeatureUsageAction.class));
-        actions.add(new ActionHandler<>(TermsEnumAction.INSTANCE, TransportTermsEnumAction.class));
-        actions.add(new ActionHandler<>(DeleteAsyncResultAction.INSTANCE, TransportDeleteAsyncResultAction.class));
-        actions.add(new ActionHandler<>(XPackInfoFeatureAction.DATA_TIERS, DataTiersInfoTransportAction.class));
-        actions.add(new ActionHandler<>(XPackUsageFeatureAction.DATA_TIERS, DataTiersUsageTransportAction.class));
-        actions.add(new ActionHandler<>(XPackUsageFeatureAction.DATA_STREAMS, DataStreamUsageTransportAction.class));
-        actions.add(new ActionHandler<>(XPackInfoFeatureAction.DATA_STREAMS, DataStreamInfoTransportAction.class));
-        actions.add(new ActionHandler<>(XPackUsageFeatureAction.DATA_STREAM_LIFECYCLE, DataStreamLifecycleUsageTransportAction.class));
-        actions.add(new ActionHandler<>(XPackUsageFeatureAction.HEALTH, HealthApiUsageTransportAction.class));
-        actions.add(new ActionHandler<>(XPackUsageFeatureAction.REMOTE_CLUSTERS, RemoteClusterUsageTransportAction.class));
+    public List<ActionHandler> getActions() {
+        List<ActionHandler> actions = new ArrayList<>();
+        actions.add(new ActionHandler(XPackInfoAction.INSTANCE, getInfoAction()));
+        actions.add(new ActionHandler(XPackUsageAction.INSTANCE, getUsageAction()));
+        actions.add(new ActionHandler(PutLicenseAction.INSTANCE, TransportPutLicenseAction.class));
+        actions.add(new ActionHandler(GetLicenseAction.INSTANCE, TransportGetLicenseAction.class));
+        actions.add(new ActionHandler(TransportDeleteLicenseAction.TYPE, TransportDeleteLicenseAction.class));
+        actions.add(new ActionHandler(PostStartTrialAction.INSTANCE, TransportPostStartTrialAction.class));
+        actions.add(new ActionHandler(GetTrialStatusAction.INSTANCE, TransportGetTrialStatusAction.class));
+        actions.add(new ActionHandler(PostStartBasicAction.INSTANCE, TransportPostStartBasicAction.class));
+        actions.add(new ActionHandler(TransportGetBasicStatusAction.TYPE, TransportGetBasicStatusAction.class));
+        actions.add(new ActionHandler(TransportGetFeatureUsageAction.TYPE, TransportGetFeatureUsageAction.class));
+        actions.add(new ActionHandler(TermsEnumAction.INSTANCE, TransportTermsEnumAction.class));
+        actions.add(new ActionHandler(TransportDeleteAsyncResultAction.TYPE, TransportDeleteAsyncResultAction.class));
+        actions.add(new ActionHandler(XPackInfoFeatureAction.DATA_TIERS, DataTiersInfoTransportAction.class));
+        actions.add(new ActionHandler(XPackUsageFeatureAction.DATA_TIERS, DataTiersUsageTransportAction.class));
+        actions.add(new ActionHandler(XPackUsageFeatureAction.DATA_STREAMS, DataStreamUsageTransportAction.class));
+        actions.add(new ActionHandler(XPackInfoFeatureAction.DATA_STREAMS, DataStreamInfoTransportAction.class));
+        actions.add(new ActionHandler(XPackUsageFeatureAction.DATA_STREAM_LIFECYCLE, DataStreamLifecycleUsageTransportAction.class));
+        actions.add(new ActionHandler(XPackUsageFeatureAction.HEALTH, HealthApiUsageTransportAction.class));
+        actions.add(new ActionHandler(XPackUsageFeatureAction.REMOTE_CLUSTERS, RemoteClusterUsageTransportAction.class));
+        actions.add(new ActionHandler(NodesDataTiersUsageTransportAction.TYPE, NodesDataTiersUsageTransportAction.class));
+        actions.add(new ActionHandler(XPackUsageFeatureAction.TIME_SERIES_DATA_STREAMS, TimeSeriesUsageTransportAction.class));
         return actions;
     }
 
@@ -395,13 +367,9 @@ public class XPackPlugin extends XPackClientPlugin
 
     @Override
     public List<RestHandler> getRestHandlers(
-        Settings settings,
-        RestController restController,
-        ClusterSettings clusterSettings,
-        IndexScopedSettings indexScopedSettings,
-        SettingsFilter settingsFilter,
-        IndexNameExpressionResolver indexNameExpressionResolver,
-        Supplier<DiscoveryNodes> nodesInCluster
+        RestHandlersServices restHandlersServices,
+        Supplier<DiscoveryNodes> nodesInCluster,
+        Predicate<NodeFeature> clusterSupportsFeature
     ) {
         List<RestHandler> handlers = new ArrayList<>();
         handlers.add(new RestXPackInfoAction());
@@ -419,9 +387,9 @@ public class XPackPlugin extends XPackClientPlugin
     }
 
     public static Path resolveConfigFile(Environment env, String name) {
-        Path config = env.configFile().resolve(name);
+        Path config = env.configDir().resolve(name);
         if (Files.exists(config) == false) {
-            Path legacyConfig = env.configFile().resolve("x-pack").resolve(name);
+            Path legacyConfig = env.configDir().resolve("x-pack").resolve(name);
             if (Files.exists(legacyConfig)) {
                 deprecationLogger.warn(
                     DeprecationCategory.OTHER,
@@ -445,7 +413,9 @@ public class XPackPlugin extends XPackClientPlugin
         NamedXContentRegistry namedXContentRegistry,
         ClusterService clusterService,
         BigArrays bigArrays,
-        RecoverySettings recoverySettings
+        RecoverySettings recoverySettings,
+        RepositoriesMetrics repositoriesMetrics,
+        SnapshotMetrics snapshotMetrics
     ) {
         return Collections.singletonMap("source", SourceOnlySnapshotRepository.newRepositoryFactory());
     }
@@ -464,6 +434,8 @@ public class XPackPlugin extends XPackClientPlugin
     public List<Setting<?>> getSettings() {
         List<Setting<?>> settings = super.getSettings();
         settings.add(SourceOnlySnapshotRepository.SOURCE_ONLY);
+
+        settings.addAll(SSLService.getExtensionSettings(this.sslExtensions));
 
         // Don't register the license setting if there is an alternate implementation loaded as an extension.
         // this relies on the order in which methods are called - loadExtensions, (this method) getSettings, then createComponents
@@ -496,9 +468,9 @@ public class XPackPlugin extends XPackClientPlugin
      * of SSLContexts when configuration files change on disk.
      */
     private SSLService createSSLService(Environment environment, ResourceWatcherService resourceWatcherService) {
-        final Map<String, SslConfiguration> sslConfigurations = SSLService.getSSLConfigurations(environment);
+        final SSLService.LoadedSslConfigurations sslConfigurations = SSLService.getSSLConfigurations(environment, this.sslExtensions);
         // Must construct the reloader before the SSL service so that we don't miss any config changes, see #54867
-        final SSLConfigurationReloader reloader = new SSLConfigurationReloader(resourceWatcherService, sslConfigurations.values());
+        final SSLConfigurationReloader reloader = new SSLConfigurationReloader(resourceWatcherService, sslConfigurations);
         final SSLService sslService = new SSLService(environment, sslConfigurations);
         reloader.setSSLService(sslService);
         setSslService(sslService);
@@ -507,6 +479,11 @@ public class XPackPlugin extends XPackClientPlugin
 
     @Override
     public void loadExtensions(ExtensionLoader loader) {
+        loadLicenseService(loader);
+        this.sslExtensions.addAll(loader.loadExtensions(SslProfileExtension.class));
+    }
+
+    private void loadLicenseService(ExtensionLoader loader) {
         List<MutableLicenseService> licenseServices = loader.loadExtensions(MutableLicenseService.class);
         if (licenseServices.size() > 1) {
             throw new IllegalStateException(MutableLicenseService.class + " may not have multiple implementations");

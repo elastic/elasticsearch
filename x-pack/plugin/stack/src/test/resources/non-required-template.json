@@ -3,7 +3,7 @@
   "priority": 100,
   "data_stream": {},
   "composed_of": [
-    "logs-settings",
+    "logs@settings",
     "syslog@custom"
   ],
   "ignore_missing_component_templates": ["syslog@custom"],

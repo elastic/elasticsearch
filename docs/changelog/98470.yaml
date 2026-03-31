@@ -1,5 +1,0 @@
-pr: 98470
-summary: Reduce verbosity of the bulk indexing audit log
-area: Audit
-type: enhancement
-issues: []

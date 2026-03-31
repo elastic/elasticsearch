@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.core.security.action.user;
 
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.RemoteClusterActionType;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 
 /**
@@ -17,8 +18,12 @@ public class HasPrivilegesAction extends ActionType<HasPrivilegesResponse> {
 
     public static final HasPrivilegesAction INSTANCE = new HasPrivilegesAction();
     public static final String NAME = "cluster:admin/xpack/security/user/has_privileges";
+    public static final RemoteClusterActionType<HasPrivilegesResponse> REMOTE_TYPE = new RemoteClusterActionType<>(
+        NAME,
+        HasPrivilegesResponse::new
+    );
 
     private HasPrivilegesAction() {
-        super(NAME, HasPrivilegesResponse::new);
+        super(NAME);
     }
 }

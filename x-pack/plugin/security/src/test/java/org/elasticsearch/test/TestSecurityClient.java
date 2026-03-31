@@ -25,6 +25,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ObjectPath;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -51,6 +52,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.test.rest.ESRestTestCase.entityAsMap;
+import static org.elasticsearch.test.rest.ESRestTestCase.setIgnoredErrorResponseCodes;
 
 public class TestSecurityClient {
 
@@ -210,7 +212,7 @@ public class TestSecurityClient {
                 XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser);
                 final String roleName = parser.currentName();
                 XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
-                final RoleDescriptor role = RoleDescriptor.parse(roleName, parser, false);
+                final RoleDescriptor role = RoleDescriptor.parserBuilder().allowDescription(true).build().parse(roleName, parser);
                 roles.put(roleName, role);
             }
         }
@@ -395,7 +397,7 @@ public class TestSecurityClient {
         final Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
         // This API returns 404 (with the same body as a 200 response) if there's nothing to delete.
         // RestClient will throw an exception on 404, but we don't want that, we want to parse the body and return it
-        request.addParameter("ignore", "404");
+        setIgnoredErrorResponseCodes(request, RestStatus.NOT_FOUND);
         request.setJsonEntity(requestBody);
         final Map<String, Object> responseBody = entityAsMap(execute(request));
         final List<Map<String, ?>> errors = (List<Map<String, ?>>) responseBody.get("error_details");

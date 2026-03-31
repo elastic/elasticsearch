@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.server.cli;
@@ -21,19 +22,33 @@ import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.cli.EnvironmentAwareCommand;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.monitor.jvm.JvmInfo;
+import org.elasticsearch.server.launcher.common.LaunchDescriptor;
 
+import java.io.DataOutputStream;
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 /**
- * The main CLI for running Elasticsearch.
+ * The main CLI for preparing the Elasticsearch server launch.
+ *
+ * <p> This program (the "preparer") does all the heavy lifting: parsing options, loading secure
+ * settings, auto-configuring security, syncing plugins, computing JVM options, and building the
+ * full command line. It then writes a {@link LaunchDescriptor} to stdout and exits. The
+ * server-launcher runs the preparer with stdout redirected and reads the descriptor from the
+ * preparer's stdout pipe, then spawns the actual server process.
  */
 class ServerCli extends EnvironmentAwareCommand {
 
@@ -42,8 +57,6 @@ class ServerCli extends EnvironmentAwareCommand {
     private final OptionSpec<Path> pidfileOption;
     private final OptionSpecBuilder quietOption;
     private final OptionSpec<String> enrollmentTokenOption;
-
-    private volatile ServerProcess server;
 
     // visible for testing
     ServerCli() {
@@ -97,22 +110,11 @@ class ServerCli extends EnvironmentAwareCommand {
             syncPlugins(terminal, env, processInfo);
 
             ServerArgs args = createArgs(options, env, secrets, processInfo);
-            this.server = startServer(terminal, processInfo, args);
-        }
-
-        if (options.has(daemonizeOption)) {
-            server.detach();
-            return;
-        }
-
-        // we are running in the foreground, so wait for the server to exit
-        int exitCode = server.waitFor();
-        if (exitCode != ExitCodes.OK) {
-            throw new UserException(exitCode, "Elasticsearch exited unexpectedly");
+            prepareLaunch(terminal, processInfo, args, options.has(daemonizeOption));
         }
     }
 
-    private void printVersion(Terminal terminal) {
+    private static void printVersion(Terminal terminal) {
         final String versionOutput = String.format(
             Locale.ROOT,
             "Version: %s, Build: %s/%s/%s, JVM: %s",
@@ -130,7 +132,7 @@ class ServerCli extends EnvironmentAwareCommand {
             throw new UserException(ExitCodes.USAGE, "Multiple --enrollment-token parameters are not allowed");
         }
 
-        Path log4jConfig = env.configFile().resolve("log4j2.properties");
+        Path log4jConfig = env.configDir().resolve("log4j2.properties");
         if (Files.exists(log4jConfig) == false) {
             throw new UserException(ExitCodes.CONFIG, "Missing logging config file at " + log4jConfig);
         }
@@ -148,7 +150,7 @@ class ServerCli extends EnvironmentAwareCommand {
         assert secureSettingsLoader(env) instanceof KeyStoreLoader;
 
         String autoConfigLibs = "modules/x-pack-core,modules/x-pack-security,lib/tools/security-cli";
-        Command cmd = loadTool("auto-configure-node", autoConfigLibs);
+        Command cmd = loadTool(processInfo.sysprops(), "auto-configure-node", autoConfigLibs);
         assert cmd instanceof EnvironmentAwareCommand;
         @SuppressWarnings("raw")
         var autoConfigNode = (EnvironmentAwareCommand) cmd;
@@ -190,14 +192,14 @@ class ServerCli extends EnvironmentAwareCommand {
     // package private for testing
     void syncPlugins(Terminal terminal, Environment env, ProcessInfo processInfo) throws Exception {
         String pluginCliLibs = "lib/tools/plugin-cli";
-        Command cmd = loadTool("sync-plugins", pluginCliLibs);
+        Command cmd = loadTool(processInfo.sysprops(), "sync-plugins", pluginCliLibs);
         assert cmd instanceof EnvironmentAwareCommand;
         @SuppressWarnings("raw")
         var syncPlugins = (EnvironmentAwareCommand) cmd;
         syncPlugins.execute(terminal, syncPlugins.parseOptions(new String[0]), env, processInfo);
     }
 
-    private void validatePidFile(Path pidFile) throws UserException {
+    private static void validatePidFile(Path pidFile) throws UserException {
         Path parent = pidFile.getParent();
         if (parent != null && Files.exists(parent) && Files.isDirectory(parent) == false) {
             throw new UserException(ExitCodes.USAGE, "pid file parent [" + parent + "] exists but is not a directory");
@@ -219,24 +221,83 @@ class ServerCli extends EnvironmentAwareCommand {
             }
             validatePidFile(pidFile);
         }
-        return new ServerArgs(daemonize, quiet, pidFile, secrets, env.settings(), env.configFile());
+        return new ServerArgs(daemonize, quiet, pidFile, secrets, env.settings(), env.configDir(), env.logsDir());
     }
 
-    @Override
-    public void close() {
-        if (server != null) {
-            server.stop();
+    // protected to allow tests to override
+    protected Command loadTool(Map<String, String> sysprops, String toolname, String libs) {
+        return CliToolProvider.load(sysprops, toolname, libs).create();
+    }
+
+    /**
+     * Builds a {@link LaunchDescriptor} with all the information the launcher needs to spawn
+     * the server process and writes it to the terminal's output stream (stdout when the
+     * launcher runs the preparer with redirect mode).
+     */
+    // protected to allow tests to override
+    protected void prepareLaunch(Terminal terminal, ProcessInfo processInfo, ServerArgs args, boolean daemonize) throws Exception {
+        var tempDir = ServerProcessUtils.setupTempDir(processInfo);
+        var jvmOptions = JvmOptionsParser.determineJvmOptions(args, processInfo, tempDir, new MachineDependentHeap());
+
+        String command = getJavaCommand(processInfo);
+        List<String> jvmArgs = getJvmArgs(processInfo);
+        Map<String, String> environment = getEnvironment(processInfo, tempDir);
+        byte[] serverArgsBytes = serializeServerArgs(args);
+
+        LaunchDescriptor descriptor = new LaunchDescriptor(
+            command,
+            jvmOptions,
+            jvmArgs,
+            environment,
+            args.logsDir().toString(),
+            tempDir.toString(),
+            daemonize,
+            serverArgsBytes
+        );
+
+        var out = terminal.getOutputStream();
+        if (out == null) {
+            throw new IllegalStateException("terminal.getOutputStream() is null; preparer must be run with ES_REDIRECT_STDOUT_TO_STDERR");
         }
+        DataOutputStream dos = new DataOutputStream(out);
+        descriptor.writeTo(dos);
+        dos.flush();
     }
 
-    // protected to allow tests to override
-    protected Command loadTool(String toolname, String libs) {
-        return CliToolProvider.load(toolname, libs).create();
+    protected static String getJavaCommand(ProcessInfo processInfo) {
+        Path javaHome = Path.of(processInfo.sysprops().get("java.home"));
+        boolean isWindows = processInfo.sysprops().get("os.name").startsWith("Windows");
+        return javaHome.resolve("bin").resolve("java" + (isWindows ? ".exe" : "")).toString();
     }
 
-    // protected to allow tests to override
-    protected ServerProcess startServer(Terminal terminal, ProcessInfo processInfo, ServerArgs args) throws UserException {
-        return ServerProcess.start(terminal, processInfo, args);
+    protected static List<String> getJvmArgs(ProcessInfo processInfo) {
+        Path esHome = processInfo.workingDir();
+        return List.of(
+            "--module-path",
+            esHome.resolve("lib").toString(),
+            "--add-modules=jdk.net",
+            "--add-modules=jdk.management.agent",
+            "--add-modules=ALL-MODULE-PATH",
+            "-m",
+            "org.elasticsearch.server/org.elasticsearch.bootstrap.Elasticsearch"
+        );
+    }
+
+    protected static Map<String, String> getEnvironment(ProcessInfo processInfo, Path tempDir) {
+        Map<String, String> envVars = new HashMap<>(processInfo.envVars());
+        envVars.remove("ES_TMPDIR");
+        if (envVars.containsKey("LIBFFI_TMPDIR") == false) {
+            envVars.put("LIBFFI_TMPDIR", tempDir.toString());
+        }
+        envVars.remove("ES_JAVA_OPTS");
+        return envVars;
+    }
+
+    protected static byte[] serializeServerArgs(ServerArgs args) throws IOException {
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            args.writeTo(out);
+            return BytesReference.toBytes(out.bytes());
+        }
     }
 
     // protected to allow tests to override

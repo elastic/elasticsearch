@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.plugin.analysis.icu;
 
@@ -59,6 +60,24 @@ public class ICUCollationKeywordFieldMapperTests extends MapperTestCase {
         checker.registerConflictCheck("numeric", b -> b.field("numeric", true));
         checker.registerConflictCheck("variable_top", b -> b.field("variable_top", ":"));
         checker.registerConflictCheck("hiragana_quaternary_mode", b -> b.field("hiragana_quaternary_mode", true));
+        checker.registerConflictCheck("language", b -> b.field("language", "tr"));
+        checker.registerConflictCheck("country", b -> b.field("country", "US"));
+        checker.registerConflictCheck("variant", b -> b.field("variant", "traditional"));
+        checker.registerConflictCheck("rules", b -> b.field("rules", "&a<b"));
+        checker.registerConflictCheck("null_value", b -> b.field("null_value", "foo"));
+        checker.registerConflictCheck("index", b -> b.field("index", false));
+        checker.registerConflictCheck("store", b -> b.field("store", true));
+        checker.registerConflictCheck("doc_values", b -> b.field("doc_values", false));
+        checker.registerConflictCheck("index_options", b -> b.field("index_options", "freqs"));
+        checker.registerUpdateCheck("ignore_above", b -> b.field("ignore_above", 5), m -> {});
+        checker.registerConflictCheck("norms", b -> b.field("norms", true));
+        checker.registerUpdateCheck("norms", b -> {
+            minimalMapping(b);
+            b.field("norms", true);
+        }, b -> {
+            minimalMapping(b);
+            b.field("norms", false);
+        }, m -> assertFalse(m.fieldType().getTextSearchInfo().hasNorms()));
     }
 
     @Override
@@ -281,8 +300,8 @@ public class ICUCollationKeywordFieldMapperTests extends MapperTestCase {
         fields = doc.rootDoc().getFields("field");
         assertThat(fields, empty());
         fields = doc.rootDoc().getFields("_ignored");
-        assertEquals(1, fields.size());
-        assertEquals("field", fields.get(0).stringValue());
+        assertEquals(2, fields.size());
+        assertTrue(fields.stream().anyMatch(field -> "field".equals(field.stringValue())));
     }
 
     public void testUpdateIgnoreAbove() throws IOException {
@@ -316,5 +335,15 @@ public class ICUCollationKeywordFieldMapperTests extends MapperTestCase {
     @Override
     protected IngestScriptSupport ingestScriptSupport() {
         throw new AssumptionViolatedException("not supported");
+    }
+
+    @Override
+    protected List<SortShortcutSupport> getSortShortcutSupport() {
+        return List.of(new SortShortcutSupport(this::minimalMapping, this::writeField, true));
+    }
+
+    @Override
+    protected boolean supportsDocValuesSkippers() {
+        return false;
     }
 }

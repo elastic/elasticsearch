@@ -1170,6 +1170,49 @@ public class SubstituteRoundToTests extends AbstractLocalPhysicalPlanOptimizerTe
         assertEquals(128, roundTo.points().size());
     }
 
+    /**
+     * When there is a lookup join, the block loader optimization does not apply
+     * because the RoundTo field reference passes through the LookupJoinExec.
+     * RoundTo stays as-is regardless of block loader support.
+     */
+    public void testBlockLoaderFallbackNotAppliedWithLookupJoin() {
+        String query = """
+            from test
+            | rename integer as language_code
+            | lookup join languages_lookup on language_code
+            | stats count(*) by x = round_to(long, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
+            """;
+        TestPlannerOptimizer allTypesOptimizer = new TestPlannerOptimizer(config, makeAnalyzer("mapping-all-types.json"));
+        EsqlFlags disabledQueryAndTags = new EsqlFlags(0);
+        {
+            SearchStats noBlockLoaderStats = new EsqlTestUtils.TestSearchStatsWithMinMax(Map.of(), Map.of(), false);
+            PhysicalPlan plan = allTypesOptimizer.plan(query, noBlockLoaderStats, disabledQueryAndTags);
+            LimitExec limit = as(plan, LimitExec.class);
+            AggregateExec finalAgg = as(limit.child(), AggregateExec.class);
+            ExchangeExec exchange = as(finalAgg.child(), ExchangeExec.class);
+            AggregateExec initAgg = as(exchange.child(), AggregateExec.class);
+            EvalExec eval = as(initAgg.child(), EvalExec.class);
+            assertEquals(1, eval.fields().size());
+            RoundTo roundTo = as(eval.fields().getFirst().child(), RoundTo.class);
+            assertNotNull(roundTo);
+            FieldExtractExec fieldExtract = as(eval.child(), FieldExtractExec.class);
+            as(fieldExtract.child(), LookupJoinExec.class);
+        }
+        {
+            PhysicalPlan plan = allTypesOptimizer.plan(query, searchStats, disabledQueryAndTags);
+            LimitExec limit = as(plan, LimitExec.class);
+            AggregateExec finalAgg = as(limit.child(), AggregateExec.class);
+            ExchangeExec exchange = as(finalAgg.child(), ExchangeExec.class);
+            AggregateExec initAgg = as(exchange.child(), AggregateExec.class);
+            EvalExec eval = as(initAgg.child(), EvalExec.class);
+            assertEquals(1, eval.fields().size());
+            RoundTo roundTo = as(eval.fields().getFirst().child(), RoundTo.class);
+            assertNotNull(roundTo);
+            FieldExtractExec fieldExtract = as(eval.child(), FieldExtractExec.class);
+            as(fieldExtract.child(), LookupJoinExec.class);
+        }
+    }
+
     private static SearchStats searchStats() {
         // create a SearchStats with min and max in milliseconds
         Map<String, Object> minValue = Map.of("date", 1697804103360L); // 2023-10-20T12:15:03.360Z

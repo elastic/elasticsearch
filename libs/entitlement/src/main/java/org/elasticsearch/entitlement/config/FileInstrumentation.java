@@ -22,6 +22,7 @@ import java.io.File;
 import java.io.FileDescriptor;
 import java.io.FileFilter;
 import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.FileReader;
 import java.io.FileWriter;
@@ -317,116 +318,182 @@ public class FileInstrumentation implements InstrumentationConfig {
         builder.on(RandomAccessFile.class, rule -> {
             rule.callingStatic(RandomAccessFile::new, File.class, String.class)
                 .enforce((file1, mode) -> mode.equals("r") ? Policies.fileRead(file1) : Policies.fileWrite(file1))
-                .elseThrowNotEntitled();
+                .elseThrow(e -> {
+                    var ex = new FileNotFoundException(e.getMessage());
+                    ex.initCause(e);
+                    return ex;
+                });
             rule.callingStatic(RandomAccessFile::new, String.class, String.class)
                 .enforce((path, mode) -> mode.equals("r") ? Policies.fileRead(new File(path)) : Policies.fileWrite(new File(path)))
-                .elseThrowNotEntitled();
+                .elseThrow(e -> {
+                    var ex = new FileNotFoundException(e.getMessage());
+                    ex.initCause(e);
+                    return ex;
+                });
         });
 
         builder.on(FileInputStream.class, rule -> {
-            rule.callingStatic(FileInputStream::new, String.class)
-                .enforce(path -> Policies.fileRead(new File(path)))
-                .elseThrowNotEntitled();
-            rule.callingStatic(FileInputStream::new, File.class).enforce(Policies::fileRead).elseThrowNotEntitled();
+            rule.callingStatic(FileInputStream::new, String.class).enforce(path -> Policies.fileRead(new File(path))).elseThrow(e -> {
+                var ex = new FileNotFoundException(e.getMessage());
+                ex.initCause(e);
+                return ex;
+            });
+            rule.callingStatic(FileInputStream::new, File.class).enforce(Policies::fileRead).elseThrow(e -> {
+                var ex = new FileNotFoundException(e.getMessage());
+                ex.initCause(e);
+                return ex;
+            });
             rule.callingStatic(FileInputStream::new, FileDescriptor.class).enforce(Policies::fileDescriptorRead).elseThrowNotEntitled();
         });
 
         builder.on(FileOutputStream.class, rule -> {
-            rule.callingStatic(FileOutputStream::new, String.class)
-                .enforce(path -> Policies.fileWrite(new File(path)))
-                .elseThrowNotEntitled();
+            rule.callingStatic(FileOutputStream::new, String.class).enforce(path -> Policies.fileWrite(new File(path))).elseThrow(e -> {
+                var ex = new FileNotFoundException(e.getMessage());
+                ex.initCause(e);
+                return ex;
+            });
             rule.callingStatic(FileOutputStream::new, String.class, Boolean.class)
                 .enforce((path) -> Policies.fileWrite(new File(path)))
-                .elseThrowNotEntitled();
-            rule.callingStatic(FileOutputStream::new, File.class).enforce(Policies::fileWrite).elseThrowNotEntitled();
-            rule.callingStatic(FileOutputStream::new, File.class, Boolean.class).enforce(Policies::fileWrite).elseThrowNotEntitled();
+                .elseThrow(e -> {
+                    var ex = new FileNotFoundException(e.getMessage());
+                    ex.initCause(e);
+                    return ex;
+                });
+            rule.callingStatic(FileOutputStream::new, File.class).enforce(Policies::fileWrite).elseThrow(e -> {
+                var ex = new FileNotFoundException(e.getMessage());
+                ex.initCause(e);
+                return ex;
+            });
+            rule.callingStatic(FileOutputStream::new, File.class, Boolean.class).enforce(Policies::fileWrite).elseThrow(e -> {
+                var ex = new FileNotFoundException(e.getMessage());
+                ex.initCause(e);
+                return ex;
+            });
             rule.callingStatic(FileOutputStream::new, FileDescriptor.class).enforce(Policies::fileDescriptorWrite).elseThrowNotEntitled();
         });
 
         builder.on(FileReader.class, rule -> {
-            rule.callingStatic(FileReader::new, String.class).enforce(path -> Policies.fileRead(new File(path))).elseThrowNotEntitled();
-            rule.callingStatic(FileReader::new, File.class).enforce(Policies::fileRead).elseThrowNotEntitled();
-            rule.callingStatic(FileReader::new, File.class, Charset.class).enforce(Policies::fileRead).elseThrowNotEntitled();
+            rule.callingStatic(FileReader::new, String.class).enforce(path -> Policies.fileRead(new File(path))).elseThrow(e -> {
+                var ex = new FileNotFoundException(e.getMessage());
+                ex.initCause(e);
+                return ex;
+            });
+            rule.callingStatic(FileReader::new, File.class).enforce(Policies::fileRead).elseThrow(e -> {
+                var ex = new FileNotFoundException(e.getMessage());
+                ex.initCause(e);
+                return ex;
+            });
+            rule.callingStatic(FileReader::new, File.class, Charset.class).enforce(Policies::fileRead).elseThrow(IOException::new);
             rule.callingStatic(FileReader::new, FileDescriptor.class).enforce(Policies::fileDescriptorRead).elseThrowNotEntitled();
             rule.callingStatic(FileReader::new, String.class, Charset.class)
                 .enforce((name) -> Policies.fileRead(new File(name)))
-                .elseThrowNotEntitled();
+                .elseThrow(IOException::new);
         });
 
         builder.on(FileWriter.class, rule -> {
-            rule.callingStatic(FileWriter::new, String.class).enforce(path -> Policies.fileWrite(new File(path))).elseThrowNotEntitled();
+            rule.callingStatic(FileWriter::new, String.class)
+                .enforce(path -> Policies.fileWrite(new File(path)))
+                .elseThrow(IOException::new);
             rule.callingStatic(FileWriter::new, String.class, Boolean.class)
                 .enforce((name) -> Policies.fileWrite(new File(name)))
-                .elseThrowNotEntitled();
-            rule.callingStatic(FileWriter::new, File.class).enforce(Policies::fileWrite).elseThrowNotEntitled();
-            rule.callingStatic(FileWriter::new, File.class, Charset.class).enforce(Policies::fileWrite).elseThrowNotEntitled();
+                .elseThrow(IOException::new);
+            rule.callingStatic(FileWriter::new, File.class).enforce(Policies::fileWrite).elseThrow(IOException::new);
+            rule.callingStatic(FileWriter::new, File.class, Charset.class).enforce(Policies::fileWrite).elseThrow(IOException::new);
             rule.callingStatic(FileWriter::new, File.class, Charset.class, Boolean.class)
                 .enforce(Policies::fileWrite)
-                .elseThrowNotEntitled();
-            rule.callingStatic(FileWriter::new, File.class, Boolean.class).enforce(Policies::fileWrite).elseThrowNotEntitled();
+                .elseThrow(IOException::new);
+            rule.callingStatic(FileWriter::new, File.class, Boolean.class).enforce(Policies::fileWrite).elseThrow(IOException::new);
             rule.callingStatic(FileWriter::new, FileDescriptor.class).enforce(Policies::fileDescriptorWrite).elseThrowNotEntitled();
             rule.callingStatic(FileWriter::new, String.class, Charset.class)
                 .enforce((name) -> Policies.fileWrite(new File(name)))
-                .elseThrowNotEntitled();
+                .elseThrow(IOException::new);
             rule.callingStatic(FileWriter::new, String.class, Charset.class, Boolean.class)
                 .enforce((name) -> Policies.fileWrite(new File(name)))
-                .elseThrowNotEntitled();
+                .elseThrow(IOException::new);
         });
 
         builder.on(JarFile.class, rule -> {
-            rule.callingStatic(JarFile::new, String.class).enforce(path -> Policies.fileRead(new File(path))).elseThrowNotEntitled();
-            rule.callingStatic(JarFile::new, File.class).enforce(Policies::fileRead).elseThrowNotEntitled();
+            rule.callingStatic(JarFile::new, String.class).enforce(path -> Policies.fileRead(new File(path))).elseThrow(IOException::new);
+            rule.callingStatic(JarFile::new, File.class).enforce(Policies::fileRead).elseThrow(IOException::new);
             rule.callingStatic(JarFile::new, String.class, Boolean.class)
                 .enforce((path) -> Policies.fileRead(new File(path)))
-                .elseThrowNotEntitled();
-            rule.callingStatic(JarFile::new, File.class, Boolean.class).enforce(Policies::fileRead).elseThrowNotEntitled();
-            rule.callingStatic(JarFile::new, File.class, Boolean.class, Integer.class).enforce(Policies::fileRead).elseThrowNotEntitled();
+                .elseThrow(IOException::new);
+            rule.callingStatic(JarFile::new, File.class, Boolean.class).enforce(Policies::fileRead).elseThrow(IOException::new);
+            rule.callingStatic(JarFile::new, File.class, Boolean.class, Integer.class)
+                .enforce(Policies::fileRead)
+                .elseThrow(IOException::new);
             rule.callingStatic(JarFile::new, File.class, Boolean.class, Integer.class, Runtime.Version.class)
                 .enforce(Policies::fileRead)
-                .elseThrowNotEntitled();
+                .elseThrow(IOException::new);
         });
 
         builder.on(ZipFile.class, rule -> {
-            rule.callingStatic(ZipFile::new, String.class).enforce(path -> Policies.fileRead(new File(path))).elseThrowNotEntitled();
-            rule.callingStatic(ZipFile::new, File.class).enforce(Policies::fileRead).elseThrowNotEntitled();
-            rule.callingStatic(ZipFile::new, File.class, Integer.class).enforce(Policies::fileWithZipMode).elseThrowNotEntitled();
+            rule.callingStatic(ZipFile::new, String.class).enforce(path -> Policies.fileRead(new File(path))).elseThrow(IOException::new);
+            rule.callingStatic(ZipFile::new, File.class).enforce(Policies::fileRead).elseThrow(IOException::new);
+            rule.callingStatic(ZipFile::new, File.class, Integer.class).enforce(Policies::fileWithZipMode).elseThrow(IOException::new);
             rule.callingStatic(ZipFile::new, String.class, Charset.class)
                 .enforce((path) -> Policies.fileRead(new File(path)))
-                .elseThrowNotEntitled();
+                .elseThrow(IOException::new);
             rule.callingStatic(ZipFile::new, File.class, Integer.class, Charset.class)
                 .enforce(Policies::fileWithZipMode)
-                .elseThrowNotEntitled();
-            rule.callingStatic(ZipFile::new, File.class, Charset.class).enforce(Policies::fileRead).elseThrowNotEntitled();
+                .elseThrow(IOException::new);
+            rule.callingStatic(ZipFile::new, File.class, Charset.class).enforce(Policies::fileRead).elseThrow(IOException::new);
         });
 
         builder.on(PrintWriter.class, rule -> {
-            rule.callingStatic(PrintWriter::new, File.class).enforce(Policies::fileWrite).elseThrowNotEntitled();
-            rule.callingStatic(PrintWriter::new, File.class, String.class).enforce(Policies::fileWrite).elseThrowNotEntitled();
-            rule.callingStatic(PrintWriter::new, String.class).enforce(path -> Policies.fileWrite(new File(path))).elseThrowNotEntitled();
+            rule.callingStatic(PrintWriter::new, File.class).enforce(Policies::fileWrite).elseThrow(e -> {
+                var ex = new FileNotFoundException(e.getMessage());
+                ex.initCause(e);
+                return ex;
+            });
+            rule.callingStatic(PrintWriter::new, File.class, String.class).enforce(Policies::fileWrite).elseThrow(e -> {
+                var ex = new FileNotFoundException(e.getMessage());
+                ex.initCause(e);
+                return ex;
+            });
+            rule.callingStatic(PrintWriter::new, String.class).enforce(path -> Policies.fileWrite(new File(path))).elseThrow(e -> {
+                var ex = new FileNotFoundException(e.getMessage());
+                ex.initCause(e);
+                return ex;
+            });
             rule.callingStatic(PrintWriter::new, String.class, String.class)
                 .enforce((path) -> Policies.fileWrite(new File(path)))
-                .elseThrowNotEntitled();
+                .elseThrow(e -> {
+                    var ex = new FileNotFoundException(e.getMessage());
+                    ex.initCause(e);
+                    return ex;
+                });
         });
 
         builder.on(Scanner.class, rule -> {
-            rule.callingStatic(Scanner::new, File.class).enforce(Policies::fileRead).elseThrowNotEntitled();
-            rule.callingStatic(Scanner::new, File.class, String.class).enforce(Policies::fileRead).elseThrowNotEntitled();
-            rule.callingStatic(Scanner::new, File.class, Charset.class).enforce(Policies::fileRead).elseThrowNotEntitled();
+            rule.callingStatic(Scanner::new, File.class).enforce(Policies::fileRead).elseThrow(e -> {
+                var ex = new FileNotFoundException(e.getMessage());
+                ex.initCause(e);
+                return ex;
+            });
+            rule.callingStatic(Scanner::new, File.class, String.class).enforce(Policies::fileRead).elseThrow(e -> {
+                var ex = new FileNotFoundException(e.getMessage());
+                ex.initCause(e);
+                return ex;
+            });
+            rule.callingStatic(Scanner::new, File.class, Charset.class).enforce(Policies::fileRead).elseThrow(IOException::new);
         });
 
         builder.on(FileHandler.class, rule -> {
-            rule.callingStatic(FileHandler::new).enforce(Policies::loggingFileHandler).elseThrowNotEntitled();
-            rule.callingStatic(FileHandler::new, String.class).enforce(Policies::loggingFileHandler).elseThrowNotEntitled();
-            rule.callingStatic(FileHandler::new, String.class, Boolean.class).enforce(Policies::loggingFileHandler).elseThrowNotEntitled();
+            rule.callingStatic(FileHandler::new).enforce(Policies::loggingFileHandler).elseThrow(IOException::new);
+            rule.callingStatic(FileHandler::new, String.class).enforce(Policies::loggingFileHandler).elseThrow(IOException::new);
+            rule.callingStatic(FileHandler::new, String.class, Boolean.class)
+                .enforce(Policies::loggingFileHandler)
+                .elseThrow(IOException::new);
             rule.callingStatic(FileHandler::new, String.class, Integer.class, Integer.class)
                 .enforce(Policies::loggingFileHandler)
-                .elseThrowNotEntitled();
+                .elseThrow(IOException::new);
             rule.callingStatic(FileHandler::new, String.class, Integer.class, Integer.class, Boolean.class)
                 .enforce(Policies::loggingFileHandler)
-                .elseThrowNotEntitled();
+                .elseThrow(IOException::new);
             rule.callingStatic(FileHandler::new, String.class, Long.class, Integer.class, Boolean.class)
                 .enforce(Policies::loggingFileHandler)
-                .elseThrowNotEntitled();
+                .elseThrow(IOException::new);
             rule.callingVoid(FileHandler::close).enforce(Policies::loggingFileHandler).elseThrowNotEntitled();
         });
 

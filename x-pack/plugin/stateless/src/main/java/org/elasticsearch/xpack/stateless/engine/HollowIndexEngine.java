@@ -439,7 +439,13 @@ public class HollowIndexEngine extends Engine {
 
     @Override
     public void activateThrottling() {
-        assert false : "hollow index engine does not ingest and thus should not be throttled";
+        // Hollow engine doesn't support ingestion and has no local files
+        // so there should be no reason to ever throttle it.
+        // However, `ShardsDiskUsageMonitor` may decide to add the shard to the list of shards to flush and throttle
+        // during relocation before it is hollowed.
+        // The engine is then reset in `TransportStatelessPrimaryRelocationAction` making it hollow
+        // and `ShardsDiskUsageMonitor` later calls `activateThrottling` on now-hollow engine.
+        // Because of that we can't assert this method is never called.
     }
 
     @Override

@@ -17,6 +17,7 @@
 
 package org.elasticsearch.xpack.stateless.cache;
 
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.CheckedSupplier;
@@ -69,6 +70,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -587,7 +589,7 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessPluginIntegTestCa
             .put(SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofMb(1))
             .put(SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), ByteSizeValue.ofMb(1))
             .build();
-        startMasterAndIndexNode(nodeSettings);
+        var indexNode = startMasterAndIndexNode(nodeSettings);
         startSearchNode(nodeSettings);
 
         var indexName = randomIdentifier();
@@ -605,15 +607,35 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessPluginIntegTestCa
         // Upon recovery, the search shard would use the first region. Clear the cache to start from scratch.
         internalCluster().getInstances(StatelessPlugin.SharedBlobCacheServiceSupplier.class)
             .forEach(sharedBlobCacheServiceSupplier -> sharedBlobCacheServiceSupplier.get().forceEvict(entry -> true));
+        var blockGetVBCCChunkFirstCommit = new CountDownLatch(1);
+        var firstCommitGetVBCCChunkReceived = new CountDownLatch(forcePrefetch ? 0 : 1);
+        if (forcePrefetch == false) {
+            MockTransportService.getInstance(indexNode)
+                .addRequestHandlingBehavior(
+                    TransportGetVirtualBatchedCompoundCommitChunkAction.NAME + "[p]",
+                    (handler, request, channel, task) -> {
+                        GetVirtualBatchedCompoundCommitChunkRequest req = (GetVirtualBatchedCompoundCommitChunkRequest) request;
+                        // When forcePrefetch = false, we need to block the refresh until all the new commit notifications are received,
+                        // otherwise we risk to evict entries and thus we'll be pre-populating more than we want in this test.
+                        if (req.getVirtualBatchedCompoundCommitGeneration() == initialCommitGeneration + 1) {
+                            firstCommitGetVBCCChunkReceived.countDown();
+                            safeAwait(blockGetVBCCChunkFirstCommit);
+                        }
+                        handler.messageReceived(request, channel, task);
+                    }
+                );
+        }
         var numberOfCommits = randomIntBetween(2, 8);
         for (int j = 0; j < numberOfCommits; j++) {
             indexDocs(indexName, 10);
             flush(indexName);
+            safeAwait(firstCommitGetVBCCChunkReceived);
         }
 
+        long primaryTerm = findIndexShard(indexName).getOperationPrimaryTerm();
         var bccBlobs = IndexDirectory.unwrapDirectory(findIndexShard(indexName).store().directory())
             .getBlobStoreCacheDirectory()
-            .getBlobContainer(findIndexShard(indexName).getOperationPrimaryTerm())
+            .getBlobContainer(primaryTerm)
             .listBlobs(OperationPurpose.INDICES);
 
         var bccBlobsTotalSizeInBytes = bccBlobs.entrySet()
@@ -624,6 +646,21 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessPluginIntegTestCa
             // We prefetch data from the indexing node and we prefetch page aligned chunks, that's why we need to get the page aligned size.
             .mapToLong(entry -> toPageAlignedSize(entry.getValue().length()))
             .sum();
+
+        // Ensure that we uploaded all the commits to the blob store (including the initial commit)
+        assertThat(bccBlobs.size(), is(equalTo(numberOfCommits + 1)));
+
+        var allNewCommitNotificationsProcessedFuture = new PlainActionFuture<Long>();
+        searchEngine.addPrimaryTermAndGenerationListener(
+            primaryTerm,
+            initialCommitGeneration + numberOfCommits,
+            allNewCommitNotificationsProcessedFuture
+        );
+
+        blockGetVBCCChunkFirstCommit.countDown();
+        // Ensure that we've processed all the new commit notifications before we assert
+        // the amount of data prefetched.
+        allNewCommitNotificationsProcessedFuture.get(10, TimeUnit.SECONDS);
 
         if (forcePrefetch) {
             assertBusy(() -> assertThat(searchEngine.getTotalPrefetchedBytes(), is(equalTo(bccBlobsTotalSizeInBytes))));

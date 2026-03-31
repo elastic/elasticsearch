@@ -300,9 +300,6 @@ tests:
 - class: org.elasticsearch.index.store.StoreDirectoryMetricsIT
   method: testDirectoryMetrics
   issue: https://github.com/elastic/elasticsearch/issues/144702
-- class: org.elasticsearch.xpack.ccr.index.engine.FollowingEngineTests
-  method: testProcessOnceOnPrimary
-  issue: https://github.com/elastic/elasticsearch/issues/144743
 - class: org.elasticsearch.xpack.transform.transforms.ClientTransformIndexerTests
   method: testDisablePitWhenCrossProjectSearchIsEnabled
   issue: https://github.com/elastic/elasticsearch/issues/144822

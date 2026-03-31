@@ -152,10 +152,8 @@ public abstract class MetadataMapperTestCase extends MapperServiceTestCase {
             assertThat(checker.checkedParameters, hasSize(0));
         }
 
-        MapperService mapperService = createMapperService(topMapping(b -> {}));
-        MetadataFieldMapper mapper = mapperService.documentMapper().mapping().getMetadataMapperByName(fieldName());
-        assumeTrue("mapper not present in default mapping", mapper != null);
-        MetadataFieldMapper.Builder builder = (MetadataFieldMapper.Builder) mapper.getMergeBuilder();
+        MappingBuilder mappings = parseMappings(topMapping(b -> {}));
+        MetadataFieldMapper.Builder builder = mappings.metadataBuilder(fieldName());
         checker.ensureAllParametersAreCovered(builder);
     }
 

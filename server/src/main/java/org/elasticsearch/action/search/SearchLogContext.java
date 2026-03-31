@@ -11,21 +11,18 @@ package org.elasticsearch.action.search;
 
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.logging.activity.ActivityLoggerContext;
 import org.elasticsearch.common.logging.activity.QueryLoggerContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xcontent.ToXContent;
 
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.Function;
-import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
-public class SearchLogContext extends ActivityLoggerContext implements QueryLoggerContext {
+public class SearchLogContext extends QueryLoggerContext {
     public static final String TYPE = "dsl";
     private final SearchRequest request;
     private final @Nullable SearchResponse response;
@@ -100,18 +97,6 @@ public class SearchLogContext extends ActivityLoggerContext implements QueryLogg
             }
         }
         return indexNames;
-    }
-
-    boolean isSystemSearch(Predicate<String> systemChecker) {
-        if (isSystemSearch == null) {
-            isSystemSearch = false;
-            String[] indices = getIndexNames();
-            // Request that only asks for system indices is system search
-            if (indices.length > 0 && Arrays.stream(indices).allMatch(systemChecker)) {
-                isSystemSearch = true;
-            }
-        }
-        return isSystemSearch;
     }
 
     @Override

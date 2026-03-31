@@ -12,11 +12,11 @@ import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockRequest;
 import org.elasticsearch.action.admin.indices.readonly.TransportAddIndexBlockAction;
 import org.elasticsearch.action.admin.indices.readonly.TransportVerifyShardIndexBlockAction;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.XPackLicenseState;
@@ -47,6 +47,28 @@ public class DataStreamLifecycleConvertToFrozenMarkReadOnlyIT extends ESIntegTes
     private static final String INDEX_NAME = "test-convert-to-frozen-mark-readonly";
     private XPackLicenseState licenseState;
 
+    private static void assertIndexWriteBlock(boolean expected) {
+        ClusterState clusterState = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
+        ProjectId projectId = Metadata.DEFAULT_PROJECT_ID;
+        ClusterBlock writeBlock = WRITE.getBlock();
+        String expectation = expected ? "should have" : "should not have";
+        assertThat(
+            "Index [" + INDEX_NAME + "] " + expectation + " WRITE block",
+            clusterState.blocks().hasIndexBlock(projectId, INDEX_NAME, writeBlock),
+            is(expected)
+        );
+    }
+
+    private static void assertIndexVerifiedReadOnly() {
+        ClusterState clusterState = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
+        IndexMetadata idxMeta = clusterState.projectState(Metadata.DEFAULT_PROJECT_ID).metadata().index(INDEX_NAME);
+        assertThat(
+            "Index [" + INDEX_NAME + "] " + "should be verified read-only",
+            VERIFIED_READ_ONLY_SETTING.get(idxMeta.getSettings()),
+            is(true)
+        );
+    }
+
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return List.of(MockTransportService.TestPlugin.class);
@@ -72,12 +94,11 @@ public class DataStreamLifecycleConvertToFrozenMarkReadOnlyIT extends ESIntegTes
         // verify the index does not have a WRITE block before calling the method
         assertIndexWriteBlock(false);
 
-        ProjectState projectState = getCurrentProjectState();
-
         DataStreamLifecycleConvertToFrozen converter = new DataStreamLifecycleConvertToFrozen(
             INDEX_NAME,
+            Metadata.DEFAULT_PROJECT_ID,
             client(),
-            projectState,
+            internalCluster().clusterService(),
             licenseState
         );
 
@@ -102,12 +123,11 @@ public class DataStreamLifecycleConvertToFrozenMarkReadOnlyIT extends ESIntegTes
         assertAcked(client().execute(TransportAddIndexBlockAction.TYPE, addReadBlockRequest).actionGet());
         assertIndexWriteBlock(false);
 
-        ProjectState projectState = getCurrentProjectState();
-
         DataStreamLifecycleConvertToFrozen converter = new DataStreamLifecycleConvertToFrozen(
             INDEX_NAME,
+            Metadata.DEFAULT_PROJECT_ID,
             client(),
-            projectState,
+            internalCluster().clusterService(),
             licenseState
         );
 
@@ -136,12 +156,11 @@ public class DataStreamLifecycleConvertToFrozenMarkReadOnlyIT extends ESIntegTes
         ensureGreen(INDEX_NAME);
         assertIndexWriteBlock(false);
 
-        ProjectState projectState = getCurrentProjectState();
-
         DataStreamLifecycleConvertToFrozen converter = new DataStreamLifecycleConvertToFrozen(
             INDEX_NAME,
+            Metadata.DEFAULT_PROJECT_ID,
             client(),
-            projectState,
+            internalCluster().clusterService(),
             licenseState
         );
 
@@ -163,12 +182,13 @@ public class DataStreamLifecycleConvertToFrozenMarkReadOnlyIT extends ESIntegTes
         createIndex(INDEX_NAME, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build());
         ensureGreen(INDEX_NAME);
 
-        ProjectState projectState = getCurrentProjectState();
+        ClusterService clusterService = internalCluster().clusterService();
 
         DataStreamLifecycleConvertToFrozen converter = new DataStreamLifecycleConvertToFrozen(
             INDEX_NAME,
+            Metadata.DEFAULT_PROJECT_ID,
             client(),
-            projectState,
+            clusterService,
             licenseState
         );
 
@@ -183,12 +203,12 @@ public class DataStreamLifecycleConvertToFrozenMarkReadOnlyIT extends ESIntegTes
         long settingsVersionAfterFirstCall = idxMetaAfterFirstCall.getSettingsVersion();
         long clusterStateVersionAfterFirstCall = stateAfterFirstCall.version();
 
-        // Get fresh project state with the block now present
-        ProjectState updatedProjectState = getCurrentProjectState();
+        // Second converter uses the same ClusterService which always returns the latest state
         DataStreamLifecycleConvertToFrozen converter2 = new DataStreamLifecycleConvertToFrozen(
             INDEX_NAME,
+            Metadata.DEFAULT_PROJECT_ID,
             client(),
-            updatedProjectState,
+            clusterService,
             licenseState
         );
 
@@ -238,11 +258,11 @@ public class DataStreamLifecycleConvertToFrozenMarkReadOnlyIT extends ESIntegTes
         );
 
         try {
-            ProjectState projectState = getCurrentProjectState();
             DataStreamLifecycleConvertToFrozen converter = new DataStreamLifecycleConvertToFrozen(
                 INDEX_NAME,
+                Metadata.DEFAULT_PROJECT_ID,
                 client(),
-                projectState,
+                internalCluster().clusterService(),
                 licenseState
             );
 
@@ -265,11 +285,11 @@ public class DataStreamLifecycleConvertToFrozenMarkReadOnlyIT extends ESIntegTes
         );
         ensureGreen(INDEX_NAME);
 
-        ProjectState projectState = getCurrentProjectState();
         DataStreamLifecycleConvertToFrozen converter = new DataStreamLifecycleConvertToFrozen(
             INDEX_NAME,
+            Metadata.DEFAULT_PROJECT_ID,
             client(),
-            projectState,
+            internalCluster().clusterService(),
             licenseState
         );
 
@@ -298,11 +318,11 @@ public class DataStreamLifecycleConvertToFrozenMarkReadOnlyIT extends ESIntegTes
         ensureGreen(INDEX_NAME);
         assertIndexWriteBlock(false);
 
-        ProjectState projectState = getCurrentProjectState();
         DataStreamLifecycleConvertToFrozen converter = new DataStreamLifecycleConvertToFrozen(
             INDEX_NAME,
+            Metadata.DEFAULT_PROJECT_ID,
             client(),
-            projectState,
+            internalCluster().clusterService(),
             licenseState
         );
 
@@ -318,32 +338,5 @@ public class DataStreamLifecycleConvertToFrozenMarkReadOnlyIT extends ESIntegTes
         // Verify the WRITE block survived the master failover
         assertIndexWriteBlock(true);
         assertIndexVerifiedReadOnly();
-    }
-
-    private ProjectState getCurrentProjectState() {
-        ClusterState clusterState = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
-        return clusterState.projectState(Metadata.DEFAULT_PROJECT_ID);
-    }
-
-    private static void assertIndexWriteBlock(boolean expected) {
-        ClusterState clusterState = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
-        ProjectId projectId = Metadata.DEFAULT_PROJECT_ID;
-        ClusterBlock writeBlock = WRITE.getBlock();
-        String expectation = expected ? "should have" : "should not have";
-        assertThat(
-            "Index [" + INDEX_NAME + "] " + expectation + " WRITE block",
-            clusterState.blocks().hasIndexBlock(projectId, INDEX_NAME, writeBlock),
-            is(expected)
-        );
-    }
-
-    private static void assertIndexVerifiedReadOnly() {
-        ClusterState clusterState = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
-        IndexMetadata idxMeta = clusterState.projectState(Metadata.DEFAULT_PROJECT_ID).metadata().index(INDEX_NAME);
-        assertThat(
-            "Index [" + INDEX_NAME + "] " + "should be verified read-only",
-            VERIFIED_READ_ONLY_SETTING.get(idxMeta.getSettings()),
-            is(true)
-        );
     }
 }

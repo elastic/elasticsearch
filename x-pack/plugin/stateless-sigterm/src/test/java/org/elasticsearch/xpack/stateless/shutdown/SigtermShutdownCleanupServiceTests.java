@@ -62,6 +62,7 @@ import static org.elasticsearch.xpack.stateless.shutdown.SigtermShutdownCleanupS
 import static org.elasticsearch.xpack.stateless.shutdown.SigtermShutdownCleanupService.SubmitCleanupSigtermShutdown;
 import static org.elasticsearch.xpack.stateless.shutdown.SigtermShutdownCleanupService.computeDelay;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
@@ -104,13 +105,17 @@ public class SigtermShutdownCleanupServiceTests extends ESTestCase {
 
         var schedule = verifySchedule(mocks.threadPool, 1);
         schedule.shutdown.get(0).run();
+        assertThat(sigtermShutdownService.cleanups.values(), hasSize(1));
+        assertThat(sigtermShutdownService.cleanups.get(node(another)), sameInstance(SigtermShutdownCleanupService.IN_FLIGHT_CLEANUP));
 
-        // Callable removes itself
+        ArgumentCaptor<SigtermShutdownCleanupService.CleanupSigtermShutdownTask> taskCaptor = ArgumentCaptor.forClass(
+            SigtermShutdownCleanupService.CleanupSigtermShutdownTask.class
+        );
+        Mockito.verify(taskQueue, times(1)).submitTask(eq("sigterm-grace-period-expired"), taskCaptor.capture(), isNull());
+        taskCaptor.getValue().markProcessed();
+
+        // Task completion removes the in-flight marker.
         assertThat(sigtermShutdownService.cleanups.values(), hasSize(0));
-
-        // Callable submits task
-        Mockito.verify(taskQueue, times(1))
-            .submitTask(eq("sigterm-grace-period-expired"), any(SigtermShutdownCleanupService.CleanupSigtermShutdownTask.class), isNull());
     }
 
     public void testDontCleanIfPresent() {
@@ -147,7 +152,7 @@ public class SigtermShutdownCleanupServiceTests extends ESTestCase {
         var mocks = newMocks();
         long now = 100_000L;
         when(mocks.threadPool.absoluteTimeInMillis()).thenReturn(now);
-        newMockTaskQueue(mocks.clusterService);
+        var taskQueue = newMockTaskQueue(mocks.clusterService);
         var sigtermShutdownService = new SigtermShutdownCleanupService(mocks.clusterService, mocks.rerouteService);
 
         long grace = GRACE_PERIOD;
@@ -189,11 +194,16 @@ public class SigtermShutdownCleanupServiceTests extends ESTestCase {
         var schedule = verifySchedule(mocks.threadPool, 4);
         var remove = schedule.collect((s, d) -> {
             if (TimeValue.ZERO.equals(d)) {
-                s.remove().accept(s.node());
+                s.run();
                 return true;
             }
             return false;
         });
+        ArgumentCaptor<SigtermShutdownCleanupService.CleanupSigtermShutdownTask> taskCaptor = ArgumentCaptor.forClass(
+            SigtermShutdownCleanupService.CleanupSigtermShutdownTask.class
+        );
+        Mockito.verify(taskQueue, times(remove.size())).submitTask(eq("sigterm-grace-period-expired"), taskCaptor.capture(), isNull());
+        taskCaptor.getAllValues().forEach(SigtermShutdownCleanupService.CleanupSigtermShutdownTask::markProcessed);
 
         var update = RemoveSigtermShutdownTaskExecutor.cleanupSigtermShutdowns(remove, state);
 
@@ -250,13 +260,7 @@ public class SigtermShutdownCleanupServiceTests extends ESTestCase {
         sigtermShutdownService.clusterChanged(new ClusterChangedEvent(this.getTestName(), state, state));
 
         var schedule = verifySchedule(mocks.threadPool, 2);
-        var remove = schedule.collect((s, d) -> {
-            if (TimeValue.ZERO.equals(d)) {
-                s.remove().accept(s.node());
-                return true;
-            }
-            return false;
-        });
+        var remove = schedule.collect((s, d) -> TimeValue.ZERO.equals(d));
 
         var update = SigtermShutdownCleanupService.RemoveSigtermShutdownTaskExecutor.cleanupSigtermShutdowns(remove, state);
 
@@ -299,6 +303,112 @@ public class SigtermShutdownCleanupServiceTests extends ESTestCase {
         assertThat(sigtermShutdownService.cleanups.get(otherNode), sameInstance(notCancelled));
     }
 
+    public void testPendingDelayedCleanupNotRescheduled() {
+        var mocks = newMocks();
+        newMockTaskQueue(mocks.clusterService);
+        long grace = GRACE_PERIOD;
+        long now = grace * 1_000;
+        when(mocks.threadPool.absoluteTimeInMillis()).thenReturn(now);
+
+        var master = createDiscoveryNode("node1");
+        var other = createDiscoveryNode("node2");
+        var otherNode = node(other);
+        var shutdowns = new NodesShutdownMetadata(Map.of(other.getId(), sigtermShutdown(other, grace, now - 10 * grace)));
+        var clusterChanged = new ClusterChangedEvent(
+            this.getTestName(),
+            createClusterState(shutdowns, master, other),
+            createClusterState(shutdowns, master, other)
+        );
+        var sigtermShutdownService = new SigtermShutdownCleanupService(mocks.clusterService, mocks.rerouteService);
+        sigtermShutdownService.cleanups.put(otherNode, SigtermShutdownCleanupService.PENDING_DELAYED_CLEANUP);
+
+        sigtermShutdownService.clusterChanged(clusterChanged);
+
+        assertThat(sigtermShutdownService.cleanups, hasKey(otherNode));
+        assertThat(sigtermShutdownService.cleanups.get(otherNode), sameInstance(SigtermShutdownCleanupService.PENDING_DELAYED_CLEANUP));
+        Mockito.verify(mocks.threadPool, times(0))
+            .schedule(any(SubmitCleanupSigtermShutdown.class), any(TimeValue.class), any(Executor.class));
+    }
+
+    public void testDelayedCleanupScheduledOnceUntilRunnableExecutes() {
+        var mocks = newMocks();
+        var taskQueue = newMockTaskQueue(mocks.clusterService);
+        long grace = GRACE_PERIOD;
+        long now = grace * 1_000;
+        when(mocks.threadPool.absoluteTimeInMillis()).thenReturn(now);
+
+        var master = createDiscoveryNode("node1");
+        var other = createDiscoveryNode("node2");
+        var otherNode = node(other);
+        long started = now - (grace / 2);
+        var shutdowns = new NodesShutdownMetadata(Map.of(other.getId(), sigtermShutdown(other, grace, started)));
+        var clusterChanged = new ClusterChangedEvent(
+            this.getTestName(),
+            createClusterState(shutdowns, master, other),
+            createClusterState(shutdowns, master, other)
+        );
+
+        var sigtermShutdownService = new SigtermShutdownCleanupService(mocks.clusterService, mocks.rerouteService);
+        sigtermShutdownService.clusterChanged(clusterChanged);
+
+        var schedule = verifySchedule(mocks.threadPool, 1);
+        assertThat(schedule.delay.get(0).millis(), greaterThan(0L));
+        assertThat(sigtermShutdownService.cleanups, hasKey(otherNode));
+        assertThat(
+            sigtermShutdownService.cleanups.get(otherNode),
+            not(sameInstance(SigtermShutdownCleanupService.PENDING_DELAYED_CLEANUP))
+        );
+        assertThat(sigtermShutdownService.cleanups.get(otherNode), not(sameInstance(SigtermShutdownCleanupService.IN_FLIGHT_CLEANUP)));
+
+        // Another cluster state update should not schedule a duplicate delayed cleanup.
+        sigtermShutdownService.clusterChanged(clusterChanged);
+        verifySchedule(mocks.threadPool, 1);
+        Mockito.verify(taskQueue, times(0))
+            .submitTask(eq("sigterm-grace-period-expired"), any(SigtermShutdownCleanupService.CleanupSigtermShutdownTask.class), isNull());
+
+        // Once the delayed runnable executes, it should submit the cleanup and mark the node as in-flight.
+        schedule.shutdown.get(0).run();
+        assertThat(sigtermShutdownService.cleanups.get(otherNode), sameInstance(SigtermShutdownCleanupService.IN_FLIGHT_CLEANUP));
+        Mockito.verify(taskQueue, times(1))
+            .submitTask(eq("sigterm-grace-period-expired"), any(SigtermShutdownCleanupService.CleanupSigtermShutdownTask.class), isNull());
+    }
+
+    public void testPendingMarkerClearedIfScheduleThrows() {
+        var mocks = newMocks();
+        newMockTaskQueue(mocks.clusterService);
+        long grace = GRACE_PERIOD;
+        long now = grace * 1_000;
+        when(mocks.threadPool.absoluteTimeInMillis()).thenReturn(now);
+
+        var master = createDiscoveryNode("node1");
+        var other = createDiscoveryNode("node2");
+        var otherNode = node(other);
+        var shutdowns = new NodesShutdownMetadata(Map.of(other.getId(), sigtermShutdown(other, grace, now - grace / 2)));
+        var clusterChanged = new ClusterChangedEvent(
+            this.getTestName(),
+            createClusterState(shutdowns, master, other),
+            createClusterState(shutdowns, master, other)
+        );
+
+        var rejection = new RuntimeException("simulated schedule rejection");
+        Mockito.doThrow(rejection)
+            .doReturn(mock(Scheduler.ScheduledCancellable.class))
+            .when(mocks.threadPool)
+            .schedule(any(SubmitCleanupSigtermShutdown.class), any(TimeValue.class), any(Executor.class));
+
+        var sigtermShutdownService = new SigtermShutdownCleanupService(mocks.clusterService, mocks.rerouteService);
+        assertSame(rejection, expectThrows(RuntimeException.class, () -> sigtermShutdownService.clusterChanged(clusterChanged)));
+        assertThat(sigtermShutdownService.cleanups, not(hasKey(otherNode)));
+
+        sigtermShutdownService.clusterChanged(clusterChanged);
+        assertThat(sigtermShutdownService.cleanups, hasKey(otherNode));
+        assertThat(
+            sigtermShutdownService.cleanups.get(otherNode),
+            not(sameInstance(SigtermShutdownCleanupService.PENDING_DELAYED_CLEANUP))
+        );
+        assertThat(sigtermShutdownService.cleanups.get(otherNode), not(sameInstance(SigtermShutdownCleanupService.IN_FLIGHT_CLEANUP)));
+    }
+
     public void testShutdownAlreadyRemoved() {
         var mocks = newMocks();
         newMockTaskQueue(mocks.clusterService);
@@ -321,6 +431,52 @@ public class SigtermShutdownCleanupServiceTests extends ESTestCase {
             RemoveSigtermShutdownTaskExecutor.cleanupSigtermShutdowns(Set.of(otherNode), shutdownAlreadyRemoved),
             sameInstance(shutdownAlreadyRemoved)
         );
+    }
+
+    public void testNoDuplicateResubmissionWhileCleanupTaskInFlight() {
+        var mocks = newMocks();
+        var taskQueue = newMockTaskQueue(mocks.clusterService);
+        long grace = GRACE_PERIOD;
+        long now = grace * 1_000;
+        when(mocks.threadPool.absoluteTimeInMillis()).thenReturn(now);
+
+        var master = createDiscoveryNode("node1");
+        var other = createDiscoveryNode("node2");
+        var otherNode = node(other);
+        var shutdowns = new NodesShutdownMetadata(Map.of(other.getId(), sigtermShutdown(other, grace, now - 10 * grace)));
+        var clusterChanged = new ClusterChangedEvent(
+            this.getTestName(),
+            createClusterState(shutdowns, master, other),
+            createClusterState(shutdowns, master, other)
+        );
+
+        var sigtermShutdownService = new SigtermShutdownCleanupService(mocks.clusterService, mocks.rerouteService);
+        sigtermShutdownService.clusterChanged(clusterChanged);
+        var schedule = verifySchedule(mocks.threadPool, 1);
+        schedule.shutdown.get(0).run();
+        assertThat(sigtermShutdownService.cleanups, hasKey(otherNode));
+        assertThat(sigtermShutdownService.cleanups.get(otherNode), sameInstance(SigtermShutdownCleanupService.IN_FLIGHT_CLEANUP));
+        Mockito.verify(taskQueue, times(1))
+            .submitTask(eq("sigterm-grace-period-expired"), any(SigtermShutdownCleanupService.CleanupSigtermShutdownTask.class), isNull());
+
+        // Simulate another cluster state update while the cleanup task is still queued on the master service.
+        sigtermShutdownService.clusterChanged(clusterChanged);
+        assertThat(sigtermShutdownService.cleanups, hasKey(otherNode));
+        assertThat(sigtermShutdownService.cleanups.get(otherNode), sameInstance(SigtermShutdownCleanupService.IN_FLIGHT_CLEANUP));
+        verifySchedule(mocks.threadPool, 1);
+
+        ArgumentCaptor<SigtermShutdownCleanupService.CleanupSigtermShutdownTask> taskCaptor = ArgumentCaptor.forClass(
+            SigtermShutdownCleanupService.CleanupSigtermShutdownTask.class
+        );
+        Mockito.verify(taskQueue, times(1)).submitTask(eq("sigterm-grace-period-expired"), taskCaptor.capture(), isNull());
+        taskCaptor.getValue().onFailure(new RuntimeException("simulated"));
+        assertThat(sigtermShutdownService.cleanups, not(hasKey(otherNode)));
+
+        // Once the in-flight task fails we should retry.
+        sigtermShutdownService.clusterChanged(clusterChanged);
+        assertThat(sigtermShutdownService.cleanups, hasKey(otherNode));
+        assertThat(sigtermShutdownService.cleanups.get(otherNode), not(sameInstance(SigtermShutdownCleanupService.IN_FLIGHT_CLEANUP)));
+        verifySchedule(mocks.threadPool, 2);
     }
 
     public void testScheduleCleanForNullEphemeralId() {
@@ -358,13 +514,20 @@ public class SigtermShutdownCleanupServiceTests extends ESTestCase {
 
         var schedule = verifySchedule(mocks.threadPool, 1);
         schedule.shutdown.get(0).run();
+        assertThat(sigtermShutdownService.cleanups.values(), hasSize(1));
+        assertThat(
+            sigtermShutdownService.cleanups.get(new Node(other.getId(), null)),
+            sameInstance(SigtermShutdownCleanupService.IN_FLIGHT_CLEANUP)
+        );
 
-        // Callable removes itself
+        ArgumentCaptor<SigtermShutdownCleanupService.CleanupSigtermShutdownTask> taskCaptor = ArgumentCaptor.forClass(
+            SigtermShutdownCleanupService.CleanupSigtermShutdownTask.class
+        );
+        Mockito.verify(taskQueue, times(1)).submitTask(eq("sigterm-grace-period-expired"), taskCaptor.capture(), isNull());
+        taskCaptor.getValue().markProcessed();
+
+        // Task completion removes the in-flight marker.
         assertThat(sigtermShutdownService.cleanups.values(), hasSize(0));
-
-        // Callable submits task
-        Mockito.verify(taskQueue, times(1))
-            .submitTask(eq("sigterm-grace-period-expired"), any(SigtermShutdownCleanupService.CleanupSigtermShutdownTask.class), isNull());
     }
 
     public void testCleanUpShutdownForNullEphemeralId() {
@@ -503,8 +666,8 @@ public class SigtermShutdownCleanupServiceTests extends ESTestCase {
             .nodes(DiscoveryNodes.builder().masterNodeId(master.getId()).localNodeId(master.getId()).add(master).add(nodeAExists))
             .build();
 
-        var contextA = new TestCleanContext(new AtomicBoolean(false), new CleanupSigtermShutdownTask(node(nodeAExists)));
-        var contextB = new TestCleanContext(new AtomicBoolean(false), new CleanupSigtermShutdownTask(node(nodeBGone)));
+        var contextA = new TestCleanContext(new AtomicBoolean(false), new CleanupSigtermShutdownTask(node(nodeAExists), ignored -> {}));
+        var contextB = new TestCleanContext(new AtomicBoolean(false), new CleanupSigtermShutdownTask(node(nodeBGone), ignored -> {}));
         ClusterState newState = null;
         try {
             newState = new RemoveSigtermShutdownTaskExecutor(mocks.rerouteService).execute(

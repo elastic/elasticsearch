@@ -56,26 +56,6 @@ public class ESVectorUtil {
         byte indexBits,
         int dimension,
         int dataLength,
-        int bulkSize
-    ) throws IOException {
-        return ESVectorizationProvider.getInstance()
-            .newESNextOSQVectorsScorer(
-                input,
-                queryBits,
-                indexBits,
-                dimension,
-                dataLength,
-                bulkSize,
-                ESNextOSQVectorsScorer.SymmetricInt4Encoding.STRIPED
-            );
-    }
-
-    public static ESNextOSQVectorsScorer getESNextOSQVectorsScorer(
-        IndexInput input,
-        byte queryBits,
-        byte indexBits,
-        int dimension,
-        int dataLength,
         int bulkSize,
         ESNextOSQVectorsScorer.SymmetricInt4Encoding int4Encoding
     ) throws IOException {

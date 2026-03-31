@@ -71,7 +71,6 @@ public class ES940DiskBBQVectorsWriter extends IVFVectorsWriter {
     private final int numMergeWorkers;
     private final int blockDimension;
     private final boolean doPrecondition;
-    private final boolean legacyInt4;
 
     public ES940DiskBBQVectorsWriter(
         SegmentWriteState state,
@@ -100,8 +99,7 @@ public class ES940DiskBBQVectorsWriter extends IVFVectorsWriter {
             blockDimension,
             doPrecondition,
             flatVectorThreshold,
-            ES940DiskBBQVectorsFormat.VERSION_CURRENT,
-            false
+            ES940DiskBBQVectorsFormat.VERSION_CURRENT
         );
     }
 
@@ -118,8 +116,7 @@ public class ES940DiskBBQVectorsWriter extends IVFVectorsWriter {
         int blockDimension,
         boolean doPrecondition,
         int flatVectorThreshold,
-        int writeVersion,
-        boolean legacyInt4
+        int writeVersion
     ) throws IOException {
         super(
             state,
@@ -141,27 +138,6 @@ public class ES940DiskBBQVectorsWriter extends IVFVectorsWriter {
         this.numMergeWorkers = numMergeWorkers;
         this.blockDimension = blockDimension;
         this.doPrecondition = doPrecondition;
-        this.legacyInt4 = legacyInt4;
-    }
-
-    private boolean useLegacyInt4() {
-        return legacyInt4 && quantEncoding.bits() == 4;
-    }
-
-    private int docPackedLength(int dimensions) {
-        if (useLegacyInt4()) {
-            int discretized = quantEncoding.discretizedDimensions(dimensions);
-            return 4 * ((discretized + 7) / 8);
-        }
-        return quantEncoding.getDocPackedLength(dimensions);
-    }
-
-    private void packQuantized(int[] quantized, byte[] destination) {
-        if (useLegacyInt4()) {
-            ESVectorUtil.transposeHalfByte(quantized, destination);
-        } else {
-            quantEncoding.pack(quantized, destination);
-        }
     }
 
     @Override
@@ -311,14 +287,11 @@ public class ES940DiskBBQVectorsWriter extends IVFVectorsWriter {
         final PackedLongValues.Builder offsets = PackedLongValues.monotonicBuilder(PackedInts.COMPACT);
         final PackedLongValues.Builder lengths = PackedLongValues.monotonicBuilder(PackedInts.COMPACT);
         DiskBBQBulkWriter bulkWriter = DiskBBQBulkWriter.fromBitSize(quantEncoding.bits(), BULK_SIZE, postingsOutput, true, true);
-        int vectorByteSize = docPackedLength(fieldInfo.getVectorDimension());
         OnHeapQuantizedVectors onHeapQuantizedVectors = new OnHeapQuantizedVectors(
             floatVectorValues,
             fieldInfo.getVectorSimilarityFunction(),
             quantEncoding,
             fieldInfo.getVectorDimension(),
-            vectorByteSize,
-            this::packQuantized,
             new OptimizedScalarQuantizer(fieldInfo.getVectorSimilarityFunction())
         );
         final int[] docIds = new int[maxPostingListSize];
@@ -387,7 +360,7 @@ public class ES940DiskBBQVectorsWriter extends IVFVectorsWriter {
             quantizedVectorsTempName = quantizedVectorsTemp.getName();
             OptimizedScalarQuantizer quantizer = new OptimizedScalarQuantizer(vectorSimilarityFunction);
             int[] quantized = new int[quantEncoding.discretizedDimensions(fieldInfo.getVectorDimension())];
-            byte[] binary = new byte[docPackedLength(fieldInfo.getVectorDimension())];
+            byte[] binary = new byte[quantEncoding.getDocPackedLength(fieldInfo.getVectorDimension())];
             float[] scratch = new float[fieldInfo.getVectorDimension()];
             for (int i = 0; i < assignments.length; i++) {
                 int c = assignments[i];
@@ -413,7 +386,7 @@ public class ES940DiskBBQVectorsWriter extends IVFVectorsWriter {
                         result.quantizedComponentSum()
                     );
                 }
-                packQuantized(quantized, binary);
+                quantEncoding.pack(quantized, binary);
                 writeQuantizedValue(quantizedVectorsTemp, binary, result);
                 if (overspill) {
                     int s = overspillAssignments[i];
@@ -432,7 +405,7 @@ public class ES940DiskBBQVectorsWriter extends IVFVectorsWriter {
                             result.quantizedComponentSum()
                         );
                     }
-                    packQuantized(quantized, binary);
+                    quantEncoding.pack(quantized, binary);
                     writeQuantizedValue(quantizedVectorsTemp, binary, result);
                 } else {
                     // write a zero vector for the overspill
@@ -485,7 +458,7 @@ public class ES940DiskBBQVectorsWriter extends IVFVectorsWriter {
             final PackedLongValues.Builder lengths = PackedLongValues.monotonicBuilder(PackedInts.COMPACT);
             OffHeapQuantizedVectors offHeapQuantizedVectors = new OffHeapQuantizedVectors(
                 quantizedVectorsInput,
-                docPackedLength(fieldInfo.getVectorDimension())
+                quantEncoding.getDocPackedLength(fieldInfo.getVectorDimension())
             );
             DiskBBQBulkWriter bulkWriter = DiskBBQBulkWriter.fromBitSize(quantEncoding.bits(), BULK_SIZE, postingsOutput, true, true);
             // write the posting lists
@@ -956,11 +929,6 @@ public class ES940DiskBBQVectorsWriter extends IVFVectorsWriter {
         }
     }
 
-    @FunctionalInterface
-    private interface QuantizedPacker {
-        void pack(int[] quantized, byte[] destination);
-    }
-
     static class OnHeapQuantizedVectors implements QuantizedVectorValues {
         private final FloatVectorValues vectorValues;
         private final OptimizedScalarQuantizer quantizer;
@@ -968,7 +936,6 @@ public class ES940DiskBBQVectorsWriter extends IVFVectorsWriter {
         private final int[] quantizedVectorScratch;
         private final float[] floatVectorScratch;
         private final ES940DiskBBQVectorsFormat.QuantEncoding encoding;
-        private final QuantizedPacker packer;
         private OptimizedScalarQuantizer.QuantizationResult corrections;
         private final VectorSimilarityFunction similarityFunction;
         private float[] currentCentroid, currentParentCentroid;
@@ -981,20 +948,17 @@ public class ES940DiskBBQVectorsWriter extends IVFVectorsWriter {
             VectorSimilarityFunction similarityFunction,
             ES940DiskBBQVectorsFormat.QuantEncoding encoding,
             int dimension,
-            int vectorByteSize,
-            QuantizedPacker packer,
             OptimizedScalarQuantizer quantizer
         ) {
             this.vectorValues = vectorValues;
             this.similarityFunction = similarityFunction;
             this.encoding = encoding;
             this.quantizer = quantizer;
-            this.quantizedVector = new byte[vectorByteSize];
+            this.quantizedVector = new byte[encoding.getDocPackedLength(dimension)];
             this.floatVectorScratch = new float[dimension];
             this.quantizedVectorScratch = new int[encoding.discretizedDimensions(dimension)];
             this.corrections = null;
             this.currentParentCentroid = null;
-            this.packer = packer;
         }
 
         private void reset(float[] centroid, float[] currentParentCentroid, int count, IntToIntFunction ordTransformer) {
@@ -1031,7 +995,7 @@ public class ES940DiskBBQVectorsWriter extends IVFVectorsWriter {
                     corrections.quantizedComponentSum()
                 );
             }
-            packer.pack(quantizedVectorScratch, quantizedVector);
+            encoding.pack(quantizedVectorScratch, quantizedVector);
             return quantizedVector;
         }
 

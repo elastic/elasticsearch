@@ -36,7 +36,6 @@ import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.gpu.codec.ES92GpuHnswSQVectorsFormat;
 import org.elasticsearch.gpu.codec.ES92GpuHnswVectorsFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat;
-import org.elasticsearch.index.codec.vectors.diskbbq.es94.ES940DiskBBQVectorsFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93BinaryQuantizedVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93FlatVectorFormat;
@@ -200,7 +199,6 @@ public class KnnIndexTester {
                     )
                 );
                 suffix.add(Integer.toString(args.quantizeBits()));
-                suffix.add(args.ivfFormat());
             }
             case HNSW -> {
                 suffix.add(Integer.toString(args.hnswM()));
@@ -222,69 +220,23 @@ public class KnnIndexTester {
 
         format = switch (args.indexType()) {
             case IVF -> {
+                var encoding = ESNextDiskBBQVectorsFormat.QuantEncoding.fromBits(quantizeBits.byteValue());
                 // Use flatVectorThreshold from config, or default to -1 (dynamic) if not specified
                 int flatVectorThreshold = args.flatVectorThreshold() >= 0 ? args.flatVectorThreshold() : -1;
-                String ivfFormat = args.ivfFormat() == null ? "esnext" : args.ivfFormat().toLowerCase(Locale.ROOT);
-                yield switch (ivfFormat) {
-                    case "es940_legacy" -> {
-                        var encoding = ES940DiskBBQVectorsFormat.QuantEncoding.fromBits(quantizeBits.byteValue());
-                        yield new ES940DiskBBQVectorsFormat(
-                            encoding,
-                            args.ivfClusterSize(),
-                            args.secondaryClusterSize() == -1
-                                ? ES920DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER
-                                : args.secondaryClusterSize(),
-                            elementType,
-                            args.onDiskRescore(),
-                            exec,
-                            mergeWorkers,
-                            args.doPrecondition(),
-                            args.preconditioningBlockDims(),
-                            flatVectorThreshold,
-                            ES940DiskBBQVectorsFormat.VERSION_START,
-                            true
-                        );
-                    }
-                    case "es940" -> {
-                        var encoding = ES940DiskBBQVectorsFormat.QuantEncoding.fromBits(quantizeBits.byteValue());
-                        yield new ES940DiskBBQVectorsFormat(
-                            encoding,
-                            args.ivfClusterSize(),
-                            args.secondaryClusterSize() == -1
-                                ? ES920DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER
-                                : args.secondaryClusterSize(),
-                            elementType,
-                            args.onDiskRescore(),
-                            exec,
-                            mergeWorkers,
-                            args.doPrecondition(),
-                            args.preconditioningBlockDims(),
-                            flatVectorThreshold,
-                            ES940DiskBBQVectorsFormat.VERSION_CURRENT,
-                            false
-                        );
-                    }
-                    case "esnext" -> {
-                        var encoding = ESNextDiskBBQVectorsFormat.QuantEncoding.fromBits(quantizeBits.byteValue());
-                        yield new ESNextDiskBBQVectorsFormat(
-                            encoding,
-                            args.ivfClusterSize(),
-                            args.secondaryClusterSize() == -1
-                                ? ES920DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER
-                                : args.secondaryClusterSize(),
-                            elementType,
-                            args.onDiskRescore(),
-                            exec,
-                            mergeWorkers,
-                            args.doPrecondition(),
-                            args.preconditioningBlockDims(),
-                            flatVectorThreshold
-                        );
-                    }
-                    default -> throw new IllegalArgumentException(
-                        "Unsupported ivf_format: " + ivfFormat + " (expected esnext, es940, es940_legacy)"
-                    );
-                };
+                yield new ESNextDiskBBQVectorsFormat(
+                    encoding,
+                    args.ivfClusterSize(),
+                    args.secondaryClusterSize() == -1
+                        ? ES920DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER
+                        : args.secondaryClusterSize(),
+                    elementType,
+                    args.onDiskRescore(),
+                    exec,
+                    mergeWorkers,
+                    args.doPrecondition(),
+                    args.preconditioningBlockDims(),
+                    flatVectorThreshold
+                );
             }
             case GPU_HNSW -> switch (quantizeBits) {
                 case null -> new ES92GpuHnswVectorsFormat();

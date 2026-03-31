@@ -12,6 +12,7 @@ import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.VectorUtil;
+import org.elasticsearch.simdvec.internal.vectorization.JdkFeatures;
 
 import java.io.IOException;
 
@@ -53,6 +54,7 @@ public class ESNextOSQVectorsScorer {
     protected final int[] targetComponentSums;
     protected final float[] additionalCorrections;
     private final byte[] scratch;
+    private final byte[] packedScratch;
 
     public ESNextOSQVectorsScorer(
         IndexInput in,
@@ -87,6 +89,7 @@ public class ESNextOSQVectorsScorer {
         this.bulkSize = bulkSize;
         this.int4Encoding = int4Encoding == null ? SymmetricInt4Encoding.STRIPED : int4Encoding;
         this.scratch = indexBits == 7 ? new byte[dimensions] : null;
+        this.packedScratch = indexBits == 4 && this.int4Encoding == SymmetricInt4Encoding.PACKED_NIBBLE ? new byte[dataLength] : null;
     }
 
     public ESNextOSQVectorsScorer(IndexInput in, byte queryBits, byte indexBits, int dimensions, int dataLength, int bulkSize) {
@@ -135,9 +138,13 @@ public class ESNextOSQVectorsScorer {
 
     private long quantized4BitScorePacked(byte[] q) throws IOException {
         assert q.length == length * 2 : "length mismatch q " + q.length + " vs " + (length * 2);
+        in.readBytes(packedScratch, 0, length);
+        if (JdkFeatures.SUPPORTS_HEAP_SEGMENTS) {
+            return VectorUtil.int4DotProductSinglePacked(q, packedScratch);
+        }
         long score = 0;
         for (int i = 0; i < length; i++) {
-            int packed = in.readByte() & 0xFF;
+            int packed = packedScratch[i] & 0xFF;
             score += ((packed >>> 4) & 0x0F) * (q[i] & 0x0F);
             score += (packed & 0x0F) * (q[i + length] & 0x0F);
         }

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.codec.vectors.diskbbq.es94;
 
+import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.KnnVectorValues;
@@ -94,13 +95,22 @@ public class ES940DiskBBQVectorsReader extends IVFVectorsReader<ES940DiskBBQVect
         return bytes + paddingBytesNeeded;
     }
 
-    private boolean useLegacyInt4(ES940DiskBBQVectorsFormat.QuantEncoding quantEncoding) {
-        return quantEncoding.bits() == 4 && versionMeta < ES940DiskBBQVectorsFormat.VERSION_PACKED_INT4;
-    }
-
-    private static int legacyStripedInt4Length(ES940DiskBBQVectorsFormat.QuantEncoding quantEncoding, int dimensions) {
-        int discretized = quantEncoding.discretizedDimensions(dimensions);
-        return 4 * ((discretized + 7) / 8);
+    private void ensureCompatibleEncoding(IndexInput metaInput, ES940DiskBBQVectorsFormat.QuantEncoding quantEncoding)
+        throws CorruptIndexException {
+        if (versionMeta < ES940DiskBBQVectorsFormat.VERSION_PACKED_INT4
+            && quantEncoding == ES940DiskBBQVectorsFormat.QuantEncoding.FOUR_BIT_SYMMETRIC_PACKED) {
+            throw new CorruptIndexException(
+                "Packed 4-bit encoding requires version " + ES940DiskBBQVectorsFormat.VERSION_PACKED_INT4,
+                metaInput
+            );
+        }
+        if (versionMeta >= ES940DiskBBQVectorsFormat.VERSION_PACKED_INT4
+            && quantEncoding == ES940DiskBBQVectorsFormat.QuantEncoding.FOUR_BIT_SYMMETRIC_STRIPED) {
+            throw new CorruptIndexException(
+                "Striped 4-bit encoding requires version before " + ES940DiskBBQVectorsFormat.VERSION_PACKED_INT4,
+                metaInput
+            );
+        }
     }
 
     @Override
@@ -207,6 +217,7 @@ public class ES940DiskBBQVectorsReader extends IVFVectorsReader<ES940DiskBBQVect
     ) throws IOException {
         int bulkSize = input.readInt();
         ES940DiskBBQVectorsFormat.QuantEncoding quantEncoding = ES940DiskBBQVectorsFormat.QuantEncoding.fromId(input.readInt());
+        ensureCompatibleEncoding(input, quantEncoding);
         long preconditionerLength = input.readLong();
         long preconditionerOffset = -1;
         if (preconditionerLength > 0) {
@@ -616,7 +627,6 @@ public class ES940DiskBBQVectorsReader extends IVFVectorsReader<ES940DiskBBQVect
         centroidSlice.skipBytes(sizeLookup);
         ES940DiskBBQVectorsFormat.QuantEncoding quantEncoding = entry.quantEncoding();
         int numParents = centroidSlice.readVInt();
-        final boolean legacyInt4 = useLegacyInt4(quantEncoding);
         final QueryQuantizer queryQuantizer;
         if (numParents > 0) {
             // unused
@@ -626,12 +636,12 @@ public class ES940DiskBBQVectorsReader extends IVFVectorsReader<ES940DiskBBQVect
                 centroidSlice.getFilePointer(),
                 (long) numParents * fieldInfo.getVectorDimension() * Float.BYTES
             );
-            queryQuantizer = new QueryQuantizer(quantEncoding, fieldInfo, target, parentsSlice, entry.globalCentroid(), legacyInt4);
+            queryQuantizer = new QueryQuantizer(quantEncoding, fieldInfo, target, parentsSlice, entry.globalCentroid());
         } else {
-            queryQuantizer = new QueryQuantizer(quantEncoding, fieldInfo, target, null, entry.globalCentroid(), legacyInt4);
+            queryQuantizer = new QueryQuantizer(quantEncoding, fieldInfo, target, null, entry.globalCentroid());
         }
 
-        return new MemorySegmentPostingsVisitor(queryQuantizer, quantEncoding, legacyInt4, indexInput, entry, fieldInfo, acceptDocs);
+        return new MemorySegmentPostingsVisitor(queryQuantizer, quantEncoding, indexInput, entry, fieldInfo, acceptDocs);
     }
 
     private record QueryQuantizerResult(OptimizedScalarQuantizer.QuantizationResult queryCorrections, byte[] quantizedTarget) {}
@@ -648,7 +658,6 @@ public class ES940DiskBBQVectorsReader extends IVFVectorsReader<ES940DiskBBQVect
         private final IndexInput parentsSlice;
         private final float[] globalCentroid;
         private final float[] centroidScratch;
-        private final boolean legacyInt4;
         private final int queryPackedLength;
         private int currentCentroidOrdinal = -2;
         private int nextCentroidOrdinal = -1;
@@ -660,8 +669,7 @@ public class ES940DiskBBQVectorsReader extends IVFVectorsReader<ES940DiskBBQVect
             FieldInfo fieldInfo,
             float[] target,
             IndexInput parentsSlice,
-            float[] globalCentroid,
-            boolean legacyInt4
+            float[] globalCentroid
         ) {
             this.quantEncoding = quantEncoding;
             this.target = target;
@@ -671,10 +679,7 @@ public class ES940DiskBBQVectorsReader extends IVFVectorsReader<ES940DiskBBQVect
             this.quantizer = new OptimizedScalarQuantizer(fieldInfo.getVectorSimilarityFunction(), DEFAULT_LAMBDA, 1);
             this.parentsSlice = parentsSlice;
             this.globalCentroid = globalCentroid;
-            this.legacyInt4 = legacyInt4;
-            this.queryPackedLength = legacyInt4
-                ? legacyStripedInt4Length(quantEncoding, fieldInfo.getVectorDimension())
-                : quantEncoding.getQueryPackedLength(fieldInfo.getVectorDimension());
+            this.queryPackedLength = quantEncoding.getQueryPackedLength(fieldInfo.getVectorDimension());
             this.cache = new LinkedHashMap<>(QUERY_CACHE_SIZE, 0.75f, true) {
                 @Override
                 protected boolean removeEldestEntry(Map.Entry<Integer, QueryQuantizerResult> eldest) {
@@ -718,11 +723,7 @@ public class ES940DiskBBQVectorsReader extends IVFVectorsReader<ES940DiskBBQVect
                     quantEncoding.queryBits(),
                     queryCentroid
                 );
-                if (legacyInt4) {
-                    ESVectorUtil.transposeHalfByte(quantizationScratch, quantizedQuery);
-                } else {
-                    quantEncoding.packQuery(quantizationScratch, quantizedQuery);
-                }
+                quantEncoding.packQuery(quantizationScratch, quantizedQuery);
                 currentCentroidOrdinal = nextCentroidOrdinal;
                 result = new QueryQuantizerResult(queryCorrections, quantizedQuery);
                 cache.put(nextCentroidOrdinal, result);
@@ -775,7 +776,6 @@ public class ES940DiskBBQVectorsReader extends IVFVectorsReader<ES940DiskBBQVect
         MemorySegmentPostingsVisitor(
             QueryQuantizer queryQuantizer,
             ES940DiskBBQVectorsFormat.QuantEncoding quantEncoding,
-            boolean legacyInt4,
             IndexInput indexInput,
             FieldEntry entry,
             FieldInfo fieldInfo,
@@ -787,15 +787,12 @@ public class ES940DiskBBQVectorsReader extends IVFVectorsReader<ES940DiskBBQVect
             this.entry = entry;
             this.fieldInfo = fieldInfo;
             this.acceptDocs = acceptDocs;
-            quantizedVectorByteSize = legacyInt4
-                ? legacyStripedInt4Length(quantEncoding, fieldInfo.getVectorDimension())
-                : quantEncoding.getDocPackedLength(fieldInfo.getVectorDimension());
+            quantizedVectorByteSize = quantEncoding.getDocPackedLength(fieldInfo.getVectorDimension());
             quantizedByteLength = quantizedVectorByteSize + (Float.BYTES * 3) + Integer.BYTES;
-            ESNextOSQVectorsScorer.SymmetricInt4Encoding int4Encoding = legacyInt4
-                ? ESNextOSQVectorsScorer.SymmetricInt4Encoding.STRIPED
-                : (quantEncoding.bits() == 4
+            ESNextOSQVectorsScorer.SymmetricInt4Encoding int4Encoding =
+                quantEncoding == ES940DiskBBQVectorsFormat.QuantEncoding.FOUR_BIT_SYMMETRIC_PACKED
                     ? ESNextOSQVectorsScorer.SymmetricInt4Encoding.PACKED_NIBBLE
-                    : ESNextOSQVectorsScorer.SymmetricInt4Encoding.STRIPED);
+                    : ESNextOSQVectorsScorer.SymmetricInt4Encoding.STRIPED;
             osqVectorsScorer = ESVectorUtil.getESNextOSQVectorsScorer(
                 indexInput,
                 quantEncoding.queryBits(),

@@ -28,7 +28,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecyc
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
-import org.locationtech.jts.simplify.DouglasPeuckerSimplifier;
+import org.locationtech.jts.simplify.TopologyPreservingSimplifier;
 
 import java.io.IOException;
 import java.util.List;
@@ -45,38 +45,39 @@ import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.UNSPECIFIED;
 import static org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions.isSpatial;
 
-public class StSimplify extends SpatialDocValuesFunction {
+public class StSimplifyPreserveTopology extends SpatialDocValuesFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
-        "StSimplify",
-        StSimplify::new
+        "StSimplifyPreserveTopology",
+        StSimplifyPreserveTopology::new
     );
     private static final SpatialGeometryBlockProcessor processor = new SpatialGeometryBlockProcessor(
         UNSPECIFIED,
-        DouglasPeuckerSimplifier::simplify
+        TopologyPreservingSimplifier::simplify
     );
     private static final SpatialGeometryBlockProcessor geoProcessor = new SpatialGeometryBlockProcessor(
         GEO,
-        DouglasPeuckerSimplifier::simplify
+        TopologyPreservingSimplifier::simplify
     );
     private static final SpatialGeometryBlockProcessor cartesianProcessor = new SpatialGeometryBlockProcessor(
         CARTESIAN,
-        DouglasPeuckerSimplifier::simplify
+        TopologyPreservingSimplifier::simplify
     );
     private final Expression geometry;
     private final Expression tolerance;
 
     @FunctionInfo(
         returnType = { "geo_point", "geo_shape", "cartesian_point", "cartesian_shape" },
-        description = "Simplifies the input geometry by applying the Douglas-Peucker algorithm with a specified tolerance. "
+        description = "Simplifies the input geometry by applying a topology-preserving variant of the Douglas-Peucker algorithm "
+            + "with a specified tolerance. "
             + "Vertices that fall within the tolerance distance from the simplified shape are removed. "
-            + "Note that the resulting geometry may be invalid, even if the original input was valid.",
+            + "Unlike `ST_SIMPLIFY`, the resulting geometry is guaranteed to be topologically valid.",
         preview = true,
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.4.0") },
-        examples = @Example(file = "spatial-jts", tag = "st_simplify"),
+        examples = @Example(file = "spatial-jts", tag = "st_simplifypreservetopology"),
         depthOffset = 1  // So this appears as a subsection of geometry functions
     )
-    public StSimplify(
+    public StSimplifyPreserveTopology(
         Source source,
         @Param(
             name = "geometry",
@@ -93,13 +94,13 @@ public class StSimplify extends SpatialDocValuesFunction {
         this(source, geometry, tolerance, false);
     }
 
-    private StSimplify(Source source, Expression geometry, Expression tolerance, boolean spatialDocValues) {
+    private StSimplifyPreserveTopology(Source source, Expression geometry, Expression tolerance, boolean spatialDocValues) {
         super(source, List.of(geometry, tolerance), spatialDocValues);
         this.geometry = geometry;
         this.tolerance = tolerance;
     }
 
-    private StSimplify(StreamInput in) throws IOException {
+    private StSimplifyPreserveTopology(StreamInput in) throws IOException {
         this(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(Expression.class), in.readNamedWriteable(Expression.class));
     }
 
@@ -110,12 +111,12 @@ public class StSimplify extends SpatialDocValuesFunction {
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new StSimplify(source(), newChildren.get(0), newChildren.get(1));
+        return new StSimplifyPreserveTopology(source(), newChildren.get(0), newChildren.get(1));
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, StSimplify::new, geometry, tolerance);
+        return NodeInfo.create(this, StSimplifyPreserveTopology::new, geometry, tolerance);
     }
 
     @Override
@@ -132,7 +133,7 @@ public class StSimplify extends SpatialDocValuesFunction {
 
     @Override
     public SpatialDocValuesFunction withDocValues(boolean useDocValues) {
-        return new StSimplify(source(), geometry, tolerance, useDocValues);
+        return new StSimplifyPreserveTopology(source(), geometry, tolerance, useDocValues);
     }
 
     @Override
@@ -170,21 +171,25 @@ public class StSimplify extends SpatialDocValuesFunction {
             throw new IllegalArgumentException("tolerance must be foldable");
         }
         var toleranceExpression = tolerance.fold(toEvaluator.foldCtx());
-        double inputTolerance = getInputTolerance(toleranceExpression);
+        double inputTolerance = StSimplify.getInputTolerance(toleranceExpression);
         if (spatialDocValues && geometry.dataType() == DataType.GEO_POINT) {
-            return new StSimplifyNonFoldableGeoPointDocValuesAndFoldableToleranceEvaluator.Factory(
+            return new StSimplifyPreserveTopologyNonFoldableGeoPointDocValuesAndFoldableToleranceEvaluator.Factory(
                 source(),
                 geometryEvaluator,
                 inputTolerance
             );
         } else if (spatialDocValues && geometry.dataType() == DataType.CARTESIAN_POINT) {
-            return new StSimplifyNonFoldableCartesianPointDocValuesAndFoldableToleranceEvaluator.Factory(
+            return new StSimplifyPreserveTopologyNonFoldableCartesianPointDocValuesAndFoldableToleranceEvaluator.Factory(
                 source(),
                 geometryEvaluator,
                 inputTolerance
             );
         }
-        return new StSimplifyNonFoldableGeometryAndFoldableToleranceEvaluator.Factory(source(), geometryEvaluator, inputTolerance);
+        return new StSimplifyPreserveTopologyNonFoldableGeometryAndFoldableToleranceEvaluator.Factory(
+            source(),
+            geometryEvaluator,
+            inputTolerance
+        );
     }
 
     @Override
@@ -195,7 +200,7 @@ public class StSimplify extends SpatialDocValuesFunction {
     @Override
     public Object fold(FoldContext foldCtx) {
         var toleranceExpression = tolerance.fold(foldCtx);
-        double inputTolerance = getInputTolerance(toleranceExpression);
+        double inputTolerance = StSimplify.getInputTolerance(toleranceExpression);
         Object input = geometry.fold(foldCtx);
         return switch (input) {
             case null -> null;
@@ -226,21 +231,6 @@ public class StSimplify extends SpatialDocValuesFunction {
         @Fixed double tolerance
     ) throws IOException {
         geoProcessor.processPoints(builder, p, point, tolerance);
-    }
-
-    static double getInputTolerance(Object toleranceExpression) {
-        double inputTolerance;
-
-        if (toleranceExpression instanceof Number number) {
-            inputTolerance = number.doubleValue();
-        } else {
-            throw new IllegalArgumentException("tolerance for st_simplify must be an integer or floating-point number");
-        }
-
-        if (inputTolerance < 0) {
-            throw new IllegalArgumentException("tolerance must not be negative");
-        }
-        return inputTolerance;
     }
 
     @Evaluator(

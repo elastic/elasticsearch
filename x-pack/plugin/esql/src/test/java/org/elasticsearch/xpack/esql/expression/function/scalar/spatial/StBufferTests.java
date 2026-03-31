@@ -12,43 +12,66 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.FunctionName;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.locationtech.jts.geom.Geometry;
-import org.locationtech.jts.simplify.DouglasPeuckerSimplifier;
+import org.locationtech.jts.operation.buffer.BufferOp;
 
 import java.util.List;
 import java.util.function.BiFunction;
 import java.util.function.Supplier;
 
-@FunctionName("st_simplify")
-public class StSimplifyTests extends AbstractSpatialGeometryTransformTestCase {
-    public StSimplifyTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
+import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_SHAPE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_SHAPE;
+
+@FunctionName("st_buffer")
+public class StBufferTests extends AbstractSpatialGeometryTransformTestCase {
+    public StBufferTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         super(testCaseSupplier);
     }
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        return buildParameters("StSimplify", "tolerance", DouglasPeuckerSimplifier::simplify, (spatial, param) -> spatial, 0, 100);
+        return buildParameters(
+            "StBuffer",
+            "distance",
+            StBufferTests::bufferOp,
+            (spatial, param) -> DataType.isSpatialGeo(spatial) ? GEO_SHAPE : CARTESIAN_SHAPE,
+            1,
+            10
+        );
+    }
+
+    private static Geometry bufferOp(Geometry geometry, double distance) {
+        if (distance == 0) {
+            return geometry;
+        }
+        return BufferOp.bufferOp(geometry, distance);
     }
 
     @Override
     protected BiFunction<Geometry, Double, Geometry> jtsOperation() {
-        return DouglasPeuckerSimplifier::simplify;
+        return StBufferTests::bufferOp;
     }
 
     @Override
     protected String evaluatorPrefix() {
-        return "StSimplify";
+        return "StBuffer";
     }
 
     @Override
     protected String secondParameterName() {
-        return "tolerance";
+        return "distance";
+    }
+
+    @Override
+    protected DataType expectedReturnType(DataType spatialType) {
+        return DataType.isSpatialGeo(spatialType) ? GEO_SHAPE : CARTESIAN_SHAPE;
     }
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new StSimplify(source, args.get(0), args.get(1));
+        return new StBuffer(source, args.get(0), args.get(1));
     }
 }

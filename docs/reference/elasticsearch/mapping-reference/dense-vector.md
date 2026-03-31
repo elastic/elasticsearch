@@ -391,9 +391,10 @@ When indexing `float` vectors, the default index type is:
   - `int8_hnsw` for vectors with less than 384 dimensions
 :::
 
-::::{applies-item} stack: ga 9.4, serverless: ga
+:::{applies-item} { "stack": "ga 9.4", "serverless": "ga" }
 When indexing `float` vectors, the default index type is `bbq_disk`
 when available under the current license.
+:::
 ::::
 
 ### int8 [dense-vector-quantization-int8]

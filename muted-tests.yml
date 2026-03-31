@@ -430,6 +430,16 @@ tests:
     - "test {p0=esql/192_unmapped_load_partial_non_keyword/keep-punks-wildcard}"
     - "test {p0=esql/192_unmapped_load_partial_non_keyword/keep-punks-wildcard #2}"
   issue: https://github.com/elastic/elasticsearch/issues/145206
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlClientYamlIT
+  methods:
+    - "test {p0=esql/192_unmapped_load_partial_non_keyword/keep-punks}"
+    - "test {p0=esql/192_unmapped_load_partial_non_keyword/keep-punks-wildcard}"
+  issue: https://github.com/elastic/elasticsearch/issues/145206
+- class: org.elasticsearch.multiproject.test.XpackWithMultipleProjectsClientYamlTestSuiteIT
+  methods:
+    - "test {yaml=esql/192_unmapped_load_partial_non_keyword/keep-punks}"
+    - "test {yaml=esql/192_unmapped_load_partial_non_keyword/keep-punks-wildcard}"
+  issue: https://github.com/elastic/elasticsearch/issues/145206
 
 # Examples:
 #

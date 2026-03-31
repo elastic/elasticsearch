@@ -199,7 +199,7 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
         if (aliasFilter != null && aliasFilter != AliasFilter.EMPTY) {
 
             // Other "applyAs" methods here implicitly handle AliasFilter in QueryList.getQuery()
-            // which adds the filter clause to the query sent to Lucene.  Unfortunately this
+            // which adds the filter clause to the query sent to Lucene. Unfortunately this
             // optimization avoids Lucene queries so we can't use it when an AliasFilter is in effect.
             //
             return false;

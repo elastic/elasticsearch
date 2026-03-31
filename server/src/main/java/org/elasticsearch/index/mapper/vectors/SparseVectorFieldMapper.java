@@ -112,8 +112,12 @@ public class SparseVectorFieldMapper extends FieldMapper {
 
         public Builder(String name, IndexSettings indexSettings) {
             super(name);
-            this.stored = Parameter.boolParam("store", false, m -> toType(m).fieldType().isStored(),
-                () -> INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING.get(indexSettings.getSettings()));
+            this.stored = Parameter.boolParam(
+                "store",
+                false,
+                m -> toType(m).fieldType().isStored(),
+                () -> INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING.get(indexSettings.getSettings())
+            );
             this.indexSettings = indexSettings;
         }
 

@@ -68,6 +68,8 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
             topMapping(b -> b.startObject(SourceFieldMapper.NAME).field("mode", "synthetic").endObject()),
             dm -> {}
         );
+        // mode is controlled by index settings on current index versions rather than serialized in the mapping
+        checker.excludeFromSerialization("mode");
         checker.registerConflictCheck("includes", b -> b.array("includes", "foo*"));
         checker.registerConflictCheck("excludes", b -> b.array("excludes", "foo*"));
     }

@@ -87,7 +87,7 @@ public class HeapAttackLimitByIT extends HeapAttackTestCase {
     public void testLimitByManyGroupingColumnsTooMuchMemory() throws IOException {
         assumeTrue("LIMIT BY requires snapshot builds", Build.current().isSnapshot());
         initManyLongs(10);
-        assertCircuitBreaksVia(attempt -> limitByManyLongs(attempt * 500), GroupedLimitOperator.class.getName(), bytesRefHashClassName());
+        assertCircuitBreaksVia(attempt -> limitByManyLongs(attempt * 1000), GroupedLimitOperator.class.getName(), bytesRefHashClassName());
     }
 
     private Map<String, Object> limitByManyLongs(int count) throws IOException {

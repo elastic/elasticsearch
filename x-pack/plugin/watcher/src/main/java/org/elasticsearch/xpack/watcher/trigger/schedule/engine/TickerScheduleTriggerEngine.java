@@ -77,15 +77,7 @@ public class TickerScheduleTriggerEngine extends ScheduleTriggerEngine {
                 }
             }
         }
-        // why are we calling putAll() here instead of assigning a brand
-        // new concurrent hash map you may ask yourself over here
-        // This requires some explanation how TriggerEngine.start() is
-        // invoked, when a reload due to the cluster state listener is done
-        // If the watches index does not exist, and new document is stored,
-        // then the creation of that index will trigger a reload which calls
-        // this method. The index operation however will run at the same time
-        // as the reload, so if we clean out the old data structure here,
-        // that can lead to that one watch not being triggered
+        this.schedules.clear();
         this.schedules.putAll(startingSchedules);
     }
 

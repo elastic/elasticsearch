@@ -33,6 +33,8 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static java.util.stream.Collectors.toSet;
+import static java.util.stream.IntStream.range;
 import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.daily;
 import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.interval;
 import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.weekly;
@@ -103,6 +105,31 @@ public class TickerScheduleEngineTests extends ESTestCase {
             fail("waiting too long for all watches to be triggered");
         }
         assertThat(bits.cardinality(), is(count));
+    }
+
+    /**
+     * When a cluster state changes and watches are restarted, the engine should clean up any previous watches because they may change
+     * the node they are running on. When not cleaned up, they may start triggering on more nodes than they should.
+     */
+    public void testStartsShouldCleanUpPreviousWatches() {
+        final List<Watch> initialWatches = createRandomWatches(2);
+        engine.start(initialWatches);
+        assertThat("Assumed initial watches added",
+            engine.getSchedules().keySet(), is(initialWatches.stream().map(Watch::id).collect(toSet()))
+        );
+
+        final List<Watch> newWatches = createRandomWatches(3);
+
+        engine.start(newWatches);
+        assertThat("Only new watches should be visible after engine restart",
+            engine.getSchedules().keySet(), is(newWatches.stream().map(Watch::id).collect(toSet()))
+        );
+    }
+
+    private List<Watch> createRandomWatches(int watchesToCreate) {
+        return range(0, watchesToCreate)
+            .mapToObj(__ -> createWatch(randomAlphanumericOfLength(5), interval("1s")))
+            .toList();
     }
 
     public void testAddHourly() throws Exception {

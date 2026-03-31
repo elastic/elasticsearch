@@ -372,6 +372,30 @@ tests:
 - class: org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundToTests
   method: testCrankyEvaluateBlockWithoutNulls {TestCase=<int, 20 fixed-interval ints>}
   issue: https://github.com/elastic/elasticsearch/issues/145245
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
+  method: test {csv-spec:approximation.Approximated column and null}
+  issue: https://github.com/elastic/elasticsearch/issues/145248
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
+  method: test {csv-spec:approximation.Warn on no stats}
+  issue: https://github.com/elastic/elasticsearch/issues/145249
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
+  method: test {csv-spec:approximation.Exact stats by on small multi-valued data}
+  issue: https://github.com/elastic/elasticsearch/issues/145250
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
+  method: test {csv-spec:approximation.Exact stats on small multi-valued data}
+  issue: https://github.com/elastic/elasticsearch/issues/145251
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundToTests
+  method: testFold {TestCase=<int, 15 fixed-interval ints>}
+  issue: https://github.com/elastic/elasticsearch/issues/145254
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundToTests
+  method: testFold {TestCase=<long, 15 fixed-interval longs>}
+  issue: https://github.com/elastic/elasticsearch/issues/145255
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundToTests
+  method: testEvaluateInManyThreads {TestCase=<long, 11 fixed-interval longs>}
+  issue: https://github.com/elastic/elasticsearch/issues/145256
+- class: org.elasticsearch.xpack.restart.FullClusterRestartIT
+  method: testWatcherWithApiKey {cluster=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/131964
 
 # Examples:
 #

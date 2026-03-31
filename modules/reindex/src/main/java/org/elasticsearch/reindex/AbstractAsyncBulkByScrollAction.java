@@ -309,6 +309,14 @@ public abstract class AbstractAsyncBulkByScrollAction<
         }
     }
 
+    private boolean tryReleaseCurrentResponse(ScrollConsumableHitsResponse expected) {
+        if (currentScrollResponse.compareAndSet(expected, null)) {
+            expected.releaseRemainingHits();
+            return true;
+        }
+        return false;
+    }
+
     protected PaginatedHitSource buildScrollableResultSource(BackoffPolicy backoffPolicy, SearchRequest searchRequest) {
         return new ClientScrollablePaginatedHitSource(
             logger,
@@ -384,9 +392,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
         logger.debug("[{}]: got scroll response with [{}] hits", task.getId(), asyncResponse.remainingHits());
         if (task.isCancelled()) {
             logger.debug("[{}]: finishing early because the task was cancelled", task.getId());
-            if (currentScrollResponse.compareAndSet(asyncResponse, null)) {
-                asyncResponse.releaseRemainingHits();
-            }
+            tryReleaseCurrentResponse(asyncResponse);
             finishHim(null);
             return;
         }
@@ -394,9 +400,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
         (response.getFailures().size() > 0)
             // Timeouts aren't shard failures but we still need to pass them back to the user.
             || response.isTimedOut()) {
-            if (currentScrollResponse.compareAndSet(asyncResponse, null)) {
-                asyncResponse.releaseRemainingHits();
-            }
+            tryReleaseCurrentResponse(asyncResponse);
             refreshAndFinish(emptyList(), response.getFailures(), response.isTimedOut());
             return;
         }
@@ -417,9 +421,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
 
             @Override
             public void onFailure(Exception e) {
-                if (currentScrollResponse.compareAndSet(asyncResponse, null)) {
-                    asyncResponse.releaseRemainingHits();
-                }
+                tryReleaseCurrentResponse(asyncResponse);
                 finishHim(e);
             }
         };
@@ -1049,8 +1051,8 @@ public abstract class AbstractAsyncBulkByScrollAction<
          * so they are not leaked.
          */
         void releaseRemainingHits() {
-            for (int i = consumedOffset; i < hits.size(); i++) {
-                hits.get(i).release();
+            for (; consumedOffset < hits.size(); consumedOffset++) {
+                hits.get(consumedOffset).release();
             }
         }
 

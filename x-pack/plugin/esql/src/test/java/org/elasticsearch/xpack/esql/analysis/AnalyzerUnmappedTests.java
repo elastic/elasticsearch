@@ -849,7 +849,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
                 Map.of("test1", IndexMode.STANDARD, "test2", IndexMode.STANDARD),
                 Map.of(),
                 Map.of(),
-                Set.of("first_name")
+                Map.of("first_name", Set.of("test2"))
             )
         ).statement(setUnmappedLoad("""
             FROM test*
@@ -877,7 +877,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
                 Map.of("test1", IndexMode.STANDARD, "test2", IndexMode.STANDARD),
                 Map.of(),
                 Map.of(),
-                Set.of("salary") // salary is integer, not keyword
+                Map.of("salary", Set.of("test2")) // salary is integer, not keyword
             )
         ).statement(setUnmappedLoad("""
             FROM test*
@@ -907,7 +907,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
                 Map.of("test1", IndexMode.STANDARD, "test2", IndexMode.STANDARD),
                 Map.of(),
                 Map.of(),
-                Set.of("gender") // gender is text, not keyword
+                Map.of("gender", Set.of("test2")) // gender is text, not keyword
             )
         ).statement(setUnmappedLoad("""
             FROM test*
@@ -966,7 +966,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
                     Map.of("test1", IndexMode.STANDARD, "test2", IndexMode.STANDARD),
                     Map.of(),
                     Map.of(),
-                    Set.of("test_field") // partially unmapped
+                    Map.of("test_field", Set.of("test2")) // partially unmapped
                 )
             ).statement(setUnmappedLoad("""
                 FROM test*
@@ -1004,7 +1004,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
                 Map.of("test1", IndexMode.STANDARD, "test2", IndexMode.STANDARD),
                 Map.of(),
                 Map.of(),
-                Set.of("first_name", "salary") // keyword + integer
+                Map.of("first_name", Set.of("test2"), "salary", Set.of("test2")) // keyword + integer
             )
         ).statement(setUnmappedLoad("""
             FROM test*
@@ -1039,7 +1039,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
                 Map.of("test1", IndexMode.STANDARD, "test2", IndexMode.STANDARD),
                 Map.of(),
                 Map.of(),
-                Set.of("first_name") // only first_name is partially unmapped
+                Map.of("first_name", Set.of("test2")) // only first_name is partially unmapped
             )
         ).statement(setUnmappedLoad("""
             FROM test*

@@ -1,0 +1,6 @@
+area: "TSDB, ES|QL"
+issues:
+ - 142485
+pr: 145348
+summary: Fix Group-By-All when index pattern matches multiple DS
+type: bug

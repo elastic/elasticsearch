@@ -425,14 +425,6 @@ public abstract class HeapAttackTestCase extends ESRestTestCase {
             """);
     }
 
-    protected void setRequestBreakerLimit(String limit) throws IOException {
-        Request request = new Request("PUT", "/_cluster/settings");
-        request.setJsonEntity(
-            "{\"persistent\": {\"indices.breaker.request.limit\": " + (limit == null ? "null" : "\"" + limit + "\"") + "}}"
-        );
-        adminClient().performRequest(request);
-    }
-
     protected static boolean isServerless() throws IOException {
         for (Map<?, ?> nodeInfo : getNodesInfo(adminClient()).values()) {
             for (Object module : (List<?>) nodeInfo.get("modules")) {

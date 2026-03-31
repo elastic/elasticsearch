@@ -557,10 +557,6 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
         return projectId;
     }
 
-    private ProjectState getProjectState() {
-        return clusterService.state().projectState(projectId);
-    }
-
     /**
      * Checks if the current thread has been interrupted and, if so, throws an {@link ElasticsearchException}
      * wrapping an {@link InterruptedException}. This allows long-running multi-step operations to detect

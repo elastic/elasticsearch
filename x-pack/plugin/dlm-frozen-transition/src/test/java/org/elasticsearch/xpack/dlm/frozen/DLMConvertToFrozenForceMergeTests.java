@@ -125,7 +125,7 @@ public class DLMConvertToFrozenForceMergeTests extends ESTestCase {
         };
     }
 
-    public void testSkipsForceMergeWhenAlreadyForceMergedToSingleSegment() {
+    public void testSkipsForceMergeWhenAlreadyForceMergedToSingleSegment() throws InterruptedException {
         // Set up segment response showing single segment on primary shard
         ShardSegments shardSegments = new ShardSegments(
             TestShardRouting.newShardRouting(new ShardId(index, 0), "_node_id", true, ShardRoutingState.STARTED),
@@ -149,7 +149,7 @@ public class DLMConvertToFrozenForceMergeTests extends ESTestCase {
         assertThat(capturedForceMergeRequest.get(), is(nullValue()));
     }
 
-    public void testDoesNotSkipForceMergeWhenMultipleSegments() {
+    public void testDoesNotSkipForceMergeWhenMultipleSegments() throws InterruptedException {
         ShardSegments shardSegments = new ShardSegments(
             TestShardRouting.newShardRouting(new ShardId(index, 0), "_node_id", true, ShardRoutingState.STARTED),
             List.of(new Segment("_0"), new Segment("_1"))
@@ -218,7 +218,7 @@ public class DLMConvertToFrozenForceMergeTests extends ESTestCase {
         assertThat(exception.getMessage(), containsString("shards were unavailable"));
     }
 
-    public void testForceMergeSucceedsWhenAllShardsSuccessful() {
+    public void testForceMergeSucceedsWhenAllShardsSuccessful() throws InterruptedException {
         // Default mock segment response: no segments found → force merge not complete
         mockForceMergeResponse.set(new BroadcastResponse(1, 1, 0, List.of()));
 

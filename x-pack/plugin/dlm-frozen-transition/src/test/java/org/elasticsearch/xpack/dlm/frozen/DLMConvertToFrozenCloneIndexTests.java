@@ -195,7 +195,7 @@ public class DLMConvertToFrozenCloneIndexTests extends ESTestCase {
         assertThat(indexForForceMerge, equalTo(indexName));
     }
 
-    public void testMaybeCloneIndexCreatesCloneWithCorrectSettings() {
+    public void testMaybeCloneIndexCreatesCloneWithCorrectSettings() throws InterruptedException {
         createProjectState(2); // replicas > 0 to trigger cloning
         DLMConvertToFrozen convert = new DLMConvertToFrozen(indexName, projectId, client, clusterService, licenseState, Clock.systemUTC());
         mockCloneResponse.set(new CreateIndexResponse(true, true, convert.getDLMCloneIndexName()));

@@ -111,7 +111,7 @@ public class DLMConvertToFrozenMarkReadOnlyTests extends ESTestCase {
         };
     }
 
-    public void testSkipsMarkingReadOnlyWhenIndexHasWriteBlock() {
+    public void testSkipsMarkingReadOnlyWhenIndexHasWriteBlock() throws InterruptedException {
         ClusterBlock writeBlock = WRITE.getBlock();
 
         ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(projectId)
@@ -152,7 +152,7 @@ public class DLMConvertToFrozenMarkReadOnlyTests extends ESTestCase {
         assertThat(capturedRequest.get(), is(nullValue()));
     }
 
-    public void testCallsAddBlockWithCorrectParameters() {
+    public void testCallsAddBlockWithCorrectParameters() throws InterruptedException {
         createProjectState();
         mockResponse.set(new AddIndexBlockResponse(true, true, List.of(new AddIndexBlockResponse.AddBlockResult(index))));
 
@@ -250,7 +250,7 @@ public class DLMConvertToFrozenMarkReadOnlyTests extends ESTestCase {
         assertThat(exception.getMessage(), containsString("unable to mark index"));
     }
 
-    public void testDoesNotSkipWithNonWriteBlock() {
+    public void testDoesNotSkipWithNonWriteBlock() throws InterruptedException {
         ClusterBlock readBlock = IndexMetadata.APIBlock.READ.getBlock();
 
         ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(projectId)
@@ -350,7 +350,7 @@ public class DLMConvertToFrozenMarkReadOnlyTests extends ESTestCase {
         assertThat(exception.getMessage(), containsString("unable to mark index"));
     }
 
-    public void testAddIndexBlockRequestHasVerifiedSetToTrue() {
+    public void testAddIndexBlockRequestHasVerifiedSetToTrue() throws InterruptedException {
         createProjectState();
         mockResponse.set(new AddIndexBlockResponse(true, true, List.of(new AddIndexBlockResponse.AddBlockResult(index))));
 

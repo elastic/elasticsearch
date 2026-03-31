@@ -11,25 +11,21 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockRequest;
 import org.elasticsearch.action.admin.indices.readonly.TransportAddIndexBlockAction;
 import org.elasticsearch.action.admin.indices.readonly.TransportVerifyShardIndexBlockAction;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateTaskListener;
-import org.elasticsearch.cluster.SimpleBatchedExecutor;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.license.internal.XPackLicenseStatus;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.junit.Before;
@@ -370,7 +366,7 @@ public class DLMConvertToFrozenMarkReadOnlyIT extends ESIntegTestCase {
      * ({@code data_stream_lifecycle -> dlm_freeze_with -> REPO_NAME}) so that
      * {@link DLMConvertToFrozen#checkIfEligibleForConvertToFrozen()} passes.
      */
-    private void setupRepoAndIndexMetadata() throws Exception {
+    private void setupRepoAndIndexMetadata() {
         // Create a snapshot repository
         Path repoPath = randomRepoPath();
         assertAcked(
@@ -379,33 +375,19 @@ public class DLMConvertToFrozenMarkReadOnlyIT extends ESIntegTestCase {
                 .setSettings(Settings.builder().put("location", repoPath))
         );
 
-        // Add the required custom metadata to the index via a cluster state update
-        PlainActionFuture<Void> future = new PlainActionFuture<>();
-        internalCluster().clusterService(internalCluster().getMasterName())
-            .createTaskQueue("test-add-frozen-metadata", Priority.NORMAL, new SimpleBatchedExecutor<>() {
-                @Override
-                public Tuple<ClusterState, Object> executeTask(
-                    ClusterStateTaskListener clusterStateTaskListener,
-                    ClusterState clusterState
-                ) {
-                    ProjectMetadata projectMetadata = clusterState.metadata().getProject(Metadata.DEFAULT_PROJECT_ID);
-                    IndexMetadata indexMetadata = projectMetadata.index(INDEX_NAME);
-                    IndexMetadata updatedMetadata = IndexMetadata.builder(indexMetadata)
-                        .putCustom(
-                            DataStreamsPlugin.LIFECYCLE_CUSTOM_INDEX_METADATA_KEY,
-                            Map.of(DataStreamLifecycleService.FROZEN_CANDIDATE_REPOSITORY_METADATA_KEY, REPO_NAME)
-                        )
-                        .build();
-                    ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(projectMetadata).put(updatedMetadata, true);
-                    return Tuple.tuple(ClusterState.builder(clusterState).putProjectMetadata(projectBuilder.build()).build(), null);
-                }
-
-                @Override
-                public void taskSucceeded(ClusterStateTaskListener clusterStateTaskListener, Object ignored) {
-                    future.onResponse(null);
-                }
-            })
-            .submitTask("test-add-frozen-metadata", future::onFailure, null);
-        future.actionGet();
+        // Add the required custom metadata to the index via a cluster state update published through the master service
+        ClusterService masterClusterService = internalCluster().clusterService(internalCluster().getMasterName());
+        ClusterState currentState = masterClusterService.state();
+        ProjectMetadata projectMetadata = currentState.metadata().getProject(Metadata.DEFAULT_PROJECT_ID);
+        IndexMetadata indexMetadata = projectMetadata.index(INDEX_NAME);
+        IndexMetadata updatedMetadata = IndexMetadata.builder(indexMetadata)
+            .putCustom(
+                DataStreamsPlugin.LIFECYCLE_CUSTOM_INDEX_METADATA_KEY,
+                Map.of(DataStreamLifecycleService.FROZEN_CANDIDATE_REPOSITORY_METADATA_KEY, REPO_NAME)
+            )
+            .build();
+        ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(projectMetadata).put(updatedMetadata, true);
+        ClusterState newState = ClusterState.builder(currentState).putProjectMetadata(projectBuilder.build()).build();
+        ClusterServiceUtils.setState(masterClusterService.getMasterService(), newState);
     }
 }

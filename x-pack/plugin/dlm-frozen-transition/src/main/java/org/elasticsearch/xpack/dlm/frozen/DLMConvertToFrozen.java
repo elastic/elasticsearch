@@ -109,10 +109,15 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
             maybeMountSearchableSnapshot();
         } catch (IndexNotFoundException e) {
             if (e.getIndex().getName().equals(indexName)) {
+                // if the original index was not found, then we can assume
+                // it was deleted after the eligibility check, and we should
+                // skip the remaining steps
                 logger.warn("Index [{}] was not found during DLM convert-to-frozen operation, skipping this index", indexName);
             } else {
                 throw e;
             }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
         }
     }
 
@@ -125,7 +130,7 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
      * @throws ElasticsearchException if the attempt to add the read-only block fails due to an
      * exception or an unacknowledged response from the cluster.
      */
-    public void maybeMarkIndexReadOnly() {
+    public void maybeMarkIndexReadOnly() throws InterruptedException {
         checkIfThreadInterrupted();
         checkIfEligibleForConvertToFrozen();
 
@@ -157,7 +162,7 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
      * Returns the name of the index to be used for force merge in the next step, which will be either the existing clone,
      * the original index (if it has 0 replicas), or a newly created clone.
      */
-    String maybeCloneIndex() {
+    String maybeCloneIndex() throws InterruptedException {
         checkIfThreadInterrupted();
         checkIfEligibleForConvertToFrozen();
 
@@ -199,16 +204,10 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
         }
     }
 
-    public void maybeForceMergeIndex(String forceMergeIndex) {
+    public void maybeForceMergeIndex(String forceMergeIndex) throws InterruptedException {
         checkIfThreadInterrupted();
         checkIfEligibleForConvertToFrozen();
 
-        if (forceMergeIndex == null) {
-            // this should not be reachable in normal execution
-            throw new IllegalStateException(
-                "forceMergeIndex is not set. This should never happen as" + " maybeCloneIndex should have been called before this method"
-            );
-        }
         boolean indexMissing = Optional.ofNullable(getProjectState())
             .map(ProjectState::metadata)
             .map(metadata -> metadata.index(forceMergeIndex))
@@ -260,12 +259,12 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
         }
     }
 
-    public void maybeTakeSnapshot() {
+    public void maybeTakeSnapshot() throws InterruptedException {
         checkIfThreadInterrupted();
         checkIfEligibleForConvertToFrozen();
     }
 
-    public void maybeMountSearchableSnapshot() {
+    public void maybeMountSearchableSnapshot() throws InterruptedException {
         checkIfThreadInterrupted();
         checkIfEligibleForConvertToFrozen();
     }
@@ -558,13 +557,13 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
     }
 
     /**
-     * Checks if the current thread has been interrupted and, if so, throws an {@link ElasticsearchException}
-     * wrapping an {@link InterruptedException}. This allows long-running multi-step operations to detect
-     * interrupts quickly at the beginning of each step rather than waiting for a blocking call to fail.
+     * Checks if the current thread has been interrupted and, if so, throws an {@link InterruptedException}.
+     * This allows long-running multi-step operations to detect interrupts quickly at the beginning
+     * of each step rather than waiting for a blocking call to fail.
      */
-    private static void checkIfThreadInterrupted() {
+    private static void checkIfThreadInterrupted() throws InterruptedException {
         if (Thread.currentThread().isInterrupted()) {
-            throw new ElasticsearchException("DLM operation interrupted", new InterruptedException("Thread was interrupted"));
+            throw new InterruptedException("DLM frozen conversion was interrupted");
         }
     }
 

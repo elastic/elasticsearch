@@ -152,6 +152,9 @@ public class PromqlCommand extends UnaryPlan
     }
 
     public PromqlCommand withPromqlPlan(LogicalPlan newPromqlPlan) {
+        if (newPromqlPlan == promqlPlan) {
+            return this;
+        }
         return new PromqlCommand(
             source(),
             child(),

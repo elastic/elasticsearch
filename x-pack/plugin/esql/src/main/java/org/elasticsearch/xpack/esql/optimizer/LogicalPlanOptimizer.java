@@ -31,7 +31,6 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.PartiallyFoldCase;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PropagateEmptyRelation;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PropagateEquals;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PropagateEvalFoldables;
-import org.elasticsearch.xpack.esql.optimizer.rules.logical.PropagateFlattened;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PropagateInlineEvals;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PropagateNullable;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PropgateUnmappedFields;
@@ -64,7 +63,6 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReorderLimitProjectA
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceAggregateAggExpressionWithEval;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceAggregateNestedExpressionWithEval;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceAliasingEvalWithProject;
-import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceFlattenedJsonExtractFn;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceLimitAndSortAsTopN;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceLimitByExpressionWithEval;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceOrderByExpressionWithEval;
@@ -206,7 +204,6 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new SplitInWithFoldableValue(),
             new PropagateEvalFoldables(),
             new ConstantFolding(),
-            new ReplaceFlattenedJsonExtractFn(),
             /* Then deduplicate aggregations
                We need this after the constant folding
                because we could have expressions like
@@ -267,7 +264,6 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new HoistRemoteEnrichTopN(),
             new ReplaceRowAsLocalRelation(),
             new PropgateUnmappedFields(),
-            new PropagateFlattened(),
             new CombineLimitTopN(),
             new ReorderLimitProjectAndOrderBy()
         );

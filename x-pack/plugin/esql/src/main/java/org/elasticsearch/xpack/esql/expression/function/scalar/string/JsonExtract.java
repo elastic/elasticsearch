@@ -68,40 +68,40 @@ public class JsonExtract extends EsqlScalarFunction {
             Extracts a value from a JSON string using a subset of
             [JSONPath](https://datatracker.ietf.org/doc/rfc9535) syntax.""",
         detailedDescription = """
-             Paths can use dot notation (`user.address.city`), bracket
-             notation (`['user']['address']['city']`), or a mix of both
-             (`user['address'].city`). For simple keys, dot notation and
-             bracket notation are interchangeable — `a.b` and `a['b']`
-             produce the same result.
+            Paths can use dot notation (`user.address.city`), bracket
+            notation (`['user']['address']['city']`), or a mix of both
+            (`user['address'].city`). For simple keys, dot notation and
+            bracket notation are interchangeable — `a.b` and `a['b']`
+            produce the same result.
 
-             Bracket notation is required for keys that contain dots or
-             special characters (`['user.name']`), for empty string keys
-             (`['']`), and for array indices (`items[0]`). Dots in dot
-             notation are always path separators per the JSONPath
-             specification — a JSON key that literally contains a dot
-             (e.g., `"user.name"`) must be accessed via bracket notation.
-             The JSONPath `$` root selector is supported for compatibility
-             but is always optional — `$.name` and `name` are equivalent,
-             and `$[0]` and `[0]` are equivalent. Optional whitespace is
-             allowed inside brackets (`[ 0 ]` is equivalent to `[0]`).
-             Path matching is case-sensitive per the JSON specification.
+            Bracket notation is required for keys that contain dots or
+            special characters (`['user.name']`), for empty string keys
+            (`['']`), and for array indices (`items[0]`). Dots in dot
+            notation are always path separators per the JSONPath
+            specification — a JSON key that literally contains a dot
+            (e.g., `"user.name"`) must be accessed via bracket notation.
+            The JSONPath `$` root selector is supported for compatibility
+            but is always optional — `$.name` and `name` are equivalent,
+            and `$[0]` and `[0]` are equivalent. Optional whitespace is
+            allowed inside brackets (`[ 0 ]` is equivalent to `[0]`).
+            Path matching is case-sensitive per the JSON specification.
 
-             The extracted value is returned as a `keyword` string: string
-             values without surrounding quotes, numbers and booleans as their
-             string representation, and objects or arrays as JSON strings.
-             Returns `null` if either parameter is `null` or if the extracted
-             JSON value is `null`.
+            When a `flattened` field root is loaded as JSON, pass that root as the first argument to read nested keys without using dotted field names (for example `JSON_EXTRACT(resource.attributes, "host.name")`).
 
-             Returns `null` and emits a warning if the input is not valid JSON,
-             the path is malformed, the path does not exist, the array index is
-             out of bounds, or the path attempts to traverse through a
-             non-object/non-array value.
+            The extracted value is returned as a `keyword` string: string
+            values without surrounding quotes, numbers and booleans as their
+            string representation, and objects or arrays as JSON strings.
+            Returns `null` if either parameter is `null` or if the extracted
+            JSON value is `null`.
 
-            Returns the nested keyword value from a flattened field {applies_to}stack: ga 9.4:
+            Returns `null` and emits a warning if the input is not valid JSON,
+            the path is malformed, the path does not exist, the array index is
+            out of bounds, or the path attempts to traverse through a
+            non-object/non-array value.
 
-             This function does not support wildcards (`*`), recursive descent
-             (`..`), array slicing (`[0:3]`), filter expressions
-             (`?(@.price<10)`), or negative array indices (`[-1]`).""",
+            This function does not support wildcards (`*`), recursive descent
+            (`..`), array slicing (`[0:3]`), filter expressions
+            (`?(@.price<10)`), or negative array indices (`[-1]`).""",
         examples = {
             @Example(file = "json_extract", tag = "json_extract"),
             @Example(file = "json_extract", tag = "json_extract_dollar", description = """
@@ -143,7 +143,7 @@ public class JsonExtract extends EsqlScalarFunction {
         @Param(
             name = "string",
             type = { "keyword", "text", "_source" },
-            description = "A string containing valid JSON, the `_source` field, or a `flattened` field {applies_to}stack: ga 9.4:. If `null`, the function returns `null`."
+            description = "A string containing valid JSON, the `_source` field, or a `flattened` field root loaded as JSON. If `null`, the function returns `null`."
         ) Expression str,
         @Param(
             name = "path",

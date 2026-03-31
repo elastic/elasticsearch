@@ -7,29 +7,20 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.capabilities.ConfigurationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.FlattenedEsField;
-import org.elasticsearch.xpack.esql.core.type.KeywordEsField;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
-import org.elasticsearch.xpack.esql.optimizer.rules.logical.FlattenedJsonExtractSupport;
-import org.elasticsearch.xpack.esql.optimizer.rules.logical.PropagateFlattened;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.ProjectAwayColumns;
 import org.elasticsearch.xpack.esql.plan.QueryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.SampledAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 
-import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 
 import static org.elasticsearch.index.IndexMode.LOOKUP;
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
@@ -105,18 +96,12 @@ public abstract class PostOptimizationPhasePlanVerifier<P extends QueryPlan<P>> 
             // Query approximation can add columns to the output with the confidence intervals.
             boolean hasQueryApproximationAddingColumns = optimizedPlan.anyMatch(plan -> plan instanceof SampledAggregate)
                 && dataTypeEquals(expectedOutputAttributes, optimizedPlan.output().subList(0, expectedOutputAttributes.size()));
-            // PropagateFlattenedSubfields merges synthetic dotted attributes into EsRelation output for keyed loaders.
-            boolean hasPropagatedKeyedFlattenedSubfieldsOnly = differenceIsOnlyPropagatedKeyedFlattenedSubfields(
-                expectedOutputAttributes,
-                optimizedPlan.output()
-            );
 
             boolean ignoreError = hasProjectAwayColumns
                 || hasLookupJoinExec
                 || hasTextGroupingInTimeSeries
                 || hasTimeSeriesReplacingTsId
-                || hasQueryApproximationAddingColumns
-                || hasPropagatedKeyedFlattenedSubfieldsOnly;
+                || hasQueryApproximationAddingColumns;
             if (ignoreError == false) {
                 failures.add(
                     fail(
@@ -128,65 +113,6 @@ public abstract class PostOptimizationPhasePlanVerifier<P extends QueryPlan<P>> 
                 );
             }
         }
-    }
-
-    /**
-     * True when {@code optimized} is {@code expected} plus only synthetic dotted keyword columns under a
-     * {@link FlattenedEsField} root that qualify for keyed flattened loading (same shape as
-     * {@link PropagateFlattened}).
-     */
-    private static boolean differenceIsOnlyPropagatedKeyedFlattenedSubfields(
-        List<Attribute> expectedOutputAttributes,
-        List<Attribute> optimizedOutput
-    ) {
-        if (EsqlCapabilities.Cap.JSON_EXTRACT_FLATTENED_FIELD.isEnabled() == false) {
-            return false;
-        }
-        return dataTypeEquals(
-            expectedOutputAttributes,
-            withoutPropagatedKeyedFlattenedSubfields(expectedOutputAttributes, optimizedOutput)
-        );
-    }
-
-    private static List<Attribute> withoutPropagatedKeyedFlattenedSubfields(
-        List<Attribute> expectedOutputAttributes,
-        List<Attribute> optimizedOutput
-    ) {
-        Set<String> flattenedRoots = new HashSet<>();
-        for (Attribute a : expectedOutputAttributes) {
-            if (a instanceof FieldAttribute fa && fa.field() instanceof FlattenedEsField) {
-                flattenedRoots.add(fa.name());
-            }
-        }
-        if (flattenedRoots.isEmpty()) {
-            return optimizedOutput;
-        }
-        List<Attribute> kept = new ArrayList<>(optimizedOutput.size());
-        for (Attribute a : optimizedOutput) {
-            if (isPropagatedKeyedFlattenedSubfield(a, flattenedRoots) == false) {
-                kept.add(a);
-            }
-        }
-        return kept;
-    }
-
-    private static boolean isPropagatedKeyedFlattenedSubfield(Attribute a, Set<String> flattenedRoots) {
-        if (a instanceof FieldAttribute fa) {
-            if (fa.synthetic() == false) {
-                return false;
-            }
-            if ((fa.field() instanceof KeywordEsField) == false) {
-                return false;
-            }
-            for (String root : flattenedRoots) {
-                String prefix = root + ".";
-                if (fa.name().startsWith(prefix) && fa.name().length() > prefix.length()) {
-                    String subPath = fa.name().substring(prefix.length());
-                    return FlattenedJsonExtractSupport.isKeyedFlattenedSubfieldPath(subPath);
-                }
-            }
-        }
-        return false;
     }
 
 }

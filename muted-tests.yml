@@ -225,9 +225,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.spatial.SpatialPushDownGeoShapeIT
   method: testQuantizedXY
   issue: https://github.com/elastic/elasticsearch/issues/141234
-- class: org.elasticsearch.xpack.esql.tree.EsqlNodeSubclassTests
-  method: testTransform {class org.elasticsearch.xpack.esql.plan.logical.MMR}
-  issue: https://github.com/elastic/elasticsearch/issues/142674
 - class: org.elasticsearch.packaging.test.DebMetadataTests
   method: test05CheckLintian
   issue: https://github.com/elastic/elasticsearch/issues/142819

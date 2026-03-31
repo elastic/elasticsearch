@@ -27,12 +27,7 @@ public class SamlAttributes {
     private final String inResponseTo;
     private final List<SamlAttribute> attributes;
 
-    SamlAttributes(
-        SamlNameId name,
-        String session,
-        String inResponseTo,
-        List<SamlAttribute> attributes
-    ) {
+    SamlAttributes(SamlNameId name, String session, String inResponseTo, List<SamlAttribute> attributes) {
         this.name = name;
         this.session = session;
         this.inResponseTo = inResponseTo;
@@ -79,16 +74,7 @@ public class SamlAttributes {
 
     @Override
     public String toString() {
-        return getClass().getSimpleName()
-            + "("
-            + name
-            + ")["
-            + session
-            + "]["
-            + inResponseTo
-            + "]{"
-            + attributes
-            + "}";
+        return getClass().getSimpleName() + "(" + name + ")[" + session + "][" + inResponseTo + "]{" + attributes + "}";
     }
 
     static class SamlAttribute {

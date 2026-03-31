@@ -770,7 +770,7 @@ METRICS_INFO with field level security granting specific fields:
 
   - do:
       indices.create:
-        index: ts_fls_index
+        index: ts_fls_mi_grant
         body:
           settings:
             index:
@@ -798,7 +798,7 @@ METRICS_INFO with field level security granting specific fields:
 
   - do:
       bulk:
-        index: ts_fls_index
+        index: ts_fls_mi_grant
         refresh: true
         body:
           - '{"index": {}}'
@@ -817,7 +817,7 @@ METRICS_INFO with field level security granting specific fields:
           role_descriptors:
             index_access:
               indices:
-                - names: [ "ts_fls_index" ]
+                - names: [ "ts_fls_mi_grant" ]
                   privileges: [ "read" ]
                   field_security:
                     grant: [ "@timestamp", "host", "cpu" ]
@@ -833,7 +833,7 @@ METRICS_INFO with field level security granting specific fields:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'TS ts_fls_index | METRICS_INFO | SORT metric_name'
+          query: 'TS ts_fls_mi_grant | METRICS_INFO | SORT metric_name'
   - match: {columns.0.name: "metric_name"}
   - match: {columns.0.type: "keyword"}
   - match: {columns.1.name: "data_stream"}
@@ -865,7 +865,7 @@ METRICS_INFO with field level security granting specific fields:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'TS ts_fls_index | METRICS_INFO | SORT metric_name'
+          query: 'TS ts_fls_mi_grant | METRICS_INFO | SORT metric_name'
   - match: {columns.0.name: "metric_name"}
   - match: {columns.0.type: "keyword"}
   - length: {values: 1}
@@ -886,7 +886,7 @@ METRICS_INFO with field level security excluding specific metrics:
 
   - do:
       indices.create:
-        index: ts_fls_index
+        index: ts_fls_mi_except
         body:
           settings:
             index:
@@ -914,7 +914,7 @@ METRICS_INFO with field level security excluding specific metrics:
 
   - do:
       bulk:
-        index: ts_fls_index
+        index: ts_fls_mi_except
         refresh: true
         body:
           - '{"index": {}}'
@@ -933,7 +933,7 @@ METRICS_INFO with field level security excluding specific metrics:
           role_descriptors:
             index_access:
               indices:
-                - names: [ "ts_fls_index" ]
+                - names: [ "ts_fls_mi_except" ]
                   privileges: [ "read" ]
                   field_security:
                     grant: [ "*" ]
@@ -950,7 +950,7 @@ METRICS_INFO with field level security excluding specific metrics:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'TS ts_fls_index | METRICS_INFO | SORT metric_name'
+          query: 'TS ts_fls_mi_except | METRICS_INFO | SORT metric_name'
   - length: {values: 3}
   - match: {values.0.0: "cpu"}
   - match: {values.1.0: "memory"}
@@ -964,7 +964,7 @@ METRICS_INFO with field level security excluding specific metrics:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'TS ts_fls_index | METRICS_INFO | SORT metric_name'
+          query: 'TS ts_fls_mi_except | METRICS_INFO | SORT metric_name'
   - length: {values: 1}
   - match: {values.0.0: "cpu"}
   - match: {values.0.3: "gauge"}
@@ -983,7 +983,7 @@ TS_INFO with field level security granting specific fields:
 
   - do:
       indices.create:
-        index: ts_fls_index
+        index: ts_fls_ti_grant
         body:
           settings:
             index:
@@ -1011,7 +1011,7 @@ TS_INFO with field level security granting specific fields:
 
   - do:
       bulk:
-        index: ts_fls_index
+        index: ts_fls_ti_grant
         refresh: true
         body:
           - '{"index": {}}'
@@ -1030,7 +1030,7 @@ TS_INFO with field level security granting specific fields:
           role_descriptors:
             index_access:
               indices:
-                - names: [ "ts_fls_index" ]
+                - names: [ "ts_fls_ti_grant" ]
                   privileges: [ "read" ]
                   field_security:
                     grant: [ "@timestamp", "host", "cpu" ]
@@ -1046,7 +1046,7 @@ TS_INFO with field level security granting specific fields:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'TS ts_fls_index | TS_INFO | SORT metric_name, dimensions'
+          query: 'TS ts_fls_ti_grant | TS_INFO | SORT metric_name, dimensions'
   - match: {columns.0.name: "metric_name"}
   - match: {columns.0.type: "keyword"}
   - match: {columns.1.name: "data_stream"}
@@ -1077,7 +1077,7 @@ TS_INFO with field level security granting specific fields:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'TS ts_fls_index | TS_INFO | SORT metric_name, dimensions'
+          query: 'TS ts_fls_ti_grant | TS_INFO | SORT metric_name, dimensions'
   - match: {columns.0.name: "metric_name"}
   - match: {columns.0.type: "keyword"}
   - match: {columns.6.name: "dimensions"}
@@ -1099,7 +1099,7 @@ TS_INFO with field level security excluding specific metrics:
 
   - do:
       indices.create:
-        index: ts_fls_index
+        index: ts_fls_ti_except
         body:
           settings:
             index:
@@ -1127,7 +1127,7 @@ TS_INFO with field level security excluding specific metrics:
 
   - do:
       bulk:
-        index: ts_fls_index
+        index: ts_fls_ti_except
         refresh: true
         body:
           - '{"index": {}}'
@@ -1146,7 +1146,7 @@ TS_INFO with field level security excluding specific metrics:
           role_descriptors:
             index_access:
               indices:
-                - names: [ "ts_fls_index" ]
+                - names: [ "ts_fls_ti_except" ]
                   privileges: [ "read" ]
                   field_security:
                     grant: [ "*" ]
@@ -1163,7 +1163,7 @@ TS_INFO with field level security excluding specific metrics:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'TS ts_fls_index | TS_INFO | SORT metric_name, dimensions'
+          query: 'TS ts_fls_ti_except | TS_INFO | SORT metric_name, dimensions'
   - length: {values: 6}
   - match: {values.0.0: "cpu"}
   - match: {values.1.0: "cpu"}
@@ -1180,7 +1180,7 @@ TS_INFO with field level security excluding specific metrics:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'TS ts_fls_index | TS_INFO | SORT metric_name, dimensions'
+          query: 'TS ts_fls_ti_except | TS_INFO | SORT metric_name, dimensions'
   - length: {values: 2}
   - match: {values.0.0: "cpu"}
   - match: {values.1.0: "cpu"}

@@ -16,8 +16,6 @@ import org.elasticsearch.compute.aggregation.blockhash.HashImplFactory;
 import org.elasticsearch.compute.operator.GroupKeyEncoder;
 import org.elasticsearch.compute.operator.GroupedLimitOperator;
 import org.elasticsearch.compute.operator.topn.GroupedTopNOperator;
-import org.elasticsearch.compute.operator.topn.TopNOperator;
-import org.elasticsearch.compute.operator.topn.TopNQueue;
 import org.elasticsearch.swisshash.BytesRefSwissHash;
 import org.elasticsearch.test.ListMatcher;
 
@@ -62,7 +60,7 @@ public class HeapAttackLimitByIT extends HeapAttackTestCase {
     public void testLimitByManyGroupingColumnsTooMuchMemory() throws IOException {
         assumeTrue("LIMIT BY requires snapshot builds", Build.current().isSnapshot());
         initManyLongs(10);
-        assertCircuitBreaksVia(attempt -> limitByManyLongs(attempt * 500), GroupedLimitOperator.class, bytesRefHashClass());
+        assertCircuitBreaksVia(attempt -> limitByManyLongs(attempt * 500), GroupedLimitOperator.class.getName(), bytesRefHashClassName());
     }
 
     private Map<String, Object> limitByManyLongs(int count) throws IOException {
@@ -118,7 +116,11 @@ public class HeapAttackLimitByIT extends HeapAttackTestCase {
     public void testLimitByKeyEncoderTooMuchMemory() throws IOException {
         assumeTrue("LIMIT BY requires snapshot builds", Build.current().isSnapshot());
         initSingleDocIndex();
-        assertCircuitBreaksVia(attempt -> limitByManyStrings(attempt * 80), GroupedLimitOperator.class, GroupKeyEncoder.class);
+        assertCircuitBreaksVia(
+            attempt -> limitByManyStrings(attempt * 80),
+            GroupedLimitOperator.class.getName(),
+            GroupKeyEncoder.class.getName()
+        );
     }
 
     private Map<String, Object> limitByManyStrings(int count) throws IOException {
@@ -186,7 +188,11 @@ public class HeapAttackLimitByIT extends HeapAttackTestCase {
     public void testTopNByManySortColumnsTooMuchMemory() throws IOException {
         assumeTrue("SORT | LIMIT BY requires snapshot builds", Build.current().isSnapshot());
         initSingleDocIndex();
-        assertCircuitBreaksVia(attempt -> topNByManyStringSortCols(attempt * 80), GroupedTopNOperator.class, TopNOperator.RowFiller.class);
+        assertCircuitBreaksVia(
+            attempt -> topNByManyStringSortCols(attempt * 80),
+            GroupedTopNOperator.class.getName(),
+            "TopNOperator$RowFiller"
+        );
     }
 
     private Map<String, Object> topNByManyStringSortCols(int count) throws IOException {
@@ -228,7 +234,7 @@ public class HeapAttackLimitByIT extends HeapAttackTestCase {
     public void testTopNByManyGroupingColumnsTooMuchMemory() throws IOException {
         assumeTrue("SORT | LIMIT BY requires snapshot builds", Build.current().isSnapshot());
         initManyLongs(10);
-        assertCircuitBreaksVia(attempt -> topNByWideGroupKey(attempt * 1000), GroupedTopNOperator.class, bytesRefHashClass());
+        assertCircuitBreaksVia(attempt -> topNByWideGroupKey(attempt * 1000), GroupedTopNOperator.class.getName(), bytesRefHashClassName());
     }
 
     private Map<String, Object> topNByWideGroupKey(int count) throws IOException {
@@ -267,7 +273,11 @@ public class HeapAttackLimitByIT extends HeapAttackTestCase {
     public void testTopNByKeyEncoderTooMuchMemory() throws IOException {
         assumeTrue("SORT | LIMIT BY requires snapshot builds", Build.current().isSnapshot());
         initSingleDocIndex();
-        assertCircuitBreaksVia(attempt -> topNByManyStrings(attempt * 80), GroupedTopNOperator.class, GroupKeyEncoder.class);
+        assertCircuitBreaksVia(
+            attempt -> topNByManyStrings(attempt * 80),
+            GroupedTopNOperator.class.getName(),
+            GroupKeyEncoder.class.getName()
+        );
     }
 
     private Map<String, Object> topNByManyStrings(int count) throws IOException {
@@ -308,7 +318,11 @@ public class HeapAttackLimitByIT extends HeapAttackTestCase {
     public void testTopNByManyGroupsLargeTopCountTooMuchMemory() throws IOException {
         assumeTrue("SORT | LIMIT BY requires snapshot builds", Build.current().isSnapshot());
         initManyLongs(10);
-        assertCircuitBreaksVia(attempt -> topNByManyGroups(attempt * 400), GroupedTopNOperator.class, TopNQueue.class);
+        assertCircuitBreaksVia(
+            attempt -> topNByManyGroups(attempt * 400),
+            GroupedTopNOperator.class.getName(),
+            "org.elasticsearch.compute.operator.topn.TopNQueue"
+        );
     }
 
     private Map<String, Object> topNByManyGroups(int topCount) throws IOException {
@@ -336,7 +350,7 @@ public class HeapAttackLimitByIT extends HeapAttackTestCase {
             StringBuilder query = startQuery();
             query.append("FROM manylongs | SORT a | LIMIT 2147483630 BY a | KEEP a\"}");
             return responseAsMap(query(query.toString(), null));
-        }, GroupedTopNOperator.class, TopNQueue.class);
+        }, GroupedTopNOperator.class.getName(), "org.elasticsearch.compute.operator.topn.TopNQueue");
     }
 
     /**
@@ -344,7 +358,7 @@ public class HeapAttackLimitByIT extends HeapAttackTestCase {
      * or {@link BytesRefHash} otherwise. Use this when asserting circuit breaks that originate
      * from the group-key hash table.
      */
-    private static Class<?> bytesRefHashClass() {
-        return HashImplFactory.SWISS_TABLES_HASHING.isEnabled() ? BytesRefSwissHash.class : BytesRefHash.class;
+    private static String bytesRefHashClassName() {
+        return HashImplFactory.SWISS_TABLES_HASHING.isEnabled() ? BytesRefSwissHash.class.getName() : BytesRefHash.class.getName();
     }
 }

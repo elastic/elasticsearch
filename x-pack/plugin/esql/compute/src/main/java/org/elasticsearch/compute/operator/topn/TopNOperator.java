@@ -49,7 +49,7 @@ public class TopNOperator implements Operator, Accountable {
      * Fills {@link TopNRow}s from page data. Handles both sort-key encoding and value
      * extraction, and tracks pre-allocation sizes for key and value buffers.
      */
-    public static final class RowFiller {
+    static final class RowFiller {
         private final ValueExtractor[] valueExtractors;
         private final KeyExtractor[] keyExtractors;
 

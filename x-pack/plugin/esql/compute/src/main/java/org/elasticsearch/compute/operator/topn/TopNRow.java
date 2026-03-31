@@ -22,7 +22,7 @@ import java.util.Arrays;
  * A single row in a top-N operation. Stores encoded sort keys and values.
  * Implements {@link Comparable} and {@link #equals} comparing the sort keys.
  */
-public final class TopNRow implements Accountable, Comparable<TopNRow>, Releasable {
+final class TopNRow implements Accountable, Comparable<TopNRow>, Releasable {
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(TopNRow.class);
 
     private final CircuitBreaker breaker;

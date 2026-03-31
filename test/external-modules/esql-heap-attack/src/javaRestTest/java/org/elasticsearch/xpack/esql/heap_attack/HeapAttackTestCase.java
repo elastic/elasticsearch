@@ -41,7 +41,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.function.IntFunction;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.Strings.hasText;
 import static org.elasticsearch.test.MapMatcher.assertMap;
@@ -110,11 +109,11 @@ public abstract class HeapAttackTestCase extends ESRestTestCase {
      * under test). Each attempt scales the load, so a later attempt is more likely to reach the
      * operator under test.
      */
-    protected void assertCircuitBreaksVia(TryCircuitBreaking tryBreaking, Class<?>... classes) throws IOException {
-        List<String> classNames = Arrays.stream(classes).map(Class::getName).collect(Collectors.toList());
+    protected void assertCircuitBreaksVia(TryCircuitBreaking tryBreaking, String... classNames) throws IOException {
+        List<String> expected = Arrays.asList(classNames);
         int attempt = 1;
         while (attempt <= MAX_ATTEMPTS) {
-            logger.info("Attempt {} to circuit break via {}", attempt, classNames);
+            logger.info("Attempt {} to circuit break via {}", attempt, expected);
             try {
                 Map<String, Object> response = tryBreaking.attempt(attempt);
                 logger.warn("{}: should have circuit broken but got {}", attempt, response);
@@ -123,19 +122,27 @@ public abstract class HeapAttackTestCase extends ESRestTestCase {
                 Object error = map.get("error");
                 if (error instanceof Map<?, ?> errorMap
                     && "circuit_breaking_exception".equals(errorMap.get("type"))
-                    && errorMap.get("stack_trace") instanceof String stackTrace
-                    && classNames.stream().allMatch(stackTrace::contains)) {
-                    assertMap(
-                        map,
-                        matchesMap().entry("status", 429).entry("error", matchesMap().extraOk().entry("type", "circuit_breaking_exception"))
-                    );
-                    return;
+                    && errorMap.get("stack_trace") instanceof String stackTrace) {
+                    if (expected.stream().allMatch(stackTrace::contains)) {
+                        assertMap(
+                            map,
+                            matchesMap().entry("status", 429)
+                                .entry("error", matchesMap().extraOk().entry("type", "circuit_breaking_exception"))
+                        );
+                        return;
+                    } else {
+                        logger.warn(
+                            "{}: circuit broke but not via expected classes {}. The stacktrace was: {}",
+                            attempt,
+                            expected,
+                            stackTrace
+                        );
+                    }
                 }
-                logger.warn("{}: circuit broke but not via expected classes {}: {}", attempt, classNames, map);
             }
             attempt++;
         }
-        fail("giving up after " + (attempt - 1) + " attempts waiting for circuit break via " + classNames);
+        fail("giving up after " + (attempt - 1) + " attempts waiting for circuit break via " + expected);
     }
 
     protected Response query(String query, String filterPath) throws IOException {

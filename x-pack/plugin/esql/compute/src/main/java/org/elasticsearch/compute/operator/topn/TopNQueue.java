@@ -21,7 +21,7 @@ import java.util.List;
  * Used both by {@link TopNOperator} (one global queue) and by {@link GroupedQueue}
  * (one queue per group).
  */
-public class TopNQueue extends PriorityQueue<TopNRow> implements Accountable, Releasable {
+class TopNQueue extends PriorityQueue<TopNRow> implements Accountable, Releasable {
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(TopNQueue.class);
 
     private final CircuitBreaker breaker;

@@ -14,19 +14,14 @@ import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
-import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.search.internal.AliasFilter;
 
 import java.io.IOException;
-import java.util.function.BiFunction;
 
 /**
  * Helper class used in lookup joins.
@@ -36,39 +31,20 @@ import java.util.function.BiFunction;
  */
 
 public class BulkKeywordLookup {
-    private final MappedFieldType rightFieldType;
     private final int matchChannelOffset;
     private final int extractChannelOffset;
-    private final SearchExecutionContext context;
-    private final ClusterService clusterService;
-    private final AliasFilter aliasFilter;
     private final Warnings warnings;
     private final String fieldName;
-    private final BiFunction<Block, Integer, Object> blockValueReader;
 
     private TermsEnum[] termsEnumCache = null;
     private PostingsEnum[] postingsCache = null;
     private final BytesRef scratch = new BytesRef();
 
-    public BulkKeywordLookup(
-        MappedFieldType rightFieldType,
-        ElementType leftElementType,
-        SearchExecutionContext context,
-        int matchChannelOffset,
-        int extractChannelOffset,
-        ClusterService clusterService,
-        AliasFilter aliasFilter,
-        Warnings warnings
-    ) {
-        this.rightFieldType = rightFieldType;
-        this.context = context;
+    public BulkKeywordLookup(MappedFieldType rightFieldType, int matchChannelOffset, int extractChannelOffset, Warnings warnings) {
         this.matchChannelOffset = matchChannelOffset; // offset of field in left (page shipped to lookup index)
         this.extractChannelOffset = extractChannelOffset; // offset of field in right (page from ValuesSourceReaderOperator)
-        this.clusterService = clusterService;
-        this.aliasFilter = aliasFilter;
         this.warnings = warnings;
         this.fieldName = rightFieldType.name();
-        this.blockValueReader = QueryList.createBlockValueReaderForType(leftElementType);
     }
 
     /**

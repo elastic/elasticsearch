@@ -159,7 +159,7 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
     @Override
     public BulkKeywordLookup getBulkKeywordLookup() {
         return bulkKeywordLookup;
-    };
+    }
 
     private void buildJoinOnForExpressionJoin(
         Expression joinOnConditions,
@@ -242,17 +242,7 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
                         // special handle Equals operator on keyword fields
                         // we can apply as a BulkKeywordLookup for better performance
                         if (binaryComparison instanceof Equals) {
-                            ElementType leftElementType = PlannerUtils.toElementType(dataType);
-                            bulkKeywordLookup = new BulkKeywordLookup(
-                                rightFieldType,
-                                leftElementType,
-                                context,
-                                matchChannelOffset,
-                                extractChannelOffset,
-                                clusterService,
-                                aliasFilter,
-                                warnings
-                            );
+                            bulkKeywordLookup = new BulkKeywordLookup(rightFieldType, matchChannelOffset, extractChannelOffset, warnings);
                             return true;
                         }
                     }

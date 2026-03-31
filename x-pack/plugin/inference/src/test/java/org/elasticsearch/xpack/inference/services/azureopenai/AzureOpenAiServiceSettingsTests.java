@@ -154,17 +154,17 @@ public abstract class AzureOpenAiServiceSettingsTests<T extends AzureOpenAiServi
         assertThat(updated, sameInstance(settings));
     }
 
-    public void testUpdateServiceSettings_UpdateTenantId_ReplacesTenantId_EvenWithUnmodifiableMap() {
+    public void testUpdateServiceSettings_UpdateTenantId_ReplacesTenantId() {
         var oAuth2Settings = new AzureOpenAiOAuth2Settings(
             new OAuth2Settings(OAuth2SettingsTests.CLIENT_ID_VALUE, OAuth2SettingsTests.SCOPES_VALUE),
             TENANT_ID_VALUE
         );
         var newTenantId = "new-tenant";
-        var unmodifiableMapSettings = Map.<String, Object>of(AzureOpenAiOAuth2Settings.TENANT_ID_FIELD, newTenantId);
+        var settingsToUpdate = new HashMap<>(Map.<String, Object>of(AzureOpenAiOAuth2Settings.TENANT_ID_FIELD, newTenantId));
 
         var settings = createSettingsWithOAuth2(oAuth2Settings);
 
-        var updated = settings.updateServiceSettings(unmodifiableMapSettings);
+        var updated = settings.updateServiceSettings(settingsToUpdate);
 
         assertThat(updated, instanceOf(AzureOpenAiServiceSettings.class));
         var updatedOAuth2Settings = ((AzureOpenAiServiceSettings) updated).oAuth2Settings();

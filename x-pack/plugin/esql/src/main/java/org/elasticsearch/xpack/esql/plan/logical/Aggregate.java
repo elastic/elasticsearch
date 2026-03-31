@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FilteredExpression;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Sparkline;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.TimeSeriesAggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
@@ -399,7 +400,7 @@ public class Aggregate extends UnaryPlan
             });
         }
         // found an aggregate, constant or a group, bail out
-        if (e instanceof AggregateFunction af) {
+        if (e instanceof AggregateFunction af && af instanceof Sparkline == false) {
             af.field().forEachDown(AggregateFunction.class, f -> {
                 // rate aggregate is allowed to be inside another aggregate
                 if (f instanceof TimeSeriesAggregateFunction == false) {
@@ -442,6 +443,8 @@ public class Aggregate extends UnaryPlan
             if (foundInGrouping == false && (this instanceof TimeSeriesAggregate) == false) {
                 failures.add(fail(e, "column [{}] must appear in the STATS BY clause or be used in an aggregate function", ne.name()));
             }
+        } else if (e instanceof Sparkline) {
+            // don't do anything
         }
         // other keep on going
         else {

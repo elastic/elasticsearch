@@ -116,11 +116,7 @@ public class ReindexFromRemoteWhitelistTests extends ESTestCase {
         List<String> whitelist = randomBoolean() ? randomWhitelist() : emptyList();
         Exception e = expectThrows(
             IllegalArgumentException.class,
-            () -> checkAllowedRemote(
-                ReindexValidator.buildAllowedRemotes(whitelist, List.of()),
-                false,
-                newRemoteInfo("not in list", port)
-            )
+            () -> checkAllowedRemote(ReindexValidator.buildAllowedRemotes(whitelist, List.of()), false, newRemoteInfo("not in list", port))
         );
         assertThat(e.getMessage(), equalTo("[not in list:" + port + "] not whitelisted in reindex.remote.whitelist"));
     }
@@ -151,7 +147,8 @@ public class ReindexFromRemoteWhitelistTests extends ESTestCase {
         assertThat(
             e.getMessage(),
             equalTo(
-                "[6e134134a1.us-east-1.aws.qa.example.com:9200] either not whitelisted in reindex.remote.whitelist or blocked in reindex.remote.blocklist"
+                "[6e134134a1.us-east-1.aws.qa.example.com:9200] either not whitelisted in reindex.remote.whitelist "
+                    + "or blocked in reindex.remote.blocklist"
             )
         );
     }
@@ -168,7 +165,8 @@ public class ReindexFromRemoteWhitelistTests extends ESTestCase {
         assertThat(
             e.getMessage(),
             equalTo(
-                "[6e134134a1.us-east-1.aws.notexample.com:9200] either not whitelisted in reindex.remote.whitelist or blocked in reindex.remote.blocklist"
+                "[6e134134a1.us-east-1.aws.notexample.com:9200] either not whitelisted in reindex.remote.whitelist "
+                    + "or blocked in reindex.remote.blocklist"
             )
         );
     }
@@ -185,7 +183,8 @@ public class ReindexFromRemoteWhitelistTests extends ESTestCase {
         assertThat(
             e.getMessage(),
             equalTo(
-                "[6e134134a1.us-east-1.aws.notexample.com:9200] either not whitelisted in reindex.remote.whitelist or blocked in reindex.remote.blocklist"
+                "[6e134134a1.us-east-1.aws.notexample.com:9200] either not whitelisted in reindex.remote.whitelist "
+                    + "or blocked in reindex.remote.blocklist"
             )
         );
     }

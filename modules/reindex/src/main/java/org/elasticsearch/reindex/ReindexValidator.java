@@ -44,7 +44,7 @@ public class ReindexValidator {
     static final String SORT_DEPRECATED_MESSAGE = "The sort option in reindex is deprecated. "
         + "Instead consider using query filtering to find the desired subset of data.";
 
-    private final CharacterRunAutomaton remoteWhitelist;
+    private final CharacterRunAutomaton allowedRemotes;
     private final boolean remoteBlocklistSettingInUse;
     private final ClusterService clusterService;
     private final IndexNameExpressionResolver indexResolver;
@@ -58,9 +58,9 @@ public class ReindexValidator {
         ProjectResolver projectResolver,
         AutoCreateIndex autoCreateIndex
     ) {
-        List<String> whitelist = TransportReindexAction.REMOTE_CLUSTER_WHITELIST.get(settings);
-        List<String> blocklist = TransportReindexAction.REMOTE_CLUSTER_BLOCKLIST.get(settings);
-        this.remoteWhitelist = buildRemoteWhitelist(whitelist, blocklist);
+        List<String> remoteWhitelist = TransportReindexAction.REMOTE_CLUSTER_WHITELIST.get(settings);
+        List<String> remoteBlocklist = TransportReindexAction.REMOTE_CLUSTER_BLOCKLIST.get(settings);
+        this.allowedRemotes = buildAllowedRemotes(remoteWhitelist, remoteBlocklist);
         this.remoteBlocklistSettingInUse = !TransportReindexAction.REMOTE_CLUSTER_BLOCKLIST.get(settings).isEmpty();
         this.clusterService = clusterService;
         this.indexResolver = indexResolver;
@@ -69,7 +69,7 @@ public class ReindexValidator {
     }
 
     public void initialValidation(ReindexRequest request) {
-        checkRemoteWhitelist(remoteWhitelist, remoteBlocklistSettingInUse, request.getRemoteInfo());
+        checkAllowedRemote(allowedRemotes, remoteBlocklistSettingInUse, request.getRemoteInfo());
         ClusterState state = clusterService.state();
         SearchRequest source = request.getSearchRequest();
 
@@ -96,7 +96,7 @@ public class ReindexValidator {
         }
     }
 
-    static void checkRemoteWhitelist(CharacterRunAutomaton whitelist, boolean remoteBlocklistSettingInUse, RemoteInfo remoteInfo) {
+    static void checkAllowedRemote(CharacterRunAutomaton whitelist, boolean remoteBlocklistSettingInUse, RemoteInfo remoteInfo) {
         if (remoteInfo == null) {
             return;
         }
@@ -120,7 +120,7 @@ public class ReindexValidator {
      * Build the {@link CharacterRunAutomaton} that represents the reindex-from-remote whitelist and make sure that it doesn't whitelist
      * the world.
      */
-    static CharacterRunAutomaton buildRemoteWhitelist(List<String> whitelist, List<String> blocklist) {
+    static CharacterRunAutomaton buildAllowedRemotes(List<String> whitelist, List<String> blocklist) {
         if (whitelist.isEmpty()) {
             return new CharacterRunAutomaton(Automata.makeEmpty());
         }

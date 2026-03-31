@@ -180,6 +180,7 @@ import org.elasticsearch.xpack.stateless.lucene.IndexBlobStoreCacheDirectory;
 import org.elasticsearch.xpack.stateless.lucene.IndexDirectory;
 import org.elasticsearch.xpack.stateless.lucene.SearchDirectory;
 import org.elasticsearch.xpack.stateless.lucene.StatelessCommitRef;
+import org.elasticsearch.xpack.stateless.memory.StatelessMemoryMetricsService;
 import org.elasticsearch.xpack.stateless.multiproject.ProjectLifeCycleService;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 import org.elasticsearch.xpack.stateless.objectstore.gc.ObjectStoreGCTask;
@@ -496,6 +497,7 @@ public class StatelessPlugin extends Plugin
     private final SetOnce<PITRelocationService> pitRelocationService = new SetOnce<>();
     private final SetOnce<List<StatelessExtensionProvider>> statelessServicesConsumerProviders = new SetOnce<>();
     private final SetOnce<SnapshotsCommitService> snapshotsCommitServiceRef = new SetOnce<>();
+    private final SetOnce<StatelessMemoryMetricsService> statelessMemoryMetricsService = new SetOnce<>();
 
     private final PluggableDirectoryMetricsHolder<BlobStoreCacheDirectoryMetrics> metricHolder = new ThreadLocalDirectoryMetricHolder<>(
         BlobStoreCacheDirectoryMetrics::new
@@ -844,6 +846,12 @@ public class StatelessPlugin extends Plugin
 
         recoveryCommitRegistrationHandler.set(new RecoveryCommitRegistrationHandler(client, clusterService));
 
+        // Memory metrics service for heap usage tracking
+        var memoryMetricsService = new StatelessMemoryMetricsService(threadPool::relativeTimeInNanos, clusterService.getClusterSettings());
+        clusterService.addListener(memoryMetricsService);
+        this.statelessMemoryMetricsService.set(memoryMetricsService);
+        components.add(memoryMetricsService);
+
         if (hasIndexRole) {
             components.add(new IndexingDiskController(nodeEnvironment, settings, threadPool, indicesService, commitService));
             if (projectResolver.get().supportsMultipleProjects()) {
@@ -929,7 +937,7 @@ public class StatelessPlugin extends Plugin
 
         if (statelessServicesConsumerProviders.get() != null) {
             for (var provider : statelessServicesConsumerProviders.get()) {
-                provider.onServicesCreated(closedShardService, hollowShardsService, searchShardSizeCollector);
+                provider.onServicesCreated(closedShardService, hollowShardsService, searchShardSizeCollector, memoryMetricsService);
             }
         }
 
@@ -999,6 +1007,10 @@ public class StatelessPlugin extends Plugin
 
     public ClusterService getClusterService() {
         return clusterService.get();
+    }
+
+    public StatelessMemoryMetricsService getStatelessMemoryMetricsService() {
+        return Objects.requireNonNull(statelessMemoryMetricsService.get());
     }
 
     public IndicesService getIndicesService() {
@@ -1198,7 +1210,14 @@ public class StatelessPlugin extends Plugin
             ScalingExecutorBuilder.HOT_THREADS_ON_LARGE_QUEUE_INTERVAL_SETTING,
             SearchShardInformationIndexListener.QUERY_SEARCH_SHARD_INFORMATION_SETTING,
             StatelessSnapshotSettings.STATELESS_SNAPSHOT_ENABLED_SETTING,
-            StatelessShardRelocationOrder.PRIORITIZE_WRITE_SHARD_RELOCATIONS_SETTING
+            StatelessShardRelocationOrder.PRIORITIZE_WRITE_SHARD_RELOCATIONS_SETTING,
+            StatelessMemoryMetricsService.FIXED_SHARD_MEMORY_OVERHEAD_SETTING,
+            StatelessMemoryMetricsService.INDEXING_OPERATIONS_MEMORY_REQUIREMENTS_ENABLED_SETTING,
+            StatelessMemoryMetricsService.INDEXING_OPERATIONS_MEMORY_REQUIREMENTS_VALIDITY_SETTING,
+            StatelessMemoryMetricsService.MERGE_MEMORY_ESTIMATE_ENABLED_SETTING,
+            StatelessMemoryMetricsService.ADAPTIVE_EXTRA_OVERHEAD_SETTING,
+            StatelessMemoryMetricsService.ADAPTIVE_SHARD_MEMORY_ESTIMATION_MIN_THRESHOLD_ENABLED_SETTING,
+            StatelessMemoryMetricsService.SELF_REPORTED_SHARD_MEMORY_OVERHEAD_ENABLED_SETTING
         );
     }
 

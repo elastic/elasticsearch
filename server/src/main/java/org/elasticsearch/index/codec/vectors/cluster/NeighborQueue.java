@@ -150,7 +150,7 @@ public class NeighborQueue {
     public long popRawAndAddRaw(long raw) {
         long top = heap.top();
         if (raw < top) {
-            return decodeNodeId(raw);
+            return raw;
         }
         heap.updateTop(raw);
         return top;

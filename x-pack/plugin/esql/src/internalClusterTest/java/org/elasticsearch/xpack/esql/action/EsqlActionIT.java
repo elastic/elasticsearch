@@ -96,7 +96,7 @@ import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
-import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.APPROXIMATION_V5;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.APPROXIMATION_V6;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.EXPLAIN;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.allOf;
@@ -2524,7 +2524,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
      */
     public void testExplainWithApproximation() {
         assumeTrue("EXPLAIN requires the capability to be enabled", EXPLAIN.isEnabled());
-        assumeTrue("Approximation requires the capability to be enabled", APPROXIMATION_V5.isEnabled());
+        assumeTrue("Approximation requires the capability to be enabled", APPROXIMATION_V6.isEnabled());
 
         String indexName = "explain_approximation_test";
 
@@ -2662,7 +2662,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
      * resulting in null values instead of the actual _source values for unmapped fields.
      */
     public void testUnmappedFieldsLoadWithSingleShardConcurrency() {
-        assumeTrue("requires unmapped fields load support", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V4.isEnabled());
+        assumeTrue("requires unmapped fields load support", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
         assertAcked(prepareCreate("test_mapped").setMapping("event_duration", "type=long"));
         assertAcked(prepareCreate("test_unmapped").setMapping("""
             {"dynamic": false, "properties": {}}"""));

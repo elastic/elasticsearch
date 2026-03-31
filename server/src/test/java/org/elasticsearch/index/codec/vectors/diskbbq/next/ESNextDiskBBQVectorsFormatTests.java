@@ -366,11 +366,14 @@ public class ESNextDiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCas
     public void testIndexSortOnFlush() throws IOException {
         IndexWriterConfig config = newIndexWriterConfig().setCodec(TestUtil.alwaysKnnVectorsFormat(format))
             .setIndexSort(new Sort(new SortField("sort", SortField.Type.STRING)))
-            .setMergePolicy(NoMergePolicy.INSTANCE);
+            .setMergePolicy(NoMergePolicy.INSTANCE)
+            .setMaxBufferedDocs(10)
+            .setRAMBufferSizeMB(1);
+        ;
         try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, config)) {
-            float[] vectorA = new float[] { 0f, 3f };
-            float[] vectorB = new float[] { 0f, 2f };
-            float[] vectorC = new float[] { 0f, 1f };
+            float[] vectorA = new float[] { 3f, 3f };
+            float[] vectorB = new float[] { 0f, 0f };
+            float[] vectorC = new float[] { -3f, -3f };
             addSortedVectorDoc(w, "c", vectorC);
             addSortedVectorDoc(w, "a", vectorA);
             addSortedVectorDoc(w, "b", vectorB);
@@ -463,7 +466,7 @@ public class ESNextDiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCas
                         collector = new TopKnnCollector(
                             random().nextInt(2 * matchingDocs, 3 * matchingDocs),
                             Integer.MAX_VALUE,
-                            new IVFKnnSearchStrategy(0.25f, null)
+                            new IVFKnnSearchStrategy(0.25f, 10, 10, null)
                         );
                     }
                     if (leafReader.postings(new Term("k", new BytesRef("B"))) == null) {

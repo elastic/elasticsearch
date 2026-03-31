@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.inference.services.cohere.completion;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
@@ -27,9 +29,23 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.is;
 
+/**
+ * {@code fromMap} tests that use {@link ConfigurationParseContext#PERSISTENT} are named {@code testFromMap_Persistent_*}
+ * (Azure AI Studio service-settings tests use {@code testFromMap_Request_*} where parsing runs in request context).
+ */
 public class CohereCompletionServiceSettingsTests extends AbstractBWCWireSerializationTestCase<CohereCompletionServiceSettings> {
 
     private static final TransportVersion ML_INFERENCE_COHERE_API_VERSION = TransportVersion.fromName("ml_inference_cohere_api_version");
+    private static final String TEST_URL = "https://www.test.com";
+    private static final String INITIAL_TEST_URL = "https://www.initial-test.com";
+    private static final String TEST_MODEL_ID = "test-model-id";
+    private static final String INITIAL_TEST_MODEL_ID = "initial-test-model-id";
+    private static final int TEST_RATE_LIMIT = 20;
+    private static final int INITIAL_TEST_RATE_LIMIT = 30;
+    private static final CohereServiceSettings.CohereApiVersion TEST_INITIAL_COHERE_API_VERSION = CohereServiceSettings.CohereApiVersion.V1;
+    private static final CohereServiceSettings.CohereApiVersion TEST_COHERE_API_VERSION = CohereServiceSettings.CohereApiVersion.V2;
+    // Mirrors CohereCompletionServiceSettings default rate limit (production key spec).
+    private static final RateLimitSettings DEFAULT_COHERE_COMPLETION_RATE_LIMIT_SETTINGS = new RateLimitSettings(10_000);
 
     public static CohereCompletionServiceSettings createRandom() {
         return new CohereCompletionServiceSettings(
@@ -40,34 +56,61 @@ public class CohereCompletionServiceSettingsTests extends AbstractBWCWireSeriali
         );
     }
 
-    public void testFromMap_WithRateLimitSettingsNull() {
-        var url = "https://www.abc.com";
-        var model = "model";
+    public void testUpdateServiceSettings_AllFields_OnlyMutableFieldsAreUpdated() {
+        var settingsMap = buildServiceSettingsMap(TEST_URL, TEST_MODEL_ID, TEST_COHERE_API_VERSION.toString(), TEST_RATE_LIMIT);
 
-        var serviceSettings = CohereCompletionServiceSettings.fromMap(
-            new HashMap<>(Map.of(ServiceFields.URL, url, ServiceFields.MODEL_ID, model)),
-            ConfigurationParseContext.PERSISTENT
+        var originalServiceSettings = new CohereCompletionServiceSettings(
+            INITIAL_TEST_URL,
+            INITIAL_TEST_MODEL_ID,
+            new RateLimitSettings(INITIAL_TEST_RATE_LIMIT),
+            TEST_INITIAL_COHERE_API_VERSION
         );
+        var updatedServiceSettings = originalServiceSettings.updateServiceSettings(settingsMap);
 
-        assertThat(serviceSettings, is(new CohereCompletionServiceSettings(url, model, null, CohereServiceSettings.CohereApiVersion.V1)));
+        assertThat(
+            updatedServiceSettings,
+            is(
+                new CohereCompletionServiceSettings(
+                    INITIAL_TEST_URL,
+                    INITIAL_TEST_MODEL_ID,
+                    new RateLimitSettings(TEST_RATE_LIMIT),
+                    TEST_INITIAL_COHERE_API_VERSION
+                )
+            )
+        );
     }
 
-    public void testFromMap_WithRateLimitSettings() {
-        var url = "https://www.abc.com";
-        var model = "model";
-        var requestsPerMinute = 100;
+    public void testUpdateServiceSettings_EmptyMap_DoesNotChangeSettings() {
+        var originalServiceSettings = new CohereCompletionServiceSettings(
+            INITIAL_TEST_URL,
+            INITIAL_TEST_MODEL_ID,
+            new RateLimitSettings(INITIAL_TEST_RATE_LIMIT),
+            TEST_INITIAL_COHERE_API_VERSION
+        );
+        var serviceSettings = originalServiceSettings.updateServiceSettings(new HashMap<>());
 
-        var serviceSettings = CohereCompletionServiceSettings.fromMap(
-            new HashMap<>(
-                Map.of(
-                    ServiceFields.URL,
-                    url,
-                    ServiceFields.MODEL_ID,
-                    model,
-                    RateLimitSettings.FIELD_NAME,
-                    new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, requestsPerMinute))
+        assertThat(serviceSettings, is(originalServiceSettings));
+    }
+
+    public void testFromMap_Persistent_EmptyMap_CreatesSettingsCorrectly() {
+        var serviceSettings = CohereCompletionServiceSettings.fromMap(new HashMap<>(), ConfigurationParseContext.PERSISTENT);
+
+        assertThat(
+            serviceSettings,
+            is(
+                new CohereCompletionServiceSettings(
+                    (String) null,
+                    (String) null,
+                    DEFAULT_COHERE_COMPLETION_RATE_LIMIT_SETTINGS,
+                    TEST_INITIAL_COHERE_API_VERSION
                 )
-            ),
+            )
+        );
+    }
+
+    public void testFromMap_Persistent_AllFields_CreatesSettingsCorrectly() {
+        var serviceSettings = CohereCompletionServiceSettings.fromMap(
+            buildServiceSettingsMap(TEST_URL, TEST_MODEL_ID, TEST_COHERE_API_VERSION.toString(), TEST_RATE_LIMIT),
             ConfigurationParseContext.PERSISTENT
         );
 
@@ -75,10 +118,10 @@ public class CohereCompletionServiceSettingsTests extends AbstractBWCWireSeriali
             serviceSettings,
             is(
                 new CohereCompletionServiceSettings(
-                    url,
-                    model,
-                    new RateLimitSettings(requestsPerMinute),
-                    CohereServiceSettings.CohereApiVersion.V1
+                    TEST_URL,
+                    TEST_MODEL_ID,
+                    new RateLimitSettings(TEST_RATE_LIMIT),
+                    TEST_COHERE_API_VERSION
                 )
             )
         );
@@ -86,18 +129,48 @@ public class CohereCompletionServiceSettingsTests extends AbstractBWCWireSeriali
 
     public void testToXContent_WritesAllValues() throws IOException {
         var serviceSettings = new CohereCompletionServiceSettings(
-            "url",
-            "model",
-            new RateLimitSettings(3),
-            CohereServiceSettings.CohereApiVersion.V1
+            TEST_URL,
+            TEST_MODEL_ID,
+            new RateLimitSettings(TEST_RATE_LIMIT),
+            TEST_INITIAL_COHERE_API_VERSION
         );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         serviceSettings.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
 
-        assertThat(xContentResult, is("""
-            {"url":"url","model_id":"model","rate_limit":{"requests_per_minute":3},"api_version":"V1"}"""));
+        assertThat(xContentResult, is(XContentHelper.stripWhitespace(Strings.format("""
+            {
+              "url": "%s",
+              "model_id": "%s",
+              "rate_limit": {
+                "requests_per_minute": %d
+              },
+              "api_version": "%s"
+            }
+            """, TEST_URL, TEST_MODEL_ID, TEST_RATE_LIMIT, TEST_INITIAL_COHERE_API_VERSION))));
+    }
+
+    private static HashMap<String, Object> buildServiceSettingsMap(
+        @Nullable String url,
+        @Nullable String modelId,
+        @Nullable String apiVersion,
+        @Nullable Integer rateLimit
+    ) {
+        var result = new HashMap<String, Object>();
+        if (url != null) {
+            result.put(ServiceFields.URL, url);
+        }
+        if (modelId != null) {
+            result.put(ServiceFields.MODEL_ID, modelId);
+        }
+        if (apiVersion != null) {
+            result.put(CohereServiceSettings.API_VERSION, apiVersion);
+        }
+        if (rateLimit != null) {
+            result.put(RateLimitSettings.FIELD_NAME, new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, rateLimit)));
+        }
+        return result;
     }
 
     @Override

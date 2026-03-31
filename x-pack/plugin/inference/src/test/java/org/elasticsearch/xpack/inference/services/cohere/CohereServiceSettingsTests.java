@@ -11,6 +11,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.test.ESTestCase;
@@ -23,7 +24,6 @@ import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettingsTests;
-import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
 import java.net.URI;
@@ -34,9 +34,40 @@ import static org.elasticsearch.xpack.inference.Utils.randomSimilarityMeasure;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
+/**
+ * {@link CohereServiceSettings} reads a model identifier from either {@link ServiceFields#MODEL_ID} ({@code "model_id"})
+ * or the legacy {@link CohereServiceSettings#OLD_MODEL_ID_FIELD} ({@code "model"}). When both are present, {@code model_id}
+ * wins. {@code testFromMap_*} methods below state which key(s) each scenario uses.
+ * <p>
+ * Partial updates go through {@link CohereServiceSettings#updateCommonServiceSettings(Map, ValidationException)} (mutable
+ * fields: {@code max_input_tokens} and {@code rate_limit}).
+ * <p>
+ * {@code fromMap} tests that use {@link ConfigurationParseContext#PERSISTENT} are named {@code testFromMap_Persistent_*}
+ * (Azure AI Studio service-settings tests use {@code testFromMap_Request_*} where parsing runs in request context).
+ */
 public class CohereServiceSettingsTests extends AbstractBWCWireSerializationTestCase<CohereServiceSettings> {
 
     private static final TransportVersion ML_INFERENCE_COHERE_API_VERSION = TransportVersion.fromName("ml_inference_cohere_api_version");
+    private static final String TEST_URL = "https://www.test.com";
+    private static final String INITIAL_TEST_URL = "https://www.initial-test.com";
+    private static final String TEST_MODEL_ID = "test-model-id";
+    private static final String TEST_LEGACY_MODEL_ID = "legacy-test-model-id";
+    private static final String INITIAL_TEST_MODEL_ID = "initial-test-model-id";
+    private static final int TEST_RATE_LIMIT = 20;
+    private static final int INITIAL_TEST_RATE_LIMIT = 30;
+    private static final int TEST_DIMENSIONS = 1536;
+    private static final int INITIAL_TEST_DIMENSIONS = 3072;
+    private static final int TEST_MAX_INPUT_TOKENS = 512;
+    private static final int INITIAL_TEST_MAX_INPUT_TOKENS = 1024;
+    private static final SimilarityMeasure TEST_SIMILARITY_MEASURE = SimilarityMeasure.COSINE;
+    private static final SimilarityMeasure INITIAL_TEST_SIMILARITY_MEASURE = SimilarityMeasure.DOT_PRODUCT;
+    private static final CohereServiceSettings.CohereApiVersion INITIAL_TEST_COHERE_API_VERSION = CohereServiceSettings.CohereApiVersion.V1;
+    private static final CohereServiceSettings.CohereApiVersion TEST_COHERE_API_VERSION = CohereServiceSettings.CohereApiVersion.V2;
+    /** Value under the legacy {@code model} key when testing precedence against {@link ServiceFields#MODEL_ID}. */
+    private static final String LEGACY_MODEL_KEY_VALUE = "old_model";
+    /** Mirrors {@link CohereServiceSettings#DEFAULT_RATE_LIMIT_SETTINGS} for {@link CohereServiceSettings#fromMap} expectations. */
+    private static final RateLimitSettings DEFAULT_COHERE_SERVICE_RATE_LIMIT_SETTINGS = new RateLimitSettings(10_000);
+    private static final String INVALID_TEST_URL = "https://www.abc^.com";
 
     public static CohereServiceSettings createRandomWithNonNullUrl() {
         return createRandom(randomAlphaOfLength(15));
@@ -71,131 +102,236 @@ public class CohereServiceSettingsTests extends AbstractBWCWireSerializationTest
         );
     }
 
-    public void testFromMap() {
-        var url = "https://www.abc.com";
-        var similarity = SimilarityMeasure.DOT_PRODUCT.toString();
-        var dims = 1536;
-        var maxInputTokens = 512;
-        var model = "model";
-        var serviceSettings = CohereServiceSettings.fromMap(
-            new HashMap<>(
-                Map.of(
-                    ServiceFields.URL,
-                    url,
-                    ServiceFields.SIMILARITY,
-                    similarity,
-                    ServiceFields.DIMENSIONS,
-                    dims,
-                    ServiceFields.MAX_INPUT_TOKENS,
-                    maxInputTokens,
-                    CohereServiceSettings.OLD_MODEL_ID_FIELD,
-                    model
-                )
+    public void testUpdateCommonServiceSettings_AllFields_OnlyMutableFieldsAreUpdated() {
+        var originalServiceSettings = createInitialCohereServiceSettings();
+        var validationException = new ValidationException();
+        var serviceSettings = originalServiceSettings.updateCommonServiceSettings(
+            buildServiceSettingsMap(
+                TEST_URL,
+                TEST_SIMILARITY_MEASURE,
+                TEST_DIMENSIONS,
+                TEST_MAX_INPUT_TOKENS,
+                TEST_MODEL_ID,
+                TEST_LEGACY_MODEL_ID,
+                TEST_COHERE_API_VERSION.toString(),
+                TEST_RATE_LIMIT
             ),
-            ConfigurationParseContext.REQUEST
+            validationException
         );
 
-        MatcherAssert.assertThat(
+        assertTrue(validationException.validationErrors().isEmpty());
+
+        assertThat(
             serviceSettings,
             is(
                 new CohereServiceSettings(
-                    ServiceUtils.createUri(url),
-                    SimilarityMeasure.DOT_PRODUCT,
-                    dims,
-                    maxInputTokens,
-                    model,
+                    INITIAL_TEST_URL,
+                    INITIAL_TEST_SIMILARITY_MEASURE,
+                    INITIAL_TEST_DIMENSIONS,
+                    TEST_MAX_INPUT_TOKENS,
+                    CohereServiceSettingsTests.INITIAL_TEST_MODEL_ID,
+                    new RateLimitSettings(TEST_RATE_LIMIT),
+                    CohereServiceSettingsTests.INITIAL_TEST_COHERE_API_VERSION
+                )
+            )
+        );
+    }
+
+    public void testUpdateCommonServiceSettings_EmptyMap_DoesNotChangeSettings() {
+        var originalServiceSettings = createInitialCohereServiceSettings();
+        var validationException = new ValidationException();
+        var updatedServiceSettings = originalServiceSettings.updateCommonServiceSettings(new HashMap<>(), validationException);
+
+        assertTrue(validationException.validationErrors().isEmpty());
+
+        assertThat(updatedServiceSettings, is(originalServiceSettings));
+    }
+
+    private static CohereServiceSettings createInitialCohereServiceSettings() {
+        return new CohereServiceSettings(
+            INITIAL_TEST_URL,
+            INITIAL_TEST_SIMILARITY_MEASURE,
+            INITIAL_TEST_DIMENSIONS,
+            INITIAL_TEST_MAX_INPUT_TOKENS,
+            CohereServiceSettingsTests.INITIAL_TEST_MODEL_ID,
+            new RateLimitSettings(INITIAL_TEST_RATE_LIMIT),
+            INITIAL_TEST_COHERE_API_VERSION
+        );
+    }
+
+    public void testFromMap_Persistent_EmptyMap_CreatesSettingsCorrectly() {
+        var serviceSettings = CohereServiceSettings.fromMap(new HashMap<>(), ConfigurationParseContext.PERSISTENT);
+
+        assertThat(
+            serviceSettings,
+            is(
+                new CohereServiceSettings(
+                    (URI) null,
                     null,
-                    CohereServiceSettings.CohereApiVersion.V2
+                    null,
+                    null,
+                    null,
+                    DEFAULT_COHERE_SERVICE_RATE_LIMIT_SETTINGS,
+                    INITIAL_TEST_COHERE_API_VERSION
                 )
             )
         );
     }
 
-    public void testFromMap_WithRateLimit() {
-        var url = "https://www.abc.com";
-        var similarity = SimilarityMeasure.DOT_PRODUCT.toString();
-        var dims = 1536;
-        var maxInputTokens = 512;
-        var model = "model";
+    /**
+     * {@link ConfigurationParseContext#PERSISTENT}: full map using {@link ServiceFields#MODEL_ID} only (no legacy {@code model} key).
+     */
+    public void testFromMap_Persistent_AllFields_CreatesSettingsCorrectly() {
         var serviceSettings = CohereServiceSettings.fromMap(
-            new HashMap<>(
-                Map.of(
-                    ServiceFields.URL,
-                    url,
-                    ServiceFields.SIMILARITY,
-                    similarity,
-                    ServiceFields.DIMENSIONS,
-                    dims,
-                    ServiceFields.MAX_INPUT_TOKENS,
-                    maxInputTokens,
-                    CohereServiceSettings.OLD_MODEL_ID_FIELD,
-                    model,
-                    RateLimitSettings.FIELD_NAME,
-                    new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, 3))
-                )
-            ),
-            ConfigurationParseContext.REQUEST
-        );
-
-        MatcherAssert.assertThat(
-            serviceSettings,
-            is(
-                new CohereServiceSettings(
-                    ServiceUtils.createUri(url),
-                    SimilarityMeasure.DOT_PRODUCT,
-                    dims,
-                    maxInputTokens,
-                    model,
-                    new RateLimitSettings(3),
-                    CohereServiceSettings.CohereApiVersion.V2
-                )
-            )
-        );
-    }
-
-    public void testFromMap_WhenUsingModelId() {
-        var url = "https://www.abc.com";
-        var similarity = SimilarityMeasure.DOT_PRODUCT.toString();
-        var dims = 1536;
-        var maxInputTokens = 512;
-        var model = "model";
-        var serviceSettings = CohereServiceSettings.fromMap(
-            new HashMap<>(
-                Map.of(
-                    ServiceFields.URL,
-                    url,
-                    ServiceFields.SIMILARITY,
-                    similarity,
-                    ServiceFields.DIMENSIONS,
-                    dims,
-                    ServiceFields.MAX_INPUT_TOKENS,
-                    maxInputTokens,
-                    ServiceFields.MODEL_ID,
-                    model,
-                    CohereServiceSettings.API_VERSION,
-                    CohereServiceSettings.CohereApiVersion.V1.toString()
-                )
+            buildServiceSettingsMapWithModelIdFieldOnly(
+                TEST_URL,
+                TEST_SIMILARITY_MEASURE,
+                TEST_DIMENSIONS,
+                TEST_MAX_INPUT_TOKENS,
+                TEST_MODEL_ID,
+                TEST_COHERE_API_VERSION.toString(),
+                TEST_RATE_LIMIT
             ),
             ConfigurationParseContext.PERSISTENT
         );
 
-        MatcherAssert.assertThat(
+        assertThat(
             serviceSettings,
             is(
                 new CohereServiceSettings(
-                    ServiceUtils.createUri(url),
-                    SimilarityMeasure.DOT_PRODUCT,
-                    dims,
-                    maxInputTokens,
-                    model,
-                    null,
-                    CohereServiceSettings.CohereApiVersion.V1
+                    TEST_URL,
+                    TEST_SIMILARITY_MEASURE,
+                    TEST_DIMENSIONS,
+                    TEST_MAX_INPUT_TOKENS,
+                    TEST_MODEL_ID,
+                    new RateLimitSettings(TEST_RATE_LIMIT),
+                    TEST_COHERE_API_VERSION
                 )
             )
         );
     }
 
-    public void testFromMap_MissingModelId() {
+    /**
+     * {@link ConfigurationParseContext#PERSISTENT}: map contains only the legacy {@link CohereServiceSettings#OLD_MODEL_ID_FIELD}
+     * ({@code "model"}) — no {@link ServiceFields#MODEL_ID}. The value is still normalized into {@link CohereServiceSettings#modelId()}.
+     */
+    public void testFromMap_Persistent_LegacyModelFieldOnly() {
+        var serviceSettings = CohereServiceSettings.fromMap(
+            buildServiceSettingsMapWithLegacyModelFieldOnly(),
+            ConfigurationParseContext.PERSISTENT
+        );
+
+        assertThat(
+            serviceSettings,
+            is(
+                new CohereServiceSettings(
+                    ServiceUtils.createUri(TEST_URL),
+                    INITIAL_TEST_SIMILARITY_MEASURE,
+                    TEST_DIMENSIONS,
+                    TEST_MAX_INPUT_TOKENS,
+                    TEST_MODEL_ID,
+                    null,
+                    INITIAL_TEST_COHERE_API_VERSION
+                )
+            )
+        );
+    }
+
+    /**
+     * {@link ConfigurationParseContext#REQUEST}: same as {@link #testFromMap_Persistent_LegacyModelFieldOnly} (legacy {@code model} key only),
+     * but request parsing defaults the Cohere API version to {@link CohereServiceSettings.CohereApiVersion#V2}.
+     */
+    public void testFromMap_Request_LegacyModelFieldOnly() {
+        var serviceSettings = CohereServiceSettings.fromMap(
+            buildServiceSettingsMapWithLegacyModelFieldOnly(),
+            ConfigurationParseContext.REQUEST
+        );
+
+        assertThat(
+            serviceSettings,
+            is(
+                new CohereServiceSettings(
+                    ServiceUtils.createUri(TEST_URL),
+                    INITIAL_TEST_SIMILARITY_MEASURE,
+                    TEST_DIMENSIONS,
+                    TEST_MAX_INPUT_TOKENS,
+                    TEST_MODEL_ID,
+                    null,
+                    TEST_COHERE_API_VERSION
+                )
+            )
+        );
+    }
+
+    /**
+     * {@link ConfigurationParseContext#REQUEST}: legacy {@code model} key plus {@link RateLimitSettings}.
+     */
+    public void testFromMap_Request_LegacyModelFieldWithRateLimit() {
+        var serviceSettings = CohereServiceSettings.fromMap(
+            buildServiceSettingsMap(
+                TEST_URL,
+                INITIAL_TEST_SIMILARITY_MEASURE,
+                TEST_DIMENSIONS,
+                TEST_MAX_INPUT_TOKENS,
+                null,
+                TEST_MODEL_ID,
+                null,
+                TEST_RATE_LIMIT
+            ),
+            ConfigurationParseContext.REQUEST
+        );
+
+        assertThat(
+            serviceSettings,
+            is(
+                new CohereServiceSettings(
+                    ServiceUtils.createUri(TEST_URL),
+                    INITIAL_TEST_SIMILARITY_MEASURE,
+                    TEST_DIMENSIONS,
+                    TEST_MAX_INPUT_TOKENS,
+                    TEST_MODEL_ID,
+                    new RateLimitSettings(TEST_RATE_LIMIT),
+                    TEST_COHERE_API_VERSION
+                )
+            )
+        );
+    }
+
+    /**
+     * {@link ConfigurationParseContext#PERSISTENT}: map uses {@link ServiceFields#MODEL_ID} and explicit {@link CohereServiceSettings#API_VERSION}.
+     */
+    public void testFromMap_Persistent_ModelIdFieldOnly() {
+        var serviceSettings = CohereServiceSettings.fromMap(
+            buildServiceSettingsMap(
+                TEST_URL,
+                INITIAL_TEST_SIMILARITY_MEASURE,
+                TEST_DIMENSIONS,
+                TEST_MAX_INPUT_TOKENS,
+                TEST_MODEL_ID,
+                null,
+                INITIAL_TEST_COHERE_API_VERSION.toString(),
+                null
+            ),
+            ConfigurationParseContext.PERSISTENT
+        );
+
+        assertThat(
+            serviceSettings,
+            is(
+                new CohereServiceSettings(
+                    ServiceUtils.createUri(TEST_URL),
+                    INITIAL_TEST_SIMILARITY_MEASURE,
+                    TEST_DIMENSIONS,
+                    TEST_MAX_INPUT_TOKENS,
+                    TEST_MODEL_ID,
+                    null,
+                    INITIAL_TEST_COHERE_API_VERSION
+                )
+            )
+        );
+    }
+
+    public void testFromMap_Request_MissingModelId_ThrowsError() {
         var e = expectThrows(
             ValidationException.class,
             () -> CohereServiceSettings.fromMap(
@@ -204,9 +340,9 @@ public class CohereServiceSettingsTests extends AbstractBWCWireSerializationTest
                         ServiceFields.SIMILARITY,
                         SimilarityMeasure.DOT_PRODUCT.toString(),
                         ServiceFields.DIMENSIONS,
-                        1536,
+                        TEST_DIMENSIONS,
                         ServiceFields.MAX_INPUT_TOKENS,
-                        512
+                        TEST_MAX_INPUT_TOKENS
                     )
                 ),
                 ConfigurationParseContext.REQUEST
@@ -219,51 +355,29 @@ public class CohereServiceSettingsTests extends AbstractBWCWireSerializationTest
         );
     }
 
-    public void testFromMap_PrefersModelId_OverModel() {
-        var url = "https://www.abc.com";
-        var similarity = SimilarityMeasure.DOT_PRODUCT.toString();
-        var dims = 1536;
-        var maxInputTokens = 512;
-        var model = "model";
+    /**
+     * When both {@link ServiceFields#MODEL_ID} and the legacy {@code model} field are present, the {@code model_id} value wins.
+     */
+    public void testFromMap_WhenBothModelFieldsPresent_PrefersModelId() {
         var serviceSettings = CohereServiceSettings.fromMap(
-            new HashMap<>(
-                Map.of(
-                    ServiceFields.URL,
-                    url,
-                    ServiceFields.SIMILARITY,
-                    similarity,
-                    ServiceFields.DIMENSIONS,
-                    dims,
-                    ServiceFields.MAX_INPUT_TOKENS,
-                    maxInputTokens,
-                    CohereServiceSettings.OLD_MODEL_ID_FIELD,
-                    "old_model",
-                    ServiceFields.MODEL_ID,
-                    model
-                )
-            ),
+            buildServiceSettingsMapWithBothModelFields(INITIAL_TEST_COHERE_API_VERSION.toString()),
             ConfigurationParseContext.PERSISTENT
         );
 
-        MatcherAssert.assertThat(
+        assertThat(
             serviceSettings,
             is(
                 new CohereServiceSettings(
-                    ServiceUtils.createUri(url),
-                    SimilarityMeasure.DOT_PRODUCT,
-                    dims,
-                    maxInputTokens,
-                    model,
+                    ServiceUtils.createUri(TEST_URL),
+                    INITIAL_TEST_SIMILARITY_MEASURE,
+                    TEST_DIMENSIONS,
+                    TEST_MAX_INPUT_TOKENS,
+                    TEST_MODEL_ID,
                     null,
-                    CohereServiceSettings.CohereApiVersion.V1
+                    INITIAL_TEST_COHERE_API_VERSION
                 )
             )
         );
-    }
-
-    public void testFromMap_MissingUrl_DoesNotThrowException() {
-        var serviceSettings = CohereServiceSettings.fromMap(new HashMap<>(Map.of()), ConfigurationParseContext.PERSISTENT);
-        assertNull(serviceSettings.uri());
     }
 
     public void testFromMap_EmptyUrl_ThrowsError() {
@@ -272,7 +386,7 @@ public class CohereServiceSettingsTests extends AbstractBWCWireSerializationTest
             () -> CohereServiceSettings.fromMap(new HashMap<>(Map.of(ServiceFields.URL, "")), ConfigurationParseContext.PERSISTENT)
         );
 
-        MatcherAssert.assertThat(
+        assertThat(
             thrownException.getMessage(),
             containsString(
                 Strings.format(
@@ -284,16 +398,22 @@ public class CohereServiceSettingsTests extends AbstractBWCWireSerializationTest
     }
 
     public void testFromMap_InvalidUrl_ThrowsError() {
-        var url = "https://www.abc^.com";
         var thrownException = expectThrows(
             ValidationException.class,
-            () -> CohereServiceSettings.fromMap(new HashMap<>(Map.of(ServiceFields.URL, url)), ConfigurationParseContext.PERSISTENT)
+            () -> CohereServiceSettings.fromMap(
+                new HashMap<>(Map.of(ServiceFields.URL, INVALID_TEST_URL)),
+                ConfigurationParseContext.PERSISTENT
+            )
         );
 
-        MatcherAssert.assertThat(
+        assertThat(
             thrownException.getMessage(),
             containsString(
-                Strings.format("Validation Failed: 1: [service_settings] Invalid url [%s] received for field [%s]", url, ServiceFields.URL)
+                Strings.format(
+                    "Validation Failed: 1: [service_settings] Invalid url [%s] received for field [%s]",
+                    INVALID_TEST_URL,
+                    ServiceFields.URL
+                )
             )
         );
     }
@@ -308,7 +428,7 @@ public class CohereServiceSettingsTests extends AbstractBWCWireSerializationTest
             )
         );
 
-        MatcherAssert.assertThat(
+        assertThat(
             thrownException.getMessage(),
             is(
                 "Validation Failed: 1: [service_settings] Invalid value [by_size] received. [similarity] "
@@ -317,23 +437,143 @@ public class CohereServiceSettingsTests extends AbstractBWCWireSerializationTest
         );
     }
 
-    public void testXContent_WritesModelId() throws IOException {
-        var entity = new CohereServiceSettings(
-            (String) null,
-            null,
-            null,
-            null,
-            "modelId",
-            new RateLimitSettings(1),
-            CohereServiceSettings.CohereApiVersion.V2
+    public void testToXContent_WritesAllValues() throws IOException {
+        var serviceSettings = new CohereServiceSettings(
+            TEST_URL,
+            TEST_SIMILARITY_MEASURE,
+            TEST_DIMENSIONS,
+            TEST_MAX_INPUT_TOKENS,
+            TEST_MODEL_ID,
+            new RateLimitSettings(TEST_RATE_LIMIT),
+            TEST_COHERE_API_VERSION
         );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-        entity.toXContent(builder, null);
+        serviceSettings.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
 
-        assertThat(xContentResult, is("""
-            {"model_id":"modelId","rate_limit":{"requests_per_minute":1},"api_version":"V2"}"""));
+        assertThat(
+            xContentResult,
+            is(
+                XContentHelper.stripWhitespace(
+                    Strings.format(
+                        """
+                            {
+                              "url": "%s",
+                              "similarity": "%s",
+                              "dimensions": %d,
+                              "max_input_tokens": %d,
+                              "model_id": "%s",
+                              "rate_limit": {
+                                "requests_per_minute": %d
+                              },
+                              "api_version": "%s"
+                            }
+                            """,
+                        TEST_URL,
+                        TEST_SIMILARITY_MEASURE,
+                        TEST_DIMENSIONS,
+                        TEST_MAX_INPUT_TOKENS,
+                        TEST_MODEL_ID,
+                        TEST_RATE_LIMIT,
+                        TEST_COHERE_API_VERSION
+                    )
+                )
+            )
+        );
+    }
+
+    /**
+     * Map uses {@link ServiceFields#MODEL_ID} when {@code modelId} is non-null; the legacy
+     * {@link CohereServiceSettings#OLD_MODEL_ID_FIELD} ({@code "model"}) is omitted.
+     */
+    private static HashMap<String, Object> buildServiceSettingsMapWithModelIdFieldOnly(
+        String url,
+        SimilarityMeasure similarity,
+        int dimensions,
+        int maxInputTokens,
+        String modelId,
+        String apiVersion,
+        int rateLimitRequestsPerMinute
+    ) {
+        return buildServiceSettingsMap(url, similarity, dimensions, maxInputTokens, modelId, null, apiVersion, rateLimitRequestsPerMinute);
+    }
+
+    /**
+     * Map uses only the legacy {@link CohereServiceSettings#OLD_MODEL_ID_FIELD} ({@code "model"}); {@link ServiceFields#MODEL_ID} is omitted.
+     */
+    private static HashMap<String, Object> buildServiceSettingsMapWithLegacyModelFieldOnly() {
+        return buildServiceSettingsMap(
+            TEST_URL,
+            INITIAL_TEST_SIMILARITY_MEASURE,
+            TEST_DIMENSIONS,
+            TEST_MAX_INPUT_TOKENS,
+            null,
+            TEST_MODEL_ID,
+            null,
+            null
+        );
+    }
+
+    /**
+     * Map includes both {@link ServiceFields#MODEL_ID} and the legacy {@code model} key — production code must prefer {@code model_id}.
+     */
+    private static HashMap<String, Object> buildServiceSettingsMapWithBothModelFields(String apiVersion) {
+        return buildServiceSettingsMap(
+            TEST_URL,
+            INITIAL_TEST_SIMILARITY_MEASURE,
+            TEST_DIMENSIONS,
+            TEST_MAX_INPUT_TOKENS,
+            TEST_MODEL_ID,
+            LEGACY_MODEL_KEY_VALUE,
+            apiVersion,
+            null
+        );
+    }
+
+    /**
+     * @param modelId if non-null, stored under {@link ServiceFields#MODEL_ID}
+     * @param legacyModelValue if non-null, stored under {@link CohereServiceSettings#OLD_MODEL_ID_FIELD} ({@code "model"})
+     */
+    private static HashMap<String, Object> buildServiceSettingsMap(
+        @Nullable String url,
+        @Nullable SimilarityMeasure similarity,
+        @Nullable Integer dimensions,
+        @Nullable Integer maxInputTokens,
+        @Nullable String modelId,
+        @Nullable String legacyModelValue,
+        @Nullable String apiVersion,
+        @Nullable Integer rateLimitRequestsPerMinute
+    ) {
+        var result = new HashMap<String, Object>();
+        if (url != null) {
+            result.put(ServiceFields.URL, url);
+        }
+        if (similarity != null) {
+            result.put(ServiceFields.SIMILARITY, similarity.toString());
+        }
+        if (dimensions != null) {
+            result.put(ServiceFields.DIMENSIONS, dimensions);
+        }
+        if (maxInputTokens != null) {
+            result.put(ServiceFields.MAX_INPUT_TOKENS, maxInputTokens);
+        }
+        if (modelId != null) {
+            result.put(ServiceFields.MODEL_ID, modelId);
+        }
+        if (legacyModelValue != null) {
+            result.put(CohereServiceSettings.OLD_MODEL_ID_FIELD, legacyModelValue);
+        }
+        if (apiVersion != null) {
+            result.put(CohereServiceSettings.API_VERSION, apiVersion);
+        }
+        if (rateLimitRequestsPerMinute != null) {
+            result.put(
+                RateLimitSettings.FIELD_NAME,
+                new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, rateLimitRequestsPerMinute))
+            );
+        }
+        return result;
     }
 
     @Override
@@ -370,6 +610,9 @@ public class CohereServiceSettingsTests extends AbstractBWCWireSerializationTest
         return new CohereServiceSettings(uriString, similarity, dimensions, maxInputTokens, modelId, rateLimitSettings, apiVersion);
     }
 
+    /**
+     * Minimal map for callers that only need {@link ServiceFields#URL} and/or the legacy {@code model} key (no {@code model_id}).
+     */
     public static Map<String, Object> getServiceSettingsMap(@Nullable String url, @Nullable String model) {
         var map = new HashMap<String, Object>();
 

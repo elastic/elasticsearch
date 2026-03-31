@@ -246,6 +246,7 @@ public class IndexVersions {
     public static final IndexVersion SEMANTIC_TEXT_DEFAULTS_TO_JINA_V5 = def(9_084_0_00, Version.LUCENE_10_4_0);
     public static final IndexVersion TIME_SERIES_DISABLE_SEQUENCE_NUMBERS = def(9_085_0_00, Version.LUCENE_10_4_0);
     public static final IndexVersion DENSE_VECTOR_BFLOAT16_DEFAULT_INDEX_OPTIONS = def(9_086_0_00, Version.LUCENE_10_4_0);
+    public static final IndexVersion DEFAULT_DENSE_VECTOR_TO_BBQ_DISK = def(9_087_0_00, Version.LUCENE_10_4_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

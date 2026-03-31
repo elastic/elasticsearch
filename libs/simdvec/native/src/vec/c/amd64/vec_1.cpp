@@ -48,7 +48,7 @@ static inline int32_t doti7u_inner(const int8_t* a, const int8_t* b, const int32
     int32_t res = mm256_reduce_epi32<_mm_add_epi32>(acc1);
     // scalar tail
     for (; i < dims; i++) {
-        res += a[i] * b[i];
+        res += dot_scalar(a[i], b[i]);
     }
     return res;
 }
@@ -105,8 +105,7 @@ static inline int32_t sqri7u_inner(const int8_t* a, const int8_t* b, const int32
     int32_t res = mm256_reduce_epi32<_mm_add_epi32>(acc1);
     // scalar tail
     for (; i < dims; i++) {
-        int32_t dist = a[i] - b[i];
-        res += dist * dist;
+        res += sqr_scalar(a[i], b[i]);
     }
     return res;
 }
@@ -368,7 +367,7 @@ static inline int32_t doti8_inner(const int8_t* a, const int8_t* b, const int32_
     int32_t res = mm256_reduce_epi32<_mm_add_epi32>(acc1);
     // scalar tail
     for (; i < dims; i++) {
-        res += a[i] * b[i];
+        res += dot_scalar(a[i], b[i]);
     }
     return res;
 }
@@ -451,8 +450,7 @@ static inline int32_t sqri8_inner(const int8_t* a, const int8_t* b, const int32_
     int32_t res = mm256_reduce_epi32<_mm_add_epi32>(acc1);
     // scalar tail
     for (; i < dims; i++) {
-        int32_t dist = a[i] - b[i];
-        res += dist * dist;
+        res += sqr_scalar(a[i], b[i]);
     }
     return res;
 }

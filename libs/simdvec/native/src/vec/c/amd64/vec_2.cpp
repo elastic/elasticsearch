@@ -38,20 +38,12 @@
 #include <emmintrin.h>
 #include <immintrin.h>
 
-#ifndef STRIDE_BYTES_LEN
-#define STRIDE_BYTES_LEN sizeof(__m512i) // Must be a power of 2
-#endif
-
-#ifndef STRIDE
-#define STRIDE(size, num) STRIDE_BYTES_LEN / size * num
-#endif
-
-// Returns acc + ( p1 * p2 ), for 64-wide int lanes.
+// Returns acc + ( pa * pb ), for 64-wide int lanes.
 template<int offsetRegs>
-inline __m512i fma8(__m512i acc, const int8_t* p1, const int8_t* p2) {
-    constexpr int lanes = offsetRegs * STRIDE_BYTES_LEN;
-    const __m512i a = _mm512_loadu_si512((const __m512i*)(p1 + lanes));
-    const __m512i b = _mm512_loadu_si512((const __m512i*)(p2 + lanes));
+inline __m512i fma8(__m512i acc, const int8_t* pa, const int8_t* pb) {
+    constexpr int lanes = offsetRegs * sizeof(__m512i);
+    const __m512i a = _mm512_loadu_si512((const __m512i*)(pa + lanes));
+    const __m512i b = _mm512_loadu_si512((const __m512i*)(pb + lanes));
     // Perform multiplication and create 16-bit values
     // Vertically multiply each unsigned 8-bit integer from a with the corresponding
     // signed 8-bit integer from b, producing intermediate signed 16-bit integers.
@@ -66,16 +58,16 @@ inline __m512i fma8(__m512i acc, const int8_t* p1, const int8_t* p2) {
 static inline int32_t dot7u_inner(const int8_t* a, const int8_t* b, const int32_t dims) {
     int32_t res = 0;
     int i = 0;
-    if (dims >= STRIDE_BYTES_LEN) {
-        i = dims & ~(STRIDE_BYTES_LEN - 1);
+    if (dims >= sizeof(__m512i)) {
+        i = dims & ~(sizeof(__m512i) - 1);
 
         constexpr int batches = 8;
         static_assert(batches % 2 == 0, "batches must be even for vectorized AVX-512 operations");
         constexpr int half_batches = batches / 2;
-        constexpr int batch_stride = batches * STRIDE_BYTES_LEN;
-        constexpr int half_batch_stride = half_batches * STRIDE_BYTES_LEN;
-        const int8_t* p1 = a;
-        const int8_t* p2 = b;
+        constexpr int batch_stride = batches * sizeof(__m512i);
+        constexpr int half_batch_stride = half_batches * sizeof(__m512i);
+        const int8_t* pa = a;
+        const int8_t* pb = b;
 
         __m512i acc[batches];
         // Init accumulator(s) with 0
@@ -83,36 +75,37 @@ static inline int32_t dot7u_inner(const int8_t* a, const int8_t* b, const int32_
             acc[I] = _mm512_setzero_si512();
         });
 
-        const int8_t* p1End = a + (i & ~(batch_stride - 1));
-        while (p1 < p1End) {
+        const int8_t* pa_end = a + (i & ~(batch_stride - 1));
+        while (pa < pa_end) {
             apply_indexed<batches>([&](auto I) {
-                acc[I] = fma8<I>(acc[I], p1, p2);
+                acc[I] = fma8<I>(acc[I], pa, pb);
             });
-            p1 += batch_stride;
-            p2 += batch_stride;
+            pa += batch_stride;
+            pb += batch_stride;
         }
 
-        p1End = a + (i & ~(half_batch_stride - 1));
-        while (p1 < p1End) {
+        pa_end = a + (i & ~(half_batch_stride - 1));
+        while (pa < pa_end) {
             apply_indexed<half_batches>([&](auto I) {
-                acc[I] = fma8<I>(acc[I], p1, p2);
+                acc[I] = fma8<I>(acc[I], pa, pb);
             });
-            p1 += half_batch_stride;
-            p2 += half_batch_stride;
+            pa += half_batch_stride;
+            pb += half_batch_stride;
         }
 
-        p1End = a + i;
-        while (p1 < p1End) {
-            acc[0] = fma8<0>(acc[0], p1, p2);
-            p1 += STRIDE_BYTES_LEN;
-            p2 += STRIDE_BYTES_LEN;
+        pa_end = a + i;
+        while (pa < pa_end) {
+            acc[0] = fma8<0>(acc[0], pa, pb);
+            pa += sizeof(__m512i);
+            pb += sizeof(__m512i);
         }
 
         // reduce (accumulate all)
         __m512i total_sum = tree_reduce<batches, __m512i, _mm512_add_epi32>(acc);
         res = _mm512_reduce_add_epi32(total_sum);
     }
-    // Masked tail: handle remaining elements (< 64) with a single masked SIMD iteration
+    // Masked tail: handle remaining elements (< 64) with a single masked SIMD iteration.
+    // Zeroed lanes from maskz_loadu produce zeros in maddubs, contributing nothing to the sum.
     const int remaining = dims - i;
     if (remaining > 0) {
         const __mmask64 mask = (__mmask64)((1ULL << remaining) - 1);
@@ -145,10 +138,10 @@ EXPORT void vec_dot7u_bulk_offsets_2(
 }
 
 template<int offsetRegs>
-inline __m512i sqr8(__m512i acc, const int8_t* p1, const int8_t* p2) {
-    constexpr int lanes = offsetRegs * STRIDE_BYTES_LEN;
-    const __m512i a = _mm512_loadu_si512((const __m512i*)(p1 + lanes));
-    const __m512i b = _mm512_loadu_si512((const __m512i*)(p2 + lanes));
+inline __m512i sqr8(__m512i acc, const int8_t* pa, const int8_t* pb) {
+    constexpr int lanes = offsetRegs * sizeof(__m512i);
+    const __m512i a = _mm512_loadu_si512((const __m512i*)(pa + lanes));
+    const __m512i b = _mm512_loadu_si512((const __m512i*)(pb + lanes));
 
     const __m512i dist = _mm512_sub_epi8(a, b);
     const __m512i abs_dist = _mm512_abs_epi8(dist);
@@ -161,16 +154,16 @@ inline __m512i sqr8(__m512i acc, const int8_t* p1, const int8_t* p2) {
 static inline int32_t sqr7u_inner(const int8_t* a, const int8_t* b, const int32_t dims) {
     int32_t res = 0;
     int i = 0;
-    if (dims >= STRIDE_BYTES_LEN) {
-        i = dims & ~(STRIDE_BYTES_LEN - 1);
+    if (dims >= sizeof(__m512i)) {
+        i = dims & ~(sizeof(__m512i) - 1);
 
         constexpr int batches = 8;
         static_assert(batches % 2 == 0, "batches must be even for vectorized AVX-512 operations");
         constexpr int half_batches = batches / 2;
-        constexpr int batch_stride = batches * STRIDE_BYTES_LEN;
-        constexpr int half_batch_stride = half_batches * STRIDE_BYTES_LEN;
-        const int8_t* p1 = a;
-        const int8_t* p2 = b;
+        constexpr int batch_stride = batches * sizeof(__m512i);
+        constexpr int half_batch_stride = half_batches * sizeof(__m512i);
+        const int8_t* pa = a;
+        const int8_t* pb = b;
 
         __m512i acc[batches];
         // Init accumulator(s) with 0
@@ -178,36 +171,37 @@ static inline int32_t sqr7u_inner(const int8_t* a, const int8_t* b, const int32_
             acc[I] = _mm512_setzero_si512();
         });
 
-        const int8_t* p1End = a + (i & ~(batch_stride - 1));
-        while (p1 < p1End) {
+        const int8_t* pa_end = a + (i & ~(batch_stride - 1));
+        while (pa < pa_end) {
             apply_indexed<batches>([&](auto I) {
-                acc[I] = sqr8<I>(acc[I], p1, p2);
+                acc[I] = sqr8<I>(acc[I], pa, pb);
             });
-            p1 += batch_stride;
-            p2 += batch_stride;
+            pa += batch_stride;
+            pb += batch_stride;
         }
 
-        p1End = a + (i & ~(half_batch_stride - 1));
-        while (p1 < p1End) {
+        pa_end = a + (i & ~(half_batch_stride - 1));
+        while (pa < pa_end) {
             apply_indexed<half_batches>([&](auto I) {
-                acc[I] = sqr8<I>(acc[I], p1, p2);
+                acc[I] = sqr8<I>(acc[I], pa, pb);
             });
-            p1 += half_batch_stride;
-            p2 += half_batch_stride;
+            pa += half_batch_stride;
+            pb += half_batch_stride;
         }
 
-        p1End = a + i;
-        while (p1 < p1End) {
-            acc[0] = sqr8<0>(acc[0], p1, p2);
-            p1 += STRIDE_BYTES_LEN;
-            p2 += STRIDE_BYTES_LEN;
+        pa_end = a + i;
+        while (pa < pa_end) {
+            acc[0] = sqr8<0>(acc[0], pa, pb);
+            pa += sizeof(__m512i);
+            pb += sizeof(__m512i);
         }
 
         // reduce (accumulate all)
         __m512i total_sum = tree_reduce<batches, __m512i, _mm512_add_epi32>(acc);
         res = _mm512_reduce_add_epi32(total_sum);
     }
-    // Masked tail: handle remaining elements (< 64) with a single masked SIMD iteration
+    // Masked tail: handle remaining elements (< 64) with a single masked SIMD iteration.
+    // Zeroed lanes from maskz_loadu produce zeros in sub/abs/maddubs, contributing nothing to the sum.
     const int remaining = dims - i;
     if (remaining > 0) {
         const __mmask64 mask = (__mmask64)((1ULL << remaining) - 1);

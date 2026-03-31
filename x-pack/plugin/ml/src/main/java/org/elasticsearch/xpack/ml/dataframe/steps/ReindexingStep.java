@@ -39,6 +39,7 @@ import org.elasticsearch.tasks.TaskResult;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
+import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsTask;
@@ -147,6 +148,9 @@ public class ReindexingStep extends AbstractDataFrameAnalyticsStep {
             reindexRequest.getSearchRequest().allowPartialSearchResults(false);
             reindexRequest.getSearchRequest().source().fetchSource(config.getSource().getSourceFiltering());
             reindexRequest.setDestIndex(config.getDest().getIndex());
+            // Stable source order so ml__incremental_id maps to the same source docs on every reindex; the
+            // train/test splitter consumes Random in incremental-id order (see DataFrameDataExtractor).
+            reindexRequest.getSearchRequest().source().sort(ElasticsearchMappings.ES_DOC);
 
             // We explicitly set slices to 1 as we cannot parallelize in order to have the incremental id
             reindexRequest.setSlices(1);

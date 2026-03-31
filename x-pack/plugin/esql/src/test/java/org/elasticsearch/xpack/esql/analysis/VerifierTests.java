@@ -2611,7 +2611,7 @@ public class VerifierTests extends ESTestCase {
         for (DataType type : UNSORTABLE_TYPES) {
             defaultAnalyzer().error(
                 Strings.format("ROW key=0, value=0, grp=NULL::%s\n | CHANGE_POINT value ON key BY grp", type),
-                equalTo("2:33: CHANGE_POINT grouping only support sortable values, found expression [grp] type [" + type + "]")
+                equalTo("2:33: CHANGE_POINT grouping only supports sortable values, found expression [grp] type [" + type + "]")
             );
         }
     }

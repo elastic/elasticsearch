@@ -12,6 +12,7 @@ import io.netty.buffer.Unpooled;
 import io.netty.handler.codec.compression.Snappy;
 
 import org.apache.http.HttpHeaders;
+import org.apache.http.client.utils.URIBuilder;
 import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.entity.ContentType;
 import org.elasticsearch.client.Request;
@@ -133,6 +134,26 @@ public class PrometheusLabelsRestIT extends ESRestTestCase {
         List<String> data = queryLabelsData("labels_filtered_gauge");
 
         assertThat(data, hasItem("unique_label"));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testGetWithMultipleMatchSelectorsReturnsCombinedLabels() throws Exception {
+        writeMetric("multi_labels_metric_a", Map.of("label_only_in_a", "value_a"));
+        writeMetric("multi_labels_metric_b", Map.of("label_only_in_b", "value_b"));
+        writeMetric("multi_labels_metric_c", Map.of("label_only_in_c", "value_c")); // must not appear in results
+
+        // Use URIBuilder to send two match[] selectors in a single request, working around the
+        // test client's single-value-per-key restriction on Request.addParameter.
+        Request request = new Request(
+            "GET",
+            new URIBuilder("/_prometheus/api/v1/labels").addParameter("match[]", "multi_labels_metric_a")
+                .addParameter("match[]", "multi_labels_metric_b")
+                .build()
+                .toString()
+        );
+        List<String> data = (List<String>) entityAsMap(client().performRequest(request)).get("data");
+
+        assertThat(data, containsInAnyOrder("__name__", "label_only_in_a", "label_only_in_b"));
     }
 
     /** Builds a labels request with optional {@code match[]} parameters. */

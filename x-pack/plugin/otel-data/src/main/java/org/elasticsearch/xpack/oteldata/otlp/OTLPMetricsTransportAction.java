@@ -71,8 +71,8 @@ public class OTLPMetricsTransportAction extends AbstractOTLPTransportAction {
     ) {
         super(NAME, transportService, actionFilters, threadPool, client);
         ClusterSettings clusterSettings = clusterService.getClusterSettings();
-        defaultMappingHints = MappingHints.fromSettings(clusterSettings.get(OTelPlugin.USE_EXPONENTIAL_HISTOGRAM_FIELD_TYPE));
-        clusterSettings.addSettingsUpdateConsumer(OTelPlugin.USE_EXPONENTIAL_HISTOGRAM_FIELD_TYPE, histogramFieldTypeSetting -> {
+        defaultMappingHints = MappingHints.fromSettings(clusterSettings.get(OTelPlugin.HISTOGRAM_FIELD_TYPE_SETTING));
+        clusterSettings.addSettingsUpdateConsumer(OTelPlugin.HISTOGRAM_FIELD_TYPE_SETTING, histogramFieldTypeSetting -> {
             defaultMappingHints = MappingHints.fromSettings(histogramFieldTypeSetting);
         });
         this.clusterService = clusterService;

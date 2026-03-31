@@ -679,7 +679,8 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
          *                             shutdown
          * @param autoCloseJobOverride when non-null, whether to auto-close the job after the datafeed stops; when
          *                             {@code null}, default lookback-only auto-close behavior applies (see {@link #isLookbackOnly()}).
-         *                             Non-null values are passed to {@link DatafeedRunner#stopDatafeed(TransportStartDatafeedAction.DatafeedTask, String, TimeValue, Boolean)}
+         *                             Non-null values are forwarded to {@link DatafeedRunner}{@code .stopDatafeed(DatafeedTask,
+         *                             String, TimeValue, Boolean)}.
          */
         public void stop(String reason, TimeValue timeout, Boolean autoCloseJobOverride) {
             synchronized (this) {

@@ -24,6 +24,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.node.NodeClosedException;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -178,7 +179,9 @@ public final class PersistentTaskLifecycleManager implements ClusterStateListene
             MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT,
             ActionListener.wrap(r -> onClusterTaskStartRequestComplete(reg), e -> {
                 final var t = ExceptionsHelper.unwrapCause(e);
-                if (t instanceof ResourceAlreadyExistsException) {
+                if (t instanceof NodeClosedException) {
+                    reg.inFlightRequest().set(InFlightRequest.NONE);
+                } else if (t instanceof ResourceAlreadyExistsException) {
                     onClusterTaskStartRequestComplete(reg);
                 } else {
                     logger.warn(() -> "Failed to create [" + reg.taskName() + "] task", e);
@@ -197,7 +200,9 @@ public final class PersistentTaskLifecycleManager implements ClusterStateListene
             MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT,
             ActionListener.wrap(r -> onClusterTaskRemoveRequestComplete(reg), e -> {
                 final var t = ExceptionsHelper.unwrapCause(e);
-                if (t instanceof ResourceNotFoundException) {
+                if (t instanceof NodeClosedException) {
+                    reg.inFlightRequest().set(InFlightRequest.NONE);
+                } else if (t instanceof ResourceNotFoundException) {
                     onClusterTaskRemoveRequestComplete(reg);
                 } else {
                     logger.warn(() -> "Failed to remove [" + reg.taskName() + "] task", e);
@@ -266,7 +271,9 @@ public final class PersistentTaskLifecycleManager implements ClusterStateListene
             MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT,
             ActionListener.wrap(r -> onProjectTaskStartRequestComplete(reg, projectId, taskId), e -> {
                 final var t = ExceptionsHelper.unwrapCause(e);
-                if (t instanceof ResourceAlreadyExistsException) {
+                if (t instanceof NodeClosedException) {
+                    reg.inFlightRequests().get(projectId).set(InFlightRequest.NONE);
+                } else if (t instanceof ResourceAlreadyExistsException) {
                     onProjectTaskStartRequestComplete(reg, projectId, taskId);
                 } else {
                     logger.warn(() -> "Failed to create [" + reg.taskName() + "] task for project [" + projectId + "]", e);
@@ -286,7 +293,9 @@ public final class PersistentTaskLifecycleManager implements ClusterStateListene
             MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT,
             ActionListener.wrap(r -> onProjectTaskRemoveRequestComplete(reg, projectId, taskId), e -> {
                 final var t = ExceptionsHelper.unwrapCause(e);
-                if (t instanceof ResourceNotFoundException) {
+                if (t instanceof NodeClosedException) {
+                    reg.inFlightRequests().get(projectId).set(InFlightRequest.NONE);
+                } else if (t instanceof ResourceNotFoundException) {
                     onProjectTaskRemoveRequestComplete(reg, projectId, taskId);
                 } else {
                     logger.warn(() -> "Failed to remove [" + reg.taskName() + "] task for project [" + projectId + "]", e);

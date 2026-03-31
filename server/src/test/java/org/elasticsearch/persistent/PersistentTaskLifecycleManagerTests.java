@@ -25,6 +25,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -84,11 +85,10 @@ public class PersistentTaskLifecycleManagerTests extends ESTestCase {
 
         final var nodeSettings = Settings.EMPTY;
         final var clusterSettings = new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        final var localNode = LOCAL_NODE;
         final var enabled = new AtomicBoolean(randomBoolean());
 
         try (
-            ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool, localNode, nodeSettings, clusterSettings)
+            ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool, LOCAL_NODE, nodeSettings, clusterSettings)
         ) {
             setState(clusterService, masterState());
             final var manager = new PersistentTaskLifecycleManager(persistentTasksService, clusterService);
@@ -133,9 +133,8 @@ public class PersistentTaskLifecycleManagerTests extends ESTestCase {
         final var nodeSettings = Settings.builder().put(TASK_ENABLED_SETTING.getKey(), false).build();
         final var allSettings = Sets.union(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS, Set.of(TASK_ENABLED_SETTING));
         final var clusterSettings = new ClusterSettings(nodeSettings, allSettings);
-        final var localNode = LOCAL_NODE;
 
-        try (var clusterService = ClusterServiceUtils.createClusterService(threadPool, localNode, nodeSettings, clusterSettings)) {
+        try (var clusterService = ClusterServiceUtils.createClusterService(threadPool, LOCAL_NODE, nodeSettings, clusterSettings)) {
             final var manager = new PersistentTaskLifecycleManager(persistentTasksService, clusterService);
             manager.registerClusterTask(TASK_NAME, TASK_ENABLED_SETTING, () -> TestParams.INSTANCE);
 
@@ -173,9 +172,8 @@ public class PersistentTaskLifecycleManagerTests extends ESTestCase {
         final var enabled = new AtomicBoolean();
         final var nodeSettings = Settings.EMPTY;
         final var clusterSettings = new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        final var localNode = LOCAL_NODE;
 
-        try (var clusterService = ClusterServiceUtils.createClusterService(threadPool, localNode, nodeSettings, clusterSettings)) {
+        try (var clusterService = ClusterServiceUtils.createClusterService(threadPool, LOCAL_NODE, nodeSettings, clusterSettings)) {
             final var manager = new PersistentTaskLifecycleManager(persistentTasksService, clusterService);
             manager.registerClusterTask(TASK_NAME, enabled::get, () -> TestParams.INSTANCE);
 
@@ -227,9 +225,8 @@ public class PersistentTaskLifecycleManagerTests extends ESTestCase {
         final var baseState = masterStateWithProjects(Set.of(projectId1, projectId2));
         final var nodeSettings = Settings.EMPTY;
         final var clusterSettings = new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        final var localNode = LOCAL_NODE;
 
-        try (var clusterService = ClusterServiceUtils.createClusterService(threadPool, localNode, nodeSettings, clusterSettings)) {
+        try (var clusterService = ClusterServiceUtils.createClusterService(threadPool, LOCAL_NODE, nodeSettings, clusterSettings)) {
             setState(clusterService, baseState);
             final var manager = new PersistentTaskLifecycleManager(persistentTasksService, clusterService);
             manager.registerProjectTask(TASK_NAME, p -> TASK_NAME, enabled::get, () -> TestParams.INSTANCE);
@@ -297,10 +294,9 @@ public class PersistentTaskLifecycleManagerTests extends ESTestCase {
         final var nodeSettings = Settings.builder().put(TASK_ENABLED_SETTING.getKey(), true).build();
         final var allSettings = Sets.union(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS, Set.of(TASK_ENABLED_SETTING));
         final var clusterSettings = new ClusterSettings(nodeSettings, allSettings);
-        final var localNode = LOCAL_NODE;
         final var stateWithProject = masterStateWithProjects(Set.of(projectId));
 
-        try (var clusterService = ClusterServiceUtils.createClusterService(threadPool, localNode, nodeSettings, clusterSettings)) {
+        try (var clusterService = ClusterServiceUtils.createClusterService(threadPool, LOCAL_NODE, nodeSettings, clusterSettings)) {
             final var manager = new PersistentTaskLifecycleManager(persistentTasksService, clusterService);
             manager.registerProjectTask(TASK_NAME, p -> TASK_NAME, TASK_ENABLED_SETTING, () -> TestParams.INSTANCE);
 
@@ -347,9 +343,8 @@ public class PersistentTaskLifecycleManagerTests extends ESTestCase {
         final var enabled = new AtomicBoolean();
         final var nodeSettings = Settings.EMPTY;
         final var clusterSettings = new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        final var localNode = LOCAL_NODE;
 
-        try (var clusterService = ClusterServiceUtils.createClusterService(threadPool, localNode, nodeSettings, clusterSettings)) {
+        try (var clusterService = ClusterServiceUtils.createClusterService(threadPool, LOCAL_NODE, nodeSettings, clusterSettings)) {
             final var manager = new PersistentTaskLifecycleManager(persistentTasksService, clusterService);
             manager.registerProjectTask(TASK_NAME, p -> TASK_NAME, enabled::get, () -> TestParams.INSTANCE);
 
@@ -410,19 +405,69 @@ public class PersistentTaskLifecycleManagerTests extends ESTestCase {
         }
     }
 
+    public void testClusterTaskNodeClosedExceptionDoesNotRetry() {
+        final var listener = new AtomicReference<ActionListener<?>>();
+        doAnswer(inv -> {
+            listener.set(inv.getArgument(4));
+            return null;
+        }).when(persistentTasksService).sendClusterStartRequest(any(), any(), any(), any(), any());
+
+        final var enabled = new AtomicBoolean(true);
+        final var nodeSettings = Settings.EMPTY;
+        final var clusterSettings = new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+
+        try (var clusterService = ClusterServiceUtils.createClusterService(threadPool, LOCAL_NODE, nodeSettings, clusterSettings)) {
+            final var manager = new PersistentTaskLifecycleManager(persistentTasksService, clusterService);
+            manager.registerClusterTask(TASK_NAME, enabled::get, () -> TestParams.INSTANCE);
+
+            setState(clusterService, masterState());
+            verify(persistentTasksService, times(1)).sendClusterStartRequest(any(), any(), any(), any(), any());
+
+            listener.getAndSet(null).onFailure(new NodeClosedException(LOCAL_NODE));
+
+            verify(persistentTasksService, times(1)).sendClusterStartRequest(any(), any(), any(), any(), any());
+            verify(persistentTasksService, never()).sendClusterRemoveRequest(any(), any(), any());
+        }
+    }
+
+    public void testProjectTaskNodeClosedExceptionDoesNotRetry() {
+        final var projectId = randomUniqueProjectId();
+        final var listener = new AtomicReference<ActionListener<?>>();
+        doAnswer(inv -> {
+            listener.set(inv.getArgument(5));
+            return null;
+        }).when(persistentTasksService).sendProjectStartRequest(any(), any(), any(), any(), any(), any());
+
+        final var enabled = new AtomicBoolean(true);
+        final var nodeSettings = Settings.EMPTY;
+        final var clusterSettings = new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+
+        try (var clusterService = ClusterServiceUtils.createClusterService(threadPool, LOCAL_NODE, nodeSettings, clusterSettings)) {
+            final var manager = new PersistentTaskLifecycleManager(persistentTasksService, clusterService);
+            manager.registerProjectTask(TASK_NAME, p -> TASK_NAME, enabled::get, () -> TestParams.INSTANCE);
+
+            setState(clusterService, masterStateWithProjects(Set.of(projectId)));
+            verify(persistentTasksService, times(1)).sendProjectStartRequest(any(), any(), any(), any(), any(), any());
+
+            listener.getAndSet(null).onFailure(new NodeClosedException(LOCAL_NODE));
+
+            verify(persistentTasksService, times(1)).sendProjectStartRequest(any(), any(), any(), any(), any(), any());
+            verify(persistentTasksService, never()).sendProjectRemoveRequest(any(), any(), any(), any());
+        }
+    }
+
     public void testNonMasterNeverStartsOrStopsTask() {
         final var nodeSettings = Settings.EMPTY;
         final var clusterSettings = new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        final var localNode = LOCAL_NODE;
         final boolean projectScoped = randomBoolean();
         final var initialState = projectScoped ? nonMasterStateWithProjects(Set.of(ProjectId.DEFAULT)) : nonMasterState();
 
-        try (var clusterService = ClusterServiceUtils.createClusterService(threadPool, localNode, nodeSettings, clusterSettings)) {
+        try (var clusterService = ClusterServiceUtils.createClusterService(threadPool, LOCAL_NODE, nodeSettings, clusterSettings)) {
             final var manager = new PersistentTaskLifecycleManager(persistentTasksService, clusterService);
             if (projectScoped) {
-                manager.registerProjectTask(TASK_NAME, projectId -> TASK_NAME, () -> randomBoolean(), () -> TestParams.INSTANCE);
+                manager.registerProjectTask(TASK_NAME, projectId -> TASK_NAME, ESTestCase::randomBoolean, () -> TestParams.INSTANCE);
             } else {
-                manager.registerClusterTask(TASK_NAME, () -> randomBoolean(), () -> TestParams.INSTANCE);
+                manager.registerClusterTask(TASK_NAME, ESTestCase::randomBoolean, () -> TestParams.INSTANCE);
             }
 
             var state = initialState;

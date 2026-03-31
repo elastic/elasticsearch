@@ -287,9 +287,8 @@ public class SubstituteRoundToTests extends AbstractLocalPhysicalPlanOptimizerTe
         }
     }
 
-    // DateTrunc is transformed to RoundTo first but cannot be transformed to QueryAndTags when the TopN is pushed down to EsQueryExec.
-    // The block loader fallback applies instead, replacing RoundTo with a FunctionEsField-backed FieldAttribute.
-    public void testDateTruncNotTransformToQueryAndTagsButBlockLoaderApplies() {
+    // DateTrunc is transformed to RoundTo first but cannot be transformed to QueryAndTags, when the TopN is pushed down to EsQueryExec
+    public void testDateTruncNotTransformToQueryAndTags() {
         for (String dateHistogram : dateHistograms) {
             if (dateHistogram.contains("bucket")) { // bucket cannot be used outside of stats
                 continue;
@@ -312,8 +311,8 @@ public class SubstituteRoundToTests extends AbstractLocalPhysicalPlanOptimizerTe
             EvalExec evalExec = as(fieldExtractExec.child(), EvalExec.class);
             List<Alias> aliases = evalExec.fields();
             assertEquals(1, aliases.size());
-            FieldAttribute blockLoaderAttr = as(aliases.getFirst().child(), FieldAttribute.class);
-            assertThat(blockLoaderAttr.name(), org.hamcrest.Matchers.startsWith("$$date$ROUND_TO$"));
+            RoundTo roundTo = as(aliases.getFirst().child(), RoundTo.class);
+            assertEquals(4, roundTo.points().size());
             fieldExtractExec = as(evalExec.child(), FieldExtractExec.class);
             EsQueryExec esQueryExec = as(fieldExtractExec.child(), EsQueryExec.class);
             List<EsQueryExec.QueryBuilderAndTags> queryBuilderAndTags = esQueryExec.queryBuilderAndTags();
@@ -475,14 +474,16 @@ public class SubstituteRoundToTests extends AbstractLocalPhysicalPlanOptimizerTe
             EvalExec eval = as(agg.child(), EvalExec.class);
             List<Alias> aliases = eval.fields();
             assertEquals(1, aliases.size());
-            // Block loader fallback applies: RoundTo replaced with FunctionEsField-backed FieldAttribute
-            FieldAttribute blockLoaderAttr = as(aliases.getFirst().child(), FieldAttribute.class);
-            assertThat(blockLoaderAttr.name(), org.hamcrest.Matchers.startsWith("$$date$ROUND_TO$"));
+            RoundTo roundTo = as(aliases.getFirst().child(), RoundTo.class);
+            assertEquals(4, roundTo.points().size());
             FieldExtractExec fieldExtractExec = as(eval.child(), FieldExtractExec.class);
-            LookupJoinExec lookupJoinExec = as(fieldExtractExec.child(), LookupJoinExec.class); // this is why query-and-tags doesn't apply
+            List<Attribute> attributes = fieldExtractExec.attributesToExtract();
+            assertEquals(1, attributes.size());
+            assertEquals("date", attributes.getFirst().name());
+            LookupJoinExec lookupJoinExec = as(fieldExtractExec.child(), LookupJoinExec.class); // this is why the rule doesn't apply
             // lhs of lookup join
             fieldExtractExec = as(lookupJoinExec.left(), FieldExtractExec.class);
-            List<Attribute> attributes = fieldExtractExec.attributesToExtract();
+            attributes = fieldExtractExec.attributesToExtract();
             assertEquals(1, attributes.size());
             assertEquals("integer", attributes.getFirst().name());
             EsQueryExec esQueryExec = as(fieldExtractExec.child(), EsQueryExec.class);

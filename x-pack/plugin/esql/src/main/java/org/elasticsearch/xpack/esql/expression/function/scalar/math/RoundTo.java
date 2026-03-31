@@ -229,36 +229,23 @@ public class RoundTo extends EsqlScalarFunction implements BlockLoaderExpression
         };
     }
 
-    /**
-     * Deferred to the physical optimizer so that {@code ReplaceRoundToWithQueryAndTags}
-     * gets first chance. See {@code ReplaceRoundToWithBlockLoader} for the physical-level fallback.
-     */
     @Override
     public PushedBlockLoaderExpression tryPushToFieldLoading(SearchStats stats) {
-        return null;
-    }
-
-    /**
-     * Build the block loader config for this RoundTo, if possible.
-     * Returns null when the expression can't be pushed to a block loader
-     * (wrong type, non-literal points, capability not enabled, etc.).
-     */
-    public BlockLoaderFunctionConfig.RoundToLongs blockLoaderConfig() {
         if (ROUND_TO_BLOCK_LOADER.isEnabled() == false) {
             return null;
         }
-        if (field instanceof FieldAttribute == false) {
-            return null;
+        if (field instanceof FieldAttribute f) {
+            DataType dt = dataType();
+            if (dt != LONG && dt != DATETIME && dt != DATE_NANOS) {
+                return null;
+            }
+            long[] sortedPoints = sortedLongPoints();
+            if (sortedPoints == null) {
+                return null;
+            }
+            return new PushedBlockLoaderExpression(f, new BlockLoaderFunctionConfig.RoundToLongs(sortedPoints));
         }
-        DataType dt = dataType();
-        if (dt != LONG && dt != DATETIME && dt != DATE_NANOS) {
-            return null;
-        }
-        long[] sorted = sortedLongPoints();
-        if (sorted == null) {
-            return null;
-        }
-        return new BlockLoaderFunctionConfig.RoundToLongs(sorted);
+        return null;
     }
 
     private long[] sortedLongPoints() {

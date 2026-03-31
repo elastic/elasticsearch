@@ -558,7 +558,8 @@ public class TransportStopDatafeedAction extends TransportTasksAction<
 
                 @Override
                 protected void doRun() {
-                    datafeedTask.stop("stop_datafeed (api)", request.getStopTimeout());
+                    // Honor close_job on the request: when false, do not auto-close lookback-only jobs (see #139024).
+                    datafeedTask.stop("stop_datafeed (api)", request.getStopTimeout(), request.closeJob());
                     listener.onResponse(new StopDatafeedAction.Response(true));
                 }
             });

@@ -153,10 +153,26 @@ public class DatafeedRunner {
     }
 
     public void stopDatafeed(TransportStartDatafeedAction.DatafeedTask task, String reason, TimeValue timeout) {
+        stopDatafeed(task, reason, timeout, null);
+    }
+
+    /**
+     * @param autoCloseJobOverride if non-null, whether to auto-close the job when the datafeed stops; if null, use the
+     *                             default (lookback-only datafeeds auto-close when stopped — for example after natural
+     *                             lookback completion). API-driven stops pass {@code false} when {@code close_job} is false
+     *                             on the stop request so the job stays open as documented.
+     */
+    public void stopDatafeed(
+        TransportStartDatafeedAction.DatafeedTask task,
+        String reason,
+        TimeValue timeout,
+        Boolean autoCloseJobOverride
+    ) {
         logger.info("[{}] attempt to stop datafeed [{}] [{}]", reason, task.getDatafeedId(), task.getAllocationId());
         Holder holder = runningDatafeedsOnThisNode.remove(task.getAllocationId());
         if (holder != null) {
-            holder.stop(reason, timeout, null);
+            boolean autoCloseJob = autoCloseJobOverride != null ? autoCloseJobOverride : task.isLookbackOnly();
+            holder.stop(reason, timeout, null, autoCloseJob, null);
         }
     }
 

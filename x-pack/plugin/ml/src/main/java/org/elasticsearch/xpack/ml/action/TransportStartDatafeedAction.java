@@ -660,13 +660,21 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
         }
 
         public void stop(String reason, TimeValue timeout) {
+            stop(reason, timeout, null);
+        }
+
+        /**
+         * @param autoCloseJobOverride if non-null, passed to {@link DatafeedRunner#stopDatafeed}; if null, default
+         *                             lookback-only auto-close behavior applies (see {@link #isLookbackOnly()}).
+         */
+        public void stop(String reason, TimeValue timeout, Boolean autoCloseJobOverride) {
             synchronized (this) {
                 stoppedOrIsolated = StoppedOrIsolated.STOPPED;
                 if (datafeedRunner == null) {
                     return;
                 }
             }
-            datafeedRunner.stopDatafeed(this, reason, timeout);
+            datafeedRunner.stopDatafeed(this, reason, timeout, autoCloseJobOverride);
         }
 
         public synchronized StoppedOrIsolated getStoppedOrIsolated() {

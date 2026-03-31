@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.index.reindex;
+package org.elasticsearch.reindex;
 
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.ActionListener;
@@ -26,6 +26,8 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.reindex.BulkByScrollTask;
+import org.elasticsearch.index.reindex.ResumeInfo;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
@@ -51,6 +53,9 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.IntStream;
 
+import static java.lang.Math.abs;
+import static java.util.stream.Collectors.toList;
+import static org.apache.lucene.tests.util.TestUtil.randomSimpleString;
 import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 import static org.elasticsearch.core.TimeValue.timeValueMinutes;
 import static org.hamcrest.Matchers.equalTo;
@@ -105,7 +110,7 @@ public class ClientPitPaginatedHitSourceTests extends ESTestCase {
             PIT_ID,
             searchAfterValues,
             System.currentTimeMillis(),
-            BulkByScrollTaskStatusTests.randomStatusWithoutException(),
+            randomStatusWithoutException(),
             null
         );
 
@@ -390,6 +395,51 @@ public class ClientPitPaginatedHitSourceTests extends ESTestCase {
             assertEquals(actual.get(i).getSeqNo(), expected[i].getSeqNo());
             assertEquals(actual.get(i).getId(), expected[i].getId());
         }
+    }
+
+    private static BulkByScrollTask.Status randomStatusWithoutException() {
+        if (randomBoolean()) {
+            return randomWorkingStatus(null);
+        }
+        boolean canHaveNullStatues = randomBoolean();
+        List<BulkByScrollTask.StatusOrException> statuses = IntStream.range(0, between(0, 10)).mapToObj(i -> {
+            if (canHaveNullStatues && rarely()) {
+                return null;
+            }
+            return new BulkByScrollTask.StatusOrException(randomWorkingStatus(i));
+        }).collect(toList());
+        return new BulkByScrollTask.Status(statuses, randomBoolean() ? "test" : null);
+    }
+
+    private static BulkByScrollTask.Status randomWorkingStatus(Integer sliceId) {
+        int total = between(0, 10000000);
+        int updated = between(0, total);
+        int created = between(0, total - updated);
+        int deleted = between(0, total - updated - created);
+        int noops = total - updated - created - deleted;
+        int batches = between(0, 10000);
+        long versionConflicts = between(0, total);
+        long bulkRetries = between(0, 10000000);
+        long searchRetries = between(0, 100000);
+        TimeUnit[] timeUnits = { TimeUnit.MILLISECONDS, TimeUnit.SECONDS, TimeUnit.MINUTES, TimeUnit.HOURS, TimeUnit.DAYS };
+        TimeValue throttled = new TimeValue(randomIntBetween(0, 1000), randomFrom(timeUnits));
+        TimeValue throttledUntil = new TimeValue(randomIntBetween(0, 1000), randomFrom(timeUnits));
+        return new BulkByScrollTask.Status(
+            sliceId,
+            total,
+            updated,
+            created,
+            deleted,
+            batches,
+            versionConflicts,
+            noops,
+            bulkRetries,
+            searchRetries,
+            throttled,
+            abs(randomFloat()),
+            randomBoolean() ? null : randomSimpleString(random()),
+            throttledUntil
+        );
     }
 
     private static class ExecuteRequest<Request extends ActionRequest, Response extends ActionResponse> {

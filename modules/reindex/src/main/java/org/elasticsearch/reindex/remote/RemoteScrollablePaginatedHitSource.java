@@ -24,10 +24,8 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.reindex.RejectAwareActionListener;
 import org.elasticsearch.index.reindex.RemoteInfo;
 import org.elasticsearch.index.reindex.ResumeInfo.ScrollWorkerResumeInfo;
-import org.elasticsearch.index.reindex.ResumeInfo.WorkerResumeInfo;
 import org.elasticsearch.reindex.ClientScrollablePaginatedHitSource;
-import org.elasticsearch.reindex.PaginatedHitSource;
-import org.elasticsearch.index.reindex.ScrollablePaginatedHitSource;
+import org.elasticsearch.reindex.ScrollablePaginatedHitSource;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;

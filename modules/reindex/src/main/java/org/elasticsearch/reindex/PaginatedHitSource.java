@@ -12,7 +12,6 @@ package org.elasticsearch.reindex;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.BackoffPolicy;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -195,7 +194,13 @@ public abstract class PaginatedHitSource {
         private final Object[] searchAfterValues;
         private final BytesReference pitId;
 
-        public Response(boolean timedOut, List<PaginatedSearchFailure> failures, long totalHits, List<? extends Hit> hits, String scrollId) {
+        public Response(
+            boolean timedOut,
+            List<PaginatedSearchFailure> failures,
+            long totalHits,
+            List<? extends Hit> hits,
+            String scrollId
+        ) {
             this(timedOut, failures, totalHits, hits, scrollId, null, null);
         }
 

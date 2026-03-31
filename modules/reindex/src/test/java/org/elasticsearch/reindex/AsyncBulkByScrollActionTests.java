@@ -59,11 +59,6 @@ import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.BulkByScrollTask;
-import org.elasticsearch.index.reindex.ClientPitPaginatedHitSource;
-import org.elasticsearch.index.reindex.ClientScrollablePaginatedHitSource;
-import org.elasticsearch.index.reindex.PaginatedHitSource;
-import org.elasticsearch.index.reindex.PaginatedHitSource.Hit;
-import org.elasticsearch.index.reindex.PaginatedHitSource.SearchFailure;
 import org.elasticsearch.index.reindex.PaginatedSearchFailure;
 import org.elasticsearch.index.reindex.ResumeInfo;
 import org.elasticsearch.index.reindex.WorkerBulkByScrollTaskState;
@@ -229,7 +224,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
     private PaginatedHitSource.Response createPaginatedResponse(
         boolean usePit,
         boolean timedOut,
-        List<SearchFailure> failures,
+        List<PaginatedSearchFailure> failures,
         long totalHits,
         List<? extends Hit> hits,
         String scrollIdOrNull,

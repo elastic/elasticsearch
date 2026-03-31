@@ -54,6 +54,8 @@ public class PrometheusInstantQueryRestAction extends BaseRestHandler {
     private static final String INDEX_PARAM = "index";
     private static final String QUERY_PARAM = "query";
     private static final String TIME_PARAM = "time";
+    private static final String LIMIT_PARAM = "limit";
+    private static final int DEFAULT_LIMIT = 0; // 0 = no limit, matching Prometheus semantics
     private static final String STEP = "5m";
 
     @Override
@@ -70,6 +72,7 @@ public class PrometheusInstantQueryRestAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
         String query = getRequiredParam(request, QUERY_PARAM);
         String index = request.param(INDEX_PARAM, "*");
+        int limit = request.paramAsInt(LIMIT_PARAM, DEFAULT_LIMIT);
 
         String timeStr = request.param(TIME_PARAM);
         Instant endInstant = timeStr != null && timeStr.isEmpty() == false
@@ -86,7 +89,11 @@ public class PrometheusInstantQueryRestAction extends BaseRestHandler {
         return channel -> client.execute(
             EsqlQueryAction.INSTANCE,
             esqlRequest,
-            new PrometheusQueryResponseListener(channel, PrometheusQueryResponseListener.QueryMode.INSTANT)
+            new PrometheusQueryResponseListener(
+                channel,
+                PrometheusQueryResponseListener.QueryMode.INSTANT,
+                limit == 0 ? Integer.MAX_VALUE : limit
+            )
         );
     }
 

@@ -62,10 +62,12 @@ class PrometheusQueryResponseListener implements ActionListener<EsqlQueryRespons
 
     private final RestChannel channel;
     private final QueryMode mode;
+    private final int limit;
 
-    PrometheusQueryResponseListener(RestChannel channel, QueryMode mode) {
+    PrometheusQueryResponseListener(RestChannel channel, QueryMode mode, int limit) {
         this.channel = channel;
         this.mode = mode;
+        this.limit = limit;
     }
 
     @Override
@@ -75,7 +77,7 @@ class PrometheusQueryResponseListener implements ActionListener<EsqlQueryRespons
         // and crash the node.
         try {
             EsqlResponse response = queryResponse.response();
-            XContentBuilder builder = convertToPrometheusJson(response, mode);
+            XContentBuilder builder = convertToPrometheusJson(response, mode, limit);
             channel.sendResponse(new RestResponse(RestStatus.OK, builder));
         } catch (Exception e) {
             sendErrorResponse(e);
@@ -105,6 +107,10 @@ class PrometheusQueryResponseListener implements ActionListener<EsqlQueryRespons
      * </ol>
      */
     static XContentBuilder convertToPrometheusJson(EsqlResponse response, QueryMode mode) throws IOException {
+        return convertToPrometheusJson(response, mode, Integer.MAX_VALUE);
+    }
+
+    static XContentBuilder convertToPrometheusJson(EsqlResponse response, QueryMode mode, int limit) throws IOException {
         List<? extends ColumnInfo> columns = response.columns();
         if (columns.size() < 1 || VALUE_COLUMN.equals(columns.get(VALUE_COL_IDX).name()) == false) {
             throw new IllegalStateException("PROMQL response is missing required 'value' column at index " + VALUE_COL_IDX);
@@ -117,6 +123,7 @@ class PrometheusQueryResponseListener implements ActionListener<EsqlQueryRespons
         final boolean useSeriesCol = columns.size() > 2 && MetadataAttribute.TIMESERIES.equals(columns.get(DIMENSION_COL_START_IDX).name());
 
         Map<String, SeriesData> seriesMap = new LinkedHashMap<>();
+        boolean truncated = false;
 
         for (Iterable<Object> row : response.rows()) {
             Object[] values = toArray(row, columns.size());
@@ -139,19 +146,20 @@ class PrometheusQueryResponseListener implements ActionListener<EsqlQueryRespons
                 seriesKey = keyBuilder.toString();
             }
 
-            String sampleValue = formatSampleValue(values[VALUE_COL_IDX]);
-            double timestamp = parseTimestamp(values[stepColIdx]);
-
             SeriesData series = seriesMap.get(seriesKey);
             if (series == null) {
+                if (seriesMap.size() >= limit) {
+                    truncated = true;
+                    continue;
+                }
                 series = new SeriesData(useSeriesCol ? seriesKey : null, metric);
                 seriesMap.put(seriesKey, series);
             }
-            series.values.add(new double[] { timestamp });
-            series.stringValues.add(sampleValue);
+            series.values.add(new double[] { parseTimestamp(values[stepColIdx]) });
+            series.stringValues.add(formatSampleValue(values[VALUE_COL_IDX]));
         }
 
-        return buildSuccessJson(seriesMap, mode);
+        return buildSuccessJson(seriesMap, mode, truncated);
     }
 
     private static Object[] toArray(Iterable<Object> row, int size) {
@@ -195,7 +203,8 @@ class PrometheusQueryResponseListener implements ActionListener<EsqlQueryRespons
         return value.toString();
     }
 
-    private static XContentBuilder buildSuccessJson(Map<String, SeriesData> seriesMap, QueryMode mode) throws IOException {
+    private static XContentBuilder buildSuccessJson(Map<String, SeriesData> seriesMap, QueryMode mode, boolean truncated)
+        throws IOException {
         XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.startObject();
         builder.field("status", "success");
@@ -239,6 +248,11 @@ class PrometheusQueryResponseListener implements ActionListener<EsqlQueryRespons
 
         builder.endArray(); // result
         builder.endObject(); // data
+        if (truncated) {
+            builder.startArray("warnings");
+            builder.value("results truncated due to limit");
+            builder.endArray();
+        }
         builder.endObject(); // root
         return builder;
     }

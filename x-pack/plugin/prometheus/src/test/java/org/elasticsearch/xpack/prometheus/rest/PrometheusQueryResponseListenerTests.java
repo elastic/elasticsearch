@@ -283,6 +283,105 @@ public class PrometheusQueryResponseListenerTests extends ESTestCase {
     }
 
     // -------------------------------------------------------------------------
+    // Limit tests
+    // -------------------------------------------------------------------------
+
+    public void testLimitTruncatesSeriesInRangeQuery() throws IOException {
+        List<TestColumnInfo> columns = List.of(
+            new TestColumnInfo("value", "double"),
+            new TestColumnInfo("job", "keyword"),
+            new TestColumnInfo("step", "long")
+        );
+
+        // Three series — limit=2 should keep only the first two and add a warning
+        List<List<Object>> rows = List.of(
+            List.of(1.0, "a", 1735689600000L),
+            List.of(2.0, "b", 1735689600000L),
+            List.of(3.0, "c", 1735689600000L)
+        );
+
+        EsqlResponse response = new TestEsqlResponse(columns, rows);
+        try (XContentBuilder builder = PrometheusQueryResponseListener.convertToPrometheusJson(response, QueryMode.RANGE, 2)) {
+            ObjectPath path = toObjectPath(builder);
+            assertSuccessMatrix(path);
+            assertThat(path.evaluate("data.result"), hasSize(2));
+            assertThat(path.evaluate("warnings.0"), equalTo("results truncated due to limit"));
+        }
+    }
+
+    public void testLimitTruncatesSeriesInInstantQuery() throws IOException {
+        List<TestColumnInfo> columns = List.of(
+            new TestColumnInfo("value", "double"),
+            new TestColumnInfo("job", "keyword"),
+            new TestColumnInfo("step", "long")
+        );
+
+        List<List<Object>> rows = List.of(
+            List.of(1.0, "a", 1735689600000L),
+            List.of(2.0, "b", 1735689600000L),
+            List.of(3.0, "c", 1735689600000L)
+        );
+
+        EsqlResponse response = new TestEsqlResponse(columns, rows);
+        try (XContentBuilder builder = PrometheusQueryResponseListener.convertToPrometheusJson(response, QueryMode.INSTANT, 2)) {
+            ObjectPath path = toObjectPath(builder);
+            assertSuccessVector(path);
+            assertThat(path.evaluate("data.result"), hasSize(2));
+            assertThat(path.evaluate("warnings.0"), equalTo("results truncated due to limit"));
+        }
+    }
+
+    public void testMaxValueLimitMeansNoLimit() throws IOException {
+        List<TestColumnInfo> columns = List.of(
+            new TestColumnInfo("value", "double"),
+            new TestColumnInfo("job", "keyword"),
+            new TestColumnInfo("step", "long")
+        );
+
+        List<List<Object>> rows = List.of(
+            List.of(1.0, "a", 1735689600000L),
+            List.of(2.0, "b", 1735689600000L),
+            List.of(3.0, "c", 1735689600000L)
+        );
+
+        EsqlResponse response = new TestEsqlResponse(columns, rows);
+        try (
+            XContentBuilder builder = PrometheusQueryResponseListener.convertToPrometheusJson(response, QueryMode.RANGE, Integer.MAX_VALUE)
+        ) {
+            ObjectPath path = toObjectPath(builder);
+            assertSuccessMatrix(path);
+            assertThat(path.evaluate("data.result"), hasSize(3));
+            assertThat(path.evaluate("warnings"), equalTo(null));
+        }
+    }
+
+    public void testLimitKeepsAllSamplesForRemainingSeriesAfterTruncation() throws IOException {
+        // After limit is reached, existing series still receive all their samples
+        List<TestColumnInfo> columns = List.of(
+            new TestColumnInfo("value", "double"),
+            new TestColumnInfo("job", "keyword"),
+            new TestColumnInfo("step", "long")
+        );
+
+        // Series "a" has two samples; series "b" is beyond limit=1 and must be dropped entirely
+        List<List<Object>> rows = List.of(
+            List.of(1.0, "a", 1735689600000L),
+            List.of(2.0, "b", 1735689600000L),
+            List.of(3.0, "a", 1735689660000L)
+        );
+
+        EsqlResponse response = new TestEsqlResponse(columns, rows);
+        try (XContentBuilder builder = PrometheusQueryResponseListener.convertToPrometheusJson(response, QueryMode.RANGE, 1)) {
+            ObjectPath path = toObjectPath(builder);
+            assertSuccessMatrix(path);
+            assertThat(path.evaluate("data.result"), hasSize(1));
+            // The one kept series must have both its samples (even though a truncated series appeared between them)
+            assertThat(path.evaluate("data.result.0.values"), hasSize(2));
+            assertThat(path.evaluate("warnings.0"), equalTo("results truncated due to limit"));
+        }
+    }
+
+    // -------------------------------------------------------------------------
     // Shared helper tests
     // -------------------------------------------------------------------------
 

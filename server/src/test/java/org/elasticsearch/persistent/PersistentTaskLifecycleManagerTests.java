@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -50,6 +51,10 @@ import static org.mockito.Mockito.verify;
 
 public class PersistentTaskLifecycleManagerTests extends ESTestCase {
     private static final String LOCAL_NODE_ID = "local";
+    private static final String ANOTHER_NODE_ID = "another-node";
+    private static final DiscoveryNode LOCAL_NODE = DiscoveryNodeUtils.create(LOCAL_NODE_ID);
+    private static final DiscoveryNode ANOTHER_NODE = DiscoveryNodeUtils.create(ANOTHER_NODE_ID);
+
     private static final String TASK_NAME = "test_lifecycle_task";
     private static final Setting<Boolean> TASK_ENABLED_SETTING = Setting.boolSetting(
         "test.task.enabled",
@@ -79,14 +84,13 @@ public class PersistentTaskLifecycleManagerTests extends ESTestCase {
 
         final var nodeSettings = Settings.EMPTY;
         final var clusterSettings = new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        final var localNode = DiscoveryNodeUtils.create(LOCAL_NODE_ID);
+        final var localNode = LOCAL_NODE;
         final var enabled = new AtomicBoolean(randomBoolean());
-        final var initialState = masterState();
 
         try (
             ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool, localNode, nodeSettings, clusterSettings)
         ) {
-            setState(clusterService, initialState);
+            setState(clusterService, masterState());
             final var manager = new PersistentTaskLifecycleManager(persistentTasksService, clusterService);
             manager.registerClusterTask(TASK_NAME, enabled::get, () -> TestParams.INSTANCE);
 
@@ -96,7 +100,7 @@ public class PersistentTaskLifecycleManagerTests extends ESTestCase {
             final int cycles = randomIntBetween(5, 10);
             for (int i = 0; i < cycles; i++) {
                 final boolean taskExists = randomBoolean();
-                final var state = taskExists ? stateWithClusterTask(initialState) : initialState;
+                final var state = taskExists ? stateWithClusterTask(masterState()) : masterState();
                 if (randomBoolean()) {
                     enabled.set(randomBoolean());
                 }
@@ -122,14 +126,14 @@ public class PersistentTaskLifecycleManagerTests extends ESTestCase {
         }
     }
 
-    public void testClusterTaskReconciliationFromSetting() {
+    public void testSettingsCorrectlyPropagatedToClusterTaskReconciliation() {
         doAnswer(completesImmediately(4)).when(persistentTasksService).sendClusterStartRequest(any(), any(), any(), any(), any());
         doAnswer(completesImmediately(2)).when(persistentTasksService).sendClusterRemoveRequest(any(), any(), any());
 
         final var nodeSettings = Settings.builder().put(TASK_ENABLED_SETTING.getKey(), false).build();
         final var allSettings = Sets.union(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS, Set.of(TASK_ENABLED_SETTING));
         final var clusterSettings = new ClusterSettings(nodeSettings, allSettings);
-        final var localNode = DiscoveryNodeUtils.create(LOCAL_NODE_ID);
+        final var localNode = LOCAL_NODE;
 
         try (var clusterService = ClusterServiceUtils.createClusterService(threadPool, localNode, nodeSettings, clusterSettings)) {
             final var manager = new PersistentTaskLifecycleManager(persistentTasksService, clusterService);
@@ -169,7 +173,7 @@ public class PersistentTaskLifecycleManagerTests extends ESTestCase {
         final var enabled = new AtomicBoolean();
         final var nodeSettings = Settings.EMPTY;
         final var clusterSettings = new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        final var localNode = DiscoveryNodeUtils.create(LOCAL_NODE_ID);
+        final var localNode = LOCAL_NODE;
 
         try (var clusterService = ClusterServiceUtils.createClusterService(threadPool, localNode, nodeSettings, clusterSettings)) {
             final var manager = new PersistentTaskLifecycleManager(persistentTasksService, clusterService);
@@ -223,7 +227,7 @@ public class PersistentTaskLifecycleManagerTests extends ESTestCase {
         final var baseState = masterStateWithProjects(Set.of(projectId1, projectId2));
         final var nodeSettings = Settings.EMPTY;
         final var clusterSettings = new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        final var localNode = DiscoveryNodeUtils.create(LOCAL_NODE_ID);
+        final var localNode = LOCAL_NODE;
 
         try (var clusterService = ClusterServiceUtils.createClusterService(threadPool, localNode, nodeSettings, clusterSettings)) {
             setState(clusterService, baseState);
@@ -242,7 +246,8 @@ public class PersistentTaskLifecycleManagerTests extends ESTestCase {
                 if (randomBoolean()) {
                     enabled.set(randomBoolean());
                 }
-                var state = taskExists1 ? stateWithProjectTask(baseState, projectId1, TASK_NAME) : baseState;
+                var state = masterStateWithProjects(Set.of(projectId1, projectId2));
+                state = taskExists1 ? stateWithProjectTask(state, projectId1, TASK_NAME) : state;
                 state = taskExists2 ? stateWithProjectTask(state, projectId2, TASK_NAME) : state;
                 setState(clusterService, state);
                 if (enabled.get() && taskExists1 == false) expectedStartRequests1++;
@@ -284,7 +289,7 @@ public class PersistentTaskLifecycleManagerTests extends ESTestCase {
         }
     }
 
-    public void testProjectTaskReconciliationFromSetting() {
+    public void testSettingsCorrectlyPropagatedToProjectTaskReconciliation() {
         doAnswer(completesImmediately(5)).when(persistentTasksService).sendProjectStartRequest(any(), any(), any(), any(), any(), any());
         doAnswer(completesImmediately(3)).when(persistentTasksService).sendProjectRemoveRequest(any(), any(), any(), any());
 
@@ -292,7 +297,7 @@ public class PersistentTaskLifecycleManagerTests extends ESTestCase {
         final var nodeSettings = Settings.builder().put(TASK_ENABLED_SETTING.getKey(), true).build();
         final var allSettings = Sets.union(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS, Set.of(TASK_ENABLED_SETTING));
         final var clusterSettings = new ClusterSettings(nodeSettings, allSettings);
-        final var localNode = DiscoveryNodeUtils.create(LOCAL_NODE_ID);
+        final var localNode = LOCAL_NODE;
         final var stateWithProject = masterStateWithProjects(Set.of(projectId));
 
         try (var clusterService = ClusterServiceUtils.createClusterService(threadPool, localNode, nodeSettings, clusterSettings)) {
@@ -340,11 +345,9 @@ public class PersistentTaskLifecycleManagerTests extends ESTestCase {
         }).when(persistentTasksService).sendProjectRemoveRequest(any(), any(), any(), any());
 
         final var enabled = new AtomicBoolean();
-        final var baseState = masterStateWithProjects(Set.of(projectId));
-        final var stateWithTask = stateWithProjectTask(baseState, projectId, TASK_NAME);
         final var nodeSettings = Settings.EMPTY;
         final var clusterSettings = new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        final var localNode = DiscoveryNodeUtils.create(LOCAL_NODE_ID);
+        final var localNode = LOCAL_NODE;
 
         try (var clusterService = ClusterServiceUtils.createClusterService(threadPool, localNode, nodeSettings, clusterSettings)) {
             final var manager = new PersistentTaskLifecycleManager(persistentTasksService, clusterService);
@@ -356,7 +359,8 @@ public class PersistentTaskLifecycleManagerTests extends ESTestCase {
             for (int cycle = 0; cycle < 10; cycle++) {
                 final boolean sendStart = randomBoolean();
                 enabled.set(sendStart);
-                setState(clusterService, sendStart ? baseState : stateWithTask); // triggers the first request
+                final var initialState = masterStateWithProjects(Set.of(projectId));
+                setState(clusterService, sendStart ? initialState : stateWithProjectTask(initialState, projectId, TASK_NAME));
 
                 if (sendStart) expectedStartRequests++;
                 else expectedRemoveRequests++;
@@ -364,7 +368,8 @@ public class PersistentTaskLifecycleManagerTests extends ESTestCase {
                 // A request is still in flight -> no new requests should be sent.
                 for (int j = 0; j < 10; j++) {
                     enabled.set(randomBoolean());
-                    setState(clusterService, randomBoolean() ? baseState : stateWithTask);
+                    final var newState = masterStateWithProjects(Set.of(projectId));
+                    setState(clusterService, randomBoolean() ? newState : stateWithProjectTask(newState, projectId, TASK_NAME));
                 }
 
                 verify(persistentTasksService, times(expectedStartRequests)).sendProjectStartRequest(
@@ -408,7 +413,7 @@ public class PersistentTaskLifecycleManagerTests extends ESTestCase {
     public void testNonMasterNeverStartsOrStopsTask() {
         final var nodeSettings = Settings.EMPTY;
         final var clusterSettings = new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        final var localNode = DiscoveryNodeUtils.create(LOCAL_NODE_ID);
+        final var localNode = LOCAL_NODE;
         final boolean projectScoped = randomBoolean();
         final var initialState = projectScoped ? nonMasterStateWithProjects(Set.of(ProjectId.DEFAULT)) : nonMasterState();
 
@@ -441,6 +446,12 @@ public class PersistentTaskLifecycleManagerTests extends ESTestCase {
         };
     }
 
+    /// Returns a new [ClusterState] with a fresh [Metadata] reference but identical content,
+    /// so that `metadataChanged()` returns `true` without allocating new discovery nodes.
+    private static ClusterState withFreshMetadata(ClusterState base) {
+        return ClusterState.builder(base).metadata(Metadata.builder(base.metadata())).build();
+    }
+
     private static ClusterState stateWithPersistentSetting(ClusterState state, String key, boolean value) {
         return ClusterState.builder(state)
             .metadata(Metadata.builder(state.metadata()).persistentSettings(Settings.builder().put(key, value).build()))
@@ -448,18 +459,12 @@ public class PersistentTaskLifecycleManagerTests extends ESTestCase {
     }
 
     private static ClusterState masterState() {
-        final var nodes = DiscoveryNodes.builder()
-            .add(DiscoveryNodeUtils.create(LOCAL_NODE_ID))
-            .localNodeId(LOCAL_NODE_ID)
-            .masterNodeId(LOCAL_NODE_ID);
+        final var nodes = DiscoveryNodes.builder().add(LOCAL_NODE).localNodeId(LOCAL_NODE_ID).masterNodeId(LOCAL_NODE_ID);
         return ClusterState.builder(ClusterName.DEFAULT).nodes(nodes).metadata(Metadata.builder()).build();
     }
 
     private static ClusterState masterStateWithProjects(Set<ProjectId> projectIds) {
-        final var nodes = DiscoveryNodes.builder()
-            .add(DiscoveryNodeUtils.create(LOCAL_NODE_ID))
-            .localNodeId(LOCAL_NODE_ID)
-            .masterNodeId(LOCAL_NODE_ID);
+        final var nodes = DiscoveryNodes.builder().add(LOCAL_NODE).localNodeId(LOCAL_NODE_ID).masterNodeId(LOCAL_NODE_ID);
         final var metadata = Metadata.builder();
         for (var projectId : projectIds) {
             metadata.put(ProjectMetadata.builder(projectId));
@@ -473,10 +478,10 @@ public class PersistentTaskLifecycleManagerTests extends ESTestCase {
 
     private static ClusterState nonMasterStateWithProjects(Set<ProjectId> projectIds) {
         final var nodes = DiscoveryNodes.builder()
-            .add(DiscoveryNodeUtils.create(LOCAL_NODE_ID))
+            .add(LOCAL_NODE)
             .localNodeId(LOCAL_NODE_ID)
-            .add(DiscoveryNodeUtils.create("another-node"))
-            .masterNodeId("another-node");
+            .add(ANOTHER_NODE)
+            .masterNodeId(ANOTHER_NODE_ID);
         final var metadata = Metadata.builder();
         for (var projectId : projectIds) {
             metadata.put(ProjectMetadata.builder(projectId));

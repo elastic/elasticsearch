@@ -42,8 +42,7 @@ import java.util.function.Supplier;
 ///
 /// Both cluster-scoped and project-scoped tasks are supported. Cluster tasks can be registered via
 /// [#registerClusterTask], and project tasks via [#registerProjectTask].
-/// Each registration method has two variants: one accepting a [BooleanSupplier] for arbitrary enabled logic,
-/// and one accepting a [Setting] whose value is watched for dynamic updates.
+/// Each registration method accepts a [Setting] whose value is watched for dynamic updates.
 /// Reconciliation runs independently for every project in the cluster state.
 ///
 /// At most one request is in flight at a time per task (per project for project-scoped tasks). If the
@@ -77,15 +76,6 @@ public final class PersistentTaskLifecycleManager implements ClusterStateListene
         clusterService.addListener(this);
     }
 
-    /// Registers a cluster-scoped task.
-    ///
-    /// @param taskName       the task name, also used as the task ID in cluster state
-    /// @param enabled        called on each cluster state update to determine whether the task should be running
-    /// @param paramsSupplier called only when a start request is needed
-    public void registerClusterTask(String taskName, BooleanSupplier enabled, Supplier<? extends PersistentTaskParams> paramsSupplier) {
-        clusterRegistrations.add(new ClusterTaskRegistration(taskName, enabled, paramsSupplier));
-    }
-
     /// Registers a cluster-scoped task whose enabled state is driven by a [Setting].
     /// The manager watches the setting for dynamic changes and reconciles accordingly.
     ///
@@ -102,20 +92,9 @@ public final class PersistentTaskLifecycleManager implements ClusterStateListene
         registerClusterTask(taskName, enabled::get, paramsSupplier);
     }
 
-    /// Registers a project-scoped task.
-    /// The task is reconciled independently for every project present in the cluster state.
-    ///
-    /// @param taskName       the task name, used to identify the executor
-    /// @param taskIdFn       maps a [ProjectId] to the task ID stored in that project's task metadata
-    /// @param enabled        called on each reconciliation to determine whether the task should be running
-    /// @param paramsSupplier called only when a start request is needed
-    public void registerProjectTask(
-        String taskName,
-        Function<ProjectId, String> taskIdFn,
-        BooleanSupplier enabled,
-        Supplier<? extends PersistentTaskParams> paramsSupplier
-    ) {
-        projectRegistrations.add(new ProjectTaskRegistration(taskName, taskIdFn, enabled, paramsSupplier));
+    // visible for testing
+    void registerClusterTask(String taskName, BooleanSupplier enabled, Supplier<? extends PersistentTaskParams> paramsSupplier) {
+        clusterRegistrations.add(new ClusterTaskRegistration(taskName, enabled, paramsSupplier));
     }
 
     /// Registers a project-scoped task whose enabled state is driven by a [Setting].
@@ -136,12 +115,25 @@ public final class PersistentTaskLifecycleManager implements ClusterStateListene
         registerProjectTask(taskName, taskIdFn, enabled::get, paramsSupplier);
     }
 
+    // visible for testing
+    void registerProjectTask(
+        String taskName,
+        Function<ProjectId, String> taskIdFn,
+        BooleanSupplier enabled,
+        Supplier<? extends PersistentTaskParams> paramsSupplier
+    ) {
+        projectRegistrations.add(new ProjectTaskRegistration(taskName, taskIdFn, enabled, paramsSupplier));
+    }
+
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
         if (event.state().nodes().getMasterNode() == null || event.state().clusterRecovered() == false) {
             return;
         }
         if (event.localNodeMaster() == false) {
+            return;
+        }
+        if (event.metadataChanged() == false && event.nodesChanged() == false) {
             return;
         }
         reconcile(event.state());

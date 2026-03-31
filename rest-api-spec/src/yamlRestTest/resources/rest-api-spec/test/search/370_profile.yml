@@ -603,7 +603,8 @@ profile includes coordinator request metadata:
 
   - is_true: profile.request
   - length: { profile.request.indices: 1 }
-  - match: { profile.request.indices.0: pr_coordinator_meta_alias }
+    # Handle both the CCS and the non-CCS case in matching the returned target index.
+  - match: { profile.request.indices.0: "/(remote_cluster:)?pr_coordinator_meta_alias/" }
   - match: { profile.request.source.profile: true }
   - match: { profile.request.source.size: 3 }
   - match: { profile.request.source.query.term.keyword.value: "a" }

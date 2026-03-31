@@ -190,7 +190,7 @@ static inline cosine_results_t cosi8_inner(const int8_t* a, const int8_t* b, con
 EXPORT f32_t vec_cosi8(const int8_t* a, const int8_t* b, const int32_t dims) {
     cosine_results_t res = cosine_results_t { 0, 0, 0 };
     int i = 0;
-    if (dims > sizeof(__m128i)) {
+    if (dims >= sizeof(__m128i)) {
         i += dims & ~(sizeof(__m128i) - 1);
         res = cosi8_inner(a, b, i);
     }

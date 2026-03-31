@@ -121,12 +121,19 @@ static inline int32_t call_i7u_inner_avx512(const int8_t* a, const int8_t* b, co
 static inline int32_t dot7u_inner(const int8_t* a, const int8_t* b, const int32_t dims) {
     int32_t res = 0;
     int i = 0;
-    if (dims > STRIDE_BYTES_LEN) {
+    if (dims >= STRIDE_BYTES_LEN) {
         i += dims & ~(STRIDE_BYTES_LEN - 1);
         res = call_i7u_inner_avx512<fma8>(a, b, i);
     }
-    for (; i < dims; i++) {
-        res += a[i] * b[i];
+    // Masked tail: handle remaining elements (< 64) with a single masked SIMD iteration
+    const int remaining = dims - i;
+    if (remaining > 0) {
+        const __mmask64 mask = (__mmask64)((1ULL << remaining) - 1);
+        const __m512i va = _mm512_maskz_loadu_epi8(mask, a + i);
+        const __m512i vb = _mm512_maskz_loadu_epi8(mask, b + i);
+        const __m512i vab = _mm512_maddubs_epi16(va, vb);
+        const __m512i ones = _mm512_set1_epi16(1);
+        res += _mm512_reduce_add_epi32(_mm512_madd_epi16(ones, vab));
     }
     return res;
 }
@@ -167,13 +174,21 @@ inline __m512i sqr8(__m512i acc, const int8_t* p1, const int8_t* p2) {
 static inline int32_t sqr7u_inner(const int8_t* a, const int8_t* b, const int32_t dims) {
     int32_t res = 0;
     int i = 0;
-    if (dims > STRIDE_BYTES_LEN) {
+    if (dims >= STRIDE_BYTES_LEN) {
         i += dims & ~(STRIDE_BYTES_LEN - 1);
         res = call_i7u_inner_avx512<sqr8>(a, b, i);
     }
-    for (; i < dims; i++) {
-        int32_t dist = a[i] - b[i];
-        res += dist * dist;
+    // Masked tail: handle remaining elements (< 64) with a single masked SIMD iteration
+    const int remaining = dims - i;
+    if (remaining > 0) {
+        const __mmask64 mask = (__mmask64)((1ULL << remaining) - 1);
+        const __m512i va = _mm512_maskz_loadu_epi8(mask, a + i);
+        const __m512i vb = _mm512_maskz_loadu_epi8(mask, b + i);
+        const __m512i dist = _mm512_sub_epi8(va, vb);
+        const __m512i abs_dist = _mm512_abs_epi8(dist);
+        const __m512i sqr_add = _mm512_maddubs_epi16(abs_dist, abs_dist);
+        const __m512i ones = _mm512_set1_epi16(1);
+        res += _mm512_reduce_add_epi32(_mm512_madd_epi16(ones, sqr_add));
     }
     return res;
 }

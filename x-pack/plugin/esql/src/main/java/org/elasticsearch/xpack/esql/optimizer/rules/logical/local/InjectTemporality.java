@@ -15,20 +15,15 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.TemporalityAware;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
-import org.elasticsearch.xpack.esql.optimizer.LocalLogicalOptimizerContext;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
-import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
 
-public final class InjectTemporality extends ParameterizedRule<LogicalPlan, LogicalPlan, LocalLogicalOptimizerContext> {
+public final class InjectTemporality extends OptimizerRules.OptimizerRule<TimeSeriesAggregate> {
 
     @Override
-    public LogicalPlan apply(LogicalPlan logicalPlan, LocalLogicalOptimizerContext context) {
-        return logicalPlan.transformDown(TimeSeriesAggregate.class, tsAgg -> transform(tsAgg, context));
-    }
-
-    private TimeSeriesAggregate transform(TimeSeriesAggregate tsAgg, LocalLogicalOptimizerContext context) {
+    protected LogicalPlan rule(TimeSeriesAggregate tsAgg) {
         TimeSeriesAggregate transformed;
         transformed = (TimeSeriesAggregate) tsAgg.transformExpressionsOnly(AggregateFunction.class, agg -> {
             if (agg instanceof TemporalityAware temporalityAware && temporalityAware.temporality() == null) {

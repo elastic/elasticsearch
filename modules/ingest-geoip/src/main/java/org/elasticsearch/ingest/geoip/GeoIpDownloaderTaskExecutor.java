@@ -62,8 +62,8 @@ import static org.elasticsearch.ingest.geoip.GeoIpProcessor.IP_LOCATION_TYPE;
 /// Task lifecycle (start/stop) is managed externally by the [PersistentTaskLifecycleManager], which reconciles the
 /// task presence in cluster state based on [#ENABLED_SETTING].
 ///
-/// This executor additionally tracks geoip processor presence across projects and cleans up the databases index when
-/// the task is stopped.
+/// This executor additionally tracks geoip processor presence across projects. The `.geoip_databases` index is
+/// cleaned up by [#deleteGeoIpDatabasesIndex] when the lifecycle manager removes the task from cluster state.
 public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<GeoIpTaskParams> implements ClusterStateListener {
 
     private static final boolean ENABLED_DEFAULT = "false".equals(
@@ -200,9 +200,12 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
         );
     }
 
-    /// On each cluster state update, tracks per-project geoip processor presence and cleans up obsolete task data.
+    /// On each cluster state update, tracks per-project geoip processor presence and schedules on-demand downloader
+    /// runs when pipelines or indices change.
     ///
-    /// The task lifecycle (start/stop) and databases index cleanup are handled by [PersistentTaskLifecycleManager].
+    /// The persistent task is started and stopped by [PersistentTaskLifecycleManager]. After the task is removed from
+    /// cluster state (successfully or already absent), that manager invokes [#deleteGeoIpDatabasesIndex] to drop the
+    /// `.geoip_databases` index when appropriate.
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
         if (event.state().nodes().getMasterNode() == null || event.state().clusterRecovered() == false) {

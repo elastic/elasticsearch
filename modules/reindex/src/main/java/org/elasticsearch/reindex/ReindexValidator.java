@@ -45,6 +45,7 @@ public class ReindexValidator {
         + "Instead consider using query filtering to find the desired subset of data.";
 
     private final CharacterRunAutomaton remoteWhitelist;
+    private final boolean remoteBlocklistSettingInUse;
     private final ClusterService clusterService;
     private final IndexNameExpressionResolver indexResolver;
     private final ProjectResolver projectResolver;
@@ -57,7 +58,10 @@ public class ReindexValidator {
         ProjectResolver projectResolver,
         AutoCreateIndex autoCreateIndex
     ) {
-        this.remoteWhitelist = buildRemoteWhitelist(TransportReindexAction.REMOTE_CLUSTER_WHITELIST.get(settings));
+        List<String> whitelist = TransportReindexAction.REMOTE_CLUSTER_WHITELIST.get(settings);
+        List<String> blocklist = TransportReindexAction.REMOTE_CLUSTER_BLOCKLIST.get(settings);
+        this.remoteWhitelist = buildRemoteWhitelist(whitelist, blocklist);
+        this.remoteBlocklistSettingInUse = !TransportReindexAction.REMOTE_CLUSTER_BLOCKLIST.get(settings).isEmpty();
         this.clusterService = clusterService;
         this.indexResolver = indexResolver;
         this.projectResolver = projectResolver;
@@ -65,7 +69,7 @@ public class ReindexValidator {
     }
 
     public void initialValidation(ReindexRequest request) {
-        checkRemoteWhitelist(remoteWhitelist, request.getRemoteInfo());
+        checkRemoteWhitelist(remoteWhitelist, remoteBlocklistSettingInUse, request.getRemoteInfo());
         ClusterState state = clusterService.state();
         SearchRequest source = request.getSearchRequest();
 
@@ -92,7 +96,7 @@ public class ReindexValidator {
         }
     }
 
-    static void checkRemoteWhitelist(CharacterRunAutomaton whitelist, RemoteInfo remoteInfo) {
+    static void checkRemoteWhitelist(CharacterRunAutomaton whitelist, boolean remoteBlocklistSettingInUse, RemoteInfo remoteInfo) {
         if (remoteInfo == null) {
             return;
         }
@@ -100,19 +104,32 @@ public class ReindexValidator {
         if (whitelist.run(check)) {
             return;
         }
-        String whiteListKey = TransportReindexAction.REMOTE_CLUSTER_WHITELIST.getKey();
-        throw new IllegalArgumentException('[' + check + "] not whitelisted in " + whiteListKey);
+        throw new IllegalArgumentException(
+            remoteBlocklistSettingInUse
+                ? Strings.format(
+                    "[%s] either not whitelisted in %s or blocked in %s",
+                    check,
+                    TransportReindexAction.REMOTE_CLUSTER_WHITELIST.getKey(),
+                    TransportReindexAction.REMOTE_CLUSTER_BLOCKLIST.getKey()
+                )
+                : Strings.format("[%s] not whitelisted in %s", check, TransportReindexAction.REMOTE_CLUSTER_WHITELIST.getKey())
+        );
     }
 
     /**
      * Build the {@link CharacterRunAutomaton} that represents the reindex-from-remote whitelist and make sure that it doesn't whitelist
      * the world.
      */
-    static CharacterRunAutomaton buildRemoteWhitelist(List<String> whitelist) {
+    static CharacterRunAutomaton buildRemoteWhitelist(List<String> whitelist, List<String> blocklist) {
         if (whitelist.isEmpty()) {
             return new CharacterRunAutomaton(Automata.makeEmpty());
         }
-        Automaton automaton = Regex.simpleMatchToAutomaton(whitelist.toArray(Strings.EMPTY_ARRAY));
+        Automaton automaton = Regex.simpleMatchToAutomaton(whitelist.toArray(String[]::new));
+        if (!blocklist.isEmpty()) {
+            Automaton toBlock = Regex.simpleMatchToAutomaton(blocklist.toArray(String[]::new));
+            ;
+            automaton = Operations.minus(automaton, toBlock, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
+        }
         automaton = Operations.determinize(automaton, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
         return new CharacterRunAutomaton(automaton);
     }

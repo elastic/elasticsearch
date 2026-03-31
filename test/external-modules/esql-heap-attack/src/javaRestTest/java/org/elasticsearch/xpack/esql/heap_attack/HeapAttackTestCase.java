@@ -89,7 +89,7 @@ public abstract class HeapAttackTestCase extends ESRestTestCase {
         while (attempt <= MAX_ATTEMPTS) {
             try {
                 Map<String, Object> response = tryBreaking.attempt(attempt);
-                logger.warn("{}: should circuit broken but got {}", attempt, response);
+                logger.warn("{}: should have circuit broken but got {}", attempt, response);
                 attempt++;
             } catch (ResponseException e) {
                 Map<?, ?> map = responseAsMap(e.getResponse());
@@ -117,7 +117,7 @@ public abstract class HeapAttackTestCase extends ESRestTestCase {
             logger.info("Attempt {} to circuit break via {}", attempt, classNames);
             try {
                 Map<String, Object> response = tryBreaking.attempt(attempt);
-                logger.warn("{}: should circuit broken but got {}", attempt, response);
+                logger.warn("{}: should have circuit broken but got {}", attempt, response);
             } catch (ResponseException e) {
                 Map<?, ?> map = responseAsMap(e.getResponse());
                 Object error = map.get("error");
@@ -135,7 +135,7 @@ public abstract class HeapAttackTestCase extends ESRestTestCase {
             }
             attempt++;
         }
-        fail("giving up after " + attempt + " attempts waiting for circuit break via " + classNames);
+        fail("giving up after " + (attempt - 1) + " attempts waiting for circuit break via " + classNames);
     }
 
     protected Response query(String query, String filterPath) throws IOException {

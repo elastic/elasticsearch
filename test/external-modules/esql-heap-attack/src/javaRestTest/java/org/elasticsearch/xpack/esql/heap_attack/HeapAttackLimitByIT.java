@@ -173,6 +173,22 @@ public class HeapAttackLimitByIT extends HeapAttackTestCase {
         return responseAsMap(query(query.toString(), null));
     }
 
+    /**
+     * Unlike {@code SORT | LIMIT BY}, a near-{@code Integer.MAX_VALUE} per-group limit in
+     * {@code LIMIT BY} does not cause excessive memory usage. {@code GroupedLimitOperator} is
+     * a streaming filter that only stores one counter per unique group — the limit value itself
+     * has no effect on memory.
+     */
+    public void testLimitByLargePerGroupCount() throws IOException {
+        assumeTrue("LIMIT BY requires snapshot builds", Build.current().isSnapshot());
+        initManyLongs(1);
+        StringBuilder query = startQuery();
+        query.append("FROM manylongs | LIMIT 2147483630 BY a | STATS MAX(a)\"}");
+        Map<String, Object> result = responseAsMap(query(query.toString(), null));
+        ListMatcher columns = matchesList().item(matchesMap().entry("name", "MAX(a)").entry("type", "long"));
+        assertResultMap(result, columns, any(List.class));
+    }
+
     // -------------------------------------------------------------------------
     // SORT | LIMIT BY — GroupedTopNOperator
     // -------------------------------------------------------------------------
@@ -215,9 +231,9 @@ public class HeapAttackLimitByIT extends HeapAttackTestCase {
     }
 
     /**
-     * This sorts by 1 column then limits 1 row per group across 50K unique groups with 100 group
-     * key columns, which should succeed. The GroupedTopNOperator stores group keys in a hash table;
-     * 50K groups with 105-column keys is within the circuit breaker.
+     * This sorts by 1 column then limits 1 row per group across 100K unique groups with 55 group
+     * key computed columns, which should succeed. The GroupedTopNOperator stores group
+     * keys in a hash table. 100K groups with 55-column keys is within the circuit breaker.
      */
     public void testTopNByManyGroupingColumns() throws IOException {
         assumeTrue("SORT | LIMIT BY requires snapshot builds", Build.current().isSnapshot());
@@ -331,6 +347,21 @@ public class HeapAttackLimitByIT extends HeapAttackTestCase {
         query.append("| LIMIT ").append(topCount).append(" BY a, b, c, d, e\\n");
         query.append("| KEEP a, b\"}");
         return responseAsMap(query(query.toString(), null));
+    }
+
+    /**
+     * Like {@code testStupidTopN} in {@link HeapAttackIT}, but for {@code SORT | LIMIT BY}.
+     * A near-{@code Integer.MAX_VALUE} per-group limit forces the first {@code TopNQueue}
+     * to try to pre-allocate a ~16 GB heap array, which must trip the circuit breaker immediately.
+     */
+    public void testTopNByLargePerGroupCountTooMuchMemory() throws IOException {
+        assumeTrue("SORT | LIMIT BY requires snapshot builds", Build.current().isSnapshot());
+        initManyLongs(1);
+        assertCircuitBreaksVia(attempt -> {
+            StringBuilder query = startQuery();
+            query.append("FROM manylongs | SORT a | LIMIT 2147483630 BY a | KEEP a\"}");
+            return responseAsMap(query(query.toString(), null));
+        }, GroupedTopNOperator.class, TopNQueue.class);
     }
 
     /**

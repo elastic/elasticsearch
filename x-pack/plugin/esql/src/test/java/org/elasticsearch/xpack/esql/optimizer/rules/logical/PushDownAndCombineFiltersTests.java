@@ -2451,4 +2451,5 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
 
         as(bottomFilter.child(), EsRelation.class);
     }
+
 }

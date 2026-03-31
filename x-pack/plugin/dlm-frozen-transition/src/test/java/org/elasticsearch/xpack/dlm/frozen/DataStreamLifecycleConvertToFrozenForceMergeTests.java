@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
@@ -46,6 +47,8 @@ import org.junit.Before;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
+import static org.elasticsearch.test.ClusterServiceUtils.setState;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -58,6 +61,7 @@ public class DataStreamLifecycleConvertToFrozenForceMergeTests extends ESTestCas
     private XPackLicenseState licenseState;
     private Index index;
     private ThreadPool threadPool;
+    private ClusterService clusterService;
     private AtomicReference<ForceMergeRequest> capturedForceMergeRequest;
     private AtomicReference<BroadcastResponse> mockForceMergeResponse;
     private AtomicReference<Exception> mockForceMergeFailure;
@@ -66,6 +70,7 @@ public class DataStreamLifecycleConvertToFrozenForceMergeTests extends ESTestCas
     @Before
     public void setup() {
         threadPool = new TestThreadPool(getTestName());
+        clusterService = createClusterService(threadPool);
         projectId = randomProjectIdOrDefault();
         indexName = randomAlphaOfLength(10);
         indexUuid = randomAlphaOfLength(10);
@@ -82,6 +87,7 @@ public class DataStreamLifecycleConvertToFrozenForceMergeTests extends ESTestCas
 
     @After
     public void cleanup() {
+        clusterService.close();
         threadPool.shutdownNow();
     }
 
@@ -121,11 +127,12 @@ public class DataStreamLifecycleConvertToFrozenForceMergeTests extends ESTestCas
         );
         mockSegmentResponse.set(new IndicesSegmentResponse(new ShardSegments[] { shardSegments }, 1, 1, 0, List.of()));
 
-        ProjectState projectState = createProjectState();
+        createProjectState();
         DataStreamLifecycleConvertToFrozen converter = new DataStreamLifecycleConvertToFrozen(
             indexName,
+            projectId,
             createMockClient(),
-            projectState,
+            clusterService,
             licenseState
         );
 
@@ -143,11 +150,12 @@ public class DataStreamLifecycleConvertToFrozenForceMergeTests extends ESTestCas
         mockSegmentResponse.set(new IndicesSegmentResponse(new ShardSegments[] { shardSegments }, 1, 1, 0, List.of()));
         mockForceMergeResponse.set(new BroadcastResponse(1, 1, 0, List.of()));
 
-        ProjectState projectState = createProjectState();
+        createProjectState();
         DataStreamLifecycleConvertToFrozen converter = new DataStreamLifecycleConvertToFrozen(
             indexName,
+            projectId,
             createMockClient(),
-            projectState,
+            clusterService,
             licenseState
         );
 
@@ -160,12 +168,13 @@ public class DataStreamLifecycleConvertToFrozenForceMergeTests extends ESTestCas
     }
 
     public void testMaybeForceMergeSkipsWhenIndexNotInMetadata() {
-        ProjectState projectState = buildProjectState(null);
+        buildProjectState(null);
 
         DataStreamLifecycleConvertToFrozen converter = new DataStreamLifecycleConvertToFrozen(
             indexName,
+            projectId,
             createMockClient(),
-            projectState,
+            clusterService,
             licenseState
         );
 
@@ -184,11 +193,12 @@ public class DataStreamLifecycleConvertToFrozenForceMergeTests extends ESTestCas
         );
         mockForceMergeResponse.set(new BroadcastResponse(1, 0, 1, List.of(shardFailure)));
 
-        ProjectState projectState = createProjectState();
+        createProjectState();
         DataStreamLifecycleConvertToFrozen converter = new DataStreamLifecycleConvertToFrozen(
             indexName,
+            projectId,
             createMockClient(),
-            projectState,
+            clusterService,
             licenseState
         );
 
@@ -201,11 +211,12 @@ public class DataStreamLifecycleConvertToFrozenForceMergeTests extends ESTestCas
         // Default mock segment response: no segments found → force merge not complete
         mockForceMergeResponse.set(new BroadcastResponse(5, 3, 0, List.of()));
 
-        ProjectState projectState = createProjectState();
+        createProjectState();
         DataStreamLifecycleConvertToFrozen converter = new DataStreamLifecycleConvertToFrozen(
             indexName,
+            projectId,
             createMockClient(),
-            projectState,
+            clusterService,
             licenseState
         );
 
@@ -218,11 +229,12 @@ public class DataStreamLifecycleConvertToFrozenForceMergeTests extends ESTestCas
         // Default mock segment response: no segments found → force merge not complete
         mockForceMergeResponse.set(new BroadcastResponse(1, 1, 0, List.of()));
 
-        ProjectState projectState = createProjectState();
+        createProjectState();
         DataStreamLifecycleConvertToFrozen converter = new DataStreamLifecycleConvertToFrozen(
             indexName,
+            projectId,
             createMockClient(),
-            projectState,
+            clusterService,
             licenseState
         );
 
@@ -236,11 +248,12 @@ public class DataStreamLifecycleConvertToFrozenForceMergeTests extends ESTestCas
         // Default mock segment response: no segments found → force merge not complete
         mockForceMergeFailure.set(new RuntimeException("transport failure"));
 
-        ProjectState projectState = createProjectState();
+        createProjectState();
         DataStreamLifecycleConvertToFrozen converter = new DataStreamLifecycleConvertToFrozen(
             indexName,
+            projectId,
             createMockClient(),
-            projectState,
+            clusterService,
             licenseState
         );
 
@@ -248,20 +261,20 @@ public class DataStreamLifecycleConvertToFrozenForceMergeTests extends ESTestCas
         assertThat(exception.getCause().getMessage(), containsString("transport failure"));
     }
 
-    private ProjectState createProjectState() {
-        return buildProjectState(Settings.EMPTY);
+    private void createProjectState() {
+        buildProjectState(Settings.EMPTY);
     }
 
     /**
      * Builds a {@link ProjectState} for the test index. Pass {@code null} to omit the index from metadata entirely.
      */
-    private ProjectState buildProjectState(@Nullable Settings indexSettings) {
+    private void buildProjectState(@Nullable Settings indexSettings) {
         ProjectMetadata.Builder projectMetadata = ProjectMetadata.builder(projectId);
         if (indexSettings != null) {
             projectMetadata.put(buildIndexMetadata(indexSettings), false);
         }
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(projectMetadata.build()).build();
-        return clusterState.projectState(projectId);
+        setState(clusterService, clusterState);
     }
 
     private IndexMetadata buildIndexMetadata(Settings additionalSettings) {

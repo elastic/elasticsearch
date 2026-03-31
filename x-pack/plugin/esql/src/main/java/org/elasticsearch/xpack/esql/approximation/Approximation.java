@@ -63,6 +63,8 @@ import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
 import org.elasticsearch.xpack.esql.plan.logical.UriParts;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
+import org.elasticsearch.xpack.esql.plan.logical.local.CopyingLocalSupplier;
+import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.session.Result;
 
 import java.util.List;
@@ -144,6 +146,7 @@ public class Approximation {
         Filter.class,
         Grok.class,
         Insist.class,
+        LocalRelation.class,
         MvExpand.class,
         OrderBy.class,
         Project.class,
@@ -286,6 +289,9 @@ public class Approximation {
     /**
      * Don't sample with a probability higher than this threshold. The cost of
      * tracking confidence intervals doesn't outweigh the benefits of sampling.
+     * This threshold only applies when calculating confidence intervals. When
+     * they are disabled (by setting "confidence_level":null), any sample
+     * probability is allowed,
      */
     private static final double SAMPLE_PROBABILITY_THRESHOLD = 0.05;
 
@@ -296,8 +302,9 @@ public class Approximation {
     private static final AggregateFunction COUNT_ALL_ROWS_APPROXIMATE = new CountApproximate(Source.EMPTY, WILDCARD);
 
     private final LogicalPlan logicalPlan;
-    private final ApproximationSettings settings;
     private final QueryProperties queryProperties;
+    private final int sampleRowCount;
+    private final double sampleProbabilityThreshold;
 
     private Double nextSubPlanSampleProbability;
     private int subPlanIterationCount;
@@ -311,9 +318,24 @@ public class Approximation {
     }
 
     Approximation(LogicalPlan logicalPlan, ApproximationSettings settings) {
-        this.logicalPlan = logicalPlan;
-        this.settings = settings;
-        this.queryProperties = verifyPlan(logicalPlan);
+        this.queryProperties = verifyPlanOrThrow(logicalPlan);
+        // The plan is executed multiple times. Use CopyingLocalSupplier to
+        // make sure the page is not released between executions.
+        this.logicalPlan = logicalPlan.transformUp(LocalRelation.class, lr -> {
+            if (lr.supplier() instanceof CopyingLocalSupplier == false) {
+                return new LocalRelation(lr.source(), lr.output(), new CopyingLocalSupplier(lr.supplier().get()));
+            }
+            return lr;
+        });
+
+        if (settings.rows() != null) {
+            sampleRowCount = settings.rows();
+        } else if (queryProperties.hasGrouping) {
+            sampleRowCount = DEFAULT_ROW_COUNT_WITH_GROUPING;
+        } else {
+            sampleRowCount = DEFAULT_ROW_COUNT_WITHOUT_GROUPING;
+        }
+        sampleProbabilityThreshold = settings.confidenceLevel() == null ? 1.0 : SAMPLE_PROBABILITY_THRESHOLD;
 
         nextSubPlanSampleProbability = null;
         subPlanIterationCount = 0;
@@ -339,7 +361,7 @@ public class Approximation {
         if (logicalPlan.anyMatch(plan -> plan instanceof Aggregate) == false) {
             Location location = logicalPlan.collectLeaves().getFirst().source().source();
             throw new VerificationException(
-                "line {}:{}: approximation not supported: query without [STATS] cannot be approximated",
+                "line {}:{}: approximation not supported: query must have [STATS] with aggregation function(s) that can be approximated",
                 location.getLineNumber(),
                 location.getColumnNumber()
             );
@@ -386,6 +408,15 @@ public class Approximation {
                                 aggFn.source().source().getLineNumber(),
                                 aggFn.source().source().getColumnNumber(),
                                 aggFn.sourceText()
+                            );
+                        }
+                        if (aggFn.dataType().isNumeric() == false) {
+                            throw new VerificationException(
+                                "line {}:{}: approximation not supported: aggregation function [{}] must return a numeric value; got [{}]",
+                                aggFn.source().source().getLineNumber(),
+                                aggFn.source().source().getColumnNumber(),
+                                aggFn.sourceText(),
+                                aggFn.dataType()
                             );
                         }
                     });
@@ -468,8 +499,8 @@ public class Approximation {
             nextSubPlanSampleProbability = null;
             return ApproximationPlan.substituteSampleProbability(logicalPlan, 1.0);
         }
-        double sampleProbability = Math.min(1.0, (double) sampleRowCount() / sourceRowCount);
-        if (queryProperties.canIncreaseRowCount == false && sampleProbability > SAMPLE_PROBABILITY_THRESHOLD) {
+        double sampleProbability = Math.min(1.0, (double) sampleRowCount / sourceRowCount);
+        if (queryProperties.canIncreaseRowCount == false && sampleProbability >= sampleProbabilityThreshold) {
             // If the query cannot increase the number of rows, and the sample probability is large,
             // we can directly run the original query without sampling.
             logger.debug("using original plan (too few rows)");
@@ -524,7 +555,6 @@ public class Approximation {
             }
             return plan;
         });
-
         countPlan.setOptimized();
         return countPlan;
     }
@@ -586,8 +616,8 @@ public class Approximation {
         // (not-corrected) number of rows reaching the STATS.
         rowCount = Math.round(sampleProbability * rowCount);
         logger.debug("estimated number of rows reaching STATS (p=[{}]): [{}] rows", sampleProbability, rowCount);
-        double newSampleProbability = Math.min(1.0, sampleProbability * sampleRowCount() / Math.max(1, rowCount));
-        if (newSampleProbability > SAMPLE_PROBABILITY_THRESHOLD) {
+        double newSampleProbability = Math.min(1.0, sampleProbability * sampleRowCount / Math.max(1, rowCount));
+        if (newSampleProbability >= sampleProbabilityThreshold) {
             // If the new sample probability is large, run the original query.
             logger.debug("using original plan (too few rows)");
             nextSubPlanSampleProbability = null;
@@ -600,19 +630,6 @@ public class Approximation {
             // A good sample probability is found; run the approximation plan.
             nextSubPlanSampleProbability = null;
             return ApproximationPlan.substituteSampleProbability(logicalPlan, newSampleProbability);
-        }
-    }
-
-    /**
-     * Returns the target number of rows to sample for approximation.
-     */
-    private int sampleRowCount() {
-        if (settings.rows() != null) {
-            return settings.rows();
-        } else if (queryProperties.hasGrouping) {
-            return DEFAULT_ROW_COUNT_WITH_GROUPING;
-        } else {
-            return DEFAULT_ROW_COUNT_WITHOUT_GROUPING;
         }
     }
 

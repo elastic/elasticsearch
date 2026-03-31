@@ -1986,7 +1986,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             + ES93HnswVectorsFormat.HNSW_GRAPH_THRESHOLD
             + ", flatVectorFormat=ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format="
             + "Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer="
-            + "ES93FlatVectorScorer(delegate=Lucene99MemorySegmentFlatVectorsScorer()))))";
+            + "ES93GenericFlatVectorScorer(delegate=Lucene99MemorySegmentFlatVectorsScorer()))))";
         assertEquals(expectedString, knnVectorsFormat.toString());
     }
 
@@ -2060,7 +2060,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                         containsString(
                             "rawVectorFormat=ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format="
                                 + "Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer="
-                                + "ES93FlatVectorScorer(delegate=Lucene99MemorySegmentFlatVectorsScorer())))"
+                                + "ES93GenericFlatVectorScorer(delegate=Lucene99MemorySegmentFlatVectorsScorer())))"
                         )
                     )
                 )
@@ -2111,7 +2111,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                     containsString(
                         "rawVectorFormat=ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format="
                             + "Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer="
-                            + "ES93FlatVectorScorer(delegate=Lucene99MemorySegmentFlatVectorsScorer())))"
+                            + "ES93GenericFlatVectorScorer(delegate=Lucene99MemorySegmentFlatVectorsScorer())))"
                     )
                 )
             )
@@ -2212,7 +2212,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                     containsString(
                         "rawVectorFormat=ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format="
                             + "Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer="
-                            + "ES93FlatVectorScorer(delegate=Lucene99MemorySegmentFlatVectorsScorer())))"
+                            + "ES93GenericFlatVectorScorer(delegate=Lucene99MemorySegmentFlatVectorsScorer())))"
                     )
                 )
             )

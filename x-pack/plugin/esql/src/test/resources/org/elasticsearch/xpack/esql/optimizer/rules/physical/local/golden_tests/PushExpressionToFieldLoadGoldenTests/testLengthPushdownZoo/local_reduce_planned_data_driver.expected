@@ -1,0 +1,8 @@
+ExchangeSinkExec[[$$SUM$SUM(LENGTH(last>$0$sum{r}#0, $$SUM$SUM(LENGTH(last>$0$seen{r}#1, $$COUNT$$$AVG$SUM(LENGTH(last>$1$count{r}#2, $$COUNT$$$AVG$SUM(LENGTH(last>$1$seen{r}#3, $$SUM$SUM(LENGTH(last>$2$sum{r}#4, $$SUM$SUM(LENGTH(last>$2$seen{r}#5],false]
+\_FragmentExec[filter=null, estimatedRowSize=0, reducer=[], fragment=[<>
+Aggregate[[],[SUM($$LENGTH(last_nam>$SUM$0{r$}#6,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD]) AS $$SUM$SUM(LENGTH(last>$0#7, COUNT(a3{r}#8,true[BOOLEAN],PT0S[TIME_DURATION]) AS $$COUNT$$$AVG$SUM(LENGTH(last>$1#9, SUM($$LENGTH(first_na>$SUM$3{r$}#10,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD]) AS $$SUM$SUM(LENGTH(last>$2#11]]
+\_Eval[[LENGTH(last_name{f}#12) AS $$LENGTH(last_nam>$SUM$0#6, LENGTH(first_name{f}#13) AS $$LENGTH(first_na>$SUM$3#10]]
+  \_Filter[a1{r}#14 > 1[INTEGER]]
+    \_Eval[[LENGTH(last_name{f}#12) AS a1#14, LENGTH(last_name{f}#12) AS a3#8]]
+      \_Filter[LENGTH(last_name{f}#12) > 1[INTEGER]]
+        \_EsRelation[employees][avg_worked_seconds{f}#15, birth_date{f}#16, emp_no{f}#17, first_name{f}#13, gender{f}#18, height{f}#19, height.float{f}#20, height.half_float{f}#21, height.scaled_float{f}#22, hire_date{f}#23, is_rehired{f}#24, job_positions{f}#25, languages{f}#26, languages.byte{f}#27, languages.long{f}#28, languages.short{f}#29, last_name{f}#12, salary{f}#30, salary_change{f}#31, salary_change.int{f}#32, salary_change.keyword{f}#33, salary_change.long{f}#34, still_hired{f}#35]<>]]

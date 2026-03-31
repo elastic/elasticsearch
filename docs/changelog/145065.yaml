@@ -1,0 +1,15 @@
+pr: 145065
+summary: "OTLP endpoint: use exponential_histograms by default"
+area: Mapping
+type: breaking
+breaking:
+  title: Use exponential_histograms by default
+  area: Ingest
+  details: The default of the `xpack.otel_data.histogram_field_type` cluster setting
+    has changed from `histogram` to `exponential_histogram`. This means that histogram
+    fields ingested through the OTLP HTTP endpoint will now be mapped as `exponential_histogram` by default.
+    To maintain the previous behavior, set `xpack.otel_data.histogram_field_type` to `histogram`.
+  impact: Both queryDSL and ES|QL queries will still work as before, but the underlying data structure for histograms will change.
+    The raw field structure will differ, so consumers of raw documents may need to adjust their processing logic if they rely on the specific structure of histogram fields.
+  notable: false
+issues: []

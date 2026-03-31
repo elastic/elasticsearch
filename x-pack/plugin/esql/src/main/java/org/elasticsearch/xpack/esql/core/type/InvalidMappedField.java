@@ -151,7 +151,7 @@ public class InvalidMappedField extends EsField {
         boolean first = true;
         if (isInsistKeywordOnlyKeyword) {
             first = false;
-            errorMessage.append("[keyword] enforced by INSIST command");
+            errorMessage.append("[keyword] due to loading from _source");
         }
         for (Map.Entry<String, Set<String>> e : typesToIndices.entrySet()) {
             if (first) {
@@ -163,7 +163,7 @@ public class InvalidMappedField extends EsField {
             errorMessage.append(e.getKey());
             errorMessage.append("] ");
             if (e.getKey().equals(DataType.KEYWORD.typeName()) && includeInsistKeyword) {
-                errorMessage.append("enforced by INSIST command and in ");
+                errorMessage.append("due to loading from _source and in ");
             } else {
                 errorMessage.append("in ");
             }

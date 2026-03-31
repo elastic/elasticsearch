@@ -20,6 +20,7 @@ import org.openjdk.jmh.annotations.Param;
 import org.openjdk.jmh.annotations.Setup;
 
 import java.io.IOException;
+import java.util.Random;
 import java.util.concurrent.ThreadLocalRandom;
 
 import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.floatVectorValues;
@@ -31,7 +32,7 @@ import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.writeFloa
 import static org.elasticsearch.nativeaccess.jdk.ScalarOperations.dotProduct;
 import static org.elasticsearch.nativeaccess.jdk.ScalarOperations.squareDistance;
 
-public class VectorScorerFloatBulkBenchmark extends VectorScorerBulkBenchmark {
+public class VectorScorerFloat32BulkBenchmark extends VectorScorerBulkBenchmark {
 
     @Param({ "32", "375", "32500" })
     public int numVectors;
@@ -96,11 +97,10 @@ public class VectorScorerFloatBulkBenchmark extends VectorScorerBulkBenchmark {
         private final float[][] vectorData;
         private final float[] queryVector;
 
-        VectorData(int dims, int numVectors, int numVectorsToScore) {
-            super(numVectors, numVectorsToScore);
-            vectorData = new float[numVectors][];
+        VectorData(int dims, int numVectors, int numVectorsToScore, Random random) {
+            super(numVectors, numVectorsToScore, random);
 
-            ThreadLocalRandom random = ThreadLocalRandom.current();
+            vectorData = new float[numVectors][];
             for (int v = 0; v < numVectors; v++) {
                 vectorData[v] = randomFloatArray(random, dims);
             }
@@ -116,7 +116,7 @@ public class VectorScorerFloatBulkBenchmark extends VectorScorerBulkBenchmark {
 
     @Setup
     public void setup() throws IOException {
-        setup(new VectorData(dims, numVectors, Math.min(numVectors, 20_000)));
+        setup(new VectorData(dims, numVectors, Math.min(numVectors, 20_000), ThreadLocalRandom.current()));
     }
 
     void setup(VectorData vectorData) throws IOException {

@@ -21,6 +21,7 @@ import org.openjdk.jmh.annotations.Param;
 import org.openjdk.jmh.annotations.Setup;
 
 import java.io.IOException;
+import java.util.Random;
 import java.util.concurrent.ThreadLocalRandom;
 
 import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.byteVectorValues;
@@ -30,7 +31,7 @@ import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.luceneSco
 import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.supportsHeapSegments;
 import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.writeByteVectorData;
 
-public class VectorScorerByteBulkBenchmark extends VectorScorerBulkBenchmark {
+public class VectorScorerInt8BulkBenchmark extends VectorScorerBulkBenchmark {
 
     // 128kb is typically enough to not fit in L1 (core) cache for most processors;
     // 1.5Mb is typically enough to not fit in L2 (core) cache;
@@ -134,11 +135,10 @@ public class VectorScorerByteBulkBenchmark extends VectorScorerBulkBenchmark {
         private final byte[][] vectorData;
         private final byte[] queryVector;
 
-        VectorData(int dims, int numVectors, int numVectorsToScore) {
-            super(numVectors, numVectorsToScore);
-            vectorData = new byte[numVectors][];
+        VectorData(int dims, int numVectors, int numVectorsToScore, Random random) {
+            super(numVectors, numVectorsToScore, random);
 
-            ThreadLocalRandom random = ThreadLocalRandom.current();
+            vectorData = new byte[numVectors][];
             for (int v = 0; v < numVectors; v++) {
                 vectorData[v] = new byte[dims];
                 random.nextBytes(vectorData[v]);
@@ -156,7 +156,7 @@ public class VectorScorerByteBulkBenchmark extends VectorScorerBulkBenchmark {
 
     @Setup
     public void setup() throws IOException {
-        setup(new VectorData(dims, numVectors, Math.min(numVectors, 20_000)));
+        setup(new VectorData(dims, numVectors, Math.min(numVectors, 20_000), ThreadLocalRandom.current()));
     }
 
     void setup(VectorData vectorData) throws IOException {

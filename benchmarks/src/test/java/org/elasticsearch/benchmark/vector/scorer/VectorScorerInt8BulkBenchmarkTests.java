@@ -6,20 +6,19 @@
  * your election, the "Elastic License 2.0", the "GNU Affero General Public
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
-
 package org.elasticsearch.benchmark.vector.scorer;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.simdvec.VectorSimilarityType;
 
-public class VectorScorerFloatBulkBenchmarkTests extends BenchmarkTest {
+public class VectorScorerInt8BulkBenchmarkTests extends BenchmarkTest {
 
     private final VectorSimilarityType function;
     private final float delta = 1e-3f;
     private final int dims;
 
-    public VectorScorerFloatBulkBenchmarkTests(VectorSimilarityType function, int dims) {
+    public VectorScorerInt8BulkBenchmarkTests(VectorSimilarityType function, int dims) {
         this.function = function;
         this.dims = dims;
     }
@@ -36,13 +35,13 @@ public class VectorScorerFloatBulkBenchmarkTests extends BenchmarkTest {
         testQueryRandom(this::createData, this::createBenchmark, delta);
     }
 
-    private VectorScorerFloatBulkBenchmark.VectorData createData() {
-        return new VectorScorerFloatBulkBenchmark.VectorData(dims, 1000, 200);
+    private VectorScorerInt8BulkBenchmark.VectorData createData() {
+        return new VectorScorerInt8BulkBenchmark.VectorData(dims, 1000, 200, random());
     }
 
-    private VectorScorerFloatBulkBenchmark createBenchmark(VectorScorerFloatBulkBenchmark.VectorData d, VectorImplementation impl)
+    private VectorScorerInt8BulkBenchmark createBenchmark(VectorScorerInt8BulkBenchmark.VectorData d, VectorImplementation impl)
         throws java.io.IOException {
-        var bench = new VectorScorerFloatBulkBenchmark();
+        var bench = new VectorScorerInt8BulkBenchmark();
         bench.function = function;
         bench.implementation = impl;
         bench.dims = dims;
@@ -56,8 +55,8 @@ public class VectorScorerFloatBulkBenchmarkTests extends BenchmarkTest {
     @ParametersFactory
     public static Iterable<Object[]> parametersFactory() throws NoSuchFieldException {
         return generateParameters(
-            VectorScorerFloatBulkBenchmark.class.getField("function"),
-            VectorScorerFloatBulkBenchmark.class.getField("dims")
+            VectorScorerInt8BulkBenchmark.class.getField("function"),
+            VectorScorerInt8BulkBenchmark.class.getField("dims")
         );
     }
 }

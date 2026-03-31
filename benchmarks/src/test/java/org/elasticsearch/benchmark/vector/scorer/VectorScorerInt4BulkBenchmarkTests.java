@@ -45,7 +45,7 @@ public class VectorScorerInt4BulkBenchmarkTests extends BenchmarkTest {
     }
 
     private VectorScorerInt4BulkBenchmark.VectorData createData() {
-        return new VectorScorerInt4BulkBenchmark.VectorData(dims, 1000, 200);
+        return new VectorScorerInt4BulkBenchmark.VectorData(dims, 1000, 200, random());
     }
 
     private VectorScorerInt4BulkBenchmark createBenchmark(VectorScorerInt4BulkBenchmark.VectorData d, VectorImplementation impl)

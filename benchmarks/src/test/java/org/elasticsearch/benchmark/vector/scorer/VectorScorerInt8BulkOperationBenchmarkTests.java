@@ -25,7 +25,7 @@ public class VectorScorerInt8BulkOperationBenchmarkTests extends BenchmarkTest {
 
     public void testSequential() {
         for (int i = 0; i < 100; i++) {
-            var vectorData = VectorScorerInt8BulkOperationBenchmark.VectorData.create(dims, 1000, 200, random());
+            var vectorData = new VectorScorerInt8BulkOperationBenchmark.VectorData(dims, 1000, 200, random());
             var bench = new VectorScorerInt8BulkOperationBenchmark();
             bench.function = function;
             bench.dims = dims;
@@ -44,7 +44,7 @@ public class VectorScorerInt8BulkOperationBenchmarkTests extends BenchmarkTest {
 
     public void testRandom() {
         for (int i = 0; i < 100; i++) {
-            var vectorData = VectorScorerInt8BulkOperationBenchmark.VectorData.create(dims, 1000, 200, random());
+            var vectorData = new VectorScorerInt8BulkOperationBenchmark.VectorData(dims, 1000, 200, random());
             var bench = new VectorScorerInt8BulkOperationBenchmark();
             bench.function = function;
             bench.dims = dims;

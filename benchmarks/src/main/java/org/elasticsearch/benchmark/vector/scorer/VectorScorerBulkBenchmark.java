@@ -35,7 +35,6 @@ import java.nio.file.Path;
 import java.util.Collections;
 import java.util.List;
 import java.util.Random;
-import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -86,10 +85,8 @@ public abstract class VectorScorerBulkBenchmark {
         final int[] ordinals;
         final int targetOrd;
 
-        VectorData(int numVectors, int numVectorsToScore) {
+        VectorData(int numVectors, int numVectorsToScore, Random random) {
             this.numVectorsToScore = numVectorsToScore;
-
-            ThreadLocalRandom random = ThreadLocalRandom.current();
 
             List<Integer> list = IntStream.range(0, numVectors).boxed().collect(Collectors.toList());
             Collections.shuffle(list, random);

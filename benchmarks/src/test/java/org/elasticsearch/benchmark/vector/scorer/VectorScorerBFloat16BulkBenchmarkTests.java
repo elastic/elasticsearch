@@ -37,7 +37,7 @@ public class VectorScorerBFloat16BulkBenchmarkTests extends BenchmarkTest {
     }
 
     private VectorScorerBFloat16BulkBenchmark.VectorData createData() {
-        return new VectorScorerBFloat16BulkBenchmark.VectorData(dims, 1000, 200);
+        return new VectorScorerBFloat16BulkBenchmark.VectorData(dims, 1000, 200, random());
     }
 
     private VectorScorerBFloat16BulkBenchmark createBenchmark(VectorScorerBFloat16BulkBenchmark.VectorData d, VectorImplementation impl)

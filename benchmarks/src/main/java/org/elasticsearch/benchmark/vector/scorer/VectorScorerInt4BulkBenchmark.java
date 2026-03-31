@@ -19,6 +19,7 @@ import org.openjdk.jmh.annotations.Param;
 import org.openjdk.jmh.annotations.Setup;
 
 import java.io.IOException;
+import java.util.Random;
 import java.util.concurrent.ThreadLocalRandom;
 
 import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.getScorerFactoryOrDie;
@@ -61,10 +62,10 @@ public class VectorScorerInt4BulkBenchmark extends VectorScorerBulkBenchmark {
         final float centroidDp;
         final float[] queryVector;
 
-        VectorData(int dims, int numVectors, int numVectorsToScore) {
-            super(numVectors, numVectorsToScore);
+        VectorData(int dims, int numVectors, int numVectorsToScore, Random random) {
+            super(numVectors, numVectorsToScore, random);
+
             packedVectors = new byte[numVectors][];
-            ThreadLocalRandom random = ThreadLocalRandom.current();
             for (int v = 0; v < numVectors; v++) {
                 byte[] unpacked = new byte[dims];
                 randomInt4Bytes(random, unpacked);
@@ -90,7 +91,7 @@ public class VectorScorerInt4BulkBenchmark extends VectorScorerBulkBenchmark {
 
     @Setup
     public void setup() throws IOException {
-        setup(new VectorData(dims, numVectors, Math.min(numVectors, 20_000)));
+        setup(new VectorData(dims, numVectors, Math.min(numVectors, 20_000), ThreadLocalRandom.current()));
     }
 
     void setup(VectorData vectorData) throws IOException {

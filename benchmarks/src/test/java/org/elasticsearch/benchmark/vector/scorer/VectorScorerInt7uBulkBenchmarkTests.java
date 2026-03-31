@@ -37,7 +37,7 @@ public class VectorScorerInt7uBulkBenchmarkTests extends BenchmarkTest {
     }
 
     private VectorScorerInt7uBulkBenchmark.VectorData createData() {
-        return new VectorScorerInt7uBulkBenchmark.VectorData(dims, 1000, 200);
+        return new VectorScorerInt7uBulkBenchmark.VectorData(dims, 1000, 200, random());
     }
 
     private VectorScorerInt7uBulkBenchmark createBenchmark(VectorScorerInt7uBulkBenchmark.VectorData d, VectorImplementation impl)

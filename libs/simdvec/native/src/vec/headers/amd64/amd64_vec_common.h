@@ -82,25 +82,19 @@ static inline int64_t mm256_reduce_epi64(const __m256i a) {
  * Bulk scoring template for i8 vectors with prefetch.
  *
  * Processes `batches` vectors at a time, prefetching the next batch while
- * computing the current one. Each vector is fully computed via `inner_op`
- * before moving to the next.
+ * computing the current one. inner_op handles the full vector including any
+ * non-aligned tail (scalar loop on AVX2, masked ops on AVX-512).
  *
  * Template parameters:
- *   TData:     type of the input data pointer (e.g. int8_t or const int8_t*)
- *   mapper:    resolves the i-th vector to a direct pointer
- *   inner_op:  SIMD kernel that computes the full vector operation
- *   scalar_op: scalar per-element fallback for the tail
- *   bulk_tail: complete single-vector operation for leftover vectors
- *   stride:    SIMD register width in bytes, for alignment
- *   batches:   number of vectors per batch (default 2 for AVX2, prefer 4 for AVX-512)
+ *   TData:    type of the input data pointer (e.g. int8_t or const int8_t*)
+ *   mapper:   resolves the i-th vector to a direct pointer
+ *   inner_op: computes the full vector operation for all dims (including tail)
+ *   batches:  number of vectors per batch (default 2 for AVX2, prefer 4 for AVX-512)
  */
 template <
     typename TData,
     const int8_t*(*mapper)(const TData*, const int32_t, const int32_t*, const int32_t),
     int32_t(*inner_op)(const int8_t*, const int8_t*, const int32_t),
-    int32_t(*scalar_op)(const int8_t, const int8_t),
-    auto(*bulk_tail)(const int8_t*, const int8_t*, const int32_t),
-    int stride,
     int batches = 2
 >
 static inline void call_i8_bulk(
@@ -112,7 +106,6 @@ static inline void call_i8_bulk(
     const int32_t count,
     f32_t* results
 ) {
-    const int blk = dims & ~(stride - 1);
     const int lines_to_fetch = dims / CACHE_LINE_SIZE + 1;
     int c = 0;
 
@@ -129,33 +122,19 @@ static inline void call_i8_bulk(
             });
         }
 
-        int32_t res[batches] = {};
-        int i = 0;
-        if (dims > stride) {
-            i = blk;
-            apply_indexed<batches>([&](auto I) {
-                res[I] = inner_op(current_vecs[I], b, i);
-            });
-        }
-        for (; i < dims; i++) {
-            const int8_t bb = b[i];
-            apply_indexed<batches>([&](auto I) {
-                res[I] += scalar_op(current_vecs[I][i], bb);
-            });
-        }
-
         apply_indexed<batches>([&](auto I) {
-            results[c + I] = (f32_t)res[I];
+            results[c + I] = (f32_t)inner_op(current_vecs[I], b, dims);
         });
+
         if (has_next) {
             std::copy_n(next_vecs, batches, current_vecs);
         }
     }
 
-    // Tail-handling: remaining vectors
+    // Tail-handling: remaining vectors (fewer than batches)
     for (; c < count; c++) {
         const int8_t* a0 = mapper(a, c, offsets, pitch);
-        results[c] = (f32_t)bulk_tail(a0, b, dims);
+        results[c] = (f32_t)inner_op(a0, b, dims);
     }
 }
 

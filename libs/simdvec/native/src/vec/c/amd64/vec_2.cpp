@@ -63,15 +63,24 @@ inline __m512i fma8(__m512i acc, const int8_t* p1, const int8_t* p2) {
     return _mm512_add_epi32(_mm512_madd_epi16(ones, dot), acc);
 }
 
-static inline int32_t dot7u_inner_avx512(const int8_t* a, const int8_t* b, const int32_t dims) {
-    constexpr int batches = 8;
-    constexpr int half_batches = 4;
+// Calls repeatedly a vector operation on 64-wide int lanes, until it is applied to all
+// `dims` elements in `a` and `b`
+// Template parameters:
+// - vec_op: the vector operation, acting on 64-wide int lanes. It takes and returns an
+//   accumulator holding partial results.
+// - batches: the number vec_op to "unroll" (interleave), called concurrently to update
+//   `batches` partial accumulators.
+template<
+    __m512i (*vec_op)(__m512i acc, const int8_t* p1, const int8_t* p2),
+    int batches = 8
+>
+static inline int32_t call_i7u_inner_avx512(const int8_t* a, const int8_t* b, const int32_t dims) {
+    static_assert(batches % 2 == 0, "batches must be even for vectorized AVX-512 operations");
+    constexpr int half_batches = batches / 2;
     constexpr int stride8 = batches * STRIDE_BYTES_LEN;
     constexpr int stride4 = half_batches * STRIDE_BYTES_LEN;
     const int8_t* p1 = a;
     const int8_t* p2 = b;
-
-
 
     __m512i acc[batches];
     // Init accumulator(s) with 0
@@ -82,7 +91,7 @@ static inline int32_t dot7u_inner_avx512(const int8_t* a, const int8_t* b, const
     const int8_t* p1End = a + (dims & ~(stride8 - 1));
     while (p1 < p1End) {
         apply_indexed<batches>([&](auto I) {
-            acc[I] = fma8<I>(acc[I], p1, p2);
+            acc[I] = vec_op<I>(acc[I], p1, p2);
         });
         p1 += stride8;
         p2 += stride8;
@@ -91,7 +100,7 @@ static inline int32_t dot7u_inner_avx512(const int8_t* a, const int8_t* b, const
     p1End = a + (dims & ~(stride4 - 1));
     while (p1 < p1End) {
         apply_indexed<half_batches>([&](auto I) {
-            acc[I] = fma8<I>(acc[I], p1, p2);
+            acc[I] = vec_op<I>(acc[I], p1, p2);
         });
         p1 += stride4;
         p2 += stride4;
@@ -99,7 +108,7 @@ static inline int32_t dot7u_inner_avx512(const int8_t* a, const int8_t* b, const
 
     p1End = a + (dims & ~(STRIDE_BYTES_LEN - 1));
     while (p1 < p1End) {
-        acc[0] = fma8<0>(acc[0], p1, p2);
+        acc[0] = vec_op<0>(acc[0], p1, p2);
         p1 += STRIDE_BYTES_LEN;
         p2 += STRIDE_BYTES_LEN;
     }
@@ -109,12 +118,12 @@ static inline int32_t dot7u_inner_avx512(const int8_t* a, const int8_t* b, const
     return _mm512_reduce_add_epi32(total_sum);
 }
 
-EXPORT int32_t vec_dot7u_2(const int8_t* a, const int8_t* b, const int32_t dims) {
+static inline int32_t dot7u_inner(const int8_t* a, const int8_t* b, const int32_t dims) {
     int32_t res = 0;
     int i = 0;
     if (dims > STRIDE_BYTES_LEN) {
         i += dims & ~(STRIDE_BYTES_LEN - 1);
-        res = dot7u_inner_avx512(a, b, i);
+        res = call_i7u_inner_avx512<fma8>(a, b, i);
     }
     for (; i < dims; i++) {
         res += a[i] * b[i];
@@ -122,8 +131,12 @@ EXPORT int32_t vec_dot7u_2(const int8_t* a, const int8_t* b, const int32_t dims)
     return res;
 }
 
+EXPORT int32_t vec_dot7u_2(const int8_t* a, const int8_t* b, const int32_t dims) {
+    return dot7u_inner(a, b, dims);
+}
+
 EXPORT void vec_dot7u_bulk_2(const int8_t* a, const int8_t* b, const int32_t dims, const int32_t count, f32_t* results) {
-    call_i8_bulk<int8_t, sequential_mapper, dot7u_inner_avx512, dot_scalar<int8_t>, vec_dot7u_2, STRIDE_BYTES_LEN, 4>(a, b, dims, dims, NULL, count, results);
+    call_i8_bulk<int8_t, sequential_mapper, dot7u_inner, 4>(a, b, dims, dims, NULL, count, results);
 }
 
 EXPORT void vec_dot7u_bulk_offsets_2(
@@ -134,7 +147,7 @@ EXPORT void vec_dot7u_bulk_offsets_2(
     const int32_t* offsets,
     const int32_t count,
     f32_t* results) {
-    call_i8_bulk<int8_t, offsets_mapper, dot7u_inner_avx512, dot_scalar<int8_t>, vec_dot7u_2, STRIDE_BYTES_LEN, 4>(a, b, dims, pitch, offsets, count, results);
+    call_i8_bulk<int8_t, offsets_mapper, dot7u_inner, 4>(a, b, dims, pitch, offsets, count, results);
 }
 
 template<int offsetRegs>
@@ -151,65 +164,12 @@ inline __m512i sqr8(__m512i acc, const int8_t* p1, const int8_t* p2) {
     return _mm512_add_epi32(_mm512_madd_epi16(ones, sqr_add), acc);
 }
 
-static inline int32_t sqr7u_inner_avx512(const int8_t* a, const int8_t* b, const int32_t dims) {
-    constexpr int stride8 = 8 * STRIDE_BYTES_LEN;
-    constexpr int stride4 = 4 * STRIDE_BYTES_LEN;
-    const int8_t* p1 = a;
-    const int8_t* p2 = b;
-
-    // Init accumulator(s) with 0
-    __m512i acc0 = _mm512_setzero_si512();
-    __m512i acc1 = _mm512_setzero_si512();
-    __m512i acc2 = _mm512_setzero_si512();
-    __m512i acc3 = _mm512_setzero_si512();
-    __m512i acc4 = _mm512_setzero_si512();
-    __m512i acc5 = _mm512_setzero_si512();
-    __m512i acc6 = _mm512_setzero_si512();
-    __m512i acc7 = _mm512_setzero_si512();
-
-    const int8_t* p1End = a + (dims & ~(stride8 - 1));
-    while (p1 < p1End) {
-        acc0 = sqr8<0>(acc0, p1, p2);
-        acc1 = sqr8<1>(acc1, p1, p2);
-        acc2 = sqr8<2>(acc2, p1, p2);
-        acc3 = sqr8<3>(acc3, p1, p2);
-        acc4 = sqr8<4>(acc4, p1, p2);
-        acc5 = sqr8<5>(acc5, p1, p2);
-        acc6 = sqr8<6>(acc6, p1, p2);
-        acc7 = sqr8<7>(acc7, p1, p2);
-        p1 += stride8;
-        p2 += stride8;
-    }
-
-    p1End = a + (dims & ~(stride4 - 1));
-    while (p1 < p1End) {
-        acc0 = sqr8<0>(acc0, p1, p2);
-        acc1 = sqr8<1>(acc1, p1, p2);
-        acc2 = sqr8<2>(acc2, p1, p2);
-        acc3 = sqr8<3>(acc3, p1, p2);
-        p1 += stride4;
-        p2 += stride4;
-    }
-
-    p1End = a + (dims & ~(STRIDE_BYTES_LEN - 1));
-    while (p1 < p1End) {
-        acc0 = sqr8<0>(acc0, p1, p2);
-        p1 += STRIDE_BYTES_LEN;
-        p2 += STRIDE_BYTES_LEN;
-    }
-
-    // reduce (accumulate all)
-    acc0 = _mm512_add_epi32(_mm512_add_epi32(acc0, acc1), _mm512_add_epi32(acc2, acc3));
-    acc4 = _mm512_add_epi32(_mm512_add_epi32(acc4, acc5), _mm512_add_epi32(acc6, acc7));
-    return _mm512_reduce_add_epi32(_mm512_add_epi32(acc0, acc4));
-}
-
-EXPORT int32_t vec_sqr7u_2(const int8_t* a, const int8_t* b, const int32_t dims) {
+static inline int32_t sqr7u_inner(const int8_t* a, const int8_t* b, const int32_t dims) {
     int32_t res = 0;
     int i = 0;
     if (dims > STRIDE_BYTES_LEN) {
         i += dims & ~(STRIDE_BYTES_LEN - 1);
-        res = sqr7u_inner_avx512(a, b, i);
+        res = call_i7u_inner_avx512<sqr8>(a, b, i);
     }
     for (; i < dims; i++) {
         int32_t dist = a[i] - b[i];
@@ -218,8 +178,12 @@ EXPORT int32_t vec_sqr7u_2(const int8_t* a, const int8_t* b, const int32_t dims)
     return res;
 }
 
+EXPORT int32_t vec_sqr7u_2(const int8_t* a, const int8_t* b, const int32_t dims) {
+    return sqr7u_inner(a, b, dims);
+}
+
 EXPORT void vec_sqr7u_bulk_2(const int8_t* a, const int8_t* b, const int32_t dims, const int32_t count, f32_t* results) {
-    call_i8_bulk<int8_t, sequential_mapper, sqr7u_inner_avx512, sqr_scalar<int8_t>, vec_sqr7u_2, STRIDE_BYTES_LEN, 4>(a, b, dims, dims, NULL, count, results);
+    call_i8_bulk<int8_t, sequential_mapper, sqr7u_inner, 4>(a, b, dims, dims, NULL, count, results);
 }
 
 EXPORT void vec_sqr7u_bulk_offsets_2(
@@ -230,7 +194,7 @@ EXPORT void vec_sqr7u_bulk_offsets_2(
     const int32_t* offsets,
     const int32_t count,
     f32_t* results) {
-    call_i8_bulk<int8_t, offsets_mapper, sqr7u_inner_avx512, sqr_scalar<int8_t>, vec_sqr7u_2, STRIDE_BYTES_LEN, 4>(a, b, dims, pitch, offsets, count, results);
+    call_i8_bulk<int8_t, offsets_mapper, sqr7u_inner, 4>(a, b, dims, pitch, offsets, count, results);
 }
 
 #ifdef __clang__

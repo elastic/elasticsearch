@@ -186,7 +186,7 @@ Result ordering in the field contexts is not guaranteed.
   :   (Required, string) Document that’s temporarily indexed in-memory and accessible from the script.
 
   `index`
-  :   (Required, string) Index containing a mapping that’s compatible with the indexed document. You can specify a remote index by prefixing the index with the remote cluster alias. For example, `remote1:my_index` indicates that you want to execute the painless script against the "my_index" index on the "remote1" cluster. This request will be forwarded to the "remote1" cluster if you have [configured a connection](docs-content://deploy-manage/remote-clusters/remote-clusters-self-managed.md) to that remote cluster.
+  :   (Required, string) Index containing a mapping that’s compatible with the indexed document. When using {{ccs}} or {{cps}}, you can specify a remote index by prefixing the index with the remote cluster alias. For example, `remote1:my_index` indicates that you want to execute the painless script against the "my_index" index on the "remote1" cluster or project. This request will be forwarded to the "remote1" cluster or project if you have configured a connection to that remote cluster, or linked the project.
 
       {applies_to}`serverless: preview` When [cross-project search](docs-content://explore-analyze/cross-project-search.md) (CPS) is enabled, an unqualified index name (for example, `logs`) targets the **origin project only**. Use `_origin:myindex` or `projectAlias:myindex` to target a specific project. [Project routing](docs-content://explore-analyze/cross-project-search/cross-project-search-project-routing.md) is not supported. 
       

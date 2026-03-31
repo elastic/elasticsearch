@@ -10,7 +10,9 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractAggregationTestCase;
@@ -56,7 +58,7 @@ public class IncreaseTests extends AbstractAggregationTestCase {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new Increase(source, args.get(0), AggregateFunction.NO_WINDOW, args.get(1));
+        return new Increase(source, args.get(0), Literal.TRUE, AggregateFunction.NO_WINDOW, args.get(1), Literal.NULL);
     }
 
     @Override
@@ -85,7 +87,7 @@ public class IncreaseTests extends AbstractAggregationTestCase {
 
     private static TestCaseSupplier makeSupplier(TestCaseSupplier.TypedDataSupplier fieldSupplier) {
         DataType type = counterType(fieldSupplier.type());
-        return new TestCaseSupplier(fieldSupplier.name(), List.of(type, DataType.DATETIME, DataType.INTEGER, DataType.LONG), () -> {
+        return new TestCaseSupplier(fieldSupplier.name(), List.of(type, DataType.DATETIME, DataType.KEYWORD, DataType.INTEGER, DataType.LONG), () -> {
             TestCaseSupplier.TypedData fieldTypedData = fieldSupplier.get();
             List<Object> dataRows = fieldTypedData.multiRowData();
             if (randomBoolean()) {
@@ -101,12 +103,14 @@ public class IncreaseTests extends AbstractAggregationTestCase {
             }
             fieldTypedData = TestCaseSupplier.TypedData.multiRow(dataRows, type, fieldTypedData.name());
             List<Long> timestamps = new ArrayList<>();
+            List<BytesRef> temporalities = new ArrayList<>();
             List<Integer> slices = new ArrayList<>();
             List<Long> maxTimestamps = new ArrayList<>();
             long lastTimestamp = randomLongBetween(0, 1_000_000);
             for (int row = 0; row < dataRows.size(); row++) {
                 lastTimestamp += randomLongBetween(1, 10_000);
                 timestamps.add(lastTimestamp);
+                temporalities.add(null);
                 slices.add(0);
                 maxTimestamps.add(Long.MAX_VALUE);
             }
@@ -114,6 +118,11 @@ public class IncreaseTests extends AbstractAggregationTestCase {
                 timestamps.reversed(),
                 DataType.DATETIME,
                 "timestamps"
+            );
+            TestCaseSupplier.TypedData temporalitiesField = TestCaseSupplier.TypedData.multiRow(
+                temporalities,
+                DataType.KEYWORD,
+                "temporalities"
             );
             TestCaseSupplier.TypedData sliceIndexType = TestCaseSupplier.TypedData.multiRow(slices, DataType.INTEGER, "_slice_index");
             TestCaseSupplier.TypedData nextTimestampType = TestCaseSupplier.TypedData.multiRow(
@@ -142,7 +151,7 @@ public class IncreaseTests extends AbstractAggregationTestCase {
             }
 
             return new TestCaseSupplier.TestCase(
-                List.of(fieldTypedData, timestampsField, sliceIndexType, nextTimestampType),
+                List.of(fieldTypedData, timestampsField, temporalitiesField, sliceIndexType, nextTimestampType),
                 standardAggregatorName("Rate", fieldTypedData.type()),
                 DataType.DOUBLE,
                 matcher
@@ -151,14 +160,13 @@ public class IncreaseTests extends AbstractAggregationTestCase {
     }
 
     public static List<DocsV3Support.Param> signatureTypes(List<DocsV3Support.Param> params) {
-        assertThat(params, hasSize(4));
+        assertThat(params, hasSize(5));
         assertThat(params.get(1).dataType(), equalTo(DataType.DATETIME));
-        assertThat(params.get(2).dataType(), equalTo(DataType.INTEGER));
-        assertThat(params.get(3).dataType(), equalTo(DataType.LONG));
-        ArrayList<DocsV3Support.Param> result = new ArrayList<>();
-        result.add(params.get(0));
+        assertThat(params.get(2).dataType(), equalTo(DataType.KEYWORD));
+        assertThat(params.get(3).dataType(), equalTo(DataType.INTEGER));
+        assertThat(params.get(4).dataType(), equalTo(DataType.LONG));
         var preview = appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.3.0", "", false);
-        result.add(new DocsV3Support.Param(DataType.TIME_DURATION, List.of(preview)));
-        return result;
+        DocsV3Support.Param window = new DocsV3Support.Param(DataType.TIME_DURATION, List.of(preview));
+        return List.of(params.get(0), window);
     }
 }

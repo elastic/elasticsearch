@@ -410,14 +410,16 @@ public class IndexShardRoutingTable {
         // shards, don't bother to do adjustments
         if (minShard.started()) {
             String minNodeId = minShard.currentNodeId();
+            // Increase the number of searches for the "winning" node by one.
+            // Note that this doesn't actually affect the "real" counts, instead
+            // it only affects the captured node search counts, which is
+            // captured once for each query in TransportSearchAction.
+            // This must happen outside the stats check so that stat-less probe winners
+            // also increment the count, making the probe cap effective for multi-shard indices.
+            nodeSearchCounts.compute(minNodeId, (id, conns) -> conns == null ? 1 : conns + 1);
             Optional<ResponseCollectorService.ComputedNodeStats> maybeMinStats = nodeStats.get(minNodeId);
             if (maybeMinStats.isPresent()) {
                 adjustStats(collector, nodeStats, minNodeId, maybeMinStats.get());
-                // Increase the number of searches for the "winning" node by one.
-                // Note that this doesn't actually affect the "real" counts, instead
-                // it only affects the captured node search counts, which is
-                // captured once for each query in TransportSearchAction
-                nodeSearchCounts.compute(minNodeId, (id, conns) -> conns == null ? 1 : conns + 1);
             }
         }
 

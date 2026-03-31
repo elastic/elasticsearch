@@ -188,8 +188,7 @@ public class SearchRequest extends LegacyActionRequest implements IndicesRequest
     }
 
     /**
-     * Clears {@link #getProjectRouting()} after it has been applied when opening a point-in-time so that
-     * subsequent PIT searches do not send project routing again (forbidden by validation with PIT).
+     * Clears {@link #getProjectRouting()}
      */
     public void clearProjectRouting() {
         this.projectRouting = null;

@@ -73,14 +73,10 @@ public final class RequestParams extends AbstractMap<String, String> {
      *
      * @param queryString the raw query string (the part after {@code ?}, without the {@code ?} itself)
      * @return a {@code RequestParams} from parameter name to all its values, in encounter order
-     * @throws RestRequest.BadParameterException if the query string cannot be decoded
+     * @throws IllegalArgumentException if the query string cannot be decoded
      */
     public static RequestParams fromQueryString(String queryString) {
-        try {
-            return RestUtils.decodeQueryString(queryString, 0);
-        } catch (IllegalArgumentException e) {
-            throw new RestRequest.BadParameterException(e);
-        }
+        return RestUtils.decodeQueryString(queryString, 0);
     }
 
     /**
@@ -89,7 +85,7 @@ public final class RequestParams extends AbstractMap<String, String> {
      *
      * @param uri a URI string, e.g. {@code /index/_search?pretty&size=10}
      * @return a {@code RequestParams} from parameter name to all its values, in encounter order
-     * @throws RestRequest.BadParameterException if the query string cannot be decoded
+     * @throws IllegalArgumentException if the query string cannot be decoded
      */
     public static RequestParams fromUri(String uri) {
         int index = uri.indexOf('?');
@@ -102,7 +98,7 @@ public final class RequestParams extends AbstractMap<String, String> {
      *
      * @param uri the URI whose raw query string is parsed
      * @return a {@code RequestParams} from parameter name to all its values, in encounter order
-     * @throws RestRequest.BadParameterException if the query string cannot be decoded
+     * @throws IllegalArgumentException if the query string cannot be decoded
      */
     public static RequestParams from(URI uri) {
         final var rawQuery = uri.getRawQuery();

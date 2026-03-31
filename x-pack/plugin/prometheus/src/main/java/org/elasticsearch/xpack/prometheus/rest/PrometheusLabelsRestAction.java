@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.prometheus.rest;
 
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.RequestParams;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
@@ -59,8 +60,10 @@ public class PrometheusLabelsRestAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        String matchParam = request.param(MATCH_PARAM);
-        List<String> matchSelectors = matchParam != null ? List.of(matchParam) : List.of();
+        // Consume the parameter; re-parse from the raw URI to handle repeated match[] params,
+        // since request processing currently keeps only the last value for repeated parameters.
+        request.repeatedParamAsList(MATCH_PARAM);
+        List<String> matchSelectors = RequestParams.fromUri(request.uri()).getAll(MATCH_PARAM);
 
         // Time range
         String endParam = request.param(END_PARAM);

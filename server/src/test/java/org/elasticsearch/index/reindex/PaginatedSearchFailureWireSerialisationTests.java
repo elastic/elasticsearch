@@ -13,57 +13,56 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.index.reindex.PaginatedHitSource.SearchFailure;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.io.IOException;
 import java.util.Objects;
 
-import static org.elasticsearch.index.reindex.SearchFailureTests.randomException;
+import static org.elasticsearch.index.reindex.PaginatedSearchFailureTests.randomException;
 
-public class SearchFailureWireSerialisationTests extends AbstractWireSerializingTestCase<
-    SearchFailureWireSerialisationTests.SearchFailureWrapper> {
+public class PaginatedSearchFailureWireSerialisationTests extends AbstractWireSerializingTestCase<
+    PaginatedSearchFailureWireSerialisationTests.PaginatedSearchFailureWrapper> {
     @Override
-    protected SearchFailureWrapper createTestInstance() {
+    protected PaginatedSearchFailureWrapper createTestInstance() {
         Throwable reason = randomException();
         String index = randomBoolean() ? randomAlphaOfLengthBetween(1, 10) : null;
         Integer shardId = randomBoolean() ? randomIntBetween(0, 100) : null;
         String nodeId = randomBoolean() ? randomAlphaOfLengthBetween(1, 10) : null;
-        return new SearchFailureWrapper(new SearchFailure(reason, index, shardId, nodeId));
+        return new PaginatedSearchFailureWrapper(new PaginatedSearchFailure(reason, index, shardId, nodeId));
     }
 
     @Override
-    protected Writeable.Reader<SearchFailureWrapper> instanceReader() {
-        return SearchFailureWrapper::new;
+    protected Writeable.Reader<PaginatedSearchFailureWrapper> instanceReader() {
+        return PaginatedSearchFailureWrapper::new;
     }
 
     @Override
-    protected SearchFailureWrapper mutateInstance(SearchFailureWrapper instance) {
-        return new SearchFailureWrapper(mutateSearchFailure(instance.failure()));
+    protected PaginatedSearchFailureWrapper mutateInstance(PaginatedSearchFailureWrapper instance) {
+        return new PaginatedSearchFailureWrapper(mutateSearchFailure(instance.failure()));
     }
 
     /**
-     * Wrapper around {@link SearchFailure} used exclusively for wire-serialization tests.
+     * Wrapper around {@link PaginatedSearchFailure} used exclusively for wire-serialization tests.
      * <p>
      * {@link AbstractWireSerializingTestCase} requires instances to be comparable via
-     * {@code equals}/{@code hashCode()}, but {@link SearchFailure} does not define
+     * {@code equals}/{@code hashCode()}, but {@link PaginatedSearchFailure} does not define
      * suitable semantic equality due to its embedded {@link Throwable}.
      * <p>
      * This wrapper provides stable, test-only equality semantics without leaking
      * test concerns into production code.
      */
-    static final class SearchFailureWrapper implements Writeable {
-        private final SearchFailure failure;
+    static final class PaginatedSearchFailureWrapper implements Writeable {
+        private final PaginatedSearchFailure failure;
 
-        SearchFailureWrapper(SearchFailure failure) {
+        PaginatedSearchFailureWrapper(PaginatedSearchFailure failure) {
             this.failure = failure;
         }
 
-        SearchFailureWrapper(StreamInput in) throws IOException {
-            this.failure = new SearchFailure(in);
+        PaginatedSearchFailureWrapper(StreamInput in) throws IOException {
+            this.failure = new PaginatedSearchFailure(in);
         }
 
-        SearchFailure failure() {
+        PaginatedSearchFailure failure() {
             return failure;
         }
 
@@ -76,7 +75,7 @@ public class SearchFailureWireSerialisationTests extends AbstractWireSerializing
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
-            SearchFailureWrapper that = (SearchFailureWrapper) o;
+            PaginatedSearchFailureWrapper that = (PaginatedSearchFailureWrapper) o;
             return failuresEqual(failure, that.failure);
         }
 
@@ -92,7 +91,7 @@ public class SearchFailureWireSerialisationTests extends AbstractWireSerializing
             );
         }
 
-        private static boolean failuresEqual(SearchFailure a, SearchFailure b) {
+        private static boolean failuresEqual(PaginatedSearchFailure a, PaginatedSearchFailure b) {
             return Objects.equals(a.getIndex(), b.getIndex())
                 && Objects.equals(a.getShardId(), b.getShardId())
                 && Objects.equals(a.getNodeId(), b.getNodeId())
@@ -102,7 +101,7 @@ public class SearchFailureWireSerialisationTests extends AbstractWireSerializing
         }
     }
 
-    static SearchFailure mutateSearchFailure(SearchFailure instance) {
+    static PaginatedSearchFailure mutateSearchFailure(PaginatedSearchFailure instance) {
         int fieldToMutate = randomIntBetween(0, 3);
         return switch (fieldToMutate) {
             case 0 -> {
@@ -111,7 +110,7 @@ public class SearchFailureWireSerialisationTests extends AbstractWireSerializing
                     newReason = randomException();
                 } while (newReason.getClass().equals(instance.getReason().getClass())
                     && Objects.equals(newReason.getMessage(), instance.getReason().getMessage()));
-                yield new SearchFailure(
+                yield new PaginatedSearchFailure(
                     newReason,
                     instance.getIndex(),
                     instance.getShardId(),
@@ -123,19 +122,37 @@ public class SearchFailureWireSerialisationTests extends AbstractWireSerializing
                 String newIndex = instance.getIndex() == null
                     ? randomAlphaOfLengthBetween(1, 10)
                     : randomValueOtherThan(instance.getIndex(), () -> randomAlphaOfLengthBetween(1, 10));
-                yield new SearchFailure(instance.getReason(), newIndex, instance.getShardId(), instance.getNodeId(), instance.getStatus());
+                yield new PaginatedSearchFailure(
+                    instance.getReason(),
+                    newIndex,
+                    instance.getShardId(),
+                    instance.getNodeId(),
+                    instance.getStatus()
+                );
             }
             case 2 -> {
                 Integer newShardId = instance.getShardId() == null
                     ? randomIntBetween(0, 100)
                     : randomValueOtherThan(instance.getShardId(), () -> randomIntBetween(0, 100));
-                yield new SearchFailure(instance.getReason(), instance.getIndex(), newShardId, instance.getNodeId(), instance.getStatus());
+                yield new PaginatedSearchFailure(
+                    instance.getReason(),
+                    instance.getIndex(),
+                    newShardId,
+                    instance.getNodeId(),
+                    instance.getStatus()
+                );
             }
             case 3 -> {
                 String newNodeId = instance.getNodeId() == null
                     ? randomAlphaOfLengthBetween(1, 10)
                     : randomValueOtherThan(instance.getNodeId(), () -> randomAlphaOfLengthBetween(1, 10));
-                yield new SearchFailure(instance.getReason(), instance.getIndex(), instance.getShardId(), newNodeId, instance.getStatus());
+                yield new PaginatedSearchFailure(
+                    instance.getReason(),
+                    instance.getIndex(),
+                    instance.getShardId(),
+                    newNodeId,
+                    instance.getStatus()
+                );
             }
             default -> throw new AssertionError("Unknown field index [" + fieldToMutate + "]");
         };

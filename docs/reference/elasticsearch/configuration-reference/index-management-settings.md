@@ -86,11 +86,12 @@ The following settings can be used to customize the [OTLP endpoint](docs-content
 `xpack.otel_data.registry.enabled`
 :   Specifies whether OpenTelemetry related index templates should be created on startup. Defaults to *true*.
 
-`xpack.otel_data.histogram_field_type` {applies_to}`stack: preview 9.3`
-:   Defines how OTLP histograms are mapped in Elasticsearch. Valid values are:
+`xpack.otel_data.histogram_field_type` {applies_to}`stack: preview 9.3, ga 9.4+` {applies_to}`serverless: ga`
+:   Defines how OTLP histograms are mapped in Elasticsearch.
+    Valid values are:
 
-* `histogram` (default): Map histograms as T-Digests using the `histogram` field type
-* `exponential_histogram`: Map histograms as exponential histograms using the `exponential_histogram` field type
+* `histogram`: Map histograms as T-Digests using the `histogram` field type (Default on {applies_to}`stack: preview =9.3`)
+* `exponential_histogram`: Map histograms as exponential histograms using the `exponential_histogram` field type (Default on {applies_to}`stack: ga 9.4+` {applies_to}`serverless: ga`)
 
 ## Reindex settings [reindex-settings]
 

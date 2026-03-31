@@ -802,13 +802,21 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
 
     protected abstract void registerParameters(ParameterChecker checker) throws IOException;
 
+    private static FieldMapper.Builder findChildBuilder(String name, MappingBuilder mappings) {
+        for (Mapper.Builder child : mappings.rootBuilder().getChildBuilders()) {
+            if (name.equals(child.leafName()) && child instanceof FieldMapper.Builder mb) {
+                return mb;
+            }
+        }
+        return null;
+    }
+
     public void testAllParametersAreChecked() throws IOException {
         ParameterChecker checker = new ParameterChecker();
         registerParameters(checker);
 
-        MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
-        FieldMapper mapper = (FieldMapper) mapperService.documentMapper().mappers().getMapper("field");
-        FieldMapper.Builder builder = mapper.getMergeBuilder();
+        MappingBuilder rootBuilder = parseMappings(fieldMapping(this::minimalMapping));
+        FieldMapper.Builder builder = findChildBuilder("field", rootBuilder);
         assumeTrue("mapper does not provide a merge builder", builder != null);
         checker.ensureAllParametersAreCovered(builder);
         assertParseMinimalWarnings();

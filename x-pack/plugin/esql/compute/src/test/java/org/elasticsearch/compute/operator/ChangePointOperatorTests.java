@@ -199,8 +199,8 @@ public class ChangePointOperatorTests extends OperatorTestCase {
             assertThat(outputPages, hasSize(1));
             assertWarnings(
                 "Line 1:1: evaluation of [null] failed, treating result as null. Only first 20 failures recorded.",
-                "Line 1:1: java.lang.IllegalArgumentException: not enough buckets to calculate change_point. Requires at least [22]; " +
-                    "found [0]",
+                "Line 1:1: java.lang.IllegalArgumentException: not enough buckets to calculate change_point. Requires at least [22]; "
+                    + "found [0]",
                 "Line 1:1: java.lang.IllegalArgumentException: values contain nulls; skipping them"
             );
             Block typeBlock = outputPages.get(0).getBlock(1);
@@ -243,8 +243,8 @@ public class ChangePointOperatorTests extends OperatorTestCase {
             assertChangePointAt(outputPages.get(1), 15);
             assertWarnings(
                 "Line 1:1: evaluation of [null] failed, treating result as null. Only first 20 failures recorded.",
-                "Line 1:1: java.lang.IllegalArgumentException: not enough buckets to calculate change_point. Requires at least [22]; " +
-                    "found [1]"
+                "Line 1:1: java.lang.IllegalArgumentException: not enough buckets to calculate change_point. Requires at least [22]; "
+                    + "found [1]"
             );
         } finally {
             outputPages.forEach(Page::releaseBlocks);
@@ -267,8 +267,8 @@ public class ChangePointOperatorTests extends OperatorTestCase {
             assertNoChangePoints(outputPages.get(1));
             assertWarnings(
                 "Line 1:1: evaluation of [null] failed, treating result as null. Only first 20 failures recorded.",
-                "Line 1:1: java.lang.IllegalArgumentException: not enough buckets to calculate change_point. Requires at least [22]; " +
-                    "found [0]",
+                "Line 1:1: java.lang.IllegalArgumentException: not enough buckets to calculate change_point. Requires at least [22]; "
+                    + "found [0]",
                 "Line 1:1: java.lang.IllegalArgumentException: values contain nulls; skipping them"
             );
         } finally {
@@ -292,8 +292,8 @@ public class ChangePointOperatorTests extends OperatorTestCase {
             assertChangePointAt(outputPages.get(1), 15);
             assertWarnings(
                 "Line 1:1: evaluation of [null] failed, treating result as null. Only first 20 failures recorded.",
-                "Line 1:1: java.lang.IllegalArgumentException: not enough buckets to calculate change_point. Requires at least [22]; " +
-                    "found [0]",
+                "Line 1:1: java.lang.IllegalArgumentException: not enough buckets to calculate change_point. Requires at least [22]; "
+                    + "found [0]",
                 "Line 1:1: java.lang.IllegalArgumentException: values contain nulls; skipping them"
             );
         } finally {

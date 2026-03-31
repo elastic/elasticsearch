@@ -19,12 +19,12 @@ import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.datasources.CloseableIterator;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
@@ -73,6 +73,24 @@ public class CsvFormatReaderTests extends ESTestCase {
         assertEquals(DataType.INTEGER, schema.get(2).dataType());
         assertEquals("active", schema.get(3).name());
         assertEquals(DataType.BOOLEAN, schema.get(3).dataType());
+    }
+
+    public void testTypedSchemaTextAndTxtAliasesMapToKeyword() throws IOException {
+        String csv = """
+            a:text,b:txt
+            hello,world
+            """;
+
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+
+        List<Attribute> schema = reader.schema(object);
+
+        assertEquals(2, schema.size());
+        assertEquals("a", schema.get(0).name());
+        assertEquals(DataType.KEYWORD, schema.get(0).dataType());
+        assertEquals("b", schema.get(1).name());
+        assertEquals(DataType.KEYWORD, schema.get(1).dataType());
     }
 
     public void testSchemaWithComments() throws IOException {

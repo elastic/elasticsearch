@@ -12,6 +12,7 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.esql.AssertWarnings;
 import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
+import org.elasticsearch.xpack.esql.approximation.ApproximationPlan;
 import org.elasticsearch.xpack.esql.generator.Column;
 import org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator;
 import org.elasticsearch.xpack.esql.generator.LookupIdx;
@@ -22,6 +23,7 @@ import org.elasticsearch.xpack.esql.generator.command.CommandGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.EnrichGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.EvalGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.LookupJoinGenerator;
+import org.elasticsearch.xpack.esql.generator.command.source.FromGenerator;
 import org.elasticsearch.xpack.esql.qa.rest.ProfileLogger;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase;
 import org.junit.AfterClass;
@@ -77,7 +79,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         // full-text functions are not allowed to match on fields that come from lookup indices
         "cannot operate on \\[.*\\], supplied by an index \\[.*\\] in non-STANDARD mode \\[lookup\\]",
         "Can only use fuzzy queries on keyword and text fields - not on \\[.*\\] which is of type \\[.*\\]",
-        // multi_match query receiving a non-boolean value for a boolean type field
+        // full-text function receiving a non-boolean value for a boolean type field
         "Can't parse boolean value \\[.*\\], expected \\[true\\] or \\[false\\]",
         // full-text function trying to parse text as date field and failing
         "failed to parse date field \\[.*\\] with format",
@@ -93,14 +95,11 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         "long overflow", // https://github.com/elastic/elasticsearch/issues/135759
         "can't find input for", // https://github.com/elastic/elasticsearch/issues/136596
         "optimized incorrectly due to missing references", // https://github.com/elastic/elasticsearch/issues/138231
+        // https://github.com/elastic/elasticsearch/issues/142537 for null arguments in clamp() function
         "'field' must not be null in clamp\\(\\)", // clamp/clamp_min/clamp_max reject NULL field from unmapped fields
         "must be \\[boolean, date, ip, string or numeric except unsigned_long or counter types\\]", // type mismatch in top() arguments
-        "unsupported logical plan node \\[Join\\]", // https://github.com/elastic/elasticsearch/issues/141978
-        "Unsupported right plan for lookup join \\[Eval\\]", // https://github.com/elastic/elasticsearch/issues/141870
         "Does not support yet aggregations over constants", // https://github.com/elastic/elasticsearch/issues/118292
         "found value \\[.*\\] type \\[unsupported\\]", // https://github.com/elastic/elasticsearch/issues/142761
-        "change point value \\[.*\\] must be numeric", // https://github.com/elastic/elasticsearch/issues/142858
-        "illegal query_string option \\[boost\\]", // https://github.com/elastic/elasticsearch/issues/142758
         "Field \\[.*\\] of type \\[.*\\] does not support match.* queries",
         "JOIN left field \\[.*\\] of type \\[NULL\\] is incompatible with right", // https://github.com/elastic/elasticsearch/issues/141827
         // https://github.com/elastic/elasticsearch/issues/141827
@@ -215,9 +214,17 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
                 public void run(CommandGenerator generator, CommandGenerator.CommandDescription current) {
                     final String command = current.commandString();
 
-                    final QueryExecuted result = previousResult == null
+                    QueryExecuted result = previousResult == null
                         ? execute(command, 0)
                         : execute(previousResult.query() + command, previousResult.depth());
+
+                    // Strip the artificial query approximation columns, that are added after
+                    // query execution, and trailing all other columns. These columns confuse
+                    // follow-up command generation (that try to reference them), and result
+                    // validation (that expect columns added after them).
+                    if (FromGenerator.hasApproximationSettings(result.query())) {
+                        result = stripApproximationColumns(result);
+                    }
 
                     final boolean hasException = result.exception() != null;
                     if (hasException
@@ -285,6 +292,30 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
                 }
             }
         }
+    }
+
+    /**
+     * Strips {@code _approximation_} metadata columns from a {@link QueryExecuted}.
+     */
+    private static QueryExecuted stripApproximationColumns(QueryExecuted qe) {
+        if (qe == null || qe.outputSchema() == null) {
+            return qe;
+        }
+        List<Integer> keepIndices = new ArrayList<>();
+        for (int i = 0; i < qe.outputSchema().size(); i++) {
+            if (qe.outputSchema().get(i).name().startsWith(ApproximationPlan.CONFIDENCE_INTERVAL_COLUMN_PREFIX) == false
+                && qe.outputSchema().get(i).name().startsWith(ApproximationPlan.CERTIFIED_COLUMN_PREFIX) == false) {
+                keepIndices.add(i);
+            }
+        }
+        if (keepIndices.size() == qe.outputSchema().size()) {
+            return qe;
+        }
+        List<Column> schema = keepIndices.stream().map(qe.outputSchema()::get).toList();
+        List<List<Object>> rows = qe.result() == null
+            ? null
+            : qe.result().stream().map(row -> keepIndices.stream().map(row::get).toList()).toList();
+        return new QueryExecuted(qe.query(), qe.depth(), schema, rows, qe.exception());
     }
 
     protected CommandGenerator sourceCommand() {

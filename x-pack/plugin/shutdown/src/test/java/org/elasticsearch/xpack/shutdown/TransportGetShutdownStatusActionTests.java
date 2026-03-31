@@ -67,6 +67,7 @@ import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskCancelHelper;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
 import org.elasticsearch.xpack.core.ilm.ErrorStep;
@@ -167,7 +168,8 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
             new BalancedShardsAllocator(Settings.EMPTY),
             clusterInfoService,
             snapshotsInfoService,
-            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
+            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY,
+            MeterRegistry.NOOP
         );
         allocationService.setExistingShardsAllocators(Map.of(GatewayAllocator.ALLOCATOR_NAME, new TestGatewayAllocator()));
     }
@@ -1134,7 +1136,7 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
     public void testShardSnapshotsStatusCounts() {
         final int completedCount = randomIntBetween(0, 5);
         final int pausedCount = randomIntBetween(0, 5);
-        final int runningCount = randomIntBetween(0, 5);
+        final int runningCount = randomIntBetween(completedCount + pausedCount == 0 ? 1 : 0, 5);
 
         final ClusterState baseState = createTestClusterState(
             RoutingTable.EMPTY_ROUTING_TABLE,

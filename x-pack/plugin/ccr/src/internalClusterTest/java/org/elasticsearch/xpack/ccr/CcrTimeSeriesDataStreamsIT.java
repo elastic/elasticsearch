@@ -291,8 +291,8 @@ public class CcrTimeSeriesDataStreamsIT extends CcrIntegTestCase {
         if (IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG) {
             settingsBuilder.put(IndexSettings.SYNTHETIC_ID.getKey(), useSyntheticId);
         }
-        if (disableSeqNo) {
-            settingsBuilder.put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true);
+        if (IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG) {
+            settingsBuilder.put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), disableSeqNo);
         }
         var putTemplateRequest = new TransportPutComposableIndexTemplateAction.Request(getTestClass().getName().toLowerCase(Locale.ROOT))
             .indexTemplate(

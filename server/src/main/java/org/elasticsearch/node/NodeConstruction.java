@@ -93,6 +93,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.discovery.DiscoveryModule;
+import org.elasticsearch.dlm.DataStreamLifecycleErrorStore;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.features.FeatureService;
@@ -755,7 +756,7 @@ class NodeConstruction {
         FailureStoreMetrics failureStoreMetrics = new FailureStoreMetrics(telemetryProvider.getMeterRegistry());
         MatcherWatchdog matcherWatchdog = IngestService.createGrokThreadWatchdog(environment, threadPool);
         UserAgentParserRegistry userAgentParserRegistry = getSinglePlugin(UserAgentParserRegistryProvider.class).map(
-            p -> p.createUserAgentParserRegistry(environment)
+            p -> p.createRegistry(environment)
         ).orElse(UserAgentParserRegistry.NOOP);
         final IngestService ingestService = new IngestService(
             clusterService,
@@ -1027,6 +1028,7 @@ class NodeConstruction {
 
         final var persistentTasksService = new PersistentTasksService(clusterService, threadPool, client);
         final var taskLifecycleManager = new PersistentTaskLifecycleManager(persistentTasksService, clusterService);
+        final DataStreamLifecycleErrorStore dlmErrorStore = new DataStreamLifecycleErrorStore(threadPool::absoluteTimeInMillis);
 
         PluginServiceInstances pluginServices = new PluginServiceInstances(
             client,
@@ -1057,7 +1059,8 @@ class NodeConstruction {
             projectRoutingResolver,
             remoteTransportClient,
             crossProjectModeDecider,
-            taskLifecycleManager
+            taskLifecycleManager,
+            dlmErrorStore
         );
 
         Collection<?> pluginComponents = pluginsService.flatMap(plugin -> {
@@ -1386,6 +1389,7 @@ class NodeConstruction {
             b.bind(BigArrays.class).toInstance(bigArrays);
             b.bind(PageCacheRecycler.class).toInstance(pageCacheRecycler);
             b.bind(IngestService.class).toInstance(ingestService);
+            b.bind(UserAgentParserRegistry.class).toInstance(userAgentParserRegistry);
             b.bind(IndexingPressure.class).toInstance(indexingLimits);
             b.bind(IncrementalBulkService.class).toInstance(incrementalBulkService);
             b.bind(AggregationUsageService.class).toInstance(searchModule.getValuesSourceRegistry().getUsageService());
@@ -1427,6 +1431,7 @@ class NodeConstruction {
             b.bind(ProjectRoutingResolver.class).toInstance(projectRoutingResolver);
             b.bind(ActionLoggingFieldsProvider.class).toInstance(loggingFieldsProvider);
             b.bind(ActivityLogWriterProvider.class).toInstance(logWriterProvider);
+            b.bind(DataStreamLifecycleErrorStore.class).toInstance(dlmErrorStore);
         });
 
         if (ReadinessService.enabled(environment)) {

@@ -533,6 +533,16 @@ public class TransportStopDatafeedAction extends TransportTasksAction<
         }
     }
 
+    /**
+     * Runs the stop sequence for a single datafeed task: persist {@link DatafeedState#STOPPING}, then invoke
+     * {@link TransportStartDatafeedAction.DatafeedTask#stop(String, org.elasticsearch.core.TimeValue, Boolean)} so
+     * {@code close_job} on the request controls whether lookback-only jobs are auto-closed.
+     *
+     * @param actionTask   the coordinating task for this transport action (unused here but required by the tasks framework)
+     * @param request      the stop request for one or more datafeeds, including timeout, force, and {@code close_job}
+     * @param datafeedTask the persistent datafeed task running on this node that should stop
+     * @param listener     receives {@link StopDatafeedAction.Response} when the local stop has been initiated successfully
+     */
     @Override
     protected void taskOperation(
         CancellableTask actionTask,

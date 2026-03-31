@@ -659,13 +659,27 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
             return false;
         }
 
+        /**
+         * Marks this datafeed task as stopped and asks the {@link DatafeedRunner} to shut down the in-memory datafeed,
+         * using default rules for whether the job is auto-closed when the datafeed has an {@code end_time} (lookback-only).
+         *
+         * @param reason  short label for logs and audits explaining why the datafeed is stopping
+         * @param timeout maximum time to wait when acquiring the datafeed job lock before proceeding with shutdown
+         */
         public void stop(String reason, TimeValue timeout) {
             stop(reason, timeout, null);
         }
 
         /**
-         * @param autoCloseJobOverride if non-null, passed to {@link DatafeedRunner#stopDatafeed}; if null, default
-         *                             lookback-only auto-close behavior applies (see {@link #isLookbackOnly()}).
+         * Marks this datafeed task as stopped and asks the {@link DatafeedRunner} to shut down the in-memory datafeed,
+         * optionally overriding whether the anomaly detection job is auto-closed after the stop.
+         *
+         * @param reason               short label for logs and audits explaining why the datafeed is stopping
+         * @param timeout              maximum time to wait when acquiring the datafeed job lock before proceeding with
+         *                             shutdown
+         * @param autoCloseJobOverride when non-null, whether to auto-close the job after the datafeed stops; when
+         *                             {@code null}, default lookback-only auto-close behavior applies (see {@link #isLookbackOnly()}).
+         *                             Non-null values are passed to {@link DatafeedRunner#stopDatafeed(TransportStartDatafeedAction.DatafeedTask, String, TimeValue, Boolean)}
          */
         public void stop(String reason, TimeValue timeout, Boolean autoCloseJobOverride) {
             synchronized (this) {

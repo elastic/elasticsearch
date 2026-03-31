@@ -1208,8 +1208,7 @@ public class ClassMethodBuilder<T> {
             clazz.getDeclaredConstructor(resolvedArgs);
         } catch (NoSuchMethodException e) {
             throw new IllegalArgumentException(
-                "No constructor found on " + clazz.getName()
-                    + " with parameter types " + Arrays.stream(args).map(Class::getName).toList(),
+                "No constructor found on " + clazz.getName() + " with parameter types " + Arrays.stream(args).map(Class::getName).toList(),
                 e
             );
         }

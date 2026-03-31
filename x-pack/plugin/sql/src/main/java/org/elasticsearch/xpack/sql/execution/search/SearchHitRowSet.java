@@ -46,21 +46,25 @@ class SearchHitRowSet extends ResultRowSet<HitExtractor> {
     SearchHitRowSet(List<HitExtractor> exts, BitSet mask, int sizeRequested, int limit, SearchResponse response) {
         super(exts, mask);
 
-        SearchHits h = response.getHits();
-        h.mustIncRef();
+        this.hits = response.getHits();
+        this.hits.mustIncRef();
         try {
-            String innerHitName = null;
+            // Since the results might contain nested docs, the iteration is similar to that of Aggregation
+            // namely it discovers the nested docs and then, for iteration, increments the deepest level first
+            // and eventually carries that over to the top level
+
+            String innerHit = null;
             Set<String> innerHits = new LinkedHashSet<>();
             for (HitExtractor ex : exts) {
                 if (ex.hitName() != null) {
                     innerHits.add(ex.hitName());
-                    if (innerHitName == null) {
-                        innerHitName = ex.hitName();
+                    if (innerHit == null) {
+                        innerHit = ex.hitName();
                     }
                 }
             }
 
-            int sz = h.getHits().length;
+            int sz = hits.getHits().length;
 
             int maxDepth = 0;
             if (innerHits.isEmpty() == false) {
@@ -70,7 +74,7 @@ class SearchHitRowSet extends ResultRowSet<HitExtractor> {
                 maxDepth = 1;
 
                 sz = 0;
-                for (SearchHit hit : h) {
+                for (SearchHit hit : hits) {
                     Map<String, SearchHit[]> innerHitsPerPath = new HashMap<>(innerHits.size());
                     for (String ih : innerHits) {
                         SearchHit[] sh = getAllInnerHits(hit, ih);
@@ -80,24 +84,21 @@ class SearchHitRowSet extends ResultRowSet<HitExtractor> {
                     flatInnerHits.put(hit, innerHitsPerPath);
                 }
             }
-            int computedSize = limit < 0 ? sz : Math.min(sz, limit);
-            int[] levels = new int[maxDepth + 1];
+            // page size
+            size = limit < 0 ? sz : Math.min(sz, limit);
+            indexPerLevel = new int[maxDepth + 1];
+            this.innerHit = innerHit;
 
-            int remaining = limit < 0 ? limit : limit - computedSize;
-            int remainingLim;
-            if (computedSize < sizeRequested || remaining == 0) {
-                remainingLim = 0;
+            // compute remaining limit (only if the limit is specified - that is, positive).
+            int remaining = limit < 0 ? limit : limit - size;
+            // either the search returned fewer records than requested or the limit is exhausted
+            if (size < sizeRequested || remaining == 0) {
+                remainingLimit = 0;
             } else {
-                remainingLim = remaining;
+                remainingLimit = remaining;
             }
-
-            this.hits = h;
-            this.innerHit = innerHitName;
-            this.size = computedSize;
-            this.indexPerLevel = levels;
-            this.remainingLimit = remainingLim;
         } catch (Throwable t) {
-            h.decRef();
+            this.hits.decRef();
             throw t;
         }
     }

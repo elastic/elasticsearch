@@ -566,9 +566,6 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
         if (Thread.currentThread().isInterrupted()) {
             throw new ElasticsearchException("DLM operation interrupted", new InterruptedException("Thread was interrupted"));
         }
-    @Override
-    public ProjectId getProjectId() {
-        return projectId;
     }
 
     private ProjectState getProjectState() {

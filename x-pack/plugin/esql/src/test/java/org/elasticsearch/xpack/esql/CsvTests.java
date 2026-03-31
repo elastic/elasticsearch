@@ -120,6 +120,7 @@ import org.elasticsearch.xpack.esql.plan.physical.MMRExec;
 import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.plan.physical.SparklineGenerateEmptyBucketsExec;
 import org.elasticsearch.xpack.esql.planner.ConstantShardContextIndexedByShardId;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.LocalExecutionPlan;
@@ -906,6 +907,7 @@ public class CsvTests extends ESTestCase {
                 || p instanceof HashJoinExec
                 || p instanceof ChangePointExec
                 || p instanceof MergeExec
+                || p instanceof SparklineGenerateEmptyBucketsExec
                 || p instanceof MMRExec
                 || p instanceof ExternalSourceExec
                 || p instanceof ExchangeExec

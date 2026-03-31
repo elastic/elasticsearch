@@ -1182,17 +1182,17 @@ public class EsqlCapabilities {
         /**
          * Support non-correlated subqueries in the FROM clause.
          */
-        SUBQUERY_IN_FROM_COMMAND(Build.current().isSnapshot()),
+        SUBQUERY_IN_FROM_COMMAND,
 
         /**
          * Support non-correlated subqueries in the FROM clause without implicit limit.
          */
-        SUBQUERY_IN_FROM_COMMAND_WITHOUT_IMPLICIT_LIMIT(Build.current().isSnapshot()),
+        SUBQUERY_IN_FROM_COMMAND_WITHOUT_IMPLICIT_LIMIT,
 
         /**
          * Append an implicit limit to unbounded sorts in subqueries in the FROM clause.
          */
-        SUBQUERY_IN_FROM_COMMAND_APPEND_IMPLICIT_LIMIT_TO_UNBOUNDED_SORT_IN_SUBQUERY(Build.current().isSnapshot()),
+        SUBQUERY_IN_FROM_COMMAND_APPEND_IMPLICIT_LIMIT_TO_UNBOUNDED_SORT_IN_SUBQUERY,
 
         /**
          * Support for views in cluster state (and REST API).
@@ -2131,7 +2131,7 @@ public class EsqlCapabilities {
         /**
          * Support query approximation.
          */
-        APPROXIMATION_V5(Build.current().isSnapshot()),
+        APPROXIMATION_V6(Build.current().isSnapshot()),
 
         /**
          * Create a ScoreOperator only when shard contexts are available
@@ -2366,6 +2366,11 @@ public class EsqlCapabilities {
          * <a href="https://github.com/elastic/elasticsearch/pull/144388"></a>
          */
         CHANGE_POINT_SUPPORT_NULL_COLUMN,
+
+        /**
+         * MMR fixes for constant folding
+         */
+        MMR_FOLDABLE_QUERY_VECTOR_FIX,
 
         /**
          * Support CHANGE_POINT arguments in any order

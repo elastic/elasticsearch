@@ -118,7 +118,7 @@ indexPatternAndMetadataFields
 
 indexPatternOrSubquery
     : indexPattern
-    | {this.isDevVersion()}? subquery
+    | subquery
     ;
 
 subquery

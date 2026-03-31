@@ -19,6 +19,8 @@ import org.openjdk.jmh.annotations.Param;
 
 import java.util.Arrays;
 
+import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.supportsHeapSegments;
+
 public class VectorScorerInt4BulkBenchmarkTests extends ESTestCase {
 
     private final VectorSimilarityType function;
@@ -44,8 +46,9 @@ public class VectorScorerInt4BulkBenchmarkTests extends ESTestCase {
     }
 
     @BeforeClass
-    public static void skipWindows() {
+    public static void skipUnsupported() {
         assumeFalse("doesn't work on windows yet", Constants.WINDOWS);
+        assumeTrue("native requires JDK22+", supportsHeapSegments());
     }
 
     public void testSequential() throws Exception {

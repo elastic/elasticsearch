@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegisteredDomain;
 import org.elasticsearch.xpack.esql.plan.logical.Sample;
 import org.elasticsearch.xpack.esql.plan.logical.SampledAggregate;
+import org.elasticsearch.xpack.esql.plan.logical.SparklineGenerateEmptyBuckets;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
@@ -52,6 +53,7 @@ import org.elasticsearch.xpack.esql.plan.physical.RegisteredDomainExec;
 import org.elasticsearch.xpack.esql.plan.physical.SampleExec;
 import org.elasticsearch.xpack.esql.plan.physical.SampledAggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
+import org.elasticsearch.xpack.esql.plan.physical.SparklineGenerateEmptyBucketsExec;
 import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.UriPartsExec;
 import org.elasticsearch.xpack.esql.plan.physical.inference.CompletionExec;
@@ -161,6 +163,20 @@ public class MapperUtils {
 
         if (p instanceof Sample sample) {
             return new SampleExec(sample.source(), child, sample.probability());
+        }
+
+        if (p instanceof SparklineGenerateEmptyBuckets sparklineGenerateEmptyBuckets) {
+            return new SparklineGenerateEmptyBucketsExec(
+                sparklineGenerateEmptyBuckets.source(),
+                child,
+                sparklineGenerateEmptyBuckets.values(),
+                sparklineGenerateEmptyBuckets.groupings(),
+                sparklineGenerateEmptyBuckets.dateBucketRounding(),
+                sparklineGenerateEmptyBuckets.minDate(),
+                sparklineGenerateEmptyBuckets.maxDate(),
+                sparklineGenerateEmptyBuckets.passthroughAttributes(),
+                sparklineGenerateEmptyBuckets.output()
+            );
         }
 
         if (p instanceof Subquery) {

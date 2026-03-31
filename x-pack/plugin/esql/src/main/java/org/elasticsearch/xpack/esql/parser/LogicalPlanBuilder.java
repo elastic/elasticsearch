@@ -21,14 +21,11 @@ import org.elasticsearch.dissect.DissectParser;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.transport.RemoteClusterAware;
-import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
-import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.EmptyAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
@@ -45,7 +42,6 @@ import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
-import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.BinaryLogic;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
@@ -101,7 +97,6 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -486,7 +481,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     @Override
     public PlanFactory visitStatsCommand(EsqlBaseParser.StatsCommandContext ctx) {
-        final Stats stats = stats(source(ctx), ctx.grouping, ctx.stats);
+        final ParserUtils.Stats stats = stats(source(ctx), ctx.grouping, ctx.stats);
         // Only the first STATS command in a TS query is treated as the time-series aggregation.
         // After METRICS_INFO or TS_INFO, the output is metadata, not time series data, so use regular Aggregate.
         return input -> {
@@ -499,52 +494,25 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 return new TimeSeriesAggregate(
                     source(ctx),
                     input,
-                    stats.groupings,
-                    stats.aggregates,
+                    stats.groupings(),
+                    stats.aggregates(),
                     null,
                     new UnresolvedTimestamp(source(ctx))
                 );
             } else {
-                return new Aggregate(source(ctx), input, stats.groupings, stats.aggregates);
+                return new Aggregate(source(ctx), input, stats.groupings(), stats.aggregates());
             }
         };
     }
 
-    private record Stats(List<Expression> groupings, List<? extends NamedExpression> aggregates) {}
-
-    private Stats stats(Source source, EsqlBaseParser.FieldsContext groupingsCtx, EsqlBaseParser.AggFieldsContext aggregatesCtx) {
+    private ParserUtils.Stats stats(
+        Source source,
+        EsqlBaseParser.FieldsContext groupingsCtx,
+        EsqlBaseParser.AggFieldsContext aggregatesCtx
+    ) {
         List<NamedExpression> groupings = visitGrouping(groupingsCtx);
         List<NamedExpression> aggregates = new ArrayList<>(visitAggFields(aggregatesCtx));
-
-        if (aggregates.isEmpty() && groupings.isEmpty()) {
-            throw new ParsingException(source, "At least one aggregation or grouping expression required in [{}]", source.text());
-        }
-        // grouping keys are automatically added as aggregations however the user is not allowed to specify them
-        if (groupings.isEmpty() == false && aggregates.isEmpty() == false) {
-            var groupNames = new LinkedHashSet<>(Expressions.names(groupings));
-            var groupRefNames = new LinkedHashSet<>(Expressions.names(Expressions.references(groupings)));
-
-            for (NamedExpression aggregate : aggregates) {
-                Expression e = Alias.unwrap(aggregate);
-                if (e.resolved() == false && e instanceof UnresolvedFunction == false) {
-                    String name = e.sourceText();
-                    if (groupNames.contains(name)) {
-                        fail(e, "grouping key [{}] already specified in the STATS BY clause", name);
-                    } else if (groupRefNames.contains(name)) {
-                        fail(e, "Cannot specify grouping expression [{}] as an aggregate", name);
-                    }
-                }
-            }
-        }
-        // since groupings are aliased, add refs to it in the aggregates
-        for (Expression group : groupings) {
-            aggregates.add(Expressions.attribute(group));
-        }
-        return new Stats(new ArrayList<>(groupings), aggregates);
-    }
-
-    private void fail(Expression exp, String message, Object... args) {
-        throw new VerificationException(Collections.singletonList(Failure.fail(exp, message, args)));
+        return ParserUtils.buildStats(source, new ArrayList<>(groupings), aggregates);
     }
 
     @Override

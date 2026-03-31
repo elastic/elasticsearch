@@ -57,7 +57,12 @@ public class PeriodThrottler implements Throttler {
         long executionTime = status.lastSuccessfulExecution().timestamp().toInstant().toEpochMilli();
         TimeValue timeElapsed = TimeValue.timeValueMillis(now - executionTime);
         if (timeElapsed.getMillis() <= throttlePeriod.getMillis()) {
-            logger.debug("[{}] throttling action [{}] due to time elapsed since last execution [{}]", ctx.watch().id(), actionId, timeElapsed);
+            logger.debug(
+                "[{}] throttling action [{}] due to time elapsed since last execution [{}]",
+                ctx.watch().id(),
+                actionId,
+                timeElapsed
+            );
             return Result.throttle(
                 PERIOD,
                 "throttling interval is set to [{}] but time elapsed since last execution is [{}]",

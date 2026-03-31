@@ -114,22 +114,24 @@ public class TickerScheduleEngineTests extends ESTestCase {
     public void testStartsShouldCleanUpPreviousWatches() {
         final List<Watch> initialWatches = createRandomWatches(2);
         engine.start(initialWatches);
-        assertThat("Assumed initial watches added",
-            engine.getSchedules().keySet(), is(initialWatches.stream().map(Watch::id).collect(toSet()))
+        assertThat(
+            "Assumed initial watches added",
+            engine.getSchedules().keySet(),
+            is(initialWatches.stream().map(Watch::id).collect(toSet()))
         );
 
         final List<Watch> newWatches = createRandomWatches(3);
 
         engine.start(newWatches);
-        assertThat("Only new watches should be visible after engine restart",
-            engine.getSchedules().keySet(), is(newWatches.stream().map(Watch::id).collect(toSet()))
+        assertThat(
+            "Only new watches should be visible after engine restart",
+            engine.getSchedules().keySet(),
+            is(newWatches.stream().map(Watch::id).collect(toSet()))
         );
     }
 
     private List<Watch> createRandomWatches(int watchesToCreate) {
-        return range(0, watchesToCreate)
-            .mapToObj(__ -> createWatch(randomAlphanumericOfLength(5), interval("1s")))
-            .toList();
+        return range(0, watchesToCreate).mapToObj(__ -> createWatch(randomAlphanumericOfLength(5), interval("1s"))).toList();
     }
 
     public void testAddHourly() throws Exception {

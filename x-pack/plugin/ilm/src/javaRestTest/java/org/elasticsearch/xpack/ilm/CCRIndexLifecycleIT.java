@@ -680,14 +680,16 @@ public class CCRIndexLifecycleIT extends AbstractCCRRestTestCase {
 
                 // Wait for leader rollover to complete and indexing_complete to be set on the leader
                 assertBusy(
-                    () -> {
-                        assertThat(getIndexSetting(leaderClient, backingIndexName, "index.lifecycle.indexing_complete"), equalTo("true"));
-                    }
+                    () -> assertThat(getIndexSetting(leaderClient, backingIndexName, "index.lifecycle.indexing_complete"), equalTo("true")),
+                    30,
+                    TimeUnit.SECONDS
                 );
 
                 // Wait for indexing_complete to be replicated to the follower via CCR settings replication
                 assertBusy(
-                    () -> { assertThat(getIndexSetting(client(), backingIndexName, "index.lifecycle.indexing_complete"), equalTo("true")); }
+                    () -> assertThat(getIndexSetting(client(), backingIndexName, "index.lifecycle.indexing_complete"), equalTo("true")),
+                    30,
+                    TimeUnit.SECONDS
                 );
 
                 assertBusy(() -> {

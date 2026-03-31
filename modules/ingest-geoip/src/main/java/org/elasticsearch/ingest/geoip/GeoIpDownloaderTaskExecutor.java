@@ -104,7 +104,7 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
     private volatile TimeValue pollInterval;
     private volatile boolean eagerDownload;
 
-    private final ConcurrentHashMap<ProjectId, Boolean> atLeastOneGeoipProcessorByProject = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<ProjectId, Boolean> atLeastOneGeoIpProcessorByProject = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<ProjectId, AtomicBoolean> taskIsBootstrappedByProject = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<ProjectId, GeoIpDownloader> tasks = new ConcurrentHashMap<>();
     private final ProjectResolver projectResolver;
@@ -205,7 +205,7 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
             headers,
             () -> pollInterval,
             () -> eagerDownload,
-            () -> atLeastOneGeoipProcessorByProject.getOrDefault(projectId, false),
+            () -> atLeastOneGeoIpProcessorByProject.getOrDefault(projectId, false),
             projectId
         );
     }
@@ -227,7 +227,7 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
             // bootstrap task once iff it is not already bootstrapped
             AtomicBoolean taskIsBootstrapped = taskIsBootstrappedByProject.computeIfAbsent(projectId, k -> new AtomicBoolean(false));
             if (taskIsBootstrapped.getAndSet(true) == false) {
-                atLeastOneGeoipProcessorByProject.computeIfAbsent(projectId, k -> hasAtLeastOneGeoipProcessor(projectMetadata));
+                atLeastOneGeoIpProcessorByProject.computeIfAbsent(projectId, k -> hasAtLeastOneGeoipProcessor(projectMetadata));
                 if (ENABLED_SETTING.get(event.state().getMetadata().settings(), settings)) {
                     logger.debug("Bootstrapping geoip downloader task for project [{}]", projectId);
                     startTask(projectId, () -> taskIsBootstrapped.set(false));
@@ -249,13 +249,13 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
             }
 
             if (hasIngestPipelineChanges || hasIndicesChanges) {
-                boolean atLeastOneGeoipProcessor = atLeastOneGeoipProcessorByProject.getOrDefault(projectId, false);
-                boolean newAtLeastOneGeoipProcessor = hasAtLeastOneGeoipProcessor(projectMetadata);
+                boolean atLeastOneGeoIpProcessor = atLeastOneGeoIpProcessorByProject.getOrDefault(projectId, false);
+                boolean newAtLeastOneGeoIpProcessor = hasAtLeastOneGeoipProcessor(projectMetadata);
                 // update if necessary
-                if (newAtLeastOneGeoipProcessor != atLeastOneGeoipProcessor) {
-                    atLeastOneGeoipProcessorByProject.put(projectId, newAtLeastOneGeoipProcessor);
+                if (newAtLeastOneGeoIpProcessor != atLeastOneGeoIpProcessor) {
+                    atLeastOneGeoIpProcessorByProject.put(projectId, newAtLeastOneGeoIpProcessor);
                 }
-                if (newAtLeastOneGeoipProcessor && atLeastOneGeoipProcessor == false) {
+                if (newAtLeastOneGeoIpProcessor && atLeastOneGeoIpProcessor == false) {
                     logger.trace("Scheduling runDownloader for project [{}] because a geoip processor has been added", projectId);
                     GeoIpDownloader currentDownloader = getTask(projectId);
                     if (currentDownloader != null) {
@@ -575,7 +575,7 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
                             // remove task reference in the map so it can be garbage collected
                             tasks.remove(projectId);
                             taskIsBootstrappedByProject.remove(projectId);
-                            atLeastOneGeoipProcessorByProject.remove(projectId);
+                            atLeastOneGeoIpProcessorByProject.remove(projectId);
                         }, e -> {
                             Throwable t = ExceptionsHelper.unwrapCause(e);
                             if (t instanceof ResourceNotFoundException == false) {

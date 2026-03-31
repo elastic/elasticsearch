@@ -134,6 +134,11 @@ $else$
     public $type$ get$Type$(int position) {
         return values[position];
     }
+
+    @Override
+    public void copyTo(int srcPosition, $type$[] dst, int dstPosition, int length) {
+        System.arraycopy(values, srcPosition, dst, dstPosition, length);
+    }
 $endif$
 
     @Override
@@ -218,6 +223,30 @@ $else$
     }
 
 $endif$
+    @Override
+    public $Type$Vector slice(int beginInclusive, int endExclusive) {
+        if (beginInclusive == 0 && endExclusive == getPositionCount()) {
+            incRef();
+            return this;
+        }
+$if(BytesRef)$
+        var scratch = new BytesRef();
+        try ($Type$Vector.Builder builder = blockFactory().new$Type$VectorBuilder(endExclusive - beginInclusive)) {
+            for (int i = beginInclusive; i < endExclusive; i++) {
+                builder.appendBytesRef(getBytesRef(i, scratch));
+            }
+            return builder.build();
+        }
+$else$
+        try ($Type$Vector.FixedBuilder builder = blockFactory().new$Type$VectorFixedBuilder(endExclusive - beginInclusive)) {
+            for (int i = beginInclusive; i < endExclusive; i++) {
+                builder.append$Type$(get$Type$(i));
+            }
+            return builder.build();
+        }
+$endif$
+    }
+
 $if(int)$
     /**
      * The minimum value in the block.

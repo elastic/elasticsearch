@@ -38,11 +38,13 @@ import static org.elasticsearch.xpack.downsample.DownsampleDataStreamTests.TIMEO
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class DownsampleRateIT extends DownsamplingIntegTestCase {
 
     private static final String INDEX_NAME = "metrics";
-    private static final String DOWNSAMPLED_INDEX_NAME = "metrics-downsampled";
+    private static final String DOWNSAMPLED_AGGREGATE_INDEX_NAME = "metrics-aggregated";
+    private static final String DOWNSAMPLED_LAST_VALUE_INDEX_NAME = "metrics-last-value";
     private static final String MAPPING = """
         {
           "properties": {
@@ -75,8 +77,7 @@ public class DownsampleRateIT extends DownsamplingIntegTestCase {
                 new DocumentSpec("2021-04-29T17:32:22.470Z", 12),
                 new DocumentSpec("2021-04-29T17:39:22.470Z", 13)
             ),
-            "30m",
-            0.003
+            "30m"
         );
     }
 
@@ -94,8 +95,7 @@ public class DownsampleRateIT extends DownsamplingIntegTestCase {
                 new DocumentSpec("2021-04-29T17:32:22.470Z", 12),
                 new DocumentSpec("2021-04-29T17:39:22.470Z", 13)
             ),
-            "30m",
-            0.003
+            "30m"
         );
     }
 
@@ -113,8 +113,7 @@ public class DownsampleRateIT extends DownsamplingIntegTestCase {
                 new DocumentSpec("2021-04-29T17:32:22.470Z", 70),
                 new DocumentSpec("2021-04-29T17:39:22.470Z", 80)
             ),
-            "30m",
-            0.003
+            "30m"
         );
     }
 
@@ -140,8 +139,7 @@ public class DownsampleRateIT extends DownsamplingIntegTestCase {
                 new DocumentSpec("2021-04-29T17:29:22.470Z", 10),
                 new DocumentSpec("2021-04-29T17:59:22.470Z", 20)
             ),
-            "30m",
-            0.003
+            "30m"
         );
     }
 
@@ -160,36 +158,40 @@ public class DownsampleRateIT extends DownsamplingIntegTestCase {
             documentSpecs.add(new DocumentSpec(randomFrom("pod-1", "pod-2", "pod-3"), DATE_FORMATTER.formatMillis(currentTime), counter));
             currentTime += randomLongBetween(5, 30) * 1000;
         }
-        // We use higher rate epsilon because there is a bigger fluctuation due to the random data
-        runTest(documentSpecs, "1h", 0.1);
+        runTest(documentSpecs, "1h");
     }
 
-    private void runTest(List<DocumentSpec> documentSpecs, String interval, double rateEpsilon) {
+    private void runTest(List<DocumentSpec> documentSpecs, String interval) {
         createIndex();
         indexDocuments(documentSpecs);
-        DownsampleConfig downsampleConfig = new DownsampleConfig(
-            new DateHistogramInterval(interval),
-            DownsampleConfig.SamplingMethod.AGGREGATE
-        );
-        downsample(downsampleConfig);
-
-        try (var baseline = queryRate(INDEX_NAME); var contender = queryRate(DOWNSAMPLED_INDEX_NAME)) {
-            compareResults(baseline, contender, rateEpsilon);
+        downsample(new DateHistogramInterval(interval));
+        try (
+            var baseline = queryRate(INDEX_NAME);
+            var aggregateContender = queryRate(DOWNSAMPLED_AGGREGATE_INDEX_NAME);
+            var lastValueContender = queryRate(DOWNSAMPLED_LAST_VALUE_INDEX_NAME)
+        ) {
+            compareResults(baseline, aggregateContender, lastValueContender);
         }
     }
 
-    private void compareResults(EsqlQueryResponse baseline, EsqlQueryResponse contender, double rateEpsilon) {
+    private void compareResults(EsqlQueryResponse baseline, EsqlQueryResponse aggregateContender, EsqlQueryResponse lastValueContender) {
         assertResultColumns(baseline);
-        assertResultColumns(contender);
+        assertResultColumns(aggregateContender);
+        assertResultColumns(lastValueContender);
         List<RateResult> baselineRows = convertToSortedList(baseline);
-        List<RateResult> contenderRows = convertToSortedList(contender);
+        List<RateResult> aggregatedRows = convertToSortedList(aggregateContender);
+        List<RateResult> lastValueRows = convertToSortedList(lastValueContender);
         for (int i = 0; i < baselineRows.size(); i++) {
             RateResult baselineRow = baselineRows.get(i);
-            RateResult contenderRow = contenderRows.get(i);
-            // We need these two assertions to correctly identify the rate
-            assertThat(contenderRow.timeseries, equalTo(baselineRow.timeseries));
-            assertThat(contenderRow.timestamp, equalTo(baselineRow.timestamp));
-            assertEquals(baselineRow.rate, contenderRow.rate, rateEpsilon);
+            RateResult aggregatedRow = aggregatedRows.get(i);
+            RateResult lastValueRow = lastValueRows.get(i);
+            // We need these assertions to correctly identify the rate
+            assertThat(aggregatedRow.timeseries, equalTo(baselineRow.timeseries));
+            assertThat(aggregatedRow.timestamp, equalTo(baselineRow.timestamp));
+            assertThat(lastValueRow.timeseries, equalTo(baselineRow.timeseries));
+            assertThat(lastValueRow.timestamp, equalTo(baselineRow.timestamp));
+            // Aggregate counter downsampling should be closer to the baseline than the last value
+            assertThat(Math.abs(aggregatedRow.rate - baselineRow.rate), lessThanOrEqualTo(Math.abs(lastValueRow.rate - baselineRow.rate)));
         }
     }
 
@@ -262,7 +264,7 @@ public class DownsampleRateIT extends DownsamplingIntegTestCase {
         bulkIndex(INDEX_NAME, nextDoc, documentSpecs.size());
     }
 
-    private void downsample(DownsampleConfig downsampleConfig) {
+    private void downsample(DateHistogramInterval interval) {
         // Set the source index to read-only state
         assertAcked(
             indicesAdmin().prepareUpdateSettings(INDEX_NAME)
@@ -272,18 +274,39 @@ public class DownsampleRateIT extends DownsamplingIntegTestCase {
         assertAcked(
             client().execute(
                 DownsampleAction.INSTANCE,
-                new DownsampleAction.Request(TEST_REQUEST_TIMEOUT, INDEX_NAME, DOWNSAMPLED_INDEX_NAME, TIMEOUT, downsampleConfig)
+                new DownsampleAction.Request(
+                    TEST_REQUEST_TIMEOUT,
+                    INDEX_NAME,
+                    DOWNSAMPLED_AGGREGATE_INDEX_NAME,
+                    TIMEOUT,
+                    new DownsampleConfig(interval, DownsampleConfig.SamplingMethod.AGGREGATE)
+                )
+            )
+        );
+        assertAcked(
+            client().execute(
+                DownsampleAction.INSTANCE,
+                new DownsampleAction.Request(
+                    TEST_REQUEST_TIMEOUT,
+                    INDEX_NAME,
+                    DOWNSAMPLED_LAST_VALUE_INDEX_NAME,
+                    TIMEOUT,
+                    new DownsampleConfig(interval, DownsampleConfig.SamplingMethod.LAST_VALUE)
+                )
             )
         );
 
         // Wait for downsampling to complete
         SubscribableListener<Void> listener = ClusterServiceUtils.addMasterTemporaryStateListener(clusterState -> {
-            final var indexMetadata = clusterState.metadata().getProject().index(DOWNSAMPLED_INDEX_NAME);
-            if (indexMetadata == null) {
+            final var aggregatedIndexMetadata = clusterState.metadata().getProject().index(DOWNSAMPLED_AGGREGATE_INDEX_NAME);
+            final var lastValueIndexMetadata = clusterState.metadata().getProject().index(DOWNSAMPLED_LAST_VALUE_INDEX_NAME);
+            if (aggregatedIndexMetadata == null || lastValueIndexMetadata == null) {
                 return false;
             }
-            var downsampleStatus = IndexMetadata.INDEX_DOWNSAMPLE_STATUS.get(indexMetadata.getSettings());
-            return downsampleStatus == IndexMetadata.DownsampleTaskStatus.SUCCESS;
+            var downsampleAggregateStatus = IndexMetadata.INDEX_DOWNSAMPLE_STATUS.get(aggregatedIndexMetadata.getSettings());
+            var downsampleLastValueStatus = IndexMetadata.INDEX_DOWNSAMPLE_STATUS.get(lastValueIndexMetadata.getSettings());
+            return downsampleAggregateStatus == IndexMetadata.DownsampleTaskStatus.SUCCESS
+                && downsampleLastValueStatus == IndexMetadata.DownsampleTaskStatus.SUCCESS;
         });
         safeAwait(listener);
     }

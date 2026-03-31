@@ -85,11 +85,11 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
     }
 
     protected static TestAnalyzer defaultAnalyzer() {
-        return analyzerWithEnrichPolicies().addEmployees("test").addEmployees().addAnalysisTestsLookupResolutions();
+        return analyzerWithEnrichPolicies().addEmployees("test").addEmployees().addLanguagesLookup().addTestLookup().addSpatialLookup();
     }
 
     protected static TestAnalyzer airportsAnalyzer() {
-        return analyzerWithEnrichPolicies().addIndex("airports", "mapping-airports.json").addAnalysisTestsLookupResolutions();
+        return analyzerWithEnrichPolicies().addAirports().addLanguagesLookup().addTestLookup().addSpatialLookup();
     }
 
     protected static TestAnalyzer typesAnalyzer() {
@@ -103,7 +103,7 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
     protected static TestAnalyzer metricsAnalyzer() {
         return analyzerWithEnrichPolicies().addIndex("exp_histo_sample", "exp_histo_sample-mappings.json", IndexMode.TIME_SERIES)
             .addIndex("tdigest_timeseries_index", "tdigest_timeseries_index-mappings.json", IndexMode.TIME_SERIES)
-            .addIndex("k8s", "k8s-mappings.json", IndexMode.TIME_SERIES);
+            .addK8s();
     }
 
     protected static TestAnalyzer multiIndexAnalyzer() {
@@ -118,7 +118,7 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
             Map.of("test1", IndexMode.STANDARD, "test2", IndexMode.STANDARD),
             Map.of(),
             Map.of(),
-            Set.of("partial_type_keyword")
+            Map.of("partial_type_keyword", Set.of("test2"))
         );
         return analyzerWithEnrichPolicies().addIndex(multiIndex);
     }
@@ -151,28 +151,51 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
             Map.of("union_types_index", IndexMode.STANDARD, "union_types_index_incompatible", IndexMode.STANDARD),
             Map.of("", List.of("union_types_index*")),
             Map.of("", List.of("union_types_index_incompatible", "union_types_index")),
-            Set.of()
+            Map.of()
         );
-        return analyzerWithEnrichPolicies().addAnalysisTestsInferenceResolution().addIndex(unionIndex).addAnalysisTestsLookupResolutions();
+        return analyzerWithEnrichPolicies().addAnalysisTestsInferenceResolution()
+            .addIndex(unionIndex)
+            .addLanguagesLookup()
+            .addTestLookup()
+            .addSpatialLookup();
     }
 
     protected static TestAnalyzer sampleDataAnalyzer() {
-        return analyzerWithEnrichPolicies().addIndex("sample_data", "mapping-sample_data.json");
+        return analyzerWithEnrichPolicies().addSampleData();
     }
 
     protected static TestAnalyzer subqueryAnalyzer() {
-        return analyzerWithEnrichPolicies().addEmployees("test").addAnalysisTestsIndexResolutions().addAnalysisTestsLookupResolutions();
+        return analyzerWithEnrichPolicies().addEmployees("test")
+            .addLanguages()
+            .addSampleData()
+            .addDefaultIncompatible()
+            .addIndex("colors", "mapping-colors.json")
+            .addK8sDownsampled()
+            .addRemoteMissingIndex()
+            .addEmptyIndex()
+            .addNoFieldsIndex()
+            .addLanguagesLookup()
+            .addTestLookup()
+            .addSpatialLookup();
     }
 
     protected static TestAnalyzer baseConversionAnalyzer() {
-        return analyzerWithEnrichPolicies().addIndex("base_conversion", "mapping-base_conversion.json").addAnalysisTestsLookupResolutions();
+        return analyzerWithEnrichPolicies().addIndex("base_conversion", "mapping-base_conversion.json")
+            .addLanguagesLookup()
+            .addTestLookup()
+            .addSpatialLookup();
     }
 
     protected static TestAnalyzer analyzerWithoutForkImplicitLimit() {
         var config = configuration(
             new QueryPragmas(Settings.builder().put(QueryPragmas.FORK_IMPLICIT_LIMIT.getKey().toLowerCase(Locale.ROOT), false).build())
         );
-        return analyzerWithEnrichPolicies().configuration(config).addEmployees("test").addEmployees().addAnalysisTestsLookupResolutions();
+        return analyzerWithEnrichPolicies().configuration(config)
+            .addEmployees("test")
+            .addEmployees()
+            .addLanguagesLookup()
+            .addTestLookup()
+            .addSpatialLookup();
     }
 
     protected LogicalPlan optimize(LogicalPlan plan) {

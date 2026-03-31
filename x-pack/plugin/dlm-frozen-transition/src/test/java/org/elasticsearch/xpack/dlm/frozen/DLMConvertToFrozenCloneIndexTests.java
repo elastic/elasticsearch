@@ -144,14 +144,14 @@ public class DLMConvertToFrozenCloneIndexTests extends ESTestCase {
     }
 
     public void testGetIndexForForceMergeReturnsCloneIndexWhenNoExistingClone() {
-         createProjectState(2);
+        createProjectState(2);
         DLMConvertToFrozen convert = new DLMConvertToFrozen(indexName, projectId, client, clusterService, licenseState, Clock.systemUTC());
         String indexForForceMerge = convert.getIndexForForceMerge();
         assertThat(indexForForceMerge, is(convert.getDLMCloneIndexName()));
     }
 
     public void testGetIndexForForceMergeReturnsCloneWhenCloneExists() {
-         createProjectStateWithClone(true);
+        createProjectStateWithClone(true);
         DLMConvertToFrozen convert = new DLMConvertToFrozen(indexName, projectId, client, clusterService, licenseState, Clock.systemUTC());
         String indexForForceMerge = convert.getIndexForForceMerge();
         assertThat(indexForForceMerge, is(notNullValue()));
@@ -188,7 +188,7 @@ public class DLMConvertToFrozenCloneIndexTests extends ESTestCase {
     }
 
     public void testGetIndexForForceMergeReturnsOriginalIndexWhenZeroReplicas() {
-         createProjectState(0);
+        createProjectState(0);
         DLMConvertToFrozen convert = new DLMConvertToFrozen(indexName, projectId, client, clusterService, licenseState, Clock.systemUTC());
         String indexForForceMerge = convert.getIndexForForceMerge();
         assertThat(indexForForceMerge, is(notNullValue()));
@@ -196,7 +196,7 @@ public class DLMConvertToFrozenCloneIndexTests extends ESTestCase {
     }
 
     public void testMaybeCloneIndexCreatesCloneWithCorrectSettings() {
-         createProjectState(2); // replicas > 0 to trigger cloning
+        createProjectState(2); // replicas > 0 to trigger cloning
         DLMConvertToFrozen convert = new DLMConvertToFrozen(indexName, projectId, client, clusterService, licenseState, Clock.systemUTC());
         mockCloneResponse.set(new CreateIndexResponse(true, true, convert.getDLMCloneIndexName()));
         convert.maybeCloneIndex();

@@ -81,7 +81,8 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
 
     public DLMConvertToFrozen(
         String indexName,
-       ProjectId projectId, Client client,
+        ProjectId projectId,
+        Client client,
         ClusterService clusterService,
         XPackLicenseState licenseState,
         Clock clock
@@ -551,6 +552,11 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
         return indexName;
     }
 
+    @Override
+    public ProjectId getProjectId() {
+        return projectId;
+    }
+
     private ProjectState getProjectState() {
         return clusterService.state().projectState(projectId);
     }
@@ -567,6 +573,10 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
     @Override
     public ProjectId getProjectId() {
         return projectId;
+    }
+
+    private ProjectState getProjectState() {
+        return clusterService.state().projectState(projectId);
     }
 
 }

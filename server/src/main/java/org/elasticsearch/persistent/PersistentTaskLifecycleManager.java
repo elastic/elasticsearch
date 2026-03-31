@@ -27,10 +27,10 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.node.NodeClosedException;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
@@ -62,8 +62,8 @@ public final class PersistentTaskLifecycleManager implements ClusterStateListene
     private final PersistentTasksService persistentTasksService;
     private final ClusterService clusterService;
     private final ClusterSettings clusterSettings;
-    private final List<ClusterTaskRegistration> clusterRegistrations = new ArrayList<>();
-    private final List<ProjectTaskRegistration> projectRegistrations = new ArrayList<>();
+    private final List<ClusterTaskRegistration> clusterRegistrations = new CopyOnWriteArrayList<>();
+    private final List<ProjectTaskRegistration> projectRegistrations = new CopyOnWriteArrayList<>();
 
     public PersistentTaskLifecycleManager(PersistentTasksService persistentTasksService, ClusterService clusterService) {
         this.persistentTasksService = persistentTasksService;

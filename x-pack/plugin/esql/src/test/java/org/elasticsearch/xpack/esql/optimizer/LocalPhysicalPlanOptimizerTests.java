@@ -12,6 +12,7 @@ import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.compute.operator.topn.TopNOperator;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.query.BoolQueryBuilder;
@@ -38,6 +39,7 @@ import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.expression.TemporalityAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
@@ -2445,10 +2447,17 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         assertThat(Alias.unwrap(partialAgg.aggregates().get(0)), instanceOf(Rate.class));
         assertThat(Alias.unwrap(partialAgg.aggregates().get(1)), instanceOf(FirstDocId.class));
         FieldExtractExec readMetrics = as(partialAgg.child(), FieldExtractExec.class);
-        assertThat(
-            Expressions.names(readMetrics.attributesToExtract()),
-            containsInAnyOrder("_tsid", "@timestamp", "network.total_bytes_in")
-        );
+        if (IndexSettings.TIME_SERIES_TEMPORALITY_FEATURE_FLAG.isEnabled()) {
+            assertThat(
+                Expressions.names(readMetrics.attributesToExtract()),
+                containsInAnyOrder("_tsid", "@timestamp", "network.total_bytes_in", TemporalityAttribute.PLACEHOLDER_FIELD_NAME)
+            );
+        } else {
+            assertThat(
+                Expressions.names(readMetrics.attributesToExtract()),
+                containsInAnyOrder("_tsid", "@timestamp", "network.total_bytes_in")
+            );
+        }
         as(readMetrics.child(), EsQueryExec.class);
     }
 

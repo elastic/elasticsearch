@@ -39,10 +39,10 @@ public final class TemporalityAttribute extends FieldAttribute {
      * Therefore, we use this name as a placeholder, which we'll resolve to the actual field block loader
      * (or a constant-null loader if no temporality field exists) during physical planning.
      */
-    private static final String DUMMY_FIELD_NAME = "_temporality_placeholder";
+    public static final String PLACEHOLDER_FIELD_NAME = "_temporality_placeholder";
 
     private static final EsField ES_FIELD = new EsField(
-        DUMMY_FIELD_NAME,
+        PLACEHOLDER_FIELD_NAME,
         DataType.KEYWORD,
         Map.of(),
         false,
@@ -54,7 +54,7 @@ public final class TemporalityAttribute extends FieldAttribute {
     }
 
     private TemporalityAttribute(Source source, @Nullable NameId id) {
-        super(source, null, null, DUMMY_FIELD_NAME, ES_FIELD, Nullability.TRUE, id, false);
+        super(source, null, null, PLACEHOLDER_FIELD_NAME, ES_FIELD, Nullability.TRUE, id, false);
     }
 
     @Override

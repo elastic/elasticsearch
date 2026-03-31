@@ -16,6 +16,7 @@ import org.apache.lucene.util.packed.DirectMonotonicReader;
 import org.elasticsearch.index.codec.tsdb.AbstractTSDBDocValuesConsumer;
 import org.elasticsearch.index.codec.tsdb.AbstractTSDBDocValuesProducer;
 import org.elasticsearch.index.codec.tsdb.DocOffsetsCodec;
+import org.elasticsearch.index.codec.tsdb.EntryFactory;
 import org.elasticsearch.index.codec.tsdb.NumericFieldReader;
 import org.elasticsearch.index.codec.tsdb.TSDBDocValuesEncoder;
 import org.elasticsearch.index.codec.tsdb.TSDBDocValuesFormatConfig;
@@ -29,6 +30,23 @@ import java.io.IOException;
  */
 final class ES819TSDBDocValuesProducer extends AbstractTSDBDocValuesProducer {
 
+    private static final EntryFactory ENTRY_FACTORY = new EntryFactory() {
+        @Override
+        public NumericEntry createNumericEntry() {
+            return new ES819NumericEntry();
+        }
+
+        @Override
+        public SortedNumericEntry createSortedNumericEntry() {
+            return new ES819SortedNumericEntry();
+        }
+
+        @Override
+        public SortedEntry createSortedEntry() {
+            return new PrefixPartitionedEntry();
+        }
+    };
+
     ES819TSDBDocValuesProducer(
         final SegmentReadState state,
         final String dataCodec,
@@ -38,7 +56,7 @@ final class ES819TSDBDocValuesProducer extends AbstractTSDBDocValuesProducer {
         final TSDBDocValuesFormatConfig formatConfig,
         final DocOffsetsCodec.Decoder docOffsetsDecoder
     ) throws IOException {
-        super(state, dataCodec, dataExtension, metaCodec, metaExtension, formatConfig, docOffsetsDecoder);
+        super(state, dataCodec, dataExtension, metaCodec, metaExtension, formatConfig, docOffsetsDecoder, ENTRY_FACTORY);
     }
 
     private ES819TSDBDocValuesProducer(final ES819TSDBDocValuesProducer original) {

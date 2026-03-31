@@ -12,7 +12,7 @@ apply plugin: 'elasticsearch.internal-cluster-test'
 esplugin {
   name = 'dlm-frozen-transition'
   description = 'A plugin for the frozen tier functionality of DLM'
-  classname = 'org.elasticsearch.xpack.dlm.frozen.DlmFrozenTransitionPlugin'
+  classname = 'org.elasticsearch.xpack.dlm.frozen.DLMFrozenTransitionPlugin'
   extendedPlugins = ['data-streams', 'x-pack-core']
 }
 base {

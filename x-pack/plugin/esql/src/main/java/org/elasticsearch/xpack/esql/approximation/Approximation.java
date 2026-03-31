@@ -61,6 +61,7 @@ import org.elasticsearch.xpack.esql.plan.logical.SampledAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
 import org.elasticsearch.xpack.esql.plan.logical.UriParts;
+import org.elasticsearch.xpack.esql.plan.logical.UserAgent;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.local.CopyingLocalSupplier;
@@ -156,7 +157,8 @@ public class Approximation {
         Row.class,
         Sample.class,
         SampledAggregate.class,
-        UriParts.class
+        UriParts.class,
+        UserAgent.class
     );
 
     /**

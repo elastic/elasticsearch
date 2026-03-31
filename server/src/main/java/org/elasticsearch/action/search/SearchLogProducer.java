@@ -13,40 +13,19 @@ import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.common.logging.activity.ActivityLogProducer;
 import org.elasticsearch.common.logging.activity.QueryLogging;
-import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.index.ActionLoggingFields;
 
 import java.util.Arrays;
 import java.util.Optional;
-import java.util.function.Predicate;
 
-import static org.elasticsearch.common.logging.activity.ActivityLogger.ACTIVITY_LOGGER_SETTINGS_PREFIX;
 import static org.elasticsearch.common.logging.activity.QueryLogging.ES_QUERY_FIELDS_PREFIX;
 
 public class SearchLogProducer implements ActivityLogProducer<SearchLogContext> {
 
     public static final String[] NEVER_MATCH = new String[] { "*", "-*" };
     public static final String QUERY_FIELD_HAS_AGGREGATIONS = ES_QUERY_FIELDS_PREFIX + "has_aggregations";
-    public static final String QUERY_FIELD_IS_SYSTEM = ES_QUERY_FIELDS_PREFIX + "is_system";
     public static final String QUERY_FIELD_SEARCH_HITS = ES_QUERY_FIELDS_PREFIX + "search.total_count";
     public static final String QUERY_FIELD_SEARCH_HITS_GTE = ES_QUERY_FIELDS_PREFIX + "search.total_count_partial";
-
-    private boolean logSystemSearches = false;
-    private final Predicate<String> systemChecker;
-
-    public static final Setting<Boolean> SEARCH_LOGGER_LOG_SYSTEM = Setting.boolSetting(
-        ACTIVITY_LOGGER_SETTINGS_PREFIX + "search.include.system_indices",
-        false,
-        Setting.Property.Dynamic,
-        Setting.Property.NodeScope
-    );
-
-    @SuppressWarnings("this-escape")
-    public SearchLogProducer(ClusterSettings settings, Predicate<String> systemChecker) {
-        this.systemChecker = systemChecker;
-        settings.initializeAndWatch(SEARCH_LOGGER_LOG_SYSTEM, this::setLogSystemSearches);
-    }
 
     @Override
     public Optional<ESLogMessage> produce(SearchLogContext context, ActionLoggingFields additionalFields) {
@@ -54,18 +33,10 @@ public class SearchLogProducer implements ActivityLogProducer<SearchLogContext> 
             // Exclude no-match pattern searches, there's not much use in them
             return Optional.empty();
         }
-        // Exclude system searches, based on option
-        boolean isSystemSearch = context.isSystemSearch(systemChecker);
-        if (logSystemSearches == false && isSystemSearch) {
-            return Optional.empty();
-        }
         ESLogMessage msg = produceCommon(context, ES_QUERY_FIELDS_PREFIX, additionalFields);
         msg.field(QueryLogging.QUERY_FIELD_QUERY, context.getQuery());
         msg.field(QueryLogging.QUERY_FIELD_INDICES, context.getIndices());
         msg.field(QueryLogging.QUERY_FIELD_RESULT_COUNT, context.getResultCount());
-        if (isSystemSearch) {
-            msg.field(QUERY_FIELD_IS_SYSTEM, true);
-        }
         if (context.hasAggregations()) {
             msg.field(QUERY_FIELD_HAS_AGGREGATIONS, true);
         }
@@ -93,7 +64,4 @@ public class SearchLogProducer implements ActivityLogProducer<SearchLogContext> 
         return Optional.of(msg);
     }
 
-    public void setLogSystemSearches(boolean logSystemSearches) {
-        this.logSystemSearches = logSystemSearches;
-    }
 }

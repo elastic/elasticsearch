@@ -1,0 +1,210 @@
+basic
+required_capability: user_agent_command
+
+// tag::basic[]
+ROW input = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_2) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/33.0.1750.149 Safari/537.36"
+| USER_AGENT ua = input WITH { "extract_device_type": true }
+| KEEP ua.*
+// end::basic[]
+;
+
+// tag::basic-result[]
+ua.name:keyword | ua.version:keyword | ua.os.name:keyword | ua.os.version:keyword | ua.os.full:keyword  | ua.device.name:keyword | ua.device.type:keyword
+Chrome          | 33.0.1750.149      | Mac OS X           | 10.9.2                | Mac OS X 10.9.2     | Mac                    | Desktop
+// end::basic-result[]
+;
+
+
+withoutDeviceType
+required_capability: user_agent_command
+
+ROW input = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_2) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/33.0.1750.149 Safari/537.36"
+| USER_AGENT ua = input
+| KEEP ua.*
+;
+
+ua.name:keyword | ua.version:keyword | ua.os.name:keyword | ua.os.version:keyword | ua.os.full:keyword  | ua.device.name:keyword
+Chrome          | 33.0.1750.149      | Mac OS X           | 10.9.2                | Mac OS X 10.9.2     | Mac
+;
+
+
+emptyOptions
+required_capability: user_agent_command
+
+ROW input = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_2) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/33.0.1750.149 Safari/537.36"
+| USER_AGENT ua = input WITH {}
+| KEEP ua.*
+;
+
+ua.name:keyword | ua.version:keyword | ua.os.name:keyword | ua.os.version:keyword | ua.os.full:keyword  | ua.device.name:keyword
+Chrome          | 33.0.1750.149      | Mac OS X           | 10.9.2                | Mac OS X 10.9.2     | Mac
+;
+
+
+propertiesFilter
+required_capability: user_agent_command
+
+ROW input = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_2) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/33.0.1750.149 Safari/537.36"
+| USER_AGENT ua = input WITH { "properties": ["name", "os"] }
+| KEEP ua.*
+;
+
+ua.name:keyword | ua.os.name:keyword | ua.os.version:keyword | ua.os.full:keyword
+Chrome          | Mac OS X           | 10.9.2                | Mac OS X 10.9.2
+;
+
+
+dottedPrefix
+required_capability: user_agent_command
+
+ROW input = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_2) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/33.0.1750.149 Safari/537.36"
+| USER_AGENT a.b.c = input
+| KEEP a.b.c.name, a.b.c.version
+;
+
+a.b.c.name:keyword | a.b.c.version:keyword
+Chrome             | 33.0.1750.149
+;
+
+
+testAfterFiltering
+required_capability: user_agent_command
+
+FROM web_logs
+| WHERE domain == "www.elastic.co"
+| USER_AGENT ua = user_agent
+| KEEP ua.name, ua.version
+| SORT ua.name
+;
+
+ua.name:keyword | ua.version:keyword
+Firefox         | 119.0
+null            | null
+;
+
+
+testBeforeFiltering
+required_capability: user_agent_command
+
+FROM web_logs
+| USER_AGENT ua = user_agent
+| WHERE ua.name == "Firefox"
+| KEEP ua.name, ua.version, ua.os.name
+;
+
+ua.name:keyword | ua.version:keyword | ua.os.name:keyword
+Firefox         | 119.0             | Ubuntu
+;
+
+
+prefixSameAsInputFieldName
+required_capability: user_agent_command
+
+FROM web_logs
+| WHERE timestamp == "2024-01-10T10:07:22.111Z"
+| USER_AGENT user_agent = user_agent
+| KEEP user_agent.name, user_agent.version
+;
+
+user_agent.name:keyword | user_agent.version:keyword
+Firefox                 | 119.0
+;
+
+
+testNonBrowserAgent
+required_capability: user_agent_command
+
+FROM web_logs
+| WHERE domain == "app.example.com"
+| USER_AGENT ua = user_agent
+| KEEP ua.name, ua.version, ua.os.name
+;
+
+ua.name:keyword | ua.version:keyword | ua.os.name:keyword
+curl            | 7.68.0             | null
+;
+
+
+multiValue
+required_capability: user_agent_command
+
+ROW input = ["Mozilla/5.0 Chrome/33.0", "curl/7.68.0"]
+| USER_AGENT ua = input
+| KEEP ua.name
+;
+warningregex: Line 2:3: java.lang.IllegalArgumentException: This command doesn't support multi-value input
+warningregex: Line 2:3: evaluation of \[USER_AGENT.* ua = input\] failed, treating result as null
+
+ua.name:keyword
+null
+;
+
+
+emptyStringInput
+required_capability: user_agent_command
+
+ROW input = ""
+| USER_AGENT ua = input
+| KEEP ua.*
+;
+
+ua.name:keyword | ua.version:keyword | ua.os.name:keyword | ua.os.version:keyword | ua.os.full:keyword | ua.device.name:keyword
+null            | null               | null               | null                  | null               | null
+;
+
+
+emptyStringInputWithDeviceType
+required_capability: user_agent_command
+
+ROW input = ""
+| USER_AGENT ua = input WITH { "extract_device_type": true }
+| KEEP ua.*
+;
+
+ua.name:keyword | ua.version:keyword | ua.os.name:keyword | ua.os.version:keyword | ua.os.full:keyword | ua.device.name:keyword | ua.device.type:keyword
+null            | null               | null               | null                  | null               | null                   | null
+;
+
+
+nullInputRow
+required_capability: user_agent_command
+required_capability: str_commands_accept_null
+
+ROW n = null
+| USER_AGENT ua = n
+;
+
+n:null | ua.name:keyword | ua.version:keyword | ua.os.name:keyword | ua.os.version:keyword | ua.os.full:keyword | ua.device.name:keyword
+  null |            null |               null |               null |                  null |               null |                   null
+;
+
+
+nullInput
+required_capability: user_agent_command
+required_capability: str_commands_accept_null
+
+FROM web_logs
+| EVAL n = null
+| USER_AGENT ua = n
+| KEEP n, ua.*
+| LIMIT 3
+;
+
+n:null | ua.name:keyword | ua.version:keyword | ua.os.name:keyword | ua.os.version:keyword | ua.os.full:keyword | ua.device.name:keyword
+  null |            null |               null |               null |                  null |               null |                   null
+  null |            null |               null |               null |                  null |               null |                   null
+  null |            null |               null |               null |                  null |               null |                   null
+;
+
+
+customRegexFile
+required_capability: user_agent_command
+
+ROW input = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_2) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/33.0.1750.149 Safari/537.36"
+| USER_AGENT ua = input WITH { "regex_file": "custom-regexes.yml" }
+| KEEP ua.name, ua.version, ua.os.name
+;
+
+ua.name:keyword  | ua.version:keyword | ua.os.name:keyword
+Custom Chrome    | 33.0.1750.149      | Mac OS X
+;

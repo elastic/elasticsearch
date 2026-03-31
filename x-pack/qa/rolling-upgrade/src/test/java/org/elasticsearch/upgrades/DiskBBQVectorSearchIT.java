@@ -8,11 +8,12 @@
 package org.elasticsearch.upgrades;
 
 import org.elasticsearch.Build;
-import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 import java.util.List;
@@ -23,16 +24,17 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class DiskBBQVectorSearchIT extends AbstractUpgradeTestCase {
 
-    private static final Version DISK_BBQ_VERSION = Version.V_9_2_0;
-
+    private static final String BBQ_DISK_SUPPORT_FEATURE = "mapper.bbq_disk_support";
+    private static final String ES940_DISK_BBQ_FEATURE = "mapper.es940_disk_bbq";
     private static final String DISK_BBQ_INDEX_NAME = "diskbbq_vectors_index";
+    private static final String DISK_BBQ_BITS_INDEX_PREFIX = "diskbbq_vectors_bits_index_";
+    private static final int[] SUPPORTED_BITS = new int[] { 1, 2, 4, 7 };
 
-    public void test() throws Exception {
-        Version v = Version.fromString(UPGRADE_FROM_VERSION);
-        assumeTrue("DiskBBQ vector format introduced in version " + DISK_BBQ_VERSION, v.onOrAfter(DISK_BBQ_VERSION));
+    public void testSingleBitDiskBBQVectorSearch() throws Exception {
         // because of any dev changes in ESNextDiskBBQVectorsFormat, enabled for snapshot builds, may make this test fail
         assumeTrue("DiskBBQ rolling upgrade test runs for non-snapshot builds", Build.current().isSnapshot() == false);
         if (CLUSTER_TYPE == ClusterType.OLD) {
+            assumeTrue("DiskBBQ vector format is not supported on this version", clusterSupportsFeature(BBQ_DISK_SUPPORT_FEATURE));
             String mapping = """
                 {
                   "properties": {
@@ -53,9 +55,58 @@ public class DiskBBQVectorSearchIT extends AbstractUpgradeTestCase {
             indexVectors(DISK_BBQ_INDEX_NAME);
             // force merge the index
             client().performRequest(new Request("POST", "/" + DISK_BBQ_INDEX_NAME + "/_forcemerge?max_num_segments=1"));
+        } else {
+            assumeTrue("DiskBBQ index was not created on the old cluster", indexExistsOnCluster(DISK_BBQ_INDEX_NAME));
         }
+        assertDiskBBQSearch(DISK_BBQ_INDEX_NAME);
+    }
+
+    public void testDiskBBQVectorSearchWithExplicitBits() throws Exception {
+        // because of any dev changes in ESNextDiskBBQVectorsFormat, enabled for snapshot builds, may make this test fail
+        assumeTrue("DiskBBQ rolling upgrade test runs for non-snapshot builds", Build.current().isSnapshot() == false);
+        if (CLUSTER_TYPE == ClusterType.OLD) {
+            assumeTrue("DiskBBQ bits are not supported on this version", clusterSupportsFeature(ES940_DISK_BBQ_FEATURE));
+            for (int bits : SUPPORTED_BITS) {
+                String mapping = """
+                    {
+                      "properties": {
+                        "vector": {
+                          "type": "dense_vector",
+                          "dims": 3,
+                          "index": true,
+                          "similarity": "l2_norm",
+                          "index_options": {
+                            "type": "bbq_disk",
+                            "bits": %d
+                          }
+                        }
+                      }
+                    }
+                    """.formatted(bits);
+                String indexName = diskBbqBitsIndexName(bits);
+                // create index and index 10 random floating point vectors
+                createIndex(indexName, Settings.EMPTY, mapping);
+                indexVectors(indexName);
+                // force merge the index
+                client().performRequest(new Request("POST", "/" + indexName + "/_forcemerge?max_num_segments=1"));
+            }
+        } else {
+            for (int bits : SUPPORTED_BITS) {
+                assumeTrue("DiskBBQ bits index was not created on the old cluster", indexExistsOnCluster(diskBbqBitsIndexName(bits)));
+            }
+        }
+        for (int bits : SUPPORTED_BITS) {
+            assertDiskBBQSearch(diskBbqBitsIndexName(bits));
+        }
+    }
+
+    private static String diskBbqBitsIndexName(int bits) {
+        return DISK_BBQ_BITS_INDEX_PREFIX + bits;
+    }
+
+    private void assertDiskBBQSearch(String indexName) throws Exception {
         // search with a script query
-        Request searchRequest = new Request("POST", "/" + DISK_BBQ_INDEX_NAME + "/_search");
+        Request searchRequest = new Request("POST", "/" + indexName + "/_search");
         searchRequest.setJsonEntity("""
             {
               "query": {
@@ -82,7 +133,7 @@ public class DiskBBQVectorSearchIT extends AbstractUpgradeTestCase {
         assertThat((double) hits.get(0).get("_score"), closeTo(1.9869276, 0.0001));
 
         // search with knn
-        searchRequest = new Request("POST", "/" + DISK_BBQ_INDEX_NAME + "/_search");
+        searchRequest = new Request("POST", "/" + indexName + "/_search");
         searchRequest.setJsonEntity("""
             {
                 "knn": {
@@ -123,6 +174,23 @@ public class DiskBBQVectorSearchIT extends AbstractUpgradeTestCase {
         final Response response = client().performRequest(request);
         assertOK(response);
         return responseAsMap(response);
+    }
+
+    private boolean clusterSupportsFeature(String feature) throws IOException {
+        return collectNodeInfos(adminClient()).stream().allMatch(node -> node.supportsFeature(feature));
+    }
+
+    private boolean indexExistsOnCluster(String indexName) throws IOException {
+        Request request = new Request("HEAD", "/" + indexName);
+        try {
+            Response response = client().performRequest(request);
+            return response.getStatusLine().getStatusCode() == RestStatus.OK.getStatus();
+        } catch (ResponseException e) {
+            if (e.getResponse().getStatusLine().getStatusCode() == RestStatus.NOT_FOUND.getStatus()) {
+                return false;
+            }
+            throw e;
+        }
     }
 
     @SuppressWarnings("unchecked")

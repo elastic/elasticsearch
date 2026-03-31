@@ -1,0 +1,8 @@
+ExchangeSinkExec[[_doc{f}#0, s1{r}#1, s2{r}#2, r2{r}#3],false]
+\_ProjectExec[[_doc{f}#0, s1{r}#1, s2{r}#2, r2{r}#3]]
+  \_TopNExec[[Order[s1{r}#1,DESC,FIRST]],10[INTEGER],68]
+    \_EvalExec[[$$dense_vector$V_HAMMING$1599879465{f$}#4 AS s1#1, $$dense_vector$V_HAMMING$1599879465{f$}#4 * 2[INTEGER] / 3[INTEGER] AS s2#2, $$dense_vector$V_COSINE$-516831023{f$}#5 + $$dense_vector$V_COSINE$-655721796{f$}#6 AS r2#3]]
+      \_FieldExtractExec[$$dense_vector$V_COSINE$-655721796{f$}#6]<[],[],[]>
+        \_FilterExec[$$dense_vector$V_HAMMING$1599879465{f$}#4 + 5[INTEGER] + $$dense_vector$V_COSINE$-516831023{f$}#5 > 0[INTEGER]]
+          \_FieldExtractExec[$$dense_vector$V_HAMMING$1599879465{f$}#4, $$dense_vector$V_COSINE$-516831023{f$}#5]<[],[],[]>
+            \_EsQueryExec[all_types], indexMode[standard], [_doc{f}#0], limit[], sort[] estimatedRowSize[52] queryBuilderAndTags [[QueryBuilderAndTags[query=null, tags=[]]]]

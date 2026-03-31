@@ -17,7 +17,6 @@ import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockRequest;
 import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockResponse;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -27,6 +26,7 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService;
@@ -48,6 +48,8 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.APIBlock.WRITE;
+import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
+import static org.elasticsearch.test.ClusterServiceUtils.setState;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -59,6 +61,7 @@ public class DataStreamLifecycleConvertToFrozenMarkReadOnlyTests extends ESTestC
     private XPackLicenseState licenseState;
     private Index index;
     private ThreadPool threadPool;
+    private ClusterService clusterService;
     private AtomicReference<AddIndexBlockRequest> capturedRequest;
     private AtomicReference<AddIndexBlockResponse> mockResponse;
     private AtomicReference<Exception> mockFailure;
@@ -66,6 +69,7 @@ public class DataStreamLifecycleConvertToFrozenMarkReadOnlyTests extends ESTestC
     @Before
     public void setup() {
         threadPool = new TestThreadPool(getTestName());
+        clusterService = createClusterService(threadPool);
         projectId = randomProjectIdOrDefault();
         indexName = randomAlphaOfLength(10);
         licenseState = new XPackLicenseState(
@@ -80,6 +84,7 @@ public class DataStreamLifecycleConvertToFrozenMarkReadOnlyTests extends ESTestC
 
     @After
     public void cleanup() {
+        clusterService.close();
         threadPool.shutdownNow();
     }
 
@@ -122,12 +127,13 @@ public class DataStreamLifecycleConvertToFrozenMarkReadOnlyTests extends ESTestC
             .putProjectMetadata(projectMetadataBuilder)
             .blocks(clusterBlocks)
             .build();
-        ProjectState projectState = clusterState.projectState(projectId);
+        setState(clusterService, clusterState);
 
         DataStreamLifecycleConvertToFrozen converter = new DataStreamLifecycleConvertToFrozen(
             indexName,
+            projectId,
             createMockClient(),
-            projectState,
+            clusterService,
             licenseState
         );
         converter.maybeMarkIndexReadOnly();
@@ -137,13 +143,14 @@ public class DataStreamLifecycleConvertToFrozenMarkReadOnlyTests extends ESTestC
     }
 
     public void testCallsAddBlockWithCorrectParameters() {
-        ProjectState projectState = createProjectState();
+        createProjectState();
         mockResponse.set(new AddIndexBlockResponse(true, true, List.of(new AddIndexBlockResponse.AddBlockResult(index))));
 
         DataStreamLifecycleConvertToFrozen converter = new DataStreamLifecycleConvertToFrozen(
             indexName,
+            projectId,
             createMockClient(),
-            projectState,
+            clusterService,
             licenseState
         );
         // Acknowledged response - should not throw
@@ -156,13 +163,14 @@ public class DataStreamLifecycleConvertToFrozenMarkReadOnlyTests extends ESTestC
     }
 
     public void testThrowsExceptionWithUnacknowledgedResponse() {
-        ProjectState projectState = createProjectState();
+        createProjectState();
         mockResponse.set(new AddIndexBlockResponse(false, false, Collections.emptyList()));
 
         DataStreamLifecycleConvertToFrozen converter = new DataStreamLifecycleConvertToFrozen(
             indexName,
+            projectId,
             createMockClient(),
-            projectState,
+            clusterService,
             licenseState
         );
 
@@ -171,14 +179,15 @@ public class DataStreamLifecycleConvertToFrozenMarkReadOnlyTests extends ESTestC
     }
 
     public void testThrowsWithGlobalExceptionInBlockResult() {
-        ProjectState projectState = createProjectState();
+        createProjectState();
         ElasticsearchException blockException = new ElasticsearchException("global failure");
         mockResponse.set(new AddIndexBlockResponse(false, false, List.of(new AddIndexBlockResponse.AddBlockResult(index, blockException))));
 
         DataStreamLifecycleConvertToFrozen converter = new DataStreamLifecycleConvertToFrozen(
             indexName,
+            projectId,
             createMockClient(),
-            projectState,
+            clusterService,
             licenseState
         );
 
@@ -187,7 +196,7 @@ public class DataStreamLifecycleConvertToFrozenMarkReadOnlyTests extends ESTestC
     }
 
     public void testThrowsWithShardFailuresInBlockResult() {
-        ProjectState projectState = createProjectState();
+        createProjectState();
 
         AddIndexBlockResponse.AddBlockShardResult.Failure shardFailure = new AddIndexBlockResponse.AddBlockShardResult.Failure(
             indexName,
@@ -200,8 +209,9 @@ public class DataStreamLifecycleConvertToFrozenMarkReadOnlyTests extends ESTestC
 
         DataStreamLifecycleConvertToFrozen converter = new DataStreamLifecycleConvertToFrozen(
             indexName,
+            projectId,
             createMockClient(),
-            projectState,
+            clusterService,
             licenseState
         );
 
@@ -210,13 +220,14 @@ public class DataStreamLifecycleConvertToFrozenMarkReadOnlyTests extends ESTestC
     }
 
     public void testThrowsWithGenericFailure() {
-        ProjectState projectState = createProjectState();
+        createProjectState();
         mockFailure.set(new ElasticsearchException("some error"));
 
         DataStreamLifecycleConvertToFrozen converter = new DataStreamLifecycleConvertToFrozen(
             indexName,
+            projectId,
             createMockClient(),
-            projectState,
+            clusterService,
             licenseState
         );
 
@@ -242,13 +253,14 @@ public class DataStreamLifecycleConvertToFrozenMarkReadOnlyTests extends ESTestC
             .putProjectMetadata(projectMetadataBuilder)
             .blocks(clusterBlocks)
             .build();
-        ProjectState projectState = clusterState.projectState(projectId);
+        setState(clusterService, clusterState);
         mockResponse.set(new AddIndexBlockResponse(true, true, List.of(new AddIndexBlockResponse.AddBlockResult(index))));
 
         DataStreamLifecycleConvertToFrozen converter = new DataStreamLifecycleConvertToFrozen(
             indexName,
+            projectId,
             createMockClient(),
-            projectState,
+            clusterService,
             licenseState
         );
         converter.maybeMarkIndexReadOnly();
@@ -262,7 +274,7 @@ public class DataStreamLifecycleConvertToFrozenMarkReadOnlyTests extends ESTestC
     }
 
     public void testThrowsWithMultipleShardFailures() {
-        ProjectState projectState = createProjectState();
+        createProjectState();
 
         AddIndexBlockResponse.AddBlockShardResult.Failure shardFailure1 = new AddIndexBlockResponse.AddBlockShardResult.Failure(
             indexName,
@@ -281,8 +293,9 @@ public class DataStreamLifecycleConvertToFrozenMarkReadOnlyTests extends ESTestC
 
         DataStreamLifecycleConvertToFrozen converter = new DataStreamLifecycleConvertToFrozen(
             indexName,
+            projectId,
             createMockClient(),
-            projectState,
+            clusterService,
             licenseState
         );
 
@@ -293,7 +306,7 @@ public class DataStreamLifecycleConvertToFrozenMarkReadOnlyTests extends ESTestC
     }
 
     public void testThrowsWithShardResultsButNoFailures() {
-        ProjectState projectState = createProjectState();
+        createProjectState();
 
         AddIndexBlockResponse.AddBlockShardResult[] shardResults = new AddIndexBlockResponse.AddBlockShardResult[] {
             new AddIndexBlockResponse.AddBlockShardResult(0, new AddIndexBlockResponse.AddBlockShardResult.Failure[0]),
@@ -302,8 +315,9 @@ public class DataStreamLifecycleConvertToFrozenMarkReadOnlyTests extends ESTestC
 
         DataStreamLifecycleConvertToFrozen converter = new DataStreamLifecycleConvertToFrozen(
             indexName,
+            projectId,
             createMockClient(),
-            projectState,
+            clusterService,
             licenseState
         );
 
@@ -312,13 +326,14 @@ public class DataStreamLifecycleConvertToFrozenMarkReadOnlyTests extends ESTestC
     }
 
     public void testAddIndexBlockRequestHasVerifiedSetToTrue() {
-        ProjectState projectState = createProjectState();
+        createProjectState();
         mockResponse.set(new AddIndexBlockResponse(true, true, List.of(new AddIndexBlockResponse.AddBlockResult(index))));
 
         DataStreamLifecycleConvertToFrozen converter = new DataStreamLifecycleConvertToFrozen(
             indexName,
+            projectId,
             createMockClient(),
-            projectState,
+            clusterService,
             licenseState
         );
         converter.maybeMarkIndexReadOnly();
@@ -331,12 +346,13 @@ public class DataStreamLifecycleConvertToFrozenMarkReadOnlyTests extends ESTestC
         // Create project state without the target index
         ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(projectId);
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(projectMetadataBuilder).build();
-        ProjectState projectState = clusterState.projectState(projectId);
+        setState(clusterService, clusterState);
 
         DataStreamLifecycleConvertToFrozen converter = new DataStreamLifecycleConvertToFrozen(
             indexName,
+            projectId,
             createMockClient(),
-            projectState,
+            clusterService,
             licenseState
         );
 
@@ -346,12 +362,13 @@ public class DataStreamLifecycleConvertToFrozenMarkReadOnlyTests extends ESTestC
     public void testIsEligibleReturnsFalseWhenRepositoryIsNotRegistered() {
         // Create project state with the index but without the repository registered
         String repoName = "my-repo";
-        ProjectState projectState = createProjectStateWithRepo(repoName, false);
+        createProjectStateWithRepo(repoName, false);
 
         DataStreamLifecycleConvertToFrozen converter = new DataStreamLifecycleConvertToFrozen(
             indexName,
+            projectId,
             createMockClient(),
-            projectState,
+            clusterService,
             licenseState
         );
 
@@ -360,7 +377,7 @@ public class DataStreamLifecycleConvertToFrozenMarkReadOnlyTests extends ESTestC
 
     public void testIsEligibleThrowsWhenLicenseDoesNotAllowSearchableSnapshots() {
         String repoName = "my-repo";
-        ProjectState projectState = createProjectStateWithRepo(repoName, true);
+        createProjectStateWithRepo(repoName, true);
 
         // Use a BASIC license which does not allow searchable snapshots (requires ENTERPRISE)
         XPackLicenseState basicLicenseState = new XPackLicenseState(
@@ -370,8 +387,9 @@ public class DataStreamLifecycleConvertToFrozenMarkReadOnlyTests extends ESTestC
 
         DataStreamLifecycleConvertToFrozen converter = new DataStreamLifecycleConvertToFrozen(
             indexName,
+            projectId,
             createMockClient(),
-            projectState,
+            clusterService,
             basicLicenseState
         );
 
@@ -385,12 +403,13 @@ public class DataStreamLifecycleConvertToFrozenMarkReadOnlyTests extends ESTestC
 
     public void testIsEligibleReturnsTrueWhenAllConditionsAreMet() {
         String repoName = "my-repo";
-        ProjectState projectState = createProjectStateWithRepo(repoName, true);
+        createProjectStateWithRepo(repoName, true);
 
         DataStreamLifecycleConvertToFrozen converter = new DataStreamLifecycleConvertToFrozen(
             indexName,
+            projectId,
             createMockClient(),
-            projectState,
+            clusterService,
             licenseState
         );
 
@@ -401,7 +420,7 @@ public class DataStreamLifecycleConvertToFrozenMarkReadOnlyTests extends ESTestC
      * Creates a ProjectState with the target index, a default repository setting on the cluster metadata,
      * and optionally registers a matching repository in the project's RepositoriesMetadata.
      */
-    private ProjectState createProjectStateWithRepo(String repoName, boolean registerRepo) {
+    private void createProjectStateWithRepo(String repoName, boolean registerRepo) {
         ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(projectId)
             .put(
                 IndexMetadata.builder(indexName)
@@ -427,10 +446,10 @@ public class DataStreamLifecycleConvertToFrozenMarkReadOnlyTests extends ESTestC
             .build();
 
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).build();
-        return clusterState.projectState(projectId);
+        setState(clusterService, clusterState);
     }
 
-    private ProjectState createProjectState() {
+    private void createProjectState() {
         ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(projectId)
             .put(
                 IndexMetadata.builder(indexName)
@@ -443,7 +462,7 @@ public class DataStreamLifecycleConvertToFrozenMarkReadOnlyTests extends ESTestC
 
         ClusterState.Builder clusterStateBuilder = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(projectMetadataBuilder);
 
-        return clusterStateBuilder.build().projectState(projectId);
+        setState(clusterService, clusterStateBuilder.build());
     }
 
 }

@@ -12,7 +12,7 @@ import org.elasticsearch.cluster.metadata.ProjectId;
 /**
  * A runnable task associated with a specific index transition.
  */
-interface DlmFrozenTransitionRunnable extends Runnable {
+interface DLMFrozenTransitionRunnable extends Runnable {
     String getIndexName();
 
     ProjectId getProjectId();

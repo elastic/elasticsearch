@@ -14,8 +14,8 @@ import org.elasticsearch.ElasticsearchException;
  * For example, if a required snapshot repository has been removed while a convert-to-frozen operation
  * is in progress, there is no point retrying the operation.
  */
-public class DlmUnrecoverableException extends ElasticsearchException {
-    public DlmUnrecoverableException(String indexName, String msg, Object... args) {
+public class DLMUnrecoverableException extends ElasticsearchException {
+    public DLMUnrecoverableException(String indexName, String msg, Object... args) {
         super(msg, args);
         setIndex(indexName);
     }

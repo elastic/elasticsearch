@@ -18,17 +18,17 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * Plugin that registers the {@link DlmFrozenTransitionService} for converting data stream backing indices to the frozen tier as part of
+ * Plugin that registers the {@link DLMFrozenTransitionService} for converting data stream backing indices to the frozen tier as part of
  * the data stream lifecycle. Only active when the searchable snapshots feature flag is enabled.
  */
-public class DlmFrozenTransitionPlugin extends Plugin {
+public class DLMFrozenTransitionPlugin extends Plugin {
 
     @Override
     public Collection<?> createComponents(PluginServices services) {
         Set<Object> components = new HashSet<>(super.createComponents(services));
         if (DataStreamLifecycle.DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled()) {
             XPackLicenseState licenseState = XPackPlugin.getSharedLicenseState();
-            var service = new DlmFrozenTransitionService(
+            var service = new DLMFrozenTransitionService(
                 services.clusterService(),
                 services.client(),
                 licenseState,
@@ -44,9 +44,9 @@ public class DlmFrozenTransitionPlugin extends Plugin {
     public List<Setting<?>> getSettings() {
         if (DataStreamLifecycle.DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled()) {
             return List.of(
-                DlmFrozenTransitionService.POLL_INTERVAL_SETTING,
-                DlmFrozenTransitionService.MAX_CONCURRENCY_SETTING,
-                DlmFrozenTransitionService.MAX_QUEUE_SIZE
+                DLMFrozenTransitionService.POLL_INTERVAL_SETTING,
+                DLMFrozenTransitionService.MAX_CONCURRENCY_SETTING,
+                DLMFrozenTransitionService.MAX_QUEUE_SIZE
             );
         } else {
             return List.of();

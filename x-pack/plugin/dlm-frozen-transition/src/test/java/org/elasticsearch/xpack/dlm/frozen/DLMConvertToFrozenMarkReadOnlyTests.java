@@ -400,7 +400,7 @@ public class DLMConvertToFrozenMarkReadOnlyTests extends ESTestCase {
             Clock.systemUTC()
         );
 
-        DlmUnrecoverableException exception = expectThrows(DlmUnrecoverableException.class, converter::checkIfEligibleForConvertToFrozen);
+        DLMUnrecoverableException exception = expectThrows(DLMUnrecoverableException.class, converter::checkIfEligibleForConvertToFrozen);
         assertThat(exception.getMessage(), containsString(repoName));
     }
 

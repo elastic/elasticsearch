@@ -66,7 +66,7 @@ import static org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapsho
 /**
  * This class encapsulates the steps necessary to convert a data stream backing index to frozen.
  */
-public class DLMConvertToFrozen implements DlmFrozenTransitionRunnable {
+public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
 
     private static final Logger logger = LogManager.getLogger(DLMConvertToFrozen.class);
     public static final String CLONE_INDEX_PREFIX = "dlm-clone-";
@@ -316,7 +316,7 @@ public class DLMConvertToFrozen implements DlmFrozenTransitionRunnable {
      * Public for testing only.
      * Checks whether the necessary conditions are met to proceed with the convert-to-frozen steps.
      * @throws IndexNotFoundException if the index to be converted to frozen no longer exists in the project metadata
-     * @throws DlmUnrecoverableException if the snapshot repository is not configured or no longer registered
+     * @throws DLMUnrecoverableException if the snapshot repository is not configured or no longer registered
      * @throws org.elasticsearch.ElasticsearchSecurityException if the license does not allow searchable snapshots
      */
     void checkIfEligibleForConvertToFrozen() {
@@ -327,7 +327,7 @@ public class DLMConvertToFrozen implements DlmFrozenTransitionRunnable {
 
         final String repositoryName = getRepositoryForFrozen(projectMetadata, indexName);
         if (Strings.hasText(repositoryName) == false) {
-            throw new DlmUnrecoverableException(
+            throw new DLMUnrecoverableException(
                 indexName,
                 "Default repository is required for convert-to-frozen steps but was not configured for index [{}]",
                 indexName
@@ -338,7 +338,7 @@ public class DLMConvertToFrozen implements DlmFrozenTransitionRunnable {
             .stream()
             .anyMatch(repositoryMetadata -> repositoryMetadata.name().equals(repositoryName));
         if (repoIsRegistered == false) {
-            throw new DlmUnrecoverableException(
+            throw new DLMUnrecoverableException(
                 indexName,
                 "Repository [{}] required for convert-to-frozen steps is no longer registered in project [{}]",
                 repositoryName,

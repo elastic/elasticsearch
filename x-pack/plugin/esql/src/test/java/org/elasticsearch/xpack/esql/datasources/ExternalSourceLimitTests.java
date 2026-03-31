@@ -62,7 +62,7 @@ public class ExternalSourceLimitTests extends ESTestCase {
         for (int i = 0; i < fileCount; i++) {
             entries.add(new StorageEntry(StoragePath.of("s3://bucket/data/f" + i + ".csv"), 100, Instant.EPOCH));
         }
-        FileSet fileSet = new FileSet(entries, "s3://bucket/data/*.csv");
+        GenericFileList fileList = new GenericFileList(entries, "s3://bucket/data/*.csv");
 
         FormatReader formatReader = new RowGeneratingFormatReader(filesRead, rowsPerFile);
         StorageProvider storageProvider = new StubStorageProvider();
@@ -91,7 +91,7 @@ public class ExternalSourceLimitTests extends ESTestCase {
             10,
             50, // rowLimit
             (Runnable r) -> r.run(),
-            fileSet,
+            fileList,
             null,
             null,
             null
@@ -121,7 +121,7 @@ public class ExternalSourceLimitTests extends ESTestCase {
         for (int i = 0; i < fileCount; i++) {
             entries.add(new StorageEntry(StoragePath.of("s3://bucket/data/f" + i + ".csv"), 100, Instant.EPOCH));
         }
-        FileSet fileSet = new FileSet(entries, "s3://bucket/data/*.csv");
+        GenericFileList fileList = new GenericFileList(entries, "s3://bucket/data/*.csv");
 
         FormatReader formatReader = new RowGeneratingFormatReader(filesRead, rowsPerFile);
         StorageProvider storageProvider = new StubStorageProvider();
@@ -149,7 +149,7 @@ public class ExternalSourceLimitTests extends ESTestCase {
             100,
             10,
             (Runnable r) -> r.run(),
-            fileSet
+            fileList
         );
 
         try (SourceOperator operator = factory.get(driverContext)) {

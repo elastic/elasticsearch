@@ -71,60 +71,60 @@ public class GlobDiscoveryLocalTests extends ESTestCase {
     // -- predefined tests --
 
     public void testFlatStarGlob() throws IOException {
-        FileSet result = GlobExpander.expandGlob(rootUri() + "/*.parquet", provider);
+        GenericFileList result = GlobExpander.expandGlob(rootUri() + "/*.parquet", provider);
         assertTrue(result.isResolved());
         assertEquals(2, result.size());
     }
 
     public void testFlatStarGlobAllExtensions() throws IOException {
-        FileSet result = GlobExpander.expandGlob(rootUri() + "/report_2024_*.*", provider);
+        GenericFileList result = GlobExpander.expandGlob(rootUri() + "/report_2024_*.*", provider);
         assertTrue(result.isResolved());
         assertEquals(3, result.size());
     }
 
     public void testFlatQuestionMarkGlob() throws IOException {
-        FileSet result = GlobExpander.expandGlob(rootUri() + "/report_2024_0?.parquet", provider);
+        GenericFileList result = GlobExpander.expandGlob(rootUri() + "/report_2024_0?.parquet", provider);
         assertTrue(result.isResolved());
         assertEquals(2, result.size());
     }
 
     public void testFlatBraceAlternatives() throws IOException {
-        FileSet result = GlobExpander.expandGlob(rootUri() + "/*.{parquet,csv}", provider);
+        GenericFileList result = GlobExpander.expandGlob(rootUri() + "/*.{parquet,csv}", provider);
         assertTrue(result.isResolved());
         assertEquals(3, result.size());
     }
 
     public void testRecursiveDoubleStarGlob() throws IOException {
-        FileSet result = GlobExpander.expandGlob(rootUri() + "/year/**" + "/*.parquet", provider);
+        GenericFileList result = GlobExpander.expandGlob(rootUri() + "/year/**" + "/*.parquet", provider);
         assertTrue(result.isResolved());
         assertEquals(4, result.size());
     }
 
     public void testRecursiveDoubleStarAllFiles() throws IOException {
-        FileSet result = GlobExpander.expandGlob(rootUri() + "/year/**" + "/*", provider);
+        GenericFileList result = GlobExpander.expandGlob(rootUri() + "/year/**" + "/*", provider);
         assertTrue(result.isResolved());
         assertEquals(5, result.size());
     }
 
     public void testRecursiveSingleDirGlob() throws IOException {
-        FileSet result = GlobExpander.expandGlob(rootUri() + "/year/2024/*.parquet", provider);
+        GenericFileList result = GlobExpander.expandGlob(rootUri() + "/year/2024/*.parquet", provider);
         assertTrue(result.isResolved());
         assertEquals(2, result.size());
     }
 
     public void testNoMatchReturnsEmpty() throws IOException {
-        FileSet result = GlobExpander.expandGlob(rootUri() + "/*.json", provider);
+        GenericFileList result = GlobExpander.expandGlob(rootUri() + "/*.json", provider);
         assertTrue(result.isEmpty());
     }
 
     public void testLiteralPathReturnsUnresolved() throws IOException {
-        FileSet result = GlobExpander.expandGlob(rootUri() + "/summary.txt", provider);
+        GenericFileList result = GlobExpander.expandGlob(rootUri() + "/summary.txt", provider);
         assertTrue(result.isUnresolved());
     }
 
     public void testCommaSeparatedMixed() throws IOException {
         String paths = rootUri() + "/*.parquet, " + rootUri() + "/summary.txt";
-        FileSet result = GlobExpander.expandCommaSeparated(paths, provider);
+        GenericFileList result = GlobExpander.expandCommaSeparated(paths, provider);
         assertTrue(result.isResolved());
         // 2 parquet files from glob + 1 literal
         assertEquals(3, result.size());
@@ -138,7 +138,7 @@ public class GlobDiscoveryLocalTests extends ESTestCase {
 
         long expectedCount = allPaths.stream().filter(p -> p.contains("/") == false).filter(p -> p.endsWith(".parquet")).count();
 
-        FileSet result = GlobExpander.expandGlob(StoragePath.fileUri(root) + "/*.parquet", new TestLocalStorageProvider());
+        GenericFileList result = GlobExpander.expandGlob(StoragePath.fileUri(root) + "/*.parquet", new TestLocalStorageProvider());
         if (expectedCount == 0) {
             assertTrue("Expected EMPTY for no root .parquet files", result.isEmpty());
         } else {
@@ -152,7 +152,7 @@ public class GlobDiscoveryLocalTests extends ESTestCase {
 
         long expectedCount = allPaths.stream().filter(p -> p.endsWith(".parquet")).count();
 
-        FileSet result = GlobExpander.expandGlob(StoragePath.fileUri(root) + "/**" + "/*.parquet", new TestLocalStorageProvider());
+        GenericFileList result = GlobExpander.expandGlob(StoragePath.fileUri(root) + "/**" + "/*.parquet", new TestLocalStorageProvider());
         if (expectedCount == 0) {
             assertTrue(result.isEmpty());
         } else {
@@ -167,7 +167,7 @@ public class GlobDiscoveryLocalTests extends ESTestCase {
         long expectedCount = allPaths.stream().filter(p -> p.endsWith(".parquet") || p.endsWith(".csv")).count();
 
         String uri = StoragePath.fileUri(root) + "/**" + "/*.{parquet,csv}";
-        FileSet result = GlobExpander.expandGlob(uri, new TestLocalStorageProvider());
+        GenericFileList result = GlobExpander.expandGlob(uri, new TestLocalStorageProvider());
         if (expectedCount == 0) {
             assertTrue(result.isEmpty());
         } else {
@@ -184,8 +184,8 @@ public class GlobDiscoveryLocalTests extends ESTestCase {
         long totalParquetCount = allPaths.stream().filter(p -> p.endsWith(".parquet")).count();
 
         TestLocalStorageProvider testProvider = new TestLocalStorageProvider();
-        FileSet flatResult = GlobExpander.expandGlob(StoragePath.fileUri(root) + "/*.parquet", testProvider);
-        FileSet recursiveResult = GlobExpander.expandGlob(StoragePath.fileUri(root) + "/**" + "/*.parquet", testProvider);
+        GenericFileList flatResult = GlobExpander.expandGlob(StoragePath.fileUri(root) + "/*.parquet", testProvider);
+        GenericFileList recursiveResult = GlobExpander.expandGlob(StoragePath.fileUri(root) + "/**" + "/*.parquet", testProvider);
 
         long flatSize = flatResult.isEmpty() ? 0 : flatResult.size();
         long recursiveSize = recursiveResult.isEmpty() ? 0 : recursiveResult.size();
@@ -207,7 +207,7 @@ public class GlobDiscoveryLocalTests extends ESTestCase {
         // Two-digit name won't match f?.parquet
         Files.createFile(root.resolve("f10.parquet"));
 
-        FileSet result = GlobExpander.expandGlob(StoragePath.fileUri(root) + "/f?.parquet", new TestLocalStorageProvider());
+        GenericFileList result = GlobExpander.expandGlob(StoragePath.fileUri(root) + "/f?.parquet", new TestLocalStorageProvider());
         assertEquals(expectedCount, result.size());
     }
 

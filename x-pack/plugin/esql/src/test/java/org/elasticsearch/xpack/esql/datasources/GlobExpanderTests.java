@@ -45,7 +45,7 @@ public class GlobExpanderTests extends ESTestCase {
 
     public void testExpandGlobLiteralReturnsUnresolved() throws IOException {
         StubProvider provider = new StubProvider(List.of());
-        FileSet result = GlobExpander.expandGlob("s3://bucket/data.parquet", provider);
+        GenericFileList result = GlobExpander.expandGlob("s3://bucket/data.parquet", provider);
         assertTrue(result.isUnresolved());
     }
 
@@ -57,7 +57,7 @@ public class GlobExpanderTests extends ESTestCase {
         );
         StubProvider provider = new StubProvider(listing);
 
-        FileSet result = GlobExpander.expandGlob("s3://bucket/data/*.parquet", provider);
+        GenericFileList result = GlobExpander.expandGlob("s3://bucket/data/*.parquet", provider);
         assertTrue(result.isResolved());
         assertEquals(2, result.size());
         assertEquals("s3://bucket/data/file1.parquet", result.files().get(0).path().toString());
@@ -68,7 +68,7 @@ public class GlobExpanderTests extends ESTestCase {
         List<StorageEntry> listing = List.of(entry("s3://bucket/data/file.csv", 50));
         StubProvider provider = new StubProvider(listing);
 
-        FileSet result = GlobExpander.expandGlob("s3://bucket/data/*.parquet", provider);
+        GenericFileList result = GlobExpander.expandGlob("s3://bucket/data/*.parquet", provider);
         assertTrue(result.isEmpty());
     }
 
@@ -76,7 +76,7 @@ public class GlobExpanderTests extends ESTestCase {
         List<StorageEntry> listing = List.of(entry("s3://bucket/data/f.parquet", 10));
         StubProvider provider = new StubProvider(listing);
 
-        FileSet result = GlobExpander.expandGlob("s3://bucket/data/*.parquet", provider);
+        GenericFileList result = GlobExpander.expandGlob("s3://bucket/data/*.parquet", provider);
         assertEquals("s3://bucket/data/*.parquet", result.originalPattern());
     }
 
@@ -87,14 +87,14 @@ public class GlobExpanderTests extends ESTestCase {
         StubProvider provider = new StubProvider(listing);
         provider.existingPaths.add("s3://bucket/extra.parquet");
 
-        FileSet result = GlobExpander.expandCommaSeparated("s3://bucket/data/*.parquet, s3://bucket/extra.parquet", provider);
+        GenericFileList result = GlobExpander.expandCommaSeparated("s3://bucket/data/*.parquet, s3://bucket/extra.parquet", provider);
         assertTrue(result.isResolved());
         assertEquals(3, result.size());
     }
 
     public void testExpandCommaSeparatedAllMissing() throws IOException {
         StubProvider provider = new StubProvider(List.of());
-        FileSet result = GlobExpander.expandCommaSeparated("s3://bucket/missing.parquet", provider);
+        GenericFileList result = GlobExpander.expandCommaSeparated("s3://bucket/missing.parquet", provider);
         assertTrue(result.isEmpty());
     }
 
@@ -145,7 +145,7 @@ public class GlobExpanderTests extends ESTestCase {
         );
         StubProvider provider = new StubProvider(listing);
 
-        FileSet result = GlobExpander.expandGlob("s3://bucket/data/year=*/*.parquet", provider, null, true);
+        GenericFileList result = GlobExpander.expandGlob("s3://bucket/data/year=*/*.parquet", provider, null, true);
         assertTrue(result.isResolved());
         assertEquals(2, result.size());
         assertNotNull(result.partitionMetadata());
@@ -160,7 +160,7 @@ public class GlobExpanderTests extends ESTestCase {
         );
         StubProvider provider = new StubProvider(listing);
 
-        FileSet result = GlobExpander.expandGlob("s3://bucket/data/year=*/*.parquet", provider, null, false);
+        GenericFileList result = GlobExpander.expandGlob("s3://bucket/data/year=*/*.parquet", provider, null, false);
         assertTrue(result.isResolved());
         assertEquals(2, result.size());
         assertNull(result.partitionMetadata());
@@ -174,7 +174,7 @@ public class GlobExpanderTests extends ESTestCase {
         StubProvider provider = new StubProvider(listing);
 
         @SuppressWarnings("RegexpMultiline")
-        FileSet result = GlobExpander.expandGlob("s3://bucket/data/**/*.parquet", provider, null, true);
+        GenericFileList result = GlobExpander.expandGlob("s3://bucket/data/**/*.parquet", provider, null, true);
         assertTrue(result.isResolved());
         assertNull(result.partitionMetadata());
     }
@@ -232,7 +232,7 @@ public class GlobExpanderTests extends ESTestCase {
         PartitionConfig config = new PartitionConfig(PartitionConfig.TEMPLATE, "{year}/{month}");
 
         @SuppressWarnings("RegexpMultiline")
-        FileSet result = GlobExpander.expandGlob("s3://bucket/data/**/*.parquet", provider, null, true, config, Map.of());
+        GenericFileList result = GlobExpander.expandGlob("s3://bucket/data/**/*.parquet", provider, null, true, config, Map.of());
         assertTrue(result.isResolved());
         assertEquals(2, result.size());
         assertNotNull(result.partitionMetadata());
@@ -248,7 +248,7 @@ public class GlobExpanderTests extends ESTestCase {
         StubProvider provider = new StubProvider(listing);
         PartitionConfig config = new PartitionConfig(PartitionConfig.NONE, null);
 
-        FileSet result = GlobExpander.expandGlob("s3://bucket/data/year=*/*.parquet", provider, null, true, config, Map.of());
+        GenericFileList result = GlobExpander.expandGlob("s3://bucket/data/year=*/*.parquet", provider, null, true, config, Map.of());
         assertTrue(result.isResolved());
         assertNull(result.partitionMetadata());
     }

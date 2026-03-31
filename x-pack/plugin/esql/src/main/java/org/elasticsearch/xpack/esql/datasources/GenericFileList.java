@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.util.List;
@@ -19,28 +20,28 @@ import java.util.Objects;
  * Uses identity-comparable sentinels for unresolved and empty states.
  * Optionally carries {@link PartitionMetadata} detected from Hive-style file paths.
  */
-public final class FileSet {
+public final class GenericFileList implements FileList {
 
     /** Single-file path, no glob applied yet. */
-    public static final FileSet UNRESOLVED = new FileSet(List.of(), null);
+    public static final GenericFileList UNRESOLVED = new GenericFileList(List.of(), null);
 
     /** Glob matched zero files. */
-    public static final FileSet EMPTY = new FileSet(List.of(), null);
+    public static final GenericFileList EMPTY = new GenericFileList(List.of(), null);
 
     private final List<StorageEntry> files;
     private final String originalPattern;
     private final PartitionMetadata partitionMetadata;
     private final Map<StoragePath, SchemaReconciliation.FileSchemaInfo> fileSchemaInfo;
 
-    public FileSet(List<StorageEntry> files, String originalPattern) {
+    public GenericFileList(List<StorageEntry> files, String originalPattern) {
         this(files, originalPattern, null, null);
     }
 
-    public FileSet(List<StorageEntry> files, String originalPattern, @Nullable PartitionMetadata partitionMetadata) {
+    public GenericFileList(List<StorageEntry> files, String originalPattern, @Nullable PartitionMetadata partitionMetadata) {
         this(files, originalPattern, partitionMetadata, null);
     }
 
-    public FileSet(
+    public GenericFileList(
         List<StorageEntry> files,
         String originalPattern,
         @Nullable PartitionMetadata partitionMetadata,
@@ -74,15 +75,41 @@ public final class FileSet {
     }
 
     /**
-     * Returns a new FileSet with per-file schema info attached.
+     * Returns a new GenericFileList with per-file schema info attached.
      * Used by schema reconciliation to pass column mappings from planning to split discovery.
      */
-    public FileSet withSchemaInfo(Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaInfo) {
-        return new FileSet(files, originalPattern, partitionMetadata, schemaInfo);
+    public GenericFileList withSchemaInfo(Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaInfo) {
+        return new GenericFileList(files, originalPattern, partitionMetadata, schemaInfo);
     }
 
     public int size() {
         return files.size();
+    }
+
+    @Override
+    public int fileCount() {
+        return files.size();
+    }
+
+    @Override
+    public StoragePath path(int i) {
+        return files.get(i).path();
+    }
+
+    @Override
+    public long size(int i) {
+        return files.get(i).length();
+    }
+
+    @Override
+    public long lastModifiedMillis(int i) {
+        return files.get(i).lastModified().toEpochMilli();
+    }
+
+    @Override
+    public long estimatedBytes() {
+        // 64B object header + ~700B per StorageEntry (path String + Instant + long)
+        return 64 + files.size() * 700L;
     }
 
     public boolean isUnresolved() {
@@ -105,7 +132,7 @@ public final class FileSet {
         if (o == null || getClass() != o.getClass()) {
             return false;
         }
-        FileSet other = (FileSet) o;
+        GenericFileList other = (GenericFileList) o;
         if (this == UNRESOLVED || this == EMPTY || other == UNRESOLVED || other == EMPTY) {
             return false;
         }
@@ -125,11 +152,11 @@ public final class FileSet {
     @Override
     public String toString() {
         if (this == UNRESOLVED) {
-            return "FileSet[UNRESOLVED]";
+            return "GenericFileList[UNRESOLVED]";
         }
         if (this == EMPTY) {
-            return "FileSet[EMPTY]";
+            return "GenericFileList[EMPTY]";
         }
-        return "FileSet[" + files.size() + " files, pattern=" + originalPattern + "]";
+        return "GenericFileList[" + files.size() + " files, pattern=" + originalPattern + "]";
     }
 }

@@ -15,87 +15,87 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 
-public class FileSetTests extends ESTestCase {
+public class GenericFileListTests extends ESTestCase {
 
     public void testUnresolvedIdentity() {
-        assertSame(FileSet.UNRESOLVED, FileSet.UNRESOLVED);
+        assertSame(GenericFileList.UNRESOLVED, GenericFileList.UNRESOLVED);
     }
 
     public void testEmptyIdentity() {
-        assertSame(FileSet.EMPTY, FileSet.EMPTY);
+        assertSame(GenericFileList.EMPTY, GenericFileList.EMPTY);
     }
 
     public void testUnresolvedIsNotEmpty() {
-        assertNotSame(FileSet.UNRESOLVED, FileSet.EMPTY);
+        assertNotSame(GenericFileList.UNRESOLVED, GenericFileList.EMPTY);
     }
 
-    public void testIsResolvedForRegularFileSet() {
+    public void testIsResolvedForRegularGenericFileList() {
         StorageEntry entry = new StorageEntry(StoragePath.of("s3://bucket/file.parquet"), 100, Instant.EPOCH);
-        FileSet fileSet = new FileSet(List.of(entry), "s3://bucket/*.parquet");
-        assertTrue(fileSet.isResolved());
-        assertFalse(fileSet.isUnresolved());
-        assertFalse(fileSet.isEmpty());
+        GenericFileList fileList = new GenericFileList(List.of(entry), "s3://bucket/*.parquet");
+        assertTrue(fileList.isResolved());
+        assertFalse(fileList.isUnresolved());
+        assertFalse(fileList.isEmpty());
     }
 
     public void testIsUnresolved() {
-        assertTrue(FileSet.UNRESOLVED.isUnresolved());
-        assertFalse(FileSet.EMPTY.isUnresolved());
+        assertTrue(GenericFileList.UNRESOLVED.isUnresolved());
+        assertFalse(GenericFileList.EMPTY.isUnresolved());
     }
 
     public void testIsEmpty() {
-        assertTrue(FileSet.EMPTY.isEmpty());
-        assertFalse(FileSet.UNRESOLVED.isEmpty());
+        assertTrue(GenericFileList.EMPTY.isEmpty());
+        assertFalse(GenericFileList.UNRESOLVED.isEmpty());
     }
 
     public void testSizeMatchesFiles() {
         StorageEntry e1 = new StorageEntry(StoragePath.of("s3://b/a.parquet"), 10, Instant.EPOCH);
         StorageEntry e2 = new StorageEntry(StoragePath.of("s3://b/b.parquet"), 20, Instant.EPOCH);
-        FileSet fileSet = new FileSet(List.of(e1, e2), "s3://b/*.parquet");
-        assertEquals(fileSet.files().size(), fileSet.size());
-        assertEquals(2, fileSet.size());
+        GenericFileList fileList = new GenericFileList(List.of(e1, e2), "s3://b/*.parquet");
+        assertEquals(fileList.files().size(), fileList.size());
+        assertEquals(2, fileList.size());
     }
 
     public void testOriginalPatternPreserved() {
         String pattern = "s3://bucket/data/**" + "/*.parquet";
         StorageEntry entry = new StorageEntry(StoragePath.of("s3://bucket/data/sub/file.parquet"), 50, Instant.EPOCH);
-        FileSet fileSet = new FileSet(List.of(entry), pattern);
-        assertEquals(pattern, fileSet.originalPattern());
+        GenericFileList fileList = new GenericFileList(List.of(entry), pattern);
+        assertEquals(pattern, fileList.originalPattern());
     }
 
     public void testSentinelsNotEqual() {
-        assertNotEquals(FileSet.UNRESOLVED, FileSet.EMPTY);
-        assertNotEquals(FileSet.EMPTY, FileSet.UNRESOLVED);
-        assertNotEquals(FileSet.UNRESOLVED.hashCode(), FileSet.EMPTY.hashCode());
+        assertNotEquals(GenericFileList.UNRESOLVED, GenericFileList.EMPTY);
+        assertNotEquals(GenericFileList.EMPTY, GenericFileList.UNRESOLVED);
+        assertNotEquals(GenericFileList.UNRESOLVED.hashCode(), GenericFileList.EMPTY.hashCode());
     }
 
     public void testPartitionMetadataNullByDefault() {
         StorageEntry entry = new StorageEntry(StoragePath.of("s3://bucket/file.parquet"), 100, Instant.EPOCH);
-        FileSet fileSet = new FileSet(List.of(entry), "s3://bucket/*.parquet");
-        assertNull(fileSet.partitionMetadata());
+        GenericFileList fileList = new GenericFileList(List.of(entry), "s3://bucket/*.parquet");
+        assertNull(fileList.partitionMetadata());
     }
 
     public void testPartitionMetadataAttached() {
         StoragePath path = StoragePath.of("s3://bucket/year=2024/file.parquet");
         StorageEntry entry = new StorageEntry(path, 100, Instant.EPOCH);
         PartitionMetadata pm = new PartitionMetadata(Map.of("year", DataType.INTEGER), Map.of(path, Map.of("year", 2024)));
-        FileSet fileSet = new FileSet(List.of(entry), "s3://bucket/year=*/*.parquet", pm);
-        assertNotNull(fileSet.partitionMetadata());
-        assertFalse(fileSet.partitionMetadata().isEmpty());
-        assertEquals(DataType.INTEGER, fileSet.partitionMetadata().partitionColumns().get("year"));
+        GenericFileList fileList = new GenericFileList(List.of(entry), "s3://bucket/year=*/*.parquet", pm);
+        assertNotNull(fileList.partitionMetadata());
+        assertFalse(fileList.partitionMetadata().isEmpty());
+        assertEquals(DataType.INTEGER, fileList.partitionMetadata().partitionColumns().get("year"));
     }
 
     public void testSentinelsHaveNullPartitionMetadata() {
-        assertNull(FileSet.UNRESOLVED.partitionMetadata());
-        assertNull(FileSet.EMPTY.partitionMetadata());
+        assertNull(GenericFileList.UNRESOLVED.partitionMetadata());
+        assertNull(GenericFileList.EMPTY.partitionMetadata());
     }
 
     public void testEqualityWithPartitionMetadata() {
         StoragePath path = StoragePath.of("s3://bucket/year=2024/file.parquet");
         StorageEntry entry = new StorageEntry(path, 100, Instant.EPOCH);
         PartitionMetadata pm = new PartitionMetadata(Map.of("year", DataType.INTEGER), Map.of(path, Map.of("year", 2024)));
-        FileSet a = new FileSet(List.of(entry), "s3://bucket/year=*/*.parquet", pm);
-        FileSet b = new FileSet(List.of(entry), "s3://bucket/year=*/*.parquet", pm);
-        FileSet c = new FileSet(List.of(entry), "s3://bucket/year=*/*.parquet", null);
+        GenericFileList a = new GenericFileList(List.of(entry), "s3://bucket/year=*/*.parquet", pm);
+        GenericFileList b = new GenericFileList(List.of(entry), "s3://bucket/year=*/*.parquet", pm);
+        GenericFileList c = new GenericFileList(List.of(entry), "s3://bucket/year=*/*.parquet", null);
 
         assertEquals(a, b);
         assertNotEquals(a, c);

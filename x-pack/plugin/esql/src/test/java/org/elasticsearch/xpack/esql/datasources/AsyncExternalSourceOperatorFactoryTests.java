@@ -355,7 +355,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
             new StorageEntry(StoragePath.of("s3://bucket/data/f2.parquet"), 200, Instant.EPOCH),
             new StorageEntry(StoragePath.of("s3://bucket/data/f3.parquet"), 300, Instant.EPOCH)
         );
-        FileSet fileSet = new FileSet(entries, "s3://bucket/data/*.parquet");
+        GenericFileList fileList = new GenericFileList(entries, "s3://bucket/data/*.parquet");
 
         FormatReader formatReader = new PageCountingFormatReader(readCount);
         StubMultiFileStorageProvider storageProvider = new StubMultiFileStorageProvider();
@@ -383,7 +383,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
             100,
             10,
             (Runnable r) -> r.run(),
-            fileSet
+            fileList
         );
 
         SourceOperator operator = factory.get(driverContext);
@@ -406,7 +406,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         operator.close();
     }
 
-    public void testMultiFileReadUnresolvedFileSetFallsBackToSingleFile() throws Exception {
+    public void testMultiFileReadUnresolvedGenericFileListFallsBackToSingleFile() throws Exception {
         AtomicInteger readCount = new AtomicInteger(0);
 
         FormatReader formatReader = new PageCountingFormatReader(readCount);
@@ -463,7 +463,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
             new StorageEntry(StoragePath.of("s3://bucket/data/bad.parquet"), 200, Instant.EPOCH),
             new StorageEntry(StoragePath.of("s3://bucket/data/never.parquet"), 300, Instant.EPOCH)
         );
-        FileSet fileSet = new FileSet(entries, "s3://bucket/data/*.parquet");
+        GenericFileList fileList = new GenericFileList(entries, "s3://bucket/data/*.parquet");
 
         FormatReader formatReader = new FailOnSecondFileFormatReader();
         StubMultiFileStorageProvider storageProvider = new StubMultiFileStorageProvider();
@@ -491,7 +491,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
             100,
             10,
             (Runnable r) -> r.run(),
-            fileSet
+            fileList
         );
 
         SourceOperator operator = factory.get(driverContext);
@@ -515,12 +515,12 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         operator.close();
     }
 
-    public void testMultiFileReadFileSetAccessor() {
+    public void testMultiFileReadGenericFileListAccessor() {
         List<StorageEntry> entries = List.of(
             new StorageEntry(StoragePath.of("s3://bucket/a.parquet"), 10, Instant.EPOCH),
             new StorageEntry(StoragePath.of("s3://bucket/b.parquet"), 20, Instant.EPOCH)
         );
-        FileSet fileSet = new FileSet(entries, "s3://bucket/*.parquet");
+        GenericFileList fileList = new GenericFileList(entries, "s3://bucket/*.parquet");
 
         StorageProvider storageProvider = mock(StorageProvider.class);
         FormatReader formatReader = mock(FormatReader.class);
@@ -536,12 +536,12 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
             100,
             10,
             Runnable::run,
-            fileSet
+            fileList
         );
 
-        assertSame(fileSet, factory.fileSet());
-        assertTrue(factory.fileSet().isResolved());
-        assertEquals(2, factory.fileSet().size());
+        assertSame(fileList, factory.fileList());
+        assertTrue(factory.fileList().isResolved());
+        assertEquals(2, factory.fileList().fileCount());
     }
 
     // ===== Slice Queue tests =====

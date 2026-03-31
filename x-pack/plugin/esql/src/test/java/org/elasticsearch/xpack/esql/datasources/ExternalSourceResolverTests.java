@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderFactory;
@@ -141,9 +142,9 @@ public class ExternalSourceResolverTests extends ESTestCase {
         assertEquals("value", resolvedSchema.get(1).name());
     }
 
-    // ===== FileSet threading tests =====
+    // ===== GenericFileList threading tests =====
 
-    public void testMultiFileResolutionReturnsFileSet() throws Exception {
+    public void testMultiFileResolutionReturnsGenericFileList() throws Exception {
         List<Attribute> schema = List.of(attr("x", DataType.INTEGER));
 
         Map<String, List<Attribute>> schemasByPath = new HashMap<>();
@@ -156,11 +157,11 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
         ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource("s3://bucket/data/*.parquet");
         assertNotNull(resolved);
-        FileSet fileSet = resolved.fileSet();
-        assertTrue(fileSet.isResolved());
-        assertEquals(2, fileSet.size());
-        assertEquals("s3://bucket/data/a.parquet", fileSet.files().get(0).path().toString());
-        assertEquals("s3://bucket/data/b.parquet", fileSet.files().get(1).path().toString());
+        FileList fileList = resolved.fileList();
+        assertTrue(fileList.isResolved());
+        assertEquals(2, fileList.fileCount());
+        assertEquals("s3://bucket/data/a.parquet", fileList.path(0).toString());
+        assertEquals("s3://bucket/data/b.parquet", fileList.path(1).toString());
     }
 
     public void testMultiFileResolutionPreservesOriginalPattern() throws Exception {
@@ -177,7 +178,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
         ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource("s3://bucket/dir/*.parquet");
         assertNotNull(resolved);
-        assertEquals("s3://bucket/dir/*.parquet", resolved.fileSet().originalPattern());
+        assertEquals("s3://bucket/dir/*.parquet", resolved.fileList().originalPattern());
     }
 
     public void testGlobNoMatchThrows() {
@@ -187,9 +188,9 @@ public class ExternalSourceResolverTests extends ESTestCase {
         assertTrue(e.getMessage().contains("Glob pattern matched no files"));
     }
 
-    // ===== Single-file resolution returns UNRESOLVED FileSet =====
+    // ===== Single-file resolution returns UNRESOLVED GenericFileList =====
 
-    public void testSingleFileResolutionReturnsUnresolvedFileSet() throws Exception {
+    public void testSingleFileResolutionReturnsUnresolvedGenericFileList() throws Exception {
         List<Attribute> schema = List.of(attr("id", DataType.LONG));
 
         Map<String, List<Attribute>> schemasByPath = new HashMap<>();
@@ -199,7 +200,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
         ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource("s3://bucket/data/single.parquet");
         assertNotNull(resolved);
-        assertTrue(resolved.fileSet().isUnresolved());
+        assertFalse(resolved.fileList().isResolved());
     }
 
     // ===== Schema type preservation =====

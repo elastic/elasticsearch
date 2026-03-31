@@ -22,7 +22,13 @@ import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService;
+import org.elasticsearch.xpack.esql.datasources.cache.HiveFileList;
+import org.elasticsearch.xpack.esql.datasources.cache.ListingCacheKey;
+import org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheEntry;
+import org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheKey;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
+import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -74,15 +80,26 @@ public class ExternalSourceResolver {
     private final Executor executor;
     private final DataSourceModule dataSourceModule;
     private final Settings settings;
+    private final ExternalSourceCacheService cacheService;
 
     public ExternalSourceResolver(Executor executor, DataSourceModule dataSourceModule) {
-        this(executor, dataSourceModule, Settings.EMPTY);
+        this(executor, dataSourceModule, Settings.EMPTY, null);
     }
 
     public ExternalSourceResolver(Executor executor, DataSourceModule dataSourceModule, Settings settings) {
+        this(executor, dataSourceModule, settings, null);
+    }
+
+    public ExternalSourceResolver(
+        Executor executor,
+        DataSourceModule dataSourceModule,
+        Settings settings,
+        @Nullable ExternalSourceCacheService cacheService
+    ) {
         this.executor = executor;
         this.dataSourceModule = dataSourceModule;
         this.settings = settings;
+        this.cacheService = cacheService;
     }
 
     public void resolve(
@@ -149,7 +166,7 @@ public class ExternalSourceResolver {
 
         SourceMetadata metadata = resolveSingleSource(path, config);
         ExternalSourceMetadata extMetadata = wrapAsExternalSourceMetadata(metadata, config);
-        return new ExternalSourceResolution.ResolvedSource(extMetadata, FileSet.UNRESOLVED);
+        return new ExternalSourceResolution.ResolvedSource(extMetadata, GenericFileList.UNRESOLVED);
     }
 
     private ExternalSourceResolution.ResolvedSource resolveMultiFileSource(
@@ -159,61 +176,157 @@ public class ExternalSourceResolver {
         boolean hivePartitioning
     ) throws Exception {
         StoragePath storagePath = StoragePath.of(path);
-        StorageProviderRegistry registry = dataSourceModule.storageProviderRegistry();
 
+        FormatReader.SchemaResolution schemaResolution = parseSchemaResolution(config);
+
+        if (schemaResolution != FormatReader.SchemaResolution.FIRST_FILE_WINS) {
+            GenericFileList raw = expandRaw(path, config, hints, hivePartitioning, storagePath);
+            if (raw.isEmpty()) {
+                throw new IllegalArgumentException("Glob pattern matched no files: " + path);
+            }
+            return resolveMultiFileWithReconciliation(raw, config, schemaResolution);
+        }
+
+        boolean cacheable = cacheService != null
+            && cacheService.isEnabled()
+            && "http".equals(storagePath.scheme()) == false
+            && "https".equals(storagePath.scheme()) == false;
+
+        FileList listing;
+        if (cacheable) {
+            ListingCacheKey listingKey = ListingCacheKey.build(storagePath.scheme(), storagePath.host(), storagePath.path(), config);
+            listing = cacheService.getOrComputeListing(
+                listingKey,
+                k -> expandAndCompact(path, config, hints, hivePartitioning, storagePath)
+            );
+        } else {
+            listing = expandAndCompact(path, config, hints, hivePartitioning, storagePath);
+        }
+
+        if (listing.fileCount() == 0) {
+            throw new IllegalArgumentException("Glob pattern matched no files: " + path);
+        }
+
+        int anchor = 0;
+        for (int i = 1; i < listing.fileCount(); i++) {
+            if (listing.path(i).toString().compareTo(listing.path(anchor).toString()) < 0) {
+                anchor = i;
+            }
+        }
+
+        StoragePath anchorPath = listing.path(anchor);
+        long anchorMtime = listing.lastModifiedMillis(anchor);
+
+        ExternalSourceMetadata extMetadata;
+        if (cacheable) {
+            String formatType = detectFormatType(anchorPath);
+            SchemaCacheKey schemaKey = SchemaCacheKey.build(anchorPath.toString(), anchorMtime, formatType, config);
+            SchemaCacheEntry schemaEntry = cacheService.getOrComputeSchema(schemaKey, k -> {
+                SourceMetadata meta = resolveSingleSource(anchorPath.toString(), config);
+                return SchemaCacheEntry.from(meta.schema(), meta.sourceType(), meta.location(), meta.sourceMetadata());
+            });
+            List<Attribute> schema = schemaEntry.toAttributes();
+            extMetadata = buildMetadataFromCache(schemaEntry, schema, config);
+        } else {
+            SourceMetadata metadata = resolveSingleSource(anchorPath.toString(), config);
+            extMetadata = wrapAsExternalSourceMetadata(metadata, config);
+        }
+
+        PartitionMetadata partitionMetadata = listing.partitionMetadata();
+        if (partitionMetadata != null && partitionMetadata.isEmpty() == false) {
+            extMetadata = enrichSchemaWithPartitionColumns(extMetadata, partitionMetadata);
+        }
+
+        return new ExternalSourceResolution.ResolvedSource(extMetadata, listing);
+    }
+
+    private FileList expandAndCompact(
+        String path,
+        Map<String, Object> config,
+        @Nullable List<PartitionFilterHintExtractor.PartitionFilterHint> hints,
+        boolean hivePartitioning,
+        StoragePath storagePath
+    ) throws Exception {
+        GenericFileList raw = expandRaw(path, config, hints, hivePartitioning, storagePath);
+        String basePath = storagePath.patternPrefix().toString();
+        return HiveFileList.from(basePath, raw);
+    }
+
+    private GenericFileList expandRaw(
+        String path,
+        Map<String, Object> config,
+        @Nullable List<PartitionFilterHintExtractor.PartitionFilterHint> hints,
+        boolean hivePartitioning,
+        StoragePath storagePath
+    ) throws Exception {
+        StorageProviderRegistry registry = dataSourceModule.storageProviderRegistry();
         StorageProvider provider;
         if (config != null && config.isEmpty() == false) {
             provider = registry.createProvider(storagePath.scheme(), settings, config);
         } else {
             provider = registry.provider(storagePath);
         }
-
-        FileSet fileSet;
         if (path.indexOf(',') >= 0) {
-            fileSet = GlobExpander.expandCommaSeparated(path, provider, hints, hivePartitioning);
+            return GlobExpander.expandCommaSeparated(path, provider, hints, hivePartitioning);
         } else {
-            fileSet = GlobExpander.expandGlob(path, provider, hints, hivePartitioning);
+            return GlobExpander.expandGlob(path, provider, hints, hivePartitioning);
         }
-
-        if (fileSet.isEmpty()) {
-            throw new IllegalArgumentException("Glob pattern matched no files: " + path);
-        }
-
-        FormatReader.SchemaResolution schemaResolution = parseSchemaResolution(config);
-
-        if (schemaResolution == FormatReader.SchemaResolution.FIRST_FILE_WINS) {
-            return resolveMultiFileFirstFileWins(fileSet, config);
-        }
-        return resolveMultiFileWithReconciliation(fileSet, config, schemaResolution);
     }
 
-    private ExternalSourceResolution.ResolvedSource resolveMultiFileFirstFileWins(FileSet fileSet, Map<String, Object> config)
-        throws Exception {
-        StoragePath firstFile = fileSet.files().get(0).path();
-        SourceMetadata metadata = resolveSingleSource(firstFile.toString(), config);
-
-        ExternalSourceMetadata extMetadata = wrapAsExternalSourceMetadata(metadata, config);
-
-        PartitionMetadata partitionMetadata = fileSet.partitionMetadata();
-        if (partitionMetadata != null && partitionMetadata.isEmpty() == false) {
-            extMetadata = enrichSchemaWithPartitionColumns(extMetadata, partitionMetadata);
+    private static String detectFormatType(StoragePath path) {
+        String name = path.objectName();
+        if (name == null) {
+            return "";
         }
+        int dot = name.lastIndexOf('.');
+        return dot >= 0 ? name.substring(dot) : "";
+    }
 
-        return new ExternalSourceResolution.ResolvedSource(extMetadata, fileSet);
+    private static ExternalSourceMetadata buildMetadataFromCache(
+        SchemaCacheEntry entry,
+        List<Attribute> schema,
+        Map<String, Object> config
+    ) {
+        return new ExternalSourceMetadata() {
+            @Override
+            public String location() {
+                return entry.location();
+            }
+
+            @Override
+            public List<Attribute> schema() {
+                return schema;
+            }
+
+            @Override
+            public String sourceType() {
+                return entry.sourceType();
+            }
+
+            @Override
+            public Map<String, Object> sourceMetadata() {
+                return entry.safeMetadata();
+            }
+
+            @Override
+            public Map<String, Object> config() {
+                return config != null ? config : Map.of();
+            }
+        };
     }
 
     private ExternalSourceResolution.ResolvedSource resolveMultiFileWithReconciliation(
-        FileSet fileSet,
+        GenericFileList fileList,
         Map<String, Object> config,
         FormatReader.SchemaResolution schemaResolution
     ) throws Exception {
         long startNanos = System.nanoTime();
-        Map<StoragePath, SourceMetadata> allMetadata = readAllFileMetadata(fileSet, config);
+        Map<StoragePath, SourceMetadata> allMetadata = readAllFileMetadata(fileList, config);
         long durationMs = (System.nanoTime() - startNanos) / 1_000_000;
 
         LOGGER.debug("Schema reconciliation [{}]: scanned {} files in {}ms", schemaResolution, allMetadata.size(), durationMs);
 
-        StoragePath firstFile = fileSet.files().get(0).path();
+        StoragePath firstFile = fileList.files().get(0).path();
         SchemaReconciliation.Result result;
         if (schemaResolution == FormatReader.SchemaResolution.STRICT) {
             result = SchemaReconciliation.reconcileStrict(firstFile, allMetadata);
@@ -225,21 +338,21 @@ public class ExternalSourceResolver {
         SourceMetadata firstMeta = allMetadata.get(firstFile);
         ExternalSourceMetadata extMetadata = buildUnifiedMetadata(firstMeta, unifiedSchema, config);
 
-        PartitionMetadata partitionMetadata = fileSet.partitionMetadata();
+        PartitionMetadata partitionMetadata = fileList.partitionMetadata();
         if (partitionMetadata != null && partitionMetadata.isEmpty() == false) {
             extMetadata = enrichSchemaWithPartitionColumns(extMetadata, partitionMetadata);
         }
 
-        FileSet enrichedFileSet = fileSet.withSchemaInfo(result.perFileInfo());
-        return new ExternalSourceResolution.ResolvedSource(extMetadata, enrichedFileSet);
+        GenericFileList enrichedFileList = fileList.withSchemaInfo(result.perFileInfo());
+        return new ExternalSourceResolution.ResolvedSource(extMetadata, enrichedFileList);
     }
 
     /**
      * Reads metadata from all files in parallel with bounded concurrency.
      * Uses a semaphore to cap the number of concurrent metadata reads.
      */
-    private Map<StoragePath, SourceMetadata> readAllFileMetadata(FileSet fileSet, Map<String, Object> config) throws Exception {
-        List<StorageEntry> files = fileSet.files();
+    private Map<StoragePath, SourceMetadata> readAllFileMetadata(GenericFileList fileList, Map<String, Object> config) throws Exception {
+        List<StorageEntry> files = fileList.files();
         int fileCount = files.size();
 
         if (fileCount == 1) {

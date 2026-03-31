@@ -101,7 +101,7 @@ public class SplitDiscoveryPhaseErrorTests extends ESTestCase {
 
     private static ExternalSourceExec createExternalSourceExec(String sourcePath, String sourceType) {
         List<Attribute> attrs = List.of(fieldAttr("id", DataType.LONG));
-        return new ExternalSourceExec(SRC, sourcePath, sourceType, attrs, Map.of(), Map.of(), null, null, FileSet.UNRESOLVED);
+        return new ExternalSourceExec(SRC, sourcePath, sourceType, attrs, Map.of(), Map.of(), null, null, GenericFileList.UNRESOLVED);
     }
 
     private static Attribute fieldAttr(String name, DataType type) {

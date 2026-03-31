@@ -49,9 +49,9 @@ public class FileSplitProviderTests extends ESTestCase {
         StorageEntry e1 = new StorageEntry(StoragePath.of("s3://b/a.parquet"), 100, Instant.EPOCH);
         StorageEntry e2 = new StorageEntry(StoragePath.of("s3://b/b.parquet"), 200, Instant.EPOCH);
         StorageEntry e3 = new StorageEntry(StoragePath.of("s3://b/c.parquet"), 300, Instant.EPOCH);
-        FileSet fileSet = new FileSet(List.of(e1, e2, e3), "s3://b/*.parquet");
+        GenericFileList fileList = new GenericFileList(List.of(e1, e2, e3), "s3://b/*.parquet");
 
-        SplitDiscoveryContext ctx = new SplitDiscoveryContext(null, fileSet, Map.of(), PartitionMetadata.EMPTY, List.of());
+        SplitDiscoveryContext ctx = new SplitDiscoveryContext(null, fileList, Map.of(), PartitionMetadata.EMPTY, List.of());
         List<ExternalSplit> splits = provider.discoverSplits(ctx);
 
         assertEquals(3, splits.size());
@@ -75,14 +75,14 @@ public class FileSplitProviderTests extends ESTestCase {
         StoragePath path2 = StoragePath.of("s3://b/year=2023/file.parquet");
         StorageEntry e1 = new StorageEntry(path1, 100, Instant.EPOCH);
         StorageEntry e2 = new StorageEntry(path2, 200, Instant.EPOCH);
-        FileSet fileSet = new FileSet(List.of(e1, e2), "s3://b/year=*/*.parquet");
+        GenericFileList fileList = new GenericFileList(List.of(e1, e2), "s3://b/year=*/*.parquet");
 
         PartitionMetadata partitions = new PartitionMetadata(
             Map.of("year", DataType.INTEGER),
             Map.of(path1, Map.of("year", 2024), path2, Map.of("year", 2023))
         );
 
-        SplitDiscoveryContext ctx = new SplitDiscoveryContext(null, fileSet, Map.of(), partitions, List.of());
+        SplitDiscoveryContext ctx = new SplitDiscoveryContext(null, fileList, Map.of(), partitions, List.of());
         List<ExternalSplit> splits = provider.discoverSplits(ctx);
 
         assertEquals(2, splits.size());
@@ -92,33 +92,39 @@ public class FileSplitProviderTests extends ESTestCase {
 
     public void testNoPartitionMetadataProducesEmptyPartitionValues() {
         StorageEntry e1 = new StorageEntry(StoragePath.of("s3://b/file.parquet"), 100, Instant.EPOCH);
-        FileSet fileSet = new FileSet(List.of(e1), "s3://b/*.parquet");
+        GenericFileList fileList = new GenericFileList(List.of(e1), "s3://b/*.parquet");
 
-        SplitDiscoveryContext ctx = new SplitDiscoveryContext(null, fileSet, Map.of(), null, List.of());
+        SplitDiscoveryContext ctx = new SplitDiscoveryContext(null, fileList, Map.of(), null, List.of());
         List<ExternalSplit> splits = provider.discoverSplits(ctx);
 
         assertEquals(1, splits.size());
         assertEquals(Map.of(), ((FileSplit) splits.get(0)).partitionValues());
     }
 
-    public void testEmptyFileSetProducesNoSplits() {
-        SplitDiscoveryContext ctx = new SplitDiscoveryContext(null, FileSet.EMPTY, Map.of(), PartitionMetadata.EMPTY, List.of());
+    public void testEmptyGenericFileListProducesNoSplits() {
+        SplitDiscoveryContext ctx = new SplitDiscoveryContext(null, GenericFileList.EMPTY, Map.of(), PartitionMetadata.EMPTY, List.of());
         List<ExternalSplit> splits = provider.discoverSplits(ctx);
         assertTrue(splits.isEmpty());
     }
 
-    public void testUnresolvedFileSetProducesNoSplits() {
-        SplitDiscoveryContext ctx = new SplitDiscoveryContext(null, FileSet.UNRESOLVED, Map.of(), PartitionMetadata.EMPTY, List.of());
+    public void testUnresolvedGenericFileListProducesNoSplits() {
+        SplitDiscoveryContext ctx = new SplitDiscoveryContext(
+            null,
+            GenericFileList.UNRESOLVED,
+            Map.of(),
+            PartitionMetadata.EMPTY,
+            List.of()
+        );
         List<ExternalSplit> splits = provider.discoverSplits(ctx);
         assertTrue(splits.isEmpty());
     }
 
     public void testConfigPassedThrough() {
         StorageEntry e1 = new StorageEntry(StoragePath.of("s3://b/file.parquet"), 100, Instant.EPOCH);
-        FileSet fileSet = new FileSet(List.of(e1), "s3://b/*.parquet");
+        GenericFileList fileList = new GenericFileList(List.of(e1), "s3://b/*.parquet");
         Map<String, Object> config = Map.of("endpoint", "https://s3.example.com");
 
-        SplitDiscoveryContext ctx = new SplitDiscoveryContext(null, fileSet, config, PartitionMetadata.EMPTY, List.of());
+        SplitDiscoveryContext ctx = new SplitDiscoveryContext(null, fileList, config, PartitionMetadata.EMPTY, List.of());
         List<ExternalSplit> splits = provider.discoverSplits(ctx);
 
         assertEquals(1, splits.size());
@@ -127,7 +133,7 @@ public class FileSplitProviderTests extends ESTestCase {
 
     public void testSingleSplitProvider() {
         List<ExternalSplit> splits = SplitProvider.SINGLE.discoverSplits(
-            new SplitDiscoveryContext(null, FileSet.EMPTY, Map.of(), null, List.of())
+            new SplitDiscoveryContext(null, GenericFileList.EMPTY, Map.of(), null, List.of())
         );
         assertTrue(splits.isEmpty());
     }
@@ -135,9 +141,9 @@ public class FileSplitProviderTests extends ESTestCase {
     public void testFormatExtraction() {
         StorageEntry csv = new StorageEntry(StoragePath.of("s3://b/data.csv"), 50, Instant.EPOCH);
         StorageEntry noExt = new StorageEntry(StoragePath.of("s3://b/data"), 50, Instant.EPOCH);
-        FileSet fileSet = new FileSet(List.of(csv, noExt), "s3://b/*");
+        GenericFileList fileList = new GenericFileList(List.of(csv, noExt), "s3://b/*");
 
-        SplitDiscoveryContext ctx = new SplitDiscoveryContext(null, fileSet, Map.of(), PartitionMetadata.EMPTY, List.of());
+        SplitDiscoveryContext ctx = new SplitDiscoveryContext(null, fileList, Map.of(), PartitionMetadata.EMPTY, List.of());
         List<ExternalSplit> splits = provider.discoverSplits(ctx);
 
         assertEquals(2, splits.size());
@@ -150,7 +156,7 @@ public class FileSplitProviderTests extends ESTestCase {
     public void testEqualsFilterPrunesNonMatchingPartitions() {
         StoragePath path2024 = StoragePath.of("s3://b/year=2024/file.parquet");
         StoragePath path2023 = StoragePath.of("s3://b/year=2023/file.parquet");
-        FileSet fileSet = new FileSet(
+        GenericFileList fileList = new GenericFileList(
             List.of(new StorageEntry(path2024, 100, Instant.EPOCH), new StorageEntry(path2023, 200, Instant.EPOCH)),
             "s3://b/year=*/*.parquet"
         );
@@ -160,7 +166,7 @@ public class FileSplitProviderTests extends ESTestCase {
         );
 
         Expression filter = new Equals(SRC, fieldAttr("year"), intLiteral(2024));
-        SplitDiscoveryContext ctx = new SplitDiscoveryContext(null, fileSet, Map.of(), partitions, List.of(filter));
+        SplitDiscoveryContext ctx = new SplitDiscoveryContext(null, fileList, Map.of(), partitions, List.of(filter));
         List<ExternalSplit> splits = provider.discoverSplits(ctx);
 
         assertEquals(1, splits.size());
@@ -171,7 +177,7 @@ public class FileSplitProviderTests extends ESTestCase {
         StoragePath path2024 = StoragePath.of("s3://b/year=2024/file.parquet");
         StoragePath path2020 = StoragePath.of("s3://b/year=2020/file.parquet");
         StoragePath path2023 = StoragePath.of("s3://b/year=2023/file.parquet");
-        FileSet fileSet = new FileSet(
+        GenericFileList fileList = new GenericFileList(
             List.of(
                 new StorageEntry(path2024, 100, Instant.EPOCH),
                 new StorageEntry(path2020, 100, Instant.EPOCH),
@@ -185,7 +191,7 @@ public class FileSplitProviderTests extends ESTestCase {
         );
 
         Expression filter = new GreaterThanOrEqual(SRC, fieldAttr("year"), intLiteral(2023), null);
-        SplitDiscoveryContext ctx = new SplitDiscoveryContext(null, fileSet, Map.of(), partitions, List.of(filter));
+        SplitDiscoveryContext ctx = new SplitDiscoveryContext(null, fileList, Map.of(), partitions, List.of(filter));
         List<ExternalSplit> splits = provider.discoverSplits(ctx);
 
         assertEquals(2, splits.size());
@@ -196,7 +202,7 @@ public class FileSplitProviderTests extends ESTestCase {
     public void testLessThanFilterPrunes() {
         StoragePath path2024 = StoragePath.of("s3://b/year=2024/file.parquet");
         StoragePath path2020 = StoragePath.of("s3://b/year=2020/file.parquet");
-        FileSet fileSet = new FileSet(
+        GenericFileList fileList = new GenericFileList(
             List.of(new StorageEntry(path2024, 100, Instant.EPOCH), new StorageEntry(path2020, 100, Instant.EPOCH)),
             "s3://b/year=*/*.parquet"
         );
@@ -206,7 +212,7 @@ public class FileSplitProviderTests extends ESTestCase {
         );
 
         Expression filter = new LessThan(SRC, fieldAttr("year"), intLiteral(2023), null);
-        SplitDiscoveryContext ctx = new SplitDiscoveryContext(null, fileSet, Map.of(), partitions, List.of(filter));
+        SplitDiscoveryContext ctx = new SplitDiscoveryContext(null, fileList, Map.of(), partitions, List.of(filter));
         List<ExternalSplit> splits = provider.discoverSplits(ctx);
 
         assertEquals(1, splits.size());
@@ -216,7 +222,7 @@ public class FileSplitProviderTests extends ESTestCase {
     public void testNotEqualsFilterPrunes() {
         StoragePath path2024 = StoragePath.of("s3://b/year=2024/file.parquet");
         StoragePath path2023 = StoragePath.of("s3://b/year=2023/file.parquet");
-        FileSet fileSet = new FileSet(
+        GenericFileList fileList = new GenericFileList(
             List.of(new StorageEntry(path2024, 100, Instant.EPOCH), new StorageEntry(path2023, 200, Instant.EPOCH)),
             "s3://b/year=*/*.parquet"
         );
@@ -226,7 +232,7 @@ public class FileSplitProviderTests extends ESTestCase {
         );
 
         Expression filter = new NotEquals(SRC, fieldAttr("year"), intLiteral(2024), null);
-        SplitDiscoveryContext ctx = new SplitDiscoveryContext(null, fileSet, Map.of(), partitions, List.of(filter));
+        SplitDiscoveryContext ctx = new SplitDiscoveryContext(null, fileList, Map.of(), partitions, List.of(filter));
         List<ExternalSplit> splits = provider.discoverSplits(ctx);
 
         assertEquals(1, splits.size());
@@ -237,7 +243,7 @@ public class FileSplitProviderTests extends ESTestCase {
         StoragePath path2024 = StoragePath.of("s3://b/year=2024/file.parquet");
         StoragePath path2023 = StoragePath.of("s3://b/year=2023/file.parquet");
         StoragePath path2020 = StoragePath.of("s3://b/year=2020/file.parquet");
-        FileSet fileSet = new FileSet(
+        GenericFileList fileList = new GenericFileList(
             List.of(
                 new StorageEntry(path2024, 100, Instant.EPOCH),
                 new StorageEntry(path2023, 100, Instant.EPOCH),
@@ -251,7 +257,7 @@ public class FileSplitProviderTests extends ESTestCase {
         );
 
         Expression filter = new In(SRC, fieldAttr("year"), List.of(intLiteral(2023), intLiteral(2024)));
-        SplitDiscoveryContext ctx = new SplitDiscoveryContext(null, fileSet, Map.of(), partitions, List.of(filter));
+        SplitDiscoveryContext ctx = new SplitDiscoveryContext(null, fileList, Map.of(), partitions, List.of(filter));
         List<ExternalSplit> splits = provider.discoverSplits(ctx);
 
         assertEquals(2, splits.size());
@@ -261,7 +267,7 @@ public class FileSplitProviderTests extends ESTestCase {
         StoragePath pathA = StoragePath.of("s3://b/year=2024/month=6/file.parquet");
         StoragePath pathB = StoragePath.of("s3://b/year=2024/month=1/file.parquet");
         StoragePath pathC = StoragePath.of("s3://b/year=2023/month=6/file.parquet");
-        FileSet fileSet = new FileSet(
+        GenericFileList fileList = new GenericFileList(
             List.of(
                 new StorageEntry(pathA, 100, Instant.EPOCH),
                 new StorageEntry(pathB, 100, Instant.EPOCH),
@@ -285,7 +291,7 @@ public class FileSplitProviderTests extends ESTestCase {
             new Equals(SRC, fieldAttr("year"), intLiteral(2024)),
             new GreaterThanOrEqual(SRC, fieldAttr("month"), intLiteral(6), null)
         );
-        SplitDiscoveryContext ctx = new SplitDiscoveryContext(null, fileSet, Map.of(), partitions, filters);
+        SplitDiscoveryContext ctx = new SplitDiscoveryContext(null, fileList, Map.of(), partitions, filters);
         List<ExternalSplit> splits = provider.discoverSplits(ctx);
 
         assertEquals(1, splits.size());
@@ -295,7 +301,7 @@ public class FileSplitProviderTests extends ESTestCase {
     public void testNonPartitionColumnFilterDoesNotPrune() {
         StoragePath path1 = StoragePath.of("s3://b/year=2024/file.parquet");
         StoragePath path2 = StoragePath.of("s3://b/year=2023/file.parquet");
-        FileSet fileSet = new FileSet(
+        GenericFileList fileList = new GenericFileList(
             List.of(new StorageEntry(path1, 100, Instant.EPOCH), new StorageEntry(path2, 200, Instant.EPOCH)),
             "s3://b/year=*/*.parquet"
         );
@@ -305,7 +311,7 @@ public class FileSplitProviderTests extends ESTestCase {
         );
 
         Expression filter = new Equals(SRC, fieldAttr("name"), new Literal(SRC, new BytesRef("test"), DataType.KEYWORD));
-        SplitDiscoveryContext ctx = new SplitDiscoveryContext(null, fileSet, Map.of(), partitions, List.of(filter));
+        SplitDiscoveryContext ctx = new SplitDiscoveryContext(null, fileList, Map.of(), partitions, List.of(filter));
         List<ExternalSplit> splits = provider.discoverSplits(ctx);
 
         assertEquals(2, splits.size());
@@ -314,7 +320,7 @@ public class FileSplitProviderTests extends ESTestCase {
     public void testNoFilterHintsNoPruning() {
         StoragePath path1 = StoragePath.of("s3://b/year=2024/file.parquet");
         StoragePath path2 = StoragePath.of("s3://b/year=2023/file.parquet");
-        FileSet fileSet = new FileSet(
+        GenericFileList fileList = new GenericFileList(
             List.of(new StorageEntry(path1, 100, Instant.EPOCH), new StorageEntry(path2, 200, Instant.EPOCH)),
             "s3://b/year=*/*.parquet"
         );
@@ -323,7 +329,7 @@ public class FileSplitProviderTests extends ESTestCase {
             Map.of(path1, Map.of("year", 2024), path2, Map.of("year", 2023))
         );
 
-        SplitDiscoveryContext ctx = new SplitDiscoveryContext(null, fileSet, Map.of(), partitions, List.of());
+        SplitDiscoveryContext ctx = new SplitDiscoveryContext(null, fileList, Map.of(), partitions, List.of());
         List<ExternalSplit> splits = provider.discoverSplits(ctx);
 
         assertEquals(2, splits.size());
@@ -358,9 +364,9 @@ public class FileSplitProviderTests extends ESTestCase {
         FileSplitProvider splitter = new FileSplitProvider(targetSize);
 
         StorageEntry entry = new StorageEntry(StoragePath.of("s3://b/big.csv"), 3500, Instant.EPOCH);
-        FileSet fileSet = new FileSet(List.of(entry), "s3://b/*.csv");
+        GenericFileList fileList = new GenericFileList(List.of(entry), "s3://b/*.csv");
 
-        SplitDiscoveryContext ctx = new SplitDiscoveryContext(null, fileSet, Map.of(), PartitionMetadata.EMPTY, List.of());
+        SplitDiscoveryContext ctx = new SplitDiscoveryContext(null, fileList, Map.of(), PartitionMetadata.EMPTY, List.of());
         List<ExternalSplit> splits = splitter.discoverSplits(ctx);
 
         assertEquals(4, splits.size());
@@ -383,9 +389,9 @@ public class FileSplitProviderTests extends ESTestCase {
         FileSplitProvider splitter = new FileSplitProvider(targetSize);
 
         StorageEntry entry = new StorageEntry(StoragePath.of("s3://b/small.csv"), 500, Instant.EPOCH);
-        FileSet fileSet = new FileSet(List.of(entry), "s3://b/*.csv");
+        GenericFileList fileList = new GenericFileList(List.of(entry), "s3://b/*.csv");
 
-        SplitDiscoveryContext ctx = new SplitDiscoveryContext(null, fileSet, Map.of(), PartitionMetadata.EMPTY, List.of());
+        SplitDiscoveryContext ctx = new SplitDiscoveryContext(null, fileList, Map.of(), PartitionMetadata.EMPTY, List.of());
         List<ExternalSplit> splits = splitter.discoverSplits(ctx);
 
         assertEquals(1, splits.size());
@@ -399,9 +405,9 @@ public class FileSplitProviderTests extends ESTestCase {
         FileSplitProvider splitter = new FileSplitProvider(targetSize);
 
         StorageEntry entry = new StorageEntry(StoragePath.of("s3://b/data.parquet"), 5000, Instant.EPOCH);
-        FileSet fileSet = new FileSet(List.of(entry), "s3://b/*.parquet");
+        GenericFileList fileList = new GenericFileList(List.of(entry), "s3://b/*.parquet");
 
-        SplitDiscoveryContext ctx = new SplitDiscoveryContext(null, fileSet, Map.of(), PartitionMetadata.EMPTY, List.of());
+        SplitDiscoveryContext ctx = new SplitDiscoveryContext(null, fileList, Map.of(), PartitionMetadata.EMPTY, List.of());
         List<ExternalSplit> splits = splitter.discoverSplits(ctx);
 
         assertEquals(1, splits.size());
@@ -411,9 +417,9 @@ public class FileSplitProviderTests extends ESTestCase {
 
     public void testDefaultProviderDoesNotSplit() {
         StorageEntry entry = new StorageEntry(StoragePath.of("s3://b/big.csv"), 10_000_000, Instant.EPOCH);
-        FileSet fileSet = new FileSet(List.of(entry), "s3://b/*.csv");
+        GenericFileList fileList = new GenericFileList(List.of(entry), "s3://b/*.csv");
 
-        SplitDiscoveryContext ctx = new SplitDiscoveryContext(null, fileSet, Map.of(), PartitionMetadata.EMPTY, List.of());
+        SplitDiscoveryContext ctx = new SplitDiscoveryContext(null, fileList, Map.of(), PartitionMetadata.EMPTY, List.of());
         List<ExternalSplit> splits = provider.discoverSplits(ctx);
 
         assertEquals(1, splits.size());
@@ -437,9 +443,9 @@ public class FileSplitProviderTests extends ESTestCase {
         FileSplitProvider splitter = new FileSplitProvider(targetSize);
 
         StorageEntry entry = new StorageEntry(StoragePath.of("s3://b/data.ndjson"), fileSize, Instant.EPOCH);
-        FileSet fileSet = new FileSet(List.of(entry), "s3://b/*.ndjson");
+        GenericFileList fileList = new GenericFileList(List.of(entry), "s3://b/*.ndjson");
 
-        SplitDiscoveryContext ctx = new SplitDiscoveryContext(null, fileSet, Map.of(), PartitionMetadata.EMPTY, List.of());
+        SplitDiscoveryContext ctx = new SplitDiscoveryContext(null, fileList, Map.of(), PartitionMetadata.EMPTY, List.of());
         List<ExternalSplit> splits = splitter.discoverSplits(ctx);
 
         long totalBytes = 0;
@@ -469,9 +475,9 @@ public class FileSplitProviderTests extends ESTestCase {
         );
 
         StorageEntry entry = new StorageEntry(StoragePath.of("s3://b/data.parquet"), 2000, Instant.EPOCH);
-        FileSet fileSet = new FileSet(List.of(entry), "s3://b/*.parquet");
+        GenericFileList fileList = new GenericFileList(List.of(entry), "s3://b/*.parquet");
 
-        SplitDiscoveryContext ctx = new SplitDiscoveryContext(null, fileSet, Map.of(), PartitionMetadata.EMPTY, List.of());
+        SplitDiscoveryContext ctx = new SplitDiscoveryContext(null, fileList, Map.of(), PartitionMetadata.EMPTY, List.of());
         List<ExternalSplit> splits = splitter.discoverSplits(ctx);
 
         assertEquals(3, splits.size());
@@ -502,9 +508,9 @@ public class FileSplitProviderTests extends ESTestCase {
         );
 
         StorageEntry entry = new StorageEntry(StoragePath.of("s3://b/small.parquet"), 500, Instant.EPOCH);
-        FileSet fileSet = new FileSet(List.of(entry), "s3://b/*.parquet");
+        GenericFileList fileList = new GenericFileList(List.of(entry), "s3://b/*.parquet");
 
-        SplitDiscoveryContext ctx = new SplitDiscoveryContext(null, fileSet, Map.of(), PartitionMetadata.EMPTY, List.of());
+        SplitDiscoveryContext ctx = new SplitDiscoveryContext(null, fileList, Map.of(), PartitionMetadata.EMPTY, List.of());
         List<ExternalSplit> splits = splitter.discoverSplits(ctx);
 
         assertEquals("Single row group should produce single split", 1, splits.size());

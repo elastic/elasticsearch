@@ -21,6 +21,7 @@ import org.elasticsearch.logging.Logger;
 
 import java.io.IOException;
 import java.util.Iterator;
+import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.atomic.LongAdder;
 
@@ -67,10 +68,10 @@ public class DelegatingBloomFilterFieldsProducer extends FieldsProducer {
             logger.trace(
                 "bloom filter [{}]: saturation={} checks={} false_positives={} fpr={}",
                 bloomFilter,
-                String.format("%.2f%%", bloomFilter.saturation() * 100),
+                String.format(Locale.ROOT, "%.2f%%", bloomFilter.saturation() * 100),
                 totalChecks,
                 totalFalsePositives,
-                totalChecks > 0 ? String.format("%.2e", (double) totalFalsePositives / totalChecks) : "n/a"
+                totalChecks > 0 ? String.format(Locale.ROOT, "%.2e", (double) totalFalsePositives / totalChecks) : "n/a"
             );
         }
         IOUtils.close(delegate, bloomFilter);

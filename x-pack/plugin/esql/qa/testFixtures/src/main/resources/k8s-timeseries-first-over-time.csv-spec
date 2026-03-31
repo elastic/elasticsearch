@@ -131,6 +131,51 @@ tx:long | cluster:keyword | time_bucket:datetime
 749     | staging         | 2024-05-10T00:20:00.000Z
 ;
 
+// Regression: window merge must ignore selected bucket positions that have no
+// intermediate state. Sparse bucket layouts are valid both with and without
+// TBUCKET offset.
+first_over_time_with_window_sparse_aligned_bucket
+required_capability: ts_command_v0
+required_capability: time_series_window_v1
+TS k8s
+| WHERE cluster == "staging"
+  AND pod == "two"
+  AND client.ip == "10.10.20.30"
+  AND @timestamp >= "2024-05-10T00:00:00.000Z"
+  AND @timestamp < "2024-05-10T00:20:00.000Z"
+| STATS bytes = sum(first_over_time(network.bytes_in, 10minute)) BY time_bucket = tbucket(5minute)
+| SORT time_bucket
+| KEEP bytes, time_bucket;
+
+bytes:long | time_bucket:datetime
+723        | 2024-05-10T00:00:00.000Z
+656        | 2024-05-10T00:05:00.000Z
+804        | 2024-05-10T00:10:00.000Z
+804        | 2024-05-10T00:15:00.000Z
+;
+
+first_over_time_with_window_sparse_offset_bucket
+required_capability: ts_command_v0
+required_capability: time_series_window_v1
+TS k8s
+| WHERE cluster == "staging"
+  AND pod == "two"
+  AND client.ip == "10.10.20.30"
+  AND @timestamp >= "2024-05-10T00:00:00.000Z"
+  AND @timestamp < "2024-05-10T00:20:00.000Z"
+| EVAL `@timestamp` = @timestamp - 2 minute
+| STATS bytes = sum(first_over_time(network.bytes_in, 10minute)) BY time_bucket = tbucket(5minute)
+| EVAL time_bucket = time_bucket + 2 minute
+| SORT time_bucket
+| KEEP bytes, time_bucket;
+
+bytes:long | time_bucket:datetime
+723        | 2024-05-10T00:02:00.000Z
+656        | 2024-05-10T00:07:00.000Z
+804        | 2024-05-10T00:12:00.000Z
+804        | 2024-05-10T00:17:00.000Z
+;
+
 first_over_time_older_than_10d
 required_capability: ts_command_v0
 TS k8s | WHERE cluster == "qa" AND @timestamp < now() - 10 day | STATS cost = avg(first_over_time(network.eth0.rx)) BY pod, time_bucket = bucket(@timestamp, 10minute) | SORT time_bucket, pod | LIMIT 5;

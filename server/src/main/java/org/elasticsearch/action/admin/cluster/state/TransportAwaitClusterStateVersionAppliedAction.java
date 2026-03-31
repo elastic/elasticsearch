@@ -27,6 +27,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.tasks.CancellableTask;
@@ -57,11 +58,13 @@ public class TransportAwaitClusterStateVersionAppliedAction extends TransportNod
 
     private static final Logger logger = LogManager.getLogger(TransportAwaitClusterStateVersionAppliedAction.class);
 
+    private final IndicesClusterStateService indicesClusterStateService;
     private final ThreadPool threadPool;
 
     @Inject
     public TransportAwaitClusterStateVersionAppliedAction(
         ClusterService clusterService,
+        IndicesClusterStateService indicesClusterStateService,
         TransportService transportService,
         ActionFilters actionFilters,
         ThreadPool threadPool
@@ -74,6 +77,7 @@ public class TransportAwaitClusterStateVersionAppliedAction extends TransportNod
             NodeRequest::new,
             threadPool.executor(ThreadPool.Names.GENERIC)
         );
+        this.indicesClusterStateService = indicesClusterStateService;
         this.threadPool = threadPool;
     }
 
@@ -156,25 +160,35 @@ public class TransportAwaitClusterStateVersionAppliedAction extends TransportNod
         final var onceListener = new SubscribableListener<Void>();
         onceListener.addListener(listener.map(ignored -> new NodeResponse(clusterService.localNode())));
 
-        if (request.timeout != TimeValue.MINUS_ONE) {
+        if (request.timeout.millis() >= 0) {
             onceListener.addTimeout(request.timeout, threadPool, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         }
 
-        final var cancellableTask = (CancellableTask) task;
+        var cancellableTask = (CancellableTask) task;
         cancellableTask.addListener(() -> onceListener.onFailure(new TaskCancelledException(cancellableTask.getReasonCancelled())));
 
-        clusterService.getClusterApplierService()
-            .addTimeoutListener(
-                null,
-                new VersionAppliedListener(
-                    request.clusterStateVersion,
-                    r -> onceListener.addListener(ActionListener.running(r)),
-                    onceListener
-                )
-            );
+        SubscribableListener
+            // Step 1: wait for cluster state application
+            .<Void>newForked(
+                l -> clusterService.getClusterApplierService()
+                    .addTimeoutListener(
+                        null,
+                        new VersionAppliedListener(request.clusterStateVersion, r -> onceListener.addListener(ActionListener.running(r)), l)
+                    )
+            )
+            // Step 2: wait for async application
+            .<Void>andThen(l -> {
+                if (onceListener.isDone()) {
+                    l.onResponse(null);
+                } else {
+                    indicesClusterStateService.addApplyListener(l);
+                }
+            })
+            // Step 3: complete listener
+            .addListener(onceListener);
     }
 
-    public static class NodeRequest extends AbstractTransportRequest {
+    protected static class NodeRequest extends AbstractTransportRequest {
         private final long clusterStateVersion;
         private final TimeValue timeout;
 

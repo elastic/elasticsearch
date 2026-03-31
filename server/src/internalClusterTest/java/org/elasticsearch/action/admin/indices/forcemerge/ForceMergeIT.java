@@ -32,6 +32,7 @@ public class ForceMergeIT extends ESIntegTestCase {
         final String index = "test-index";
         createIndex(index, 1, 1);
         ensureGreen(index);
+        safeAwait(newStateFullyAppliedListener());
         final ClusterState state = clusterService().state();
         final IndexRoutingTable indexShardRoutingTables = state.routingTable().getIndicesRouting().get(index);
         final IndexShardRoutingTable shardRouting = indexShardRoutingTables.shard(0);

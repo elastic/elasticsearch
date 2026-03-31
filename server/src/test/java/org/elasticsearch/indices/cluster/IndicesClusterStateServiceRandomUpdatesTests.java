@@ -572,6 +572,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
             indicesService,
             clusterService,
             threadPool,
+            ignored -> fail("should not run async"),
             recoveryTargetService,
             shardStateAction,
             repositoriesService,

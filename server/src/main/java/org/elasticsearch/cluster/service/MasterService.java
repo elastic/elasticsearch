@@ -347,6 +347,7 @@ public class MasterService extends AbstractLifecycleComponent {
 
         logger.debug("executing cluster state update for [{}]", summary);
         final ClusterState previousClusterState = state();
+        logger.info("executing cluster state update on state [{}] for [{}]", previousClusterState.version(), summary); // NOCOMMIT
 
         if (previousClusterState.nodes().isLocalNodeElectedMaster() == false && executor.runOnlyOnMaster()) {
             logger.debug("failing [{}]: local node is no longer master", summary);
@@ -887,7 +888,12 @@ public class MasterService extends AbstractLifecycleComponent {
                     countDown++;
                 }
             }
-            logger.trace("expecting {} acknowledgements for cluster_state update (version: {})", countDown, clusterStateVersion);
+            logger.trace(
+                "expecting {} acknowledgements for cluster_state update (version: {}), timeout [{}]",
+                countDown,
+                clusterStateVersion,
+                ackTimeout
+            );
             this.countDown = new CountDown(countDown + 1); // we also wait for onCommit to be called
         }
 

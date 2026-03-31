@@ -49,6 +49,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.CheckedBiConsumer;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -627,7 +628,19 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         ensurePeerRecoveryRetentionLeasesExist();
                     }
                 } else {
-                    assert currentRouting.primary() == false : "term is only increased as part of primary promotion";
+                    if (currentRouting.primary() != false) {
+                        final var message = Strings.format(
+                            """
+                                term is only increased as part of primary promotion, but \
+                                currentRouting=%s pendingPrimaryTerm=%d newRouting=%s newPrimaryTerm=%d""",
+                            currentRouting,
+                            pendingPrimaryTerm,
+                            newRouting,
+                            newPrimaryTerm
+                        );
+                        logger.error("{}", message);
+                        assert false : message;
+                    }
                     /* Note that due to cluster state batching an initializing primary shard term can failed and re-assigned
                      * in one state causing it's term to be incremented. Note that if both current shard state and new
                      * shard state are initializing, we could replace the current shard and reinitialize it. It is however

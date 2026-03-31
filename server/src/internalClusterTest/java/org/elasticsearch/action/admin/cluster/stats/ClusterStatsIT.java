@@ -164,6 +164,7 @@ public class ClusterStatsIT extends ESIntegTestCase {
         assertThat(response.getStatus(), Matchers.equalTo(ClusterHealthStatus.GREEN));
 
         prepareCreate("test1").setSettings(indexSettings(2, 1)).get();
+        safeAwait(newStateFullyAppliedListener());
 
         response = clusterAdmin().prepareClusterStats().get();
         assertThat(response.getStatus(), Matchers.equalTo(ClusterHealthStatus.YELLOW));
@@ -183,6 +184,7 @@ public class ClusterStatsIT extends ESIntegTestCase {
 
         prepareCreate("test2").setSettings(indexSettings(3, 0)).get();
         ensureGreen();
+        safeAwait(newStateFullyAppliedListener());
         response = clusterAdmin().prepareClusterStats().get();
         assertThat(response.getStatus(), Matchers.equalTo(ClusterHealthStatus.GREEN));
         assertThat(response.indicesStats.getIndexCount(), Matchers.equalTo(2));

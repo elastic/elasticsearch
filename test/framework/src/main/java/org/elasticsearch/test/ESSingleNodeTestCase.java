@@ -26,6 +26,7 @@ import org.elasticsearch.action.ingest.DeletePipelineTransportAction;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.client.internal.AdminClient;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ClusterAdminClient;
@@ -35,8 +36,10 @@ import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.IOUtils;
@@ -112,7 +115,10 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
             .setOrder(0)
             .setSettings(Settings.builder().put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), between(0, 1000)))
             .get();
+        onNodeStarted();
     }
+
+    protected void onNodeStarted() {}
 
     private static void stopNode() throws IOException, InterruptedException {
         Node node = NODE;
@@ -390,6 +396,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         ).actionGet();
         assertThat(health.getStatus(), lessThanOrEqualTo(ClusterHealthStatus.YELLOW));
         assertThat("Cluster must be a single node cluster", health.getNumberOfDataNodes(), equalTo(1));
+        safeAwait(newStateFullyAppliedListener());
         IndicesService instanceFromNode = getInstanceFromNode(IndicesService.class);
         return instanceFromNode.indexServiceSafe(resolveIndex(index));
     }
@@ -530,5 +537,9 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
 
     protected void updateClusterSettings(Settings settings) {
         safeGet(clusterAdmin().prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).setPersistentSettings(settings).execute());
+    }
+
+    protected SubscribableListener<Void> newStateFullyAppliedListener() {
+        return ClusterServiceUtils.newStateFullyAppliedListener(client(), Iterators.single(getInstanceFromNode(ClusterService.class)));
     }
 }

@@ -2000,6 +2000,10 @@ public abstract class ESIntegTestCase extends ESTestCase {
         NetworkDisruption.ensureFullyConnectedCluster(internalCluster());
     }
 
+    protected SubscribableListener<Void> newStateFullyAppliedListener() {
+        return ClusterServiceUtils.newStateFullyAppliedListener(client(), internalCluster().getInstances(ClusterService.class).iterator());
+    }
+
     protected static IndexRequestBuilder prepareIndex(String index) {
         return client().prepareIndex(index);
     }

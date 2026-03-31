@@ -9,6 +9,7 @@
 
 package org.elasticsearch.indices.store;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
@@ -66,6 +67,7 @@ import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.core.Strings.format;
 
@@ -132,6 +134,8 @@ public final class IndicesStore implements ClusterStateListener, Closeable {
         }
     }
 
+    private final AtomicReference<ClusterState> stateToApplyHolder = new AtomicReference<>();
+
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
         if (event.routingTableChanged() == false) {
@@ -142,7 +146,45 @@ public final class IndicesStore implements ClusterStateListener, Closeable {
             return;
         }
 
-        for (var routingTableEntry : event.state().globalRoutingTable().routingTables().entrySet()) {
+        stateToApplyHolder.set(event.state());
+        final var stateToApplyVersion = event.state().version();
+
+        indicesClusterStateService.addApplyListener(new ActionListener<>() {
+            @Override
+            public void onResponse(Void ignored) {
+                checkStateToApply(takeStateToApply());
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                final var clusterState = takeStateToApply();
+                logger.log(
+                    clusterState == null ? Level.DEBUG : Level.ERROR,
+                    "unexpected failure of apply listener for state version [" + stateToApplyVersion + "]",
+                    e
+                );
+            }
+
+            private ClusterState takeStateToApply() {
+                final var stateToApply = stateToApplyHolder.get();
+                if (stateToApply != null
+                    && stateToApply.version() == stateToApplyVersion
+                    && stateToApplyHolder.compareAndSet(stateToApply, null)) {
+                    return stateToApply;
+                } else {
+                    logger.debug("skipping handling state version [" + stateToApplyVersion + "]");
+                    return null;
+                }
+            }
+        });
+    }
+
+    private void checkStateToApply(ClusterState clusterState) {
+        if (clusterState == null) {
+            return;
+        }
+
+        for (var routingTableEntry : clusterState.globalRoutingTable().routingTables().entrySet()) {
             RoutingTable routingTable = routingTableEntry.getValue();
             ProjectId projectId = routingTableEntry.getKey();
             // remove entries from cache that don't exist in the routing table anymore (either closed or deleted indices)
@@ -150,8 +192,8 @@ public final class IndicesStore implements ClusterStateListener, Closeable {
             // - closed indices don't need to be removed from the cache but we do it anyway for code simplicity
             folderNotFoundCache.removeIf(shardId -> routingTable.hasIndex(shardId.getIndex()) == false);
             // remove entries from cache which are allocated to this node
-            final String localNodeId = event.state().nodes().getLocalNodeId();
-            RoutingNode localRoutingNode = event.state().getRoutingNodes().node(localNodeId);
+            final String localNodeId = clusterState.nodes().getLocalNodeId();
+            RoutingNode localRoutingNode = clusterState.getRoutingNodes().node(localNodeId);
             if (localRoutingNode != null) {
                 for (ShardRouting routing : localRoutingNode) {
                     folderNotFoundCache.remove(routing.shardId());
@@ -167,8 +209,7 @@ public final class IndicesStore implements ClusterStateListener, Closeable {
                         IndexService indexService = indicesService.indexService(indexRoutingTable.getIndex());
                         final IndexSettings indexSettings;
                         if (indexService == null) {
-                            IndexMetadata indexMetadata = event.state()
-                                .getMetadata()
+                            IndexMetadata indexMetadata = clusterState.getMetadata()
                                 .getProject(projectId)
                                 .getIndexSafe(indexRoutingTable.getIndex());
                             indexSettings = new IndexSettings(indexMetadata, settings);
@@ -179,9 +220,14 @@ public final class IndicesStore implements ClusterStateListener, Closeable {
                             shardId,
                             indexSettings
                         );
+                        logger.info(
+                            "--> indicesService.canDeleteShardContent({}) returned {} at state version {}",
+                            shardId,
+                            shardDeletionCheckResult,
+                            clusterState.version()
+                        );
                         switch (shardDeletionCheckResult) {
                             case FOLDER_FOUND_CAN_DELETE:
-                                var clusterState = event.state();
                                 var clusterName = clusterState.getClusterName();
                                 var nodes = clusterState.nodes();
                                 var clusterStateVersion = clusterState.getVersion();
@@ -236,6 +282,8 @@ public final class IndicesStore implements ClusterStateListener, Closeable {
         long clusterStateVersion,
         IndexShardRoutingTable indexShardRoutingTable
     ) {
+        logger.info("--> deleteShardIfExistElseWhere({})", indexShardRoutingTable.shardId());
+
         if (DiscoveryNode.isStateless(clusterService.getSettings())) {
             deleteShardStoreOnApplierThread(indexShardRoutingTable.shardId(), clusterStateVersion, IndexRemovalReason.NO_LONGER_ASSIGNED);
             return;

@@ -16,6 +16,7 @@ import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Before;
 
 import java.util.Collection;
@@ -40,10 +41,14 @@ public class IndicesSegmentsRequestTests extends ESSingleNodeTestCase {
         int numDocs = scaledRandomIntBetween(100, 1000);
         for (int j = 0; j < numDocs; ++j) {
             String id = Integer.toString(j);
+            logger.info("--> setupIndex: index doc [{}]", j);
             prepareIndex("test").setId(id).setSource("text", "sometext").get();
         }
+        logger.info("--> setupIndex: flush");
         client().admin().indices().prepareFlush("test").get();
+        logger.info("--> setupIndex: refresh");
         client().admin().indices().prepareRefresh().get();
+        logger.info("--> setupIndex: done");
     }
 
     /**
@@ -95,6 +100,11 @@ public class IndicesSegmentsRequestTests extends ESSingleNodeTestCase {
         assertEquals(0, rsp.getIndices().size());
     }
 
+    @TestLogging(
+        reason = "nocommit",
+        value = "org.elasticsearch.cluster.service.MasterService:TRACE"
+            + ",org.elasticsearch.indices.cluster.IndicesClusterStateService:TRACE"
+    )
     public void testRequestOnClosedIndexIgnoreUnavailableWithVectorFormats() {
         client().admin().indices().prepareClose("test").get();
         IndicesOptions defaultOptions = new IndicesSegmentsRequest().indicesOptions();

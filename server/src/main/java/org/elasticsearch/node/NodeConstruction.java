@@ -973,7 +973,8 @@ class NodeConstruction {
             settingsModule.getIndexScopedSettings(),
             indicesService,
             shardLimitValidator,
-            threadPool
+            threadPool,
+            client
         );
 
         final DataStreamGlobalRetentionSettings dataStreamGlobalRetentionSettings = createDataStreamServicesAndGlobalRetentionResolver(

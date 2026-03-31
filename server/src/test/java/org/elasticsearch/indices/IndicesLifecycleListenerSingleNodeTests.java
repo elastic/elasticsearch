@@ -48,6 +48,7 @@ public class IndicesLifecycleListenerSingleNodeTests extends ESSingleNodeTestCas
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         assertAcked(client().admin().indices().prepareCreate("test").setSettings(indexSettings(1, 0)));
         ensureGreen();
+        safeAwait(newStateFullyAppliedListener()); // going to do invalid things to the IndicesService so have to wait for ICSS to finish
         Index idx = resolveIndex("test");
         IndexMetadata metadata = indicesService.indexService(idx).getMetadata();
         ShardRouting shardRouting = indicesService.indexService(idx).getShard(0).routingEntry();
@@ -144,6 +145,7 @@ public class IndicesLifecycleListenerSingleNodeTests extends ESSingleNodeTestCas
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         assertAcked(client().admin().indices().prepareCreate("test").setSettings(indexSettings(1, 0)));
         ensureGreen();
+        safeAwait(newStateFullyAppliedListener()); // going to do invalid things to the IndicesService so have to wait for ICSS to finish
         Index idx = resolveIndex("test");
         IndexMetadata metadata = indicesService.indexService(idx).getMetadata();
         ShardRouting shardRouting = indicesService.indexService(idx).getShard(0).routingEntry();

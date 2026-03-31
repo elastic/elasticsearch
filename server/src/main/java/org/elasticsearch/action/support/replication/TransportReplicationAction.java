@@ -19,6 +19,7 @@ import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.ChannelActionListener;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.client.internal.transport.NoNodeAvailableException;
@@ -54,6 +55,7 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardClosedException;
+import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ReplicationGroup;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
@@ -485,17 +487,35 @@ public abstract class TransportReplicationAction<
                 );
             }
 
-            acquirePrimaryOperationPermit(
-                indexShard,
-                primaryRequest.getRequest(),
-                ActionListener.wrap(releasable -> runWithPrimaryShardReference(new PrimaryShardReference(indexShard, releasable)), e -> {
-                    if (e instanceof ShardNotInPrimaryModeException) {
-                        onFailure(new ReplicationOperation.RetryOnPrimaryException(shardId, "shard is not in primary mode", e, false));
-                    } else {
-                        onFailure(e);
-                    }
-                })
-            );
+            final SubscribableListener<Void> asyncShardStartedListener;
+
+            if (indexShard.state() == IndexShardState.POST_RECOVERY) {
+                asyncShardStartedListener = SubscribableListener.newForked(
+                    clusterService.getClusterApplierService()::awaitAllAsyncAppliers
+                );
+            } else {
+                asyncShardStartedListener = SubscribableListener.nullSuccess();
+            }
+
+            asyncShardStartedListener.<Releasable>andThen(
+                executor,
+                threadPool.getThreadContext(),
+                (l, ignored) -> acquirePrimaryOperationPermit(indexShard, primaryRequest.getRequest(), l)
+            )
+                .addListener(
+                    ActionListener.wrap(
+                        releasable -> runWithPrimaryShardReference(new PrimaryShardReference(indexShard, releasable)),
+                        e -> {
+                            if (e instanceof ShardNotInPrimaryModeException) {
+                                onFailure(
+                                    new ReplicationOperation.RetryOnPrimaryException(shardId, "shard is not in primary mode", e, false)
+                                );
+                            } else {
+                                onFailure(e);
+                            }
+                        }
+                    )
+                );
         }
 
         void runWithPrimaryShardReference(final PrimaryShardReference primaryShardReference) {
@@ -1109,7 +1129,18 @@ public abstract class TransportReplicationAction<
             observer.waitForNextChange(new ClusterStateObserver.Listener() {
                 @Override
                 public void onNewClusterState(ClusterState state) {
-                    run();
+                    clusterService.getClusterApplierService().awaitAllAsyncAppliers(new ActionListener<>() {
+                        @Override
+                        public void onResponse(Void ignored) {
+                            run();
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            failure.addSuppressed(e);
+                            finishWithUnexpectedFailure(failure);
+                        }
+                    });
                 }
 
                 @Override

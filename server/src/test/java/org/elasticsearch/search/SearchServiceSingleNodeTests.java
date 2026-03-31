@@ -78,6 +78,7 @@ import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesRequestCache;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.settings.InternalOrPrivateSettingsPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
@@ -1286,6 +1287,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
 
         expectThrows(IndexNotFoundException.class, () -> indicesAdmin().prepareGetIndex(TEST_REQUEST_TIMEOUT).setIndices("index").get());
 
+        safeAwait(l -> getInstanceFromNode(IndicesClusterStateService.class).onClusterStateShardsClosed(() -> l.onResponse(null)));
         assertEquals(0, service.getActiveContexts());
 
         SearchStats.Stats totalStats = indexShard.searchStats().getTotal();

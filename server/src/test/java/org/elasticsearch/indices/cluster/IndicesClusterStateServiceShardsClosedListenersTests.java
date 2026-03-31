@@ -149,6 +149,7 @@ public class IndicesClusterStateServiceShardsClosedListenersTests extends Abstra
                 new MockIndicesService(),
                 new ClusterService(Settings.EMPTY, ClusterSettings.createBuiltInClusterSettings(), threadPool, null),
                 threadPool,
+                ignored -> fail("should not run async"),
                 mock(PeerRecoveryTargetService.class),
                 mock(ShardStateAction.class),
                 mock(RepositoriesService.class),

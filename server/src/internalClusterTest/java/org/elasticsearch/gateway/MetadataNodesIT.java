@@ -68,10 +68,13 @@ public class MetadataNodesIT extends ESIntegTestCase {
         assertIndexInMetaState(masterNode, index);
         assertIndexDirectoryDeleted(masterNode, resolveIndex);
 
-        logger.debug("relocating index...");
+        logger.info("--> relocating index...");
         updateIndexSettings(Settings.builder().put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "_name", node2), index);
+        logger.info("--> wait for no relocating health");
         clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForNoRelocatingShards(true).get();
+        logger.info("--> ensure green");
         ensureGreen();
+        logger.info("--> ok index should be deleted on node1");
         assertIndexDirectoryDeleted(node1, resolveIndex);
         assertIndexInMetaState(node2, index);
         assertIndexDirectoryExists(node2, resolveIndex);

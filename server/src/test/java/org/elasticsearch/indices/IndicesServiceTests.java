@@ -342,6 +342,13 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
     }
 
     @Override
+    protected void onNodeStarted() {
+        // This test suite brings the IndicesService into states inconsistent with the applied cluster state, so we must wait for the
+        // IndicesClusterStateService to complete its work before doing anything else.
+        safeAwait(newStateFullyAppliedListener());
+    }
+
+    @Override
     protected boolean resetNodeAfterTest() {
         return true;
     }

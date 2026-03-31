@@ -53,16 +53,17 @@ import static org.elasticsearch.core.Strings.format;
  */
 public class SigtermShutdownCleanupService implements ClusterStateListener {
     private static final Logger logger = LogManager.getLogger(SigtermShutdownCleanupService.class);
-    private static final long GRACE_PERIOD_SAFETY_PERCENTAGE = 10;
+    private static final long GRACE_PERIOD_SAFETY_DIVISOR = 10;
+    static final Scheduler.Cancellable PENDING_DELAYED_CLEANUP = new CleanupMarker();
+    static final Scheduler.Cancellable IN_FLIGHT_CLEANUP = new CleanupMarker();
     private final ThreadPool threadPool;
     private final Executor executor;
     private final MasterServiceTaskQueue<CleanupSigtermShutdownTask> taskQueue;
 
     record Node(String id, String ephemeralId) {}
 
-    final ConcurrentHashMap<Node, Scheduler.ScheduledCancellable> cleanups = new ConcurrentHashMap<>();
+    final ConcurrentHashMap<Node, Scheduler.Cancellable> cleanups = new ConcurrentHashMap<>();
 
-    @SuppressWarnings("this-escape")
     public SigtermShutdownCleanupService(ClusterService clusterService, RerouteService rerouteService) {
         this.threadPool = clusterService.threadPool();
         this.executor = threadPool.generic();
@@ -71,7 +72,6 @@ public class SigtermShutdownCleanupService implements ClusterStateListener {
             Priority.NORMAL,
             new RemoveSigtermShutdownTaskExecutor(rerouteService)
         );
-        clusterService.addListener(this);
     }
 
     /**
@@ -113,41 +113,69 @@ public class SigtermShutdownCleanupService implements ClusterStateListener {
                         )
                     );
                     // the node has a different ephemeral id, so we can remove this shutdown record immediately
-                    taskQueue.submitTask("sigterm-shutdown-restarted", new CleanupSigtermShutdownTask(node), null);
+                    submitCleanupTask("sigterm-shutdown-restarted", node);
                     continue;
                 }
 
                 // The node still has the same ephemeral id, so we proceed with the normal cleanup after
                 // the grace period has expired.
 
-                final Scheduler.ScheduledCancellable cleanup = cleanups.get(node);
-                if (cleanup != null) {
-                    if (cleanup.isCancelled()) {
-                        cleanups.remove(node);
-                    } else {
-                        continue;
-                    }
+                final Scheduler.Cancellable cleanup = cleanups.get(node);
+                // Skip nodes that already have an active delayed cleanup or an in-flight master task.
+                if (cleanup == PENDING_DELAYED_CLEANUP
+                    || cleanup == IN_FLIGHT_CLEANUP
+                    || (cleanup != null && cleanup.isCancelled() == false)) {
+                    continue;
+                }
+                // If the cancelled entry was concurrently replaced, leave it alone and do not reschedule.
+                if (cleanup != null && cleanups.remove(node, cleanup) == false) {
+                    continue;
                 }
 
                 if (now == Long.MIN_VALUE) {
                     now = threadPool.absoluteTimeInMillis();
                 }
 
-                cleanups.put(
-                    node,
-                    threadPool.schedule(
-                        new SubmitCleanupSigtermShutdown(taskQueue, node, cleanups::remove),
+                // Reserve this node before scheduling to avoid schedule-then-cancel churn under repeated cluster state updates.
+                if (cleanups.putIfAbsent(node, PENDING_DELAYED_CLEANUP) != null) {
+                    continue;
+                }
+                final Scheduler.ScheduledCancellable scheduledCleanup;
+                try {
+                    scheduledCleanup = threadPool.schedule(
+                        new SubmitCleanupSigtermShutdown(
+                            node,
+                            cleanupNode -> submitCleanupTask("sigterm-grace-period-expired", cleanupNode)
+                        ),
                         computeDelay(now, shutdown.getStartedAtMillis(), shutdown.getGracePeriod().millis()),
                         executor
-                    )
-                );
+                    );
+                } catch (RuntimeException e) {
+                    cleanups.remove(node, PENDING_DELAYED_CLEANUP);
+                    throw e;
+                }
+                if (cleanups.replace(node, PENDING_DELAYED_CLEANUP, scheduledCleanup) == false) {
+                    scheduledCleanup.cancel();
+                }
             }
         }
     }
 
+    private void submitCleanupTask(String source, Node node) {
+        final Scheduler.Cancellable existingCleanup = cleanups.put(node, IN_FLIGHT_CLEANUP);
+        if (existingCleanup == IN_FLIGHT_CLEANUP) {
+            logger.trace(() -> format("cleanup task already in-flight for node [%s]", node));
+            return;
+        }
+        if (existingCleanup != null) {
+            existingCleanup.cancel();
+        }
+        taskQueue.submitTask(source, new CleanupSigtermShutdownTask(node, cleanups::remove), null);
+    }
+
     /**
      * The amount of time to wait until the {@param grace} has expired, plus a little extra for safety,
-     * {@link #GRACE_PERIOD_SAFETY_PERCENTAGE}.  {@param now} is the current time and {@param started} is
+     * {@link #GRACE_PERIOD_SAFETY_DIVISOR}.  {@param now} is the current time and {@param started} is
      * when the shutdown was first seen in cluster state.  All times in milliseconds.
      * If, due to clock skew, {@param started} is in the future, the elapsed time is clamped to zero.
      * Never returns a negative {#link TimeValue}.
@@ -157,7 +185,7 @@ public class SigtermShutdownCleanupService implements ClusterStateListener {
         if (elapsed < 0) {
             elapsed = 0;
         }
-        long delay = (grace + grace / GRACE_PERIOD_SAFETY_PERCENTAGE) - elapsed;
+        long delay = (grace + grace / GRACE_PERIOD_SAFETY_DIVISOR) - elapsed;
         if (delay <= 0) {
             return TimeValue.ZERO;
         }
@@ -165,27 +193,33 @@ public class SigtermShutdownCleanupService implements ClusterStateListener {
     }
 
     /**
-     * Collection of state necessary to submit a {@link CleanupSigtermShutdownTask}.  Calls {@param remove} right before task submission.
+     * Collection of state necessary to submit a {@link CleanupSigtermShutdownTask}.
      */
-    record SubmitCleanupSigtermShutdown(MasterServiceTaskQueue<CleanupSigtermShutdownTask> taskQueue, Node node, Consumer<Node> remove)
-        implements
-            Runnable {
+    record SubmitCleanupSigtermShutdown(Node node, Consumer<Node> submitCleanup) implements Runnable {
         SubmitCleanupSigtermShutdown {
-            Objects.requireNonNull(taskQueue);
             Objects.requireNonNull(node);
-            Objects.requireNonNull(remove);
+            Objects.requireNonNull(submitCleanup);
         }
 
         @Override
         public void run() {
-            remove.accept(node);
-            taskQueue.submitTask("sigterm-grace-period-expired", new CleanupSigtermShutdownTask(node), null);
+            submitCleanup.accept(node);
         }
     }
 
-    record CleanupSigtermShutdownTask(Node node) implements ClusterStateTaskListener {
+    record CleanupSigtermShutdownTask(Node node, Consumer<Node> onProcessed) implements ClusterStateTaskListener {
+        CleanupSigtermShutdownTask {
+            Objects.requireNonNull(node);
+            Objects.requireNonNull(onProcessed);
+        }
+
+        void markProcessed() {
+            onProcessed.accept(node);
+        }
+
         @Override
         public void onFailure(Exception e) {
+            markProcessed();
             logger.warn(() -> format("failed to cleanup sigterm shutdown metadata for node [%s]", node), e);
         }
     }
@@ -211,7 +245,10 @@ public class SigtermShutdownCleanupService implements ClusterStateListener {
             final Runnable doReroute = state == batchExecutionContext.initialState()
                 ? () -> {}
                 : new RunOnce(() -> rerouteService.reroute("after removing shutdown marker", Priority.NORMAL, ActionListener.noop()));
-            batchExecutionContext.taskContexts().forEach(taskContext -> taskContext.success(doReroute));
+            batchExecutionContext.taskContexts().forEach(taskContext -> taskContext.success(() -> {
+                doReroute.run();
+                taskContext.getTask().markProcessed();
+            }));
             return state;
         }
 
@@ -268,6 +305,18 @@ public class SigtermShutdownCleanupService implements ClusterStateListener {
                         .build()
                 )
                 .build();
+        }
+    }
+
+    private static class CleanupMarker implements Scheduler.Cancellable {
+        @Override
+        public boolean cancel() {
+            return false;
+        }
+
+        @Override
+        public boolean isCancelled() {
+            return false;
         }
     }
 }

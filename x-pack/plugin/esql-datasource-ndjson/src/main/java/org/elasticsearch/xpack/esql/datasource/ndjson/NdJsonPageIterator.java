@@ -9,9 +9,9 @@ package org.elasticsearch.xpack.esql.datasource.ndjson;
 
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.datasources.CloseableIterator;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 
 import java.io.ByteArrayInputStream;

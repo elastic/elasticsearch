@@ -4517,6 +4517,66 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     }
 
     /**
+     * Tests that ST_GEOMETRYTYPE, ST_DIMENSION and ST_ISEMPTY use doc-values when available on geo_point and cartesian_point fields.
+     * The query pattern is: FROM index | EVAL result = FUNCTION(location) | STATS count = COUNT(*) BY result
+     */
+    public void testSpatialTypesAndStatsGeometryIntrospectionUseDocValues() {
+        record TestCase(
+            String functionName,
+            String index,
+            TestDataSource withDocValues,
+            TestDataSource withoutDocValues,
+            DataType locType
+        ) {}
+        var testCases = new TestCase[] {
+            new TestCase("ST_GEOMETRYTYPE", "airports", airports, airportsNoDocValues, GEO_POINT),
+            new TestCase("ST_GEOMETRYTYPE", "airports_web", airportsWeb, null, CARTESIAN_POINT),
+            new TestCase("ST_DIMENSION", "airports", airports, airportsNoDocValues, GEO_POINT),
+            new TestCase("ST_DIMENSION", "airports_web", airportsWeb, null, CARTESIAN_POINT),
+            new TestCase("ST_ISEMPTY", "airports", airports, airportsNoDocValues, GEO_POINT),
+            new TestCase("ST_ISEMPTY", "airports_web", airportsWeb, null, CARTESIAN_POINT), };
+        for (var testCase : testCases) {
+            var query = "FROM "
+                + testCase.index
+                + " | EVAL result = "
+                + testCase.functionName
+                + "(location) | STATS count=COUNT() BY result";
+            for (boolean withDocValues : new boolean[] { true, false }) {
+                if (!withDocValues && testCase.withoutDocValues == null) {
+                    continue; // No no-doc-values variant for this index
+                }
+                var testData = withDocValues ? testCase.withDocValues : testCase.withoutDocValues;
+                var fieldExtractPreference = withDocValues ? FieldExtractPreference.DOC_VALUES : FieldExtractPreference.NONE;
+                var plan = physicalPlan(query.replace(testCase.index, testData.index.name()), testData);
+
+                var limit = as(plan, LimitExec.class);
+                var agg = as(limit.child(), AggregateExec.class);
+                assertAggregation(agg, "count", Count.class);
+
+                var exchange = as(agg.child(), ExchangeExec.class);
+                var fragment = as(exchange.child(), FragmentExec.class);
+                var fAgg = as(fragment.fragment(), Aggregate.class);
+                var eval = as(fAgg.child(), Eval.class);
+                assertThat(eval.fields().size(), equalTo(1));
+                var alias = as(eval.fields().getFirst(), Alias.class);
+                assertThat(alias.name(), equalTo("result"));
+                as(eval.child(), EsRelation.class);
+
+                // Now optimize the plan and assert the field extraction uses doc-values
+                var optimized = optimizedPlan(plan, testData.stats);
+                limit = as(optimized, LimitExec.class);
+                agg = as(limit.child(), AggregateExec.class);
+                assertAggregation(agg, "count", Count.class);
+                exchange = as(agg.child(), ExchangeExec.class);
+                agg = as(exchange.child(), AggregateExec.class);
+                assertAggregation(agg, "count", Count.class);
+                var evalExec = as(agg.child(), EvalExec.class);
+                assertChildIsExtractedAs(evalExec, fieldExtractPreference, testCase.locType);
+            }
+        }
+    }
+
+    /**
      * Before local optimizations:
      * <code>
      * ProjectExec[[abbrev{f}#13, gridString{r}#9]]
@@ -9407,6 +9467,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             config,
             new ExchangeSourceHandler(10, null)::createExchangeSource,
             () -> exchangeSinkHandler.createExchangeSink(() -> {}),
+            null,
             null,
             null,
             null,

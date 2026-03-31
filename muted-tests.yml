@@ -252,30 +252,12 @@ tests:
 - class: org.elasticsearch.repositories.azure.AzureBlobContainerRetriesTests
   method: testWriteBlobWithRetries
   issue: https://github.com/elastic/elasticsearch/issues/144025
-- class: org.elasticsearch.test.apmintegration.MetricsApmIT
-  method: testJvmMetrics {withOTel=true}
-  issue: https://github.com/elastic/elasticsearch/issues/144166
-- class: org.elasticsearch.test.apmintegration.MetricsApmIT
-  method: testJvmMetrics {withOTel=false}
-  issue: https://github.com/elastic/elasticsearch/issues/144167
-- class: org.elasticsearch.test.apmintegration.MetricsApmIT
-  method: testApmIntegration {withOTel=false}
-  issue: https://github.com/elastic/elasticsearch/issues/144282
 - class: org.elasticsearch.reindex.management.ReindexGetRelocationIT
   method: testGetReindexFollowsRelocation
   issue: https://github.com/elastic/elasticsearch/issues/144364
-- class: org.elasticsearch.server.cli.APMJvmOptionsTests
-  method: testAPMAgentMetricsDisabledWhenOtelMetricsEnabled
-  issue: https://github.com/elastic/elasticsearch/issues/144357
-- class: org.elasticsearch.server.cli.APMJvmOptionsTests
-  method: testAPMAgentAlwaysAttached
-  issue: https://github.com/elastic/elasticsearch/issues/144358
 - class: org.elasticsearch.xpack.application.OpenAiServiceUpgradeIT
   method: testOpenAiEmbeddings {upgradedNodes=3}
   issue: https://github.com/elastic/elasticsearch/issues/144440
-- class: org.elasticsearch.integration.SecurityFeatureResetTests
-  method: testFeatureResetManageRole
-  issue: https://github.com/elastic/elasticsearch/issues/144486
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:spatial.convertCartesianFromStringParseError}
   issue: https://github.com/elastic/elasticsearch/issues/144580
@@ -387,9 +369,6 @@ tests:
 - class: org.elasticsearch.xpack.sql.qa.jdbc.single_node.SingleNodeJdbcResultSetIT
   method: testNoInfiniteRecursiveGetObjectCalls
   issue: https://github.com/elastic/elasticsearch/issues/145269
-- class: org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilterIT
-  method: testRestart {p0=true p1=true}
-  issue: https://github.com/elastic/elasticsearch/issues/145273
 - class: org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundToTests
   method: testEvaluateInManyThreads {TestCase=<int, 20 fixed-interval ints>}
   issue: https://github.com/elastic/elasticsearch/issues/145275
@@ -416,6 +395,15 @@ tests:
 - class: org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundToTests
   method: testEvaluateBlockWithoutNulls {TestCase=<long, 11 fixed-interval longs>}
   issue: https://github.com/elastic/elasticsearch/issues/145289
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundToTests
+  method: testEvaluateBlockWithNulls {TestCase=<int, 11 fixed-interval ints>}
+  issue: https://github.com/elastic/elasticsearch/issues/145257
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {csv-spec:external-basic.scoreFunction}
+  issue: https://github.com/elastic/elasticsearch/issues/145352
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {csv-spec:external-basic.topSnippetsFunction}
+  issue: https://github.com/elastic/elasticsearch/issues/145353
 
 # Examples:
 #

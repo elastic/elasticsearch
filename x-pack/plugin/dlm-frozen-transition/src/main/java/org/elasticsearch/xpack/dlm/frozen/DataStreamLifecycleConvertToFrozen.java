@@ -529,6 +529,11 @@ public class DataStreamLifecycleConvertToFrozen implements DlmFrozenTransitionRu
         return indexName;
     }
 
+    @Override
+    public ProjectId getProjectId() {
+        return projectId;
+    }
+
     private ProjectState getProjectState() {
         return clusterService.state().projectState(projectId);
     }

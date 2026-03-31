@@ -106,7 +106,7 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
     @FixForMultiProject(description = "These settings need to be project-scoped")
     private volatile TimeValue pollInterval;
     private volatile boolean eagerDownload;
-    private final ConcurrentHashMap<ProjectId, Boolean> atLeastOneGeoIpProcessorByProject = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<ProjectId, Boolean> atLeastOneGeoipProcessorByProject = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<ProjectId, GeoIpDownloader> tasks = new ConcurrentHashMap<>();
     private final ProjectResolver projectResolver;
 
@@ -197,7 +197,7 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
             headers,
             () -> pollInterval,
             () -> eagerDownload,
-            () -> atLeastOneGeoIpProcessorByProject.getOrDefault(projectId, false),
+            () -> atLeastOneGeoipProcessorByProject.getOrDefault(projectId, false),
             projectId
         );
     }
@@ -229,7 +229,7 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
         // Runs on all nodes: track geoip processor presence and schedule downloader
         for (var projectMetadata : projects.values()) {
             ProjectId projectId = projectMetadata.id();
-            atLeastOneGeoIpProcessorByProject.computeIfAbsent(projectId, k -> hasAtLeastOneGeoipProcessor(projectMetadata));
+            atLeastOneGeoipProcessorByProject.computeIfAbsent(projectId, k -> hasAtLeastOneGeoipProcessor(projectMetadata));
 
             boolean hasIngestPipelineChanges = event.customMetadataChanged(projectId, IngestMetadata.TYPE);
             boolean hasIndicesChanges = false;
@@ -243,11 +243,11 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
             }
 
             if (hasIngestPipelineChanges || hasIndicesChanges) {
-                boolean atLeastOneGeoipProcessor = atLeastOneGeoIpProcessorByProject.getOrDefault(projectId, false);
+                boolean atLeastOneGeoipProcessor = atLeastOneGeoipProcessorByProject.getOrDefault(projectId, false);
                 boolean newAtLeastOneGeoipProcessor = hasAtLeastOneGeoipProcessor(projectMetadata);
                 // update if necessary
                 if (newAtLeastOneGeoipProcessor != atLeastOneGeoipProcessor) {
-                    atLeastOneGeoIpProcessorByProject.put(projectId, newAtLeastOneGeoipProcessor);
+                    atLeastOneGeoipProcessorByProject.put(projectId, newAtLeastOneGeoipProcessor);
                 }
                 if (newAtLeastOneGeoipProcessor && atLeastOneGeoipProcessor == false) {
                     logger.trace("Scheduling runDownloader for project [{}] because a geoip processor has been added", projectId);
@@ -260,7 +260,7 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
         }
 
         // Cleanup
-        atLeastOneGeoIpProcessorByProject.keySet().removeIf(p -> projects.containsKey(p) == false);
+        atLeastOneGeoipProcessorByProject.keySet().removeIf(p -> projects.containsKey(p) == false);
         tasks.keySet()
             .removeIf(
                 p -> projects.containsKey(p) == false

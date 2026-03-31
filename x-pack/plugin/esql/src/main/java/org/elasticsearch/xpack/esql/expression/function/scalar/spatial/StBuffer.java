@@ -140,7 +140,7 @@ public class StBuffer extends SpatialDocValuesFunction {
 
     @Override
     public SpatialDocValuesFunction withDocValues(boolean useDocValues) {
-        return new StBuffer(source(), geometry, distance, true);
+        return new StBuffer(source(), geometry, distance, useDocValues);
     }
 
     @Override
@@ -201,13 +201,12 @@ public class StBuffer extends SpatialDocValuesFunction {
         var distanceExpression = distance.fold(foldCtx);
         double inputDistance = getInputDistance(distanceExpression);
         Object input = geometry.fold(foldCtx);
-        if (input instanceof List<?> list) {
-            return processor.processSingleGeometry(processor.asJtsGeometry(list), inputDistance);
-        } else if (input instanceof BytesRef inputGeometry) {
-            return processor.processSingleGeometry(inputGeometry, inputDistance);
-        } else {
-            throw new IllegalArgumentException("unsupported block type: " + input.getClass().getSimpleName());
-        }
+        return switch (input) {
+            case null -> null;
+            case List<?> list -> processor.processSingleGeometry(processor.asJtsGeometry(list), inputDistance);
+            case BytesRef inputGeometry -> processor.processSingleGeometry(inputGeometry, inputDistance);
+            default -> throw new IllegalArgumentException("unsupported block type: " + input.getClass().getSimpleName());
+        };
     }
 
     @Evaluator(extraName = "NonFoldableGeometryAndFoldableDistance", warnExceptions = { IllegalArgumentException.class })

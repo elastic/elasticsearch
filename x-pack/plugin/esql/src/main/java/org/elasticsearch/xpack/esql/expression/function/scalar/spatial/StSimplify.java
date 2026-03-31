@@ -132,7 +132,7 @@ public class StSimplify extends SpatialDocValuesFunction {
 
     @Override
     public SpatialDocValuesFunction withDocValues(boolean useDocValues) {
-        return new StSimplify(source(), geometry, tolerance, true);
+        return new StSimplify(source(), geometry, tolerance, useDocValues);
     }
 
     @Override
@@ -197,13 +197,12 @@ public class StSimplify extends SpatialDocValuesFunction {
         var toleranceExpression = tolerance.fold(foldCtx);
         double inputTolerance = getInputTolerance(toleranceExpression);
         Object input = geometry.fold(foldCtx);
-        if (input instanceof List<?> list) {
-            return processor.processSingleGeometry(processor.asJtsGeometry(list), inputTolerance);
-        } else if (input instanceof BytesRef inputGeometry) {
-            return processor.processSingleGeometry(inputGeometry, inputTolerance);
-        } else {
-            throw new IllegalArgumentException("unsupported block type: " + input.getClass().getSimpleName());
-        }
+        return switch (input) {
+            case null -> null;
+            case List<?> list -> processor.processSingleGeometry(processor.asJtsGeometry(list), inputTolerance);
+            case BytesRef inputGeometry -> processor.processSingleGeometry(inputGeometry, inputTolerance);
+            default -> throw new IllegalArgumentException("unsupported block type: " + input.getClass().getSimpleName());
+        };
     }
 
     @Evaluator(extraName = "NonFoldableGeometryAndFoldableTolerance", warnExceptions = { IllegalArgumentException.class })

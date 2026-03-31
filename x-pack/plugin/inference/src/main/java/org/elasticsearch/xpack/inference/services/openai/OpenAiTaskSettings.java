@@ -14,7 +14,6 @@ import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
@@ -54,9 +53,7 @@ public abstract class OpenAiTaskSettings<T extends OpenAiTaskSettings<T>> implem
         Map<String, Object> headers = extractOptionalMapRemoveNulls(map, HEADERS, validationException);
         var stringHeaders = validateMapStringValues(headers, HEADERS, validationException, false, null);
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return createSettings(user, stringHeaders);
     }
@@ -114,7 +111,7 @@ public abstract class OpenAiTaskSettings<T extends OpenAiTaskSettings<T>> implem
 
     @Override
     public T updatedTaskSettings(Map<String, Object> newSettings) {
-        Settings updatedSettings = fromMap(new HashMap<>(newSettings));
+        Settings updatedSettings = fromMap(newSettings);
 
         var userToUse = updatedSettings.user() == null ? taskSettings.user() : updatedSettings.user();
         var headersToUse = updatedSettings.headers() == null ? taskSettings.headers() : updatedSettings.headers();

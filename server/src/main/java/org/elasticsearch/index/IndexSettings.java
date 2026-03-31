@@ -635,6 +635,17 @@ public final class IndexSettings {
         Property.ServerlessPublic
     );
 
+    public static final FeatureFlag TIME_SERIES_TEMPORALITY_FEATURE_FLAG = new FeatureFlag("time_series_temporality");
+    /**
+     * Defines the name of the field storing the metric temporality.
+     */
+    public static final Setting<String> TIME_SERIES_TEMPORALITY_FIELD = Setting.simpleString(
+        "index.time_series.temporality_field",
+        Property.IndexScope,
+        Property.Final,
+        Property.ServerlessPublic
+    );
+
     // TODO: deprecate this setting as this was designed as an opt-out and name of the setting is tied actual name of the codec:
     public static final Setting<Boolean> TIME_SERIES_ES87TSDB_CODEC_ENABLED_SETTING = Setting.boolSetting(
         "index.time_series.es87tsdb_codec.enabled",
@@ -681,8 +692,43 @@ public final class IndexSettings {
         Property.Final
     );
 
+    /**
+    * The {@link IndexMode "mode"} of the index.
+    */
+    public static final Setting<IndexMode> MODE = Setting.enumSetting(
+        IndexMode.class,
+        "index.mode",
+        IndexMode.STANDARD,
+        new Setting.Validator<>() {
+            @Override
+            public void validate(IndexMode value) {}
+
+            @Override
+            public void validate(IndexMode value, Map<Setting<?>, Object> settings) {
+                value.validateWithOtherSettings(settings);
+            }
+
+            @Override
+            public Iterator<Setting<?>> settings() {
+                return IndexMode.VALIDATE_WITH_SETTINGS.iterator();
+            }
+        },
+        Property.IndexScope,
+        Property.Final,
+        Property.ServerlessPublic
+    );
+
     public static final boolean TSDB_SYNTHETIC_ID_FEATURE_FLAG = new FeatureFlag("tsdb_synthetic_id").isEnabled();
-    public static final Setting<Boolean> SYNTHETIC_ID = Setting.boolSetting("index.mapping.synthetic_id", false, new Setting.Validator<>() {
+    public static final Setting<Boolean> SYNTHETIC_ID = Setting.boolSetting("index.mapping.synthetic_id", settings -> {
+        IndexVersion indexVersion = SETTING_INDEX_VERSION_CREATED.get(settings);
+        IndexMode indexMode = MODE.get(settings);
+        String codec = INDEX_CODEC_SETTING.get(settings);
+        boolean onByDefault = indexVersion.onOrAfter(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_DEFAULT);
+        return TSDB_SYNTHETIC_ID_FEATURE_FLAG
+            && IndexMode.TIME_SERIES.equals(indexMode)
+            && CodecService.DEFAULT_CODEC.equalsIgnoreCase(codec)
+            && onByDefault ? Boolean.TRUE.toString() : Boolean.FALSE.toString();
+    }, new Setting.Validator<>() {
         @Override
         public void validate(Boolean enabled) {
             if (enabled) {
@@ -717,7 +763,7 @@ public final class IndexSettings {
                 }
 
                 var codecName = (String) settings.get(INDEX_CODEC_SETTING);
-                if (codecName.equals(CodecService.DEFAULT_CODEC) == false) {
+                if (codecName.equalsIgnoreCase(CodecService.DEFAULT_CODEC) == false) {
                     throw new IllegalArgumentException(
                         String.format(
                             Locale.ROOT,
@@ -757,32 +803,6 @@ public final class IndexSettings {
         }
     }, Property.IndexScope, Property.Final);
 
-    /**
-     * The {@link IndexMode "mode"} of the index.
-     */
-    public static final Setting<IndexMode> MODE = Setting.enumSetting(
-        IndexMode.class,
-        "index.mode",
-        IndexMode.STANDARD,
-        new Setting.Validator<>() {
-            @Override
-            public void validate(IndexMode value) {}
-
-            @Override
-            public void validate(IndexMode value, Map<Setting<?>, Object> settings) {
-                value.validateWithOtherSettings(settings);
-            }
-
-            @Override
-            public Iterator<Setting<?>> settings() {
-                return IndexMode.VALIDATE_WITH_SETTINGS.iterator();
-            }
-        },
-        Property.IndexScope,
-        Property.Final,
-        Property.ServerlessPublic
-    );
-
     public static final Setting<Boolean> USE_DOC_VALUES_SKIPPER = Setting.boolSetting("index.mapping.use_doc_values_skipper", s -> {
         IndexVersion iv = SETTING_INDEX_VERSION_CREATED.get(s);
         if (MODE.get(s) == IndexMode.TIME_SERIES) {
@@ -790,6 +810,8 @@ public final class IndexSettings {
                 return "true";
             }
             return "false";
+        } else if (MODE.get(s) == IndexMode.LOGSDB) {
+            return iv.onOrAfter(IndexVersions.SKIPPERS_ENABLED_BY_DEFAULT_IN_LOGSDB) ? "true" : "false";
         } else {
             return "false";
         }
@@ -971,17 +993,21 @@ public final class IndexSettings {
         );
     }
 
+    public static final boolean DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG = new FeatureFlag("disable_sequence_numbers").isEnabled();
+
     public static final Setting<SeqNoFieldMapper.SeqNoIndexOptions> SEQ_NO_INDEX_OPTIONS_SETTING = Setting.enumSetting(
         SeqNoFieldMapper.SeqNoIndexOptions.class,
         settings -> {
+            if (DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG && settings.getAsBoolean("index.disable_sequence_numbers", false)) {
+                return SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY.toString();
+            }
             final IndexMode indexMode = IndexSettings.MODE.get(settings);
             if ((indexMode == IndexMode.LOGSDB || indexMode == IndexMode.TIME_SERIES)
                 && (IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(settings).onOrAfter(IndexVersions.SEQ_NO_WITHOUT_POINTS)
                     || IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(settings).equals(IndexVersions.ZERO))) {
                 return SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY.toString();
-            } else {
-                return SeqNoFieldMapper.SeqNoIndexOptions.POINTS_AND_DOC_VALUES.toString();
             }
+            return SeqNoFieldMapper.SeqNoIndexOptions.POINTS_AND_DOC_VALUES.toString();
         },
         "index.seq_no.index_options",
         value -> {},
@@ -1012,7 +1038,6 @@ public final class IndexSettings {
         Property.Dynamic
     );
 
-    public static final boolean DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG = new FeatureFlag("disable_sequence_numbers").isEnabled();
     public static final Setting<Boolean> DISABLE_SEQUENCE_NUMBERS = Setting.boolSetting(
         "index.disable_sequence_numbers",
         false,
@@ -2116,7 +2141,7 @@ public final class IndexSettings {
 
     public IgnoredSourceFieldMapper.IgnoredSourceFormat getIgnoredSourceFormat() {
         if (getIndexMappingSourceMode() == SourceFieldMapper.Mode.SYNTHETIC) {
-            return IgnoredSourceFieldMapper.ignoredSourceFormat(getIndexVersionCreated());
+            return IgnoredSourceFieldMapper.ignoredSourceFormat(this);
         } else {
             return IgnoredSourceFieldMapper.IgnoredSourceFormat.NO_IGNORED_SOURCE;
         }

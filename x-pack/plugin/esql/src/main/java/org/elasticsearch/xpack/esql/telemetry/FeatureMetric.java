@@ -41,11 +41,13 @@ import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UriParts;
+import org.elasticsearch.xpack.esql.plan.logical.UserAgent;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.Fuse;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.FuseScoreEval;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
+import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plan.logical.show.ShowInfo;
 
@@ -54,6 +56,22 @@ import java.util.List;
 import java.util.Locale;
 import java.util.function.Predicate;
 
+/**
+ * ESQL "features" returned by the usage API. This <strong>mostly</strong> tracks
+ * new commands. If you add something here you <strong>must</strong> add it to the
+ * tests in {@code 60_usage.yml} then run them with:
+ * {@snippet lang=shell :
+ * ./gradlew -p x-pack/plugin/esql/qa/server/single-node/ yamlRestTest \
+ *     -Dtests.method='*60*'
+ * }
+ * and
+ * {@snippet lang=shell :
+ * ./gradlew -p x-pack/plugin/esql/qa/server/single-node/ yamlRestTest \
+ *     -Dbuild.snapshot=false -Dtests.jvm.argline=-Dbuild.snapshot=false \
+ *     -Dlicense.key="x-pack/license-tools/src/test/resources/public.key" \
+ *     -Dtests.method='*60*'
+ * }
+ */
 public enum FeatureMetric {
     DISSECT(Dissect.class::isInstance),
     EVAL(Eval.class::isInstance),
@@ -87,12 +105,14 @@ public enum FeatureMetric {
     COMPLETION(Completion.class::isInstance),
     SAMPLE(Sample.class::isInstance),
     SUBQUERY(Subquery.class::isInstance),
+    VIEW(plan -> false), // Views are counted in EsqlSession.gatherViewMetrics, not via plan traversal
     MMR(MMR.class::isInstance),
     PROMQL(PromqlCommand.class::isInstance),
     URI_PARTS(UriParts.class::isInstance),
     METRICS_INFO(MetricsInfo.class::isInstance),
     REGISTERED_DOMAIN(RegisteredDomain.class::isInstance),
-    TS_INFO(TsInfo.class::isInstance);
+    TS_INFO(TsInfo.class::isInstance),
+    USER_AGENT(UserAgent.class::isInstance);
 
     /**
      * List here plans we want to exclude from telemetry
@@ -103,7 +123,8 @@ public enum FeatureMetric {
         Project.class,
         Limit.class, // LIMIT is managed in another way, see above
         FuseScoreEval.class,
-        Aggregate.class // STATS is managed in another way, see above
+        Aggregate.class, // STATS is managed in another way, see above
+        LocalRelation.class // produced as a short-circuit for empty index patterns (e.g. PROMQL on missing index)
     );
 
     private Predicate<LogicalPlan> planCheck;

@@ -10,6 +10,8 @@ package org.elasticsearch.benchmark.vector.scorer;
 
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.benchmark.Utils;
+import org.elasticsearch.nativeaccess.NativeAccess;
+import org.elasticsearch.nativeaccess.VectorSimilarityFunctions;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -21,12 +23,19 @@ import org.openjdk.jmh.annotations.Param;
 import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
+import org.openjdk.jmh.annotations.TearDown;
 import org.openjdk.jmh.annotations.Warmup;
 
+import java.lang.foreign.Arena;
+import java.lang.foreign.MemorySegment;
+import java.lang.foreign.ValueLayout;
+import java.lang.invoke.MethodHandle;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.simdvec.internal.vectorization.VectorScorerTestUtils.packNibbles;
+import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.rethrow;
+import static org.elasticsearch.nativeaccess.Int4TestUtils.dotProductI4SinglePacked;
+import static org.elasticsearch.nativeaccess.Int4TestUtils.packNibbles;
 import static org.elasticsearch.simdvec.internal.vectorization.VectorScorerTestUtils.randomInt4Bytes;
 
 /**
@@ -46,8 +55,17 @@ public class VectorScorerInt4OperationBenchmark {
         Utils.configureBenchmarkLogging();
     }
 
-    public byte[] unpacked;
-    public byte[] packed;
+    private int packedLen;
+
+    private byte[] unpacked;
+    private byte[] packed;
+
+    MemorySegment unpackedHeapSeg, packedHeapSeg;
+    MemorySegment unpackedNativeSeg, packedNativeSeg;
+
+    Arena arena;
+
+    private MethodHandle nativeImpl;
 
     @Param({ "2", "128", "208", "256", "300", "512", "702", "1024", "1536", "2048" })
     public int size;
@@ -57,15 +75,56 @@ public class VectorScorerInt4OperationBenchmark {
         unpacked = new byte[size];
         randomInt4Bytes(ThreadLocalRandom.current(), unpacked);
         packed = packNibbles(unpacked);
+        packedLen = packed.length;
+
+        unpackedHeapSeg = MemorySegment.ofArray(unpacked);
+        packedHeapSeg = MemorySegment.ofArray(packed);
+
+        arena = Arena.ofConfined();
+        unpackedNativeSeg = arena.allocate(unpacked.length);
+        MemorySegment.copy(unpacked, 0, unpackedNativeSeg, ValueLayout.JAVA_BYTE, 0L, unpacked.length);
+        packedNativeSeg = arena.allocate(packed.length);
+        MemorySegment.copy(packed, 0, packedNativeSeg, ValueLayout.JAVA_BYTE, 0L, packed.length);
+
+        nativeImpl = vectorSimilarityFunctions.getHandle(
+            VectorSimilarityFunctions.Function.DOT_PRODUCT,
+            VectorSimilarityFunctions.DataType.INT4,
+            VectorSimilarityFunctions.Operation.SINGLE
+        );
+    }
+
+    @TearDown
+    public void teardown() {
+        arena.close();
     }
 
     @Benchmark
     public int scalar() {
-        return ScalarOperations.dotProductI4SinglePacked(unpacked, packed);
+        return dotProductI4SinglePacked(unpacked, packed);
     }
 
     @Benchmark
     public int lucene() {
         return VectorUtil.int4DotProductSinglePacked(unpacked, packed);
     }
+
+    @Benchmark
+    public int nativeWithNativeSeg() {
+        try {
+            return (int) nativeImpl.invokeExact(unpackedNativeSeg, packedNativeSeg, packedLen);
+        } catch (Throwable t) {
+            throw rethrow(t);
+        }
+    }
+
+    @Benchmark
+    public int nativeWithHeapSeg() {
+        try {
+            return (int) nativeImpl.invokeExact(unpackedHeapSeg, packedHeapSeg, packedLen);
+        } catch (Throwable t) {
+            throw rethrow(t);
+        }
+    }
+
+    static final VectorSimilarityFunctions vectorSimilarityFunctions = NativeAccess.instance().getVectorSimilarityFunctions().orElseThrow();
 }

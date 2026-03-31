@@ -64,7 +64,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.query.AbstractQueryBuilder;
+import org.elasticsearch.index.query.LeafQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -416,7 +416,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
                                 null/* not a scroll */
                             );
                             PlainActionFuture<FetchSearchResult> listener = new PlainActionFuture<>();
-                            service.executeFetchPhase(req, new SearchShardTask(123L, "", "", "", null, emptyMap()), listener);
+                            service.executeFetchPhase(req, new SearchShardTask(123L, "", "", "", null, emptyMap()), null, listener);
                             listener.get();
                             if (useScroll) {
                                 // have to free context since this test does not remove the index from IndicesService.
@@ -627,7 +627,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
                     throw new AssertionError("No failure should have been raised", e);
                 }
             };
-            service.executeFetchPhase(fetchRequest, searchTask, fetchListener);
+            service.executeFetchPhase(fetchRequest, searchTask, null, fetchListener);
             fetchListener.get();
         } catch (Exception ex) {
             if (queryResult != null) {
@@ -781,7 +781,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
                 for (SearchHit hit : hits.getHits()) {
                     assertEquals(hit.getRank(), 3 + index);
                     assertTrue(hit.getScore() >= 0);
-                    assertEquals(hit.getFields().get(fetchFieldName).getValue(), fetchFieldValue + "_" + hit.docId());
+                    assertEquals(hit.getFields().get(fetchFieldName).getValue(), fetchFieldValue + "_" + hit.getId());
                     index++;
                 }
             }
@@ -2934,7 +2934,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
         return fieldValues;
     }
 
-    private static class TestRewriteCounterQueryBuilder extends AbstractQueryBuilder<TestRewriteCounterQueryBuilder> {
+    private static class TestRewriteCounterQueryBuilder extends LeafQueryBuilder<TestRewriteCounterQueryBuilder> {
 
         final int asyncRewriteCount;
         final Supplier<Boolean> fetched;

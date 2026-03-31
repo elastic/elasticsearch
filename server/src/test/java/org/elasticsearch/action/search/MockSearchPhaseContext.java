@@ -10,12 +10,15 @@ package org.elasticsearch.action.search;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
@@ -26,7 +29,10 @@ import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.telemetry.TelemetryProvider;
+import org.elasticsearch.transport.CloseableConnection;
 import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportRequestOptions;
 import org.junit.Assert;
 
 import java.util.ArrayList;
@@ -61,7 +67,7 @@ public final class MockSearchPhaseContext extends AbstractSearchAsyncAction<Sear
             new NamedWriteableRegistry(List.of()),
             mock(SearchTransportService.class),
             new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofBytes(Long.MAX_VALUE)),
-            (clusterAlias, nodeId) -> null,
+            (clusterAlias, nodeId) -> createMockConnection(nodeId),
             null,
             null,
             Runnable::run,
@@ -83,6 +89,32 @@ public final class MockSearchPhaseContext extends AbstractSearchAsyncAction<Sear
         numSuccess = new AtomicInteger(numShards);
     }
 
+    private static Transport.Connection createMockConnection(String nodeId) {
+        return new CloseableConnection() {
+            @Override
+            public DiscoveryNode getNode() {
+                return new DiscoveryNode(
+                    nodeId,                                          // nodeName
+                    nodeId,                                          // nodeId
+                    new TransportAddress(TransportAddress.META_ADDRESS, 9300),  // address
+                    Collections.emptyMap(),                          // attributes
+                    Collections.emptySet(),                          // roles
+                    null                                             // versionInfo (null = use current)
+                );
+            }
+
+            @Override
+            public TransportVersion getTransportVersion() {
+                return TransportVersion.current();
+            }
+
+            @Override
+            public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options) {
+                // Mock implementation - not needed for these tests
+            }
+        };
+    }
+
     public void assertNoFailure() {
         if (phaseFailure.get() != null) {
             throw new AssertionError(phaseFailure.get());
@@ -97,11 +129,12 @@ public final class MockSearchPhaseContext extends AbstractSearchAsyncAction<Sear
 
     @Override
     public void sendSearchResponse(SearchResponseSections internalSearchResponse, AtomicArray<SearchPhaseResult> queryResults) {
+        boolean isMultiShard = getNumShards() > 1;
         String scrollId = getRequest().scroll() != null
-            ? TransportSearchHelper.buildScrollId(queryResults, bigArrays.bytesRefRecycler())
+            ? TransportSearchHelper.buildScrollId(queryResults, bigArrays.bytesRefRecycler(), isMultiShard)
             : null;
         BytesReference searchContextId = getRequest().pointInTimeBuilder() != null
-            ? new BytesArray(TransportSearchHelper.buildScrollId(queryResults, bigArrays.bytesRefRecycler()))
+            ? new BytesArray(TransportSearchHelper.buildScrollId(queryResults, bigArrays.bytesRefRecycler(), isMultiShard))
             : null;
         var existing = searchResponse.getAndSet(
             new SearchResponse(

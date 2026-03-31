@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.autoscaling.storage;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.DiskUsage;
+import org.elasticsearch.cluster.ShardAndIndexHeapUsage;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamMetadata;
 import org.elasticsearch.cluster.metadata.DesiredNodes;
@@ -960,6 +961,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
                     Map.of(),
                     Map.of(),
                     Map.of(),
+                    ShardAndIndexHeapUsage.ZERO,
                     Map.of(),
                     Map.of(),
                     Map.of(),

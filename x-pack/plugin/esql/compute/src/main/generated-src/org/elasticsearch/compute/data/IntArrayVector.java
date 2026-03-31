@@ -88,6 +88,11 @@ final class IntArrayVector extends AbstractVector implements IntVector {
     }
 
     @Override
+    public void copyTo(int srcPosition, int[] dst, int dstPosition, int length) {
+        System.arraycopy(values, srcPosition, dst, dstPosition, length);
+    }
+
+    @Override
     public ElementType elementType() {
         return ElementType.INT;
     }
@@ -140,6 +145,20 @@ final class IntArrayVector extends AbstractVector implements IntVector {
 
     public static long ramBytesEstimated(int[] values) {
         return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(values);
+    }
+
+    @Override
+    public IntVector slice(int beginInclusive, int endExclusive) {
+        if (beginInclusive == 0 && endExclusive == getPositionCount()) {
+            incRef();
+            return this;
+        }
+        try (IntVector.FixedBuilder builder = blockFactory().newIntVectorFixedBuilder(endExclusive - beginInclusive)) {
+            for (int i = beginInclusive; i < endExclusive; i++) {
+                builder.appendInt(getInt(i));
+            }
+            return builder.build();
+        }
     }
 
     /**

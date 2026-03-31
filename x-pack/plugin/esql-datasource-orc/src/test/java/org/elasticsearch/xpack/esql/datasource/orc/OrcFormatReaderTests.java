@@ -9,19 +9,26 @@ package org.elasticsearch.xpack.esql.datasource.orc;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.fs.RawLocalFileSystem;
+import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.hive.ql.exec.vector.BytesColumnVector;
+import org.apache.hadoop.hive.ql.exec.vector.DecimalColumnVector;
 import org.apache.hadoop.hive.ql.exec.vector.DoubleColumnVector;
 import org.apache.hadoop.hive.ql.exec.vector.ListColumnVector;
 import org.apache.hadoop.hive.ql.exec.vector.LongColumnVector;
 import org.apache.hadoop.hive.ql.exec.vector.TimestampColumnVector;
 import org.apache.hadoop.hive.ql.exec.vector.VectorizedRowBatch;
+import org.apache.hadoop.hive.ql.io.sarg.PredicateLeaf;
+import org.apache.hadoop.hive.ql.io.sarg.SearchArgument;
+import org.apache.hadoop.hive.ql.io.sarg.SearchArgumentFactory;
+import org.apache.hadoop.hive.serde2.io.HiveDecimalWritable;
 import org.apache.lucene.util.BytesRef;
+import org.apache.orc.CompressionKind;
 import org.apache.orc.OrcFile;
 import org.apache.orc.TypeDescription;
 import org.apache.orc.Writer;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -29,16 +36,18 @@ import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.datasources.CloseableIterator;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.io.ByteArrayInputStream;
+import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -102,7 +111,7 @@ public class OrcFormatReaderTests extends ESTestCase {
         assertEquals(DataType.LONG, attributes.get(0).dataType());
 
         assertEquals("name", attributes.get(1).name());
-        assertEquals(DataType.KEYWORD, attributes.get(1).dataType());
+        assertEquals(DataType.TEXT, attributes.get(1).dataType());
 
         assertEquals("age", attributes.get(2).name());
         assertEquals(DataType.INTEGER, attributes.get(2).dataType());
@@ -483,6 +492,9 @@ public class OrcFormatReaderTests extends ESTestCase {
         StorageObject storageObject = createStorageObject(orcData);
         OrcFormatReader reader = new OrcFormatReader(blockFactory);
 
+        SourceMetadata metadata = reader.metadata(storageObject);
+        assertEquals(DataType.DATETIME, metadata.schema().get(1).dataType());
+
         try (CloseableIterator<Page> iterator = reader.read(storageObject, null, 1024)) {
             assertTrue(iterator.hasNext());
             Page page = iterator.next();
@@ -572,7 +584,7 @@ public class OrcFormatReaderTests extends ESTestCase {
         }
     }
 
-    public void testReadUnsupportedTypeReturnsNullBlock() throws Exception {
+    public void testReadListColumnAsMultiValue() throws Exception {
         TypeDescription schema = TypeDescription.createStruct()
             .addField("id", TypeDescription.createLong())
             .addField("tags", TypeDescription.createList(TypeDescription.createString()));
@@ -581,6 +593,7 @@ public class OrcFormatReaderTests extends ESTestCase {
             batch.size = 2;
             LongColumnVector idCol = (LongColumnVector) batch.cols[0];
             ListColumnVector tagsCol = (ListColumnVector) batch.cols[1];
+            tagsCol.childCount = 3;
             BytesColumnVector tagsChild = (BytesColumnVector) tagsCol.child;
 
             tagsChild.ensureSize(3, false);
@@ -601,7 +614,7 @@ public class OrcFormatReaderTests extends ESTestCase {
 
         SourceMetadata metadata = reader.metadata(storageObject);
         List<Attribute> attributes = metadata.schema();
-        assertEquals(DataType.UNSUPPORTED, attributes.get(1).dataType());
+        assertEquals(DataType.TEXT, attributes.get(1).dataType());
 
         try (CloseableIterator<Page> iterator = reader.read(storageObject, null, 1024)) {
             assertTrue(iterator.hasNext());
@@ -614,9 +627,12 @@ public class OrcFormatReaderTests extends ESTestCase {
             assertEquals(1L, idBlock.getLong(0));
             assertEquals(2L, idBlock.getLong(1));
 
-            Block tagsBlock = page.getBlock(1);
-            assertTrue(tagsBlock.isNull(0));
-            assertTrue(tagsBlock.isNull(1));
+            BytesRefBlock tagsBlock = (BytesRefBlock) page.getBlock(1);
+            assertEquals(2, tagsBlock.getValueCount(0));
+            assertEquals(new BytesRef("a"), tagsBlock.getBytesRef(0, new BytesRef()));
+            assertEquals(new BytesRef("b"), tagsBlock.getBytesRef(1, new BytesRef()));
+            assertEquals(1, tagsBlock.getValueCount(1));
+            assertEquals(new BytesRef("x"), tagsBlock.getBytesRef(2, new BytesRef()));
         }
     }
 
@@ -654,6 +670,397 @@ public class OrcFormatReaderTests extends ESTestCase {
         }
     }
 
+    // --- Pushdown tests ---
+
+    public void testWithPushedFilterReturnsNewInstance() {
+        OrcFormatReader reader = new OrcFormatReader(blockFactory);
+        SearchArgument sarg = SearchArgumentFactory.newBuilder().startAnd().equals("id", PredicateLeaf.Type.LONG, 1L).end().build();
+        FormatReader withFilter = reader.withPushedFilter(sarg);
+        assertNotSame("withPushedFilter must return a new instance", reader, withFilter);
+    }
+
+    public void testWithPushedFilterNullReturnsThis() {
+        OrcFormatReader reader = new OrcFormatReader(blockFactory);
+        assertSame("withPushedFilter(null) must return same instance", reader, reader.withPushedFilter(null));
+    }
+
+    public void testReadWithPushedFilterMatchingAll() throws Exception {
+        // Create ORC file with values 1-5, push filter that matches all (id > 0)
+        TypeDescription schema = TypeDescription.createStruct().addField("id", TypeDescription.createLong());
+        byte[] orcData = createOrcFile(schema, batch -> {
+            batch.size = 5;
+            LongColumnVector idCol = (LongColumnVector) batch.cols[0];
+            for (int i = 0; i < 5; i++) {
+                idCol.vector[i] = i + 1;
+            }
+        });
+
+        SearchArgument sarg = SearchArgumentFactory.newBuilder().startNot().lessThanEquals("id", PredicateLeaf.Type.LONG, 0L).end().build();
+
+        OrcFormatReader reader = (OrcFormatReader) new OrcFormatReader(blockFactory).withPushedFilter(sarg);
+        StorageObject storageObject = createStorageObject(orcData);
+        try (CloseableIterator<Page> iter = reader.read(storageObject, null, 1024)) {
+            assertTrue(iter.hasNext());
+            Page page = iter.next();
+            // All rows should be returned since filter matches all
+            assertEquals(5, page.getPositionCount());
+        }
+    }
+
+    public void testReadWithPushedFilterMatchingNone() throws Exception {
+        // Create ORC file with values 1-5, push filter that matches none (id > 100)
+        TypeDescription schema = TypeDescription.createStruct().addField("id", TypeDescription.createLong());
+        byte[] orcData = createOrcFile(schema, batch -> {
+            batch.size = 5;
+            LongColumnVector idCol = (LongColumnVector) batch.cols[0];
+            for (int i = 0; i < 5; i++) {
+                idCol.vector[i] = i + 1;
+            }
+        });
+
+        // id > 100 → NOT(id <= 100) — file stats have max=5, so entire file is skipped
+        SearchArgument sarg = SearchArgumentFactory.newBuilder()
+            .startNot()
+            .lessThanEquals("id", PredicateLeaf.Type.LONG, 100L)
+            .end()
+            .build();
+
+        OrcFormatReader reader = (OrcFormatReader) new OrcFormatReader(blockFactory).withPushedFilter(sarg);
+        StorageObject storageObject = createStorageObject(orcData);
+        try (CloseableIterator<Page> iter = reader.read(storageObject, null, 1024)) {
+            // File-level stats should show max=5 < 100, so all stripes should be skipped
+            assertFalse("No rows should match the filter", iter.hasNext());
+        }
+    }
+
+    public void testReadWithPushedFilterAndColumnProjection() throws Exception {
+        TypeDescription schema = TypeDescription.createStruct()
+            .addField("id", TypeDescription.createLong())
+            .addField("name", TypeDescription.createString());
+
+        byte[] orcData = createOrcFile(schema, batch -> {
+            batch.size = 3;
+            LongColumnVector idCol = (LongColumnVector) batch.cols[0];
+            BytesColumnVector nameCol = (BytesColumnVector) batch.cols[1];
+            idCol.vector[0] = 1L;
+            nameCol.setVal(0, "Alice".getBytes(StandardCharsets.UTF_8));
+            idCol.vector[1] = 2L;
+            nameCol.setVal(1, "Bob".getBytes(StandardCharsets.UTF_8));
+            idCol.vector[2] = 3L;
+            nameCol.setVal(2, "Charlie".getBytes(StandardCharsets.UTF_8));
+        });
+
+        // Filter id >= 1 (matches all — just testing that filter + projection work together)
+        SearchArgument sarg = SearchArgumentFactory.newBuilder().startNot().lessThan("id", PredicateLeaf.Type.LONG, 1L).end().build();
+
+        OrcFormatReader reader = (OrcFormatReader) new OrcFormatReader(blockFactory).withPushedFilter(sarg);
+        StorageObject storageObject = createStorageObject(orcData);
+        try (CloseableIterator<Page> iter = reader.read(storageObject, List.of("name"), 1024)) {
+            assertTrue(iter.hasNext());
+            Page page = iter.next();
+            assertEquals(3, page.getPositionCount());
+            assertEquals(1, page.getBlockCount());
+            BytesRefBlock nameBlock = (BytesRefBlock) page.getBlock(0);
+            assertEquals("Alice", nameBlock.getBytesRef(0, new BytesRef()).utf8ToString());
+        }
+    }
+
+    public void testTimestampTruncatesToMillisPrecision() throws Exception {
+        TypeDescription schema = TypeDescription.createStruct().addField("event_time", TypeDescription.createTimestampInstant());
+
+        long epochMillis = Instant.parse("2024-01-15T10:30:00.123Z").toEpochMilli();
+
+        byte[] orcData = createOrcFile(schema, batch -> {
+            batch.size = 2;
+            TimestampColumnVector tsCol = (TimestampColumnVector) batch.cols[0];
+
+            tsCol.time[0] = epochMillis;
+            tsCol.nanos[0] = 123_456_789;
+
+            tsCol.time[1] = epochMillis;
+            tsCol.nanos[1] = 123_000_000;
+        });
+
+        StorageObject storageObject = createStorageObject(orcData);
+        OrcFormatReader reader = new OrcFormatReader(blockFactory);
+
+        try (CloseableIterator<Page> iterator = reader.read(storageObject, null, 1024)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+
+            assertEquals(2, page.getPositionCount());
+            LongBlock tsBlock = (LongBlock) page.getBlock(0);
+
+            assertEquals(epochMillis, tsBlock.getLong(0));
+            assertEquals(epochMillis, tsBlock.getLong(1));
+        }
+    }
+
+    public void testPreEpochTimestamp() throws Exception {
+        TypeDescription schema = TypeDescription.createStruct()
+            .addField("id", TypeDescription.createLong())
+            .addField("birth_date", TypeDescription.createTimestampInstant());
+
+        long preEpochMillis = Instant.parse("1953-09-02T00:00:00Z").toEpochMilli();
+        long postEpochMillis = Instant.parse("1986-06-26T00:00:00Z").toEpochMilli();
+
+        byte[] orcData = createOrcFile(schema, batch -> {
+            batch.size = 2;
+            LongColumnVector idCol = (LongColumnVector) batch.cols[0];
+            TimestampColumnVector tsCol = (TimestampColumnVector) batch.cols[1];
+
+            idCol.vector[0] = 1L;
+            tsCol.time[0] = preEpochMillis;
+            tsCol.nanos[0] = 0;
+
+            idCol.vector[1] = 2L;
+            tsCol.time[1] = postEpochMillis;
+            tsCol.nanos[1] = 0;
+        });
+
+        StorageObject storageObject = createStorageObject(orcData);
+        OrcFormatReader reader = new OrcFormatReader(blockFactory);
+
+        SourceMetadata metadata = reader.metadata(storageObject);
+        assertEquals(DataType.DATETIME, metadata.schema().get(1).dataType());
+
+        try (CloseableIterator<Page> iterator = reader.read(storageObject, null, 1024)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+
+            assertEquals(2, page.getPositionCount());
+
+            LongBlock tsBlock = (LongBlock) page.getBlock(1);
+            assertTrue("pre-epoch millis should be negative", tsBlock.getLong(0) < 0);
+            assertEquals(preEpochMillis, tsBlock.getLong(0));
+            assertEquals(postEpochMillis, tsBlock.getLong(1));
+        }
+    }
+
+    public void testReadListTimestampColumn() throws Exception {
+        TypeDescription schema = TypeDescription.createStruct()
+            .addField("id", TypeDescription.createLong())
+            .addField("events", TypeDescription.createList(TypeDescription.createTimestampInstant()));
+
+        long ts1 = Instant.parse("2024-01-15T10:00:00Z").toEpochMilli();
+        long ts2 = Instant.parse("2024-01-15T11:00:00Z").toEpochMilli();
+        long ts3 = Instant.parse("1965-03-20T08:30:00Z").toEpochMilli();
+
+        byte[] orcData = createOrcFile(schema, batch -> {
+            batch.size = 2;
+            LongColumnVector idCol = (LongColumnVector) batch.cols[0];
+            ListColumnVector eventsCol = (ListColumnVector) batch.cols[1];
+            TimestampColumnVector eventsChild = (TimestampColumnVector) eventsCol.child;
+
+            eventsChild.ensureSize(3, false);
+            idCol.vector[0] = 1L;
+            eventsCol.offsets[0] = 0;
+            eventsCol.lengths[0] = 2;
+            eventsChild.time[0] = ts1;
+            eventsChild.nanos[0] = 0;
+            eventsChild.time[1] = ts2;
+            eventsChild.nanos[1] = 0;
+
+            idCol.vector[1] = 2L;
+            eventsCol.offsets[1] = 2;
+            eventsCol.lengths[1] = 1;
+            eventsChild.time[2] = ts3;
+            eventsChild.nanos[2] = 0;
+        });
+
+        StorageObject storageObject = createStorageObject(orcData);
+        OrcFormatReader reader = new OrcFormatReader(blockFactory);
+
+        SourceMetadata metadata = reader.metadata(storageObject);
+        assertEquals(DataType.DATETIME, metadata.schema().get(1).dataType());
+
+        try (CloseableIterator<Page> iterator = reader.read(storageObject, null, 1024)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+
+            assertEquals(2, page.getPositionCount());
+
+            LongBlock eventsBlock = (LongBlock) page.getBlock(1);
+            assertEquals(2, eventsBlock.getValueCount(0));
+            assertEquals(ts1, eventsBlock.getLong(0));
+            assertEquals(ts2, eventsBlock.getLong(1));
+            assertEquals(1, eventsBlock.getValueCount(1));
+            assertTrue("pre-epoch list element should be negative", eventsBlock.getLong(2) < 0);
+            assertEquals(ts3, eventsBlock.getLong(2));
+        }
+    }
+
+    public void testBinaryMapsToUnsupported() throws Exception {
+        TypeDescription schema = TypeDescription.createStruct()
+            .addField("id", TypeDescription.createLong())
+            .addField("payload", TypeDescription.createBinary());
+
+        byte[] rawBytes = new byte[] { 0x00, 0x01, (byte) 0xFF, (byte) 0xFE, 0x42 };
+        byte[] orcData = createOrcFile(schema, batch -> {
+            batch.size = 1;
+            ((LongColumnVector) batch.cols[0]).vector[0] = 1L;
+            ((BytesColumnVector) batch.cols[1]).setVal(0, rawBytes);
+        });
+
+        StorageObject storageObject = createStorageObject(orcData);
+        OrcFormatReader reader = new OrcFormatReader(blockFactory);
+
+        SourceMetadata metadata = reader.metadata(storageObject);
+        assertEquals(DataType.UNSUPPORTED, metadata.schema().get(1).dataType());
+
+        try (CloseableIterator<Page> iterator = reader.read(storageObject, null, 1024)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+
+            assertEquals(1, page.getPositionCount());
+            assertEquals(1L, ((LongBlock) page.getBlock(0)).getLong(0));
+            assertTrue(page.getBlock(1).isNull(0));
+        }
+    }
+
+    public void testReadDecimalColumn() throws Exception {
+        TypeDescription schema = TypeDescription.createStruct()
+            .addField("id", TypeDescription.createLong())
+            .addField("price", TypeDescription.createDecimal().withPrecision(10).withScale(2));
+
+        byte[] orcData = createOrcFile(schema, batch -> {
+            batch.size = 3;
+            LongColumnVector idCol = (LongColumnVector) batch.cols[0];
+            DecimalColumnVector priceCol = (DecimalColumnVector) batch.cols[1];
+
+            idCol.vector[0] = 1L;
+            priceCol.set(0, new HiveDecimalWritable("123.45"));
+
+            idCol.vector[1] = 2L;
+            priceCol.set(1, new HiveDecimalWritable("0.01"));
+
+            idCol.vector[2] = 3L;
+            priceCol.set(2, new HiveDecimalWritable("99999.99"));
+        });
+
+        StorageObject storageObject = createStorageObject(orcData);
+        OrcFormatReader reader = new OrcFormatReader(blockFactory);
+
+        SourceMetadata metadata = reader.metadata(storageObject);
+        assertEquals(DataType.DOUBLE, metadata.schema().get(1).dataType());
+
+        try (CloseableIterator<Page> iterator = reader.read(storageObject, null, 1024)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+
+            assertEquals(3, page.getPositionCount());
+
+            DoubleBlock priceBlock = (DoubleBlock) page.getBlock(1);
+            assertEquals(123.45, priceBlock.getDouble(0), 0.001);
+            assertEquals(0.01, priceBlock.getDouble(1), 0.001);
+            assertEquals(99999.99, priceBlock.getDouble(2), 0.001);
+        }
+    }
+
+    public void testReadDecimalColumnWithNulls() throws Exception {
+        TypeDescription schema = TypeDescription.createStruct()
+            .addField("amount", TypeDescription.createDecimal().withPrecision(10).withScale(2));
+
+        byte[] orcData = createOrcFile(schema, batch -> {
+            batch.size = 3;
+            DecimalColumnVector amountCol = (DecimalColumnVector) batch.cols[0];
+
+            amountCol.set(0, new HiveDecimalWritable("42.50"));
+
+            amountCol.noNulls = false;
+            amountCol.isNull[1] = true;
+
+            amountCol.set(2, new HiveDecimalWritable("100.00"));
+        });
+
+        StorageObject storageObject = createStorageObject(orcData);
+        OrcFormatReader reader = new OrcFormatReader(blockFactory);
+
+        try (CloseableIterator<Page> iterator = reader.read(storageObject, null, 1024)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+
+            assertEquals(3, page.getPositionCount());
+
+            DoubleBlock block = (DoubleBlock) page.getBlock(0);
+            assertEquals(42.50, block.getDouble(0), 0.001);
+            assertTrue(block.isNull(1));
+            assertEquals(100.00, block.getDouble(2), 0.001);
+        }
+    }
+
+    public void testReadDecimalHighPrecision() throws Exception {
+        TypeDescription schema = TypeDescription.createStruct()
+            .addField("value", TypeDescription.createDecimal().withPrecision(38).withScale(10));
+
+        byte[] orcData = createOrcFile(schema, batch -> {
+            batch.size = 2;
+            DecimalColumnVector valCol = (DecimalColumnVector) batch.cols[0];
+
+            valCol.set(0, new HiveDecimalWritable("1234567890.1234567890"));
+            valCol.set(1, new HiveDecimalWritable("-9876543210.0000000001"));
+        });
+
+        StorageObject storageObject = createStorageObject(orcData);
+        OrcFormatReader reader = new OrcFormatReader(blockFactory);
+
+        try (CloseableIterator<Page> iterator = reader.read(storageObject, null, 1024)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+
+            assertEquals(2, page.getPositionCount());
+
+            DoubleBlock block = (DoubleBlock) page.getBlock(0);
+            assertEquals(1234567890.1234567890, block.getDouble(0), 0.01);
+            assertEquals(-9876543210.0000000001, block.getDouble(1), 0.01);
+        }
+    }
+
+    public void testReadListDecimalColumn() throws Exception {
+        TypeDescription schema = TypeDescription.createStruct()
+            .addField("id", TypeDescription.createLong())
+            .addField("prices", TypeDescription.createList(TypeDescription.createDecimal().withPrecision(10).withScale(2)));
+
+        byte[] orcData = createOrcFile(schema, batch -> {
+            batch.size = 2;
+            LongColumnVector idCol = (LongColumnVector) batch.cols[0];
+            ListColumnVector pricesCol = (ListColumnVector) batch.cols[1];
+            DecimalColumnVector pricesChild = (DecimalColumnVector) pricesCol.child;
+
+            pricesChild.ensureSize(3, false);
+            idCol.vector[0] = 1L;
+            pricesCol.offsets[0] = 0;
+            pricesCol.lengths[0] = 2;
+            pricesChild.set(0, new HiveDecimalWritable("10.50"));
+            pricesChild.set(1, new HiveDecimalWritable("20.99"));
+
+            idCol.vector[1] = 2L;
+            pricesCol.offsets[1] = 2;
+            pricesCol.lengths[1] = 1;
+            pricesChild.set(2, new HiveDecimalWritable("99.00"));
+        });
+
+        StorageObject storageObject = createStorageObject(orcData);
+        OrcFormatReader reader = new OrcFormatReader(blockFactory);
+
+        SourceMetadata metadata = reader.metadata(storageObject);
+        assertEquals(DataType.DOUBLE, metadata.schema().get(1).dataType());
+
+        try (CloseableIterator<Page> iterator = reader.read(storageObject, null, 1024)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+
+            assertEquals(2, page.getPositionCount());
+
+            DoubleBlock pricesBlock = (DoubleBlock) page.getBlock(1);
+            assertEquals(2, pricesBlock.getValueCount(0));
+            assertEquals(10.50, pricesBlock.getDouble(0), 0.001);
+            assertEquals(20.99, pricesBlock.getDouble(1), 0.001);
+            assertEquals(1, pricesBlock.getValueCount(1));
+            assertEquals(99.00, pricesBlock.getDouble(2), 0.001);
+        }
+    }
+
     @FunctionalInterface
     private interface BatchPopulator {
         void populate(VectorizedRowBatch batch);
@@ -675,7 +1082,7 @@ public class OrcFormatReaderTests extends ESTestCase {
         OrcFile.WriterOptions writerOptions = OrcFile.writerOptions(conf)
             .setSchema(schema)
             .fileSystem(localFs)
-            .compress(org.apache.orc.CompressionKind.NONE);
+            .compress(CompressionKind.NONE);
 
         try (Writer writer = OrcFile.createWriter(orcPath, writerOptions)) {
             VectorizedRowBatch batch = schema.createRowBatch();
@@ -698,23 +1105,21 @@ public class OrcFormatReaderTests extends ESTestCase {
      *   <li>{@code setPermission} — shells out for {@code chmod}.</li>
      * </ul>
      */
-    private static class NoPermissionLocalFileSystem extends org.apache.hadoop.fs.RawLocalFileSystem {
+    private static class NoPermissionLocalFileSystem extends RawLocalFileSystem {
         @Override
         @SuppressForbidden(reason = "Bypass Hadoop's LocalFSFileOutputStream to avoid Shell.<clinit>")
-        protected OutputStream createOutputStreamWithMode(Path p, boolean append, org.apache.hadoop.fs.permission.FsPermission permission)
-            throws IOException {
+        protected OutputStream createOutputStreamWithMode(Path p, boolean append, FsPermission permission) throws IOException {
             return new FileOutputStream(pathToFile(p), append);
         }
 
         @Override
-        public void setPermission(Path p, org.apache.hadoop.fs.permission.FsPermission permission) {
+        public void setPermission(Path p, FsPermission permission) {
             // no-op: skip chmod calls that would trigger Shell
         }
 
         @Override
         @SuppressForbidden(reason = "Hadoop API requires java.io.File in method signature")
-        protected boolean mkOneDirWithMode(Path p, java.io.File p2f, org.apache.hadoop.fs.permission.FsPermission permission)
-            throws IOException {
+        protected boolean mkOneDirWithMode(Path p, File p2f, FsPermission permission) throws IOException {
             return p2f.mkdir() || p2f.isDirectory();
         }
     }

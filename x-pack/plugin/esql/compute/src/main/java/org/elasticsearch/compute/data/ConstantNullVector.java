@@ -109,6 +109,36 @@ public final class ConstantNullVector extends AbstractVector
     }
 
     @Override
+    public void copyTo(int srcPosition, long[] dst, int dstPosition, int length) {
+        assert false : "null vector";
+        throw new UnsupportedOperationException("null vector");
+    }
+
+    @Override
+    public void copyTo(int srcPosition, int[] dst, int dstPosition, int length) {
+        assert false : "null vector";
+        throw new UnsupportedOperationException("null vector");
+    }
+
+    @Override
+    public void copyTo(int srcPosition, double[] dst, int dstPosition, int length) {
+        assert false : "null vector";
+        throw new UnsupportedOperationException("null vector");
+    }
+
+    @Override
+    public void copyTo(int srcPosition, float[] dst, int dstPosition, int length) {
+        assert false : "null vector";
+        throw new UnsupportedOperationException("null vector");
+    }
+
+    @Override
+    public void copyTo(int srcPosition, boolean[] dst, int dstPosition, int length) {
+        assert false : "null vector";
+        throw new UnsupportedOperationException("null vector");
+    }
+
+    @Override
     public int min() {
         assert false : "null vector";
         throw new UnsupportedOperationException("null vector");
@@ -116,6 +146,12 @@ public final class ConstantNullVector extends AbstractVector
 
     @Override
     public int max() {
+        assert false : "null vector";
+        throw new UnsupportedOperationException("null vector");
+    }
+
+    @Override
+    public ConstantNullVector slice(int beginInclusive, int endExclusive) {
         assert false : "null vector";
         throw new UnsupportedOperationException("null vector");
     }

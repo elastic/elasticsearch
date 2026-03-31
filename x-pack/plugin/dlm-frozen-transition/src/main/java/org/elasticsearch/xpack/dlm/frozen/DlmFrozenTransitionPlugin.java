@@ -28,7 +28,12 @@ public class DlmFrozenTransitionPlugin extends Plugin {
         Set<Object> components = new HashSet<>(super.createComponents(services));
         if (DataStreamLifecycle.DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled()) {
             XPackLicenseState licenseState = XPackPlugin.getSharedLicenseState();
-            var service = new DlmFrozenTransitionService(services.clusterService(), services.client(), licenseState);
+            var service = new DlmFrozenTransitionService(
+                services.clusterService(),
+                services.client(),
+                licenseState,
+                services.dlmErrorStore()
+            );
             service.init();
             components.add(service);
         }
@@ -38,7 +43,11 @@ public class DlmFrozenTransitionPlugin extends Plugin {
     @Override
     public List<Setting<?>> getSettings() {
         if (DataStreamLifecycle.DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled()) {
-            return List.of(DlmFrozenTransitionService.POLL_INTERVAL_SETTING, DlmFrozenTransitionService.MAX_CONCURRENCY_SETTING);
+            return List.of(
+                DlmFrozenTransitionService.POLL_INTERVAL_SETTING,
+                DlmFrozenTransitionService.MAX_CONCURRENCY_SETTING,
+                DlmFrozenTransitionService.MAX_QUEUE_SIZE
+            );
         } else {
             return List.of();
         }

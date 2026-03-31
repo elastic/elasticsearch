@@ -370,7 +370,12 @@ public class EstimatedHeapUsageAllocationDeciderTests extends ESAllocationTestCa
         final ShardRouting shardRouting = createShardRouting();
 
         final ClusterInfo clusterInfo = createClusterInfoWithGenNodeAndShardHeap(
-            Map.of(NODE_ID, randomLongBetween(0, watermark), OTHER_NODE_ID, randomLongBetween(watermark + 1, 100)),
+            Map.of(
+                NODE_ID,
+                randomLongBetween(0, watermark - 1 /* keep under the watermark, shard will have a very small addition */),
+                OTHER_NODE_ID,
+                randomLongBetween(watermark + 1, 100)
+            ),
             shardRouting.shardId()
         );
         final var routingAllocation = createRoutingAllocation(decider, shardRouting, clusterInfo);

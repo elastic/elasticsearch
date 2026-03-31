@@ -173,11 +173,11 @@ public class RestUtilsTests extends ESTestCase {
 
     public void testReservedParameters() {
         for (var reservedParam : INTERNAL_MARKER_REQUEST_PARAMETERS) {
-            RestRequest.BadParameterException exception = expectThrows(
-                RestRequest.BadParameterException.class,
+            IllegalArgumentException exception = expectThrows(
+                IllegalArgumentException.class,
                 () -> RequestParams.fromUri("something?" + reservedParam + "=value")
             );
-            assertEquals(exception.getCause().getMessage(), "parameter [" + reservedParam + "] is reserved and may not be set");
+            assertEquals(exception.getMessage(), "parameter [" + reservedParam + "] is reserved and may not be set");
         }
     }
 

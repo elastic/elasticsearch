@@ -23,15 +23,15 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Stream;
 
-public class UserAgentParserRegistry implements org.elasticsearch.useragent.api.UserAgentParserRegistry {
+class UserAgentParserRegistryImpl implements org.elasticsearch.useragent.api.UserAgentParserRegistry {
 
-    private static final Logger logger = LogManager.getLogger(UserAgentParserRegistry.class);
+    private static final Logger logger = LogManager.getLogger(UserAgentParserRegistryImpl.class);
 
     static final String DEFAULT_PARSER_NAME = org.elasticsearch.useragent.api.UserAgentParserRegistry.DEFAULT_PARSER_NAME;
 
     private final Map<String, UserAgentParserImpl> registry;
 
-    UserAgentParserRegistry(UserAgentCache cache, Path... regexFileDirectories) {
+    UserAgentParserRegistryImpl(UserAgentCache cache, Path... regexFileDirectories) {
         registry = createParsersMap(cache, regexFileDirectories);
     }
 

@@ -285,9 +285,12 @@ public class IndexShardRoutingTable {
     private static final FeatureFlag ARS_PROBING_FEATURE_FLAG = new FeatureFlag("ars_probing");
 
     /**
-     * Maximum number of in-flight requests to a stat-less node before it stops being probed.
-     * Caps the initial burst while the node builds EWMA stats from its first completed requests.
-     * Set to 0 (disabled) when the feature flag is off.
+     * Maximum number of concurrent in-flight requests to a stat-less data node before it stops
+     * being probed. This is a per-coordinator cap — each coordinating node tracks its own
+     * in-flight counts independently, so the effective global cap for probes targeting a single
+     * data node is {@code PROBE_INFLIGHT_CAP * number_of_coordinators}. Caps the initial burst
+     * while the node builds EWMA stats from its first completed requests. Set to 0 (disabled)
+     * when the feature flag is off.
      */
     static final long PROBE_INFLIGHT_CAP = ARS_PROBING_FEATURE_FLAG.isEnabled() ? 8 : 0;
 

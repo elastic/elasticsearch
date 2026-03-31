@@ -14,9 +14,11 @@ import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 
-import java.util.ArrayList;
 import java.util.List;
 
+import static org.apache.lucene.util.RamUsageEstimator.NUM_BYTES_ARRAY_HEADER;
+import static org.apache.lucene.util.RamUsageEstimator.NUM_BYTES_OBJECT_REF;
+import static org.apache.lucene.util.RamUsageEstimator.alignObjectSize;
 import static org.apache.lucene.util.RamUsageEstimator.shallowSizeOfInstance;
 
 /**
@@ -66,22 +68,34 @@ class GroupedQueue implements Accountable, Releasable {
     }
 
     /**
-     * Removes and returns all rows from all per-group queues.
-     * For an ascending order, the first element will be the min element (or last in the
-     * priority queue), and vice versa.
+     * Drains all rows from all per-group queues into the given list, closing each queue
+     * as it is emptied. The list is then sorted in descending key order so that for an
+     * ascending sort the first element is the minimum.
      */
-    List<TopNRow> popAll() {
-        List<TopNRow> allRows = new ArrayList<>(size());
+    void popAllInto(List<TopNRow> target) {
         for (long i = 0; i < queues.size(); i++) {
             TopNQueue queue = queues.get(i);
             if (queue != null) {
-                queue.popAllInto(allRows);
+                queue.popAllInto(target);
                 queue.close();
                 queues.set(i, null);
             }
         }
-        allRows.sort((r1, r2) -> -r1.compareTo(r2));
-        return allRows;
+        // sort allocates an internal array for sorting
+        long sortBytes = estimateArrayBytes(target.size());
+        breaker.addEstimateBytesAndMaybeBreak(sortBytes, "grouped_queue");
+        try {
+            target.sort((r1, r2) -> -r1.compareTo(r2));
+        } finally {
+            breaker.addWithoutBreaking(-sortBytes);
+        }
+    }
+
+    /**
+     * Estimates the bytes used by an {@code Object[]} of the given capacity.
+     */
+    static long estimateArrayBytes(int size) {
+        return alignObjectSize(NUM_BYTES_ARRAY_HEADER + (long) size * NUM_BYTES_OBJECT_REF);
     }
 
     @Override

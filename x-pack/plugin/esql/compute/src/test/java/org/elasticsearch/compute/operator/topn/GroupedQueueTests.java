@@ -21,6 +21,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -100,7 +101,8 @@ public class GroupedQueueTests extends ESTestCase {
 
     private void assertQueueContents(GroupedQueue queue, List<Integer> expectedSortKeys) {
         assertThat(queue.size(), equalTo(expectedSortKeys.size()));
-        List<TopNRow> actual = queue.popAll();
+        List<TopNRow> actual = new ArrayList<>(queue.size());
+        queue.popAllInto(actual);
         for (int i = 0; i < expectedSortKeys.size(); i++) {
             int sortKey = expectedSortKeys.get(i);
             assertRowValues(actual.get(i), sortKey, sortKey * 2);

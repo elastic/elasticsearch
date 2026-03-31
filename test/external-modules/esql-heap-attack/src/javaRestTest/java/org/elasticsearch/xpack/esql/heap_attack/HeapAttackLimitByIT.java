@@ -16,12 +16,10 @@ import org.elasticsearch.compute.aggregation.blockhash.HashImplFactory;
 import org.elasticsearch.compute.operator.GroupKeyEncoder;
 import org.elasticsearch.compute.operator.GroupedLimitOperator;
 import org.elasticsearch.compute.operator.topn.GroupedTopNOperator;
+import org.elasticsearch.compute.operator.topn.TopNOperator;
 import org.elasticsearch.compute.operator.topn.TopNQueue;
-import org.elasticsearch.compute.operator.topn.TopNRow;
 import org.elasticsearch.swisshash.BytesRefSwissHash;
 import org.elasticsearch.test.ListMatcher;
-import org.junit.After;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.util.List;
@@ -38,32 +36,6 @@ import static org.hamcrest.Matchers.any;
  */
 @TimeoutSuite(millis = 5 * TimeUnits.MINUTE)
 public class HeapAttackLimitByIT extends HeapAttackTestCase {
-
-    /**
-     * Lower the request circuit breaker to 40% of JVM heap (default is 60%). A tighter limit ensures
-     * the breaker fires well before the JVM runs out of memory.
-     *
-     * We want to have some headroom between what the circuit breaker sees and the real free JVM heap:
-     * <ul>
-     *   <li> We need to discount size of cached pages in {@code PageCacheRecycler}.
-     *        Those cached pages are invisible to the breaker but still consume heap. </li>
-     *   <li> ES classpath also takes up heap space </li>
-     *   <li> Memory fragmentation might cause the circuit breaker to think we can allocate
-     *        an array when it's not possible to find a big enough gap in heap </li>
-     * </ul>
-     */
-    @Before
-    public void lowerRequestBreakerLimit() throws IOException {
-        setRequestBreakerLimit("40%");
-    }
-
-    /**
-     * Restores circuit breaker default limit
-     */
-    @After
-    public void resetRequestBreakerLimit() throws IOException {
-        setRequestBreakerLimit(null);
-    }
 
     // -------------------------------------------------------------------------
     // LIMIT BY — GroupedLimitOperator
@@ -194,39 +166,42 @@ public class HeapAttackLimitByIT extends HeapAttackTestCase {
     // -------------------------------------------------------------------------
 
     /**
-     * This sorts by 500 columns then limits 1000 rows per group, which should succeed. The sort keys
-     * are stored per row in the GroupedTopNOperator queues; 500 columns × 10K rows is within limits.
+     * Sorting by 30 repeated 1 MB string columns should succeed. Each {@code TopNRow} stores
+     * ~30 MB of encoded sort keys, which stays within the circuit breaker for a single row.
      */
     public void testTopNByManySortColumns() throws IOException {
         assumeTrue("SORT | LIMIT BY requires snapshot builds", Build.current().isSnapshot());
-        initManyLongs(10);
-        Map<String, Object> result = topNByManyLongs(500);
-        ListMatcher columns = matchesList().item(matchesMap().entry("name", "a").entry("type", "long"))
-            .item(matchesMap().entry("name", "b").entry("type", "long"));
-        assertResultMap(result, columns, any(List.class));
+        initSingleDocIndex();
+        Map<String, Object> result = topNByManyStringSortCols(30);
+        ListMatcher columns = matchesList().item(matchesMap().entry("name", "a").entry("type", "long"));
+        assertResultMap(result, columns, matchesList().item(List.of(1)));
     }
 
     /**
-     * The GroupedTopNOperator stores full sort keys for every row in its per-group queues. Sorting by
-     * many columns means each stored row is very wide; with 1000 rows per group the total memory
-     * trips the circuit breaker.
+     * The GroupedTopNOperator stores full sort keys for every row in its per-group queues.
+     * Sorting by many 1 MB string columns means each stored {@code TopNRow}'s encoded keys
+     * buffer is very wide (encoding gets done by {@code TopNOperator.RowFiller}), tripping the
+     * circuit breaker even with a single row.
      */
     public void testTopNByManySortColumnsTooMuchMemory() throws IOException {
         assumeTrue("SORT | LIMIT BY requires snapshot builds", Build.current().isSnapshot());
-        initManyLongs(10);
-        assertCircuitBreaksVia(attempt -> topNByManyLongs(attempt * 10000), GroupedTopNOperator.class, TopNRow.class);
+        initSingleDocIndex();
+        assertCircuitBreaksVia(attempt -> topNByManyStringSortCols(attempt * 80), GroupedTopNOperator.class, TopNOperator.RowFiller.class);
     }
 
-    private Map<String, Object> topNByManyLongs(int count) throws IOException {
-        logger.info("topn by with {} sort cols", count);
-        StringBuilder query = makeManyLongs(count);
-        // Sort by all computed columns so they cannot be column-pruned and must be
-        // stored as sort keys in GroupedTopNOperator's per-group TopNQueues.
-        query.append("| SORT a, b, i0");
+    private Map<String, Object> topNByManyStringSortCols(int count) throws IOException {
+        logger.info("topn by with {} string sort cols", count);
+        StringBuilder query = startQuery();
+        query.append("FROM single\\n| EVAL s0 = REPEAT(TO_STRING(a), 1000000)");
         for (int i = 1; i < count; i++) {
-            query.append(", i").append(i);
+            query.append(", s").append(i).append(" = REPEAT(TO_STRING(a), 1000000)");
         }
-        query.append("\\n| LIMIT 1000 BY a\\n| KEEP a, b\"}");
+        // Sort by all string columns so they are stored as sort keys in each TopNRow.
+        query.append("\\n| SORT s0");
+        for (int i = 1; i < count; i++) {
+            query.append(", s").append(i);
+        }
+        query.append("\\n| LIMIT 1 BY a\\n| KEEP a\"}");
         return responseAsMap(query(query.toString(), null));
     }
 

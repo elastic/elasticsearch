@@ -24,6 +24,7 @@ import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
@@ -312,24 +313,51 @@ public class GroupedTopNOperator implements Operator, Accountable {
             spare = null;
         }
 
-        if (inputQueue.size() == 0) {
+        var resultSize = inputQueue.size();
+        if (resultSize == 0) {
             return ReleasableIterator.empty();
         }
 
-        List<TopNRow> rows = inputQueue.popAll();
-        inputQueue.close();
-        keysHash.close();
-        inputQueue = null;
-        keysHash = null;
-        return new Result(rows);
+        Result result = null;
+        var success = false;
+        try {
+            result = new Result(breaker, resultSize);
+            inputQueue.popAllInto(result.getRows());
+            success = true;
+        } finally {
+            if (success == false) {
+                Releasables.closeExpectNoException(result, inputQueue, keysHash);
+                inputQueue = null;
+                keysHash = null;
+            }
+        }
+        return result;
     }
 
     private class Result implements ReleasableIterator<Page> {
+        private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(Result.class);
         private final List<TopNRow> rows;
+        private final CircuitBreaker breaker;
         private int r;
 
-        private Result(List<TopNRow> rows) {
+        Result(CircuitBreaker breaker, int resultSize) {
+            breaker.addEstimateBytesAndMaybeBreak(sizeOf(resultSize), "grouped topn result");
+            var success = false;
+            List<TopNRow> rows;
+            try {
+                rows = new ArrayList<>(resultSize);
+                success = true;
+            } finally {
+                if (success == false) {
+                    this.close();
+                }
+            }
+            this.breaker = breaker;
             this.rows = rows;
+        }
+
+        public List<TopNRow> getRows() {
+            return rows;
         }
 
         @Override
@@ -377,7 +405,17 @@ public class GroupedTopNOperator implements Operator, Accountable {
 
         @Override
         public void close() {
+            var resultSize = rows.size();
             Releasables.close(rows);
+            breaker.addWithoutBreaking(-sizeOf(resultSize));
+        }
+
+        static long sizeOf(int resultSize) {
+            long total = SHALLOW_SIZE;
+            total += RamUsageEstimator.alignObjectSize(
+                RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + RamUsageEstimator.NUM_BYTES_OBJECT_REF * ((long) resultSize)
+            );
+            return total;
         }
 
         private void readKeys(ResultBuilder[] builders, BytesRef keys) {

@@ -1,0 +1,6 @@
+pr: 145315
+summary: Replace internal INSIST command text in ES|QL error messages with user-facing unmapped_fields reference
+area: ES|QL
+type: bug
+issues:
+ - 144513

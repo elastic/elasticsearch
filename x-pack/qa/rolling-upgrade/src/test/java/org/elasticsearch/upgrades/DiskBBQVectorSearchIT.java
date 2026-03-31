@@ -15,6 +15,7 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
+import java.util.Locale;
 import java.util.List;
 import java.util.Map;
 
@@ -62,7 +63,7 @@ public class DiskBBQVectorSearchIT extends AbstractUpgradeTestCase {
         if (CLUSTER_TYPE == ClusterType.OLD) {
             assumeTrue("DiskBBQ bits are not supported on this version", clusterSupportsFeature(ES940_DISK_BBQ_FEATURE));
             for (int bits : SUPPORTED_BITS) {
-                String mapping = """
+                String mapping = String.format(Locale.ROOT, """
                     {
                       "properties": {
                         "vector": {
@@ -77,7 +78,7 @@ public class DiskBBQVectorSearchIT extends AbstractUpgradeTestCase {
                         }
                       }
                     }
-                    """.formatted(bits);
+                    """, bits);
                 String indexName = diskBbqBitsIndexName(bits);
                 // create index and index 10 random floating point vectors
                 createIndexWithDenseVectorSettings(indexName, mapping);

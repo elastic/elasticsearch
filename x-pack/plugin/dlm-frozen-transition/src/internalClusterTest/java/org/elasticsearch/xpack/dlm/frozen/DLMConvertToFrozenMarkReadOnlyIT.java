@@ -11,13 +11,21 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockRequest;
 import org.elasticsearch.action.admin.indices.readonly.TransportAddIndexBlockAction;
 import org.elasticsearch.action.admin.indices.readonly.TransportVerifyShardIndexBlockAction;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskListener;
+import org.elasticsearch.cluster.SimpleBatchedExecutor;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.datastreams.DataStreamsPlugin;
+import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.license.internal.XPackLicenseStatus;
@@ -26,9 +34,11 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.junit.Before;
 
+import java.nio.file.Path;
 import java.time.Clock;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.APIBlock.READ;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.APIBlock.WRITE;
@@ -46,6 +56,7 @@ import static org.hamcrest.Matchers.is;
 public class DLMConvertToFrozenMarkReadOnlyIT extends ESIntegTestCase {
 
     private static final String INDEX_NAME = "test-convert-to-frozen-mark-readonly";
+    private static final String REPO_NAME = "test-repo";
     private XPackLicenseState licenseState;
 
     private static void assertIndexWriteBlock(boolean expected) {
@@ -87,10 +98,11 @@ public class DLMConvertToFrozenMarkReadOnlyIT extends ESIntegTestCase {
      * Tests that calling maybeMarkIndexReadOnly on an index without a write block
      * successfully adds the WRITE block to the index.
      */
-    public void testMarkIndexReadOnlyAddsWriteBlock() {
+    public void testMarkIndexReadOnlyAddsWriteBlock() throws Exception {
         internalCluster().startNode();
         createIndex(INDEX_NAME, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build());
         ensureGreen(INDEX_NAME);
+        setupRepoAndIndexMetadata();
 
         // verify the index does not have a WRITE block before calling the method
         assertIndexWriteBlock(false);
@@ -115,10 +127,11 @@ public class DLMConvertToFrozenMarkReadOnlyIT extends ESIntegTestCase {
      * Tests that an index with a non-WRITE block (e.g., READ) still gets a WRITE block
      * added by maybeMarkIndexReadOnly, since only WRITE blocks are checked.
      */
-    public void testMarkIndexReadOnlyAddsWriteBlockEvenWhenReadBlockExists() {
+    public void testMarkIndexReadOnlyAddsWriteBlockEvenWhenReadBlockExists() throws Exception {
         internalCluster().startNode();
         createIndex(INDEX_NAME, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build());
         ensureGreen(INDEX_NAME);
+        setupRepoAndIndexMetadata();
 
         // Add a READ block (not WRITE)
         AddIndexBlockRequest addReadBlockRequest = new AddIndexBlockRequest(READ, INDEX_NAME);
@@ -146,7 +159,7 @@ public class DLMConvertToFrozenMarkReadOnlyIT extends ESIntegTestCase {
      * Tests that calling maybeMarkIndexReadOnly on an index that was created with
      * multiple shards successfully adds the WRITE block.
      */
-    public void testMarkIndexReadOnlyOnMultiShardIndex() {
+    public void testMarkIndexReadOnlyOnMultiShardIndex() throws Exception {
         internalCluster().startNode();
         int numShards = randomIntBetween(2, 5);
         createIndex(
@@ -157,6 +170,7 @@ public class DLMConvertToFrozenMarkReadOnlyIT extends ESIntegTestCase {
                 .build()
         );
         ensureGreen(INDEX_NAME);
+        setupRepoAndIndexMetadata();
         assertIndexWriteBlock(false);
 
         DLMConvertToFrozen converter = new DLMConvertToFrozen(
@@ -181,10 +195,11 @@ public class DLMConvertToFrozenMarkReadOnlyIT extends ESIntegTestCase {
      * making any cluster state changes (verified by checking that the index metadata
      * settings version and cluster state version remain unchanged after the second call).
      */
-    public void testMarkIndexReadOnlyCalledTwiceSuccessfully() {
+    public void testMarkIndexReadOnlyCalledTwiceSuccessfully() throws Exception {
         internalCluster().startNode();
         createIndex(INDEX_NAME, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build());
         ensureGreen(INDEX_NAME);
+        setupRepoAndIndexMetadata();
 
         ClusterService clusterService = internalCluster().clusterService();
 
@@ -243,7 +258,7 @@ public class DLMConvertToFrozenMarkReadOnlyIT extends ESIntegTestCase {
      * shard-level block verification step fails due to a transport-level failure.
      * Uses MockTransportService to inject an exception at the shard verification action.
      */
-    public void testMarkIndexReadOnlyThrowsOnShardVerificationFailure() {
+    public void testMarkIndexReadOnlyThrowsOnShardVerificationFailure() throws Exception {
         internalCluster().startMasterOnlyNode();
         String dataNode = internalCluster().startDataOnlyNode();
         ensureStableCluster(2);
@@ -253,14 +268,13 @@ public class DLMConvertToFrozenMarkReadOnlyIT extends ESIntegTestCase {
             Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
         );
         ensureGreen(INDEX_NAME);
+        setupRepoAndIndexMetadata();
 
         // Inject a transport-level failure on the shard verification step
         MockTransportService dataNodeTransport = MockTransportService.getInstance(dataNode);
         dataNodeTransport.addRequestHandlingBehavior(
             TransportVerifyShardIndexBlockAction.TYPE.name(),
-            (handler, request, channel, task) -> {
-                channel.sendResponse(new ElasticsearchException("simulated shard verification failure"));
-            }
+            (handler, request, channel, task) -> channel.sendResponse(new ElasticsearchException("simulated shard verification failure"))
         );
 
         try {
@@ -304,8 +318,9 @@ public class DLMConvertToFrozenMarkReadOnlyIT extends ESIntegTestCase {
         // Delete the index after the converter is constructed but before calling maybeMarkIndexReadOnly
         assertAcked(indicesAdmin().prepareDelete(INDEX_NAME));
 
+        // checkIfEligibleForConvertToFrozen detects the missing index and throws IndexNotFoundException
         ElasticsearchException exception = expectThrows(ElasticsearchException.class, converter::maybeMarkIndexReadOnly);
-        assertThat(exception.getMessage(), containsString("DLM unable to mark index"));
+        assertThat(exception.getMessage(), containsString("no such index"));
     }
 
     /**
@@ -324,6 +339,7 @@ public class DLMConvertToFrozenMarkReadOnlyIT extends ESIntegTestCase {
             Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
         );
         ensureGreen(INDEX_NAME);
+        setupRepoAndIndexMetadata();
         assertIndexWriteBlock(false);
 
         DLMConvertToFrozen converter = new DLMConvertToFrozen(
@@ -347,5 +363,49 @@ public class DLMConvertToFrozenMarkReadOnlyIT extends ESIntegTestCase {
         // Verify the WRITE block survived the master failover
         assertIndexWriteBlock(true);
         assertIndexVerifiedReadOnly();
+    }
+
+    /**
+     * Sets up the snapshot repository and adds the required custom index metadata
+     * ({@code data_stream_lifecycle -> dlm_freeze_with -> REPO_NAME}) so that
+     * {@link DLMConvertToFrozen#checkIfEligibleForConvertToFrozen()} passes.
+     */
+    private void setupRepoAndIndexMetadata() throws Exception {
+        // Create a snapshot repository
+        Path repoPath = randomRepoPath();
+        assertAcked(
+            clusterAdmin().preparePutRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, REPO_NAME)
+                .setType("fs")
+                .setSettings(Settings.builder().put("location", repoPath))
+        );
+
+        // Add the required custom metadata to the index via a cluster state update
+        PlainActionFuture<Void> future = new PlainActionFuture<>();
+        internalCluster().clusterService(internalCluster().getMasterName())
+            .createTaskQueue("test-add-frozen-metadata", Priority.NORMAL, new SimpleBatchedExecutor<>() {
+                @Override
+                public Tuple<ClusterState, Object> executeTask(
+                    ClusterStateTaskListener clusterStateTaskListener,
+                    ClusterState clusterState
+                ) {
+                    ProjectMetadata projectMetadata = clusterState.metadata().getProject(Metadata.DEFAULT_PROJECT_ID);
+                    IndexMetadata indexMetadata = projectMetadata.index(INDEX_NAME);
+                    IndexMetadata updatedMetadata = IndexMetadata.builder(indexMetadata)
+                        .putCustom(
+                            DataStreamsPlugin.LIFECYCLE_CUSTOM_INDEX_METADATA_KEY,
+                            Map.of(DataStreamLifecycleService.FROZEN_CANDIDATE_REPOSITORY_METADATA_KEY, REPO_NAME)
+                        )
+                        .build();
+                    ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(projectMetadata).put(updatedMetadata, true);
+                    return Tuple.tuple(ClusterState.builder(clusterState).putProjectMetadata(projectBuilder.build()).build(), null);
+                }
+
+                @Override
+                public void taskSucceeded(ClusterStateTaskListener clusterStateTaskListener, Object ignored) {
+                    future.onResponse(null);
+                }
+            })
+            .submitTask("test-add-frozen-metadata", future::onFailure, null);
+        future.actionGet();
     }
 }

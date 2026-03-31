@@ -19,6 +19,7 @@ package org.elasticsearch.xpack.stateless;
 
 import org.elasticsearch.xpack.stateless.commits.ClosedShardService;
 import org.elasticsearch.xpack.stateless.commits.HollowShardsService;
+import org.elasticsearch.xpack.stateless.memory.StatelessMemoryMetricsService;
 import org.elasticsearch.xpack.stateless.utils.SearchShardSizeCollector;
 
 /**
@@ -32,6 +33,7 @@ public interface StatelessExtensionProvider {
     default void onServicesCreated(
         ClosedShardService closedShardService,
         HollowShardsService hollowShardsService,
-        SearchShardSizeCollector searchShardSizeCollector
+        SearchShardSizeCollector searchShardSizeCollector,
+        StatelessMemoryMetricsService statelessMemoryMetricsService
     ) {}
 }

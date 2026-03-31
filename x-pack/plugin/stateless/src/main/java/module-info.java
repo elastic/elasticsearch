@@ -15,9 +15,11 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
+import org.elasticsearch.cluster.EstimatedHeapUsageCollector;
 import org.elasticsearch.cluster.metadata.TemplateDecoratorProvider;
 import org.elasticsearch.repositories.SnapshotShardContextFactory;
 import org.elasticsearch.snapshots.IndexMetadataRestoreTransformer;
+import org.elasticsearch.xpack.stateless.memory.StatelessHeapUsageCollector;
 import org.elasticsearch.xpack.stateless.recovery.StatelessRestoreTransformer;
 import org.elasticsearch.xpack.stateless.snapshots.StatelessSnapshotShardContextFactory;
 import org.elasticsearch.xpack.stateless.templates.StatelessTemplateSettingsDecoratorProvider;
@@ -52,7 +54,7 @@ module org.elasticsearch.xpack.stateless {
     exports org.elasticsearch.xpack.stateless.objectstore to org.elasticsearch.server, org.elasticsearch.serverless.stateless;
     exports org.elasticsearch.xpack.stateless.cache to org.elasticsearch.server, org.elasticsearch.serverless.stateless;
     exports org.elasticsearch.xpack.stateless.lucene to org.elasticsearch.serverless.stateless;
-    exports org.elasticsearch.xpack.stateless.memory to org.elasticsearch.serverless.stateless;
+    exports org.elasticsearch.xpack.stateless.memory to org.elasticsearch.server, org.elasticsearch.serverless.stateless;
     exports org.elasticsearch.xpack.stateless.reshard to org.elasticsearch.server, org.elasticsearch.serverless.stateless;
     exports org.elasticsearch.xpack.stateless.utils to org.elasticsearch.server, org.elasticsearch.serverless.stateless;
 
@@ -70,4 +72,5 @@ module org.elasticsearch.xpack.stateless {
     provides IndexMetadataRestoreTransformer with StatelessRestoreTransformer;
     provides SnapshotShardContextFactory with StatelessSnapshotShardContextFactory;
     provides TemplateDecoratorProvider with StatelessTemplateSettingsDecoratorProvider;
+    provides EstimatedHeapUsageCollector with StatelessHeapUsageCollector;
 }

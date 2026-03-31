@@ -137,7 +137,7 @@ stack: ga 9.2
 :::{note}
 This feature requires an [Enterprise subscription](https://www.elastic.co/subscriptions).
 
-In {{stack}} 9.4+, `bbq_disk` can be selected as the default index type for `dense_vector` when it is available under the current license.
+{applies_to}`stack: ga 9.4+` `bbq_disk` can be selected as the default index type for `dense_vector` when it is available under the current license.
 :::
 
 When you set a dense vector field’s `index_options` parameter to `type: bbq_disk`, {{es}} uses the DiskBBQ algorithm, a disk-based alternative to HNSW for [kNN search](docs-content://solutions/search/vector/knn.md) on compressed vectors. DiskBBQ stores the vector data on disk instead of in memory, lowering RAM requirements and reducing the overall cost of vector storage and search.

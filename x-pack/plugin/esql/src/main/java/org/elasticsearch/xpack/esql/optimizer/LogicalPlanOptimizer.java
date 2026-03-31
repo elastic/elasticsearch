@@ -14,7 +14,6 @@ import org.elasticsearch.xpack.esql.optimizer.rules.PruneInlineJoinOnEmptyRightS
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ApplyWindowFilter;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.BooleanFunctionEqualsElimination;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.BooleanSimplification;
-import org.elasticsearch.xpack.esql.optimizer.rules.logical.CheckTemporalitySupport;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.CombineBinaryComparisons;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.CombineDisjunctions;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.CombineEvals;
@@ -166,7 +165,6 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             // translate metric aggregates early before they are converted to nested expressions
             new TranslateTimeSeriesAggregate(),
             new ApplyWindowFilter(),
-            new CheckTemporalitySupport(),
             new PruneUnusedIndexMode(),
             // first extract nested expressions inside aggs
             new ReplaceAggregateNestedExpressionWithEval(),

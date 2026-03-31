@@ -40,8 +40,6 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
 
 public class Rate extends TimeSeriesAggregateFunction implements OptionalArgument, ToAggregator, TemporalityAware {
 
-    static final TransportVersion TEMPORALITY_PARAMETER_ADDED = TransportVersion.fromName("esql_rate_temporality_parameter_added");
-
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Rate", Rate::readFrom);
 
     private final Expression timestamp;
@@ -98,15 +96,7 @@ public class Rate extends TimeSeriesAggregateFunction implements OptionalArgumen
     }
 
     private static Rate readFrom(StreamInput in) throws IOException {
-        return readFrom(in, (source, field, filter, window, parameters) -> {
-            if (in.getTransportVersion().supports(TEMPORALITY_PARAMETER_ADDED)) {
-                return new Rate(source, field, filter, window, parameters.getFirst(), parameters.size() > 1 ? parameters.get(1) : null);
-            } else {
-                // we are deserializing from a node which doesn't support temporalities yet, so we assume that temporality is unsupported
-                assert parameters.size() == 1 : "Expected to only deserialize the timestamp parameter";
-                return new Rate(source, field, filter, window, parameters.getFirst(), TEMPORALITY_UNSUPPORTED_MARKER);
-            }
-        });
+        return readFrom(in, (source, field, filter, window, parameters) -> new Rate(source, field, filter, window, parameters.getFirst(), parameters.size() > 1 ? parameters.get(1) : null));
     }
 
     @Override
@@ -191,20 +181,8 @@ public class Rate extends TimeSeriesAggregateFunction implements OptionalArgumen
     }
 
     @Override
-    public Temporality defaultTemporality() {
-        return Temporality.CUMULATIVE;
-    }
-
-    @Override
-    public Expression checkTemporalitySupport(TransportVersion version) {
-        // TODO: for testing temporality support, this can be replaced with
-        // return this;
-        return withTemporality(TEMPORALITY_UNSUPPORTED_MARKER);
-    }
-
-    @Override
-    public Rate withTemporality(Expression injectedTemporality) {
-        return new Rate(source(), field(), filter(), window(), timestamp, injectedTemporality);
+    public Rate withTemporality(Expression newTemporality) {
+        return new Rate(source(), field(), filter(), window(), timestamp, newTemporality);
     }
 
     @Override

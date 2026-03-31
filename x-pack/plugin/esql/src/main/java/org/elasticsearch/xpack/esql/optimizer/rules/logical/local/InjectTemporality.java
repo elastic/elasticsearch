@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.optimizer.rules.logical.local;
 
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.TemporalityAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -40,68 +41,17 @@ public final class InjectTemporality extends ParameterizedRule<LogicalPlan, Logi
     private TimeSeriesAggregate transform(TimeSeriesAggregate tsAgg, LocalLogicalOptimizerContext context) {
         TimeSeriesAggregate transformed;
         transformed = (TimeSeriesAggregate) tsAgg.transformExpressionsOnly(AggregateFunction.class, agg -> {
-            if (agg instanceof TemporalityAware temporalityAware) {
-                if (TemporalityAware.TEMPORALITY_UNSUPPORTED_MARKER.equals(temporalityAware.temporality())) {
-                    // if the function doesn't support temporality on all nodes, make sure to filter out unsupported data
-                    return filterOutTemporalitiesOtherThan(agg, temporalityAware.defaultTemporality(), context);
-                } else if (temporalityAware.temporality() == null) {
-                    // temporality is supported, but has not been explicitly provided as a parameter
-                    // so we inject the temporality column
-                    return temporalityAware.withTemporality(createTemporalityAttributeFor(agg));
+            if (agg instanceof TemporalityAware temporalityAware && temporalityAware.temporality() == null) {
+                if (IndexSettings.TIME_SERIES_TEMPORALITY_FEATURE_FLAG.isEnabled()) {
+                    return temporalityAware.withTemporality(new TemporalityAttribute(agg.source()));
+                } else {
+                    // inject a placeholder so that the aggregators are always invoked with the expected number of arguments
+                    return temporalityAware.withTemporality(Literal.NULL);
                 }
             }
             return agg;
         });
         return injectTemporalityAttributesIntoEsRelation(transformed);
-    }
-
-    private static TemporalityAttribute createTemporalityAttributeFor(AggregateFunction agg) {
-        return new TemporalityAttribute(agg.source());
-    }
-
-    private AggregateFunction filterOutTemporalitiesOtherThan(
-        AggregateFunction agg,
-        TemporalityAware.Temporality defaultTemporality,
-        LocalLogicalOptimizerContext context
-    ) {
-        Set<FieldAttribute.FieldName> temporalityFieldNames = context.searchStats()
-            .targetShards()
-            .values()
-            .stream()
-            .map(shard -> IndexSettings.TIME_SERIES_TEMPORALITY_FIELD.get(shard.getSettings()))
-            .filter(name -> name != null && name.isBlank() == false)
-            .map(FieldAttribute.FieldName::new)
-            .filter(fieldName -> context.searchStats().exists(fieldName))
-            .collect(Collectors.toSet());
-
-        // TODO: refine this check: use skipper min/max values to detect the actually used temporality values
-        // and filter based on that instead of just the presence of the field name
-        if (temporalityFieldNames.isEmpty()) {
-            // We do support temporality on this node, but there there is no temporality data in the involved shards
-            // so we don't have to filter anything out and don't need to warn about it
-            return agg;
-        }
-
-        Source source = agg.source();
-        addWarning(
-            "The aggregate function [{}] operates on data that may contain unsupported temporality data; "
-                + "unsupported data will be filtered out, upgrade older nodes to support querying this data",
-            source
-        );
-
-        TemporalityAttribute tempAttrib = createTemporalityAttributeFor(agg);
-        var condition = new Or(
-            agg.source(),
-            new Equals(agg.source(), tempAttrib, defaultTemporality.literal()),
-            new IsNull(agg.source(), tempAttrib)
-        );
-        AggregateFunction result;
-        if (agg.filter() == null) {
-            result = agg.withFilter(condition);
-        } else {
-            result = agg.withFilter(new And(agg.source(), agg.filter(), condition));
-        }
-        return ((TemporalityAware) result).withTemporality(null);
     }
 
     private static TimeSeriesAggregate injectTemporalityAttributesIntoEsRelation(TimeSeriesAggregate tsAgg) {

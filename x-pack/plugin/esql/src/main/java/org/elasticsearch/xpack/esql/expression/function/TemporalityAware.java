@@ -22,34 +22,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.TimeSeriesAggr
  */
 public interface TemporalityAware extends TimestampAware {
 
-    enum Temporality {
-        CUMULATIVE("cumulative"),
-        DELTA("delta");
-
-        private final Literal literal;
-        private final BytesRef bytesRef;
-
-        Temporality(String name) {
-            this.bytesRef = new BytesRef(name);
-            this.literal = Literal.keyword(Source.EMPTY, name);
-        }
-
-        public Literal literal() {
-            return literal;
-        }
-
-        public BytesRef bytesRef() {
-            return bytesRef;
-        }
-    }
-
-    Literal TEMPORALITY_UNSUPPORTED_MARKER = Literal.keyword(Source.EMPTY, "temporality_unsupported");
-
-    Expression checkTemporalitySupport(TransportVersion version);
-
     Expression temporality();
-
-    Temporality defaultTemporality();
 
     TimeSeriesAggregateFunction withTemporality(Expression injectedTemporality);
 }

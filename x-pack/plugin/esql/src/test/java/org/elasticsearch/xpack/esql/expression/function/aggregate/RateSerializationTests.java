@@ -50,12 +50,4 @@ public class RateSerializationTests extends AbstractExpressionSerializationTests
         return new Rate(source, field, filter, window, timestamp, temporality);
     }
 
-    public void testTemporalityUnsupportedBWCDeserialization() throws IOException {
-        Rate instance = Rate.createWithImplicitTemporality(randomSource(), randomChild(), randomChild(), randomChild());
-        TransportVersion oldVersion = TransportVersionUtils.getPreviousVersion(Rate.TEMPORALITY_PARAMETER_ADDED);
-
-        Rate copy = copyInstance(instance, oldVersion);
-        assertThat(copy.timestamp(), equalTo(instance.timestamp()));
-        assertThat(copy.temporality(), sameInstance(TemporalityAware.TEMPORALITY_UNSUPPORTED_MARKER));
-    }
 }

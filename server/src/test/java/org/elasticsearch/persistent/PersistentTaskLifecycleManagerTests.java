@@ -446,12 +446,6 @@ public class PersistentTaskLifecycleManagerTests extends ESTestCase {
         };
     }
 
-    /// Returns a new [ClusterState] with a fresh [Metadata] reference but identical content,
-    /// so that `metadataChanged()` returns `true` without allocating new discovery nodes.
-    private static ClusterState withFreshMetadata(ClusterState base) {
-        return ClusterState.builder(base).metadata(Metadata.builder(base.metadata())).build();
-    }
-
     private static ClusterState stateWithPersistentSetting(ClusterState state, String key, boolean value) {
         return ClusterState.builder(state)
             .metadata(Metadata.builder(state.metadata()).persistentSettings(Settings.builder().put(key, value).build()))

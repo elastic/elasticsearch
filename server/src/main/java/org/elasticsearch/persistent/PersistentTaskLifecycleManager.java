@@ -133,7 +133,7 @@ public final class PersistentTaskLifecycleManager implements ClusterStateListene
         if (event.localNodeMaster() == false) {
             return;
         }
-        if (event.metadataChanged() == false && event.nodesChanged() == false) {
+        if (event.metadataChanged() == false && event.previousState().nodes().isLocalNodeElectedMaster()) {
             return;
         }
         reconcile(event.state());
@@ -182,7 +182,7 @@ public final class PersistentTaskLifecycleManager implements ClusterStateListene
                     onClusterTaskStartRequestComplete(reg);
                 } else {
                     logger.warn(() -> "Failed to create [" + reg.taskName() + "] task", e);
-                    reg.inFlightRequest().set(InFlightRequest.NONE);
+                    onClusterTaskRequestFailure(reg);
                 }
             })
         );
@@ -201,16 +201,31 @@ public final class PersistentTaskLifecycleManager implements ClusterStateListene
                     onClusterTaskRemoveRequestComplete(reg);
                 } else {
                     logger.warn(() -> "Failed to remove [" + reg.taskName() + "] task", e);
-                    reg.inFlightRequest().set(InFlightRequest.NONE);
+                    onClusterTaskRequestFailure(reg);
                 }
             })
         );
     }
 
+    private void onClusterTaskRequestFailure(ClusterTaskRegistration reg) {
+        reg.inFlightRequest().set(InFlightRequest.NONE);
+        if (clusterService.state().nodes().isLocalNodeElectedMaster() == false) {
+            return;
+        }
+        if (reg.enabled().getAsBoolean()) {
+            sendClusterTaskStartRequest(reg);
+        } else {
+            sendClusterTaskRemoveRequest(reg);
+        }
+    }
+
     private void onClusterTaskStartRequestComplete(ClusterTaskRegistration reg) {
         logger.debug("Created [{}] task", reg.taskName());
         reg.inFlightRequest().set(InFlightRequest.NONE);
-        if (clusterService.state().nodes().isLocalNodeElectedMaster() && reg.enabled().getAsBoolean() == false) {
+        if (clusterService.state().nodes().isLocalNodeElectedMaster() == false) {
+            return;
+        }
+        if (reg.enabled().getAsBoolean() == false) {
             sendClusterTaskRemoveRequest(reg);
         }
     }
@@ -218,7 +233,10 @@ public final class PersistentTaskLifecycleManager implements ClusterStateListene
     private void onClusterTaskRemoveRequestComplete(ClusterTaskRegistration reg) {
         logger.debug("Removed [{}] task", reg.taskName());
         reg.inFlightRequest().set(InFlightRequest.NONE);
-        if (clusterService.state().nodes().isLocalNodeElectedMaster() && reg.enabled().getAsBoolean()) {
+        if (clusterService.state().nodes().isLocalNodeElectedMaster() == false) {
+            return;
+        }
+        if (reg.enabled().getAsBoolean()) {
             sendClusterTaskStartRequest(reg);
         }
     }
@@ -252,7 +270,7 @@ public final class PersistentTaskLifecycleManager implements ClusterStateListene
                     onProjectTaskStartRequestComplete(reg, projectId, taskId);
                 } else {
                     logger.warn(() -> "Failed to create [" + reg.taskName() + "] task for project [" + projectId + "]", e);
-                    reg.inFlightRequests().get(projectId).set(InFlightRequest.NONE);
+                    onProjectTaskRequestFailure(reg, projectId, taskId);
                 }
             })
         );
@@ -272,16 +290,33 @@ public final class PersistentTaskLifecycleManager implements ClusterStateListene
                     onProjectTaskRemoveRequestComplete(reg, projectId, taskId);
                 } else {
                     logger.warn(() -> "Failed to remove [" + reg.taskName() + "] task for project [" + projectId + "]", e);
-                    reg.inFlightRequests().get(projectId).set(InFlightRequest.NONE);
+                    onProjectTaskRequestFailure(reg, projectId, taskId);
                 }
             })
         );
     }
 
+    private void onProjectTaskRequestFailure(ProjectTaskRegistration reg, ProjectId projectId, String taskId) {
+        reg.inFlightRequests().get(projectId).set(InFlightRequest.NONE);
+        final var state = clusterService.state();
+        if (state.nodes().isLocalNodeElectedMaster() == false || state.metadata().projects().containsKey(projectId) == false) {
+            return;
+        }
+        if (reg.enabled().getAsBoolean()) {
+            sendProjectTaskStartRequest(reg, projectId, taskId);
+        } else {
+            sendProjectTaskRemoveRequest(reg, projectId, taskId);
+        }
+    }
+
     private void onProjectTaskStartRequestComplete(ProjectTaskRegistration reg, ProjectId projectId, String taskId) {
         logger.debug("Created [{}] task for project [{}]", reg.taskName(), projectId);
         reg.inFlightRequests().get(projectId).set(InFlightRequest.NONE);
-        if (clusterService.state().nodes().isLocalNodeElectedMaster() && reg.enabled().getAsBoolean() == false) {
+        final var state = clusterService.state();
+        if (state.nodes().isLocalNodeElectedMaster() == false || state.metadata().projects().containsKey(projectId) == false) {
+            return;
+        }
+        if (reg.enabled().getAsBoolean() == false) {
             sendProjectTaskRemoveRequest(reg, projectId, taskId);
         }
     }
@@ -289,7 +324,11 @@ public final class PersistentTaskLifecycleManager implements ClusterStateListene
     private void onProjectTaskRemoveRequestComplete(ProjectTaskRegistration reg, ProjectId projectId, String taskId) {
         logger.debug("Removed [{}] task for project [{}]", reg.taskName(), projectId);
         reg.inFlightRequests().get(projectId).set(InFlightRequest.NONE);
-        if (clusterService.state().nodes().isLocalNodeElectedMaster() && reg.enabled().getAsBoolean()) {
+        final var state = clusterService.state();
+        if (state.nodes().isLocalNodeElectedMaster() == false || state.metadata().projects().containsKey(projectId) == false) {
+            return;
+        }
+        if (reg.enabled().getAsBoolean()) {
             sendProjectTaskStartRequest(reg, projectId, taskId);
         }
     }

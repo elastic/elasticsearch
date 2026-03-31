@@ -6,7 +6,7 @@ Prometheus scrapes itself and forwards samples to Elasticsearch via the Promethe
 ## Files
 
 - `prometheus.yml` configures `scrape_configs` and `remote_write`.
-- `docker-compose.yml` runs Prometheus on port `9090` and Kibana on port `5601`.
+- `docker-compose.yml` runs Prometheus on port `9090`, Kibana on port `5601`, and Grafana on port `3000`.
 
 ## Start
 
@@ -32,6 +32,9 @@ docker compose up -d
 - Prometheus UI: `http://localhost:9090`
 - Targets page: `http://localhost:9090/targets` (the `prometheus` job should be `UP`)
 - Kibana UI: `http://localhost:5601`
+- Grafana UI: `http://localhost:3000` (admin/password)
+  - Elasticsearch is pre-configured as a Prometheus data source
+  - A Prometheus overview dashboard is automatically imported on first start
 - Remote write health in Prometheus UI (example query):
   - `rate(prometheus_remote_storage_samples_total[1m])`
 - Query PromQL in Kibana Discover (example query):

@@ -34,21 +34,13 @@ public class CountApproximateGroupingAggregatorFunction implements GroupingAggre
     private final DriverContext driverContext;
     private final boolean countAll;
 
-    public static CountApproximateGroupingAggregatorFunction create(DriverContext driverContext, List<Integer> inputChannels) {
-        return new CountApproximateGroupingAggregatorFunction(
-            inputChannels,
-            new DoubleArrayState(driverContext.bigArrays(), 0),
-            driverContext
-        );
-    }
-
     public static List<IntermediateStateDesc> intermediateStateDesc() {
         return INTERMEDIATE_STATE_DESC;
     }
 
-    protected CountApproximateGroupingAggregatorFunction(List<Integer> channels, DoubleArrayState state, DriverContext driverContext) {
+    CountApproximateGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext) {
         this.channels = channels;
-        this.state = state;
+        this.state = new DoubleArrayState(driverContext.bigArrays(), 0);
         this.driverContext = driverContext;
         this.countAll = channels.isEmpty();
     }

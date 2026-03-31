@@ -123,6 +123,7 @@ toc:
                   - file: esql/commands/keep.md
                   - file: esql/commands/limit.md
                   - file: esql/commands/lookup-join.md
+                  - file: esql/commands/mmr.md
                   - file: esql/commands/mv_expand.md
                   - file: esql/commands/registered-domain.md
                   - file: esql/commands/rename.md
@@ -147,6 +148,7 @@ toc:
                   - file: esql/functions-operators/aggregation-functions/percentile.md
                   - file: esql/functions-operators/aggregation-functions/present.md
                   - file: esql/functions-operators/aggregation-functions/sample.md
+                  - file: esql/functions-operators/aggregation-functions/sparkline.md
                   - file: esql/functions-operators/aggregation-functions/st_centroid_agg.md
                   - file: esql/functions-operators/aggregation-functions/st_extent_agg.md
                   - file: esql/functions-operators/aggregation-functions/std_dev.md

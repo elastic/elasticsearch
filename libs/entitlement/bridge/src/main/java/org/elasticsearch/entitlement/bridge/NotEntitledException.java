@@ -9,9 +9,7 @@
 
 package org.elasticsearch.entitlement.bridge;
 
-import java.security.AccessControlException;
-
-public class NotEntitledException extends AccessControlException {
+public class NotEntitledException extends RuntimeException {
     public NotEntitledException(String message) {
         super(message);
     }

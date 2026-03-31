@@ -49,7 +49,7 @@ static inline int32_t doti7u_inner(const int8_t* a, const int8_t* b, const int32
 EXPORT int32_t vec_doti7u(const int8_t* a, const int8_t* b, const int32_t dims) {
     int32_t res = 0;
     int i = 0;
-    if (dims > STRIDE_BYTES_LEN) {
+    if (dims >= STRIDE_BYTES_LEN) {
         i += dims & ~(STRIDE_BYTES_LEN - 1);
         res = doti7u_inner(a, b, i);
     }
@@ -92,16 +92,19 @@ static inline void call_i8_bulk(
     // execution units busy. For this "older" generation of x64 processors
     // (supporting AVX2, but not AVX-512), benchmarks show that a batch of 2
     // is ideal -- more, and it starts to hurt performances due to bandwidth
-    for (; c + 2 * batches - 1 < count; c += batches) {
+    for (; c + batches - 1 < count; c += batches) {
         // apply_indexed is a compile-time loop: the compiler unrolls it into
         // `batches` copies of the lambda body, each with I as a compile-time
         // constant (0, 1, ..., batches-1). The [&] capture has no runtime
         // cost -- it just lets the lambda reference local variables inline.
         const int8_t* next_vecs[batches];
-        apply_indexed<batches>([&](auto I) {
-            next_vecs[I] = mapper(a, c + batches + I, offsets, pitch);
-            prefetch(next_vecs[I], lines_to_fetch);
-        });
+        const bool has_next = c + 2 * batches - 1 < count;
+        if (has_next) {
+            apply_indexed<batches>([&](auto I) {
+                next_vecs[I] = mapper(a, c + batches + I, offsets, pitch);
+                prefetch(next_vecs[I], lines_to_fetch);
+            });
+        }
 
         int32_t res[batches] = {};  // needs to be initialized to 0
         int i = 0;
@@ -121,7 +124,9 @@ static inline void call_i8_bulk(
         apply_indexed<batches>([&](auto I) {
             results[c + I] = (f32_t)res[I];
         });
-        std::copy_n(next_vecs, batches, current_vecs);
+        if (has_next) {
+            std::copy_n(next_vecs, batches, current_vecs);
+        }
     }
 
     // Tail-handling: remaining vectors
@@ -180,7 +185,7 @@ static inline int32_t sqri7u_inner(const int8_t* a, const int8_t* b, const int32
 EXPORT int32_t vec_sqri7u(const int8_t* a, const int8_t* b, const int32_t dims) {
     int32_t res = 0;
     int i = 0;
-    if (dims > STRIDE_BYTES_LEN) {
+    if (dims >= STRIDE_BYTES_LEN) {
         i += dims & ~(STRIDE_BYTES_LEN - 1);
         res = sqri7u_inner(a, b, i);
     }
@@ -266,7 +271,7 @@ static inline cosine_results_t cosi8_inner(const int8_t* a, const int8_t* b, con
 EXPORT f32_t vec_cosi8(const int8_t* a, const int8_t* b, const int32_t dims) {
     cosine_results_t res = cosine_results_t { 0, 0, 0 };
     int i = 0;
-    if (dims > sizeof(__m128i)) {
+    if (dims >= sizeof(__m128i)) {
         i += dims & ~(sizeof(__m128i) - 1);
         res = cosi8_inner(a, b, i);
     }
@@ -319,13 +324,19 @@ static inline void cosi8_inner_bulk(
     // (supporting AVX2, but not AVX-512), benchmarks show that a batch of 2
     // is ideal -- more, and it starts to hurt performances due to bandwidth
     static_assert(batches % 2 == 0, "batches must be even for vectorized cosine");
-    for (; c + 2 * batches - 1 < count; c += batches) {
+    for (; c + batches - 1 < count; c += batches) {
         const int8_t* next_vecs[batches];
+        const bool has_next = c + 2 * batches - 1 < count;
+        if (has_next) {
+            apply_indexed<batches>([&](auto I) {
+                next_vecs[I] = mapper(a, c + batches + I, offsets, pitch);
+                prefetch(next_vecs[I], lines_to_fetch);
+            });
+        }
+
         __m256i sums[batches];
         __m256i a_norms[batches];
         apply_indexed<batches>([&](auto I) {
-            next_vecs[I] = mapper(a, c + batches + I, offsets, pitch);
-            prefetch(next_vecs[I], lines_to_fetch);
             sums[I] = _mm256_setzero_si256();
             a_norms[I] = _mm256_setzero_si256();
         });
@@ -383,7 +394,9 @@ static inline void cosi8_inner_bulk(
             _mm_maskstore_ps(results + c + j, _mm_setr_epi32(-1, -1, 0, 0), res);
         }
 
-        std::copy_n(next_vecs, batches, current_vecs);
+        if (has_next) {
+            std::copy_n(next_vecs, batches, current_vecs);
+        }
     }
 
     // Tail-handling: remaining vectors
@@ -445,7 +458,7 @@ static inline int32_t doti8_inner(const int8_t* a, const int8_t* b, const int32_
 EXPORT f32_t vec_doti8(const int8_t* a, const int8_t* b, const int32_t dims) {
     int32_t res = 0;
     int i = 0;
-    if (dims > sizeof(__m128i)) {
+    if (dims >= sizeof(__m128i)) {
         i += dims & ~(sizeof(__m128i) - 1);
         res = doti8_inner(a, b, i);
     }
@@ -530,7 +543,7 @@ static inline int32_t sqri8_inner(const int8_t* a, const int8_t* b, const int32_
 EXPORT f32_t vec_sqri8(const int8_t* a, const int8_t* b, const int32_t dims) {
     int32_t res = 0;
     int i = 0;
-    if (dims > sizeof(__m128i)) {
+    if (dims >= sizeof(__m128i)) {
         i += dims & ~(sizeof(__m128i) - 1);
         res = sqri8_inner(a, b, i);
     }

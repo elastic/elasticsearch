@@ -16,10 +16,10 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.index.reindex.PaginatedHitSource.BasicHit;
-import org.elasticsearch.index.reindex.PaginatedHitSource.Hit;
-import org.elasticsearch.index.reindex.PaginatedHitSource.Response;
-import org.elasticsearch.index.reindex.PaginatedHitSource.SearchFailure;
+import org.elasticsearch.index.reindex.PaginatedSearchFailure;
+import org.elasticsearch.reindex.PaginatedHitSource.BasicHit;
+import org.elasticsearch.reindex.PaginatedHitSource.Hit;
+import org.elasticsearch.reindex.PaginatedHitSource.Response;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
@@ -129,7 +129,7 @@ final class RemoteResponseParsers {
     /**
      * Parser for {@code failed} shards in the {@code _shards} elements.
      */
-    public static final ConstructingObjectParser<SearchFailure, Void> SEARCH_FAILURE_PARSER = new ConstructingObjectParser<>(
+    public static final ConstructingObjectParser<PaginatedSearchFailure, Void> SEARCH_FAILURE_PARSER = new ConstructingObjectParser<>(
         "failure",
         true,
         a -> {
@@ -145,7 +145,7 @@ final class RemoteResponseParsers {
             } else {
                 reasonThrowable = (Throwable) reason;
             }
-            return new SearchFailure(reasonThrowable, index, shardId, nodeId);
+            return new PaginatedSearchFailure(reasonThrowable, index, shardId, nodeId);
         }
     );
     static {
@@ -186,13 +186,13 @@ final class RemoteResponseParsers {
             int i = 0;
             Throwable catastrophicFailure = (Throwable) a[i++];
             if (catastrophicFailure != null) {
-                return new Response(false, singletonList(new SearchFailure(catastrophicFailure)), 0, emptyList(), null);
+                return new Response(false, singletonList(new PaginatedSearchFailure(catastrophicFailure)), 0, emptyList(), null);
             }
             boolean timedOut = Boolean.TRUE.equals(a[i++]);
             String scroll = (String) a[i++];
             Object[] hitsElement = (Object[]) a[i++];
             @SuppressWarnings("unchecked")
-            List<SearchFailure> failures = (List<SearchFailure>) a[i++];
+            List<PaginatedSearchFailure> failures = (List<PaginatedSearchFailure>) a[i++];
             BytesReference pitId = (BytesReference) a[i++];
 
             long totalHits = 0;

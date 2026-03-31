@@ -9,9 +9,13 @@
 
 package org.elasticsearch.xpack.logsdb;
 
+import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.Response;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexFeatures;
 import org.elasticsearch.test.rest.ObjectPath;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -20,6 +24,7 @@ import java.util.Map;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.backingIndexEqualTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
 
 public class TsdbIT extends AbstractLogsdbRollingUpgradeTestCase {
 
@@ -176,6 +181,10 @@ public class TsdbIT extends AbstractLogsdbRollingUpgradeTestCase {
         String secondBackingIndex = ObjectPath.evaluate(dataStreams, "data_streams.0.indices.1.index_name");
         assertThat(secondBackingIndex, backingIndexEqualTo(dataStreamName, 2));
         indexDoc(dataStreamName);
+        // maybe force merge
+        if (randomBoolean()) {
+            forceMerge(dataStreamName);
+        }
         assertSearch(dataStreamName, 10);
         closeIndex(firstBackingIndex);
         closeIndex(secondBackingIndex);
@@ -188,6 +197,21 @@ public class TsdbIT extends AbstractLogsdbRollingUpgradeTestCase {
                 throw new AssertionError(e);
             }
         });
+    }
+
+    private static void forceMerge(String dataStreamName) throws IOException {
+        // maybe force merge
+        if (randomBoolean()) {
+            Request forceMergeRequest = new Request("POST", "/" + dataStreamName + "/_forcemerge");
+            Response forceMergeResponse = client().performRequest(forceMergeRequest);
+            assertThat(forceMergeResponse.getStatusLine().getStatusCode(), is(200));
+            var responseMap = XContentHelper.convertToMap(
+                XContentType.JSON.xContent(),
+                EntityUtils.toString(forceMergeResponse.getEntity()),
+                false
+            );
+            assertThat(((Map) responseMap.get("_shards")).get("failed"), equalTo(0));
+        }
     }
 
     private static void performMixedClusterOperations(String dataStreamName, boolean isFirstMixedCluster) throws IOException {

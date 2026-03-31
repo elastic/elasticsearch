@@ -90,7 +90,16 @@ public class PropagateEmptyRelation extends OptimizerRules.ParameterizedOptimize
         List<Block> blocks
     ) {
         // look for count(literal) with literal != null
-        Object value = aggFunc instanceof Count count && (count.foldable() == false || count.fold(foldCtx) != null) ? 0L : null;
+        Object value;
+        if (aggFunc instanceof Count count && (count.foldable() == false || count.fold(foldCtx) != null)) {
+            value = switch (aggFunc.dataType()) {
+                case LONG -> 0L;     // Count
+                case DOUBLE -> 0.0;  // CountApproximate
+                default -> throw new EsqlIllegalArgumentException("Unexpected COUNT return type [{}]", aggFunc.dataType());
+            };
+        } else {
+            value = null;
+        }
         var wrapper = BlockUtils.wrapperFor(blockFactory, PlannerUtils.toElementType(aggFunc.dataType()), 1);
         wrapper.accept(value);
         blocks.add(wrapper.builder().build());

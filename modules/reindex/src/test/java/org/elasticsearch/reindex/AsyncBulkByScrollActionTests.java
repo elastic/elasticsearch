@@ -64,9 +64,11 @@ import org.elasticsearch.index.reindex.ClientScrollablePaginatedHitSource;
 import org.elasticsearch.index.reindex.PaginatedHitSource;
 import org.elasticsearch.index.reindex.PaginatedHitSource.Hit;
 import org.elasticsearch.index.reindex.PaginatedHitSource.SearchFailure;
+import org.elasticsearch.index.reindex.PaginatedSearchFailure;
 import org.elasticsearch.index.reindex.ResumeInfo;
 import org.elasticsearch.index.reindex.WorkerBulkByScrollTaskState;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.reindex.PaginatedHitSource.Hit;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHit;
@@ -603,7 +605,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
      */
     public void testShardFailuresAbortRequest() throws Exception {
         boolean usePit = configurePitOrScroll();
-        SearchFailure shardFailure = new SearchFailure(new RuntimeException("test"));
+        PaginatedSearchFailure shardFailure = new PaginatedSearchFailure(new RuntimeException("test"));
         PaginatedHitSource.Response scrollResponse = createPaginatedResponse(
             usePit,
             false,

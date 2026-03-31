@@ -112,8 +112,8 @@ public class WatcherScheduleEngineBenchmark {
             Node node = new Node(
                 internalNodeEnv,
                 PluginsLoader.createPluginsLoader(
-                    PluginsLoader.loadModulesBundles(internalNodeEnv.modulesDir()),
-                    PluginsLoader.loadPluginsBundles(internalNodeEnv.pluginsDir()),
+                    PluginsLoader.loadModulesBundles(internalNodeEnv.modulesDir(), false),
+                    PluginsLoader.loadPluginsBundles(internalNodeEnv.pluginsDir(), false),
                     Map.of()
                 )
             ).start()

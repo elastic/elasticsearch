@@ -3,8 +3,8 @@
 ## Parameters
 
 `field1`
-:   Multivalue expression. If null, the function returns null.
+:   Expression that can be null, a single value, or multiple values. If null, the function returns null.
 
 `field2`
-:   Multivalue expression. If null, the function returns null.
+:   Expression that can be null, a single value, or multiple values. If null, the function returns null.
 

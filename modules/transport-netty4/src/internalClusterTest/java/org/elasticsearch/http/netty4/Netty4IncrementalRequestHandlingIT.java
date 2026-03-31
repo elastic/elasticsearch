@@ -34,6 +34,9 @@ import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpUtil;
 import io.netty.handler.codec.http.LastHttpContent;
+import io.netty.handler.logging.ByteBufFormat;
+import io.netty.handler.logging.LogLevel;
+import io.netty.handler.logging.LoggingHandler;
 import io.netty.handler.stream.ChunkedStream;
 import io.netty.handler.stream.ChunkedWriteHandler;
 
@@ -45,17 +48,13 @@ import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -70,7 +69,6 @@ import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -79,6 +77,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.MockLog;
+import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.transport.Transports;
@@ -529,6 +528,11 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
         }
     }
 
+    @TestIssueLogging(
+        issueUrl = "https://github.com/elastic/elasticsearch/issues/144579",
+        value = "org.elasticsearch.http.netty4.Netty4IncrementalRequestHandlingIT:DEBUG"
+            + ",org.elasticsearch.transport.TransportService.tracer:TRACE"
+    )
     public void testBulkIndexingRequestSplitting() throws Exception {
         final var watermarkBytes = between(100, 200);
         final var tinyNode = internalCluster().startCoordinatingOnlyNode(
@@ -546,7 +550,15 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
             final var channel = clientContext.channel();
             channel.writeAndFlush(request);
 
-            final var indexName = randomIdentifier();
+            final var indexName = randomIndexName();
+            final var clusterStateLoggingListener = ClusterServiceUtils.addTemporaryStateListener(
+                internalCluster().getCurrentMasterNodeInstance(ClusterService.class),
+                cs -> {
+                    logger.info("cluster state: {}", cs);
+                    return false;
+                },
+                TimeValue.ONE_HOUR
+            );
             final var indexCreatedListener = ClusterServiceUtils.addTemporaryStateListener(
                 cs -> Iterators.filter(
                     cs.metadata().indicesAllProjects().iterator(),
@@ -570,8 +582,12 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
             channel.flush();
             safeAwait(indexCreatedListener); // index must be created before we finish sending the request
 
+            logger.info("--> completing request");
             channel.writeAndFlush(new DefaultLastHttpContent());
+            logger.info("--> awaiting response");
             final var response = clientContext.getNextResponse();
+            logger.info("--> received response");
+            clusterStateLoggingListener.onResponse(null);
             try {
                 assertEquals(RestStatus.OK.getStatus(), response.status().code());
                 final ObjectPath responseBody;
@@ -651,6 +667,9 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
                 @Override
                 protected void initChannel(SocketChannel ch) {
                     var p = ch.pipeline();
+                    if (logger.isDebugEnabled()) {
+                        p.addLast(new LoggingHandler(Netty4IncrementalRequestHandlingIT.class, LogLevel.DEBUG, ByteBufFormat.HEX_DUMP));
+                    }
                     p.addLast(new HttpClientCodec());
                     p.addLast(new HttpObjectAggregator(ByteSizeUnit.MB.toIntBytes(4)));
                     p.addLast(new SimpleChannelInboundHandler<FullHttpResponse>() {
@@ -924,13 +943,7 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
 
         @Override
         public Collection<RestHandler> getRestHandlers(
-            Settings settings,
-            NamedWriteableRegistry namedWriteableRegistry,
-            RestController restController,
-            ClusterSettings clusterSettings,
-            IndexScopedSettings indexScopedSettings,
-            SettingsFilter settingsFilter,
-            IndexNameExpressionResolver indexNameExpressionResolver,
+            RestHandlersServices restHandlersServices,
             Supplier<DiscoveryNodes> nodesInCluster,
             Predicate<NodeFeature> clusterSupportsFeature
         ) {

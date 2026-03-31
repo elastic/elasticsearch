@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -20,6 +19,7 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.logging.HeaderWarning;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
@@ -37,6 +37,8 @@ import org.elasticsearch.compute.operator.PlanTimeProfile;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkHandler;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
 import org.elasticsearch.compute.querydsl.query.SingleValueMatchQuery;
+import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
@@ -63,17 +65,31 @@ import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.analysis.PreAnalyzer;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
+import org.elasticsearch.xpack.esql.approximation.Approximation;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
+import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasource.http.HttpDataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasources.DataSourceCapabilities;
+import org.elasticsearch.xpack.esql.datasources.DataSourceModule;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
+import org.elasticsearch.xpack.esql.datasources.FileSplit;
+import org.elasticsearch.xpack.esql.datasources.OperatorFactoryRegistry;
+import org.elasticsearch.xpack.esql.datasources.SplitDiscoveryPhase;
+import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
+import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
-import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
@@ -86,14 +102,18 @@ import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanPreOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPreOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.TestLocalPhysicalPlanOptimizer;
-import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.SettingsValidationContext;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
+import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.physical.ChangePointExec;
+import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
+import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
+import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.HashJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.MMRExec;
@@ -117,12 +137,15 @@ import org.elasticsearch.xpack.esql.stats.DisabledSearchStats;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
 import org.elasticsearch.xpack.esql.view.InMemoryViewService;
 import org.elasticsearch.xpack.esql.view.PutViewAction;
+import org.elasticsearch.xpack.esql.view.ViewResolver;
 import org.junit.After;
-import org.junit.AssumptionViolatedException;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.net.URI;
 import java.net.URL;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -134,16 +157,21 @@ import java.util.TreeMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.toSet;
 import static org.elasticsearch.xpack.esql.CsvSpecReader.specParser;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.ExpectedResults;
+import static org.elasticsearch.xpack.esql.CsvTestUtils.assumeFalseLogging;
+import static org.elasticsearch.xpack.esql.CsvTestUtils.assumeTrueLogging;
+import static org.elasticsearch.xpack.esql.CsvTestUtils.csvFileTemplateResolver;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.isEnabled;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.loadCsvSpecValues;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.loadPageFromCsv;
+import static org.elasticsearch.xpack.esql.CsvTestUtils.substituteTemplates;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.CSV_DATASET;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.VIEW_CONFIGS;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.classpathResources;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyInferenceResolution;
@@ -151,10 +179,8 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.queryClusterSettings;
 import static org.elasticsearch.xpack.esql.action.EsqlExecutionInfoTests.createEsqlExecutionInfo;
 import static org.elasticsearch.xpack.esql.plan.QuerySettings.UNMAPPED_FIELDS;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.in;
 import static org.mockito.Mockito.mock;
 
 /**
@@ -195,14 +221,12 @@ import static org.mockito.Mockito.mock;
  *         index emits documents a fairly random order. Multi-shard and multi-node tests doubly so.</li>
  * </ul>
  */
-// @TestLogging(value = "org.elasticsearch.xpack.esql:TRACE,org.elasticsearch.compute:TRACE", reason = "debug")
 public class CsvTests extends ESTestCase {
 
-    private static final Set<String> ALL_ESQL_CAPABILITIES = Stream.of(EsqlCapabilities.Cap.values())
-        .map(EsqlCapabilities.Cap::capabilityName)
-        .collect(toSet());
-
     private static final Logger LOGGER = LogManager.getLogger(CsvTests.class);
+
+    private static final EsqlCapabilities ENABLED_CAPS = EsqlCapabilities.capabilities(TEST_FUNCTION_REGISTRY, false);
+    private static final EsqlCapabilities ALL_CAPS = EsqlCapabilities.capabilities(TEST_FUNCTION_REGISTRY, true);
 
     private final String fileName;
     private final String groupName;
@@ -218,7 +242,6 @@ public class CsvTests extends ESTestCase {
      * </p>
      */
     private Configuration configuration;
-    private final EsqlFunctionRegistry functionRegistry = new EsqlFunctionRegistry();
     private final Mapper mapper = new Mapper();
     private ThreadPool threadPool;
     private Executor executor;
@@ -284,9 +307,6 @@ public class CsvTests extends ESTestCase {
 
     public final void test() throws Throwable {
         try {
-            for (String capability : testCase.requiredCapabilities) {
-                assertTrue("Requested capability does not exist: " + capability, ALL_ESQL_CAPABILITIES.contains(capability));
-            }
             assumeTrueLogging("Test " + testName + " is not enabled", isEnabled(testName, instructions, Version.CURRENT));
             /*
              * The csv tests support all but a few features. The unsupported features
@@ -299,6 +319,14 @@ public class CsvTests extends ESTestCase {
             assumeFalseLogging(
                 "enrich can't load fields in csv tests",
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.ENRICH_LOAD.capabilityName())
+            );
+            assumeFalseLogging(
+                "can't load flattened field values in csv tests",
+                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.LOAD_FLATTENED_FIELD.capabilityName())
+            );
+            assumeFalseLogging(
+                "Can't simulate _source loading for unmapped fields in csv tests",
+                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.OPTIONAL_FIELDS_V4.capabilityName())
             );
             assumeFalseLogging(
                 "can't use rereank in csv tests",
@@ -331,6 +359,11 @@ public class CsvTests extends ESTestCase {
             assumeFalseLogging(
                 "TS_INFO requires real shard contexts and _timeseries_metadata which are unavailable in csv tests",
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.TS_INFO_COMMAND.capabilityName())
+            );
+            assumeFalseLogging(
+                "WITHOUT grouping emit _timeseries which is unavailable in csv tests",
+                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.ESQL_WITHOUT_GROUPING.capabilityName())
+                    || testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.PROMQL_WITHOUT_GROUPING.capabilityName())
             );
             assumeFalseLogging(
                 "can't use QSTR function in csv tests",
@@ -377,10 +410,6 @@ public class CsvTests extends ESTestCase {
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.TEXT_EMBEDDING_FUNCTION.capabilityName())
             );
             assumeFalseLogging(
-                "CSV tests cannot currently handle multi_match function that depends on Lucene",
-                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.capabilityName())
-            );
-            assumeFalseLogging(
                 "CSV tests cannot currently handle subqueries",
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.capabilityName())
             );
@@ -389,47 +418,16 @@ public class CsvTests extends ESTestCase {
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.capabilityName())
             );
             assumeFalseLogging(
-                "CSV tests cannot handle EXTERNAL sources (requires QA integration tests)",
-                testCase.query.trim().toUpperCase(java.util.Locale.ROOT).startsWith("EXTERNAL")
+                "CSV tests cannot handle replacing approximate count by exact (requires ES filter pushdown)",
+                groupName.equals("approximation")
+                    && Set.of("Exact count with where on single-valued data", "Exact total single-valued field count").contains(testName)
             );
 
-            if (Build.current().isSnapshot()) {
-                assertThat(
-                    "Capability is not included in the enabled list capabilities on a snapshot build. Spelling mistake?",
-                    testCase.requiredCapabilities,
-                    everyItem(in(EsqlCapabilities.capabilities(true)))
-                );
-                assumeTrueLogging(
-                    "Capability not supported in this build",
-                    EsqlCapabilities.capabilities(false).containsAll(testCase.requiredCapabilities)
-                );
-            } else {
-                for (EsqlCapabilities.Cap c : EsqlCapabilities.Cap.values()) {
-                    if (false == c.isEnabled()) {
-                        assumeFalseLogging(
-                            c.capabilityName() + " is not supported in non-snapshot releases",
-                            testCase.requiredCapabilities.contains(c.capabilityName())
-                        );
-                    }
-                }
-            }
+            CsvTestUtils.checkTestCapabilities(ALL_CAPS, ENABLED_CAPS, testCase.requiredCapabilities);
 
             doTest();
         } catch (Throwable th) {
             throw reworkException(th);
-        }
-    }
-
-    private static void assumeTrueLogging(String message, boolean condition) {
-        assumeFalseLogging(message, condition == false);
-    }
-
-    private static void assumeFalseLogging(String message, boolean condition) {
-        try {
-            assumeFalse(message, condition);
-        } catch (AssumptionViolatedException ave) {
-            LOGGER.info("skipping test: " + ave.getMessage());
-            throw ave;
         }
     }
 
@@ -507,7 +505,7 @@ public class CsvTests extends ESTestCase {
                 indexModes,
                 Map.of(),
                 Map.of(),
-                mergedMappings.partiallyUnmappedFields
+                mergedMappings.fieldToUnmappedIndices
             )
         );
     }
@@ -545,10 +543,11 @@ public class CsvTests extends ESTestCase {
 
     record MappingPerIndex(String index, Map<String, EsField> mapping) {}
 
-    record MergedResult(Map<String, EsField> mapping, Set<String> partiallyUnmappedFields) {}
+    record MergedResult(Map<String, EsField> mapping, Map<String, Set<String>> fieldToUnmappedIndices) {}
 
     private static MergedResult mergeMappings(List<MappingPerIndex> mappingsPerIndex) {
         int numberOfIndices = mappingsPerIndex.size();
+        Set<String> allIndices = mappingsPerIndex.stream().map(MappingPerIndex::index).collect(toSet());
         Map<String, Map<String, EsField>> columnNamesToFieldByIndices = new HashMap<>();
         for (var mappingPerIndex : mappingsPerIndex) {
             for (var entry : mappingPerIndex.mapping().entrySet()) {
@@ -558,15 +557,19 @@ public class CsvTests extends ESTestCase {
             }
         }
 
-        var partiallyUnmappedFields = columnNamesToFieldByIndices.entrySet()
-            .stream()
-            .filter(e -> e.getValue().size() < numberOfIndices)
-            .map(Map.Entry::getKey)
-            .collect(toSet());
+        Map<String, Set<String>> fieldToUnmappedIndices = new HashMap<>();
+        for (var e : columnNamesToFieldByIndices.entrySet()) {
+            if (e.getValue().size() < numberOfIndices) {
+                Set<String> unmappedIndices = allIndices.stream().filter(i -> e.getValue().containsKey(i) == false).collect(toSet());
+                if (unmappedIndices.isEmpty() == false) {
+                    fieldToUnmappedIndices.put(e.getKey(), unmappedIndices);
+                }
+            }
+        }
         var mappings = columnNamesToFieldByIndices.entrySet()
             .stream()
             .collect(Collectors.toMap(Map.Entry::getKey, e -> mergeFields(e.getKey(), e.getValue())));
-        return new MergedResult(mappings, partiallyUnmappedFields);
+        return new MergedResult(mappings, fieldToUnmappedIndices);
     }
 
     private static EsField mergeFields(String index, Map<String, EsField> columnNameToField) {
@@ -623,18 +626,21 @@ public class CsvTests extends ESTestCase {
         UnmappedResolution unmappedResolution,
         Configuration configuration,
         Map<IndexPattern, CsvTestsDataLoader.MultiIndexTestDataset> datasets,
-        TransportVersion minimumVersion
+        TransportVersion minimumVersion,
+        ExternalSourceResolution externalSourceResolution
     ) {
         var indexResolution = loadIndexResolution(datasets);
         var enrichPolicies = loadEnrichPolicies();
         var analyzer = new Analyzer(
             new AnalyzerContext(
                 configuration,
-                functionRegistry,
+                TEST_FUNCTION_REGISTRY,
+                null,
                 indexResolution,
                 Map.of(),
                 enrichPolicies,
                 emptyInferenceResolution(),
+                externalSourceResolution,
                 minimumVersion,
                 unmappedResolution
             ),
@@ -655,16 +661,19 @@ public class CsvTests extends ESTestCase {
         if (shouldLoadViews() == false) {
             return parsed;
         }
+
         try (InMemoryViewService viewService = InMemoryViewService.makeViewService()) {
             for (var viewConfig : VIEW_CONFIGS.values()) {
                 loadView(viewService, viewConfig);
             }
-            return viewService.getViewResolver().replaceViews(parsed, this::parseView).plan();
+            PlainActionFuture<ViewResolver.ViewResolutionResult> future = new PlainActionFuture<>();
+            viewService.getViewResolver().replaceViews(parsed, this::parseView, future);
+            return future.actionGet().plan();
         }
     }
 
     private void loadView(InMemoryViewService viewService, CsvTestsDataLoader.ViewConfig viewConfig) {
-        ProjectId projectId = ProjectId.fromId("dummy");
+        ProjectId projectId = ProjectId.DEFAULT;
         PutViewAction.Request request = new PutViewAction.Request(
             TimeValue.ONE_MINUTE,
             TimeValue.ONE_MINUTE,
@@ -674,11 +683,10 @@ public class CsvTests extends ESTestCase {
     }
 
     private LogicalPlan parseView(String query, String viewName) {
-        return EsqlParser.INSTANCE.parseView(
+        return TEST_PARSER.parseView(
             query,
             new QueryParams(),
             new SettingsValidationContext(false, false),
-            new PlanTelemetry(functionRegistry),
             new InferenceSettings(Settings.EMPTY),
             viewName
         ).plan();
@@ -732,7 +740,8 @@ public class CsvTests extends ESTestCase {
 
     private static TestPhysicalOperationProviders testOperationProviders(
         FoldContext foldCtx,
-        Map<IndexPattern, CsvTestsDataLoader.MultiIndexTestDataset> allDatasets
+        Map<IndexPattern, CsvTestsDataLoader.MultiIndexTestDataset> allDatasets,
+        UnmappedResolution unmappedResolution
     ) throws Exception {
         var indexPages = new ArrayList<TestPhysicalOperationProviders.IndexPage>();
         for (CsvTestsDataLoader.MultiIndexTestDataset datasets : allDatasets.values()) {
@@ -744,13 +753,14 @@ public class CsvTests extends ESTestCase {
                 );
             }
         }
-        return TestPhysicalOperationProviders.create(foldCtx, indexPages);
+        return TestPhysicalOperationProviders.create(foldCtx, indexPages, unmappedResolution);
     }
 
     private ActualResults executePlan(BigArrays bigArrays) throws Exception {
+        String templatedQuery = substituteTemplates(testCase.query, csvFileTemplateResolver());
         EsqlExecutionInfo esqlExecutionInfo = createEsqlExecutionInfo(randomBoolean());
         esqlExecutionInfo.queryProfile().planning().start();
-        EsqlStatement statement = EsqlParser.INSTANCE.createStatement(testCase.query);
+        EsqlStatement statement = TEST_PARSER.createStatement(templatedQuery);
         LogicalPlan plan = resolveViews(statement.plan());
         this.configuration = EsqlTestUtils.configuration(
             new QueryPragmas(Settings.builder().put("page_size", randomPageSize()).build()),
@@ -760,7 +770,49 @@ public class CsvTests extends ESTestCase {
         var testDatasets = testDatasets(plan);
         // Specifically use the newest transport version; the csv tests correspond to a single node cluster on the current version.
         TransportVersion minimumVersion = TransportVersion.current();
-        LogicalPlan analyzed = analyzedPlan(plan, statement.setting(UNMAPPED_FIELDS), configuration, testDatasets, minimumVersion);
+        var unmappedResolution = statement.setting(UNMAPPED_FIELDS);
+
+        boolean hasExternalSources = plan.anyMatch(UnresolvedExternalRelation.class::isInstance);
+        ExternalSourceResolution externalSourceResolution = ExternalSourceResolution.EMPTY;
+        DataSourceModule dataSourceModule = null;
+        OperatorFactoryRegistry operatorFactoryRegistry;
+        if (hasExternalSources) {
+            var preAnalysis = new PreAnalyzer().preAnalyze(plan);
+            if (preAnalysis.icebergPaths().isEmpty() == false) {
+                List<DataSourcePlugin> plugins = List.of(new CsvDataSourcePlugin(), new HttpDataSourcePlugin());
+                DataSourceCapabilities caps = DataSourceCapabilities.build(plugins);
+                BlockFactory blockFactory = BlockFactory.builder(bigArrays).build();
+                dataSourceModule = new DataSourceModule(plugins, caps, Settings.EMPTY, blockFactory, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+                ExternalSourceResolver externalSourceResolver = new ExternalSourceResolver(
+                    EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                    dataSourceModule
+                );
+                Map<String, Map<String, Expression>> pathParams = new HashMap<>();
+                plan.forEachUp(UnresolvedExternalRelation.class, p -> {
+                    if (p.tablePath() instanceof Literal literal && literal.value() != null) {
+                        String path = BytesRefs.toString(literal.value());
+                        pathParams.put(path, p.params());
+                    }
+                });
+                PlainActionFuture<ExternalSourceResolution> resolveFuture = new PlainActionFuture<>();
+                externalSourceResolver.resolve(preAnalysis.icebergPaths(), pathParams, resolveFuture);
+                externalSourceResolution = resolveFuture.actionGet();
+                operatorFactoryRegistry = dataSourceModule.createOperatorFactoryRegistry(EsExecutors.DIRECT_EXECUTOR_SERVICE);
+            } else {
+                operatorFactoryRegistry = null;
+            }
+        } else {
+            operatorFactoryRegistry = null;
+        }
+
+        LogicalPlan analyzed = analyzedPlan(
+            plan,
+            unmappedResolution,
+            configuration,
+            testDatasets,
+            minimumVersion,
+            externalSourceResolution
+        );
 
         FoldContext foldCtx = FoldContext.small();
         EsqlSession session = new EsqlSession(
@@ -771,18 +823,19 @@ public class CsvTests extends ESTestCase {
             null,
             null,
             null,
+            TEST_PARSER,
             new PreAnalyzer(),
-            functionRegistry,
+            TEST_FUNCTION_REGISTRY,
             mapper,
             TEST_VERIFIER,
             null,
-            new PlanTelemetry(functionRegistry),
+            new PlanTelemetry(TEST_FUNCTION_REGISTRY),
             null,
             null,
             PlannerSettings.DEFAULTS,
             EsqlTestUtils.MOCK_TRANSPORT_ACTION_SERVICES
         );
-        TestPhysicalOperationProviders physicalOperationProviders = testOperationProviders(foldCtx, testDatasets);
+        TestPhysicalOperationProviders physicalOperationProviders = testOperationProviders(foldCtx, testDatasets, unmappedResolution);
 
         PlainActionFuture<ActualResults> listener = new PlainActionFuture<>();
         var logicalPlanPreOptimizer = new LogicalPlanPreOptimizer(
@@ -791,14 +844,15 @@ public class CsvTests extends ESTestCase {
         var logicalPlanOptimizer = new LogicalPlanOptimizer(new LogicalOptimizerContext(configuration, foldCtx, minimumVersion));
         PlanTimeProfile planTimeProfile = configuration.profile() ? new PlanTimeProfile() : null;
         session.preOptimizedPlan(analyzed, logicalPlanPreOptimizer, planTimeProfile, listener.delegateFailureAndWrap((l, preOptimized) -> {
+            LogicalPlan optimizedPlan = session.optimizedPlan(preOptimized, logicalPlanOptimizer, planTimeProfile);
             session.executeOptimizedPlan(
                 new EsqlQueryRequest(),
-                statement,
                 esqlExecutionInfo,
-                planRunner(bigArrays, physicalOperationProviders),
-                session.optimizedPlan(preOptimized, logicalPlanOptimizer, planTimeProfile),
+                planRunner(bigArrays, physicalOperationProviders, operatorFactoryRegistry),
+                optimizedPlan,
                 configuration,
                 foldCtx,
+                Approximation.create(optimizedPlan, configuration.approximationSettings()),
                 minimumVersion,
                 planTimeProfile,
                 listener.delegateFailureAndWrap(
@@ -817,7 +871,13 @@ public class CsvTests extends ESTestCase {
             );
         }));
 
-        return listener.get();
+        try {
+            return listener.get();
+        } finally {
+            if (dataSourceModule != null) {
+                IOUtils.closeWhileHandlingException(dataSourceModule);
+            }
+        }
     }
 
     private Settings randomNodeSettings() {
@@ -847,17 +907,24 @@ public class CsvTests extends ESTestCase {
                 || p instanceof ChangePointExec
                 || p instanceof MergeExec
                 || p instanceof MMRExec
+                || p instanceof ExternalSourceExec
+                || p instanceof ExchangeExec
         )) {
             return;
         }
         SerializationTestUtils.assertSerialization(plan, configuration);
     }
 
-    PlanRunner planRunner(BigArrays bigArrays, TestPhysicalOperationProviders physicalOperationProviders) {
+    PlanRunner planRunner(
+        BigArrays bigArrays,
+        TestPhysicalOperationProviders physicalOperationProviders,
+        OperatorFactoryRegistry operatorFactoryRegistry
+    ) {
         return (physicalPlan, configuration, foldContext, planTimeProfile, listener) -> executeSubPlan(
             bigArrays,
             foldContext,
             physicalOperationProviders,
+            operatorFactoryRegistry,
             physicalPlan,
             listener
         );
@@ -867,11 +934,14 @@ public class CsvTests extends ESTestCase {
         BigArrays bigArrays,
         FoldContext foldCtx,
         TestPhysicalOperationProviders physicalOperationProviders,
+        OperatorFactoryRegistry operatorFactoryRegistry,
         PhysicalPlan physicalPlan,
         ActionListener<Result> listener
     ) {
         // Keep in sync with ComputeService#execute
         opportunisticallyAssertPlanSerialization(physicalPlan);
+        // Discover splits from FragmentExec (plan has FragmentExec, not ExternalSourceExec yet)
+        List<ExternalSplit> coordinatorSplits = coordinatorSplits(operatorFactoryRegistry, physicalPlan);
         Tuple<PhysicalPlan, PhysicalPlan> coordinatorAndDataNodePlan = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(
             physicalPlan,
             configuration
@@ -904,13 +974,12 @@ public class CsvTests extends ESTestCase {
             mock(LookupFromIndexService.class),
             mock(InferenceService.class),
             physicalOperationProviders,
-            null  // OperatorFactoryRegistry - not needed for CSV tests
+            operatorFactoryRegistry
         );
 
         List<Page> collectedPages = Collections.synchronizedList(new ArrayList<>());
 
         // replace fragment inside the coordinator plan
-        List<Driver> drivers = new ArrayList<>();
         LocalExecutionPlan coordinatorNodeExecutionPlan = executionPlanner.plan(
             "final",
             foldCtx,
@@ -918,7 +987,7 @@ public class CsvTests extends ESTestCase {
             new OutputExec(coordinatorPlan, collectedPages::add),
             EmptyIndexedByShardId.instance()
         );
-        drivers.addAll(coordinatorNodeExecutionPlan.createDrivers(getTestName()));
+        List<Driver> drivers = new ArrayList<>(coordinatorNodeExecutionPlan.createDrivers(getTestName()));
         if (dataNodePlan != null) {
             var searchStats = new DisabledSearchStats();
             var logicalTestOptimizer = new LocalLogicalPlanOptimizer(new LocalLogicalOptimizerContext(configuration, foldCtx, searchStats));
@@ -928,6 +997,12 @@ public class CsvTests extends ESTestCase {
             );
 
             var csvDataNodePhysicalPlan = PlannerUtils.localPlan(dataNodePlan, logicalTestOptimizer, physicalTestOptimizer, null);
+            if (coordinatorSplits.isEmpty() == false) {
+                csvDataNodePhysicalPlan = csvDataNodePhysicalPlan.transformUp(
+                    ExternalSourceExec.class,
+                    exec -> exec.splits().isEmpty() ? exec.withSplits(coordinatorSplits) : exec
+                );
+            }
             exchangeSource.addRemoteSink(
                 exchangeSink::fetchPageAsync,
                 Randomness.get().nextBoolean(),
@@ -960,5 +1035,54 @@ public class CsvTests extends ESTestCase {
             drivers,
             listener.map(ignore -> new Result(physicalPlan.output(), collectedPages, configuration, DriverCompletionInfo.EMPTY, null))
         );
+    }
+
+    private static List<ExternalSplit> coordinatorSplits(OperatorFactoryRegistry operatorFactoryRegistry, PhysicalPlan physicalPlan) {
+        List<ExternalSplit> coordinatorSplits = new ArrayList<>();
+        if (operatorFactoryRegistry != null) {
+            physicalPlan.forEachDown(FragmentExec.class, fragment -> fragment.fragment().forEachDown(ExternalRelation.class, external -> {
+                ExternalSourceExec tempExec = external.toPhysicalExec();
+                PhysicalPlan discovered = SplitDiscoveryPhase.resolveExternalSplits(tempExec, operatorFactoryRegistry.sourceFactories());
+                if (discovered instanceof ExternalSourceExec withSplits) {
+                    if (withSplits.splits().isEmpty() == false) {
+                        coordinatorSplits.addAll(withSplits.splits());
+                    } else {
+                        // Fallback: FileSplitProvider returns empty for FileSet.UNRESOLVED (single-file).
+                        // Create a single split from the path so the operator can read.
+                        String path = withSplits.sourcePath();
+                        if (path != null && path.startsWith("file://")) {
+                            try {
+                                StoragePath storagePath = StoragePath.of(path);
+                                Path fsPath = PathUtils.get(URI.create(path));
+                                if (Files.exists(fsPath)) {
+                                    long fileLength = Files.size(fsPath);
+                                    coordinatorSplits.add(
+                                        new FileSplit(
+                                            withSplits.sourceType(),
+                                            storagePath,
+                                            0,
+                                            fileLength,
+                                            ".csv",
+                                            withSplits.config() != null ? withSplits.config() : Map.of(),
+                                            Map.of()
+                                        )
+                                    );
+                                }
+                            } catch (Exception e) {
+                                LOGGER.debug(
+                                    () -> org.elasticsearch.core.Strings.format(
+                                        "Fallback split creation failed for path [%s]; "
+                                            + "operator may still work with path directly when splits empty",
+                                        path
+                                    ),
+                                    e
+                                );
+                            }
+                        }
+                    }
+                }
+            }));
+        }
+        return coordinatorSplits;
     }
 }

@@ -74,7 +74,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNot
  */
 public class FireworksAiService extends SenderService<FireworksAiModel> {
     public static final String NAME = "fireworksai";
-    private static final String SERVICE_NAME = "FireworksAI";
+    private static final String SERVICE_NAME = "Fireworks AI";
 
     public static final TransportVersion INFERENCE_API_FIREWORKS_AI_SERVICE_ADDED = TransportVersion.fromName(
         "inference_api_fireworks_ai_service_added"
@@ -334,7 +334,7 @@ public class FireworksAiService extends SenderService<FireworksAiModel> {
 
                 configurationMap.put(
                     MODEL_ID,
-                    new SettingsConfiguration.Builder(SUPPORTED_TASK_TYPES).setDescription("The model ID to use for FireworksAI requests.")
+                    new SettingsConfiguration.Builder(SUPPORTED_TASK_TYPES).setDescription("The model ID to use for Fireworks AI requests.")
                         .setLabel("Model ID")
                         .setRequired(true)
                         .setSensitive(false)
@@ -361,7 +361,7 @@ public class FireworksAiService extends SenderService<FireworksAiModel> {
                 configurationMap.put(
                     URL,
                     new SettingsConfiguration.Builder(SUPPORTED_TASK_TYPES).setDescription(
-                        "The URL of the FireworksAI endpoint. Useful for on-demand deployments."
+                        "The URL of the Fireworks AI endpoint. Useful for on-demand deployments."
                     )
                         .setLabel("URL")
                         .setRequired(false)

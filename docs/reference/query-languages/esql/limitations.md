@@ -51,8 +51,8 @@ By default, an {{esql}} query returns up to 1,000 rows. You can increase the num
    * `counter`
    * `gauge`
    * `aggregate_metric_double`
-   * `exponential_histogram` {applies_to}`stack: preview 9.3+` {applies_to}`serverless: preview`
-   * `tdigest` {applies_to}`stack: preview 9.3+` {applies_to}`serverless: preview`
+   * `exponential_histogram` {applies_to}`stack: preview 9.3+, ga 9.4.0`
+   * `tdigest` {applies_to}`stack: preview 9.3+, ga 9.4.0`
 
 
 ### Unsupported types [_unsupported_types]
@@ -93,7 +93,7 @@ Querying a column with an unsupported type returns an error. If a column with an
 
 Some [field types](/reference/elasticsearch/mapping-reference/field-data-types.md) are not supported in all contexts:
 
-* Spatial types are not supported in the [SORT](/reference/query-languages/esql/commands/sort.md) processing command. Specifying a column of one of these types as a sort parameter will result in an error:
+* Spatial types are not supported in the [SORT](/reference/query-languages/esql/commands/sort.md) processing command. Specifying an expression that evaluates to one of these types as a sort key will result in an error:
 
     * `geo_point`
     * `geo_shape`

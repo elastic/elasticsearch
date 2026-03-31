@@ -19,12 +19,15 @@ import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 import org.elasticsearch.xpack.esql.plan.logical.Sample;
+import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
@@ -72,6 +75,13 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
                 return p;
             }
 
+            // MetricsInfo/TsInfo handle their own field extraction internally;
+            // mark all child attributes as used so nothing below them is pruned.
+            if (p instanceof MetricsInfo || p instanceof TsInfo) {
+                used.addAll(((UnaryPlan) p).child().outputSet());
+                return p;
+            }
+
             var recheck = new Holder<Boolean>();
             // analyze the unused items against dedicated 'producer' nodes such as Eval and Aggregate
             // perform a loop to retry checking if the current node is completely eliminated
@@ -83,6 +93,7 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
                     case Eval eval -> pruneColumnsInEval(eval, used, recheck);
                     case Project project -> pruneColumnsInProject(project, used, recheck);
                     case EsRelation esr -> pruneColumnsInEsRelation(esr, used);
+                    case ExternalRelation ext -> pruneColumnsInExternalRelation(ext, used);
                     case Fork fork -> {
                         forkPresent.set(true);
                         yield pruneColumnsInFork(fork, used);
@@ -208,6 +219,16 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
         }
 
         return p;
+    }
+
+    /**
+     * Prunes unused columns from an {@link ExternalRelation}.
+     * Unlike {@link EsRelation} (where {@code InsertFieldExtraction} handles field-level pruning for non-LOOKUP modes),
+     * the attribute list on an external relation directly controls which columns the format reader loads from storage.
+     */
+    private static LogicalPlan pruneColumnsInExternalRelation(ExternalRelation ext, AttributeSet.Builder used) {
+        var remaining = pruneUnusedAndAddReferences(ext.output(), used);
+        return remaining != null ? ext.withAttributes(remaining) : ext;
     }
 
     // TODO: see ResolveUnmapped#patchFork comment

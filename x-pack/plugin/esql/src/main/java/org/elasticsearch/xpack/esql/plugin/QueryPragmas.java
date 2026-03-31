@@ -110,6 +110,29 @@ public final class QueryPragmas implements Writeable {
 
     public static final Setting<Boolean> FORK_IMPLICIT_LIMIT = Setting.boolSetting("fork_implicit_limit", true);
 
+    /**
+     * The number of branches to execute in parallel. This is a safeguard to avoid overloading the cluster with too many parallel branches.
+     * This applies to forks and subqueries.
+     */
+    public static final Setting<Integer> BRANCH_PARALLEL_DEGREE = Setting.intSetting("branch_parallel_degree", 2, 1);
+
+    /**
+     * Number of parallel parser threads for intra-file text format parsing (CSV, NDJSON).
+     * Defaults to allocated processors. Set to 1 to disable parallel parsing.
+     */
+    public static final Setting<Integer> PARSING_PARALLELISM = Setting.intSetting(
+        "parsing_parallelism",
+        EsExecutors.allocatedProcessors(Settings.EMPTY),
+        1
+    );
+
+    /**
+     * When {@code true}, forces all non-single-segment pages through {@code ValuesFromDocSequence}
+     * regardless of the number of {@code BYTES_REF} fields. Intended for testing the correctness
+     * of doc-sequence loading.
+     */
+    public static final Setting<Boolean> FORCE_DOC_SEQUENCE = Setting.boolSetting("force_doc_sequence", false);
+
     public static final QueryPragmas EMPTY = new QueryPragmas(Settings.EMPTY);
 
     private final Settings settings;
@@ -253,6 +276,26 @@ public final class QueryPragmas implements Writeable {
         return EXTERNAL_DISTRIBUTION.get(settings);
     }
 
+    public int parsingParallelism() {
+        return PARSING_PARALLELISM.get(settings);
+    }
+
+    public int branchParallelDegree() {
+        return BRANCH_PARALLEL_DEGREE.get(settings);
+    }
+
+    /**
+     * Returns the effective doc-sequence threshold. When {@link #FORCE_DOC_SEQUENCE} is
+     * {@code true}, returns {@code 0} so that all non-single-segment pages use
+     * {@code ValuesFromDocSequence}; otherwise returns {@code clusterDefault}.
+     */
+    public int docSequenceBytesRefFieldThreshold(int clusterDefault) {
+        if (FORCE_DOC_SEQUENCE.get(settings)) {
+            return 0;
+        }
+        return clusterDefault;
+    }
+
     public int partialAggregationEmitKeysThreshold(int defaultThreshold) {
         if (settings.hasValue(PlannerSettings.PARTIAL_AGGREGATION_EMIT_KEYS_THRESHOLD.getKey())) {
             return PlannerSettings.PARTIAL_AGGREGATION_EMIT_KEYS_THRESHOLD.get(settings);
@@ -263,6 +306,13 @@ public final class QueryPragmas implements Writeable {
     public double partialAggregationEmitUniquenessThreshold(double defaultThreshold) {
         if (settings.hasValue(PlannerSettings.PARTIAL_AGGREGATION_EMIT_UNIQUENESS_THRESHOLD.getKey())) {
             return PlannerSettings.PARTIAL_AGGREGATION_EMIT_UNIQUENESS_THRESHOLD.get(settings);
+        }
+        return defaultThreshold;
+    }
+
+    public int docsThresholdForAutoPartitioning(int defaultThreshold) {
+        if (settings.hasValue(PlannerSettings.DOC_THRESHOLD_AUTO_PARTITIONING.getKey())) {
+            return PlannerSettings.DOC_THRESHOLD_AUTO_PARTITIONING.get(settings);
         }
         return defaultThreshold;
     }

@@ -7,22 +7,42 @@
 
 package org.elasticsearch.xpack.esql.view;
 
-import org.elasticsearch.cluster.metadata.IndexAbstraction;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.ViewMetadata;
+import org.elasticsearch.cluster.project.DefaultProjectResolver;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.indices.EmptySystemIndices;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.esql.action.EsqlResolveViewAction;
 
-import java.util.LinkedHashSet;
-import java.util.Map;
+import java.util.Set;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
+
+import static org.mockito.Mockito.mock;
 
 public class InMemoryViewResolver extends ViewResolver {
     protected Supplier<ViewMetadata> metadata;
-    protected LinkedHashSet<String> indices = new LinkedHashSet<>();
+    protected IndexNameExpressionResolver indexNameExpressionResolver;
+    protected ClusterService clusterService;
+    protected ProjectResolver projectResolver;
 
     public InMemoryViewResolver(ClusterService clusterService, Supplier<ViewMetadata> metadata) {
-        super(clusterService, null);
+        super(clusterService, null, null);
+        this.projectResolver = DefaultProjectResolver.INSTANCE;
+        this.indexNameExpressionResolver = new IndexNameExpressionResolver(
+            new ThreadContext(Settings.EMPTY),
+            EmptySystemIndices.INSTANCE,
+            projectResolver
+        );
         this.metadata = metadata;
+        this.clusterService = clusterService;
+
     }
 
     @Override
@@ -30,28 +50,27 @@ public class InMemoryViewResolver extends ViewResolver {
         return metadata.get();
     }
 
-    @Override
-    protected Map<String, IndexAbstraction> getIndicesLookup() {
-        Map<String, IndexAbstraction> viewsLookup = getMetadata().views()
-            .values()
-            .stream()
-            .collect(Collectors.toMap(IndexAbstraction::getName, v -> v));
-        for (String index : indices) {
-            viewsLookup.put(index, null);
-        }
-        return viewsLookup;
-    }
-
     protected boolean viewsFeatureEnabled() {
         // This is a test implementation, so we assume the feature is always enabled
         return true;
     }
 
-    public void addIndex(String name) {
-        indices.add(name);
+    @Override
+    protected void doEsqlResolveViewsRequest(
+        EsqlResolveViewAction.Request request,
+        ActionListener<EsqlResolveViewAction.Response> listener
+    ) {
+        var action = new EsqlResolveViewAction(
+            mock(TransportService.class),
+            new ActionFilters(Set.of()),
+            indexNameExpressionResolver,
+            clusterService,
+            projectResolver
+        );
+        action.execute(mock(Task.class), request, listener);
     }
 
-    public void clear() {
-        indices.clear();
+    public void close() {
+        clusterService.close();
     }
 }

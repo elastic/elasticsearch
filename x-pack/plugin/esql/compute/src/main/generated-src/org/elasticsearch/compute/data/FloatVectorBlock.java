@@ -49,6 +49,11 @@ public final class FloatVectorBlock extends AbstractVectorBlock implements Float
     }
 
     @Override
+    public FloatBlock slice(int beginInclusive, int endExclusive) {
+        return vector.slice(beginInclusive, endExclusive).asBlock();
+    }
+
+    @Override
     public FloatBlock filter(boolean mayContainDuplicates, int... positions) {
         return vector.filter(mayContainDuplicates, positions).asBlock();
     }

@@ -16,6 +16,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.compute.operator.lookup.LookupEnrichQueryGenerator;
 import org.elasticsearch.compute.operator.lookup.QueryList;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.Rewriteable;
@@ -29,9 +30,6 @@ import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
-import org.elasticsearch.xpack.esql.plan.physical.EsSourceExec;
-import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
-import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.stats.SearchContextStats;
@@ -54,7 +52,7 @@ import static org.elasticsearch.xpack.esql.planner.TranslatorHandler.TRANSLATOR_
  * The query is then used to fetch the matching rows from the right dataset.
  * The class supports two types of joins:
  * 1. Field-based join: The join conditions are based on the equality of fields from the left and right datasets.
- * It is used for field-based join when the join is on more than one field or there is a preJoinFilter
+ * It is used for field-based join when the join is on more than one field or there is a rightOnlyFilter
  * 2. Expression-based join: The join conditions are based on a complex expression that can involve multiple fields and operators.
  */
 public class ExpressionQueryList implements LookupEnrichQueryGenerator {
@@ -66,18 +64,22 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
     private ExpressionQueryList(
         List<QueryList> queryLists,
         SearchExecutionContext context,
-        PhysicalPlan rightPreJoinPlan,
+        @Nullable Expression rightOnlyFilter,
+        @Nullable QueryBuilder pushedQuery,
         ClusterService clusterService,
         AliasFilter aliasFilter
     ) {
         this.queryLists = new ArrayList<>(queryLists);
         this.aliasFilter = aliasFilter;
         this.clusterService = clusterService;
+        if (pushedQuery != null) {
+            lucenePushableFilterBuilders.add(pushedQuery);
+        }
         LucenePushdownPredicates lucenePushdownPredicates = LucenePushdownPredicates.from(
             SearchContextStats.from(List.of(context)),
             new EsqlFlags(clusterService.getClusterSettings())
         );
-        buildPreJoinFilter(rightPreJoinPlan, context, lucenePushdownPredicates);
+        buildPreJoinFilter(rightOnlyFilter, context, lucenePushdownPredicates);
     }
 
     /**
@@ -90,14 +92,15 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
     public static ExpressionQueryList fieldBasedJoin(
         List<QueryList> queryLists,
         SearchExecutionContext context,
-        PhysicalPlan rightPreJoinPlan,
+        @Nullable Expression rightOnlyFilter,
+        @Nullable QueryBuilder pushedQuery,
         ClusterService clusterService,
         AliasFilter aliasFilter
     ) {
-        if (queryLists.size() < 2 && (rightPreJoinPlan instanceof FilterExec == false)) {
+        if (queryLists.size() < 2 && rightOnlyFilter == null && pushedQuery == null) {
             throw new IllegalArgumentException("ExpressionQueryList must have at least two QueryLists or a pre-join filter");
         }
-        return new ExpressionQueryList(queryLists, context, rightPreJoinPlan, clusterService, aliasFilter);
+        return new ExpressionQueryList(queryLists, context, rightOnlyFilter, pushedQuery, clusterService, aliasFilter);
     }
 
     /**
@@ -110,37 +113,33 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
      */
     public static ExpressionQueryList expressionBasedJoin(
         SearchExecutionContext context,
-        PhysicalPlan rightPreJoinPlan,
+        @Nullable Expression rightOnlyFilter,
+        @Nullable QueryBuilder pushedQuery,
         ClusterService clusterService,
-        LookupFromIndexService.TransportRequest request,
+        List<MatchConfig> matchFields,
+        Expression joinOnConditions,
         AliasFilter aliasFilter,
         Warnings warnings
     ) {
         if (LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled() == false) {
             throw new UnsupportedOperationException("Lookup Join on Boolean Expression capability is not enabled");
         }
-        if (request.getJoinOnConditions() == null) {
+        if (joinOnConditions == null) {
             throw new IllegalStateException("expressionBasedJoin must have join conditions");
         }
         ExpressionQueryList expressionQueryList = new ExpressionQueryList(
             new ArrayList<>(),
             context,
-            rightPreJoinPlan,
+            rightOnlyFilter,
+            pushedQuery,
             clusterService,
             aliasFilter
         );
-        // Build join-on conditions using the context from planning (this is safe as conditions are static)
         LucenePushdownPredicates lucenePushdownPredicates = LucenePushdownPredicates.from(
             SearchContextStats.from(List.of(context)),
             new EsqlFlags(clusterService.getClusterSettings())
         );
-        expressionQueryList.buildJoinOnForExpressionJoin(
-            request.getJoinOnConditions(),
-            request.getMatchFields(),
-            context,
-            lucenePushdownPredicates,
-            warnings
-        );
+        expressionQueryList.buildJoinOnForExpressionJoin(joinOnConditions, matchFields, context, lucenePushdownPredicates, warnings);
         return expressionQueryList;
     }
 
@@ -242,37 +241,33 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
     }
 
     private void buildPreJoinFilter(
-        PhysicalPlan rightPreJoinPlan,
+        @Nullable Expression rightOnlyFilter,
         SearchExecutionContext context,
         LucenePushdownPredicates lucenePushdownPredicates
     ) {
-        if (rightPreJoinPlan instanceof FilterExec filterExec) {
-            List<Expression> candidateRightHandFilters = Predicates.splitAnd(filterExec.condition());
-            for (Expression filter : candidateRightHandFilters) {
-                if (filter instanceof TranslationAware translationAware) {
-                    if (TranslationAware.Translatable.YES.equals(translationAware.translatable(lucenePushdownPredicates))) {
-                        QueryBuilder queryBuilder = translationAware.asQuery(lucenePushdownPredicates, TRANSLATOR_HANDLER).toQueryBuilder();
-                        // Rewrite the query builder to ensure doIndexMetadataRewrite is called
-                        // Some functions, such as KQL require rewriting to work properly
-                        try {
-                            queryBuilder = Rewriteable.rewrite(queryBuilder, context, true);
-                        } catch (IOException e) {
-                            throw new UncheckedIOException("Error while rewriting query for Lucene pushable filter", e);
-                        }
-                        // Store QueryBuilder instead of Query to avoid caching IndexReader references
-                        addToLucenePushableFilters(queryBuilder);
+        if (rightOnlyFilter == null) {
+            return;
+        }
+        List<Expression> candidateRightHandFilters = Predicates.splitAnd(rightOnlyFilter);
+        for (Expression filter : candidateRightHandFilters) {
+            if (filter instanceof TranslationAware translationAware) {
+                if (TranslationAware.Translatable.YES.equals(translationAware.translatable(lucenePushdownPredicates))) {
+                    QueryBuilder queryBuilder = translationAware.asQuery(lucenePushdownPredicates, TRANSLATOR_HANDLER).toQueryBuilder();
+                    // Rewrite the query builder to ensure doIndexMetadataRewrite is called
+                    // Some functions, such as KQL require rewriting to work properly
+                    try {
+                        queryBuilder = Rewriteable.rewrite(queryBuilder, context, true);
+                    } catch (IOException e) {
+                        throw new UncheckedIOException("Error while rewriting query for Lucene pushable filter", e);
                     }
+                    // Store QueryBuilder instead of Query to avoid caching IndexReader references
+                    addToLucenePushableFilters(queryBuilder);
                 }
-                // If the filter is not translatable we will not apply it for now
-                // as performance testing showed no performance improvement.
-                // We can revisit this in the future if needed, once we have more optimized workflow in place.
-                // The filter is optional, so it is OK to ignore it if it cannot be translated.
             }
-        } else if (rightPreJoinPlan != null && rightPreJoinPlan instanceof EsSourceExec == false) {
-            throw new IllegalStateException(
-                "The right side of a LookupJoinExec can only be a FilterExec on top of an EsSourceExec or an EsSourceExec, but got: "
-                    + rightPreJoinPlan
-            );
+            // If the filter is not translatable we will not apply it for now
+            // as performance testing showed no performance improvement.
+            // We can revisit this in the future if needed, once we have more optimized workflow in place.
+            // The filter is optional, so it is OK to ignore it if it cannot be translated.
         }
     }
 
@@ -286,26 +281,30 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
      */
     @Override
     public Query getQuery(int position, Page inputPage, SearchExecutionContext searchExecutionContext) {
-        BooleanQuery.Builder builder = new BooleanQuery.Builder();
-        for (QueryList queryList : queryLists) {
-            Query q = queryList.getQuery(position, inputPage, searchExecutionContext);
-            if (q == null) {
-                // if any of the matchFields are null, it means there is no match for this position
-                // A AND NULL is always NULL, so we can skip this position
-                return null;
+        try {
+            BooleanQuery.Builder builder = new BooleanQuery.Builder();
+            for (QueryList queryList : queryLists) {
+                Query q = queryList.getQuery(position, inputPage, searchExecutionContext);
+                if (q == null) {
+                    // if any of the matchFields are null, it means there is no match for this position
+                    // A AND NULL is always NULL, so we can skip this position
+                    return null;
+                }
+                builder.add(q, BooleanClause.Occur.FILTER);
             }
-            builder.add(q, BooleanClause.Occur.FILTER);
-        }
-        // also attach the pre-join filter if it exists
-        // Build queries from QueryBuilders dynamically to avoid caching stale IndexReader references
-        for (QueryBuilder queryBuilder : lucenePushableFilterBuilders) {
-            try {
-                builder.add(queryBuilder.toQuery(searchExecutionContext), BooleanClause.Occur.FILTER);
-            } catch (IOException e) {
-                throw new UncheckedIOException("Error while building query for Lucene pushable filter", e);
+            // also attach the pre-join filter if it exists
+            // Build queries from QueryBuilders dynamically to avoid caching stale IndexReader references
+            for (QueryBuilder queryBuilder : lucenePushableFilterBuilders) {
+                try {
+                    builder.add(queryBuilder.toQuery(searchExecutionContext), BooleanClause.Occur.FILTER);
+                } catch (IOException e) {
+                    throw new UncheckedIOException("Error while building query for Lucene pushable filter", e);
+                }
             }
+            return builder.build();
+        } finally {
+            searchExecutionContext.releaseQueryConstructionMemory();
         }
-        return builder.build();
     }
 
     /**

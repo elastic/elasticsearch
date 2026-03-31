@@ -62,7 +62,7 @@ public class SearchLogProducer implements ActivityLogProducer<SearchLogContext> 
         ESLogMessage msg = produceCommon(context, ES_QUERY_FIELDS_PREFIX, additionalFields);
         msg.field(QueryLogging.QUERY_FIELD_QUERY, context.getQuery());
         msg.field(QueryLogging.QUERY_FIELD_INDICES, context.getIndices());
-        msg.field(QueryLogging.QUERY_FIELD_RESULT_COUNT, context.getHits());
+        msg.field(QueryLogging.QUERY_FIELD_RESULT_COUNT, context.getResultCount());
         if (isSystemSearch) {
             msg.field(QUERY_FIELD_IS_SYSTEM, true);
         }
@@ -75,6 +75,20 @@ public class SearchLogProducer implements ActivityLogProducer<SearchLogContext> 
             if (totalHits.relation() != TotalHits.Relation.EQUAL_TO) {
                 msg.field(QUERY_FIELD_SEARCH_HITS_GTE, true);
             }
+        }
+
+        var clusters = context.getClusters();
+        var remotes = context.getRemoteClusterAliases(clusters);
+        if (remotes.isEmpty() == false) {
+            msg.field(QueryLogging.QUERY_FIELD_REMOTES, remotes);
+            msg.field(QueryLogging.QUERY_FIELD_REMOTE_COUNT, remotes.size());
+            // Count statuses
+            msg.field(QueryLogging.QUERY_FIELD_REMOTE_STATUS + "total", clusters.size());
+            context.getCountsByStatus(clusters)
+                .forEach((status, count) -> msg.field(QueryLogging.QUERY_FIELD_REMOTE_STATUS + status, count));
+        }
+        if (context.isFromRemote()) {
+            msg.field(QueryLogging.QUERY_FIELD_IS_REMOTE, true);
         }
         return Optional.of(msg);
     }

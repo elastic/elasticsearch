@@ -24,6 +24,7 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.lucene.spatial.CoordinateEncoder;
 
 /**
  * {@link GroupingAggregatorFunction} implementation for {@link SpatialCentroidCartesianPointDocValuesAggregator}.
@@ -43,16 +44,14 @@ public final class SpatialCentroidCartesianPointDocValuesGroupingAggregatorFunct
 
   private final DriverContext driverContext;
 
-  public SpatialCentroidCartesianPointDocValuesGroupingAggregatorFunction(List<Integer> channels,
-      CentroidPointAggregator.GroupingCentroidState state, DriverContext driverContext) {
-    this.channels = channels;
-    this.state = state;
-    this.driverContext = driverContext;
-  }
+  private final CoordinateEncoder encoder;
 
-  public static SpatialCentroidCartesianPointDocValuesGroupingAggregatorFunction create(
-      List<Integer> channels, DriverContext driverContext) {
-    return new SpatialCentroidCartesianPointDocValuesGroupingAggregatorFunction(channels, SpatialCentroidCartesianPointDocValuesAggregator.initGrouping(driverContext.bigArrays()), driverContext);
+  SpatialCentroidCartesianPointDocValuesGroupingAggregatorFunction(List<Integer> channels,
+      DriverContext driverContext, CoordinateEncoder encoder) {
+    this.encoder = encoder;
+    this.channels = channels;
+    this.state = SpatialCentroidCartesianPointDocValuesAggregator.initGrouping(driverContext.bigArrays(), encoder);
+    this.driverContext = driverContext;
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -354,14 +353,24 @@ public final class SpatialCentroidCartesianPointDocValuesGroupingAggregatorFunct
   }
 
   @Override
-  public void evaluateIntermediate(Block[] blocks, int offset, IntVector selected) {
-    state.toIntermediate(blocks, offset, selected, driverContext);
+  public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateIntermediate(
+      IntVector selected, GroupingAggregatorEvaluationContext ctx) {
+    return this::evaluateIntermediate;
+  }
+
+  private void evaluateIntermediate(Block[] blocks, int offset, IntVector selectedInPage) {
+    state.toIntermediate(blocks, offset, selectedInPage, driverContext);
   }
 
   @Override
-  public void evaluateFinal(Block[] blocks, int offset, IntVector selected,
+  public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateFinal(IntVector selected,
       GroupingAggregatorEvaluationContext ctx) {
-    blocks[offset] = SpatialCentroidCartesianPointDocValuesAggregator.evaluateFinal(state, selected, ctx);
+    return (blocks, offset, selectedInPage) -> evaluateFinal(blocks, offset, selectedInPage, ctx);
+  }
+
+  private void evaluateFinal(Block[] blocks, int offset, IntVector selectedInPage,
+      GroupingAggregatorEvaluationContext ctx) {
+    blocks[offset] = SpatialCentroidCartesianPointDocValuesAggregator.evaluateFinal(state, selectedInPage, ctx);
   }
 
   @Override

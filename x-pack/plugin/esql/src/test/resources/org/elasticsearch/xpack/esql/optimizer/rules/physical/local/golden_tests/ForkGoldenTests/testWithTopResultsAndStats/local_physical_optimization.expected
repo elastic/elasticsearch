@@ -1,0 +1,22 @@
+LimitExec[10000[INTEGER],null]
+\_MergeExec[[author{r}#0, author.keyword{r}#1, book_no{r}#2, collection{r}#3, description{r}#4, publisher{r}#5, ratings{r}#6, title{r}#7, year{r}#8, _score{r}#9, _fork{r}#10, total{r}#11]]
+  |_ProjectExec[[author{f}#12, author.keyword{f}#13, book_no{f}#14, collection{f}#15, description{f}#16, publisher{f}#17, ratings{f}#18, title{f}#19, year{f}#20, _score{m}#21, _fork{r}#22, total{r}#23]]
+  | \_EvalExec[[fork1[KEYWORD] AS _fork#22, null[LONG] AS total#23]]
+  |   \_TopNExec[[Order[_score{m}#21,DESC,FIRST]],3[INTEGER],null]
+  |     \_ExchangeExec[[author{f}#12, author.keyword{f}#13, book_no{f}#14, collection{f}#15, description{f}#16, publisher{f}#17, ratings{f}#18, title{f}#19, year{f}#20, _score{m}#21],false]
+  |       \_ProjectExec[[author{f}#12, author.keyword{f}#13, book_no{f}#14, collection{f}#15, description{f}#16, publisher{f}#17, ratings{f}#18, title{f}#19, year{f}#20, _score{m}#21]]
+  |         \_FieldExtractExec[author{f}#12, author.keyword{f}#13, book_no{f}#14, collection{f}#15, description{f}#16, publisher{f}#17, ratings{f}#18, title{f}#19, year{f}#20]<[],[],[]>
+  |           \_EsQueryExec[books], indexMode[standard], [_doc{f}#24, _score{m}#21], limit[3], sort[[ScoreSort[direction=DESC]]] estimatedRowSize[5248] queryBuilderAndTags [[QueryBuilderAndTags[query={
+  "match" : {
+    "author" : {
+      "query" : "Tolkien",
+      "lenient" : true
+    }
+  }
+}, tags=[]]]]
+  \_ProjectExec[[author{r}#25, author.keyword{r}#26, book_no{r}#27, collection{r}#28, description{r}#29, publisher{r}#30, ratings{r}#31, title{r}#32, year{r}#33, _score{r}#34, _fork{r}#35, total{r}#36]]
+    \_EvalExec[[fork2[KEYWORD] AS _fork#35, null[TEXT] AS author#25, null[KEYWORD] AS author.keyword#26, null[KEYWORD] AS book_no#27, null[TEXT] AS collection#28, null[TEXT] AS description#29, null[TEXT] AS publisher#30, null[DOUBLE] AS ratings#31, null[TEXT] AS title#32, null[INTEGER] AS year#33, null[DOUBLE] AS _score#34]]
+      \_LimitExec[1000[INTEGER],null]
+        \_AggregateExec[[],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS total#36],FINAL,[$$total$count{r}#37, $$total$seen{r}#38],null]
+          \_ExchangeExec[[$$total$count{r}#37, $$total$seen{r}#38],true]
+            \_EsStatsQueryExec[books], statsBasicStat[name=*, type=COUNT, query=null]], query[{"match":{"author":{"query":"Tolkien","lenient":true}}}][$$total$count{r}#39, $$total$seen{r}#40], limit[], 

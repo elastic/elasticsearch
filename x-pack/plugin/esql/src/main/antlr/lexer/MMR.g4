@@ -7,7 +7,7 @@
 
 lexer grammar MMR;
 
-DEV_MMR : {this.isDevVersion()}? 'mmr' -> pushMode(MMR_MODE);
+MMR : 'mmr' -> pushMode(MMR_MODE);
 
 mode MMR_MODE;
 

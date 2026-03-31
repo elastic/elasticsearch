@@ -8,8 +8,10 @@
 package org.elasticsearch.xpack.core.analytics.mapper;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.tdigest.Centroid;
 import org.elasticsearch.tdigest.TDigestReadView;
 
@@ -17,6 +19,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 
 /**
@@ -29,6 +32,12 @@ import java.util.List;
  * </ul>
  */
 public final class EncodedTDigest implements TDigestReadView {
+
+    /**
+     * The size of a single EncodedTDigest instance in bytes, excluding the underlying encoded digest bytes array.
+     */
+    public static final long RAM_BYTES = RamUsageEstimator.shallowSizeOfInstance(EncodedTDigest.class) + RamUsageEstimator
+        .shallowSizeOfInstance(BytesRef.class);
 
     private final BytesRef encodedDigest = new BytesRef();
     private long cachedSize = -1L;
@@ -73,32 +82,47 @@ public final class EncodedTDigest implements TDigestReadView {
     /**
      * Encodes the provided centroids into a {@link BytesRef}.
      */
-    public static BytesRef encodeCentroids(List<? extends Centroid> centroids) {
-        return encodeCentroidsFromIterator(new CentroidIterator() {
-            private int index = -1;
+    public static BytesRef encodeCentroids(Collection<? extends Centroid> centroids) {
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            encodeCentroids(centroids, out);
+            return out.bytes().toBytesRef();
+        } catch (IOException e) {
+            throw new IllegalStateException("Failed to encode centroid", e);
+        }
+    }
+
+    public static void encodeCentroids(Collection<? extends Centroid> centroids, StreamOutput out) throws IOException {
+        encodeCentroidsFromIterator(new CentroidIterator() {
+            private final Iterator<? extends Centroid> iterator = centroids.iterator();
+            Centroid centroid;
 
             @Override
             public boolean next() {
-                index++;
-                return index < centroids.size();
+                if (iterator.hasNext() == false) {
+                    return false;
+                }
+                centroid = iterator.next();
+                return true;
             }
 
             @Override
             public long currentCount() {
-                return centroids.get(index).count();
+                assert centroid != null : "next() must be called and return true before accessing current centroid";
+                return centroid.count();
             }
 
             @Override
             public double currentMean() {
-                return centroids.get(index).mean();
+                assert centroid != null : "next() must be called and return true before accessing current centroid";
+                return centroid.mean();
             }
 
             @Override
             public boolean hasNext() {
-                return index + 1 < centroids.size();
+                return iterator.hasNext();
             }
 
-        });
+        }, out);
     }
 
     /**
@@ -106,30 +130,37 @@ public final class EncodedTDigest implements TDigestReadView {
      */
     public static BytesRef encodeCentroids(List<Double> means, List<Long> counts) {
         assert means.size() == counts.size() : "centroids and counts must have equal size";
-        return encodeCentroidsFromIterator(new CentroidIterator() {
-            private int index = -1;
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            encodeCentroidsFromIterator(new CentroidIterator() {
+                private int index = -1;
 
-            @Override
-            public boolean next() {
-                index++;
-                return index < means.size();
-            }
+                @Override
+                public boolean next() {
+                    index++;
+                    return index < means.size();
+                }
 
-            @Override
-            public long currentCount() {
-                return counts.get(index);
-            }
+                @Override
+                public long currentCount() {
+                    assert index >= 0 : "next() must be called and return true before accessing current centroid";
+                    return counts.get(index);
+                }
 
-            @Override
-            public double currentMean() {
-                return means.get(index);
-            }
+                @Override
+                public double currentMean() {
+                    assert index >= 0 : "next() must be called and return true before accessing current centroid";
+                    return means.get(index);
+                }
 
-            @Override
-            public boolean hasNext() {
-                return index + 1 < means.size();
-            }
-        });
+                @Override
+                public boolean hasNext() {
+                    return index + 1 < means.size();
+                }
+            }, out);
+            return out.bytes().toBytesRef();
+        } catch (IOException e) {
+            throw new IllegalStateException("Failed to encode centroid", e);
+        }
     }
 
     @Override
@@ -172,22 +203,27 @@ public final class EncodedTDigest implements TDigestReadView {
         return Collections.unmodifiableList(decoded);
     }
 
-    private static BytesRef encodeCentroidsFromIterator(CentroidIterator centroids) {
-        try (BytesStreamOutput out = new BytesStreamOutput()) {
-            while (centroids.next()) {
-                long count = centroids.currentCount();
-                if (count < 0) {
-                    throw new IllegalArgumentException("Centroid count cannot be negative: " + count);
-                }
-                if (count > 0) {
-                    out.writeVLong(count);
-                    out.writeDouble(centroids.currentMean());
-                }
+    /**
+     * Encodes the given centroids into the given output. Also compute the sum of all counts and returns it.
+     *
+     * @param centroids the centroids to encode
+     * @param out the output to encode into
+     * @return the sum of all counts in the centroids
+     */
+    public static long encodeCentroidsFromIterator(CentroidIterator centroids, StreamOutput out) throws IOException {
+        long totalCount = 0;
+        while (centroids.next()) {
+            long count = centroids.currentCount();
+            if (count < 0) {
+                throw new IllegalArgumentException("Centroid count cannot be negative: " + count);
             }
-            return out.bytes().toBytesRef();
-        } catch (IOException e) {
-            throw new IllegalStateException("Failed to encode centroid", e);
+            totalCount += count;
+            if (count > 0) {
+                out.writeVLong(count);
+                out.writeDouble(centroids.currentMean());
+            }
         }
+        return totalCount;
     }
 
     private void resetCachedStats() {

@@ -19,8 +19,9 @@ import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.test.BlockTestUtils;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -304,7 +305,7 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
             )
         ) {
             List<Object> results = new ArrayList<>();
-            try (EvalOperator.ExpressionEvaluator evaluator = evaluator(expression).get(driverContext())) {
+            try (ExpressionEvaluator evaluator = evaluator(expression).get(driverContext())) {
                 // TODO: This should look at the layout to place the correct blocks in the correct places
                 for (Page inputPage : rows(testCase.getMultiRowFields())) {
                     try (Block block = evaluator.eval(inputPage)) {
@@ -571,8 +572,14 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
         var blocksArraySize = randomIntBetween(1, 10);
         var resultBlockIndex = randomIntBetween(0, blocksArraySize - 1);
         var blocks = new Block[blocksArraySize];
-        try (var groups = driverContext().blockFactory().newIntRangeVector(0, groupCount)) {
-            aggregator.evaluate(blocks, resultBlockIndex, groups, new GroupingAggregatorEvaluationContext(driverContext()));
+        try (
+            IntVector groups = driverContext().blockFactory().newIntRangeVector(0, groupCount);
+            GroupingAggregatorFunction.PreparedForEvaluation prepared = aggregator.prepareForEvaluate(
+                groups,
+                new GroupingAggregatorEvaluationContext(driverContext())
+            );
+        ) {
+            prepared.evaluate(blocks, resultBlockIndex, groups);
 
             var block = blocks[resultBlockIndex];
 

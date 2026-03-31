@@ -9,11 +9,16 @@
 
 package org.elasticsearch.index.mapper.flattened;
 
+import org.apache.lucene.index.DocValuesType;
+import org.apache.lucene.index.FieldInfo;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
@@ -24,6 +29,7 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -36,7 +42,9 @@ import static org.elasticsearch.index.query.QueryBuilders.existsQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.index.query.QueryBuilders.multiMatchQuery;
 import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
+import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
 import static org.elasticsearch.index.query.QueryBuilders.simpleQueryStringQuery;
+import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.cardinality;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -409,6 +417,103 @@ public class FlattenedFieldSearchTests extends ESSingleNodeTestCase {
         );
     }
 
+    public void testTermsAggregationWithDuplicateValues() throws IOException {
+        String indexName = "test-noindex-terms-agg";
+        XContentBuilder mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("_doc")
+            .startObject("properties")
+            .startObject("labels")
+            .field("type", "flattened")
+            .field("index", false)
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject();
+        createIndex(indexName, Settings.EMPTY, mapping);
+
+        prepareIndex(indexName).setId("1")
+            .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
+            .setSource(
+                XContentFactory.jsonBuilder()
+                    .startObject()
+                    .startObject("labels")
+                    .field("key1", "foo")
+                    .field("key2", "foo")
+                    .field("key3", "bar")
+                    .endObject()
+                    .endObject()
+            )
+            .get();
+
+        TermsAggregationBuilder builder = terms("terms").field("labels");
+        assertNoFailuresAndResponse(client().prepareSearch(indexName).addAggregation(builder), response -> {
+            Terms terms = response.getAggregations().get("terms");
+            assertThat(terms, notNullValue());
+            assertThat(terms.getBuckets().size(), equalTo(2));
+
+            Terms.Bucket barBucket = terms.getBuckets().get(0);
+            assertEquals("bar", barBucket.getKey());
+            assertEquals(1, barBucket.getDocCount());
+
+            Terms.Bucket fooBucket = terms.getBuckets().get(1);
+            assertEquals("foo", fooBucket.getKey());
+            assertEquals(1, fooBucket.getDocCount());
+        });
+    }
+
+    public void testNoRootDocValuesFieldWhenIndexFalse() throws Exception {
+        String indexName = "test-noindex-no-root-dv";
+        XContentBuilder mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("_doc")
+            .startObject("properties")
+            .startObject("labels")
+            .field("type", "flattened")
+            .field("index", false)
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject();
+        createIndex(indexName, Settings.EMPTY, mapping);
+
+        prepareIndex(indexName).setId("1")
+            .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
+            .setSource(
+                XContentFactory.jsonBuilder()
+                    .startObject()
+                    .startObject("labels")
+                    .field("key1", "value1")
+                    .field("key2", "value2")
+                    .endObject()
+                    .endObject()
+            )
+            .get();
+
+        var indexService = getInstanceFromNode(IndicesService.class).indexServiceSafe(resolveIndex(indexName));
+        var shard = indexService.getShard(0);
+        try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
+            for (var leaf : searcher.getDirectoryReader().leaves()) {
+                for (FieldInfo fieldInfo : leaf.reader().getFieldInfos()) {
+                    if (fieldInfo.name.equals("labels")) {
+                        assertEquals(
+                            "root field 'labels' should not have doc values when index=false",
+                            DocValuesType.NONE,
+                            fieldInfo.getDocValuesType()
+                        );
+                    }
+                    if (fieldInfo.name.equals("labels._keyed")) {
+                        assertNotEquals(
+                            "keyed field 'labels._keyed' should have doc values",
+                            DocValuesType.NONE,
+                            fieldInfo.getDocValuesType()
+                        );
+                    }
+                }
+            }
+        }
+    }
+
     public void testSourceFiltering() {
         Map<String, Object> headers = new HashMap<>();
         headers.put("content-type", "application/json");
@@ -443,6 +548,239 @@ public class FlattenedFieldSearchTests extends ESSingleNodeTestCase {
                 response.getHits().getAt(0).getSourceAsMap(),
                 equalTo(Collections.singletonMap("headers", Collections.singletonMap("origin", "https://www.elastic.co")))
             )
+        );
+    }
+
+    public void testMappedPropertyTermQuery() throws Exception {
+        createIndex("props_test", indicesAdmin().prepareCreate("props_test").setMapping("""
+            {
+              "properties": {
+                "event": {
+                  "type": "flattened",
+                  "properties": {
+                    "host.name": { "type": "keyword" }
+                  }
+                }
+              }
+            }"""));
+
+        prepareIndex("props_test").setId("1").setRefreshPolicy(RefreshPolicy.IMMEDIATE).setSource("""
+            {"event": {"host.name": "server-a", "region": "us-east"}}""", XContentType.JSON).get();
+
+        prepareIndex("props_test").setId("2").setRefreshPolicy(RefreshPolicy.IMMEDIATE).setSource("""
+            {"event": {"host.name": "server-b", "region": "eu-west"}}""", XContentType.JSON).get();
+
+        // Mapped property: term query on the typed keyword sub-field
+        assertHitCount(client().prepareSearch("props_test").setQuery(termQuery("event.host.name", "server-a")), 1L);
+        assertHitCount(client().prepareSearch("props_test").setQuery(termQuery("event.host.name", "server-b")), 1L);
+        assertHitCount(client().prepareSearch("props_test").setQuery(termQuery("event.host.name", "nonexistent")), 0L);
+
+        // Unmapped key: still queryable through the flattened keyed mechanism
+        assertHitCount(client().prepareSearch("props_test").setQuery(termQuery("event.region", "us-east")), 1L);
+        assertHitCount(client().prepareSearch("props_test").setQuery(termQuery("event.region", "eu-west")), 1L);
+    }
+
+    public void testMappedPropertySort() throws Exception {
+        createIndex("sort_test", indicesAdmin().prepareCreate("sort_test").setMapping("""
+            {
+              "properties": {
+                "event": {
+                  "type": "flattened",
+                  "properties": {
+                    "priority": { "type": "keyword" }
+                  }
+                }
+              }
+            }"""));
+
+        prepareIndex("sort_test").setId("1").setRefreshPolicy(RefreshPolicy.IMMEDIATE).setSource("""
+            {"event": {"priority": "B", "other": "x"}}""", XContentType.JSON).get();
+
+        prepareIndex("sort_test").setId("2").setRefreshPolicy(RefreshPolicy.IMMEDIATE).setSource("""
+            {"event": {"priority": "A", "other": "y"}}""", XContentType.JSON).get();
+
+        prepareIndex("sort_test").setId("3").setRefreshPolicy(RefreshPolicy.IMMEDIATE).setSource("""
+            {"event": {"priority": "C"}}""", XContentType.JSON).get();
+
+        // Sort ascending on the mapped keyword property
+        assertNoFailuresAndResponse(client().prepareSearch("sort_test").addSort("event.priority", SortOrder.ASC), response -> {
+            assertHitCount(response, 3);
+            assertOrderedSearchHits(response, "2", "1", "3");
+        });
+
+        // Sort descending
+        assertNoFailuresAndResponse(client().prepareSearch("sort_test").addSort("event.priority", SortOrder.DESC), response -> {
+            assertHitCount(response, 3);
+            assertOrderedSearchHits(response, "3", "1", "2");
+        });
+    }
+
+    public void testMappedPropertyTermsAggregation() throws Exception {
+        createIndex("agg_test", indicesAdmin().prepareCreate("agg_test").setMapping("""
+            {
+              "properties": {
+                "event": {
+                  "type": "flattened",
+                  "properties": {
+                    "status": { "type": "keyword" }
+                  }
+                }
+              }
+            }"""));
+
+        BulkRequestBuilder bulkRequest = client().prepareBulk("agg_test").setRefreshPolicy(RefreshPolicy.IMMEDIATE);
+        for (int i = 0; i < 5; i++) {
+            bulkRequest.add(client().prepareIndex().setSource("""
+                {"event": {"status": "ok", "region": "us-east"}}""", XContentType.JSON));
+        }
+        for (int i = 0; i < 3; i++) {
+            bulkRequest.add(client().prepareIndex().setSource("""
+                {"event": {"status": "error", "region": "eu-west"}}""", XContentType.JSON));
+        }
+        BulkResponse bulkResponse = bulkRequest.get();
+        assertNoFailures(bulkResponse);
+
+        // Terms aggregation on the mapped keyword property
+        TermsAggregationBuilder statusAgg = createTermsAgg("event.status");
+        assertNoFailuresAndResponse(client().prepareSearch("agg_test").addAggregation(statusAgg), response -> {
+            Terms statusTerms = response.getAggregations().get("terms");
+            assertThat(statusTerms, notNullValue());
+            assertThat(statusTerms.getBuckets().size(), equalTo(2));
+
+            Terms.Bucket okBucket = statusTerms.getBucketByKey("ok");
+            assertEquals(5, okBucket.getDocCount());
+
+            Terms.Bucket errorBucket = statusTerms.getBucketByKey("error");
+            assertEquals(3, errorBucket.getDocCount());
+        });
+
+        // Terms aggregation on unmapped key still works through flattened
+        TermsAggregationBuilder regionAgg = createTermsAgg("event.region");
+        assertNoFailuresAndResponse(client().prepareSearch("agg_test").addAggregation(regionAgg), response -> {
+            Terms regionTerms = response.getAggregations().get("terms");
+            assertThat(regionTerms.getBuckets().size(), equalTo(2));
+        });
+    }
+
+    public void testMappedPropertyLongRangeQuery() throws Exception {
+        createIndex("range_test", indicesAdmin().prepareCreate("range_test").setMapping("""
+            {
+              "properties": {
+                "metrics": {
+                  "type": "flattened",
+                  "properties": {
+                    "response_time": { "type": "long" }
+                  }
+                }
+              }
+            }"""));
+
+        BulkRequestBuilder bulkRequest = client().prepareBulk("range_test").setRefreshPolicy(RefreshPolicy.IMMEDIATE);
+        int[] responseTimes = { 50, 120, 200, 350, 500 };
+        for (int i = 0; i < responseTimes.length; i++) {
+            bulkRequest.add(client().prepareIndex().setId(Integer.toString(i)).setSource(Strings.format("""
+                {"metrics": {"response_time": %d, "label": "req-%d"}}""", responseTimes[i], i), XContentType.JSON));
+        }
+        BulkResponse bulkResponse = bulkRequest.get();
+        assertNoFailures(bulkResponse);
+
+        // Numeric range query on the mapped long property
+        assertHitCount(client().prepareSearch("range_test").setQuery(rangeQuery("metrics.response_time").gte(100).lte(300)), 2L);
+        assertHitCount(client().prepareSearch("range_test").setQuery(rangeQuery("metrics.response_time").gt(200)), 2L);
+        assertHitCount(client().prepareSearch("range_test").setQuery(rangeQuery("metrics.response_time").lt(100)), 1L);
+
+        // Sort on the mapped long property
+        assertNoFailuresAndResponse(client().prepareSearch("range_test").addSort("metrics.response_time", SortOrder.DESC), response -> {
+            assertHitCount(response, 5);
+            assertOrderedSearchHits(response, "4", "3", "2", "1", "0");
+        });
+
+        // Unmapped key still works as flattened
+        assertHitCount(client().prepareSearch("range_test").setQuery(termQuery("metrics.label", "req-0")), 1L);
+    }
+
+    public void testMappedPropertyExistsQuery() throws Exception {
+        createIndex("exists_test", indicesAdmin().prepareCreate("exists_test").setMapping("""
+            {
+              "properties": {
+                "event": {
+                  "type": "flattened",
+                  "properties": {
+                    "host.name": { "type": "keyword" }
+                  }
+                }
+              }
+            }"""));
+
+        prepareIndex("exists_test").setId("1").setRefreshPolicy(RefreshPolicy.IMMEDIATE).setSource("""
+            {"event": {"host.name": "server-a", "region": "us-east"}}""", XContentType.JSON).get();
+
+        prepareIndex("exists_test").setId("2").setRefreshPolicy(RefreshPolicy.IMMEDIATE).setSource("""
+            {"event": {"region": "eu-west"}}""", XContentType.JSON).get();
+
+        assertHitCount(client().prepareSearch("exists_test").setQuery(existsQuery("event.host.name")), 1L);
+        assertHitCount(client().prepareSearch("exists_test").setQuery(existsQuery("event")), 2L);
+    }
+
+    public void testCrossIndexQueryWithMappedProperty() throws Exception {
+        createIndex("cross_idx_a", indicesAdmin().prepareCreate("cross_idx_a").setMapping("""
+            {
+              "properties": {
+                "event": {
+                  "type": "flattened",
+                  "properties": {
+                    "status": { "type": "keyword" }
+                  }
+                }
+              }
+            }"""));
+
+        createIndex("cross_idx_b", indicesAdmin().prepareCreate("cross_idx_b").setMapping("""
+            {
+              "properties": {
+                "event": { "type": "flattened" }
+              }
+            }"""));
+
+        prepareIndex("cross_idx_a").setId("1").setRefreshPolicy(RefreshPolicy.IMMEDIATE).setSource("""
+            {"event": {"status": "ok"}}""", XContentType.JSON).get();
+
+        prepareIndex("cross_idx_b").setId("2").setRefreshPolicy(RefreshPolicy.IMMEDIATE).setSource("""
+            {"event": {"status": "ok"}}""", XContentType.JSON).get();
+
+        assertHitCount(client().prepareSearch("cross_idx_a", "cross_idx_b").setQuery(termQuery("event.status", "ok")), 2L);
+    }
+
+    public void testMappedPropertyDocValueFields() throws Exception {
+        createIndex("dv_test", indicesAdmin().prepareCreate("dv_test").setMapping("""
+            {
+              "properties": {
+                "event": {
+                  "type": "flattened",
+                  "properties": {
+                    "host.name": { "type": "keyword" }
+                  }
+                }
+              }
+            }"""));
+
+        prepareIndex("dv_test").setId("1").setRefreshPolicy(RefreshPolicy.IMMEDIATE).setSource("""
+            {"event": {"host.name": "server-a", "region": "us-east"}}""", XContentType.JSON).get();
+
+        assertNoFailuresAndResponse(
+            client().prepareSearch("dv_test").addDocValueField("event.host.name").addDocValueField("event.region"),
+            response -> {
+                assertHitCount(response, 1);
+                Map<String, DocumentField> fields = response.getHits().getAt(0).getFields();
+
+                DocumentField hostField = fields.get("event.host.name");
+                assertEquals("event.host.name", hostField.getName());
+                assertEquals("server-a", hostField.getValue());
+
+                DocumentField regionField = fields.get("event.region");
+                assertEquals("event.region", regionField.getName());
+                assertEquals("us-east", regionField.getValue());
+            }
         );
     }
 }

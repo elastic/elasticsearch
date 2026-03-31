@@ -288,8 +288,8 @@ public class CcrTimeSeriesDataStreamsIT extends CcrIntegTestCase {
             .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
             .put(IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE_SETTING.getKey(), randomBoolean())
             .put(IndexSettings.SYNTHETIC_ID.getKey(), useSyntheticId);
-        if (disableSeqNo) {
-            settingsBuilder.put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true);
+        if (IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG) {
+            settingsBuilder.put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), disableSeqNo);
         }
         var putTemplateRequest = new TransportPutComposableIndexTemplateAction.Request(getTestClass().getName().toLowerCase(Locale.ROOT))
             .indexTemplate(

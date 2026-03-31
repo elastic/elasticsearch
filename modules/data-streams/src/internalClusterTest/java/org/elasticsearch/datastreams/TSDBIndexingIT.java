@@ -467,6 +467,10 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
             // This test checks that _id's are pruned, that only applies
             // when regular _id's are used.
             .put(IndexSettings.SYNTHETIC_ID.getKey(), false);
+        if (IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG) {
+            // This test relies on sequence numbers to verify ids.
+            indexSettings.put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), false);
+        }
         putTemplateRequest.indexTemplate(
             ComposableIndexTemplate.builder()
                 .indexPatterns(List.of(dataStreamName + "*"))

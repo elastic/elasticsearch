@@ -14,12 +14,15 @@ import org.apache.lucene.index.DocValuesSkipIndexType;
 import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
+import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.TsidExtractingIdFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
 
@@ -40,6 +43,8 @@ class TSDBSyntheticIdDocValuesHolder {
     private final FieldInfo tsIdFieldInfo;
     private final FieldInfo timestampFieldInfo;
     private final FieldInfo routingHashFieldInfo;
+    private final @Nullable FieldInfo tombstoneFieldInfo;
+    private final @Nullable FieldInfo softDeletesFieldInfo;
     private final DocValuesProducer docValuesProducer;
     private final boolean hasTsIdSkipper;
     private final boolean hasTimestampSkipper;
@@ -47,6 +52,8 @@ class TSDBSyntheticIdDocValuesHolder {
     private SortedNumericDocValues timestampDocValues; // sorted desc. order
     private SortedDocValues routingHashDocValues; // sorted asc. order
     private SortedDocValues tsIdDocValues; // sorted asc. order
+    private NumericDocValues tombstoneDocValues;
+    private NumericDocValues softDeletesDocValues;
     // Keep around the latest tsId ordinal and value
     private int cachedTsIdOrd = -1;
     private BytesRef cachedTsId;
@@ -55,6 +62,8 @@ class TSDBSyntheticIdDocValuesHolder {
         this.tsIdFieldInfo = safeFieldInfo(fieldInfos, TSDBSyntheticIdPostingsFormat.TS_ID);
         this.timestampFieldInfo = safeFieldInfo(fieldInfos, TSDBSyntheticIdPostingsFormat.TIMESTAMP);
         this.routingHashFieldInfo = safeFieldInfo(fieldInfos, TSDBSyntheticIdPostingsFormat.TS_ROUTING_HASH);
+        this.tombstoneFieldInfo = fieldInfos.fieldInfo(SeqNoFieldMapper.TOMBSTONE_NAME);
+        this.softDeletesFieldInfo = fieldInfos.fieldInfo(Lucene.SOFT_DELETES_FIELD);
         this.docValuesProducer = docValuesProducer;
         this.hasTsIdSkipper = tsIdFieldInfo.docValuesSkipIndexType() != DocValuesSkipIndexType.NONE;
         this.hasTimestampSkipper = timestampFieldInfo.docValuesSkipIndexType() != DocValuesSkipIndexType.NONE;
@@ -84,7 +93,9 @@ class TSDBSyntheticIdDocValuesHolder {
             cachedTsId = null;
         }
         boolean found = tsIdDocValues.advanceExact(docID);
-        assert found : "No value found for field [" + tsIdFieldInfo.getName() + "] and docID " + docID;
+        if (found == false) {
+            throw new IllegalStateException("No _tsid value for docID " + docID);
+        }
         return tsIdDocValues.ordValue();
     }
 
@@ -184,6 +195,7 @@ class TSDBSyntheticIdDocValuesHolder {
      * @throws IOException if any I/O exception occurs
      */
     private int findStartDocIDForTsIdOrd(int tsIdOrd) throws IOException {
+        assert tsIdOrd >= 0 : tsIdOrd;
         if (hasTsIdSkipper == false) {
             return 0;
         }
@@ -217,8 +229,10 @@ class TSDBSyntheticIdDocValuesHolder {
         assert tsIdOrd < tsIdDocValues.getValueCount() : tsIdOrd;
 
         for (int docID = startDocId; docID != DocIdSetIterator.NO_MORE_DOCS; docID = tsIdDocValues.nextDoc()) {
-            boolean found = tsIdDocValues.advanceExact(docID);
-            assert found : "No value found for field [" + tsIdFieldInfo.getName() + "] and docID " + docID;
+            // Skip documents without _tsid (NOOP tombstones)
+            if (tsIdDocValues.advanceExact(docID) == false) {
+                continue;
+            }
             var ord = tsIdDocValues.ordValue();
             if (ord == tsIdOrd || tsIdOrd < ord) {
                 if (ord != cachedTsIdOrd) {
@@ -255,8 +269,10 @@ class TSDBSyntheticIdDocValuesHolder {
         assert tsIdOrd < tsIdDocValues.getValueCount() : tsIdOrd;
 
         for (int docID = startDocId; docID != DocIdSetIterator.NO_MORE_DOCS; docID = tsIdDocValues.nextDoc()) {
-            boolean found = tsIdDocValues.advanceExact(docID);
-            assert found : "No value found for field [" + tsIdFieldInfo.getName() + "] and docID " + docID;
+            // Skip documents without _tsid (NOOP tombstones)
+            if (tsIdDocValues.advanceExact(docID) == false) {
+                continue;
+            }
             var ord = tsIdDocValues.ordValue();
             if (ord == tsIdOrd) {
                 if (ord != cachedTsIdOrd) {
@@ -289,6 +305,47 @@ class TSDBSyntheticIdDocValuesHolder {
             tsIdDocValues = docValuesProducer.getSorted(tsIdFieldInfo);
         }
         return tsIdDocValues.getValueCount();
+    }
+
+    /**
+     * Returns true if the document has a _tsid doc value.
+     * NOOP tombstones don't have _tsid doc values and return false.
+     */
+    boolean hasTsIdDocValue(int docID) throws IOException {
+        if (tsIdDocValues == null || tsIdDocValues.docID() > docID) {
+            tsIdDocValues = docValuesProducer.getSorted(tsIdFieldInfo);
+            cachedTsIdOrd = -1;
+            cachedTsId = null;
+        }
+        boolean hasTsId = tsIdDocValues.advanceExact(docID);
+        assert hasTsId || assertNoOpTombstone(docID);
+        return hasTsId;
+    }
+
+    private boolean assertNoOpTombstone(int docID) throws IOException {
+        assert isTombstone(docID) : "Document " + docID + " has no _tsid but is not a tombstone";
+        assert isSoftDeleted(docID) : "Document " + docID + " has no _tsid but is not soft-deleted";
+        return true;
+    }
+
+    private boolean isTombstone(int docID) throws IOException {
+        if (tombstoneFieldInfo == null) {
+            return false;
+        }
+        if (tombstoneDocValues == null || tombstoneDocValues.docID() > docID) {
+            tombstoneDocValues = docValuesProducer.getNumeric(tombstoneFieldInfo);
+        }
+        return tombstoneDocValues.advanceExact(docID) && tombstoneDocValues.longValue() > 0;
+    }
+
+    private boolean isSoftDeleted(int docID) throws IOException {
+        if (softDeletesFieldInfo == null) {
+            return false;
+        }
+        if (softDeletesDocValues == null || softDeletesDocValues.docID() > docID) {
+            softDeletesDocValues = docValuesProducer.getNumeric(softDeletesFieldInfo);
+        }
+        return softDeletesDocValues.advanceExact(docID) && softDeletesDocValues.longValue() == 1;
     }
 
     /**

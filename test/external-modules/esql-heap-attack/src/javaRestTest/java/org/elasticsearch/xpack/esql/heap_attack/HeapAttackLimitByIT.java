@@ -267,11 +267,7 @@ public class HeapAttackLimitByIT extends HeapAttackTestCase {
     public void testTopNByHighCardinalityTooMuchMemory() throws IOException {
         assumeTrue("SORT | LIMIT BY requires snapshot builds", Build.current().isSnapshot());
         initManyLongsAndString(10, 100);
-        assertCircuitBreaksVia(
-            attempt -> topNByWideStringKey(attempt * 40),
-            GroupedTopNOperator.class.getName(),
-            bytesRefHashClassName()
-        );
+        assertCircuitBreaksVia(attempt -> topNByWideStringKey(attempt * 40), GroupedTopNOperator.class.getName(), bytesRefHashClassName());
     }
 
     private Map<String, Object> topNByWideStringKey(int repeatScale) throws IOException {

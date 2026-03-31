@@ -438,9 +438,6 @@ public class ReindexResumeIT extends ESIntegTestCase {
         assertEquals(0, currentNumberOfScrollContexts());
     }
 
-    // todo: ideally we'd have an E2E relocation test of reindex duration metric, but made difficult because these tests complete
-    // in under a second, and the metric is in seconds... could either be implemented with `Thread.sleep` (bad because slow tests),
-    // or somehow making timing deterministic (not sure how to do this, would need investigation)
     public void testResumeReindexMetricsRecordsDurationFromRelocationOrigin() {
         assertThat(internalCluster().numDataNodes(), equalTo(1));
         final String dataNodeName = internalCluster().getRandomDataNodeName();

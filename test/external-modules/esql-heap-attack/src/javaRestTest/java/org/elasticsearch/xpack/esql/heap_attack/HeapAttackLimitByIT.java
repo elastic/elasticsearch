@@ -18,6 +18,8 @@ import org.elasticsearch.compute.operator.GroupedLimitOperator;
 import org.elasticsearch.compute.operator.topn.GroupedTopNOperator;
 import org.elasticsearch.swisshash.BytesRefSwissHash;
 import org.elasticsearch.test.ListMatcher;
+import org.junit.After;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.List;
@@ -35,6 +37,31 @@ import static org.hamcrest.Matchers.any;
 @TimeoutSuite(millis = 5 * TimeUnits.MINUTE)
 public class HeapAttackLimitByIT extends HeapAttackTestCase {
 
+    /**
+     * Lower the request circuit breaker to 40% of JVM heap (default is 60%). A tighter limit ensures
+     * the breaker fires well before the JVM runs out of memory.
+     *
+     * We want to have some headroom between what the circuit breaker sees and the real free JVM heap:
+     * <ul>
+     *   <li> We need to discount size of cached pages in {@code PageCacheRecycler}.
+     *        Those cached pages are invisible to the breaker but still consume heap. </li>
+     *   <li> ES classpath also takes up heap space </li>
+     *   <li> Memory fragmentation might cause the circuit breaker to think we can allocate
+     *        an array when it's not possible to find a big enough gap in heap </li>
+     * </ul>
+     */
+    @Before
+    public void lowerRequestBreakerLimit() throws IOException {
+        setRequestBreakerLimit("40%");
+    }
+
+    /**
+     * Restores circuit breaker default limit
+     */
+    @After
+    public void resetRequestBreakerLimit() throws IOException {
+        setRequestBreakerLimit(null);
+    }
     // -------------------------------------------------------------------------
     // LIMIT BY — GroupedLimitOperator
     // -------------------------------------------------------------------------

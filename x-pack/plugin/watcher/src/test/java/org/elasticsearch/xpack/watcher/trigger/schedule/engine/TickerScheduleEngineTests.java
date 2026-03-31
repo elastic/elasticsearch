@@ -118,10 +118,7 @@ public class TickerScheduleEngineTests extends ESTestCase {
         });
 
         int randomMinute = randomIntBetween(0, 59);
-        ZonedDateTime testNowTime = clock.instant()
-            .atZone(ZoneOffset.UTC)
-            .withMinute(randomMinute)
-            .withSecond(59);
+        ZonedDateTime testNowTime = clock.instant().atZone(ZoneOffset.UTC).withMinute(randomMinute).withSecond(59);
 
         ZonedDateTime scheduledTime = testNowTime.plusSeconds(2);
         logger.info("Setting current time to [{}], job execution time [{}]", testNowTime, scheduledTime);

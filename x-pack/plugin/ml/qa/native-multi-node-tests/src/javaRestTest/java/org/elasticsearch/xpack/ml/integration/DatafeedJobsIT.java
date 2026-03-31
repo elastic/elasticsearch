@@ -244,13 +244,22 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
 
         putJob(job);
 
+        // search_count is only guaranteed 0 before the first start (no timing stats yet). After delete +
+        // put again, job-scoped stats may still be persisted (issue #138348) or cleared when the job
+        // closed; do not assert a specific search_count before the second start.
+        final boolean[] assertSearchCountZeroBeforeStart = { true };
         CheckedRunnable<Exception> openAndRunJob = () -> {
             openJob(job.getId());
             assertBusy(() -> assertEquals(getJobStats(job.getId()).get(0).getState(), JobState.OPENED));
 
             putDatafeed(datafeedConfig);
-            // Datafeed did not do anything yet, hence search_count is equal to 0.
-            assertBusy(() -> assertDatafeedStats(datafeedId, DatafeedState.STOPPED, job.getId(), equalTo(0L)), 30, TimeUnit.SECONDS);
+            assertBusy(() -> {
+                if (assertSearchCountZeroBeforeStart[0]) {
+                    assertDatafeedStats(datafeedId, DatafeedState.STOPPED, job.getId(), equalTo(0L));
+                } else {
+                    assertDatafeedStats(datafeedId, DatafeedState.STOPPED, job.getId());
+                }
+            }, 30, TimeUnit.SECONDS);
             startDatafeed(datafeedId, 0L, now.toEpochMilli());
 
             // First, wait for data processing to complete
@@ -272,6 +281,7 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
                 }
             });
             waitUntilJobIsClosed(job.getId());
+            assertSearchCountZeroBeforeStart[0] = false;
         };
 
         openAndRunJob.run();
@@ -471,13 +481,20 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         }
     }
 
-    private void assertDatafeedStats(String datafeedId, DatafeedState state, String jobId, Matcher<Long> searchCountMatcher) {
+    private void assertDatafeedStats(String datafeedId, DatafeedState state, String jobId) {
         GetDatafeedsStatsAction.Request request = new GetDatafeedsStatsAction.Request(datafeedId);
         GetDatafeedsStatsAction.Response response = client().execute(GetDatafeedsStatsAction.INSTANCE, request).actionGet();
         assertThat(response.getResponse().results(), hasSize(1));
         GetDatafeedsStatsAction.Response.DatafeedStats stats = response.getResponse().results().get(0);
         assertThat(stats.getDatafeedState(), equalTo(state));
         assertThat(stats.getTimingStats().getJobId(), equalTo(jobId));
+    }
+
+    private void assertDatafeedStats(String datafeedId, DatafeedState state, String jobId, Matcher<Long> searchCountMatcher) {
+        assertDatafeedStats(datafeedId, state, jobId);
+        GetDatafeedsStatsAction.Request request = new GetDatafeedsStatsAction.Request(datafeedId);
+        GetDatafeedsStatsAction.Response response = client().execute(GetDatafeedsStatsAction.INSTANCE, request).actionGet();
+        GetDatafeedsStatsAction.Response.DatafeedStats stats = response.getResponse().results().get(0);
         assertThat(stats.getTimingStats().getSearchCount(), searchCountMatcher);
     }
 

@@ -282,7 +282,7 @@ public class EsqlQueryGenerator {
     }
 
     public static boolean needsQuoting(String rawName) {
-        return rawName.contains("`") || rawName.contains("-");
+        return rawName.contains("`") || rawName.contains("-") || rawName.contains("(") || rawName.contains(")");
     }
 
     /**

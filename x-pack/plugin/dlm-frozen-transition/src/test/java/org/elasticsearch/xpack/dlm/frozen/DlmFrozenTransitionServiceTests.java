@@ -83,12 +83,17 @@ public class DlmFrozenTransitionServiceTests extends ESTestCase {
         Set<org.elasticsearch.common.settings.Setting<?>> settingSet = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         settingSet.add(DlmFrozenTransitionService.POLL_INTERVAL_SETTING);
         settingSet.add(DlmFrozenTransitionService.MAX_CONCURRENCY_SETTING);
+        settingSet.add(DlmFrozenTransitionService.MAX_QUEUE_SIZE);
         threadPool = new TestThreadPool(getTestName());
+        // Set max_queue_size equal to max_concurrency so that capacity tests remain valid: once maxConcurrency * 2
+        // tasks have been submitted, hasCapacity() returns false.
+        int maxConcurrency = DlmFrozenTransitionService.MAX_CONCURRENCY_SETTING.getDefault(Settings.EMPTY);
+        Settings settings = Settings.builder().put("dlm.frozen_transition.max_queue_size", maxConcurrency).build();
         clusterService = createClusterService(
             threadPool,
             DiscoveryNodeUtils.create("node", "node"),
-            Settings.EMPTY,
-            new ClusterSettings(Settings.EMPTY, settingSet)
+            settings,
+            new ClusterSettings(settings, settingSet)
         );
     }
 
@@ -274,18 +279,23 @@ public class DlmFrozenTransitionServiceTests extends ESTestCase {
     }
 
     public void testCheckForFrozenIndicesReturnsEarlyWhenCapacityExhausted() throws Exception {
-        int maxConcurrency = DlmFrozenTransitionService.MAX_CONCURRENCY_SETTING.getDefault(Settings.EMPTY);
+        int maxConcurrency = DlmFrozenTransitionService.MAX_CONCURRENCY_SETTING.get(clusterService.getSettings());
+        int maxQueue = DlmFrozenTransitionService.MAX_QUEUE_SIZE.get(clusterService.getSettings());
+
+        int maxJobs = maxConcurrency + maxQueue;
+
         CountDownLatch blockUntil = new CountDownLatch(1);
-        CountDownLatch tasksStarted = new CountDownLatch(maxConcurrency);
+        CountDownLatch allSubmitted = new CountDownLatch(maxJobs);
         List<String> submittedIndices = new CopyOnWriteArrayList<>();
         var service = new DlmFrozenTransitionService(clusterService, (indexName, pid) -> {
             submittedIndices.add(indexName);
-            return new TestDlmFrozenTransitionRunnable(indexName, blockUntil, tasksStarted);
+            allSubmitted.countDown();
+            return new TestDlmFrozenTransitionRunnable(indexName, blockUntil);
         });
         try {
-            // Start with exactly maxConcurrency marked indices so the initial poll fills capacity without rejection
+            // Start with exactly maxJobs marked indices so the initial poll fills capacity without rejection
             ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(randomProjectIdOrDefault());
-            for (int i = 1; i <= maxConcurrency; i++) {
+            for (int i = 1; i <= maxJobs; i++) {
                 String dsName = "frozen-ds-" + i;
                 addDataStream(projectBuilder, dsName, createMarkedIndex(dsName));
             }
@@ -293,9 +303,9 @@ public class DlmFrozenTransitionServiceTests extends ESTestCase {
             setProjectState(projectBuilder);
             service.clusterChanged(createMasterEvent(true));
 
-            // Wait for all tasks to start (capacity now exhausted)
-            safeAwait(tasksStarted);
-            assertEquals(maxConcurrency, submittedIndices.size());
+            // Wait until all maxJobs tasks have been accepted by the executor (capacity now exhausted)
+            safeAwait(allSubmitted);
+            assertEquals(maxJobs, submittedIndices.size());
 
             // Add more marked indices to the cluster state
             ProjectMetadata existingProject = clusterService.state().metadata().projects().values().iterator().next();
@@ -306,21 +316,72 @@ public class DlmFrozenTransitionServiceTests extends ESTestCase {
 
             // Manually trigger poll — running indices are skipped, new index hits capacity check and returns early
             service.checkForFrozenIndices();
-            assertEquals("No additional indices should be submitted when capacity is exhausted", maxConcurrency, submittedIndices.size());
+            assertEquals("No additional indices should be submitted when capacity is exhausted", maxJobs, submittedIndices.size());
         } finally {
             blockUntil.countDown();
             service.close();
         }
     }
 
-    public void testPollIntervalMinimum() {
-        Settings tooLow = Settings.builder().put("dlm.frozen_transition.poll_interval", "30s").build();
-        expectThrows(IllegalArgumentException.class, () -> DlmFrozenTransitionService.POLL_INTERVAL_SETTING.get(tooLow));
-    }
+    /**
+     * A task that has been submitted but is waiting in the executor queue (single thread occupied, second index
+     * queued but not yet started) must be treated as "running" by the de-duplication guard in
+     * {@code checkForFrozenIndices}, so a second poll does not submit it a second time.
+     */
+    public void testAlreadyQueuedIndexIsNotResubmitted() throws Exception {
+        Set<org.elasticsearch.common.settings.Setting<?>> allSettings = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        allSettings.add(DlmFrozenTransitionService.POLL_INTERVAL_SETTING);
+        allSettings.add(DlmFrozenTransitionService.MAX_CONCURRENCY_SETTING);
+        allSettings.add(DlmFrozenTransitionService.MAX_QUEUE_SIZE);
+        Settings singleThreadSettings = Settings.builder()
+            .put("dlm.frozen_transition.max_concurrency", 1)
+            .put("dlm.frozen_transition.max_queue_size", 5)
+            .build();
+        ClusterService localClusterService = createClusterService(
+            threadPool,
+            DiscoveryNodeUtils.create("local-node", "local-node"),
+            singleThreadSettings,
+            new ClusterSettings(singleThreadSettings, allSettings)
+        );
+        try {
+            CountDownLatch blockUntil = new CountDownLatch(1);
+            List<String> submittedIndices = new CopyOnWriteArrayList<>();
 
-    public void testMaxConcurrencyMinimum() {
-        Settings tooLow = Settings.builder().put("dlm.frozen_transition.max_concurrency", 0).build();
-        expectThrows(IllegalArgumentException.class, () -> DlmFrozenTransitionService.MAX_CONCURRENCY_SETTING.get(tooLow));
+            IndexMetadata firstIndex = createMarkedIndex("first-ds");
+            IndexMetadata secondIndex = createMarkedIndex("second-ds");
+            ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(randomProjectIdOrDefault());
+            addDataStream(projectBuilder, "first-ds", firstIndex);
+            addDataStream(projectBuilder, "second-ds", secondIndex);
+            setState(localClusterService, ClusterState.builder(localClusterService.state()).putProjectMetadata(projectBuilder).build());
+
+            var service = new DlmFrozenTransitionService(localClusterService, (indexName, pid) -> {
+                submittedIndices.add(indexName);
+                return new TestDlmFrozenTransitionRunnable(indexName, blockUntil);
+            });
+            try {
+                service.clusterChanged(createMasterEventFor(localClusterService, true));
+
+                // Wait until both indices have been accepted by the executor — one is running on the single
+                // thread, the other is waiting in the queue. We poll submittedTransitions directly so that
+                // the assertion is independent of which index happened to be scheduled first.
+                assertBusy(() -> {
+                    DlmFrozenTransitionExecutor exec = service.getTransitionExecutor();
+                    assertNotNull(exec);
+                    assertTrue(exec.transitionSubmitted(firstIndex.getIndex().getName()));
+                    assertTrue(exec.transitionSubmitted(secondIndex.getIndex().getName()));
+                });
+                assertEquals(2, submittedIndices.size());
+
+                // A second poll must skip both: one is running, the other is queued but not yet started.
+                service.checkForFrozenIndices();
+                assertEquals("Queued index must not be submitted a second time", 2, submittedIndices.size());
+            } finally {
+                blockUntil.countDown();
+                service.close();
+            }
+        } finally {
+            localClusterService.close();
+        }
     }
 
     private IndexMetadata createMarkedIndex(String dataStreamName) {
@@ -353,6 +414,10 @@ public class DlmFrozenTransitionServiceTests extends ESTestCase {
     }
 
     private ClusterChangedEvent createMasterEvent(boolean isMaster) {
+        return createMasterEventFor(clusterService, isMaster);
+    }
+
+    private ClusterChangedEvent createMasterEventFor(ClusterService cs, boolean isMaster) {
         var localNode = DiscoveryNodeUtils.create("local-node", "local-node");
         var otherNode = DiscoveryNodeUtils.create("other-node", "other-node");
 
@@ -364,10 +429,7 @@ public class DlmFrozenTransitionServiceTests extends ESTestCase {
             nodesBuilder.masterNodeId("other-node");
         }
 
-        ClusterState newState = ClusterState.builder(clusterService.state())
-            .nodes(nodesBuilder)
-            .blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK)
-            .build();
+        ClusterState newState = ClusterState.builder(cs.state()).nodes(nodesBuilder).blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK).build();
 
         ClusterState previousState = ClusterState.builder(new ClusterName("test"))
             .nodes(

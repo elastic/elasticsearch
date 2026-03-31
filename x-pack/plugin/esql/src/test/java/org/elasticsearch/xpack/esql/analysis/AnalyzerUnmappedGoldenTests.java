@@ -651,6 +651,30 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             """);
     }
 
+    public void testTypeConflictMappedAndUnmappedWithCast() throws Exception {
+        runTests("""
+            FROM sample_data, no_mapping_sample_data
+            | EVAL event_duration = event_duration::long
+            | KEEP event_duration
+            """);
+    }
+
+    public void testTypeConflictMappedTimesTwoAndUnmapped() throws Exception {
+        runTests("""
+            FROM sample_data_ts_long, sample_data, no_mapping_sample_data
+            | EVAL ts = @timestamp::date
+            | KEEP ts
+            """);
+    }
+
+    public void testNoTypeConflictKeywordAndUnmappedWhere() throws Exception {
+        runTests("""
+            FROM sample_data, no_mapping_sample_data
+            | WHERE message::keyword LIKE "Connected*"
+            | KEEP message
+            """);
+    }
+
     public void testForkBranchesAfterStats1stBranch() throws Exception {
         runTestsNullifyOnly("""
             FROM employees

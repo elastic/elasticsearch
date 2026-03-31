@@ -29,6 +29,7 @@ public class Clusters {
         return ElasticsearchCluster.local()
             .distribution(DistributionType.DEFAULT)
             .shared(true)
+            .plugin("inference-service-test")
             .module("repository-s3")
             .module("repository-gcs")
             .setting("xpack.security.enabled", "false")

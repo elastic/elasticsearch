@@ -51,9 +51,6 @@ tests:
 - class: org.elasticsearch.action.admin.cluster.node.tasks.CancellableTasksIT
   method: testChildrenTasksCancelledOnTimeout
   issue: https://github.com/elastic/elasticsearch/issues/123568
-- class: org.elasticsearch.xpack.searchablesnapshots.FrozenSearchableSnapshotsIntegTests
-  method: testCreateAndRestorePartialSearchableSnapshot
-  issue: https://github.com/elastic/elasticsearch/issues/123773
 - class: org.elasticsearch.xpack.restart.MLModelDeploymentFullClusterRestartIT
   method: testDeploymentSurvivesRestart {cluster=OLD}
   issue: https://github.com/elastic/elasticsearch/issues/124160
@@ -225,9 +222,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.spatial.SpatialPushDownGeoShapeIT
   method: testQuantizedXY
   issue: https://github.com/elastic/elasticsearch/issues/141234
-- class: org.elasticsearch.xpack.esql.tree.EsqlNodeSubclassTests
-  method: testTransform {class org.elasticsearch.xpack.esql.plan.logical.MMR}
-  issue: https://github.com/elastic/elasticsearch/issues/142674
 - class: org.elasticsearch.packaging.test.DebMetadataTests
   method: test05CheckLintian
   issue: https://github.com/elastic/elasticsearch/issues/142819
@@ -276,9 +270,6 @@ tests:
 - class: org.elasticsearch.server.cli.APMJvmOptionsTests
   method: testAPMAgentAlwaysAttached
   issue: https://github.com/elastic/elasticsearch/issues/144358
-- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
-  method: test {csv-spec:approximation.Approximate stats by on large single-valued data}
-  issue: https://github.com/elastic/elasticsearch/issues/144382
 - class: org.elasticsearch.xpack.application.OpenAiServiceUpgradeIT
   method: testOpenAiEmbeddings {upgradedNodes=3}
   issue: https://github.com/elastic/elasticsearch/issues/144440
@@ -291,12 +282,6 @@ tests:
 - class: org.elasticsearch.xpack.logsdb.RandomizedRollingUpgradeIT
   method: testIndexingSyntheticSource
   issue: https://github.com/elastic/elasticsearch/issues/144585
-- class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
-  method: test
-  issue: https://github.com/elastic/elasticsearch/issues/144587
-- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
-  method: test
-  issue: https://github.com/elastic/elasticsearch/issues/144587
 - class: org.elasticsearch.xpack.esql.action.AsyncEsqlQueryActionIT
   method: testUpdateKeepAlive
   issue: https://github.com/elastic/elasticsearch/issues/144618
@@ -306,15 +291,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {csv-spec:spatial_shapes.convertFromStringParseError}
   issue: https://github.com/elastic/elasticsearch/issues/144672
-- class: org.elasticsearch.repositories.gcs.GoogleCloudStorageBlobStoreRepositoryTests
-  method: testCopy
-  issue: https://github.com/elastic/elasticsearch/issues/144692
 - class: org.elasticsearch.index.store.StoreDirectoryMetricsIT
   method: testDirectoryMetrics
   issue: https://github.com/elastic/elasticsearch/issues/144702
-- class: org.elasticsearch.xpack.ccr.index.engine.FollowingEngineTests
-  method: testProcessOnceOnPrimary
-  issue: https://github.com/elastic/elasticsearch/issues/144743
 - class: org.elasticsearch.xpack.transform.transforms.ClientTransformIndexerTests
   method: testDisablePitWhenCrossProjectSearchIsEnabled
   issue: https://github.com/elastic/elasticsearch/issues/144822
@@ -363,6 +342,80 @@ tests:
 - class: org.elasticsearch.xpack.esql.analysis.AnalyzerTests
   method: testLookupMissingTable
   issue: https://github.com/elastic/elasticsearch/issues/144695
+- class: org.elasticsearch.indices.memory.breaker.AccountableQueryCircuitBreakerIT
+  method: testPrefixQueryMemoryReleased
+  issue: https://github.com/elastic/elasticsearch/issues/145200
+- class: org.elasticsearch.search.basic.SearchWithRandomIOExceptionsIT
+  method: testRandomDirectoryIOExceptions
+  issue: https://github.com/elastic/elasticsearch/issues/118733
+- class: org.elasticsearch.datastreams.TSDBSyntheticIdsIT
+  method: testNoopTombstones
+  issue: https://github.com/elastic/elasticsearch/issues/145217
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
+  method: test {csv-spec:approximation.Warn on max}
+  issue: https://github.com/elastic/elasticsearch/issues/145218
+- class: org.elasticsearch.xpack.sql.qa.jdbc.single_node.SingleNodeJdbcResultSetIT
+  method: testGettingValidShortWithoutCasting
+  issue: https://github.com/elastic/elasticsearch/issues/145241
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
+  method: test {csv-spec:approximation.Approximated column and null}
+  issue: https://github.com/elastic/elasticsearch/issues/145248
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
+  method: test {csv-spec:approximation.Warn on no stats}
+  issue: https://github.com/elastic/elasticsearch/issues/145249
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
+  method: test {csv-spec:approximation.Exact stats by on small multi-valued data}
+  issue: https://github.com/elastic/elasticsearch/issues/145250
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
+  method: test {csv-spec:approximation.Exact stats on small multi-valued data}
+  issue: https://github.com/elastic/elasticsearch/issues/145251
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundToTests
+  method: testFold {TestCase=<int, 15 fixed-interval ints>}
+  issue: https://github.com/elastic/elasticsearch/issues/145254
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundToTests
+  method: testFold {TestCase=<long, 15 fixed-interval longs>}
+  issue: https://github.com/elastic/elasticsearch/issues/145255
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundToTests
+  method: testEvaluateInManyThreads {TestCase=<long, 11 fixed-interval longs>}
+  issue: https://github.com/elastic/elasticsearch/issues/145256
+- class: org.elasticsearch.xpack.restart.FullClusterRestartIT
+  method: testWatcherWithApiKey {cluster=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/131964
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundToTests
+  method: testEvaluateBlockWithNulls {TestCase=<long, 20 fixed-interval longs>}
+  issue: https://github.com/elastic/elasticsearch/issues/145259
+- class: org.elasticsearch.xpack.sql.qa.jdbc.single_node.SingleNodeJdbcResultSetIT
+  method: testNoInfiniteRecursiveGetObjectCalls
+  issue: https://github.com/elastic/elasticsearch/issues/145269
+- class: org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilterIT
+  method: testRestart {p0=true p1=true}
+  issue: https://github.com/elastic/elasticsearch/issues/145273
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundToTests
+  method: testEvaluateInManyThreads {TestCase=<int, 20 fixed-interval ints>}
+  issue: https://github.com/elastic/elasticsearch/issues/145275
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundToTests
+  method: testEvaluate {TestCase=<long, 15 fixed-interval longs>}
+  issue: https://github.com/elastic/elasticsearch/issues/145276
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundToTests
+  issue: https://github.com/elastic/elasticsearch/issues/145277
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
+  method: test {csv-spec:approximation.Approximate stats by on large multi-valued data}
+  issue: https://github.com/elastic/elasticsearch/issues/145280
+- class: org.elasticsearch.repositories.azure.AzureBlobContainerStatsTests
+  method: testRetriesAndOperationsAreTrackedSeparately
+  issue: https://github.com/elastic/elasticsearch/issues/145281
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
+  method: test {csv-spec:approximation.Approximate stats on large multi-valued data}
+  issue: https://github.com/elastic/elasticsearch/issues/145282
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
+  method: test {csv-spec:approximation.Approximate stats by with zero variance}
+  issue: https://github.com/elastic/elasticsearch/issues/145287
+- class: org.elasticsearch.xpack.sql.qa.jdbc.single_node.SingleNodeJdbcResultSetIT
+  method: testGettingValidShortWithCasting
+  issue: https://github.com/elastic/elasticsearch/issues/145288
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundToTests
+  method: testEvaluateBlockWithoutNulls {TestCase=<long, 11 fixed-interval longs>}
+  issue: https://github.com/elastic/elasticsearch/issues/145289
 
 # Examples:
 #

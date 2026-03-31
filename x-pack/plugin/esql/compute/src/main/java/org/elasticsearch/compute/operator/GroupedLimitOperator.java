@@ -99,7 +99,7 @@ public class GroupedLimitOperator implements Operator, Accountable {
             success = true;
         } finally {
             if (success == false) {
-                Releasables.closeExpectNoException(keyEncoder, seenKeys, counts);
+                Releasables.closeExpectNoException(keyEncoder, seenKeys);
             }
         }
     }

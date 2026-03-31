@@ -398,6 +398,12 @@ tests:
 - class: org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundToTests
   method: testEvaluateBlockWithNulls {TestCase=<int, 11 fixed-interval ints>}
   issue: https://github.com/elastic/elasticsearch/issues/145257
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {csv-spec:external-basic.scoreFunction}
+  issue: https://github.com/elastic/elasticsearch/issues/145352
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {csv-spec:external-basic.topSnippetsFunction}
+  issue: https://github.com/elastic/elasticsearch/issues/145353
 
 # Examples:
 #

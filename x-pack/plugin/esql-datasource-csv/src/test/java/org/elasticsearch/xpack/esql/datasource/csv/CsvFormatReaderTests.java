@@ -75,6 +75,24 @@ public class CsvFormatReaderTests extends ESTestCase {
         assertEquals(DataType.BOOLEAN, schema.get(3).dataType());
     }
 
+    public void testTypedSchemaTextAndTxtAliasesMapToKeyword() throws IOException {
+        String csv = """
+            a:text,b:txt
+            hello,world
+            """;
+
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+
+        List<Attribute> schema = reader.schema(object);
+
+        assertEquals(2, schema.size());
+        assertEquals("a", schema.get(0).name());
+        assertEquals(DataType.KEYWORD, schema.get(0).dataType());
+        assertEquals("b", schema.get(1).name());
+        assertEquals(DataType.KEYWORD, schema.get(1).dataType());
+    }
+
     public void testSchemaWithComments() throws IOException {
         String csv = """
             // This is a comment

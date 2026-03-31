@@ -11,6 +11,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.SimilarityMeasure;
@@ -26,9 +27,9 @@ import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.cohere.CohereServiceSettings;
 import org.elasticsearch.xpack.inference.services.cohere.CohereServiceSettingsTests;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
-import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
+import java.net.URI;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -37,7 +38,39 @@ import java.util.Map;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
+/**
+ * {@link CohereServiceSettings} accepts a model identifier under either:
+ * <ul>
+ *     <li>{@link ServiceFields#MODEL_ID} ({@code "model_id"}) — current field name</li>
+ *     <li>{@link CohereServiceSettings#OLD_MODEL_ID_FIELD} ({@code "model"}) — legacy / deprecated key, still accepted for persisted configs</li>
+ * </ul>
+ * When both appear, {@code model_id} is used. Several {@code testFromMap_*} methods below spell out which key(s) each scenario uses.
+ * <p>
+ * {@code fromMap} tests that use {@link ConfigurationParseContext#PERSISTENT} are named {@code testFromMap_Persistent_*}
+ * (Azure AI Studio service-settings tests use {@code testFromMap_Request_*} where parsing runs in request context).
+ */
 public class CohereEmbeddingsServiceSettingsTests extends AbstractWireSerializingTestCase<CohereEmbeddingsServiceSettings> {
+    private static final String TEST_URL = "https://www.test.com";
+    private static final String INITIAL_TEST_URL = "https://www.initial-test.com";
+    private static final String TEST_MODEL_ID = "test-model-id";
+    private static final String INITIAL_TEST_MODEL_ID = "initial-test-model-id";
+    private static final int TEST_RATE_LIMIT = 20;
+    private static final int INITIAL_TEST_RATE_LIMIT = 30;
+    private static final int TEST_DIMENSIONS = 1536;
+    private static final int INITIAL_TEST_DIMENSIONS = 3072;
+    private static final int TEST_MAX_INPUT_TOKENS = 512;
+    private static final int INITIAL_TEST_MAX_INPUT_TOKENS = 1024;
+    private static final SimilarityMeasure TEST_SIMILARITY_MEASURE = SimilarityMeasure.COSINE;
+    private static final SimilarityMeasure INITIAL_TEST_SIMILARITY_MEASURE = SimilarityMeasure.DOT_PRODUCT;
+    private static final CohereServiceSettings.CohereApiVersion INITIAL_TEST_COHERE_API_VERSION = CohereServiceSettings.CohereApiVersion.V1;
+    private static final CohereServiceSettings.CohereApiVersion TEST_COHERE_API_VERSION = CohereServiceSettings.CohereApiVersion.V2;
+    private static final CohereEmbeddingType INITIAL_TEST_COHERE_EMBEDDING_TYPE = CohereEmbeddingType.BIT;
+    private static final CohereEmbeddingType TEST_COHERE_EMBEDDING_TYPE = CohereEmbeddingType.BYTE;
+    /** Value placed under the legacy {@code model} key when testing precedence against {@link ServiceFields#MODEL_ID}. */
+    private static final String LEGACY_MODEL_KEY_VALUE = "old_model";
+    // Mirrors CohereServiceSettings.DEFAULT_RATE_LIMIT_SETTINGS (used by CohereEmbeddingsServiceSettings#fromMap).
+    private static final RateLimitSettings DEFAULT_COHERE_EMBEDDINGS_RATE_LIMIT_SETTINGS = new RateLimitSettings(10_000);
+
     public static CohereEmbeddingsServiceSettings createRandom() {
         var commonSettings = CohereServiceSettingsTests.createRandom();
         var embeddingType = randomFrom(CohereEmbeddingType.values());
@@ -45,44 +78,132 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractWireSerializin
         return new CohereEmbeddingsServiceSettings(commonSettings, embeddingType);
     }
 
-    public void testFromMap() {
-        var url = "https://www.abc.com";
-        var similarity = SimilarityMeasure.DOT_PRODUCT.toString();
-        var dims = 1536;
-        var maxInputTokens = 512;
-        var model = "model";
-        var serviceSettings = CohereEmbeddingsServiceSettings.fromMap(
-            new HashMap<>(
-                Map.of(
-                    ServiceFields.URL,
-                    url,
-                    ServiceFields.SIMILARITY,
-                    similarity,
-                    ServiceFields.DIMENSIONS,
-                    dims,
-                    ServiceFields.MAX_INPUT_TOKENS,
-                    maxInputTokens,
-                    CohereServiceSettings.OLD_MODEL_ID_FIELD,
-                    model,
-                    ServiceFields.EMBEDDING_TYPE,
-                    DenseVectorFieldMapper.ElementType.BYTE.toString()
-                )
+    public void testUpdateServiceSettings_AllFields_OnlyMutableFieldsAreUpdated() {
+        var originalServiceSettings = new CohereEmbeddingsServiceSettings(
+            new CohereServiceSettings(
+                INITIAL_TEST_URL,
+                INITIAL_TEST_SIMILARITY_MEASURE,
+                INITIAL_TEST_DIMENSIONS,
+                INITIAL_TEST_MAX_INPUT_TOKENS,
+                INITIAL_TEST_MODEL_ID,
+                new RateLimitSettings(INITIAL_TEST_RATE_LIMIT),
+                INITIAL_TEST_COHERE_API_VERSION
             ),
-            ConfigurationParseContext.PERSISTENT
+            INITIAL_TEST_COHERE_EMBEDDING_TYPE
+        );
+        var updatedServiceSettings = originalServiceSettings.updateServiceSettings(
+            buildServiceSettingsMapWithModelIdField(TEST_COHERE_EMBEDDING_TYPE.toString(), TEST_COHERE_API_VERSION.toString())
         );
 
-        MatcherAssert.assertThat(
+        assertThat(
+            updatedServiceSettings,
+            is(
+                new CohereEmbeddingsServiceSettings(
+                    new CohereServiceSettings(
+                        INITIAL_TEST_URL,
+                        INITIAL_TEST_SIMILARITY_MEASURE,
+                        INITIAL_TEST_DIMENSIONS,
+                        TEST_MAX_INPUT_TOKENS,
+                        INITIAL_TEST_MODEL_ID,
+                        new RateLimitSettings(TEST_RATE_LIMIT),
+                        INITIAL_TEST_COHERE_API_VERSION
+                    ),
+                    INITIAL_TEST_COHERE_EMBEDDING_TYPE
+                )
+            )
+        );
+    }
+
+    public void testUpdateServiceSettings_EmptyMap_DoesNotChangeSettings() {
+        var originalServiceSettings = new CohereEmbeddingsServiceSettings(
+            new CohereServiceSettings(
+                INITIAL_TEST_URL,
+                INITIAL_TEST_SIMILARITY_MEASURE,
+                INITIAL_TEST_DIMENSIONS,
+                INITIAL_TEST_MAX_INPUT_TOKENS,
+                INITIAL_TEST_MODEL_ID,
+                new RateLimitSettings(INITIAL_TEST_RATE_LIMIT),
+                INITIAL_TEST_COHERE_API_VERSION
+            ),
+            INITIAL_TEST_COHERE_EMBEDDING_TYPE
+        );
+        var serviceSettings = originalServiceSettings.updateServiceSettings(new HashMap<>());
+
+        assertThat(serviceSettings, is(originalServiceSettings));
+    }
+
+    public void testFromMap_Persistent_EmptyMap_CreatesSettingsCorrectly() {
+        var serviceSettings = CohereEmbeddingsServiceSettings.fromMap(new HashMap<>(), ConfigurationParseContext.PERSISTENT);
+
+        assertThat(
             serviceSettings,
             is(
                 new CohereEmbeddingsServiceSettings(
                     new CohereServiceSettings(
-                        ServiceUtils.createUri(url),
-                        SimilarityMeasure.DOT_PRODUCT,
-                        dims,
-                        maxInputTokens,
-                        model,
+                        (URI) null,
                         null,
-                        CohereServiceSettings.CohereApiVersion.V1
+                        null,
+                        null,
+                        null,
+                        DEFAULT_COHERE_EMBEDDINGS_RATE_LIMIT_SETTINGS,
+                        INITIAL_TEST_COHERE_API_VERSION
+                    ),
+                    CohereEmbeddingType.FLOAT
+                )
+            )
+        );
+    }
+
+    /**
+     * {@link ConfigurationParseContext#PERSISTENT}: full map using {@link ServiceFields#MODEL_ID} only (no legacy {@code model} key).
+     */
+    public void testFromMap_Persistent_AllFields_CreatesSettingsCorrectly() {
+        var serviceSettings = CohereEmbeddingsServiceSettings.fromMap(
+            buildServiceSettingsMapWithModelIdField(TEST_COHERE_EMBEDDING_TYPE.toString(), TEST_COHERE_API_VERSION.toString()),
+            ConfigurationParseContext.PERSISTENT
+        );
+
+        assertThat(
+            serviceSettings,
+            is(
+                new CohereEmbeddingsServiceSettings(
+                    new CohereServiceSettings(
+                        TEST_URL,
+                        TEST_SIMILARITY_MEASURE,
+                        TEST_DIMENSIONS,
+                        TEST_MAX_INPUT_TOKENS,
+                        TEST_MODEL_ID,
+                        new RateLimitSettings(TEST_RATE_LIMIT),
+                        TEST_COHERE_API_VERSION
+                    ),
+                    TEST_COHERE_EMBEDDING_TYPE
+                )
+            )
+        );
+    }
+
+    /**
+     * {@link ConfigurationParseContext#PERSISTENT}: map contains only the legacy {@link CohereServiceSettings#OLD_MODEL_ID_FIELD}
+     * ({@code "model"}) — no {@link ServiceFields#MODEL_ID}. The value is still normalized into {@link CohereServiceSettings#modelId()}.
+     */
+    public void testFromMap_Persistent_LegacyModelFieldOnly() {
+        var serviceSettings = CohereEmbeddingsServiceSettings.fromMap(
+            buildServiceSettingsMapWithLegacyModelFieldOnly(DenseVectorFieldMapper.ElementType.BYTE.toString()),
+            ConfigurationParseContext.PERSISTENT
+        );
+
+        assertThat(
+            serviceSettings,
+            is(
+                new CohereEmbeddingsServiceSettings(
+                    new CohereServiceSettings(
+                        ServiceUtils.createUri(TEST_URL),
+                        INITIAL_TEST_SIMILARITY_MEASURE,
+                        TEST_DIMENSIONS,
+                        TEST_MAX_INPUT_TOKENS,
+                        TEST_MODEL_ID,
+                        null,
+                        INITIAL_TEST_COHERE_API_VERSION
                     ),
                     CohereEmbeddingType.BYTE
                 )
@@ -90,44 +211,28 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractWireSerializin
         );
     }
 
-    public void testFromMap_WithModelId() {
-        var url = "https://www.abc.com";
-        var similarity = SimilarityMeasure.DOT_PRODUCT.toString();
-        var dims = 1536;
-        var maxInputTokens = 512;
-        var model = "model";
+    /**
+     * {@link ConfigurationParseContext#REQUEST}: same as {@link #testFromMap_Persistent_LegacyModelFieldOnly} (legacy {@code model} key only),
+     * but request parsing defaults the Cohere API version to {@link CohereServiceSettings.CohereApiVersion#V2}.
+     */
+    public void testFromMap_Request_LegacyModelFieldOnly() {
         var serviceSettings = CohereEmbeddingsServiceSettings.fromMap(
-            new HashMap<>(
-                Map.of(
-                    ServiceFields.URL,
-                    url,
-                    ServiceFields.SIMILARITY,
-                    similarity,
-                    ServiceFields.DIMENSIONS,
-                    dims,
-                    ServiceFields.MAX_INPUT_TOKENS,
-                    maxInputTokens,
-                    CohereServiceSettings.OLD_MODEL_ID_FIELD,
-                    model,
-                    ServiceFields.EMBEDDING_TYPE,
-                    CohereEmbeddingType.INT8.toString()
-                )
-            ),
+            buildServiceSettingsMapWithLegacyModelFieldOnly(CohereEmbeddingType.INT8.toString()),
             ConfigurationParseContext.REQUEST
         );
 
-        MatcherAssert.assertThat(
+        assertThat(
             serviceSettings,
             is(
                 new CohereEmbeddingsServiceSettings(
                     new CohereServiceSettings(
-                        ServiceUtils.createUri(url),
-                        SimilarityMeasure.DOT_PRODUCT,
-                        dims,
-                        maxInputTokens,
-                        model,
+                        ServiceUtils.createUri(TEST_URL),
+                        INITIAL_TEST_SIMILARITY_MEASURE,
+                        TEST_DIMENSIONS,
+                        TEST_MAX_INPUT_TOKENS,
+                        TEST_MODEL_ID,
                         null,
-                        CohereServiceSettings.CohereApiVersion.V2
+                        TEST_COHERE_API_VERSION
                     ),
                     CohereEmbeddingType.INT8
                 )
@@ -135,48 +240,27 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractWireSerializin
         );
     }
 
-    public void testFromMap_PrefersModelId_OverModel() {
-        var url = "https://www.abc.com";
-        var similarity = SimilarityMeasure.DOT_PRODUCT.toString();
-        var dims = 1536;
-        var maxInputTokens = 512;
-        var model = "model";
+    /**
+     * When both {@link ServiceFields#MODEL_ID} and the legacy {@code model} field are present, the {@code model_id} value wins.
+     */
+    public void testFromMap_WhenBothModelFieldsPresent_PrefersModelId() {
         var serviceSettings = CohereEmbeddingsServiceSettings.fromMap(
-            new HashMap<>(
-                Map.of(
-                    ServiceFields.URL,
-                    url,
-                    ServiceFields.SIMILARITY,
-                    similarity,
-                    ServiceFields.DIMENSIONS,
-                    dims,
-                    ServiceFields.MAX_INPUT_TOKENS,
-                    maxInputTokens,
-                    CohereServiceSettings.OLD_MODEL_ID_FIELD,
-                    "old_model",
-                    ServiceFields.MODEL_ID,
-                    model,
-                    ServiceFields.EMBEDDING_TYPE,
-                    CohereEmbeddingType.BYTE.toString(),
-                    CohereServiceSettings.API_VERSION,
-                    CohereServiceSettings.CohereApiVersion.V1.toString()
-                )
-            ),
+            buildServiceSettingsMapWithBothModelFields(CohereEmbeddingType.BYTE.toString(), INITIAL_TEST_COHERE_API_VERSION.toString()),
             ConfigurationParseContext.PERSISTENT
         );
 
-        MatcherAssert.assertThat(
+        assertThat(
             serviceSettings,
             is(
                 new CohereEmbeddingsServiceSettings(
                     new CohereServiceSettings(
-                        ServiceUtils.createUri(url),
-                        SimilarityMeasure.DOT_PRODUCT,
-                        dims,
-                        maxInputTokens,
-                        model,
+                        ServiceUtils.createUri(TEST_URL),
+                        INITIAL_TEST_SIMILARITY_MEASURE,
+                        TEST_DIMENSIONS,
+                        TEST_MAX_INPUT_TOKENS,
+                        TEST_MODEL_ID,
                         null,
-                        CohereServiceSettings.CohereApiVersion.V1
+                        INITIAL_TEST_COHERE_API_VERSION
                     ),
                     CohereEmbeddingType.BYTE
                 )
@@ -184,21 +268,16 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractWireSerializin
         );
     }
 
-    public void testFromMap_MissingEmbeddingType_DefaultsToFloat() {
-        var serviceSettings = CohereEmbeddingsServiceSettings.fromMap(new HashMap<>(Map.of()), ConfigurationParseContext.PERSISTENT);
-        assertThat(serviceSettings.getEmbeddingType(), is(CohereEmbeddingType.FLOAT));
-    }
-
     public void testFromMap_EmptyEmbeddingType_ThrowsError() {
         var thrownException = expectThrows(
             ValidationException.class,
             () -> CohereEmbeddingsServiceSettings.fromMap(
-                new HashMap<>(Map.of(ServiceFields.EMBEDDING_TYPE, "", ServiceFields.MODEL_ID, "model")),
+                new HashMap<>(Map.of(ServiceFields.EMBEDDING_TYPE, "", ServiceFields.MODEL_ID, TEST_MODEL_ID)),
                 ConfigurationParseContext.REQUEST
             )
         );
 
-        MatcherAssert.assertThat(
+        assertThat(
             thrownException.getMessage(),
             containsString(
                 Strings.format(
@@ -213,20 +292,14 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractWireSerializin
         var thrownException = expectThrows(
             ValidationException.class,
             () -> CohereEmbeddingsServiceSettings.fromMap(
-                new HashMap<>(Map.of(ServiceFields.EMBEDDING_TYPE, "abc", ServiceFields.MODEL_ID, "model")),
+                new HashMap<>(Map.of(ServiceFields.EMBEDDING_TYPE, "abc", ServiceFields.MODEL_ID, TEST_MODEL_ID)),
                 ConfigurationParseContext.REQUEST
             )
         );
 
-        MatcherAssert.assertThat(
-            thrownException.getMessage(),
-            is(
-                Strings.format(
-                    "Validation Failed: 1: [service_settings] Invalid value [abc] received. "
-                        + "[embedding_type] must be one of [binary, bit, byte, float, int8];"
-                )
-            )
-        );
+        assertThat(thrownException.getMessage(), is(Strings.format("""
+            Validation Failed: 1: [service_settings] Invalid value [abc] received. \
+            [embedding_type] must be one of [binary, bit, byte, float, int8];""")));
     }
 
     public void testFromMap_InvalidEmbeddingType_ThrowsError_ForPersistent() {
@@ -238,15 +311,9 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractWireSerializin
             )
         );
 
-        MatcherAssert.assertThat(
-            thrownException.getMessage(),
-            is(
-                Strings.format(
-                    "Validation Failed: 1: [service_settings] Invalid value [abc] received. "
-                        + "[embedding_type] must be one of [bit, byte, float];"
-                )
-            )
-        );
+        assertThat(thrownException.getMessage(), is(Strings.format("""
+            Validation Failed: 1: [service_settings] Invalid value [abc] received. \
+            [embedding_type] must be one of [bit, byte, float];""")));
     }
 
     public void testFromMap_ReturnsFailure_WhenEmbeddingTypesAreNotValid() {
@@ -258,7 +325,7 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractWireSerializin
             )
         );
 
-        MatcherAssert.assertThat(
+        assertThat(
             exception.getMessage(),
             containsString("field [embedding_type] is not of the expected type. The value [[abc]] cannot be converted to a [String]")
         );
@@ -312,12 +379,22 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractWireSerializin
     public void testFromMap_ConvertsBit_ToCohereEmbeddingTypeBit() {
         assertThat(
             CohereEmbeddingsServiceSettings.fromMap(
-                new HashMap<>(Map.of(ServiceFields.EMBEDDING_TYPE, CohereEmbeddingType.BIT.toString(), ServiceFields.MODEL_ID, "model")),
+                new HashMap<>(
+                    Map.of(ServiceFields.EMBEDDING_TYPE, CohereEmbeddingType.BIT.toString(), ServiceFields.MODEL_ID, TEST_MODEL_ID)
+                ),
                 ConfigurationParseContext.REQUEST
             ),
             is(
                 new CohereEmbeddingsServiceSettings(
-                    new CohereServiceSettings((String) null, null, null, null, "model", null, CohereServiceSettings.CohereApiVersion.V2),
+                    new CohereServiceSettings(
+                        (String) null,
+                        null,
+                        null,
+                        null,
+                        TEST_MODEL_ID,
+                        null,
+                        CohereServiceSettings.CohereApiVersion.V2
+                    ),
                     CohereEmbeddingType.BIT
                 )
             )
@@ -327,12 +404,22 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractWireSerializin
     public void testFromMap_PreservesEmbeddingTypeFloat() {
         assertThat(
             CohereEmbeddingsServiceSettings.fromMap(
-                new HashMap<>(Map.of(ServiceFields.EMBEDDING_TYPE, CohereEmbeddingType.FLOAT.toString(), ServiceFields.MODEL_ID, "model")),
+                new HashMap<>(
+                    Map.of(ServiceFields.EMBEDDING_TYPE, CohereEmbeddingType.FLOAT.toString(), ServiceFields.MODEL_ID, TEST_MODEL_ID)
+                ),
                 ConfigurationParseContext.REQUEST
             ),
             is(
                 new CohereEmbeddingsServiceSettings(
-                    new CohereServiceSettings((String) null, null, null, null, "model", null, CohereServiceSettings.CohereApiVersion.V2),
+                    new CohereServiceSettings(
+                        (String) null,
+                        null,
+                        null,
+                        null,
+                        TEST_MODEL_ID,
+                        null,
+                        CohereServiceSettings.CohereApiVersion.V2
+                    ),
                     CohereEmbeddingType.FLOAT
                 )
             )
@@ -367,13 +454,13 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractWireSerializin
     public void testToXContent_WritesAllValues() throws IOException {
         var serviceSettings = new CohereEmbeddingsServiceSettings(
             new CohereServiceSettings(
-                "url",
-                SimilarityMeasure.COSINE,
-                5,
-                10,
-                "model_id",
-                new RateLimitSettings(3),
-                CohereServiceSettings.CohereApiVersion.V2
+                TEST_URL,
+                TEST_SIMILARITY_MEASURE,
+                TEST_DIMENSIONS,
+                TEST_MAX_INPUT_TOKENS,
+                TEST_MODEL_ID,
+                new RateLimitSettings(TEST_RATE_LIMIT),
+                TEST_COHERE_API_VERSION
             ),
             CohereEmbeddingType.INT8
         );
@@ -381,9 +468,38 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractWireSerializin
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         serviceSettings.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
-        assertThat(xContentResult, is("""
-            {"url":"url","similarity":"cosine","dimensions":5,"max_input_tokens":10,"model_id":"model_id",""" + """
-            "rate_limit":{"requests_per_minute":3},"api_version":"V2","embedding_type":"byte"}"""));
+
+        assertThat(
+            xContentResult,
+            is(
+                XContentHelper.stripWhitespace(
+                    Strings.format(
+                        """
+                            {
+                              "url": "%s",
+                              "similarity": "%s",
+                              "dimensions": %d,
+                              "max_input_tokens": %d,
+                              "model_id": "%s",
+                              "rate_limit": {
+                                "requests_per_minute": %d
+                              },
+                              "api_version": "%s",
+                              "embedding_type": "%s"
+                            }
+                            """,
+                        TEST_URL,
+                        TEST_SIMILARITY_MEASURE,
+                        TEST_DIMENSIONS,
+                        TEST_MAX_INPUT_TOKENS,
+                        TEST_MODEL_ID,
+                        TEST_RATE_LIMIT,
+                        TEST_COHERE_API_VERSION,
+                        DenseVectorFieldMapper.ElementType.BYTE
+                    )
+                )
+            )
+        );
     }
 
     @Override
@@ -419,6 +535,92 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractWireSerializin
         entries.addAll(new MlInferenceNamedXContentProvider().getNamedWriteables());
         entries.addAll(InferenceNamedWriteablesProvider.getNamedWriteables());
         return new NamedWriteableRegistry(entries);
+    }
+
+    /**
+     * Map uses {@link ServiceFields#MODEL_ID} ({@code "model_id"}) when {@code modelId} is non-null; the legacy
+     * {@link CohereServiceSettings#OLD_MODEL_ID_FIELD} ({@code "model"}) is omitted.
+     */
+    private static HashMap<String, Object> buildServiceSettingsMapWithModelIdField(
+        String embeddingTypeString,
+        @Nullable String apiVersion
+    ) {
+        return buildServiceSettingsMap(
+            CohereEmbeddingsServiceSettingsTests.TEST_SIMILARITY_MEASURE,
+            CohereEmbeddingsServiceSettingsTests.TEST_MODEL_ID,
+            null,
+            embeddingTypeString,
+            apiVersion,
+            CohereEmbeddingsServiceSettingsTests.TEST_RATE_LIMIT
+        );
+    }
+
+    /**
+     * Map uses only the legacy {@link CohereServiceSettings#OLD_MODEL_ID_FIELD} ({@code "model"}); {@link ServiceFields#MODEL_ID} is omitted.
+     */
+    private static HashMap<String, Object> buildServiceSettingsMapWithLegacyModelFieldOnly(String embeddingTypeString) {
+        return buildServiceSettingsMap(
+            CohereEmbeddingsServiceSettingsTests.INITIAL_TEST_SIMILARITY_MEASURE,
+            null,
+            CohereEmbeddingsServiceSettingsTests.TEST_MODEL_ID,
+            embeddingTypeString,
+            null,
+            null
+        );
+    }
+
+    /**
+     * Map includes both {@link ServiceFields#MODEL_ID} and the legacy {@code model} key — production code must prefer {@code model_id}.
+     */
+    private static HashMap<String, Object> buildServiceSettingsMapWithBothModelFields(String embeddingTypeString, String apiVersion) {
+        return buildServiceSettingsMap(
+            CohereEmbeddingsServiceSettingsTests.INITIAL_TEST_SIMILARITY_MEASURE,
+            CohereEmbeddingsServiceSettingsTests.TEST_MODEL_ID,
+            CohereEmbeddingsServiceSettingsTests.LEGACY_MODEL_KEY_VALUE,
+            embeddingTypeString,
+            apiVersion,
+            null
+        );
+    }
+
+    /**
+     * @param modelId if non-null, stored under {@link ServiceFields#MODEL_ID}
+     * @param legacyModelValue if non-null, stored under {@link CohereServiceSettings#OLD_MODEL_ID_FIELD} ({@code "model"})
+     */
+    private static HashMap<String, Object> buildServiceSettingsMap(
+        @Nullable SimilarityMeasure similarity,
+        @Nullable String modelId,
+        @Nullable String legacyModelValue,
+        @Nullable String embeddingTypeString,
+        @Nullable String apiVersion,
+        @Nullable Integer rateLimitRequestsPerMinute
+    ) {
+        var result = new HashMap<String, Object>();
+        result.put(ServiceFields.URL, CohereEmbeddingsServiceSettingsTests.TEST_URL);
+        if (similarity != null) {
+            result.put(ServiceFields.SIMILARITY, similarity.toString());
+        }
+        result.put(ServiceFields.DIMENSIONS, CohereEmbeddingsServiceSettingsTests.TEST_DIMENSIONS);
+        result.put(ServiceFields.MAX_INPUT_TOKENS, CohereEmbeddingsServiceSettingsTests.TEST_MAX_INPUT_TOKENS);
+        if (modelId != null) {
+            result.put(ServiceFields.MODEL_ID, modelId);
+        }
+        if (legacyModelValue != null) {
+            result.put(CohereServiceSettings.OLD_MODEL_ID_FIELD, legacyModelValue);
+        }
+        if (embeddingTypeString != null) {
+            result.put(ServiceFields.EMBEDDING_TYPE, embeddingTypeString);
+        }
+        if (apiVersion != null) {
+            result.put(CohereServiceSettings.API_VERSION, apiVersion);
+        }
+        if (rateLimitRequestsPerMinute != null) {
+            result.put(
+                RateLimitSettings.FIELD_NAME,
+                new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, rateLimitRequestsPerMinute))
+            );
+        }
+        return result;
     }
 
     public static Map<String, Object> getServiceSettingsMap(@Nullable String url, @Nullable String model, @Nullable Enum<?> embeddingType) {

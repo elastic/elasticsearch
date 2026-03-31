@@ -110,7 +110,7 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
     private final DateFieldMapper.Resolution timeResolution;
     private final Rounding.Prepared outputTimeBucket;
     private ExpandingGroups expandingGroups = null;
-    private int originalNumGroups = -1;
+    private int numGroupsBeforeExpanding = -1;
 
     public TimeSeriesAggregationOperator(
         Rounding.Prepared timeBucket,
@@ -187,19 +187,14 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
                 if (ctx instanceof TimeSeriesGroupingAggregatorEvaluationContext tsCtx) {
                     tsCtx.setAllGroupIds(allSelected);
                 }
-                IntVector[] customizedSelections = new IntVector[aggregators.size()];
-                List<GroupingAggregatorFunction.PreparedForEvaluation> preparedAggs = new ArrayList<>(aggregators.size());
-                try {
-                    for (int i = 0; i < aggregators.size(); i++) {
-                        customizedSelections[i] = customizeSelected(aggregators.get(i), outputSelected);
-                        preparedAggs.add(aggregators.get(i).prepareForEvaluate(customizedSelections[i], ctx));
+                for (int i = 0; i < aggregators.size(); i++) {
+                    try (
+                        var customizeSelected = customizeSelected(aggregators.get(i), outputSelected);
+                        var prepared = aggregators.get(i).prepareForEvaluate(customizeSelected, ctx)
+                    ) {
+                        prepared.evaluate(blocks, offset, customizeSelected);
                     }
-                    for (int i = 0; i < preparedAggs.size(); i++) {
-                        preparedAggs.get(i).evaluate(blocks, offset, customizedSelections[i]);
-                        offset += aggBlockCounts[i];
-                    }
-                } finally {
-                    Releasables.close(Releasables.wrap(preparedAggs), Releasables.wrap(customizedSelections));
+                    offset += aggBlockCounts[i];
                 }
                 output = ReleasableIterator.single(new Page(blocks));
                 success = true;
@@ -343,20 +338,16 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
             return;
         }
         Rounding.Prepared optimizedTimeBucket = optimizeRoundingForTimeRange(tsBlockHash.minTimestamp(), tsBlockHash.maxTimestamp());
-        this.originalNumGroups = Math.toIntExact(numGroups);
+        long minBound = tsBlockHash.minTimestamp();
+        if (outputTimeBucket != null) {
+            minBound = optimizeOutputRoundingForTimeRange(tsBlockHash.minTimestamp(), tsBlockHash.maxTimestamp()).round(minBound);
+        }
+        this.numGroupsBeforeExpanding = Math.toIntExact(numGroups);
         this.expandingGroups = new ExpandingGroups(driverContext.bigArrays());
         for (long groupId = 0; groupId < numGroups; groupId++) {
             int tsid = tsBlockHash.tsidForGroup(groupId);
             long endTimestamp = tsBlockHash.timestampForGroup(groupId);
             long bucket = optimizedTimeBucket.nextRoundingValue(endTimestamp - timeResolution.convert(largestWindowMillis()));
-            long minBound = tsBlockHash.minTimestamp();
-            if (outputTimeBucket != null) {
-                Rounding.Prepared optimizedOutput = optimizeOutputRoundingForTimeRange(
-                    tsBlockHash.minTimestamp(),
-                    tsBlockHash.maxTimestamp()
-                );
-                minBound = optimizedOutput.round(minBound);
-            }
             bucket = Math.max(bucket, minBound);
             // Fill the missing buckets between (timestamp-window, timestamp)
             while (bucket < endTimestamp) {
@@ -436,10 +427,10 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
         try (var builder = blockFactory.newIntVectorFixedBuilder(selected.getPositionCount())) {
             for (int i = 0; i < selected.getPositionCount(); i++) {
                 int groupId = selected.getInt(i);
-                if (groupId < originalNumGroups) {
+                if (groupId < numGroupsBeforeExpanding) {
                     builder.appendInt(i, groupId);
                 } else {
-                    builder.appendInt(i, expandingGroups.getGroup(groupId - originalNumGroups));
+                    builder.appendInt(i, expandingGroups.getGroup(groupId - numGroupsBeforeExpanding));
                 }
             }
             return builder.build();

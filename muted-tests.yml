@@ -423,6 +423,8 @@ tests:
 - class: org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundToTests
   method: testEvaluateBlockWithoutNulls {TestCase=<long, 11 fixed-interval longs>}
   issue: https://github.com/elastic/elasticsearch/issues/145289
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundToTests
+  issue: https://github.com/elastic/elasticsearch/issues/145289
 
 # Examples:
 #

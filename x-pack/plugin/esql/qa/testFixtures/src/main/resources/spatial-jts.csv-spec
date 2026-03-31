@@ -407,7 +407,7 @@ result:null
 NULL
 ;
 
-stBufferZeroDistance
+stBufferZeroDistancePoint
 required_capability: fn_st_buffer
 
 ROW geom = TO_GEOSHAPE("POINT(0 0)")
@@ -416,7 +416,31 @@ ROW geom = TO_GEOSHAPE("POINT(0 0)")
 ;
 
 result:geo_shape
-POLYGON EMPTY
+POINT (0.0 0.0)
+;
+
+stBufferZeroDistanceLineString
+required_capability: fn_st_buffer
+
+ROW geom = TO_GEOSHAPE("LINESTRING(0 0, 1 1)")
+| EVAL result = ST_BUFFER(geom, 0)
+| KEEP result
+;
+
+result:geo_shape
+LINESTRING (0.0 0.0, 1.0 1.0)
+;
+
+stBufferZeroDistancePolygon
+required_capability: fn_st_buffer
+
+ROW geom = TO_GEOSHAPE("POLYGON((0 0, 1 0, 1 1, 0 1, 0 0))")
+| EVAL result = ST_BUFFER(geom, 0)
+| KEEP result
+;
+
+result:geo_shape
+POLYGON ((0.0 0.0, 1.0 0.0, 1.0 1.0, 0.0 1.0, 0.0 0.0))
 ;
 
 stBufferFoldable

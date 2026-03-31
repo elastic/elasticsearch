@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecyc
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.operation.buffer.BufferOp;
 
 import java.io.IOException;
@@ -47,12 +48,25 @@ import static org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions.isSpat
 
 public class StBuffer extends SpatialDocValuesFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "StBuffer", StBuffer::new);
-    private static final SpatialGeometryBlockProcessor processor = new SpatialGeometryBlockProcessor(UNSPECIFIED, BufferOp::bufferOp);
-    private static final SpatialGeometryBlockProcessor geoProcessor = new SpatialGeometryBlockProcessor(GEO, BufferOp::bufferOp);
+    private static final SpatialGeometryBlockProcessor processor = new SpatialGeometryBlockProcessor(UNSPECIFIED, StBuffer::bufferOp);
+    private static final SpatialGeometryBlockProcessor geoProcessor = new SpatialGeometryBlockProcessor(GEO, StBuffer::bufferOp);
     private static final SpatialGeometryBlockProcessor cartesianProcessor = new SpatialGeometryBlockProcessor(
         CARTESIAN,
-        BufferOp::bufferOp
+        StBuffer::bufferOp
     );
+
+    /**
+     * Wraps {@link BufferOp#bufferOp} to return the original geometry when distance is zero,
+     * matching PostGIS behavior. JTS returns POLYGON EMPTY for points/lines with zero distance,
+     * but the expected behavior is to return the original geometry unchanged.
+     */
+    private static Geometry bufferOp(Geometry geometry, double distance) {
+        if (distance == 0) {
+            return geometry;
+        }
+        return BufferOp.bufferOp(geometry, distance);
+    }
+
     private final Expression geometry;
     private final Expression distance;
 

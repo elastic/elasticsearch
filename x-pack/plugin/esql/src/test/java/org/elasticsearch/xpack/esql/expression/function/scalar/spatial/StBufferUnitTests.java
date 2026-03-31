@@ -89,11 +89,25 @@ public class StBufferUnitTests extends ESTestCase {
         assertThat(ex.getMessage(), containsString("distance for st_buffer must be an integer or floating-point number"));
     }
 
-    public void testZeroDistance() {
+    public void testZeroDistancePolygon() {
         var wkb = process("POLYGON((0 0, 1 0, 1 1, 0 1, 0 0))", 0.0);
         var result = UNSPECIFIED.wkbToWkt(wkb);
         assertNotNull(result);
         assertTrue(result.startsWith("POLYGON"));
+    }
+
+    public void testZeroDistancePoint() {
+        // Zero distance returns the original geometry unchanged
+        var wkb = process("POINT(0 0)", 0.0);
+        var result = UNSPECIFIED.wkbToWkt(wkb);
+        assertEquals("POINT (0.0 0.0)", result);
+    }
+
+    public void testZeroDistanceLine() {
+        // Zero distance returns the original geometry unchanged
+        var wkb = process("LINESTRING(0 0, 1 1)", 0.0);
+        var result = UNSPECIFIED.wkbToWkt(wkb);
+        assertEquals("LINESTRING (0.0 0.0, 1.0 1.0)", result);
     }
 
     public void testPositiveDistance() {

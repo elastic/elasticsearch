@@ -168,7 +168,7 @@ public final class PersistentTaskLifecycleManager implements ClusterStateListene
     }
 
     private void reconcileClusterTask(ClusterState state, ClusterTaskRegistration reg) {
-        if (state.nodes().isLocalNodeElectedMaster() == false) {
+        if (state.nodes().isLocalNodeElectedMaster() == false || state.clusterRecovered() == false) {
             return;
         }
         final boolean taskExists = ClusterPersistentTasksCustomMetadata.getTaskWithId(state, reg.taskName()) != null;
@@ -246,9 +246,10 @@ public final class PersistentTaskLifecycleManager implements ClusterStateListene
 
     private void reconcileProjectTask(ClusterState state, ProjectTaskRegistration registration, ProjectId projectId) {
         final var project = state.metadata().projects().get(projectId);
-        if (state.nodes().isLocalNodeElectedMaster() && project != null) {
-            reconcileProjectTask(project, registration);
+        if (state.nodes().isLocalNodeElectedMaster() == false || state.clusterRecovered() == false || project == null) {
+            return;
         }
+        reconcileProjectTask(project, registration);
     }
 
     private void sendProjectTaskStartRequest(ProjectTaskRegistration reg, ProjectId projectId, String taskId) {

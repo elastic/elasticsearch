@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.xpack.esql.ConfigurationTestUtils;
 import org.elasticsearch.xpack.esql.SerializationTestUtils;
 import org.elasticsearch.xpack.esql.VerificationException;
@@ -36,7 +37,6 @@ import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
 import org.elasticsearch.xpack.esql.session.Configuration;
-import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
 import org.hamcrest.BaseMatcher;
 import org.hamcrest.Description;
 import org.hamcrest.Matcher;
@@ -59,7 +59,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.equalToIgnoringIds;
@@ -76,7 +75,6 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
 
     static InMemoryViewService viewService;
     static InMemoryViewResolver viewResolver;
-    PlanTelemetry telemetry = new PlanTelemetry(TEST_FUNCTION_REGISTRY);
     QueryParams queryParams = new QueryParams();
     ProjectId projectId = ProjectId.DEFAULT;
 
@@ -1063,9 +1061,101 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         }
     }
 
+    /**
+     * When CPS is enabled and a wildcard matches only views (no local indexes), the wildcard is still preserved
+     * as an unresolved pattern because remote projects may have matching indexes.
+     */
+    public void testCPSWildcardPreservedWhenOnlyViewsMatch() {
+        addView("view1", "FROM emp1");
+        addView("view2", "FROM emp2");
+        addView("view3", "FROM emp3");
+        LogicalPlan plan = query("FROM view*");
+        // Without CPS: wildcard is fully replaced (no unresolved pattern)
+        assertThat(replaceViews(plan), matchesPlan(query("FROM emp1, emp2, emp3")));
+        // With CPS: wildcard is preserved alongside the resolved views
+        assertThat(replaceViewsWithCPS(plan), matchesPlan(query("FROM emp1, emp2, emp3, view*")));
+    }
+
+    /**
+     * When CPS is enabled and a wildcard matches views with pipe bodies (no local indexes), the wildcard is preserved.
+     */
+    public void testCPSWildcardPreservedWithPipeBodiesWhenOnlyViewsMatch() {
+        addView("view_1", "FROM emp1 | WHERE emp.age > 30");
+        addView("view_2", "FROM emp2 | WHERE emp.age < 40");
+        addView("view_3", "FROM emp3 | WHERE emp.salary > 50000");
+        LogicalPlan plan = query("FROM view*");
+        // Without CPS: 3 subqueries (just the views)
+        LogicalPlan withoutCPS = replaceViews(plan);
+        assertThat(withoutCPS, instanceOf(ViewUnionAll.class));
+        assertThat(withoutCPS.children().size(), equalTo(3));
+        // With CPS: 4 subqueries (3 views + the preserved wildcard)
+        LogicalPlan withCPS = replaceViewsWithCPS(plan);
+        assertThat(withCPS, instanceOf(ViewUnionAll.class));
+        assertThat(withCPS.children().size(), equalTo(4));
+        assertThat(
+            withCPS.children(),
+            containsInAnyOrder(
+                matchesPlan(query("FROM view*")),
+                matchesPlan(query("FROM emp1 | WHERE emp.age > 30")),
+                matchesPlan(query("FROM emp2 | WHERE emp.age < 40")),
+                matchesPlan(query("FROM emp3 | WHERE emp.salary > 50000"))
+            )
+        );
+    }
+
+    /**
+     * When CPS is enabled and a wildcard already matches a local index alongside views, the wildcard is preserved
+     * (same as without CPS in this case).
+     */
+    public void testCPSWildcardWithIndexMatchBehavesLikeNonCPS() {
+        addIndex("viewX");
+        addView("view1", "FROM emp1");
+        addView("view2", "FROM emp2");
+        addView("view3", "FROM emp3");
+        LogicalPlan plan = query("FROM view*");
+        // Both should preserve the wildcard since there's a matching local index
+        assertThat(replaceViews(plan), matchesPlan(query("FROM emp1,emp2,emp3,view*")));
+        assertThat(replaceViewsWithCPS(plan), matchesPlan(query("FROM emp1,emp2,emp3,view*")));
+    }
+
+    /**
+     * CPS does not affect concrete (non-wildcard) view references — they are still fully replaced.
+     * This is because we separately report the view names to the index resolution layer for CPS anyway.
+     */
+    public void testCPSConcreteViewFullyReplaced() {
+        addView("view1", "FROM emp1");
+        LogicalPlan plan = query("FROM view1");
+        assertThat(replaceViews(plan), matchesPlan(query("FROM emp1")));
+        assertThat(replaceViewsWithCPS(plan), matchesPlan(query("FROM emp1")));
+    }
+
+    /**
+     * When CPS is enabled and nested views use wildcards that match only views, wildcards are preserved.
+     */
+    public void testCPSNestedWildcardPreserved() {
+        addView("view_1", "FROM emp1");
+        addView("view_2", "FROM emp2");
+        addView("view_3", "FROM emp3");
+        addView("view_1_2", "FROM view_1, view_2");
+        addView("view_1_3", "FROM view_1, view_3");
+        LogicalPlan plan = query("FROM view_1_*");
+        // Without CPS: wildcard fully replaced
+        assertThat(replaceViews(plan), matchesPlan(query("FROM emp1,emp3,emp1,emp2")));
+        // With CPS: wildcard preserved
+        assertThat(replaceViewsWithCPS(plan), matchesPlan(query("FROM emp1,emp3,emp1,emp2,view_1_*")));
+    }
+
     private LogicalPlan replaceViews(LogicalPlan plan) {
         PlainActionFuture<ViewResolver.ViewResolutionResult> future = new PlainActionFuture<>();
         viewResolver.replaceViews(plan, this::parse, future);
+        return future.actionGet().plan();
+    }
+
+    private LogicalPlan replaceViewsWithCPS(LogicalPlan plan) {
+        var cpsDecider = new CrossProjectModeDecider(Settings.builder().put("serverless.cross_project.enabled", true).build());
+        InMemoryViewResolver cpsResolver = viewService.getViewResolver(cpsDecider);
+        PlainActionFuture<ViewResolver.ViewResolutionResult> future = new PlainActionFuture<>();
+        cpsResolver.replaceViews(plan, this::parse, future);
         return future.actionGet().plan();
     }
 
@@ -1103,14 +1193,8 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
     }
 
     private LogicalPlan parse(String query, String viewName) {
-        return TEST_PARSER.parseView(
-            query,
-            queryParams,
-            new SettingsValidationContext(false, false),
-            telemetry,
-            EMPTY_INFERENCE_SETTINGS,
-            viewName
-        ).plan();
+        return TEST_PARSER.parseView(query, queryParams, new SettingsValidationContext(false, false), EMPTY_INFERENCE_SETTINGS, viewName)
+            .plan();
     }
 
     private static Matcher<LogicalPlan> matchesPlan(LogicalPlan plan) {

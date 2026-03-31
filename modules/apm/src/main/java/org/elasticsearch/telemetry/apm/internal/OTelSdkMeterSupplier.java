@@ -24,6 +24,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 
 import java.time.Duration;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.telemetry.TelemetryProvider.OTEL_METRICS_ENABLED_SYSTEM_PROPERTY;
 
@@ -48,8 +49,13 @@ public class OTelSdkMeterSupplier implements MeterSupplier {
                     .setResource(Resource.builder().put("service.name", "elasticsearch").build())
                     .registerMetricReader(reader)
                     .build();
-                var otelSdk = OpenTelemetrySdk.builder().setMeterProvider(meterProvider).build();
-                runtimeMetrics = RuntimeMetrics.builder(otelSdk).disableAllFeatures().build();
+                if (OTelSdkSettings.TELEMETRY_OTEL_METRICS_ENABLED.get(settings)) {
+                    var otelSdk = OpenTelemetrySdk.builder().setMeterProvider(meterProvider).build();
+                    // RuntimeMetrics uses two underlying implementations to gather the full set of metric data, JFR and JMX.
+                    // The metrics gathered by the two implementations are mutually exclusive and the union of them produces the full
+                    // set of available metrics. See more at: https://ela.st/otel-runtime-telemetry
+                    runtimeMetrics = RuntimeMetrics.builder(otelSdk).build();
+                }
             }
             return meterProvider.get("elasticsearch");
         }
@@ -84,6 +90,16 @@ public class OTelSdkMeterSupplier implements MeterSupplier {
             }
         }
         return null;
+    }
+
+    @Override
+    public void attemptFlushMetrics() {
+        synchronized (mutex) {
+            if (meterProvider != null) {
+                // If the timeout expires, this quietly returns, which is ok in this context.
+                meterProvider.forceFlush().join(10, TimeUnit.SECONDS);
+            }
+        }
     }
 
     @Override

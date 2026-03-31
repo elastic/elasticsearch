@@ -13,19 +13,16 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
-import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
-import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.parser.QueryParam;
-import org.elasticsearch.xpack.esql.parser.QueryParams;
+import org.elasticsearch.xpack.esql.action.PreparedEsqlQueryRequest;
+import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
-import static org.elasticsearch.xpack.esql.parser.ParserUtils.ParamClassification.VALUE;
 
 /**
  * REST handler for the Prometheus {@code GET /api/v1/query_range} endpoint.
- * Translates Prometheus query_range parameters into an ES|QL {@code PROMQL} command,
+ * Translates Prometheus query_range parameters into an ES|QL PromqlCommand logical plan,
  * executes it, and converts the result into the Prometheus matrix JSON format.
  * Only GET is supported. POST with {@code application/x-www-form-urlencoded} bodies is rejected
  * at the HTTP layer as a CSRF safeguard before this handler is ever reached — see
@@ -36,24 +33,12 @@ import static org.elasticsearch.xpack.esql.parser.ParserUtils.ParamClassificatio
 @ServerlessScope(Scope.PUBLIC)
 public class PrometheusQueryRangeRestAction extends BaseRestHandler {
 
-    static final String QUERY_PARAM = "query";
-    static final String START_PARAM = "start";
-    static final String END_PARAM = "end";
-    static final String INDEX_PARAM = "index";
-
-    static final String ESQL_QUERY = "PROMQL step=?"
-        + PrometheusQueryRangeResponseListener.STEP_PARAM
-        + " start=?"
-        + START_PARAM
-        + " end=?"
-        + END_PARAM
-        + " index=?"
-        + INDEX_PARAM
-        + " "
-        + PrometheusQueryRangeResponseListener.VALUE_COLUMN
-        + "=(?"
-        + QUERY_PARAM
-        + ") | EVAL step = TO_LONG(step)";
+    private static final String INDEX_PARAM = "index";
+    private static final String QUERY_PARAM = "query";
+    private static final String START_PARAM = "start";
+    private static final String END_PARAM = "end";
+    private static final String LIMIT_PARAM = "limit";
+    private static final int DEFAULT_LIMIT = 0; // 0 = no limit, matching Prometheus semantics
 
     @Override
     public String getName() {
@@ -70,13 +55,22 @@ public class PrometheusQueryRangeRestAction extends BaseRestHandler {
         String query = getRequiredParam(request, QUERY_PARAM);
         String start = getRequiredParam(request, START_PARAM);
         String end = getRequiredParam(request, END_PARAM);
-        String step = getRequiredParam(request, PrometheusQueryRangeResponseListener.STEP_PARAM);
+        String step = getRequiredParam(request, PrometheusQueryResponseListener.STEP_PARAM);
         String index = request.param(INDEX_PARAM, "*");
+        int limit = request.paramAsInt(LIMIT_PARAM, DEFAULT_LIMIT);
 
-        EsqlQueryRequest esqlRequest = EsqlQueryRequest.syncEsqlQueryRequest(ESQL_QUERY);
-        esqlRequest.params(buildQueryParams(query, index, start, end, step));
+        EsqlStatement statement = PromqlQueryPlanBuilder.buildStatement(query, index, start, end, step);
+        var esqlRequest = PreparedEsqlQueryRequest.sync(statement, query);
 
-        return channel -> client.execute(EsqlQueryAction.INSTANCE, esqlRequest, new PrometheusQueryRangeResponseListener(channel));
+        return channel -> client.execute(
+            EsqlQueryAction.INSTANCE,
+            esqlRequest,
+            new PrometheusQueryResponseListener(
+                channel,
+                PrometheusQueryResponseListener.QueryMode.RANGE,
+                limit == 0 ? Integer.MAX_VALUE : limit
+            )
+        );
     }
 
     private static String getRequiredParam(RestRequest request, String name) {
@@ -85,21 +79,6 @@ public class PrometheusQueryRangeRestAction extends BaseRestHandler {
             throw new IllegalArgumentException("required parameter \"" + name + "\" is missing");
         }
         return value;
-    }
-
-    /**
-     * Creates query parameters for all Prometheus query_range values.
-     */
-    static QueryParams buildQueryParams(String query, String index, String start, String end, String step) {
-        return new QueryParams(
-            List.of(
-                new QueryParam(QUERY_PARAM, query, DataType.KEYWORD, VALUE),
-                new QueryParam(INDEX_PARAM, index, DataType.KEYWORD, VALUE),
-                new QueryParam(START_PARAM, start, DataType.KEYWORD, VALUE),
-                new QueryParam(END_PARAM, end, DataType.KEYWORD, VALUE),
-                new QueryParam(PrometheusQueryRangeResponseListener.STEP_PARAM, step, DataType.KEYWORD, VALUE)
-            )
-        );
     }
 
 }

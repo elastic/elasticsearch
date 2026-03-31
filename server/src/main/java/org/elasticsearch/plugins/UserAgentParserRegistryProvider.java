@@ -22,5 +22,5 @@ public interface UserAgentParserRegistryProvider {
     /**
      * Creates a {@link UserAgentParserRegistry} for the given environment.
      */
-    UserAgentParserRegistry createUserAgentParserRegistry(Environment env);
+    UserAgentParserRegistry createRegistry(Environment env);
 }

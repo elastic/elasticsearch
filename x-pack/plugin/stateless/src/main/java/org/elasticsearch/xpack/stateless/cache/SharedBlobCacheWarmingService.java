@@ -68,7 +68,6 @@ import org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.lucene.BlobCacheIndexInput;
 import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectory;
 import org.elasticsearch.xpack.stateless.lucene.FileCacheKey;
-import org.elasticsearch.xpack.stateless.lucene.IndexBlobStoreCacheDirectory;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 import org.elasticsearch.xpack.stateless.recovery.metering.RecoveryMetricsCollector;
 import org.elasticsearch.xpack.stateless.utils.IndexingShardRecoveryComparator;
@@ -103,12 +102,18 @@ import static org.elasticsearch.core.Strings.format;
 public class SharedBlobCacheWarmingService {
 
     public enum Type {
-        INDEXING_EARLY,
-        INDEXING,
-        INDEXING_MERGE,
-        SEARCH,
-        HOLLOWING,
-        UNHOLLOWING
+        INDEXING_EARLY(true),
+        INDEXING(true),
+        INDEXING_MERGE(false),
+        SEARCH(true),
+        HOLLOWING(true),
+        UNHOLLOWING(true);
+
+        final boolean skipsWarmingForRegion0Locations;
+
+        Type(boolean skipsWarmingForRegion0Locations) {
+            this.skipsWarmingForRegion0Locations = skipsWarmingForRegion0Locations;
+        }
     }
 
     public static final String BLOB_CACHE_WARMING_PAGE_ALIGNED_BYTES_TOTAL_METRIC = "es.blob_cache_warming.page_aligned_bytes.total";
@@ -901,20 +906,15 @@ public class SharedBlobCacheWarmingService {
             }));
         }
 
-        private boolean canSkipLocation(String fileName, long position, long length) {
-            if (warmingRun.type != Type.INDEXING
-                && warmingRun.type != Type.INDEXING_EARLY
-                && warmingRun.type != Type.HOLLOWING
-                && warmingRun.type != Type.UNHOLLOWING) {
+        private boolean shouldSkipLocationWarming(String fileName, long position, long length) {
+            if (warmingRun.type.skipsWarmingForRegion0Locations == false) {
                 return false;
             }
             if (length > Short.MAX_VALUE) {
                 // length is too long to be contained in replicated section
                 return false;
             }
-            assert directory instanceof IndexBlobStoreCacheDirectory : directory.getClass() + " is not an IndexBlobStoreCacheDirectory";
-            var dir = (IndexBlobStoreCacheDirectory) directory;
-            int region = (int) (dir.getPosition(fileName, position, (int) length) / cacheService.getRegionSize());
+            int region = (int) (directory.getPosition(fileName, position, (int) length) / cacheService.getRegionSize());
             // region 0 is already loaded by this point while resolving full set of commit files and safe to skip.
             // See org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService#readIndexingShardState
             return region == 0;
@@ -928,7 +928,7 @@ public class SharedBlobCacheWarmingService {
             long length,
             ActionListener<Void> listener
         ) {
-            if (canSkipLocation(fileName, position, length)) {
+            if (shouldSkipLocationWarming(fileName, position, length)) {
                 skippedTasksCount.incrementAndGet();
                 listener.onResponse(null);
                 return;

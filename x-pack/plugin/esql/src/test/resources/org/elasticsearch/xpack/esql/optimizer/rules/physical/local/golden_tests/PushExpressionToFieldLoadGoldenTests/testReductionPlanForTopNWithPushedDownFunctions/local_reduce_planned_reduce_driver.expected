@@ -1,0 +1,5 @@
+ExchangeSinkExec[[integer{f}#0, text{f}#1, score{r}#2],false]
+\_ProjectExec[[integer{f}#0, text{f}#1, score{r}#2]]
+  \_FieldExtractExec[text{f}#1]<[],[],[]>
+    \_TopNExec[[Order[integer{f}#0,DESC,FIRST]],10[INTEGER],1056]
+      \_ExchangeSourceExec[[_doc{f}#3, score{r}#2, integer{f}#0],false]

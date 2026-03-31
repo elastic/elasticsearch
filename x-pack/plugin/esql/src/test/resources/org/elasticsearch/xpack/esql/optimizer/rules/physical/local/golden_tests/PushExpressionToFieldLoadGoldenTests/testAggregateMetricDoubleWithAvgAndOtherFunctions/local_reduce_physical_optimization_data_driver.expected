@@ -1,0 +1,5 @@
+ExchangeSinkExec[[$$s$value{r}#0, $$s$delta{r}#1, $$s$seen{r}#2, $$SUM$a$1$sum{r}#3, $$SUM$a$1$seen{r}#4],false]
+\_AggregateExec[[],[SUM($$sum(network.eth>$SUM$0{r$}#5,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD]) AS s#6, SUM($$avg(network.eth>$SUM$1{r$}#7,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD]) AS $$SUM$a$1#8],INITIAL,[$$s$value{r}#9, $$s$delta{r}#10, $$s$seen{r}#11, $$SUM$a$1$sum{r}#12, $$SUM$a$1$seen{r}#13],16]
+  \_EvalExec[[$$network.eth0.tx$AMD_SUM$1559228110{f$}#14 AS $$sum(network.eth>$SUM$0#5, $$network.eth0.tx$AMD_COUNT$1652506390{f$}#15 AS $$avg(network.eth>$SUM$1#7]]
+    \_FieldExtractExec[$$network.eth0.tx$AMD_SUM$1559228110{f$}#14, $$network.eth0.tx$AMD_COUNT$1652506390{f$}#15]<[],[],[]>
+      \_EsQueryExec[k8s-downsampled], indexMode[standard], [_doc{f}#16], limit[], sort[] estimatedRowSize[28] queryBuilderAndTags [[QueryBuilderAndTags[query=null, tags=[]]]]

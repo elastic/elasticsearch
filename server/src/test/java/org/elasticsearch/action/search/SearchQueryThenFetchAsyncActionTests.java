@@ -196,8 +196,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                 task::isCancelled,
                 task.getProgressListener(),
                 shardsIter.size(),
-                exc -> {},
-                xContentRegistry()
+                exc -> {}
             )
         ) {
             SearchQueryThenFetchAsyncAction action = new SearchQueryThenFetchAsyncAction(
@@ -398,8 +397,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                 task::isCancelled,
                 task.getProgressListener(),
                 shardsIter.size(),
-                exc -> {},
-                xContentRegistry()
+                exc -> {}
             )
         ) {
             SearchQueryThenFetchAsyncAction action = new SearchQueryThenFetchAsyncAction(

@@ -36,10 +36,8 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.rank.context.QueryPhaseRankCoordinatorContext;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -122,8 +120,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         Supplier<Boolean> isCanceled,
         SearchProgressListener progressListener,
         int expectedResultSize,
-        Consumer<Exception> onPartialMergeFailure,
-        NamedXContentRegistry namedXContentRegistry
+        Consumer<Exception> onPartialMergeFailure
     ) {
         super(expectedResultSize);
         this.executor = executor;
@@ -147,11 +144,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         topDocsStats = new TopDocsStats(request.resolveTrackTotalHitsUpTo());
 
         if (source != null && source.profile()) {
-            try {
-                this.originalSearchSource = SearchSourceBuilder.copySearchSourceViaXContent(source, namedXContentRegistry);
-            } catch (IOException e) {
-                throw new UncheckedIOException("failed to deep copy search source for profiling", e);
-            }
+            this.originalSearchSource = SearchSourceBuilder.shallowCopyForProfileCoordinatorMetadata(source);
             String[] indices = request.indices();
             this.originalIndices = indices == null ? null : Arrays.copyOf(indices, indices.length);
         } else {
@@ -161,8 +154,9 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
     }
 
     /**
-     * Deep copy of {@link SearchRequest#source()} when {@link SearchSourceBuilder#profile()} was {@code true} at construction; otherwise
-     * {@code null}.
+     * Shallow snapshot of {@link SearchRequest#source()} when {@link SearchSourceBuilder#profile()} was {@code true} at construction;
+     * otherwise {@code null}. Uses {@link SearchSourceBuilder#shallowCopyForProfileCoordinatorMetadata} (temporary; avoids XContent
+     * round-trip).
      */
     @Nullable
     public SearchSourceBuilder getOriginalSearchSource() {

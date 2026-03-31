@@ -50,7 +50,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TestEsExecutors;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentType;
 import org.junit.After;
 import org.junit.Before;
@@ -76,11 +75,6 @@ import static org.junit.Assert.assertNull;
 import static org.mockito.Mockito.mock;
 
 public class QueryPhaseResultConsumerTests extends ESTestCase {
-
-    @Override
-    protected NamedXContentRegistry xContentRegistry() {
-        return new NamedXContentRegistry(new SearchModule(Settings.EMPTY, emptyList()).getNamedXContents());
-    }
 
     private SearchPhaseController searchPhaseController;
     private ThreadPool threadPool;
@@ -151,8 +145,7 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
                 () -> false,
                 new SearchProgressListener() {},
                 1,
-                e -> fail("unexpected partial merge failure: " + e),
-                xContentRegistry()
+                e -> fail("unexpected partial merge failure: " + e)
             )
         ) {
             assertNull(consumer.getOriginalSearchSource());
@@ -175,8 +168,7 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
                 () -> false,
                 new SearchProgressListener() {},
                 1,
-                e -> fail("unexpected partial merge failure: " + e),
-                xContentRegistry()
+                e -> fail("unexpected partial merge failure: " + e)
             )
         ) {
             assertNull(consumer.getOriginalSearchSource());
@@ -184,7 +176,7 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
         }
     }
 
-    public void testProfileSnapshotCapturesIndicesAndDeepCopiedSource() {
+    public void testProfileSnapshotCapturesIndicesAndShallowCopiedSource() {
         SearchSourceBuilder source = new SearchSourceBuilder().query(QueryBuilders.termQuery("f", "v")).profile(true).size(11);
         SearchSourceBuilder expectedSnapshot = new SearchSourceBuilder().query(QueryBuilders.termQuery("f", "v")).profile(true).size(11);
         SearchRequest request = new SearchRequest("wildcard-*", "alias");
@@ -198,8 +190,7 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
                 () -> false,
                 new SearchProgressListener() {},
                 1,
-                e -> fail("unexpected partial merge failure: " + e),
-                xContentRegistry()
+                e -> fail("unexpected partial merge failure: " + e)
             )
         ) {
             SearchSourceBuilder snapshot = consumer.getOriginalSearchSource();
@@ -246,8 +237,7 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
                 e -> onPartialMergeFailure.accumulateAndGet(e, (prev, curr) -> {
                     curr.addSuppressed(prev);
                     return curr;
-                }),
-                xContentRegistry()
+                })
             )
         ) {
 
@@ -295,8 +285,7 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
                 () -> false,
                 new SearchProgressListener() {},
                 10,
-                e -> {},
-                xContentRegistry()
+                e -> {}
             )
         ) {
             for (int i = 0; i < aggCount; i++) {
@@ -344,8 +333,7 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
                 () -> false,
                 new SearchProgressListener() {},
                 10,
-                e -> {},
-                xContentRegistry()
+                e -> {}
             )
         ) {
             for (int i = 0; i < aggCount; i++) {

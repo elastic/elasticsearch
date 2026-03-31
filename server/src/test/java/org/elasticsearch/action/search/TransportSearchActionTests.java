@@ -105,7 +105,6 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.usage.UsageService;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -553,8 +552,7 @@ public class TransportSearchActionTests extends ESTestCase {
                 listener,
                 (r, l) -> setOnce.set(Tuple.tuple(r, l)),
                 service,
-                null,
-                NamedXContentRegistry.EMPTY
+                null
             );
             if (localIndices == null) {
                 assertNull(setOnce.get());
@@ -631,8 +629,7 @@ public class TransportSearchActionTests extends ESTestCase {
                     listener,
                     (r, l) -> setOnce.set(Tuple.tuple(r, l)),
                     service,
-                    null,
-                    NamedXContentRegistry.EMPTY
+                    null
                 );
                 if (localIndices == null) {
                     assertNull(setOnce.get());
@@ -690,8 +687,7 @@ public class TransportSearchActionTests extends ESTestCase {
                     listener,
                     (r, l) -> setOnce.set(Tuple.tuple(r, l)),
                     service,
-                    null,
-                    NamedXContentRegistry.EMPTY
+                    null
                 );
                 if (localIndices == null) {
                     assertNull(setOnce.get());
@@ -781,8 +777,7 @@ public class TransportSearchActionTests extends ESTestCase {
                     listener,
                     (r, l) -> setOnce.set(Tuple.tuple(r, l)),
                     service,
-                    null,
-                    NamedXContentRegistry.EMPTY
+                    null
                 );
                 if (localIndices == null) {
                     assertNull(setOnce.get());
@@ -887,8 +882,7 @@ public class TransportSearchActionTests extends ESTestCase {
                     listener,
                     (r, l) -> setOnce.set(Tuple.tuple(r, l)),
                     service,
-                    null,
-                    NamedXContentRegistry.EMPTY
+                    null
                 );
                 if (localIndices == null) {
                     assertNull(setOnce.get());
@@ -941,8 +935,7 @@ public class TransportSearchActionTests extends ESTestCase {
                     listener,
                     (r, l) -> setOnce.set(Tuple.tuple(r, l)),
                     service,
-                    null,
-                    NamedXContentRegistry.EMPTY
+                    null
                 );
                 if (localIndices == null) {
                     assertNull(setOnce.get());
@@ -1017,8 +1010,7 @@ public class TransportSearchActionTests extends ESTestCase {
                     listener,
                     (r, l) -> setOnce.set(Tuple.tuple(r, l)),
                     service,
-                    null,
-                    NamedXContentRegistry.EMPTY
+                    null
                 );
                 if (localIndices == null) {
                     assertNull(setOnce.get());

@@ -675,8 +675,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                         cancellableTask::isCancelled,
                         SearchProgressListener.NOOP,
                         shardCount,
-                        e -> logger.error("failed to merge on data node", e),
-                        searchPhaseController.namedXContentRegistry()
+                        e -> logger.error("failed to merge on data node", e)
                     ),
                     request,
                     cancellableTask,

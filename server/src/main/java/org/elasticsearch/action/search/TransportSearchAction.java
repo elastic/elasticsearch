@@ -109,12 +109,10 @@ import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.usage.UsageService;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -620,8 +618,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                                         searchPhaseProvider.apply(l)
                                     ),
                                     transportService,
-                                    forceConnectTimeoutSecs,
-                                    searchPhaseController.namedXContentRegistry()
+                                    forceConnectTimeoutSecs
                                 );
                             }
                         })
@@ -870,7 +867,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     }
 
     /**
-     * Deep copy of coordinator search source and indices for {@code profile.request}, taken before CCS mutates
+     * Shallow snapshot of coordinator search source and indices for {@code profile.request}, taken before CCS mutates
      * {@link SearchSourceBuilder#from(int)} / {@link SearchSourceBuilder#size(int)} for sub-requests.
      */
     private record ProfileCoordinatorMetadata(@Nullable SearchSourceBuilder originalSource, @Nullable String[] requestIndices) {
@@ -879,22 +876,15 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         }
     }
 
-    private static ProfileCoordinatorMetadata snapshotProfileCoordinatorMetadata(
-        SearchRequest searchRequest,
-        NamedXContentRegistry namedXContentRegistry
-    ) {
+    private static ProfileCoordinatorMetadata snapshotProfileCoordinatorMetadata(SearchRequest searchRequest) {
         SearchSourceBuilder source = searchRequest.source();
         if (source == null || source.profile() == false) {
             return ProfileCoordinatorMetadata.none();
         }
-        try {
-            return new ProfileCoordinatorMetadata(
-                SearchSourceBuilder.copySearchSourceViaXContent(source, namedXContentRegistry),
-                searchRequest.indices() == null ? null : Arrays.copyOf(searchRequest.indices(), searchRequest.indices().length)
-            );
-        } catch (IOException e) {
-            throw new UncheckedIOException("failed to deep copy search source for profiling", e);
-        }
+        return new ProfileCoordinatorMetadata(
+            SearchSourceBuilder.shallowCopyForProfileCoordinatorMetadata(source),
+            searchRequest.indices() == null ? null : Arrays.copyOf(searchRequest.indices(), searchRequest.indices().length)
+        );
     }
 
     /**
@@ -913,15 +903,11 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         ActionListener<SearchResponse> listener,
         BiConsumer<SearchRequest, ActionListener<SearchResponse>> localSearchConsumer,
         TransportService transportService,
-        TimeValue forceConnectTimeoutSecs,
-        NamedXContentRegistry namedXContentRegistry
+        TimeValue forceConnectTimeoutSecs
     ) {
         final var remoteClientResponseExecutor = threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION);
         if (resolvedIndices.getLocalIndices() == null && resolvedIndices.getRemoteClusterIndices().size() == 1) {
-            ProfileCoordinatorMetadata profileCoordinatorMetadata = snapshotProfileCoordinatorMetadata(
-                searchRequest,
-                namedXContentRegistry
-            );
+            ProfileCoordinatorMetadata profileCoordinatorMetadata = snapshotProfileCoordinatorMetadata(searchRequest);
             // if we are searching against a single remote cluster, we simply forward the original search request to such cluster
             // and we directly perform final reduction in the remote cluster
             Map.Entry<String, OriginalIndices> entry = resolvedIndices.getRemoteClusterIndices().entrySet().iterator().next();
@@ -1007,10 +993,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 connectionListener
             );
         } else {
-            ProfileCoordinatorMetadata profileCoordinatorMetadata = snapshotProfileCoordinatorMetadata(
-                searchRequest,
-                namedXContentRegistry
-            );
+            ProfileCoordinatorMetadata profileCoordinatorMetadata = snapshotProfileCoordinatorMetadata(searchRequest);
             SearchResponseMerger searchResponseMerger = createSearchResponseMerger(
                 searchRequest.source(),
                 timeProvider,

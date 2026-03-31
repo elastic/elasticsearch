@@ -52,7 +52,6 @@ import org.elasticsearch.search.sort.SortFieldValidation;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.Suggest.Suggestion;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -78,27 +77,10 @@ public final class SearchPhaseController {
         AggregatorFactories.Builder,
         AggregationReduceContext.Builder> requestToAggReduceContextBuilder;
 
-    private final NamedXContentRegistry namedXContentRegistry;
-
     public SearchPhaseController(
         BiFunction<Supplier<Boolean>, AggregatorFactories.Builder, AggregationReduceContext.Builder> requestToAggReduceContextBuilder
     ) {
-        this(requestToAggReduceContextBuilder, NamedXContentRegistry.EMPTY);
-    }
-
-    public SearchPhaseController(
-        BiFunction<Supplier<Boolean>, AggregatorFactories.Builder, AggregationReduceContext.Builder> requestToAggReduceContextBuilder,
-        NamedXContentRegistry namedXContentRegistry
-    ) {
         this.requestToAggReduceContextBuilder = requestToAggReduceContextBuilder;
-        this.namedXContentRegistry = namedXContentRegistry;
-    }
-
-    /**
-     * XContent registry used when coordinator-side logic must parse search source (e.g. deep copy for profile metadata).
-     */
-    public NamedXContentRegistry namedXContentRegistry() {
-        return namedXContentRegistry;
     }
 
     /**
@@ -694,8 +676,7 @@ public final class SearchPhaseController {
             isCanceled,
             listener,
             numShards,
-            onPartialMergeFailure,
-            namedXContentRegistry
+            onPartialMergeFailure
         );
     }
 

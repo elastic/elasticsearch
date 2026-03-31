@@ -250,6 +250,7 @@ public class IndexVersions {
     public static final IndexVersion SEMANTIC_TEXT_DEFAULTS_TO_BFLOAT16 = def(9_088_0_00, Version.LUCENE_10_4_0);
     public static final IndexVersion STORE_IGNORED_FLATTENED_FIELDS_IN_BINARY_DOC_VALUES = def(9_089_0_00, Version.LUCENE_10_4_0);
     public static final IndexVersion TIME_SERIES_USE_SYNTHETIC_ID_BEST_COMPRESSION = def(9_090_0_00, Version.LUCENE_10_4_0);
+    public static final IndexVersion DEPRECATE_INTEGRATED_COUNTS_BINARY_DOC_VALUES = def(9_091_0_00, Version.LUCENE_10_4_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

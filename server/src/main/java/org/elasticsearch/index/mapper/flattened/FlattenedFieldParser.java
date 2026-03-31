@@ -204,13 +204,13 @@ class FlattenedFieldParser {
         if (fieldType.hasDocValues()) {
             if (usesBinaryDocValues) {
                 if (hasRootDocValues) {
-                    MultiValuedBinaryDocValuesField.SeparateCount.addToSeparateCountMultiBinaryFieldInDoc(
+                    MultiValuedBinaryDocValuesField.addToBinaryFieldInDoc(
                         context.documentParserContext.doc(),
                         rootFieldFullPath,
                         bytesValue
                     );
                 }
-                MultiValuedBinaryDocValuesField.SeparateCount.addToSeparateCountMultiBinaryFieldInDoc(
+                MultiValuedBinaryDocValuesField.addToBinaryFieldInDoc(
                     context.documentParserContext.doc(),
                     keyedFieldFullPath,
                     bytesKeyedValue

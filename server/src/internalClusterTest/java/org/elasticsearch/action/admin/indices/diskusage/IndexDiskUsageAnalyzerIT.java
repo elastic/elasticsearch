@@ -63,9 +63,7 @@ public class IndexDiskUsageAnalyzerIT extends ESIntegTestCase {
 
     @Override
     protected Settings.Builder setRandomIndexSettings(Random random, Settings.Builder builder) {
-        var b = super.setRandomIndexSettings(random, builder);
-        b.remove(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey());
-        return b;
+        return super.setRandomIndexSettings(random, builder).remove(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey());
     }
 
     private static final Set<ShardId> failOnFlushShards = ConcurrentCollections.newConcurrentSet();

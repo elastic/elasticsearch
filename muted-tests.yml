@@ -258,9 +258,6 @@ tests:
 - class: org.elasticsearch.xpack.application.OpenAiServiceUpgradeIT
   method: testOpenAiEmbeddings {upgradedNodes=3}
   issue: https://github.com/elastic/elasticsearch/issues/144440
-- class: org.elasticsearch.integration.SecurityFeatureResetTests
-  method: testFeatureResetManageRole
-  issue: https://github.com/elastic/elasticsearch/issues/144486
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:spatial.convertCartesianFromStringParseError}
   issue: https://github.com/elastic/elasticsearch/issues/144580

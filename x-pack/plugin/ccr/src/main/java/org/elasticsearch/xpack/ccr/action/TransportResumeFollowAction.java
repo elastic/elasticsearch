@@ -36,6 +36,7 @@ import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.MergeSchedulerConfig;
 import org.elasticsearch.index.SearchSlowLog;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
+import org.elasticsearch.index.codec.tsdb.TSDBSyntheticIdSegmentDetailsLogger;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
@@ -533,7 +534,10 @@ public class TransportResumeFollowAction extends AcknowledgedTransportMasterNode
         MetadataIndexStateService.VERIFIED_READ_ONLY_SETTING,
         DenseVectorFieldMapper.HNSW_FILTER_HEURISTIC,
         DenseVectorFieldMapper.HNSW_EARLY_TERMINATION,
-        IndexSettings.INTRA_MERGE_PARALLELISM_ENABLED_SETTING
+        IndexSettings.INTRA_MERGE_PARALLELISM_ENABLED_SETTING,
+        TSDBSyntheticIdSegmentDetailsLogger.INFO_THRESHOLD_SETTING,
+        TSDBSyntheticIdSegmentDetailsLogger.WARN_THRESHOLD_SETTING,
+        TSDBSyntheticIdSegmentDetailsLogger.ERROR_THRESHOLD_SETTING
     );
 
     public static Settings filter(Settings originalSettings) {

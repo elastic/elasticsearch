@@ -35,12 +35,15 @@ import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
+import org.elasticsearch.xpack.esql.expression.function.vector.VectorCastable;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -48,7 +51,7 @@ import java.util.stream.Stream;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 
-public final class Case extends EsqlScalarFunction {
+public final class Case extends EsqlScalarFunction implements VectorCastable {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Case", Case::new);
 
     record Condition(Expression condition, Expression value) {
@@ -169,6 +172,31 @@ public final class Case extends EsqlScalarFunction {
 
     private boolean elseValueIsExplicit() {
         return children().size() % 2 == 1;
+    }
+
+    @Override
+    public Set<Integer> denseVectorCastArgIndices() {
+        boolean hasDenseVector = false;
+        for (Condition c : conditions) {
+            if (c.value().resolved() && c.value().dataType() == DataType.DENSE_VECTOR) {
+                hasDenseVector = true;
+                break;
+            }
+        }
+        if (hasDenseVector == false && elseValue.resolved() && elseValue.dataType() == DataType.DENSE_VECTOR) {
+            hasDenseVector = true;
+        }
+        if (hasDenseVector == false) {
+            return Set.of();
+        }
+        Set<Integer> indices = new HashSet<>();
+        for (int i = 1; i < children().size(); i += 2) {
+            indices.add(i);
+        }
+        if (children().size() % 2 == 1) {
+            indices.add(children().size() - 1);
+        }
+        return indices;
     }
 
     @Override

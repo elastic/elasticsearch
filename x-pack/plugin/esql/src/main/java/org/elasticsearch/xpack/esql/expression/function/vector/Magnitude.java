@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFuncti
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
@@ -80,6 +81,11 @@ public class Magnitude extends UnaryScalarFunction implements EvaluatorMapper, V
 
     public static float calculateScalar(float[] scratch) {
         return (float) Math.sqrt(VectorUtil.dotProduct(scratch, scratch));
+    }
+
+    @Override
+    public Set<Integer> denseVectorCastArgIndices() {
+        return Set.of(0);
     }
 
     @Override

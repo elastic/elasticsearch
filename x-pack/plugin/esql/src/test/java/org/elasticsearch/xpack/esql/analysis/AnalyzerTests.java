@@ -68,6 +68,7 @@ import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TBucket;
 import org.elasticsearch.xpack.esql.expression.function.inference.CompletionFunction;
 import org.elasticsearch.xpack.esql.expression.function.inference.TextEmbedding;
+import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDateNanos;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatetime;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDenseVector;
@@ -2652,6 +2653,56 @@ public class AnalyzerTests extends ESTestCase {
         var third = as(coalesce.children().get(2), ToDenseVector.class);
         var literal = as(third.field(), Literal.class);
         assertThat(literal.value(), equalTo(List.of(0, 0, 0)));
+    }
+
+    public void testCoalesceDenseVectorImplicitCastingDenseVectorNotFirst() {
+        var plan = analyze("""
+            from test | eval v = coalesce([0, 0, 0], float_vector)
+            """, DENSE_VECTOR_MAPPING_FILE);
+
+        var limit = as(plan, Limit.class);
+        var eval = as(limit.child(), Eval.class);
+        var alias = as(eval.fields().get(0), Alias.class);
+        assertEquals("v", alias.name());
+        var coalesce = as(alias.child(), Coalesce.class);
+        var first = as(coalesce.children().get(0), ToDenseVector.class);
+        var literal = as(first.field(), Literal.class);
+        assertThat(literal.value(), equalTo(List.of(0, 0, 0)));
+        var second = as(coalesce.children().get(1), FieldAttribute.class);
+        assertThat(second.name(), is("float_vector"));
+    }
+
+    public void testCaseDenseVectorImplicitCastingFromNumeric() {
+        var plan = analyze("""
+            from test | eval v = case(id > 3, float_vector, [0, 0, 0])
+            """, DENSE_VECTOR_MAPPING_FILE);
+
+        var limit = as(plan, Limit.class);
+        var eval = as(limit.child(), Eval.class);
+        var alias = as(eval.fields().get(0), Alias.class);
+        assertEquals("v", alias.name());
+        var caseExpr = as(alias.child(), Case.class);
+        var thenValue = as(caseExpr.children().get(1), FieldAttribute.class);
+        assertThat(thenValue.name(), is("float_vector"));
+        var elseValue = as(caseExpr.children().get(2), ToDenseVector.class);
+        var literal = as(elseValue.field(), Literal.class);
+        assertThat(literal.value(), equalTo(List.of(0, 0, 0)));
+    }
+
+    public void testCaseDenseVectorImplicitCastingFromHexString() {
+        var plan = analyze("""
+            from test | eval v = case(id > 3, float_vector, "3f8000003f8000003f800000")
+            """, DENSE_VECTOR_MAPPING_FILE);
+
+        var limit = as(plan, Limit.class);
+        var eval = as(limit.child(), Eval.class);
+        var alias = as(eval.fields().get(0), Alias.class);
+        assertEquals("v", alias.name());
+        var caseExpr = as(alias.child(), Case.class);
+        var thenValue = as(caseExpr.children().get(1), FieldAttribute.class);
+        assertThat(thenValue.name(), is("float_vector"));
+        assertThat(caseExpr.children().get(2), instanceOf(Literal.class));
+        assertThat(caseExpr.children().get(2).dataType(), is(DENSE_VECTOR));
     }
 
     public void testMagnitudePlanWithDenseVectorImplicitCasting() {

@@ -107,6 +107,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToUnsignedLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCount;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
+import org.elasticsearch.xpack.esql.expression.function.vector.VectorCastable;
 import org.elasticsearch.xpack.esql.expression.function.vector.VectorFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.DateTimeArithmeticOperation;
@@ -2016,11 +2017,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             if (f instanceof In in) {
                 return processIn(in, configuration);
             }
-            if (f instanceof VectorFunction) {
-                return processVectorFunction(f, registry, configuration);
-            }
             if (f instanceof EsqlScalarFunction || f instanceof GroupingFunction) { // exclude AggregateFunction until it is needed
                 return processScalarOrGroupingFunction(f, registry, configuration);
+            }
+            if (f instanceof VectorFunction) {
+                return processVectorFunction(f, configuration);
             }
             if (f instanceof EsqlArithmeticOperation || f instanceof BinaryComparison) {
                 return processBinaryOperator((BinaryOperator) f, configuration);
@@ -2049,10 +2050,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 if (arg.resolved()) {
                     var dataType = arg.dataType();
                     if (dataType == KEYWORD) {
+                        if (i < targetDataTypes.size()) {
+                            targetDataType = targetDataTypes.get(i);
+                        } // else the last type applies to all elements in a possible list (variadic)
                         if (arg.foldable() && ((arg instanceof EsqlScalarFunction) == false)) {
-                            if (i < targetDataTypes.size()) {
-                                targetDataType = targetDataTypes.get(i);
-                            } // else the last type applies to all elements in a possible list (variadic)
                             if (targetDataType != NULL && targetDataType != UNSUPPORTED) {
                                 Expression e = castStringLiteral(arg, targetDataType, configuration);
                                 if (e != arg) {
@@ -2074,13 +2075,15 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
             Expression resultF = childrenChanged ? f.replaceChildren(newChildren) : f;
             if (resultF instanceof EsqlScalarFunction sf) {
-                if (canCastMixedNumericTypes(f) && targetNumericType != null && castNumericArgs) {
-                    sf = (EsqlScalarFunction) castMixedNumericTypes(sf, targetNumericType);
+                if (sf instanceof VectorCastable vc) {
+                    Expression dvResult = castDenseVectorArgs(sf, vc.denseVectorCastArgIndices(), configuration);
+                    if (dvResult != sf) {
+                        return dvResult;
+                    }
                 }
-                if (canCastToDenseVector(f)) {
-                    sf = (EsqlScalarFunction) castChildrenToDenseVector(sf, configuration);
+                if (targetNumericType != null && castNumericArgs) {
+                    return castMixedNumericTypes(sf, targetNumericType);
                 }
-                resultF = sf;
             }
             return resultF;
         }
@@ -2152,10 +2155,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return f instanceof Coalesce || f instanceof Case || f instanceof Greatest || f instanceof Least;
         }
 
-        private static boolean canCastToDenseVector(org.elasticsearch.xpack.esql.core.expression.function.Function f) {
-            return f instanceof Coalesce || f instanceof Case;
-        }
-
         private static boolean canCastNumeric(DataType from, DataType to) {
             DataType commonType = EsqlDataTypeConverter.commonType(from, to);
             return commonType == to;
@@ -2189,33 +2188,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
             }
             return childrenChanged ? f.replaceChildren(newChildren) : f;
-        }
-
-        /**
-         * If the first resolved non-NULL child is DENSE_VECTOR, cast remaining keyword/numeric children to dense_vector.
-         */
-        private static Expression castChildrenToDenseVector(EsqlScalarFunction f, Configuration configuration) {
-            DataType targetType = null;
-            for (Expression child : f.children()) {
-                if (child.resolved() && child.dataType() != NULL) {
-                    targetType = child.dataType();
-                    break;
-                }
-            }
-            if (targetType != DENSE_VECTOR) {
-                return f;
-            }
-
-            List<Expression> newChildren = new ArrayList<>(f.children().size());
-            boolean changed = false;
-            for (Expression child : f.children()) {
-                Expression cast = castArgToDenseVector(child, f.source(), configuration);
-                if (cast != child) {
-                    changed = true;
-                }
-                newChildren.add(cast);
-            }
-            return changed ? f.replaceChildren(newChildren) : f;
         }
 
         private static boolean supportsImplicitTemporalCasting(Expression e, BinaryOperator<?, ?, ?, ?> o) {
@@ -2268,29 +2240,39 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
         }
 
-        @SuppressWarnings("unchecked")
         private static Expression processVectorFunction(
-            org.elasticsearch.xpack.esql.core.expression.function.Function vectorFunction,
-            EsqlFunctionRegistry registry,
+            org.elasticsearch.xpack.esql.core.expression.function.Function f,
             Configuration configuration
         ) {
-            List<Expression> args = vectorFunction.arguments();
-            List<DataType> targetDataTypes = registry.getDataTypeForStringLiteralConversion(vectorFunction.getClass());
-            List<Expression> newArgs = new ArrayList<>();
+            if (f instanceof VectorCastable vc) {
+                return castDenseVectorArgs((Expression) f, vc.denseVectorCastArgIndices(), configuration);
+            }
+            return f;
+        }
+
+        /**
+         * Cast selected children to dense_vector using the indices provided by {@link VectorCastable}.
+         */
+        private static Expression castDenseVectorArgs(Expression f, Set<Integer> castIndices, Configuration cfg) {
+            if (castIndices.isEmpty()) {
+                return f;
+            }
+            List<Expression> children = f.children();
+            List<Expression> newChildren = new ArrayList<>(children.size());
             boolean changed = false;
-            for (int i = 0; i < args.size(); i++) {
-                Expression arg = args.get(i);
-                if (targetDataTypes.get(i) == DENSE_VECTOR) {
-                    Expression cast = castArgToDenseVector(arg, vectorFunction.source(), configuration);
-                    if (cast != arg) {
+            for (int i = 0; i < children.size(); i++) {
+                Expression child = children.get(i);
+                if (castIndices.contains(i)) {
+                    Expression cast = castArgToDenseVector(child, f.source(), cfg);
+                    if (cast != child) {
                         changed = true;
                     }
-                    newArgs.add(cast);
+                    newChildren.add(cast);
                 } else {
-                    newArgs.add(arg);
+                    newChildren.add(child);
                 }
             }
-            return changed ? vectorFunction.replaceChildren(newArgs) : vectorFunction;
+            return changed ? f.replaceChildren(newChildren) : f;
         }
 
         /**

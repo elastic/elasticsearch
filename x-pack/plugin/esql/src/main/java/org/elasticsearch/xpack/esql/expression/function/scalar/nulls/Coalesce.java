@@ -25,10 +25,13 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
+import org.elasticsearch.xpack.esql.expression.function.vector.VectorCastable;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
@@ -37,7 +40,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
  * Function returning the first non-null value. {@code COALESCE} runs as though
  * it were lazily evaluating each position in each incoming {@link Block}.
  */
-public class Coalesce extends EsqlScalarFunction implements OptionalArgument {
+public class Coalesce extends EsqlScalarFunction implements OptionalArgument, VectorCastable {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Coalesce", Coalesce::new);
 
     private DataType dataType;
@@ -141,6 +144,20 @@ public class Coalesce extends EsqlScalarFunction implements OptionalArgument {
     @Override
     public String getWriteableName() {
         return ENTRY.name;
+    }
+
+    @Override
+    public Set<Integer> denseVectorCastArgIndices() {
+        for (Expression child : children()) {
+            if (child.resolved() && child.dataType() == DataType.DENSE_VECTOR) {
+                Set<Integer> indices = new HashSet<>();
+                for (int i = 0; i < children().size(); i++) {
+                    indices.add(i);
+                }
+                return indices;
+            }
+        }
+        return Set.of();
     }
 
     @Override

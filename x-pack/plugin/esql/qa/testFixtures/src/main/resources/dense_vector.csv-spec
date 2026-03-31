@@ -247,3 +247,37 @@ id:l | v:dense_vector
 4    | [0.5, 0.5, 0.5]
 ;
 
+coalesceDenseVectorImplicitCastDenseVectorNotFirst
+required_capability: coalesce_dense_vector_implicit_casting
+
+FROM dense_vector
+| EVAL v = COALESCE([0.5, 0.5, 0.5], float_vector)
+| KEEP id, v
+| SORT id
+;
+
+id:l | v:dense_vector
+0    | [0.5, 0.5, 0.5]
+1    | [0.5, 0.5, 0.5]
+2    | [0.5, 0.5, 0.5]
+3    | [0.5, 0.5, 0.5]
+4    | [0.5, 0.5, 0.5]
+;
+
+caseDenseVectorImplicitCastFromInts
+required_capability: coalesce_dense_vector_implicit_casting
+
+FROM dense_vector
+| EVAL v = CASE(id > 3, [0, 0, 0], float_vector)
+| KEEP id, v
+| SORT id
+;
+
+id:l | v:dense_vector
+0    | [1.0, 2.0, 3.0]
+1    | [4.0, 5.0, 6.0]
+2    | [9.0, 8.0, 7.0]
+3    | [0.0625, 0.25, 0.75]
+4    | [0.0, 0.0, 0.0]
+;
+

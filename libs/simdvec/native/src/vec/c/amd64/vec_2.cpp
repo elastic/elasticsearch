@@ -63,67 +63,54 @@ inline __m512i fma8(__m512i acc, const int8_t* p1, const int8_t* p2) {
     return _mm512_add_epi32(_mm512_madd_epi16(ones, dot), acc);
 }
 
-// Calls repeatedly a vector operation on 64-wide int lanes, until it is applied to all
-// `dims` elements in `a` and `b`
-// Template parameters:
-// - vec_op: the vector operation, acting on 64-wide int lanes. It takes and returns an
-//   accumulator holding partial results.
-// - batches: the number vec_op to "unroll" (interleave), called concurrently to update
-//   `batches` partial accumulators.
-template<
-    __m512i (*vec_op)(__m512i acc, const int8_t* p1, const int8_t* p2),
-    int batches = 8
->
-static inline int32_t call_i7u_inner_avx512(const int8_t* a, const int8_t* b, const int32_t dims) {
-    static_assert(batches % 2 == 0, "batches must be even for vectorized AVX-512 operations");
-    constexpr int half_batches = batches / 2;
-    constexpr int stride8 = batches * STRIDE_BYTES_LEN;
-    constexpr int stride4 = half_batches * STRIDE_BYTES_LEN;
-    const int8_t* p1 = a;
-    const int8_t* p2 = b;
-
-    __m512i acc[batches];
-    // Init accumulator(s) with 0
-    apply_indexed<batches>([&](auto I) {
-        acc[I] = _mm512_setzero_si512();
-    });
-
-    const int8_t* p1End = a + (dims & ~(stride8 - 1));
-    while (p1 < p1End) {
-        apply_indexed<batches>([&](auto I) {
-            acc[I] = vec_op<I>(acc[I], p1, p2);
-        });
-        p1 += stride8;
-        p2 += stride8;
-    }
-
-    p1End = a + (dims & ~(stride4 - 1));
-    while (p1 < p1End) {
-        apply_indexed<half_batches>([&](auto I) {
-            acc[I] = vec_op<I>(acc[I], p1, p2);
-        });
-        p1 += stride4;
-        p2 += stride4;
-    }
-
-    p1End = a + (dims & ~(STRIDE_BYTES_LEN - 1));
-    while (p1 < p1End) {
-        acc[0] = vec_op<0>(acc[0], p1, p2);
-        p1 += STRIDE_BYTES_LEN;
-        p2 += STRIDE_BYTES_LEN;
-    }
-
-    // reduce (accumulate all)
-    __m512i total_sum = tree_reduce<batches, __m512i, _mm512_add_epi32>(acc);
-    return _mm512_reduce_add_epi32(total_sum);
-}
-
 static inline int32_t dot7u_inner(const int8_t* a, const int8_t* b, const int32_t dims) {
     int32_t res = 0;
     int i = 0;
     if (dims >= STRIDE_BYTES_LEN) {
-        i += dims & ~(STRIDE_BYTES_LEN - 1);
-        res = call_i7u_inner_avx512<fma8>(a, b, i);
+        i = dims & ~(STRIDE_BYTES_LEN - 1);
+
+        constexpr int batches = 8;
+        static_assert(batches % 2 == 0, "batches must be even for vectorized AVX-512 operations");
+        constexpr int half_batches = batches / 2;
+        constexpr int batch_stride = batches * STRIDE_BYTES_LEN;
+        constexpr int half_batch_stride = half_batches * STRIDE_BYTES_LEN;
+        const int8_t* p1 = a;
+        const int8_t* p2 = b;
+
+        __m512i acc[batches];
+        // Init accumulator(s) with 0
+        apply_indexed<batches>([&](auto I) {
+            acc[I] = _mm512_setzero_si512();
+        });
+
+        const int8_t* p1End = a + (i & ~(batch_stride - 1));
+        while (p1 < p1End) {
+            apply_indexed<batches>([&](auto I) {
+                acc[I] = fma8<I>(acc[I], p1, p2);
+            });
+            p1 += batch_stride;
+            p2 += batch_stride;
+        }
+
+        p1End = a + (i & ~(half_batch_stride - 1));
+        while (p1 < p1End) {
+            apply_indexed<half_batches>([&](auto I) {
+                acc[I] = fma8<I>(acc[I], p1, p2);
+            });
+            p1 += half_batch_stride;
+            p2 += half_batch_stride;
+        }
+
+        p1End = a + i;
+        while (p1 < p1End) {
+            acc[0] = fma8<0>(acc[0], p1, p2);
+            p1 += STRIDE_BYTES_LEN;
+            p2 += STRIDE_BYTES_LEN;
+        }
+
+        // reduce (accumulate all)
+        __m512i total_sum = tree_reduce<batches, __m512i, _mm512_add_epi32>(acc);
+        res = _mm512_reduce_add_epi32(total_sum);
     }
     // Masked tail: handle remaining elements (< 64) with a single masked SIMD iteration
     const int remaining = dims - i;
@@ -175,8 +162,50 @@ static inline int32_t sqr7u_inner(const int8_t* a, const int8_t* b, const int32_
     int32_t res = 0;
     int i = 0;
     if (dims >= STRIDE_BYTES_LEN) {
-        i += dims & ~(STRIDE_BYTES_LEN - 1);
-        res = call_i7u_inner_avx512<sqr8>(a, b, i);
+        i = dims & ~(STRIDE_BYTES_LEN - 1);
+
+        constexpr int batches = 8;
+        static_assert(batches % 2 == 0, "batches must be even for vectorized AVX-512 operations");
+        constexpr int half_batches = batches / 2;
+        constexpr int batch_stride = batches * STRIDE_BYTES_LEN;
+        constexpr int half_batch_stride = half_batches * STRIDE_BYTES_LEN;
+        const int8_t* p1 = a;
+        const int8_t* p2 = b;
+
+        __m512i acc[batches];
+        // Init accumulator(s) with 0
+        apply_indexed<batches>([&](auto I) {
+            acc[I] = _mm512_setzero_si512();
+        });
+
+        const int8_t* p1End = a + (i & ~(batch_stride - 1));
+        while (p1 < p1End) {
+            apply_indexed<batches>([&](auto I) {
+                acc[I] = sqr8<I>(acc[I], p1, p2);
+            });
+            p1 += batch_stride;
+            p2 += batch_stride;
+        }
+
+        p1End = a + (i & ~(half_batch_stride - 1));
+        while (p1 < p1End) {
+            apply_indexed<half_batches>([&](auto I) {
+                acc[I] = sqr8<I>(acc[I], p1, p2);
+            });
+            p1 += half_batch_stride;
+            p2 += half_batch_stride;
+        }
+
+        p1End = a + i;
+        while (p1 < p1End) {
+            acc[0] = sqr8<0>(acc[0], p1, p2);
+            p1 += STRIDE_BYTES_LEN;
+            p2 += STRIDE_BYTES_LEN;
+        }
+
+        // reduce (accumulate all)
+        __m512i total_sum = tree_reduce<batches, __m512i, _mm512_add_epi32>(acc);
+        res = _mm512_reduce_add_epi32(total_sum);
     }
     // Masked tail: handle remaining elements (< 64) with a single masked SIMD iteration
     const int remaining = dims - i;

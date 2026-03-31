@@ -100,7 +100,7 @@ public class QuerySettingsTests extends ESTestCase {
     }
 
     public void testValidate_UnmappedFields_techPreview() {
-        assumeFalse("Requires no snapshot", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V4.isEnabled());
+        assumeFalse("Requires no snapshot", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
 
         validateUnmappedFields("DEFAULT", "NULLIFY", "LOAD");
         var settingName = QuerySettings.UNMAPPED_FIELDS.name();

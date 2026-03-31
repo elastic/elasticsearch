@@ -14,6 +14,7 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.inference.deployment.TrainedModelDeploymentTask;
@@ -45,11 +46,11 @@ public class NativePyTorchProcessFactory implements PyTorchProcessFactory {
         this.nativeController = Objects.requireNonNull(nativeController);
         this.nodeName = clusterService.getNodeName();
         setProcessConnectTimeout(MachineLearning.PROCESS_CONNECT_TIMEOUT.get(env.settings()));
-        this.modelGraphValidationEnabled = MachineLearning.MODEL_GRAPH_VALIDATION_ENABLED.get(env.settings());
+        this.modelGraphValidationEnabled = MachineLearningField.MODEL_GRAPH_VALIDATION_ENABLED.get(env.settings());
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(MachineLearning.PROCESS_CONNECT_TIMEOUT, this::setProcessConnectTimeout);
         clusterService.getClusterSettings()
-            .addSettingsUpdateConsumer(MachineLearning.MODEL_GRAPH_VALIDATION_ENABLED, this::setModelGraphValidationEnabled);
+            .addSettingsUpdateConsumer(MachineLearningField.MODEL_GRAPH_VALIDATION_ENABLED, this::setModelGraphValidationEnabled);
     }
 
     void setProcessConnectTimeout(TimeValue processConnectTimeout) {

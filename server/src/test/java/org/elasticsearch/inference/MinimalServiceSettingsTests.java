@@ -391,4 +391,12 @@ public class MinimalServiceSettingsTests extends AbstractBWCSerializationTestCas
 
         assertThat(json, is(XContentHelper.stripWhitespace(MINIMAL_SERVICE_SETTINGS_WITH_METADATA_JSON)));
     }
+
+    public void testFilteredToXContent() throws IOException {
+        var builder = XContentFactory.contentBuilder(XContentType.JSON);
+        MINIMAL_SERVICE_SETTINGS_WITH_METADATA.getFilteredXContentObject().toXContent(builder, ToXContent.EMPTY_PARAMS);
+        var json = Strings.toString(builder);
+
+        assertThat(json, is(XContentHelper.stripWhitespace(MINIMAL_SERVICE_SETTINGS_WITHOUT_METADATA_JSON)));
+    }
 }

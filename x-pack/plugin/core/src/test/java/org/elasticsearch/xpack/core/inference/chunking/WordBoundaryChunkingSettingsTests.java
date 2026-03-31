@@ -17,6 +17,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 
+import static org.hamcrest.Matchers.containsString;
+
 public class WordBoundaryChunkingSettingsTests extends AbstractWireSerializingTestCase<WordBoundaryChunkingSettings> {
 
     public void testMaxChunkSizeNotProvided() {
@@ -45,6 +47,32 @@ public class WordBoundaryChunkingSettingsTests extends AbstractWireSerializingTe
         assertThrows(ValidationException.class, () -> {
             WordBoundaryChunkingSettings.fromMap(buildChunkingSettingsMap(Optional.of(maxChunkSize), Optional.of(overlap)));
         });
+    }
+
+    public void testValidateWithValidSettings() {
+        var maxChunkSize = randomIntBetween(10, 300);
+        var settings = new WordBoundaryChunkingSettings(maxChunkSize, randomIntBetween(1, maxChunkSize / 2));
+        settings.validate(); // should not throw
+    }
+
+    public void testValidateWithInvalidMaxChunkSize() {
+        var settings = new WordBoundaryChunkingSettings(randomIntBetween(0, 9), 1);
+        var e = assertThrows(ValidationException.class, settings::validate);
+        assertThat(e.getMessage(), containsString("must be above"));
+    }
+
+    public void testValidateWithOverlapTooLarge() {
+        var maxChunkSize = randomIntBetween(10, 300);
+        var settings = new WordBoundaryChunkingSettings(maxChunkSize, (maxChunkSize / 2) + 1);
+        var e = assertThrows(ValidationException.class, settings::validate);
+        assertThat(e.getMessage(), containsString("must be less than or equal to half of max chunk size"));
+    }
+
+    public void testValidateWithBothInvalid() {
+        var settings = new WordBoundaryChunkingSettings(randomIntBetween(0, 9), 100);
+        var e = assertThrows(ValidationException.class, settings::validate);
+        assertThat(e.getMessage(), containsString("must be above"));
+        assertThat(e.getMessage(), containsString("must be less than or equal to half of max chunk size"));
     }
 
     public void testValidInputsProvided() {

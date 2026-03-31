@@ -19,6 +19,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+import static org.hamcrest.Matchers.containsString;
+
 public class RecursiveChunkingSettingsTests extends AbstractWireSerializingTestCase<RecursiveChunkingSettings> {
 
     public void testFromMapValidSettingsWithSeparators() {
@@ -70,6 +72,30 @@ public class RecursiveChunkingSettingsTests extends AbstractWireSerializingTestC
         );
 
         assertThrows(ValidationException.class, () -> RecursiveChunkingSettings.fromMap(invalidSettings));
+    }
+
+    public void testValidateWithValidSettings() {
+        var settings = new RecursiveChunkingSettings(randomIntBetween(10, 300), List.of("\n\n", "\n"));
+        settings.validate(); // should not throw
+    }
+
+    public void testValidateWithInvalidMaxChunkSize() {
+        var settings = new RecursiveChunkingSettings(randomIntBetween(0, 9), List.of("\n\n", "\n"));
+        var e = assertThrows(ValidationException.class, settings::validate);
+        assertThat(e.getMessage(), containsString("must be above"));
+    }
+
+    public void testValidateWithEmptySeparators() {
+        var settings = new RecursiveChunkingSettings(randomIntBetween(10, 300), List.of());
+        var e = assertThrows(ValidationException.class, settings::validate);
+        assertThat(e.getMessage(), containsString("can not have an empty list of separators"));
+    }
+
+    public void testValidateWithInvalidMaxChunkSizeAndEmptySeparators() {
+        var settings = new RecursiveChunkingSettings(randomIntBetween(0, 9), List.of());
+        var e = assertThrows(ValidationException.class, settings::validate);
+        assertThat(e.getMessage(), containsString("must be above"));
+        assertThat(e.getMessage(), containsString("can not have an empty list of separators"));
     }
 
     public void testFromMapEmptySeparators() {

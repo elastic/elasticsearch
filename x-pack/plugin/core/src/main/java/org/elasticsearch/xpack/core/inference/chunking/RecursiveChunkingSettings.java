@@ -60,13 +60,13 @@ public class RecursiveChunkingSettings implements ChunkingSettings {
             validationException.addValidationError(
                 ChunkingSettingsOptions.MAX_CHUNK_SIZE + "[" + maxChunkSize + "] must be above " + MAX_CHUNK_SIZE_LOWER_LIMIT
             );
-
-            if (separators != null && separators.isEmpty()) {
-                validationException.addValidationError("Recursive chunking settings can not have an empty list of separators");
-            }
-
-            validationException.throwIfValidationErrorsExist();
         }
+
+        if (separators != null && separators.isEmpty()) {
+            validationException.addValidationError("Recursive chunking settings can not have an empty list of separators");
+        }
+
+        validationException.throwIfValidationErrorsExist();
     }
 
     public static RecursiveChunkingSettings fromMap(Map<String, Object> map) {

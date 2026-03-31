@@ -38,7 +38,11 @@ public class DlmFrozenTransitionPlugin extends Plugin {
     @Override
     public List<Setting<?>> getSettings() {
         if (DataStreamLifecycle.DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled()) {
-            return List.of(DlmFrozenTransitionService.POLL_INTERVAL_SETTING, DlmFrozenTransitionService.MAX_CONCURRENCY_SETTING);
+            return List.of(
+                DlmFrozenTransitionService.POLL_INTERVAL_SETTING,
+                DlmFrozenTransitionService.MAX_CONCURRENCY_SETTING,
+                DlmFrozenTransitionService.MAX_QUEUE_SIZE
+            );
         } else {
             return List.of();
         }

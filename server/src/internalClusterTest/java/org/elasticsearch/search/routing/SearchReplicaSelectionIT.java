@@ -24,6 +24,7 @@ import java.util.Set;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponses;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
@@ -48,16 +49,16 @@ public class SearchReplicaSelectionIT extends ESIntegTestCase {
         client.prepareIndex("test").setSource("field", "value").get();
         refresh();
 
-        // Stat-less nodes are ranked ahead of measured nodes for probing. Since searches run
-        // sequentially, each request completes and builds stats before the next one is routed,
-        // so a different stat-less node is promoted on each iteration.
+        // Before we've gathered stats for all nodes, we should try each node once.
         Set<String> nodeIds = new HashSet<>();
-        for (int i = 0; i < 3; i++) {
-            assertResponse(client.prepareSearch().setQuery(matchAllQuery()), response -> {
-                assertThat(response.getHits().getTotalHits().value(), equalTo(1L));
-                nodeIds.add(response.getHits().getAt(0).getShard().getNodeId());
-            });
-        }
+        assertResponses(response -> {
+            assertThat(response.getHits().getTotalHits().value(), equalTo(1L));
+            nodeIds.add(response.getHits().getAt(0).getShard().getNodeId());
+        },
+            client.prepareSearch().setQuery(matchAllQuery()),
+            client.prepareSearch().setQuery(matchAllQuery()),
+            client.prepareSearch().setQuery(matchAllQuery())
+        );
         assertEquals(3, nodeIds.size());
 
         // After more searches, all replicas have computed stats; rankNodes no longer synthesizes ranks for

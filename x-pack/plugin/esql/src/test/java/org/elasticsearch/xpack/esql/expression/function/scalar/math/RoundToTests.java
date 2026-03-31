@@ -210,7 +210,7 @@ public class RoundToTests extends AbstractScalarFunctionTestCase {
         return supplier(name, fieldType, fieldSupplier, pointsTypes, pointsSupplier, (f, p) -> {
             long max = p.stream().mapToLong(l -> l).min().getAsLong();
             for (long l : p) {
-                if (l > max && f.doubleValue() > l) {
+                if (l > max && f.doubleValue() >= l) {
                     max = l;
                 }
             }
@@ -228,7 +228,7 @@ public class RoundToTests extends AbstractScalarFunctionTestCase {
         return supplier(name, fieldType, fieldSupplier, pointsTypes, pointsSupplier, (f, p) -> {
             int max = p.stream().mapToInt(i -> i).min().getAsInt();
             for (int l : p) {
-                if (l > max && f.doubleValue() > l) {
+                if (l > max && f.doubleValue() >= l) {
                     max = l;
                 }
             }
@@ -263,7 +263,7 @@ public class RoundToTests extends AbstractScalarFunctionTestCase {
         return supplier(name, fieldType, fieldSupplier, pointsTypes, pointsSupplier, (f, p) -> {
             double max = p.stream().mapToDouble(d -> d).min().getAsDouble();
             for (double d : p) {
-                if (d > max && f.doubleValue() > d) {
+                if (d > max && f.doubleValue() >= d) {
                     max = d;
                 }
             }
@@ -281,7 +281,7 @@ public class RoundToTests extends AbstractScalarFunctionTestCase {
         return supplier(name, fieldType, fieldSupplier, pointsTypes, pointsSupplier, (f, p) -> {
             long max = p.stream().mapToLong(l -> l).min().getAsLong();
             for (long l : p) {
-                if (l > max && f.doubleValue() > l) {
+                if (l > max && f.doubleValue() >= l) {
                     max = l;
                 }
             }
@@ -299,7 +299,7 @@ public class RoundToTests extends AbstractScalarFunctionTestCase {
         return supplier(name, fieldType, fieldSupplier, pointsTypes, pointsSupplier, (f, p) -> {
             int max = p.stream().mapToInt(i -> i).min().getAsInt();
             for (int l : p) {
-                if (l > max && f.doubleValue() > l) {
+                if (l > max && f.doubleValue() >= l) {
                     max = l;
                 }
             }

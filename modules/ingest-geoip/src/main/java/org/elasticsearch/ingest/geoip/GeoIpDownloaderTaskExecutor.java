@@ -268,6 +268,11 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
             );
     }
 
+    /// Deletes the `.geoip_databases` index for the given project after the geoip downloader task has
+    /// been removed. Called from the `onRemove` callback of [PersistentTaskLifecycleManager].
+    ///
+    /// TODO (See #144443 discussion): The current implementation has a potential race condition where the master
+    /// may trigger the index cleanup before the downloader task has finished.
     void deleteGeoIpDatabasesIndex(ProjectId projectId) {
         ProjectMetadata project = clusterService.state().metadata().projects().get(projectId);
         if (project == null) {

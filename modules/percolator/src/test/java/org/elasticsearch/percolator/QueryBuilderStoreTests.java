@@ -245,7 +245,11 @@ public class QueryBuilderStoreTests extends ESTestCase {
             );
             SearchExecutionContext searchExecutionContext = new SearchExecutionContext(baseContext, circuitBreaker);
 
-            PercolateQuery.QueryStore queryStore = PercolateQueryBuilder.createStore(fieldMapper.fieldType(), searchExecutionContext);
+            PercolateQuery.QueryStore queryStore = PercolateQueryBuilder.createStore(
+                fieldMapper.fieldType(),
+                randomBoolean(),
+                searchExecutionContext
+            );
 
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
                 LeafReaderContext leafContext = indexReader.leaves().get(0);

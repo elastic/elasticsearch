@@ -701,17 +701,17 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
 
             @Override
             public void addCircuitBreakerMemory(long bytes, String label) {
-                delegate.addCircuitBreakerMemory(bytes, label);
+                source.addCircuitBreakerMemory(bytes, label);
             }
 
             @Override
             public long getQueryConstructionMemoryUsed() {
-                return delegate.getQueryConstructionMemoryUsed();
+                return source.getQueryConstructionMemoryUsed();
             }
 
             @Override
             public void releaseQueryConstructionMemory() {
-                delegate.releaseQueryConstructionMemory();
+                source.releaseQueryConstructionMemory();
             }
         };
 

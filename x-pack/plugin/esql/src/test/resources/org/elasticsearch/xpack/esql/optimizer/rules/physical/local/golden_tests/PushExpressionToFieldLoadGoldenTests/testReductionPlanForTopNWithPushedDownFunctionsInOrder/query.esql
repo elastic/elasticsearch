@@ -1,0 +1,5 @@
+FROM all_types
+| EVAL fieldLength = LENGTH(text)
+| SORT fieldLength DESC
+| LIMIT 10
+| KEEP text, fieldLength

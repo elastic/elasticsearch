@@ -9,6 +9,7 @@
 
 package org.elasticsearch.datastreams;
 
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.StoredFieldVisitor;
 import org.apache.lucene.search.join.ScoreMode;
@@ -45,6 +46,8 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.codec.CodecService;
+import org.elasticsearch.index.codec.bloomfilter.BloomFilter;
+import org.elasticsearch.index.codec.bloomfilter.ES94BloomFilterDocValuesFormat;
 import org.elasticsearch.index.codec.storedfields.TSDBStoredFieldsFormat;
 import org.elasticsearch.index.codec.tsdb.TSDBSyntheticIdStoredFieldsReader;
 import org.elasticsearch.index.engine.EngineConfig;
@@ -1292,6 +1295,84 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         assertShardsHaveNoIdStoredFieldValuesOnDisk(indices);
     }
 
+    public void testSyntheticIdHashFunctionsSettingRollover() throws Exception {
+        assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
+        final var dataStreamName = randomIdentifier();
+        final int k1 = randomIntBetween(1, ES94BloomFilterDocValuesFormat.MAX_NUM_HASH_FUNCTIONS);
+        final int k2 = randomValueOtherThan(k1, () -> randomIntBetween(1, ES94BloomFilterDocValuesFormat.MAX_NUM_HASH_FUNCTIONS));
+
+        ComposableIndexTemplate k1IndexTemplate = putDataStreamTemplate(
+            dataStreamName,
+            1,
+            0,
+            Settings.builder().put(IndexSettings.SYNTHETIC_ID_HASH_FUNCTIONS.getKey(), k1).build(),
+            false
+        );
+
+        var timestamp = Instant.now();
+        createDocuments(
+            dataStreamName,
+            document(timestamp, "vm-dev01", "cpu-load", 0, false),
+            document(timestamp.plusMillis(1), "vm-dev02", "cpu-load", 1, false),
+            document(timestamp.plusMillis(2), "vm-dev03", "cpu-load", 2, false),
+            document(timestamp.plusMillis(3), "vm-dev04", "cpu-load", 3, false)
+        );
+        flushAndRefresh(dataStreamName);
+
+        String backingIndex1 = client().admin()
+            .indices()
+            .prepareGetIndex(TEST_REQUEST_TIMEOUT)
+            .addIndices(dataStreamName)
+            .get()
+            .indices()[0];
+        var forceMerge1 = indicesAdmin().prepareForceMerge(backingIndex1).setMaxNumSegments(1).get();
+        assertThat(forceMerge1.getFailedShards(), equalTo(0));
+        flushAndRefresh(backingIndex1);
+
+        assertHitCount(client().prepareSearch(backingIndex1).setSize(0), 4);
+        assertThat(readSyntheticIdBloomFilterHashFunctions(backingIndex1), equalTo(k1));
+
+        // Update template to use a different hash function count; should be picked up on rollover
+        ComposableIndexTemplate k2IndexTemplate = k1IndexTemplate.mergeSettings(
+            Settings.builder().put(IndexSettings.SYNTHETIC_ID_HASH_FUNCTIONS.getKey(), k2).build()
+        );
+        putComposableIndexTemplate(k2IndexTemplate);
+
+        RolloverResponse rolloverResponse = client().admin().indices().prepareRolloverIndex(dataStreamName).get();
+        assertTrue(rolloverResponse.isAcknowledged());
+        assertTrue(rolloverResponse.isRolledOver());
+        String backingIndex2 = rolloverResponse.getNewIndex();
+        assertThat(backingIndex2, not(equalTo(backingIndex1)));
+
+        var getSettings = client().admin()
+            .indices()
+            .prepareGetSettings(TEST_REQUEST_TIMEOUT)
+            .setIndices(backingIndex1, backingIndex2)
+            .get();
+        Instant backingIndex1End = Instant.parse(getSettings.getSetting(backingIndex1, IndexSettings.TIME_SERIES_END_TIME.getKey()));
+        Instant backingIndex2End = Instant.parse(getSettings.getSetting(backingIndex2, IndexSettings.TIME_SERIES_END_TIME.getKey()));
+        // Pick a timestamp that should route to backingIndex2 (and not backingIndex1) based on time bounds.
+        Instant timestamp2 = backingIndex2End.minusMillis(2);
+        assertThat(timestamp2.isAfter(backingIndex1End), equalTo(true));
+
+        var secondWrites = createDocuments(
+            dataStreamName,
+            document(timestamp2, "vm-dev01", "cpu-load", 10, false),
+            document(timestamp2.plusMillis(1), "vm-dev02", "cpu-load", 11, false)
+        );
+        for (var item : secondWrites) {
+            assertThat(item.getIndex(), equalTo(backingIndex2));
+        }
+        flushAndRefresh(dataStreamName);
+
+        var forceMerge2 = indicesAdmin().prepareForceMerge(backingIndex2).setMaxNumSegments(1).get();
+        assertThat(forceMerge2.getFailedShards(), equalTo(0));
+        flushAndRefresh(backingIndex2);
+
+        assertHitCount(client().prepareSearch(backingIndex2).setSize(0), 2);
+        assertThat(readSyntheticIdBloomFilterHashFunctions(backingIndex2), equalTo(k2));
+    }
+
     private static long documentCount(String dataStreamName) {
         return indicesAdmin().prepareStats(dataStreamName).setDocs(true).get().getTotal().docs.getCount();
     }
@@ -1411,11 +1492,15 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         return bulkResponse.getItems();
     }
 
-    private static void putDataStreamTemplate(String indexPattern, int primaries, int replicas, boolean useNestedDocs) throws IOException {
-        putDataStreamTemplate(indexPattern, primaries, replicas, Settings.EMPTY, useNestedDocs);
+    private static ComposableIndexTemplate putDataStreamTemplate(String indexPattern, int primaries, int replicas, boolean useNestedDocs)
+        throws IOException {
+        return putDataStreamTemplate(indexPattern, primaries, replicas, Settings.EMPTY, useNestedDocs);
     }
 
-    private static void putDataStreamTemplate(
+    /**
+     * Supplied extraSettings will take precedence.
+     */
+    private static ComposableIndexTemplate putDataStreamTemplate(
         String indexPattern,
         int primaries,
         int replicas,
@@ -1433,6 +1518,12 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         }
         if (rarely()) {
             settings.put(IndexSettings.USE_DOC_VALUES_SKIPPER.getKey(), false);
+        }
+        if (randomBoolean()) {
+            settings.put(
+                IndexSettings.SYNTHETIC_ID_HASH_FUNCTIONS.getKey(),
+                randomIntBetween(1, ES94BloomFilterDocValuesFormat.MAX_NUM_HASH_FUNCTIONS)
+            );
         }
         settings.put(extraSettings);
 
@@ -1478,14 +1569,18 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
                 }
             }""", nestedMapping);
 
+        ComposableIndexTemplate template = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of(indexPattern))
+            .template(new Template(settings.build(), new CompressedXContent(mappings), null))
+            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false))
+            .build();
+        putComposableIndexTemplate(template);
+        return template;
+    }
+
+    private static void putComposableIndexTemplate(ComposableIndexTemplate template) {
         var putTemplateRequest = new TransportPutComposableIndexTemplateAction.Request(getTestClass().getName().toLowerCase(Locale.ROOT))
-            .indexTemplate(
-                ComposableIndexTemplate.builder()
-                    .indexPatterns(List.of(indexPattern))
-                    .template(new Template(settings.build(), new CompressedXContent(mappings), null))
-                    .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false))
-                    .build()
-            );
+            .indexTemplate(template);
         assertAcked(client().execute(TransportPutComposableIndexTemplateAction.TYPE, putTemplateRequest).actionGet());
     }
 
@@ -1574,5 +1669,46 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
             }
         }
         assertThat("Expect at least 1 shard per index to be verified", nbVisitedShards, greaterThanOrEqualTo(indices.size()));
+    }
+
+    private int readSyntheticIdBloomFilterHashFunctions(String indexName) throws IOException {
+        for (var indicesService : internalCluster().getDataNodeInstances(IndicesService.class)) {
+            for (var indexService : indicesService) {
+                if (indexService.index().getName().equals(indexName)) {
+                    for (var indexShard : indexService) {
+                        if (indexShard.routingEntry().primary() == false) {
+                            continue;
+                        }
+                        return readSyntheticIdBloomFilterHashFunctions(indexShard);
+                    }
+                }
+            }
+        }
+        throw new AssertionError("Was not able to get the number of hash functions for Index [" + indexName + "]");
+    }
+
+    private static int readSyntheticIdBloomFilterHashFunctions(IndexShard indexShard) throws IOException {
+        try (DirectoryReader reader = DirectoryReader.open(indexShard.store().directory())) {
+            if (reader.leaves().isEmpty()) {
+                throw new AssertionError("no segment leaves yet");
+            }
+            Integer expected = null;
+            for (var leaf : reader.leaves()) {
+                var dv = leaf.reader().getBinaryDocValues(IdFieldMapper.NAME);
+                assertThat(dv, instanceOf(BloomFilter.class));
+                int numHashFunctions = ((BloomFilter) dv).numHashFunctions();
+                if (expected == null) {
+                    expected = numHashFunctions;
+                } else {
+                    assertThat(
+                        "inconsistent synthetic-id bloom filter hash function count across segments",
+                        numHashFunctions,
+                        equalTo(expected)
+                    );
+                }
+            }
+            assertThat(expected, notNullValue());
+            return expected;
+        }
     }
 }

@@ -29,6 +29,7 @@ import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.codec.CodecService;
+import org.elasticsearch.index.codec.bloomfilter.ES94BloomFilterDocValuesFormat;
 import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
@@ -40,27 +41,14 @@ import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.node.Node;
 
 import java.time.Instant;
-import java.util.Collections;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Objects;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_VERSION_CREATED;
 import static org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING;
 import static org.elasticsearch.index.engine.EngineConfig.INDEX_CODEC_SETTING;
-import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_DEPTH_LIMIT_SETTING;
-import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_DIMENSION_FIELDS_LIMIT_SETTING;
-import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING;
-import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_FIELD_NAME_LENGTH_SETTING;
-import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_LIMIT_SETTING;
-import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_NESTED_DOCS_LIMIT_SETTING;
-import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING;
-import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_NESTED_PARENTS_LIMIT_SETTING;
-import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING;
+import static org.elasticsearch.index.mapper.MapperService.*;
 
 /**
  * This class encapsulates all index level settings and handles settings updates.
@@ -757,6 +745,82 @@ public final class IndexSettings {
         }
     }, Property.IndexScope, Property.Final);
 
+    public static final Setting<Integer> SYNTHETIC_ID_HASH_FUNCTIONS = Setting.intSetting(
+        "index.mapping.synthetic_id_hash_functions",
+        ES94BloomFilterDocValuesFormat.DEFAULT_NUM_HASH_FUNCTIONS,
+        1,
+        new Setting.Validator<>() {
+            @Override
+            public void validate(Integer value) {
+                if (value < 1 || value > ES94BloomFilterDocValuesFormat.MAX_NUM_HASH_FUNCTIONS) {
+                    throw new IllegalArgumentException(
+                        "The setting ["
+                            + SYNTHETIC_ID_HASH_FUNCTIONS.getKey()
+                            + "] must be between [1] and ["
+                            + ES94BloomFilterDocValuesFormat.MAX_NUM_HASH_FUNCTIONS
+                            + "], but was ["
+                            + value
+                            + "]"
+                    );
+                }
+            }
+
+            @Override
+            public void validate(Integer value, Map<Setting<?>, Object> settings, boolean isPresent) {
+                if (isPresent) {
+                    if (TSDB_SYNTHETIC_ID_FEATURE_FLAG == false) {
+                        throw new IllegalArgumentException(
+                            String.format(
+                                Locale.ROOT,
+                                "The setting [%s] is only permitted when the feature flag is enabled.",
+                                SYNTHETIC_ID_HASH_FUNCTIONS.getKey()
+                            )
+                        );
+                    }
+
+                    var indexVersion = (IndexVersion) settings.get(SETTING_INDEX_VERSION_CREATED);
+                    if (indexVersion.onOrAfter(IndexVersions.TIME_SERIES_SYNTHETIC_ID_CONFIG) == false
+                        && indexVersion.equals(IndexVersions.ZERO) == false) {
+                        // We validate settings in different places before a real indexVersion has been assigned or
+                        // is missing for other reasons. In those cases IndexVersion.ZERO is used as fallback value,
+                        // and we don't want to fail those validations. At index creation time we _will_ validate with
+                        // the creation version.
+                        throw new IllegalArgumentException(
+                            String.format(
+                                Locale.ROOT,
+                                "The setting [%s] is only permitted for indexVersion [%s] or later. Current indexVersion: [%s].",
+                                SYNTHETIC_ID_HASH_FUNCTIONS.getKey(),
+                                IndexVersions.TIME_SERIES_SYNTHETIC_ID_CONFIG,
+                                indexVersion
+                            )
+                        );
+                    }
+
+                    boolean syntheticIdEnabled = (boolean) settings.get(SYNTHETIC_ID);
+                    if (syntheticIdEnabled == false) {
+                        throw new IllegalArgumentException(
+                            String.format(
+                                Locale.ROOT,
+                                "The setting [%s] is only permitted when [%s] is set to [%s].",
+                                SYNTHETIC_ID_HASH_FUNCTIONS.getKey(),
+                                SYNTHETIC_ID.getKey(),
+                                true
+                            )
+                        );
+                    }
+                }
+            }
+
+            @Override
+            public Iterator<Setting<?>> settings() {
+                List<Setting<?>> list = List.of(SYNTHETIC_ID, SETTING_INDEX_VERSION_CREATED);
+                return list.iterator();
+            }
+        },
+        Property.IndexScope,
+        Property.Final
+    );
+
     public static final Setting<Boolean> BLOOM_FILTER_DOC_VALUES_OPTIMIZED_MERGE_ENABLED = new Setting<>(
         "index.bloom_filter_doc_values.optimized_merge.enabled",
         SYNTHETIC_ID,
@@ -1199,6 +1263,7 @@ public final class IndexSettings {
     private final boolean useTimeSeriesDocValuesFormatLargeBinaryBlockSize;
     private final boolean useEs812PostingsFormat;
     private final boolean disableSequenceNumbers;
+    private final int syntheticIdHashFunctions;
     private volatile boolean bloomFilterDocValuesOptimizedMergeEnabled;
 
     /**
@@ -1410,6 +1475,9 @@ public final class IndexSettings {
         useEs812PostingsFormat = scopedSettings.get(USE_ES_812_POSTINGS_FORMAT);
         intraMergeParallelismEnabled = scopedSettings.get(INTRA_MERGE_PARALLELISM_ENABLED_SETTING);
         useTimeSeriesSyntheticId = IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG && scopedSettings.get(SYNTHETIC_ID);
+        syntheticIdHashFunctions = IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG
+            ? scopedSettings.get(SYNTHETIC_ID_HASH_FUNCTIONS)
+            : ES94BloomFilterDocValuesFormat.DEFAULT_NUM_HASH_FUNCTIONS;
         if (indexMetadata.useTimeSeriesSyntheticId() != useTimeSeriesSyntheticId) {
             throw new IllegalArgumentException(
                 String.format(
@@ -2183,6 +2251,14 @@ public final class IndexSettings {
      */
     public boolean useTimeSeriesSyntheticId() {
         return useTimeSeriesSyntheticId;
+    }
+
+    /**
+     * @return The number of hash functions use by the synthetic id bloom filter,
+     * given that the index is a time-series index that use synthetic ids, see {@link #useTimeSeriesSyntheticId()}
+     */
+    public int syntheticIdHashFunctions() {
+        return syntheticIdHashFunctions;
     }
 
     /**

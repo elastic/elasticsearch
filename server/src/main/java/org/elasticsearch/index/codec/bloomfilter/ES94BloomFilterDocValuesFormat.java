@@ -94,7 +94,8 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
 
     // We use prime numbers with the Kirsch-Mitzenmacher technique to obtain multiple hashes from two hash functions
     private static final int[] PRIMES = new int[] { 2, 5, 11, 17, 23, 29, 41, 47, 53, 59, 71 };
-    private static final int DEFAULT_NUM_HASH_FUNCTIONS = 7;
+    public static final int DEFAULT_NUM_HASH_FUNCTIONS = 7;
+    public static final int MAX_NUM_HASH_FUNCTIONS = PRIMES.length;
     // With the default oversize factor of 24 and 7 hash functions, the theoretical false positive rate is approximately 6.63E-5,
     // calculated as (1 - e^(-k/o))^k where k = number of hash functions and o = oversize factor.
     //
@@ -122,18 +123,32 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
     }
 
     public ES94BloomFilterDocValuesFormat(BigArrays bigArrays, String bloomFilterFieldName, BooleanSupplier optimizedMergeEnabled) {
+        this(bigArrays, bloomFilterFieldName, optimizedMergeEnabled, DEFAULT_NUM_HASH_FUNCTIONS);
+    }
+
+    public ES94BloomFilterDocValuesFormat(
+        BigArrays bigArrays,
+        String bloomFilterFieldName,
+        BooleanSupplier optimizedMergeEnabled,
+        int numHashFunctions
+    ) {
         super(FORMAT_NAME);
         this.bigArrays = bigArrays;
         this.bloomFilterFieldName = bloomFilterFieldName;
         this.optimizedMergeEnabled = optimizedMergeEnabled;
-        this.numHashFunctions = DEFAULT_NUM_HASH_FUNCTIONS;
+        if (numHashFunctions < 1 || numHashFunctions > MAX_NUM_HASH_FUNCTIONS) {
+            throw new IllegalArgumentException(
+                "Number of hash functions must be between [1] and [" + MAX_NUM_HASH_FUNCTIONS + "] but was [" + numHashFunctions + "]"
+            );
+        }
+        this.numHashFunctions = numHashFunctions;
     }
 
     @Override
     public DocValuesConsumer fieldsConsumer(SegmentWriteState state) throws IOException {
         assert bigArrays != null;
         assert numHashFunctions > 0;
-        assert numHashFunctions <= PRIMES.length : "Number of hash functions must be <= " + PRIMES.length + " but was " + numHashFunctions;
+        assert numHashFunctions <= MAX_NUM_HASH_FUNCTIONS;
         return new Writer(state);
     }
 
@@ -764,6 +779,11 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
         @Override
         public long sizeInBytes() {
             return getBloomFilterBitSetSizeInBytes();
+        }
+
+        @Override
+        public int numHashFunctions() {
+            return numHashFunctions;
         }
 
         @Override

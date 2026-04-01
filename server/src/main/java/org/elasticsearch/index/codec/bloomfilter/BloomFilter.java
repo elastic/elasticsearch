@@ -24,6 +24,11 @@ public interface BloomFilter extends Closeable {
         }
 
         @Override
+        public int numHashFunctions() {
+            return 0;
+        }
+
+        @Override
         public boolean mayContainValue(String field, BytesRef term) {
             return true;
         }
@@ -33,6 +38,11 @@ public interface BloomFilter extends Closeable {
             return 0;
         }
     };
+
+    /**
+     * Returns the number of hash functions used by this bloom filter.
+     */
+    int numHashFunctions();
 
     /**
      * Tests whether the given term may exist in the specified field.
@@ -73,6 +83,11 @@ public interface BloomFilter extends Closeable {
                     @Override
                     public void close() throws IOException {
                         docValuesProducer.close();
+                    }
+
+                    @Override
+                    public int numHashFunctions() {
+                        return bloomFilter.numHashFunctions();
                     }
                 };
             } else {

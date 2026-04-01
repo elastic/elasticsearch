@@ -21,6 +21,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.codec.CodecService;
+import org.elasticsearch.index.codec.bloomfilter.ES94BloomFilterDocValuesFormat;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperRegistry;
@@ -1074,6 +1075,124 @@ public class IndexSettingsTests extends ESTestCase {
                     badMode.name()
                 )
             )
+        );
+    }
+
+    public void testSyntheticIdHashFunctionsDefault() {
+        assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
+        IndexVersion version = IndexVersionUtils.randomVersionBetween(
+            IndexVersions.TIME_SERIES_SYNTHETIC_ID_CONFIG,
+            IndexVersion.current()
+        );
+        Settings settings = Settings.builder()
+            .put(IndexSettings.SYNTHETIC_ID.getKey(), true)
+            .put(EngineConfig.INDEX_CODEC_SETTING.getKey(), CodecService.DEFAULT_CODEC)
+            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "some-routing")
+            .build();
+        IndexMetadata indexMetadata = newIndexMeta("some-index", settings, version);
+
+        IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
+        assertThat(indexSettings.syntheticIdHashFunctions(), is(ES94BloomFilterDocValuesFormat.DEFAULT_NUM_HASH_FUNCTIONS));
+    }
+
+    public void testSyntheticIdHashFunctionsRequiresCorrectIndexVersion() {
+        assumeTrue("Only when synthetic id feature flag is enabled", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
+        IndexVersion version = IndexVersionUtils.randomVersionBetween(
+            IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_94,
+            IndexVersionUtils.getPreviousVersion(IndexVersions.TIME_SERIES_SYNTHETIC_ID_CONFIG)
+        );
+        Settings settings = Settings.builder()
+            .put(IndexSettings.SYNTHETIC_ID.getKey(), true)
+            .put(EngineConfig.INDEX_CODEC_SETTING.getKey(), CodecService.DEFAULT_CODEC)
+            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "some-routing")
+            .put(IndexSettings.SYNTHETIC_ID_HASH_FUNCTIONS.getKey(), 3)
+            .build();
+        IndexMetadata indexMetadata = newIndexMeta("some-index", settings, version);
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new IndexSettings(indexMetadata, Settings.EMPTY));
+        assertThat(
+            e.getMessage(),
+            containsString(
+                String.format(
+                    Locale.ROOT,
+                    "is only permitted for indexVersion [%d] or later",
+                    IndexVersions.TIME_SERIES_SYNTHETIC_ID_CONFIG.id()
+                )
+            )
+        );
+    }
+
+    public void testSyntheticIdHashFunctionsRequiresSyntheticId() {
+        assumeTrue("Only when synthetic id feature flag is enabled", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
+        IndexVersion version = IndexVersionUtils.randomVersionBetween(
+            IndexVersions.TIME_SERIES_SYNTHETIC_ID_CONFIG,
+            IndexVersion.current()
+        );
+        Settings settings = Settings.builder()
+            .put(IndexSettings.SYNTHETIC_ID.getKey(), false)
+            .put(EngineConfig.INDEX_CODEC_SETTING.getKey(), CodecService.DEFAULT_CODEC)
+            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "some-routing")
+            .put(IndexSettings.SYNTHETIC_ID_HASH_FUNCTIONS.getKey(), 3)
+            .build();
+        IndexMetadata indexMetadata = newIndexMeta("some-index", settings, version);
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new IndexSettings(indexMetadata, Settings.EMPTY));
+        assertThat(e.getMessage(), containsString("is only permitted when [index.mapping.synthetic_id] is set to [true]"));
+    }
+
+    public void testSyntheticIdHashFunctionsBounds() {
+        assumeTrue("Only when synthetic id feature flag is enabled", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
+        IndexVersion version = IndexVersionUtils.randomVersionBetween(
+            IndexVersions.TIME_SERIES_SYNTHETIC_ID_CONFIG,
+            IndexVersion.current()
+        );
+        Settings baseSettings = Settings.builder()
+            .put(IndexSettings.SYNTHETIC_ID.getKey(), true)
+            .put(EngineConfig.INDEX_CODEC_SETTING.getKey(), CodecService.DEFAULT_CODEC)
+            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "some-routing")
+            .build();
+
+        {
+            int tooLow = 0;
+            Settings bad = Settings.builder().put(baseSettings).put(IndexSettings.SYNTHETIC_ID_HASH_FUNCTIONS.getKey(), tooLow).build();
+            IndexMetadata indexMetadata = newIndexMeta("some-index", bad, version);
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> new IndexSettings(indexMetadata, Settings.EMPTY)
+            );
+            assertThat(e.getMessage(), containsString(IndexSettings.SYNTHETIC_ID_HASH_FUNCTIONS.getKey()));
+        }
+        {
+            int tooHigh = ES94BloomFilterDocValuesFormat.MAX_NUM_HASH_FUNCTIONS + 1;
+            Settings bad = Settings.builder().put(baseSettings).put(IndexSettings.SYNTHETIC_ID_HASH_FUNCTIONS.getKey(), tooHigh).build();
+            IndexMetadata indexMetadata = newIndexMeta("some-index", bad, version);
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> new IndexSettings(indexMetadata, Settings.EMPTY)
+            );
+            assertThat(e.getMessage(), containsString(IndexSettings.SYNTHETIC_ID_HASH_FUNCTIONS.getKey()));
+        }
+    }
+
+    public void testSyntheticIdHashFunctionsIsFinal() {
+        assumeTrue("Only when synthetic id feature flag is enabled", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
+        IndexScopedSettings settings = new IndexScopedSettings(Settings.EMPTY, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS);
+        IllegalArgumentException error = expectThrows(
+            IllegalArgumentException.class,
+            () -> settings.updateSettings(
+                Settings.builder().put(IndexSettings.SYNTHETIC_ID_HASH_FUNCTIONS.getKey(), 5).build(),
+                Settings.builder(),
+                Settings.builder(),
+                "index"
+            )
+        );
+        assertThat(
+            error.getMessage(),
+            equalTo("final index setting [" + IndexSettings.SYNTHETIC_ID_HASH_FUNCTIONS.getKey() + "], not updateable")
         );
     }
 

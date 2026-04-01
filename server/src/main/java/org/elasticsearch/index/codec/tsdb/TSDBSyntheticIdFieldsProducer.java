@@ -50,10 +50,7 @@ public class TSDBSyntheticIdFieldsProducer extends FieldsProducer {
     private final FieldInfos fieldInfos;
     private final int maxDocs;
 
-    public TSDBSyntheticIdFieldsProducer(
-        SegmentReadState state,
-        DocValuesProducer docValuesProducer
-    ) {
+    public TSDBSyntheticIdFieldsProducer(SegmentReadState state, DocValuesProducer docValuesProducer) {
         assert assertFieldInfosExist(state.fieldInfos, SYNTHETIC_ID, TIMESTAMP, TS_ID);
         this.docValuesProducer = Objects.requireNonNull(docValuesProducer);
         this.fieldInfos = state.fieldInfos;

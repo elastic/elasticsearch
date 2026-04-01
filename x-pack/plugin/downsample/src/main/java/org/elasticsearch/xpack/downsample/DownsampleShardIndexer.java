@@ -597,7 +597,15 @@ class DownsampleShardIndexer {
                 collect(exponentialHistogramDownsamplers, exponentialHistogramValues);
                 collect(tDigestHistogramDownsamplers, tDigestHistogramValues);
                 if (downsampleBucketBuilder.dimensionsCollected == false) {
-                    collect(dimensionDownsamplers, dimensionDocValues);
+                    assert dimensionDownsamplers.length == dimensionDocValues.length
+                        : "Number of downsamplers ["
+                            + dimensionDownsamplers.length
+                            + "] does not match number of doc values ["
+                            + dimensionDocValues.length
+                            + "]";
+                    for (int i = 0; i < dimensionDownsamplers.length; i++) {
+                        dimensionDownsamplers[i].collectOnce(dimensionDocValues[i], docIdBuffer);
+                    }
                     downsampleBucketBuilder.dimensionsCollected = true;
                 }
                 if (aggregateCounterDownsamplers.length > 0) {

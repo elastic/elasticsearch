@@ -7,12 +7,15 @@
 
 package org.elasticsearch.xpack.downsample;
 
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.internal.hppc.IntArrayList;
 import org.elasticsearch.index.fielddata.FormattedDocValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -22,23 +25,18 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * The dimension field producer is effectively a last value field producer that performs some extra validations when assertions are enabled.
- * It checks:
- * - that a tsid is only collected once, and
- * - that all TSIDs that are being collected for a round have the same value.
- * Important note: This class assumes that field values are collected and sorted by descending order by time
+ * The dimension field downsampler reads the value of the last seen document per tsid, even if it's missing. Considering that dimensions
+ * are the same for the same tsid, it is guaranteed that all documents with a tsid will have the same value. Consequently, we do not reset
+ * it every time we start a new bucket but only if the tsid changes.
  */
-public class DimensionFieldDownsampler extends LastValueFieldDownsampler {
+public final class DimensionFieldDownsampler extends AbstractFieldDownsampler<FormattedDocValues> {
+
+    private final MappedFieldType fieldType;
+    private Object lastValue = null;
 
     DimensionFieldDownsampler(final String name, final MappedFieldType fieldType, final IndexFieldData<?> fieldData) {
-        super(name, fieldType, fieldData);
-    }
-
-    void collectOnce(final Object value) {
-        assert isEmpty;
-        Objects.requireNonNull(value);
-        this.lastValue = value;
-        this.isEmpty = false;
+        super(name, fieldData);
+        this.fieldType = fieldType;
     }
 
     @Override
@@ -47,46 +45,53 @@ public class DimensionFieldDownsampler extends LastValueFieldDownsampler {
     }
 
     public void tsidReset() {
-        super.reset();
+        isEmpty = true;
+        lastValue = null;
     }
 
     /**
-     * This is an expensive check that slows down downsampling significantly.
-     * Given that index is sorted by tsid as a primary key, this shouldn't really happen.
+     * Use {@link #collectOnce(FormattedDocValues, IntArrayList)} instead.
+     * throws UnsupportedOperationException
      */
-    boolean validate(FormattedDocValues docValues, IntArrayList buffer) throws IOException {
-        for (int i = 0; i < buffer.size(); i++) {
-            int docId = buffer.get(i);
-            if (docValues.advanceExact(docId)) {
-                int docValueCount = docValues.docValueCount();
-                for (int j = 0; j < docValueCount; j++) {
-                    var value = docValues.nextValue();
-                    assert value.equals(this.lastValue) != false
-                        : "Dimension value changed without tsid change [" + value + "] != [" + this.lastValue + "]";
-                }
-            }
-        }
-
-        return true;
-    }
-
     @Override
     public void collect(FormattedDocValues docValues, IntArrayList docIdBuffer) throws IOException {
-        if (isEmpty() == false) {
-            assert validate(docValues, docIdBuffer);
-            return;
-        }
+        throw new UnsupportedOperationException("This producer be called using the collectOnce method");
+    }
+
+    public void collectOnce(FormattedDocValues docValues, IntArrayList docIdBuffer) throws IOException {
+        // We only ensure we collect once with an assertion because we do it for performance reasons,
+        // and it should be detected during development.
+        assert isEmpty() : "dimension downsamplers should only be called once per tsid";
 
         // Only need to record one dimension value from one document, within in the same tsid-and-time-interval bucket values are the same.
         if (docIdBuffer.isEmpty() == false) {
             int docId = docIdBuffer.get(0);
             if (docValues.advanceExact(docId)) {
                 int docValueCount = docValues.docValueCount();
-                for (int j = 0; j < docValueCount; j++) {
-                    collectOnce(docValues.nextValue());
-                }
+                assert docValueCount == 1;
+                Object value = docValues.nextValue();
+                Objects.requireNonNull(value);
+                this.lastValue = value;
+                this.isEmpty = false;
             }
         }
+    }
+
+    @Override
+    public FormattedDocValues getLeaf(LeafReaderContext context) {
+        DocValueFormat format = fieldType.docValueFormat(null, null);
+        return fieldData.load(context).getFormattedValues(format);
+    }
+
+    @Override
+    public void write(XContentBuilder builder) throws IOException {
+        if (isEmpty() == false) {
+            builder.field(name(), lastValue);
+        }
+    }
+
+    public Object lastValue() {
+        return lastValue;
     }
 
     /**

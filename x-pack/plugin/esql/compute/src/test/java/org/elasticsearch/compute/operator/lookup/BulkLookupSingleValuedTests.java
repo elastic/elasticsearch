@@ -20,9 +20,9 @@ import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.compute.test.OperatorTestCase;
+import org.elasticsearch.compute.test.TestWarningsSource;
 import org.elasticsearch.compute.test.operator.blocksource.ListRowsBlockSourceOperator;
 import org.hamcrest.Matcher;
-import org.elasticsearch.compute.test.TestWarningsSource;
 
 import java.util.List;
 import java.util.stream.IntStream;

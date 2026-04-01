@@ -87,7 +87,6 @@ import java.util.Map;
 import java.util.OptionalLong;
 import java.util.Set;
 import java.util.TreeSet;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -399,15 +398,17 @@ public class SearchEngine extends Engine {
 
                 ListenableFuture<Map<String, BlobFileRanges>> listenableFuture = new ListenableFuture<>();
                 if (prefetcherDynamicSettings.internalFilesReplicatedContentForSearchShardsEnabled()) {
-                    Map<String, BlobFileRanges> blobFileRanges = new ConcurrentHashMap<>();
+                    var newCommitFiles = new HashMap<>(latestCommit.commitFiles());
+                    newCommitFiles.keySet().removeAll(searchDirectory.getKnownFileNames());
+                    Map<String, BlobFileRanges> newBlobFileRanges = ConcurrentCollections.newConcurrentMap();
                     ObjectStoreService.readReferencedCompoundCommitsUsingCache(
-                        latestCommit,
+                        newCommitFiles,
                         null,
                         searchDirectory,
                         IOContext.DEFAULT,
                         DIRECT_EXECUTOR_SERVICE,
                         referencedCompoundCommit -> {
-                            blobFileRanges.putAll(
+                            newBlobFileRanges.putAll(
                                 computeBlobFileRanges(
                                     true,
                                     referencedCompoundCommit.statelessCompoundCommitReference().compoundCommit(),
@@ -416,20 +417,15 @@ public class SearchEngine extends Engine {
                                 )
                             );
                         },
-                        listenableFuture.map(aVoid -> blobFileRanges)
+                        listenableFuture.map(aVoid -> newBlobFileRanges)
                     );
                 } else {
-                    listenableFuture.onResponse(null);
+                    listenableFuture.onResponse(Map.of());
                 }
                 assert listenableFuture.isDone() : "unexpected sync call not done after invocation";
                 listenableFuture.addListener(ActionListener.wrap(blobFileRangesMap -> {
                     logger.trace("updating directory with commit {}", latestCommit);
-                    final boolean commitUpdated;
-                    if (blobFileRangesMap != null) {
-                        commitUpdated = searchDirectory.updateCommit(latestCommit, blobFileRangesMap);
-                    } else {
-                        commitUpdated = searchDirectory.updateCommit(latestCommit);
-                    }
+                    final boolean commitUpdated = searchDirectory.updateCommit(latestCommit, blobFileRangesMap);
                     if (commitUpdated) {
                         store.incRef();
                         try {

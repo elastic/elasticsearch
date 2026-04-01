@@ -27,6 +27,7 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.IOUtils;
@@ -37,7 +38,9 @@ import org.elasticsearch.index.engine.Engine.SearcherSupplier;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.xpack.stateless.action.NewCommitNotificationRequestTests;
+import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherDynamicSettings;
 import org.elasticsearch.xpack.stateless.cache.reader.AtomicMutableObjectStoreUploadTracker;
+import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommitTestUtils;
@@ -128,6 +131,56 @@ public class SearchEngineTests extends AbstractEngineTestCase {
             assertThat(getCurrentGeneration(searchEngine), equalTo(indexEngine.getCurrentGeneration()));
             assertThat(getCurrentGeneration(searchEngine), equalTo(1L + 1L + flushes));
             assertThat(searchEngine.getPendingCommitNotifications(), equalTo(0L));
+        }
+        assertWarnings(
+            "[indices.merge.scheduler.use_thread_pool] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                + "See the breaking changes documentation for the next major version."
+        );
+    }
+
+    public void testBlobReadsBeforeCommitUpdatesReferenceOnlyNetNewBlobFiles() throws IOException {
+        final var indexConfig = indexConfig(
+            Settings.builder()
+                .put(SearchCommitPrefetcherDynamicSettings.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT.getKey(), true)
+                .build()
+        );
+        final var searchTaskQueue = new DeterministicTaskQueue();
+        Set<BlobFile> blobFilesReadCurrentCommit = ConcurrentCollections.newConcurrentSet();
+        Set<BlobFile> blobFilesReadPreviousCommits = ConcurrentCollections.newConcurrentSet();
+        try (
+            var indexEngine = newIndexEngine(indexConfig);
+            var searchEngine = newSearchEngineFromIndexEngine(indexEngine, searchTaskQueue, (searchDirectory, statelessCompoundCommit) -> {
+                for (var commitBlobLocation : statelessCompoundCommit.commitFiles().values()) {
+                    blobFilesReadCurrentCommit.add(commitBlobLocation.blobFile());
+                }
+            }, ((cacheBlobReaderService, blobFile) -> {
+                if (blobFilesReadCurrentCommit.isEmpty()) {
+                    assertFalse(
+                        "Unexpected read for blobs from previous commits before updating commit",
+                        blobFilesReadPreviousCommits.contains(blobFile)
+                    );
+                }
+            }))
+        ) {
+            notifyCommits(indexEngine, searchEngine);
+            searchTaskQueue.runAllRunnableTasks();
+            assertThat(getCurrentGeneration(searchEngine), equalTo(indexEngine.getCurrentGeneration()));
+            assertThat(searchEngine.getPendingCommitNotifications(), equalTo(0L));
+
+            int flushesCount = randomIntBetween(5, 50);
+            for (int i = 0; i < flushesCount; i++) {
+                indexEngine.index(randomDoc(String.valueOf(i)));
+                indexEngine.flush();
+                if (randomBoolean()) {
+                    notifyCommits(indexEngine, searchEngine);
+                }
+                if (searchTaskQueue.hasRunnableTasks() && randomBoolean()) {
+                    // a new commit update is going to be processed
+                    blobFilesReadPreviousCommits.addAll(blobFilesReadCurrentCommit);
+                    blobFilesReadCurrentCommit.clear();
+                    searchTaskQueue.runRandomTask();
+                }
+            }
         }
         assertWarnings(
             "[indices.merge.scheduler.use_thread_pool] setting was deprecated in Elasticsearch and will be removed in a future release. "

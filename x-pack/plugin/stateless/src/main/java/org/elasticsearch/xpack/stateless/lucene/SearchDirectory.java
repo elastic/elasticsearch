@@ -55,7 +55,6 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.function.LongFunction;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit.isGenerationalFile;
 
@@ -151,10 +150,30 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
     }
 
     /**
-     * Moves the directory to a new commit by setting the newly valid map of files and their metadata.
-     * This allows overriding the commit file ranges.
+     * Returns the set of file names currently known by this directory. These are files for which
+     * {@link BlobFileRanges} have already been resolved and stored in the directory's metadata.
+     * Callers can use this to avoid re-resolving referenced commits for files that are already known.
      */
-    public boolean updateCommit(StatelessCompoundCommit newCommit, Map<String, BlobFileRanges> commitFilesRanges) {
+    public Set<String> getKnownFileNames() {
+        return currentMetadata.keySet();
+    }
+
+    /**
+     * Moves the directory to a new commit by setting the newly valid map of files and their metadata.
+     * The file metadata does NOT take advantage of the replicated headers and footers in the CC headers.
+     *
+     * @param newCommit map of file name to store metadata
+     * @return true if this update advanced the commit tracked by this directory
+     */
+    public boolean updateCommit(StatelessCompoundCommit newCommit) {
+        return updateCommit(newCommit, Map.of());
+    }
+
+    /**
+     * Moves the directory to a new commit by setting the newly valid map of files and their metadata.
+     * The provided file ranges override the commit's default file ranges for the matching file names.
+     */
+    public boolean updateCommit(StatelessCompoundCommit newCommit, Map<String, BlobFileRanges> commitFilesRangesOverride) {
         assert blobContainer.get() != null : shardId + " must have the blob container set before any commit update";
         assert assertCompareAndSetUpdatingCommitThread(null, Thread.currentThread());
 
@@ -163,9 +182,21 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
             final var updatedMetadata = new HashMap<>(currentMetadata);
             PrimaryTermAndGeneration generationalFilesTermAndGen = null;
             long commitSize = 0L;
-            for (var entry : commitFilesRanges.entrySet()) {
+            for (var entry : newCommit.commitFiles().entrySet()) {
                 var fileName = entry.getKey();
-                var commitFileRanges = entry.getValue();
+                var blobLocationFromCommit = entry.getValue();
+                BlobFileRanges commitFileRanges = commitFilesRangesOverride.get(fileName);
+                if (commitFileRanges == null) {
+                    commitFileRanges = new BlobFileRanges(blobLocationFromCommit);
+                } else {
+                    assert commitFileRanges.blobLocation().equals(blobLocationFromCommit)
+                        : "BlobFileRanges override for ["
+                            + fileName
+                            + "] must use the same blob location as the commit; override="
+                            + commitFileRanges.blobLocation()
+                            + ", commit="
+                            + blobLocationFromCommit;
+                }
                 if (isGenerationalFile(fileName)) {
                     // blob locations for generational files are not updated: we pin the file to the first blob location that we know about.
                     // we expect generational files to be opened when the reader is refreshed and picks up the generational files for the
@@ -220,23 +251,6 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
                 assert assertCompareAndSetUpdatingCommitThread(Thread.currentThread(), null);
             }
         }
-    }
-
-    /**
-     * Moves the directory to a new commit by setting the newly valid map of files and their metadata.
-     * The file metadata does NOT take advantage of the replicated headers and footers in the CC headers.
-     *
-     * @param newCommit map of file name to store metadata
-     * @return true if this update advanced the commit tracked by this directory
-     */
-    public boolean updateCommit(StatelessCompoundCommit newCommit) {
-        return updateCommit(
-            newCommit,
-            newCommit.commitFiles()
-                .entrySet()
-                .stream()
-                .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, entry -> new BlobFileRanges(entry.getValue())))
-        );
     }
 
     /**

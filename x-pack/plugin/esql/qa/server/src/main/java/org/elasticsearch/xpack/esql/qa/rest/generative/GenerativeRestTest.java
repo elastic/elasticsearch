@@ -228,8 +228,8 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
 
                     final boolean hasException = result.exception() != null;
                     if (hasException
-                        || checkPipelineResults(previousCommands, generator, current, previousResult, result, currentSchema).success()
-                            == false) {
+                        || checkPipelineResults(previousCommands, generator, current, previousResult, result, currentSchema)
+                            .success() == false) {
                         if (hasException) {
                             List<CommandGenerator.CommandDescription> commands = new ArrayList<>(previousCommands.size() + 1);
                             commands.addAll(previousCommands);

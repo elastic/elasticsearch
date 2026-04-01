@@ -87,8 +87,11 @@ import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcher;
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherDynamicSettings;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
+import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReader;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReaderService;
 import org.elasticsearch.xpack.stateless.cache.reader.MutableObjectStoreUploadTracker;
+import org.elasticsearch.xpack.stateless.commits.BlobFile;
+import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
 import org.elasticsearch.xpack.stateless.commits.ClosedShardService;
 import org.elasticsearch.xpack.stateless.commits.HollowShardsService;
@@ -116,9 +119,13 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.Executor;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.BiConsumer;
 import java.util.function.Function;
+import java.util.function.LongConsumer;
+import java.util.function.LongFunction;
 import java.util.function.LongSupplier;
 
 import static java.util.Collections.emptyList;
@@ -437,6 +444,20 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
 
     protected SearchEngine newSearchEngineFromIndexEngine(IndexEngine indexEngine, DeterministicTaskQueue deterministicTaskQueue)
         throws IOException {
+        return newSearchEngineFromIndexEngine(
+            indexEngine,
+            deterministicTaskQueue,
+            (searchDirectory, statelessCompoundCommit) -> {},
+            ((cacheBlobReaderService, blobFile) -> {})
+        );
+    }
+
+    protected SearchEngine newSearchEngineFromIndexEngine(
+        IndexEngine indexEngine,
+        DeterministicTaskQueue deterministicTaskQueue,
+        BiConsumer<SearchDirectory, StatelessCompoundCommit> commitUpdated,
+        BiConsumer<CacheBlobReaderService, BlobFile> getBlobReader
+    ) throws IOException {
         var primaryTermSupplier = indexEngine.getEngineConfig().getPrimaryTermSupplier();
         var shardId = indexEngine.getEngineConfig().getShardId();
         var indexSettings = indexEngine.getEngineConfig().getIndexSettings();
@@ -455,12 +476,45 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
             System::nanoTime,
             new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)
         );
-        var directory = new SearchDirectory(
+        SearchDirectory directory = new SearchDirectory(
             cache,
-            new CacheBlobReaderService(indexSettings.getSettings(), cache, mock(Client.class), threadPool),
+            new CacheBlobReaderService(indexSettings.getSettings(), cache, mock(Client.class), threadPool) {
+                @Override
+                public CacheBlobReader getCacheBlobReader(
+                    ShardId shardId,
+                    LongFunction<BlobContainer> blobContainer,
+                    BlobFile blobFile,
+                    MutableObjectStoreUploadTracker tracker,
+                    LongConsumer totalBytesReadFromObjectStore,
+                    LongConsumer totalBytesReadFromIndexing,
+                    BlobCacheMetrics.CachePopulationReason cachePopulationReason,
+                    Executor objectStoreFetchExecutor,
+                    String fileName
+                ) {
+                    getBlobReader.accept(this, blobFile);
+                    return super.getCacheBlobReader(
+                        shardId,
+                        blobContainer,
+                        blobFile,
+                        tracker,
+                        totalBytesReadFromObjectStore,
+                        totalBytesReadFromIndexing,
+                        cachePopulationReason,
+                        objectStoreFetchExecutor,
+                        fileName
+                    );
+                }
+            },
             MutableObjectStoreUploadTracker.ALWAYS_UPLOADED,
             shardId
-        );
+        ) {
+            @Override
+            public boolean updateCommit(StatelessCompoundCommit newCommit, Map<String, BlobFileRanges> commitFilesRangesOverride) {
+                var result = super.updateCommit(newCommit, commitFilesRangesOverride);
+                commitUpdated.accept(this, newCommit);
+                return result;
+            }
+        };
         directory.setBlobContainer(primaryTerm -> blobContainer);
         // update the CC of the directory because assertions use it for the primary term
         directory.updateCommit(
@@ -544,7 +598,6 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
                 }
             }
         };
-
     }
 
     protected EngineConfig searchConfig() {

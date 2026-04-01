@@ -492,7 +492,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             // this read should be served up entirely from the cache
             PlainActionFuture<Void> readReferencedCommitsListener = new PlainActionFuture<>();
             ObjectStoreService.readReferencedCompoundCommitsUsingCache(
-                lastCommit,
+                lastCommit.commitFiles(),
                 null,
                 fakeNode.searchDirectory,
                 randomFrom(IOContext.DEFAULT, BlobCacheIndexInput.WARMING),

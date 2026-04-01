@@ -58,6 +58,7 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> {
     private final long startTime;
     private final List<ShardSearchFailure> shardFailures = new ArrayList<>();
     private final AtomicInteger successfulOps;
+    private final Lock directoryMetricsLock = new ReentrantLock();
     private volatile DirectoryMetrics mergedDirectoryMetrics = DirectoryMetrics.EMPTY;
 
     protected SearchScrollAsyncAction(
@@ -248,15 +249,13 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> {
         };
     }
 
-    private Lock lock = new ReentrantLock();
-
     protected void accumulateDirectoryMetrics(DirectoryMetrics metrics) {
         if (metrics.isEmpty() == false) {
-            lock.lock();
+            directoryMetricsLock.lock();
             try {
                 mergedDirectoryMetrics = mergedDirectoryMetrics.merge(metrics);
             } finally {
-                lock.unlock();
+                directoryMetricsLock.unlock();
             }
         }
     }

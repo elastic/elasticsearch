@@ -22,6 +22,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -41,9 +42,12 @@ public class CustomPluggableMetricsIT extends ESIntegTestCase {
         return CollectionUtils.appendToCopy(super.nodePlugins(), CounterMetricsPlugin.class);
     }
 
-    public void testCustomMetricsRegisteredAndCaptured() throws IOException {
+    @Before
+    public void checkFeatureFlag() {
         assumeTrue("directory metrics feature flag must be enabled for test", Store.DIRECTORY_METRICS_FEATURE_FLAG.isEnabled());
+    }
 
+    public void testCustomMetricsRegisteredAndCaptured() throws IOException {
         String node = internalCluster().getRandomNodeName();
         IndicesService indicesService = internalCluster().getInstance(IndicesService.class, node);
 

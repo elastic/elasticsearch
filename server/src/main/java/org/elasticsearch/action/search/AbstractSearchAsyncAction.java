@@ -57,6 +57,8 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -111,6 +113,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     protected final Map<String, Object> searchRequestAttributes;
     private final boolean isPitRelocationEnabled;
     protected long phaseStartTimeInNanos;
+    private final Lock directoryMetricsLock = new ReentrantLock();
     private volatile DirectoryMetrics mergedDirectoryMetrics = DirectoryMetrics.EMPTY;
 
     // protected for tests
@@ -531,8 +534,11 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
 
     void accumulateDirectoryMetrics(DirectoryMetrics metrics) {
         if (metrics.isEmpty() == false) {
-            synchronized (this) {
+            directoryMetricsLock.lock();
+            try {
                 mergedDirectoryMetrics = mergedDirectoryMetrics.merge(metrics);
+            } finally {
+                directoryMetricsLock.unlock();
             }
         }
     }

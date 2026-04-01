@@ -94,11 +94,7 @@ class DynamicInstrumentation {
      * Performs a full BFS traversal of each class's hierarchy to check for inherited rules,
      * so visitation order does not matter.
      */
-    private static Class<?>[] findClassesToRetransform(
-        Instrumentation inst,
-        Class<?>[] loadedClasses,
-        Set<String> classesWithDirectRules
-    ) {
+    private static Class<?>[] findClassesToRetransform(Instrumentation inst, Class<?>[] loadedClasses, Set<String> classesWithDirectRules) {
         List<Class<?>> retransform = new ArrayList<>();
         for (Class<?> loadedClass : loadedClasses) {
             if (loadedClass.isHidden()) {

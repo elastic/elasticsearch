@@ -26,9 +26,9 @@ import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.WarningSourceLocation;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.compute.querydsl.query.SingleValueMatchQuery;
+import org.elasticsearch.compute.test.TestWarningsSource;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
@@ -120,12 +120,6 @@ public class SingleValueMatchQueryTests extends MapperServiceTestCase {
                 );
                 runCase(List.of(), ctx.searcher().count(query));
             }
-        }
-    }
-
-    private record TestWarningsSource(String text, String viewName, int lineNumber, int columnNumber) implements WarningSourceLocation {
-        private TestWarningsSource(String text) {
-            this(text, null, 1, 1);
         }
     }
 

@@ -120,6 +120,10 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
         this.pollInterval = POLL_INTERVAL_SETTING.get(settings);
         this.eagerDownload = EAGER_DOWNLOAD_SETTING.get(settings);
         this.projectResolver = client.projectResolver();
+    }
+
+    /// Completes the initialization of the GeoIpDownloaderTaskExecutor by registering several listeners.
+    public void init() {
         clusterService.addListener(this);
         setUpSettingsConsumers(clusterService);
     }

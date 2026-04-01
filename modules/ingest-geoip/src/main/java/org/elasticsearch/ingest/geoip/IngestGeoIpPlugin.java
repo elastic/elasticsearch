@@ -148,6 +148,7 @@ public class IngestGeoIpPlugin extends Plugin
             services.clusterService(),
             services.threadPool()
         );
+        geoIpDownloaderTaskExecutor.init();
         /// Note that `ingest.geoip.downloader.enabled` is not yet truly a per-project cluster setting.
         /// When it becomes project-scoped in cluster state, registration should use a project-aware path.
         /// See [PersistentTaskLifecycleManager#registerProjectTask].

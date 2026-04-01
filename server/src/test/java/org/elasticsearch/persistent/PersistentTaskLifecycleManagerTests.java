@@ -25,7 +25,6 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -102,6 +101,7 @@ public class PersistentTaskLifecycleManagerTests extends ESTestCase {
             setState(clusterService, masterState());
             final var manager = new PersistentTaskLifecycleManager(persistentTasksService, clusterService);
             manager.registerClusterTask(TASK_NAME, enabled::get, () -> TestParams.INSTANCE);
+            manager.start();
 
             final int cycles = randomIntBetween(5, 10);
             for (int i = 0; i < cycles; i++) {
@@ -151,6 +151,7 @@ public class PersistentTaskLifecycleManagerTests extends ESTestCase {
         try (var clusterService = ClusterServiceUtils.createClusterService(threadPool, LOCAL_NODE, nodeSettings, clusterSettings)) {
             final var manager = new PersistentTaskLifecycleManager(persistentTasksService, clusterService);
             manager.registerClusterTask(TASK_NAME, TASK_ENABLED_SETTING, () -> TestParams.INSTANCE);
+            manager.start();
 
             setState(clusterService, masterState());
             assertThat("unexpected in flight cluster task start request", startListener.get(), nullValue());
@@ -189,6 +190,7 @@ public class PersistentTaskLifecycleManagerTests extends ESTestCase {
         try (var clusterService = ClusterServiceUtils.createClusterService(threadPool, LOCAL_NODE, nodeSettings, clusterSettings)) {
             final var manager = new PersistentTaskLifecycleManager(persistentTasksService, clusterService);
             manager.registerClusterTask(TASK_NAME, enabled::get, () -> TestParams.INSTANCE);
+            manager.start();
 
             for (int cycle = 0; cycle < 10; cycle++) {
                 final boolean sendStart = randomBoolean();
@@ -258,6 +260,7 @@ public class PersistentTaskLifecycleManagerTests extends ESTestCase {
             setState(clusterService, masterStateWithProjects(Set.of(projectId1, projectId2)));
             final var manager = new PersistentTaskLifecycleManager(persistentTasksService, clusterService);
             manager.registerProjectTask(TASK_NAME, p -> TASK_NAME, enabled::get, () -> TestParams.INSTANCE, p -> {});
+            manager.start();
 
             final int cycles = randomIntBetween(5, 10);
             for (int i = 0; i < cycles; i++) {
@@ -325,6 +328,7 @@ public class PersistentTaskLifecycleManagerTests extends ESTestCase {
         try (var clusterService = ClusterServiceUtils.createClusterService(threadPool, LOCAL_NODE, nodeSettings, clusterSettings)) {
             final var manager = new PersistentTaskLifecycleManager(persistentTasksService, clusterService);
             manager.registerProjectTask(TASK_NAME, p -> TASK_NAME, TASK_ENABLED_SETTING, () -> TestParams.INSTANCE);
+            manager.start();
 
             setState(clusterService, masterState());
             assertThat("unexpected in flight project task start request", startListener.get(), nullValue());
@@ -369,6 +373,7 @@ public class PersistentTaskLifecycleManagerTests extends ESTestCase {
         try (var clusterService = ClusterServiceUtils.createClusterService(threadPool, LOCAL_NODE, nodeSettings, clusterSettings)) {
             final var manager = new PersistentTaskLifecycleManager(persistentTasksService, clusterService);
             manager.registerProjectTask(TASK_NAME, p -> TASK_NAME, enabled::get, () -> TestParams.INSTANCE, p -> {});
+            manager.start();
 
             for (int cycle = 0; cycle < 10; cycle++) {
                 final boolean sendStart = randomBoolean();
@@ -422,6 +427,7 @@ public class PersistentTaskLifecycleManagerTests extends ESTestCase {
         try (var clusterService = ClusterServiceUtils.createClusterService(threadPool, LOCAL_NODE, nodeSettings, clusterSettings)) {
             final var manager = new PersistentTaskLifecycleManager(persistentTasksService, clusterService);
             manager.registerClusterTask(TASK_NAME, enabled::get, () -> TestParams.INSTANCE);
+            manager.start();
 
             setState(clusterService, enabled.get() ? masterState() : stateWithClusterTask(masterState()));
             assertThat("expected in flight cluster task request", listener.get(), notNullValue());
@@ -453,6 +459,7 @@ public class PersistentTaskLifecycleManagerTests extends ESTestCase {
         try (var clusterService = ClusterServiceUtils.createClusterService(threadPool, LOCAL_NODE, nodeSettings, clusterSettings)) {
             final var manager = new PersistentTaskLifecycleManager(persistentTasksService, clusterService);
             manager.registerProjectTask(TASK_NAME, p -> TASK_NAME, enabled::get, () -> TestParams.INSTANCE, p -> {});
+            manager.start();
 
             final var baseState = masterStateWithProjects(Set.of(projectId));
             setState(clusterService, enabled.get() ? baseState : stateWithProjectTask(baseState, projectId, TASK_NAME));
@@ -464,7 +471,7 @@ public class PersistentTaskLifecycleManagerTests extends ESTestCase {
         }
     }
 
-    public void testClusterTaskNodeClosedExceptionDoesNotRetry() {
+    public void testClusterTaskDoesNotRetryAfterNodeShutdown() {
         final var listener = new AtomicReference<ActionListener<?>>();
         doAnswer(inv -> {
             listener.set(inv.getArgument(4));
@@ -482,17 +489,19 @@ public class PersistentTaskLifecycleManagerTests extends ESTestCase {
         try (var clusterService = ClusterServiceUtils.createClusterService(threadPool, LOCAL_NODE, nodeSettings, clusterSettings)) {
             final var manager = new PersistentTaskLifecycleManager(persistentTasksService, clusterService);
             manager.registerClusterTask(TASK_NAME, enabled::get, () -> TestParams.INSTANCE);
+            manager.start();
 
             setState(clusterService, enabled.get() ? masterState() : stateWithClusterTask(masterState()));
             assertThat("expected in flight cluster task request", listener.get(), notNullValue());
 
-            listener.getAndSet(null).onFailure(new NodeClosedException(LOCAL_NODE));
+            manager.stop();
+            listener.getAndSet(null).onFailure(new RuntimeException("transient"));
 
-            assertThat("unexpected retry cluster task request after NodeClosedException", listener.get(), nullValue());
+            assertThat("unexpected retry cluster task request after manager stopped", listener.get(), nullValue());
         }
     }
 
-    public void testProjectTaskNodeClosedExceptionDoesNotRetry() {
+    public void testProjectTaskDoesNotRetryAfterNodeShutdown() {
         final var projectId = randomUniqueProjectId();
         final var listener = new AtomicReference<ActionListener<?>>();
         doAnswer(inv -> {
@@ -511,14 +520,16 @@ public class PersistentTaskLifecycleManagerTests extends ESTestCase {
         try (var clusterService = ClusterServiceUtils.createClusterService(threadPool, LOCAL_NODE, nodeSettings, clusterSettings)) {
             final var manager = new PersistentTaskLifecycleManager(persistentTasksService, clusterService);
             manager.registerProjectTask(TASK_NAME, p -> TASK_NAME, enabled::get, () -> TestParams.INSTANCE, p -> {});
+            manager.start();
 
             final var baseState = masterStateWithProjects(Set.of(projectId));
             setState(clusterService, enabled.get() ? baseState : stateWithProjectTask(baseState, projectId, TASK_NAME));
             assertThat("expected in flight project task request", listener.get(), notNullValue());
 
-            listener.getAndSet(null).onFailure(new NodeClosedException(LOCAL_NODE));
+            manager.stop();
+            listener.getAndSet(null).onFailure(new RuntimeException("transient"));
 
-            assertThat("unexpected retry project task request after NodeClosedException", listener.get(), nullValue());
+            assertThat("unexpected retry project task request after manager stopped", listener.get(), nullValue());
         }
     }
 
@@ -538,6 +549,7 @@ public class PersistentTaskLifecycleManagerTests extends ESTestCase {
         try (var clusterService = ClusterServiceUtils.createClusterService(threadPool, LOCAL_NODE, nodeSettings, clusterSettings)) {
             final var manager = new PersistentTaskLifecycleManager(persistentTasksService, clusterService);
             manager.registerProjectTask(TASK_NAME, p -> TASK_NAME, enabled::get, () -> TestParams.INSTANCE, onRemove::set);
+            manager.start();
 
             setState(clusterService, stateWithProjectTask(masterStateWithProjects(Set.of(projectId)), projectId, TASK_NAME));
             assertThat("expected in flight project task remove request", removeListener.get(), notNullValue());
@@ -567,6 +579,7 @@ public class PersistentTaskLifecycleManagerTests extends ESTestCase {
             } else {
                 manager.registerClusterTask(TASK_NAME, ESTestCase::randomBoolean, () -> TestParams.INSTANCE);
             }
+            manager.start();
 
             var state = initialState;
             if (randomBoolean()) {

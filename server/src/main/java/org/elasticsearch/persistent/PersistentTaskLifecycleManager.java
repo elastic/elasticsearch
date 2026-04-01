@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.core.FixForMultiProject;
@@ -55,7 +56,7 @@ import java.util.function.Supplier;
 /// Tasks controlled by more complex logic (e.g. requiring per-project conditions or custom stop behavior)
 /// should have separate classes managing their own lifecycle.
 ///
-public final class PersistentTaskLifecycleManager implements ClusterStateListener {
+public final class PersistentTaskLifecycleManager extends AbstractLifecycleComponent implements ClusterStateListener {
 
     private static final Logger logger = LogManager.getLogger(PersistentTaskLifecycleManager.class);
 
@@ -69,8 +70,20 @@ public final class PersistentTaskLifecycleManager implements ClusterStateListene
         this.persistentTasksService = persistentTasksService;
         this.clusterService = clusterService;
         this.clusterSettings = clusterService.getClusterSettings();
+    }
+
+    @Override
+    protected void doStart() {
         clusterService.addListener(this);
     }
+
+    @Override
+    protected void doStop() {
+        clusterService.removeListener(this);
+    }
+
+    @Override
+    protected void doClose() {}
 
     /// Registers a cluster-scoped task whose enabled state is driven by a [Setting].
     /// The manager watches the setting for dynamic changes and reconciles accordingly.
@@ -168,6 +181,9 @@ public final class PersistentTaskLifecycleManager implements ClusterStateListene
     }
 
     private void reconcileClusterTask(ClusterState state, ClusterTaskRegistration reg) {
+        if (lifecycle.started() == false) {
+            return;
+        }
         if (state.nodes().isLocalNodeElectedMaster() == false || state.clusterRecovered() == false) {
             return;
         }
@@ -178,7 +194,7 @@ public final class PersistentTaskLifecycleManager implements ClusterStateListene
         } else if (enabled == false && taskExists) {
             sendClusterTaskRemoveRequest(reg);
         } else {
-            logger.debug("Reconciliation of [{}] task complete", reg.taskName());
+            logger.trace("Reconciliation of [{}] task complete", reg.taskName());
         }
     }
 
@@ -191,19 +207,15 @@ public final class PersistentTaskLifecycleManager implements ClusterStateListene
             reg.taskName(),
             reg.paramsSupplier().get(),
             MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT,
-            ActionListener.wrap(r -> {
+            ActionListener.runAfter(ActionListener.wrap(r -> {
                 logger.debug("Created [{}] task", reg.taskName());
-                reg.inFlight().set(false);
-                reconcileClusterTask(clusterService.state(), reg);
             }, e -> {
-                reg.inFlight().set(false);
                 final var t = ExceptionsHelper.unwrapCause(e);
-                if (t instanceof NodeClosedException) {
-                    return;
-                }
-                if (t instanceof ResourceAlreadyExistsException == false) {
+                if (t instanceof NodeClosedException == false && t instanceof ResourceAlreadyExistsException == false) {
                     logger.warn(() -> "Failed to create [" + reg.taskName() + "] task", e);
                 }
+            }), () -> {
+                reg.inFlight().set(false);
                 reconcileClusterTask(clusterService.state(), reg);
             })
         );
@@ -216,19 +228,15 @@ public final class PersistentTaskLifecycleManager implements ClusterStateListene
         persistentTasksService.sendClusterRemoveRequest(
             reg.taskName(),
             MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT,
-            ActionListener.wrap(r -> {
+            ActionListener.runAfter(ActionListener.wrap(r -> {
                 logger.debug("Removed [{}] task", reg.taskName());
-                reg.inFlight().set(false);
-                reconcileClusterTask(clusterService.state(), reg);
             }, e -> {
-                reg.inFlight().set(false);
                 final var t = ExceptionsHelper.unwrapCause(e);
-                if (t instanceof NodeClosedException) {
-                    return;
-                }
-                if (t instanceof ResourceNotFoundException == false) {
+                if (t instanceof NodeClosedException == false && t instanceof ResourceNotFoundException == false) {
                     logger.warn(() -> "Failed to remove [" + reg.taskName() + "] task", e);
                 }
+            }), () -> {
+                reg.inFlight().set(false);
                 reconcileClusterTask(clusterService.state(), reg);
             })
         );
@@ -244,11 +252,14 @@ public final class PersistentTaskLifecycleManager implements ClusterStateListene
         } else if (enabled == false && taskExists) {
             sendProjectTaskRemoveRequest(reg, projectId, taskId);
         } else {
-            logger.debug("Reconciliation of [{}] task in project [{}] complete", reg.taskName(), projectId);
+            logger.trace("Reconciliation of [{}] task in project [{}] complete", reg.taskName(), projectId);
         }
     }
 
     private void reconcileProjectTask(ClusterState state, ProjectTaskRegistration registration, ProjectId projectId) {
+        if (lifecycle.started() == false) {
+            return;
+        }
         final var project = state.metadata().projects().get(projectId);
         if (state.nodes().isLocalNodeElectedMaster() == false || state.clusterRecovered() == false || project == null) {
             return;
@@ -266,19 +277,15 @@ public final class PersistentTaskLifecycleManager implements ClusterStateListene
             reg.taskName(),
             reg.paramsSupplier().get(),
             MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT,
-            ActionListener.wrap(r -> {
+            ActionListener.runAfter(ActionListener.wrap(r -> {
                 logger.debug("Created [{}] task for project [{}]", reg.taskName(), projectId);
-                reg.inFlightRequests().remove(projectId);
-                reconcileProjectTask(clusterService.state(), reg, projectId);
             }, e -> {
-                reg.inFlightRequests().remove(projectId);
                 final var t = ExceptionsHelper.unwrapCause(e);
-                if (t instanceof NodeClosedException) {
-                    return;
-                }
-                if (t instanceof ResourceAlreadyExistsException == false) {
+                if (t instanceof NodeClosedException == false && t instanceof ResourceAlreadyExistsException == false) {
                     logger.warn(() -> "Failed to create [" + reg.taskName() + "] task for project [" + projectId + "]", e);
                 }
+            }), () -> {
+                reg.inFlightRequests().remove(projectId);
                 reconcileProjectTask(clusterService.state(), reg, projectId);
             })
         );
@@ -292,22 +299,18 @@ public final class PersistentTaskLifecycleManager implements ClusterStateListene
             projectId,
             taskId,
             MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT,
-            ActionListener.wrap(r -> {
+            ActionListener.runAfter(ActionListener.wrap(r -> {
                 logger.debug("Removed [{}] task for project [{}]", reg.taskName(), projectId);
-                reg.inFlightRequests().remove(projectId);
                 reg.onRemove().accept(projectId);
-                reconcileProjectTask(clusterService.state(), reg, projectId);
             }, e -> {
-                reg.inFlightRequests().remove(projectId);
                 final var t = ExceptionsHelper.unwrapCause(e);
-                if (t instanceof NodeClosedException) {
-                    return;
-                }
                 if (t instanceof ResourceNotFoundException) {
                     reg.onRemove().accept(projectId);
-                } else {
+                } else if (t instanceof NodeClosedException == false) {
                     logger.warn(() -> "Failed to remove [" + reg.taskName() + "] task for project [" + projectId + "]", e);
                 }
+            }), () -> {
+                reg.inFlightRequests().remove(projectId);
                 reconcileProjectTask(clusterService.state(), reg, projectId);
             })
         );

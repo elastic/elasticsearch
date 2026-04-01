@@ -1028,6 +1028,9 @@ class NodeConstruction {
 
         final var persistentTasksService = new PersistentTasksService(clusterService, threadPool, client);
         final var taskLifecycleManager = new PersistentTaskLifecycleManager(persistentTasksService, clusterService);
+        taskLifecycleManager.start();
+        resourcesToClose.add(taskLifecycleManager);
+
         final DataStreamLifecycleErrorStore dlmErrorStore = new DataStreamLifecycleErrorStore(threadPool::absoluteTimeInMillis);
 
         PluginServiceInstances pluginServices = new PluginServiceInstances(

@@ -130,8 +130,7 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
                 This examples demonstrates how to use `TOP_SNIPPETS` with `RERANK`. By returning a fixed number of snippets with a limited
                 size, we have more control over the number of tokens that are used for semantic reranking.
                 """),
-            @Example(file = "top-snippets", tag = "top-snippets-with-highlighting", applies_to = "stack: preview 9.4.0"),
-        }
+            @Example(file = "top-snippets", tag = "top-snippets-with-highlighting", applies_to = "stack: preview 9.4.0"), }
     )
     public TopSnippets(
         Source source,

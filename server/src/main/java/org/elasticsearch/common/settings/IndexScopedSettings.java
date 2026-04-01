@@ -258,9 +258,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         if (IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG) {
             settings.add(IndexSettings.DISABLE_SEQUENCE_NUMBERS);
         }
-        if (IndexSettings.ALLOW_LARGE_BINARY_BLOCK_SIZE.isEnabled()) {
-            settings.add(IndexSettings.USE_TIME_SERIES_DOC_VALUES_FORMAT_LARGE_BINARY_BLOCK_SIZE);
-        }
+        settings.add(IndexSettings.USE_TIME_SERIES_DOC_VALUES_FORMAT_LARGE_BINARY_BLOCK_SIZE);
         if (IndexSettings.TIME_SERIES_TEMPORALITY_FEATURE_FLAG.isEnabled()) {
             settings.add(IndexSettings.TIME_SERIES_TEMPORALITY_FIELD);
         }

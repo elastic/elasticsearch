@@ -117,8 +117,6 @@ import java.util.function.BiConsumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.xpack.core.esql.EsqlFeatureFlags.ESQL_VIEWS_SETTINGS_FEATURE_FLAG;
-
 public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin, SearchPlugin {
 
     public static final String ESQL_WORKER_THREAD_POOL_NAME = "esql_worker";
@@ -313,15 +311,13 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 STORED_FIELDS_SEQUENTIAL_PROPORTION,
                 ESQL_WORKER_THREAD_POOL_SIZE,
                 EsqlFlags.ESQL_STRING_LIKE_ON_INDEX,
-                EsqlFlags.ESQL_ROUNDTO_PUSHDOWN_THRESHOLD
+                EsqlFlags.ESQL_ROUNDTO_PUSHDOWN_THRESHOLD,
+                ViewService.MAX_VIEWS_COUNT_SETTING,
+                ViewService.MAX_VIEW_LENGTH_SETTING,
+                ViewResolver.MAX_VIEW_DEPTH_SETTING
             )
         );
         settings.addAll(PlannerSettings.settings());
-        if (ESQL_VIEWS_SETTINGS_FEATURE_FLAG.isEnabled()) {
-            settings.add(ViewService.MAX_VIEWS_COUNT_SETTING);
-            settings.add(ViewService.MAX_VIEW_LENGTH_SETTING);
-            settings.add(ViewResolver.MAX_VIEW_DEPTH_SETTING);
-        }
 
         // Inference command settings
         settings.addAll(InferenceSettings.getSettings());

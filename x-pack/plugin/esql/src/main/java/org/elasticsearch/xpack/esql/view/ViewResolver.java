@@ -54,13 +54,17 @@ public class ViewResolver {
     private final CrossProjectModeDecider crossProjectModeDecider;
     private volatile int maxViewDepth;
     private final Client client;
+    // This setting is registered as OperatorDynamic so it is not exposed to end users yet.
+    // To fully expose it later:
+    // 1. Change OperatorDynamic to Dynamic (makes it user-settable on self-managed)
+    // 2. Add ServerlessPublic (makes it visible to non-operator users on Serverless)
     public static final Setting<Integer> MAX_VIEW_DEPTH_SETTING = Setting.intSetting(
         "esql.views.max_view_depth",
         10,
         0,
         100,
         Setting.Property.NodeScope,
-        Setting.Property.Dynamic
+        Setting.Property.OperatorDynamic
     );
 
     /**

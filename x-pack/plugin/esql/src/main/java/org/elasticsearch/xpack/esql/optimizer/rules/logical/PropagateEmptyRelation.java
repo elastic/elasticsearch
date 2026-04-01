@@ -17,11 +17,15 @@ import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.CountApproximate;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.LocalPropagateEmptyRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.join.Join;
+import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
+import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
@@ -31,29 +35,34 @@ import java.util.ArrayList;
 import java.util.List;
 
 @SuppressWarnings("removal")
-public class PropagateEmptyRelation extends OptimizerRules.ParameterizedOptimizerRule<UnaryPlan, LogicalOptimizerContext>
+public class PropagateEmptyRelation extends OptimizerRules.ParameterizedOptimizerRule<LogicalPlan, LogicalOptimizerContext>
     implements
-        OptimizerRules.LocalAware<UnaryPlan> {
+        OptimizerRules.LocalAware<LogicalPlan> {
     public PropagateEmptyRelation() {
         super(OptimizerRules.TransformDirection.DOWN);
     }
 
     @Override
-    protected LogicalPlan rule(UnaryPlan plan, LogicalOptimizerContext ctx) {
-        LogicalPlan p = plan;
-        if (plan.child() instanceof LocalRelation local && local.hasEmptySupplier()) {
+    protected LogicalPlan rule(LogicalPlan plan, LogicalOptimizerContext ctx) {
+        if (plan instanceof UnaryPlan unary && unary.child() instanceof LocalRelation local && local.hasEmptySupplier()) {
             // only care about non-grouped aggs might return something (count)
             if (plan instanceof Aggregate agg && agg.groupings().isEmpty()) {
                 List<Block> emptyBlocks = aggsFromEmpty(ctx.foldCtx(), agg.aggregates());
-                p = replacePlanByRelation(
-                    plan,
+                return new LocalRelation(
+                    plan.source(),
+                    plan.output(),
                     LocalSupplier.of(emptyBlocks.isEmpty() ? new Page(0) : new Page(emptyBlocks.toArray(Block[]::new)))
                 );
-            } else {
-                p = PruneEmptyPlans.skipPlan(plan);
+            }
+            return PruneEmptyPlans.skipPlan(unary);
+        }
+        if (plan instanceof Join join && join.left() instanceof LocalRelation lr && lr.hasEmptySupplier()) {
+            var type = join.config().type();
+            if (type == JoinTypes.LEFT || type == JoinTypes.INNER || type == JoinTypes.CROSS) {
+                return new LocalRelation(join.source(), join.output(), EmptyLocalSupplier.EMPTY);
             }
         }
-        return p;
+        return plan;
     }
 
     private List<Block> aggsFromEmpty(FoldContext foldCtx, List<? extends NamedExpression> aggs) {
@@ -82,18 +91,21 @@ public class PropagateEmptyRelation extends OptimizerRules.ParameterizedOptimize
         List<Block> blocks
     ) {
         // look for count(literal) with literal != null
-        Object value = aggFunc instanceof Count count && (count.foldable() == false || count.fold(foldCtx) != null) ? 0L : null;
+        Object value;
+        if (aggFunc instanceof Count count && (count.foldable() == false || count.fold(foldCtx) != null)) {
+            value = 0L;
+        } else if (aggFunc instanceof CountApproximate count && (count.foldable() == false || count.fold(foldCtx) != null)) {
+            value = 0.0;
+        } else {
+            value = null;
+        }
         var wrapper = BlockUtils.wrapperFor(blockFactory, PlannerUtils.toElementType(aggFunc.dataType()), 1);
         wrapper.accept(value);
         blocks.add(wrapper.builder().build());
     }
 
-    private static LogicalPlan replacePlanByRelation(UnaryPlan plan, LocalSupplier supplier) {
-        return new LocalRelation(plan.source(), plan.output(), supplier);
-    }
-
     @Override
-    public Rule<UnaryPlan, LogicalPlan> local() {
+    public Rule<LogicalPlan, LogicalPlan> local() {
         return new LocalPropagateEmptyRelation();
     }
 }

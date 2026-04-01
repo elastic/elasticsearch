@@ -226,6 +226,7 @@ public abstract class GoldenTestCase extends ESTestCase {
             Files.writeString(queryPath, esqlQuery);
             TestAnalyzer testAnalyzer = analyzer().addLanguagesLookup()
                 .addAnalysisTestsEnrichResolution()
+                .addAnalysisTestsInferenceResolution()
                 .minimumTransportVersion(transportVersion)
                 .unmappedResolution(statement.setting(UNMAPPED_FIELDS));
             loadIndexResolution(CsvTests.testDatasets(parsedPlan)).forEach(
@@ -404,8 +405,13 @@ public abstract class GoldenTestCase extends ESTestCase {
             throw new IllegalStateException("Extra output files should not be created automatically:" + output);
         }
         String full = plan.toString(Node.NodeStringFormat.FULL);
-        Files.writeString(output, normalizeNameIds(normalizeSyntheticNames(full)), StandardCharsets.UTF_8);
+        Files.writeString(output, normalizeString(full), StandardCharsets.UTF_8);
         return Test.TestResult.CREATED;
+    }
+
+    // Visible for testing.
+    static String normalizeString(String input) {
+        return normalizeNameIds(normalizeSyntheticNames(input));
     }
 
     /**
@@ -421,13 +427,39 @@ public abstract class GoldenTestCase extends ESTestCase {
 
     /**
      * Normalizes synthetic attribute names of the form $$something($something)* that are followed by # (node id).
-     * Replaces them with $$firstSegment$runningInt so golden output is stable across runs.
+     * Digit-only segments (generated at run time) are replaced with a stable running integer; text segments are kept as-is.
+     * Digits may appear anywhere in the name, including in the middle (e.g. {@code $$SUM$field$0$sum}).
      */
     private static String normalizeSyntheticNames(String full) {
         return replaceMatches(full, SYNTHETIC_PATTERN, (matcher, idMap) -> {
-            String firstSegment = matcher.group(1);
-            return "$$" + firstSegment + "$" + idMap.getId(firstSegment);
+            StringBuilder result = new StringBuilder("$$");
+            StringBuilder numericSegments = new StringBuilder();
+            boolean hasNormalized = false;
+            for (String seg : matcher.group(1).split("\\$")) {
+                if (NUMERIC_SEGMENT_PATTERN.matcher(seg).matches()) {
+                    appendSegment(numericSegments, seg);
+                } else {
+                    if (numericSegments.isEmpty() == false) {
+                        appendSegment(result, idMap.getId(numericSegments.toString()));
+                        numericSegments.setLength(0);
+                        hasNormalized = true;
+                    }
+                    appendSegment(result, seg);
+                }
+            }
+            if (numericSegments.isEmpty() == false) {
+                appendSegment(result, idMap.getId(numericSegments.toString()));
+                hasNormalized = true;
+            }
+            return hasNormalized ? result.toString() : matcher.group();
         });
+    }
+
+    private static StringBuilder appendSegment(StringBuilder sb, Object o) {
+        if (sb.isEmpty() || sb.charAt(sb.length() - 1) != '$') {
+            sb.append('$');
+        }
+        return sb.append(o);
     }
 
     private static <K> String replaceMatches(String input, Pattern pattern, BiFunction<Matcher, IdMap<K>, String> replacer) {
@@ -444,10 +476,15 @@ public abstract class GoldenTestCase extends ESTestCase {
         return sb.toString();
     }
 
-    // Matches synthetic names like $$alias$1$2#3, since those $digits are generated during the test run and may differ each time. The
-    // #digit are removed by the next pattern.
-    private static final Pattern SYNTHETIC_PATTERN = Pattern.compile("\\$\\$([^$\\s]+)(\\$\\d+)+(?=[{#])");
+    /**
+     * Matches synthetic names like {@code $$alias$1$2#3}, {@code $$last_name$LENGTH$241149320{f$}#6}, or
+     * {@code $$SUM$field$0$sum#7}. Digit-only segments are generated during the test run and may differ
+     * each time; text segments are kept. The {@code #digit} suffixes are normalized by
+     * {@link #IDENTIFIER_PATTERN}.
+     */
+    private static final Pattern SYNTHETIC_PATTERN = Pattern.compile("\\$\\$([^$\\s{#]+(?:\\$[^$\\s{#]+)*)(?=[{#])");
     private static final Pattern IDENTIFIER_PATTERN = Pattern.compile("#\\d+");
+    private static final Pattern NUMERIC_SEGMENT_PATTERN = Pattern.compile("-?\\d+");
 
     private static class IdMap<K> {
         private final Map<K, Integer> map = new HashMap<>();
@@ -460,7 +497,7 @@ public abstract class GoldenTestCase extends ESTestCase {
 
     private static Test.TestResult verifyExisting(Path output, QueryPlan<?> plan) throws IOException {
         String full = plan.toString(Node.NodeStringFormat.FULL);
-        String testString = normalize(normalizeNameIds(normalizeSyntheticNames(full)));
+        String testString = normalize(normalizeString(full));
         if (testString.equals(normalize(Files.readString(output)))) {
             if (System.getProperty("golden.cleanactual") != null) {
                 Path path = actualPath(output);
@@ -477,7 +514,7 @@ public abstract class GoldenTestCase extends ESTestCase {
         } else {
             Path actualPath = actualPath(output);
             logger.info("Creating actual file at " + actualPath.toAbsolutePath());
-            Files.writeString(actualPath, normalizeNameIds(normalizeSyntheticNames(full)), StandardCharsets.UTF_8);
+            Files.writeString(actualPath, normalizeString(full), StandardCharsets.UTF_8);
         }
         return Test.TestResult.FAILURE;
     }

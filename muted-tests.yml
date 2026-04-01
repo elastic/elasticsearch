@@ -366,6 +366,9 @@ tests:
   - "test {csv-spec:stats.*Overflow*}"
   - "test {csv-spec:k8s-timeseries-sum-over-time.*Overflow*}"
   issue: https://github.com/elastic/elasticsearch/issues/145415
+- class: org.elasticsearch.xpack.esql.CsvTests
+  method: test {csv-spec:unsigned_long.evalNullEqualsUnsignedLong}
+  issue: https://github.com/elastic/elasticsearch/issues/145426
 
 # Examples:
 #

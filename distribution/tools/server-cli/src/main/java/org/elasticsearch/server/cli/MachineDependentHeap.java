@@ -70,10 +70,12 @@ public class MachineDependentHeap {
         List<DiscoveryNodeRole> roles = NodeRoleSettings.NODE_ROLES_SETTING.get(nodeSettings);
         long availableSystemMemory = systemMemoryInfo.availableSystemMemory();
         MachineNodeRole nodeRole = mapNodeRole(roles);
-        return options(getHeapSizeMb(nodeSettings, nodeRole, availableSystemMemory));
+        int maxHeapSizeMb = getMaxHeapSizeMb(nodeSettings, nodeRole, availableSystemMemory);
+        int initialHeapSizeMb = getInitialHeapSizeMb(maxHeapSizeMb);
+        return options(initialHeapSizeMb, maxHeapSizeMb);
     }
 
-    protected int getHeapSizeMb(Settings nodeSettings, MachineNodeRole role, long availableMemory) {
+    protected int getMaxHeapSizeMb(Settings nodeSettings, MachineNodeRole role, long availableMemory) {
         return switch (role) {
             /*
              * Master-only node.
@@ -144,6 +146,10 @@ public class MachineDependentHeap {
         };
     }
 
+    protected int getInitialHeapSizeMb(int maxHeapSizeMb) {
+        return maxHeapSizeMb;
+    }
+
     protected static int mb(long bytes) {
         return (int) (bytes / (1024 * 1024));
     }
@@ -170,8 +176,8 @@ public class MachineDependentHeap {
         return Arrays.asList(items).containsAll(collection);
     }
 
-    private static List<String> options(int heapSize) {
-        return List.of("-Xms" + heapSize + "m", "-Xmx" + heapSize + "m");
+    private static List<String> options(int initialHeapSizeMb, int maxHeapSizeMb) {
+        return List.of("-Xms" + initialHeapSizeMb + "m", "-Xmx" + maxHeapSizeMb + "m");
     }
 
     protected enum MachineNodeRole {

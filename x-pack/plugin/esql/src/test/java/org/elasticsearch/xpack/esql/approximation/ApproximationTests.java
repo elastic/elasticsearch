@@ -283,6 +283,13 @@ public class ApproximationTests extends ApproximationTestCase {
         assertThat(subplan, not(hasPlan(Aggregate.class)));
         assertThat(subplan, hasPlan(SampledAggregate.class, withProbability(1e-6), withAggs(CountApproximate.class)));
 
+        // Filtered count of 0, so increase the sample probability.
+        approximation.newMainPlan(newCountResult(0));
+        subplan = approximation.firstSubPlan();
+        assertThat(subplan, hasPlan(Filter.class));
+        assertThat(subplan, not(hasPlan(Aggregate.class)));
+        assertThat(subplan, hasPlan(SampledAggregate.class, withProbability(1e-2), withAggs(CountApproximate.class)));
+
         // Filtered count of 0, so no more subplans.
         mainPlan = approximation.newMainPlan(newCountResult(0));
         subplan = approximation.firstSubPlan();

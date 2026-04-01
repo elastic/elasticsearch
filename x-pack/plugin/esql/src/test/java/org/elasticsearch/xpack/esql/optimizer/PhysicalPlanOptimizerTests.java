@@ -1553,7 +1553,6 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      * }
      */
     public void testLimitByNotPushedToSource() {
-        assumeTrue("LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_LIMIT_BY.isEnabled());
         var optimized = optimizedPlan(physicalPlan("""
             from test
             | limit 10 by emp_no
@@ -1578,7 +1577,6 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      * }
      */
     public void testLimitByMultipleKeys() {
-        assumeTrue("LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_LIMIT_BY.isEnabled());
         var optimized = optimizedPlan(physicalPlan("""
             from test
             | limit 5 by first_name, last_name
@@ -1613,7 +1611,6 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      * }
      */
     public void testLimitByAfterStats() {
-        assumeTrue("LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_LIMIT_BY.isEnabled());
         var optimized = optimizedPlan(physicalPlan("""
             from test
             | stats avg_salary = avg(salary) by first_name
@@ -1652,7 +1649,6 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      * }
      */
     public void testLimitByAfterEval() {
-        assumeTrue("LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_LIMIT_BY.isEnabled());
         var optimized = optimizedPlan(physicalPlan("""
             from test
             | eval x = salary + 1
@@ -1689,7 +1685,6 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      * }
      */
     public void testLimitByWithFilter() {
-        assumeTrue("LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_LIMIT_BY.isEnabled());
         var optimized = optimizedPlan(physicalPlan("""
             from test
             | where emp_no > 0
@@ -1722,7 +1717,6 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      * }
      */
     public void testLimitByExpressionWithEval() {
-        assumeTrue("LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_LIMIT_BY.isEnabled());
         var optimized = optimizedPlan(physicalPlan("""
             from test
             | where emp_no > 0
@@ -1759,7 +1753,6 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      * }
      */
     public void testLimitByZero() {
-        assumeTrue("LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_LIMIT_BY.isEnabled());
         var plan = optimizedPlan(physicalPlan("""
             FROM test
             | LIMIT 0 BY emp_no
@@ -4336,6 +4329,40 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             FROM airports
             | EVAL simplified = ST_SIMPLIFY(location, 0.05)
             | STATS extent = ST_EXTENT_AGG(location) BY simplified""";
+        for (boolean withDocValues : new boolean[] { false, true }) {
+            var fieldExtractPreference = withDocValues ? FieldExtractPreference.DOC_VALUES : FieldExtractPreference.NONE;
+            var testData = withDocValues ? airports : airportsNoDocValues;
+            var plan = physicalPlan(query.replace("airports", testData.index.name()), testData);
+            var optimized = optimizedPlan(plan, testData.stats);
+            var limit = as(optimized, LimitExec.class);
+            var agg = as(limit.child(), AggregateExec.class);
+            // Above the exchange (in coordinator) the aggregation is not using doc-values
+            assertAggregation(agg, "extent", SpatialExtent.class, GEO_POINT, FieldExtractPreference.NONE);
+            assertThat(agg.groupings().size(), equalTo(1));
+            var exchange = as(agg.child(), ExchangeExec.class);
+            agg = as(exchange.child(), AggregateExec.class);
+            // below the exchange (in data node) the aggregation is using doc-values.
+            assertAggregation(agg, "extent", SpatialExtent.class, GEO_POINT, fieldExtractPreference);
+            var evalExec = as(agg.child(), EvalExec.class);
+            var alias = as(evalExec.fields().getFirst(), Alias.class);
+            var spatialFunction = as(alias.child(), SpatialDocValuesFunction.class);
+            assertThat(
+                "Expected spatial doc values to be used for spatial function",
+                spatialFunction.spatialDocValues(),
+                equalTo(withDocValues)
+            );
+            assertChildIsGeoPointExtract(evalExec, fieldExtractPreference);
+        }
+    }
+
+    /**
+     * Test that ST_BUFFER uses doc values, similarly to ST_SIMPLIFY above
+     */
+    public void testSpatialBufferAndStatsExtentUseDocValues() {
+        String query = """
+            FROM airports
+            | EVAL buffered = ST_BUFFER(location, 0.05)
+            | STATS extent = ST_EXTENT_AGG(location) BY buffered""";
         for (boolean withDocValues : new boolean[] { false, true }) {
             var fieldExtractPreference = withDocValues ? FieldExtractPreference.DOC_VALUES : FieldExtractPreference.NONE;
             var testData = withDocValues ? airports : airportsNoDocValues;

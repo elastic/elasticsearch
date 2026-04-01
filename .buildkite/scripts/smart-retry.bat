@@ -52,8 +52,8 @@ if exist .build-info.json (
       if defined BUILD_SCAN_ID (
         if not "!BUILD_SCAN_ID!"=="null" (
 
-          REM Validate using PowerShell (more reliable)
-          powershell -NoProfile -Command "exit -not ('!BUILD_SCAN_ID!' -match '^[a-zA-Z0-9_\-]+$')"
+          REM Validate using PowerShell via environment variable (avoids delayed-expansion injection)
+          powershell -NoProfile -Command "exit -not ($env:BUILD_SCAN_ID -match '^[a-zA-Z0-9_\-]+$')"
           if errorlevel 1 (
             echo [Smart Retry] Configuration Issue
             echo Invalid build scan ID format: !BUILD_SCAN_ID!
@@ -71,12 +71,36 @@ if exist .build-info.json (
             timeout /t !delay! /nobreak >nul 2>&1
 
             REM Fetch failed tests from Develocity API (curl will auto-decompress gzip with --compressed)
-            curl --compressed --request GET --url "!DEVELOCITY_FAILED_TEST_API_URL!" --max-filesize 10485760 --max-time 30 --header "accept: application/json" --header "authorization: Bearer %DEVELOCITY_API_ACCESS_KEY%" --header "content-type: application/json" 2>nul | jq --arg testseed "!TESTS_SEED!" ". + {testseed: $testseed}" > .failed-test-history.json 2>nul
+            REM Write to temp file first: cmd.exe truncates redirect targets before the pipeline runs,
+            REM so a direct redirect would leave an empty file on curl/jq failure.
+            curl --compressed --request GET --url "!DEVELOCITY_FAILED_TEST_API_URL!" --max-filesize 10485760 --max-time 30 --header "accept: application/json" --header "authorization: Bearer %DEVELOCITY_API_ACCESS_KEY%" --header "content-type: application/json" 2>nul | jq --arg testseed "!TESTS_SEED!" ". + {testseed: $testseed}" > .failed-test-history.json.dl 2>nul
+
+            REM Validate the downloaded file is non-empty before using it
+            set HISTORY_DL_SIZE=0
+            if exist .failed-test-history.json.dl (
+              for %%A in (.failed-test-history.json.dl) do set HISTORY_DL_SIZE=%%~zA
+            )
+            if !HISTORY_DL_SIZE! GTR 0 (
+              move /y .failed-test-history.json.dl .failed-test-history.json >nul 2>&1
+            ) else (
+              del .failed-test-history.json.dl 2>nul
+            )
 
             if exist .failed-test-history.json (
               REM Fetch executed test tasks from gradle-test-performance endpoint
               REM This enables three-state logic: distinguishing confirmed-passed from never-executed tasks
-              curl --compressed --request GET --url "!DEVELOCITY_TEST_PERF_API_URL!" --max-filesize 10485760 --max-time 30 --header "accept: application/json" --header "authorization: Bearer %DEVELOCITY_API_ACCESS_KEY%" --header "content-type: application/json" 2>nul > .test-perf-response.json 2>nul
+              curl --compressed --request GET --url "!DEVELOCITY_TEST_PERF_API_URL!" --max-filesize 10485760 --max-time 30 --header "accept: application/json" --header "authorization: Bearer %DEVELOCITY_API_ACCESS_KEY%" --header "content-type: application/json" 2>nul > .test-perf-response.json.dl 2>nul
+
+              REM Validate the test-perf response is non-empty before using it
+              set PERF_DL_SIZE=0
+              if exist .test-perf-response.json.dl (
+                for %%A in (.test-perf-response.json.dl) do set PERF_DL_SIZE=%%~zA
+              )
+              if !PERF_DL_SIZE! GTR 0 (
+                move /y .test-perf-response.json.dl .test-perf-response.json >nul 2>&1
+              ) else (
+                del .test-perf-response.json.dl 2>nul
+              )
 
               if exist .test-perf-response.json (
                 REM Extract taskPath values and merge into the history JSON
@@ -184,7 +208,9 @@ if exist .build-info.json (
   REM Clean up temporary build info file and any leftover temp files
   del .build-info.json 2>nul
   del .test-perf-response.json 2>nul
+  del .test-perf-response.json.dl 2>nul
   del .failed-test-history.json.tmp 2>nul
+  del .failed-test-history.json.dl 2>nul
 ) else (
   echo [Smart Retry] API Error
   echo [Smart Retry] Failed to fetch build information from Buildkite API

@@ -49,6 +49,13 @@ public class ES819TSDBDocValuesFormatFactoryTests extends ESTestCase {
         assertThat(actual.formatConfig.blockCountThreshold(), equalTo(8096));
     }
 
+    public void testVersion3WithLargeNumericAndBinaryBlockSize() {
+        assertSame(
+            ES819TSDBDocValuesFormatFactory.ES_819_3_TSDB_DOC_VALUES_FORMAT_LARGE_NUMERIC_AND_BINARY_BLOCK,
+            ES819TSDBDocValuesFormatFactory.createDocValuesFormat(IndexVersions.TIME_SERIES_DOC_VALUES_FORMAT_VERSION_3, true, true, false)
+        );
+    }
+
     public void testVersionAfterVersion3() {
         assertSame(
             ES819TSDBDocValuesFormatFactory.ES_819_3_TSDB_DOC_VALUES_FORMAT,

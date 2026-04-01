@@ -57,6 +57,7 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.FixedBitSet;
+import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.common.io.Channels;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.PathUtils;
@@ -110,6 +111,7 @@ class KnnSearcher {
     private final VectorSimilarityFunction similarityFunction;
     private final VectorEncoding vectorEncoding;
     private final boolean doPrecondition;
+    private final boolean normalizeVectors;
 
     KnnSearcher(Path indexPath, TestConfiguration testConfiguration) {
         this.docPath = testConfiguration.docVectors();
@@ -120,6 +122,7 @@ class KnnSearcher {
         this.dim = testConfiguration.dimensions();
         this.similarityFunction = testConfiguration.vectorSpace();
         this.vectorEncoding = testConfiguration.vectorEncoding().luceneEncoding();
+        this.normalizeVectors = testConfiguration.normalizeVectors();
         if (numQueryVectors <= 0) {
             throw new IllegalArgumentException("numQueryVectors must be > 0");
         }
@@ -213,6 +216,9 @@ class KnnSearcher {
                         doVectorQuery(targetBytes, searcher, filterQuery, searchParameters);
                     } else {
                         targetReader.next(target);
+                        if (normalizeVectors) {
+                            VectorUtil.l2normalize(target);
+                        }
                         doVectorQuery(target, searcher, filterQuery, searchParameters);
                     }
                 }
@@ -236,6 +242,9 @@ class KnnSearcher {
                     float[][] queries = new float[numQueryVectors][dim];
                     for (int i = 0; i < numQueryVectors; i++) {
                         targetReader.next(queries[i]);
+                        if (normalizeVectors) {
+                            VectorUtil.l2normalize(queries[i]);
+                        }
                     }
                     for (int s = 0; s < searchParameters.numSearchers(); s++) {
                         queryConsumers[s] = i -> {
@@ -406,6 +415,7 @@ class KnnSearcher {
                 numQueryVectors,
                 searchParameters.topK(),
                 similarityFunction.ordinal(),
+                normalizeVectors,
                 searchParameters.filterSelectivity()
             ),
             36
@@ -579,6 +589,9 @@ class KnnSearcher {
                 for (int i = 0; i < numQueryVectors; i++) {
                     float[] queryVector = new float[dim];
                     queryReader.next(queryVector);
+                    if (normalizeVectors) {
+                        VectorUtil.l2normalize(queryVector);
+                    }
                     tasks.add(new ComputeNNFloatTask(i, topK, queryVector, result, reader, filterQuery, similarityFunction));
                 }
                 ForkJoinPool.commonPool().invokeAll(tasks);

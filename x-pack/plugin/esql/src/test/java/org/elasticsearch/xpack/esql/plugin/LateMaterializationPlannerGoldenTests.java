@@ -122,7 +122,7 @@ public class LateMaterializationPlannerGoldenTests extends GoldenTestCase {
             | keep hire_date, salary, emp_no
             | SORT hire_date
             | LIMIT 20
-            | STATS avg_salary = AVG(salary), count = COUNT(*)
+            | STATS max_salary = MAX(salary), count = COUNT(*)
             """;
         runGoldenTest(query, STAGES, unindexedStats());
     }

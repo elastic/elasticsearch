@@ -397,13 +397,22 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
             result.outputSchema(),
             result.result()
         );
+        failOnUnexpectedValidationError(outputValidation, result, previousCommands, currentSchema);
+        return outputValidation;
+    }
+
+    protected static void failOnUnexpectedValidationError(
+        CommandGenerator.ValidationResult outputValidation,
+        QueryExecuted result,
+        List<CommandGenerator.CommandDescription> previousCommands,
+        List<Column> currentSchema
+    ) {
         if (outputValidation.success() == false) {
             if (isAllowedFailure(new FailureContext(outputValidation.errorMessage(), result.query(), previousCommands, currentSchema))) {
-                return outputValidation;
+                return;
             }
             fail("query: " + result.query() + "\nerror: " + outputValidation.errorMessage());
         }
-        return outputValidation;
     }
 
     protected void checkException(

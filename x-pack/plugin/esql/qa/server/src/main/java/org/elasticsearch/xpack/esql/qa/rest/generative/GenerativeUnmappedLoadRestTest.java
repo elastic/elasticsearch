@@ -103,6 +103,7 @@ public abstract class GenerativeUnmappedLoadRestTest extends GenerativeRestTest 
         if (isUnmappedFieldPrefixError(errorMsg, result.query(), FromLoadGenerator.SET_LOAD_PREFIX)) {
             return outputValidation;
         }
-        return super.checkPipelineResults(previousCommands, commandGenerator, commandDescription, previousResult, result, currentSchema);
+        failOnUnexpectedValidationError(outputValidation, result, previousCommands, currentSchema);
+        return outputValidation;
     }
 }

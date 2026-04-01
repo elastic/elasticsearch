@@ -40,6 +40,7 @@ public class GenerativeUnmappedLoadIT extends GenerativeUnmappedLoadRestTest {
 
     @Override
     protected boolean supportsSourceFieldMapping() {
+        // source field mapping requires a single node; multi-node clusters disable it to avoid cross-node _source inconsistencies
         return cluster.getNumNodes() == 1;
     }
 }

@@ -1,0 +1,2 @@
+Project[[$$Positions$${r}#0, _meta_field{f}#1, first_name{f}#2, gender{f}#3, hire_date{f}#4, job{f}#5, job.raw{f}#6, languages{f}#7, last_name{f}#8, long_noidx{f}#9, salary{f}#10]]
+\_ParameterizedQuery[[_doc{f}#11, $$Positions$${r}#0, _meta_field{f}#1, emp_no{f}#12, first_name{f}#2, gender{f}#3, hire_date{f}#4, job{f}#5, job.raw{f}#6, languages{f}#7, last_name{f}#8, long_noidx{f}#9, salary{f}#10],[MatchConfig[fieldName=emp_no, channel=0, type=INTEGER]],null,false]

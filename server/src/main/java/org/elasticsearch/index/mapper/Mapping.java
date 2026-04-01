@@ -57,6 +57,8 @@ public final class Mapping implements ToXContentFragment {
     private final Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappersMap;
     private final Map<String, MetadataFieldMapper> metadataMappersByName;
 
+    private final FieldNamesFieldMapper fieldNamesFieldMapper; // cached from metadataMappersByClass
+
     // IntelliJ doesn't think that we need a rawtypes suppression here, but gradle fails to compile this file without it
     @SuppressWarnings({ "unchecked", "rawtypes" })
     public Mapping(RootObjectMapper rootObjectMapper, MetadataFieldMapper[] metadataMappers, Map<String, Object> meta) {
@@ -74,6 +76,9 @@ public final class Mapping implements ToXContentFragment {
         this.metadataMappersMap = Map.ofEntries(metadataMappersMap);
         this.metadataMappersByName = Map.ofEntries(metadataMappersByName);
         this.meta = meta;
+
+        // cache the field names field mapper
+        this.fieldNamesFieldMapper = (FieldNamesFieldMapper) this.metadataMappersByName.get(FieldNamesFieldMapper.NAME);
     }
 
     /**
@@ -156,6 +161,10 @@ public final class Mapping implements ToXContentFragment {
             return IgnoredSourceFieldMapper.IgnoredSourceFormat.NO_IGNORED_SOURCE;
         }
         return isfm.ignoredSourceFormat();
+    }
+
+    public FieldNamesFieldMapper fieldNamesFieldMapper() {
+        return fieldNamesFieldMapper;
     }
 
     @Override

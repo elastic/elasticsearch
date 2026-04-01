@@ -52,6 +52,12 @@ if defined BUILDKITE_RETRY_COUNT (
 
       if defined ORIGIN_JOB_ID (
         if not "!ORIGIN_JOB_ID!"=="null" (
+          REM Export the original job ID so the build scan can link back to it
+          set BUILDKITE_RETRY_SOURCE_JOB_ID=!ORIGIN_JOB_ID!
+
+          REM Extract retry type (automatic/manual) from the current job's API data
+          for /f "delims=" %%i in ('jq -r --arg jobId "%BUILDKITE_JOB_ID%" ".jobs[] | select(.id == $jobId) | .retry_type // empty" .build-info.json 2^>nul') do set BUILDKITE_RETRY_TYPE=%%i
+
           REM Retrieve test seed directly from Buildkite metadata
           for /f "delims=" %%i in ('jq -r --arg job_id "!ORIGIN_JOB_ID!" ".meta_data[\"tests-seed-\" + $job_id]" .build-info.json 2^>nul') do set TESTS_SEED=%%i
 
@@ -118,10 +124,12 @@ set "_BUILDKITE_API_TOKEN=%BUILDKITE_API_TOKEN%"
 set "_JAVA_HOME=%JAVA_HOME%"
 set "_JAVA16_HOME=%JAVA16_HOME%"
 set "_TESTS_SEED=%TESTS_SEED%"
+set "_BUILDKITE_RETRY_SOURCE_JOB_ID=%BUILDKITE_RETRY_SOURCE_JOB_ID%"
+set "_BUILDKITE_RETRY_TYPE=%BUILDKITE_RETRY_TYPE%"
 
 REM End local scope and restore critical variables to parent environment
 REM This ensures bash scripts can access WORKSPACE, GRADLEW, and other variables
-ENDLOCAL && set "WORKSPACE=%_WORKSPACE%" && set "GRADLEW=%_GRADLEW%" && set "GRADLEW_BAT=%_GRADLEW_BAT%" && set "BUILD_NUMBER=%_BUILD_NUMBER%" && set "JOB_BRANCH=%_JOB_BRANCH%" && set "GH_TOKEN=%_GH_TOKEN%" && set "GRADLE_BUILD_CACHE_USERNAME=%_GRADLE_BUILD_CACHE_USERNAME%" && set "GRADLE_BUILD_CACHE_PASSWORD=%_GRADLE_BUILD_CACHE_PASSWORD%" && set "DEVELOCITY_ACCESS_KEY=%_DEVELOCITY_ACCESS_KEY%" && set "DEVELOCITY_API_ACCESS_KEY=%_DEVELOCITY_API_ACCESS_KEY%" && set "BUILDKITE_API_TOKEN=%_BUILDKITE_API_TOKEN%" && set "JAVA_HOME=%_JAVA_HOME%" && set "JAVA16_HOME=%_JAVA16_HOME%" && set "TESTS_SEED=%_TESTS_SEED%"
+ENDLOCAL && set "WORKSPACE=%_WORKSPACE%" && set "GRADLEW=%_GRADLEW%" && set "GRADLEW_BAT=%_GRADLEW_BAT%" && set "BUILD_NUMBER=%_BUILD_NUMBER%" && set "JOB_BRANCH=%_JOB_BRANCH%" && set "GH_TOKEN=%_GH_TOKEN%" && set "GRADLE_BUILD_CACHE_USERNAME=%_GRADLE_BUILD_CACHE_USERNAME%" && set "GRADLE_BUILD_CACHE_PASSWORD=%_GRADLE_BUILD_CACHE_PASSWORD%" && set "DEVELOCITY_ACCESS_KEY=%_DEVELOCITY_ACCESS_KEY%" && set "DEVELOCITY_API_ACCESS_KEY=%_DEVELOCITY_API_ACCESS_KEY%" && set "BUILDKITE_API_TOKEN=%_BUILDKITE_API_TOKEN%" && set "JAVA_HOME=%_JAVA_HOME%" && set "JAVA16_HOME=%_JAVA16_HOME%" && set "TESTS_SEED=%_TESTS_SEED%" && set "BUILDKITE_RETRY_SOURCE_JOB_ID=%_BUILDKITE_RETRY_SOURCE_JOB_ID%" && set "BUILDKITE_RETRY_TYPE=%_BUILDKITE_RETRY_TYPE%"
 
 bash.exe -c "bash .buildkite/scripts/get-latest-test-mutes.sh"
 

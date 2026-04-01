@@ -172,6 +172,15 @@ if [[ "${BUILDKITE_RETRY_COUNT:-0}" -gt 0 ]]; then
   if BUILD_JSON=$(curl --max-time 30 -H "Authorization: Bearer $BUILDKITE_API_TOKEN" -X GET "https://api.buildkite.com/v2/organizations/elastic/pipelines/${BUILDKITE_PIPELINE_SLUG}/builds/${BUILDKITE_BUILD_NUMBER}?include_retried_jobs=true" 2>/dev/null); then
     if ORIGIN_JOB_ID=$(printf '%s\n' "$BUILD_JSON" | jq -r --arg jobId "$BUILDKITE_JOB_ID" ' .jobs[] | select(.id == $jobId) | .retry_source.job_id' 2>/dev/null) && [ "$ORIGIN_JOB_ID" != "null" ] && [ -n "$ORIGIN_JOB_ID" ]; then
 
+      # Export the original job ID so the build scan can link back to it
+      export BUILDKITE_RETRY_SOURCE_JOB_ID="$ORIGIN_JOB_ID"
+
+      # Extract retry type (automatic/manual) from the current job's API data
+      RETRY_TYPE=$(printf '%s\n' "$BUILD_JSON" | jq -r --arg jobId "$BUILDKITE_JOB_ID" '.jobs[] | select(.id == $jobId) | .retry_type // empty' 2>/dev/null)
+      if [[ -n "$RETRY_TYPE" ]]; then
+        export BUILDKITE_RETRY_TYPE="$RETRY_TYPE"
+      fi
+
       # Retrieve test seed from Buildkite metadata
       TESTS_SEED=$(printf '%s\n' "$BUILD_JSON" | jq -r --arg job_id "$ORIGIN_JOB_ID" '.meta_data["tests-seed-" + $job_id]' 2>/dev/null)
 

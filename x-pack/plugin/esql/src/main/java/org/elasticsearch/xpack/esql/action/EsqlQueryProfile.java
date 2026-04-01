@@ -189,7 +189,7 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
             + ", analysisMarker="
             + analysisMarker
             + ", fieldCapsCalls="
-            + fieldCapsCalls
+            + fieldCapsCalls.get()
             + '}';
     }
 

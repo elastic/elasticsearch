@@ -522,7 +522,7 @@ public class SharedBlobCacheWarmingService {
                         if (endOffsetsToWarm == null) {
                             Map<BlobFile, Long> offsetsToWarmComputed = ConcurrentCollections.newConcurrentMap();
                             ObjectStoreService.readReferencedCompoundCommitsUsingCache(
-                                commit,
+                                commit.commitFiles(),
                                 // do not pass in any previously read BCC, because we actually want to ensure that the
                                 // referenced CCs (headers) in this BCC are also populated in the cache
                                 null,

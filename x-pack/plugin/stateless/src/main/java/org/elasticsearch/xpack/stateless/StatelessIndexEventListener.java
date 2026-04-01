@@ -443,7 +443,7 @@ class StatelessIndexEventListener implements IndexEventListener {
                         Map<String, BlobFileRanges> blobFileRanges = ConcurrentCollections.newConcurrentMap();
                         Map<BlobFile, Long> offsetsToWarm = ConcurrentCollections.newConcurrentMap();
                         ObjectStoreService.readReferencedCompoundCommitsUsingCache(
-                            compoundCommit,
+                            compoundCommit.commitFiles(),
                             batchedCompoundCommit,
                             searchDirectory,
                             IOContext.DEFAULT,

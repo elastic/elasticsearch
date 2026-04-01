@@ -96,28 +96,28 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
     private static final int DEFAULT_NUM_HASH_FUNCTIONS = 4;
     // Bloom filter sizing uses a three-regime strategy based on document count:
     //
-    // Small (≤ SATURATION_REGIME_LIMIT): HIGH_BPD bits/doc — nominal saturation ~3.1%, typically
+    // Small (≤ SMALL_SEGMENT_MAX_DOCS): HIGH_BPD bits/doc — nominal saturation ~3.1%, typically
     // lower after power-of-two rounding, keeping FP rates low even after OR-merging many filters.
-    // Taper (SATURATION_REGIME_LIMIT – TAPER_END): bits/doc interpolates linearly from HIGH_BPD
-    // down to LOW_BPD, avoiding a sharp quality cliff at the boundary.
-    // Large (≥ TAPER_END): LOW_BPD bits/doc flat — at this scale the hard cap at
+    // Taper (SMALL_SEGMENT_MAX_DOCS – LARGE_SEGMENT_MIN_DOCS): bits/doc interpolates linearly from HIGH_BITS_PER_DOC
+    // down to LOW_BITS_PER_DOC, avoiding a sharp quality cliff at the boundary.
+    // Large (≥ LARGE_SEGMENT_MIN_DOCS): LOW_BITS_PER_DOC bits/doc flat — at this scale the hard cap at
     // MAX_BLOOM_FILTER_SIZE dominates; higher bits/doc would waste storage without proportional
     // FP-rate benefit.
     //
     // The bloom filter size is always capped at MAX_BLOOM_FILTER_SIZE and rounded up to the next
     // power of two in bytes, so actual saturation is always ≤ the nominal target.
-    private static final int SATURATION_REGIME_LIMIT = 160_000;
-    private static final int TAPER_END = 320_000;
+    private static final int SMALL_SEGMENT_MAX_DOCS = 160_000;
+    private static final int LARGE_SEGMENT_MIN_DOCS = 320_000;
     // Bits per document for small segments. With k = DEFAULT_NUM_HASH_FUNCTIONS hash functions,
     // the nominal saturation is s = 1 - e^(-k/bpd) ≈ 3.1%. The theoretically exact value for
     // 2% saturation (-k/ln(1-s) with s=0.02) is ~198 bits/doc; 128 is a practical compromise
     // that uses less storage. Power-of-two rounding always inflates the allocated filter (actual
     // bpd ≥ 128), bringing effective saturation to roughly 1.9–3.1% depending on where the
     // doc count falls relative to power-of-two boundaries.
-    private static final double HIGH_BPD = 128.0;
+    private static final double HIGH_BITS_PER_DOC = 128.0;
     // Bits per document for large segments. Also used to determine the doc-count cap at which the
-    // flat formula first hits MAX_BLOOM_FILTER_SIZE: cap = MAX_BLOOM_FILTER_SIZE_bytes * 8 / LOW_BPD.
-    static final double LOW_BPD = 24.0;
+    // flat formula first hits MAX_BLOOM_FILTER_SIZE: cap = MAX_BLOOM_FILTER_SIZE_bytes * 8 / LOW_BITS_PER_DOC.
+    static final double LOW_BITS_PER_DOC = 24.0;
     static final ByteSizeValue MAX_BLOOM_FILTER_SIZE = ByteSizeValue.ofMb(8);
 
     private final BigArrays bigArrays;
@@ -864,20 +864,20 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
      * depending on the segment's document count:
      *
      * <ul>
-     *   <li><b>Small segments (≤ {@value #SATURATION_REGIME_LIMIT} docs)</b> —
-     *       Sized at {@value #HIGH_BPD} bits per document. Nominal saturation is
+     *   <li><b>Small segments (≤ {@value #SMALL_SEGMENT_MAX_DOCS} docs)</b> —
+     *       Sized at {@value #HIGH_BITS_PER_DOC} bits per document. Nominal saturation is
      *       ~3.1% (s = 1 − e^(−k/bpd) with k=4); power-of-two rounding typically
      *       inflates the actual filter, bringing effective saturation to ~1.9–3.1%
      *       depending on the document count.
      *
-     *   <li><b>Mid-range segments ({@value #SATURATION_REGIME_LIMIT} –
-     *       {@value #TAPER_END} docs)</b> — Bits per document tapers linearly
-     *       from {@value #HIGH_BPD} down to {@value #LOW_BPD}. This avoids a
+     *   <li><b>Mid-range segments ({@value #SMALL_SEGMENT_MAX_DOCS} –
+     *       {@value #LARGE_SEGMENT_MIN_DOCS} docs)</b> — Bits per document tapers linearly
+     *       from {@value #HIGH_BITS_PER_DOC} down to {@value #LOW_BITS_PER_DOC}. This avoids a
      *       sharp cliff in filter quality between adjacent segment sizes while
      *       gradually trading accuracy for a smaller storage footprint.
      *
-     *   <li><b>Large segments (≥ {@value #TAPER_END} docs)</b> — Sized at a
-     *       flat {@value #LOW_BPD} bits per document. At this scale the hard cap
+     *   <li><b>Large segments (≥ {@value #LARGE_SEGMENT_MIN_DOCS} docs)</b> — Sized at a
+     *       flat {@value #LOW_BITS_PER_DOC} bits per document. At this scale the hard cap
      *       at {@link #MAX_BLOOM_FILTER_SIZE} dominates; the filter cannot grow
      *       proportionally with doc count regardless of the bits-per-doc ratio.
      * </ul>
@@ -893,13 +893,13 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
         assert MAX_BLOOM_FILTER_SIZE.getBytes() <= Integer.MAX_VALUE : MAX_BLOOM_FILTER_SIZE;
 
         double bitsPerDoc;
-        if (numDocs <= SATURATION_REGIME_LIMIT) {
-            bitsPerDoc = HIGH_BPD;
-        } else if (numDocs >= TAPER_END) {
-            bitsPerDoc = LOW_BPD;
+        if (numDocs <= SMALL_SEGMENT_MAX_DOCS) {
+            bitsPerDoc = HIGH_BITS_PER_DOC;
+        } else if (numDocs >= LARGE_SEGMENT_MIN_DOCS) {
+            bitsPerDoc = LOW_BITS_PER_DOC;
         } else {
-            double taperFraction = (double) (numDocs - SATURATION_REGIME_LIMIT) / (TAPER_END - SATURATION_REGIME_LIMIT);
-            bitsPerDoc = HIGH_BPD + taperFraction * (LOW_BPD - HIGH_BPD);
+            double taperFraction = (double) (numDocs - SMALL_SEGMENT_MAX_DOCS) / (LARGE_SEGMENT_MIN_DOCS - SMALL_SEGMENT_MAX_DOCS);
+            bitsPerDoc = HIGH_BITS_PER_DOC + taperFraction * (LOW_BITS_PER_DOC - HIGH_BITS_PER_DOC);
         }
 
         long sizeInBytes = Math.max(1, (long) (numDocs * bitsPerDoc) / Byte.SIZE);

@@ -26,8 +26,6 @@ BBQ currently supports two vector search algorithms, each suited to different sc
 When you set a dense vector field’s `index_options` parameter to `type: bbq_hnsw`, {{es}} uses the HNSW algorithm for fast [kNN search](docs-content://solutions/search/vector/knn.md) on compressed vectors. With the default [oversampling](#bbq-oversampling) applied, it delivers better cost efficiency, lower latency, and improved relevance ranking, making it the best choice for large-scale similarity search.
 
 :::{note}
-Starting in version 9.1, `bbq_hnsw` is the default indexing method for new `dense_vector` fields with greater than 384 dimensions, so you typically don’t need to specify it explicitly when creating an index.
-
 Datasets with less than 384 dimensions may see less accuracy and incur a higher overhead cost related to the corrective factors, but we have observed some production datasets perform well even at fairly low dimensions including [tests on e5-small](https://www.elastic.co/search-labs/blog/better-binary-quantization-lucene-elasticsearch).
 :::
 
@@ -138,6 +136,8 @@ stack: ga 9.2
 ```
 :::{note}
 This feature requires an [Enterprise subscription](https://www.elastic.co/subscriptions).
+
+{applies_to}`stack: ga 9.4` {applies_to}`serverless: ga` `bbq_disk` is the default index type for `dense_vector` when it is available under the current license.
 :::
 
 When you set a dense vector field’s `index_options` parameter to `type: bbq_disk`, {{es}} uses the DiskBBQ algorithm, a disk-based alternative to HNSW for [kNN search](docs-content://solutions/search/vector/knn.md) on compressed vectors. DiskBBQ stores the vector data on disk instead of in memory, lowering RAM requirements and reducing the overall cost of vector storage and search.

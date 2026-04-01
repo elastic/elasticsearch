@@ -2646,23 +2646,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // unsupported / unresolved fields can be explicitly retained
             return cleanPlan.transformUp(
                 LogicalPlan.class,
-                p -> p.transformExpressionsOnly(FieldAttribute.class, UnionTypesCleanup::checkUnresolved)
+                p -> p.transformExpressionsOnly(FieldAttribute.class, FieldAttribute::checkUnresolved)
             );
-        }
-
-        static Attribute checkUnresolved(FieldAttribute fa) {
-            if (fa.field() instanceof InvalidMappedField imf) {
-                String unresolvedMessage = "Cannot use field [" + fa.name() + "] due to ambiguities being " + imf.errorMessage();
-                List<String> types = imf.getTypesToIndices().keySet().stream().toList();
-                return new UnsupportedAttribute(
-                    fa.source(),
-                    fa.name(),
-                    new UnsupportedEsField(imf.getName(), types),
-                    unresolvedMessage,
-                    fa.id()
-                );
-            }
-            return fa;
         }
 
         private static LogicalPlan planWithoutSyntheticAttributes(LogicalPlan plan) {

@@ -26,6 +26,7 @@ import java.net.FileNameMap;
 import java.net.HttpURLConnection;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.net.MalformedURLException;
 import java.net.MulticastSocket;
 import java.net.NetworkInterface;
 import java.net.ProtocolFamily;
@@ -93,10 +94,18 @@ public class NetworkInstrumentation implements InstrumentationConfig {
         builder.on(URL.class, rule -> {
             rule.callingStatic(URL::new, String.class, String.class, Integer.class, String.class, URLStreamHandler.class)
                 .enforce(Policies::changeNetworkHandling)
-                .elseThrowNotEntitled();
+                .elseThrow(e -> {
+                    var ex = new MalformedURLException(e.getMessage());
+                    ex.initCause(e);
+                    return ex;
+                });
             rule.callingStatic(URL::new, URL.class, String.class, URLStreamHandler.class)
                 .enforce(Policies::changeNetworkHandling)
-                .elseThrowNotEntitled();
+                .elseThrow(e -> {
+                    var ex = new MalformedURLException(e.getMessage());
+                    ex.initCause(e);
+                    return ex;
+                });
             rule.callingVoidStatic(URL::setURLStreamHandlerFactory, URLStreamHandlerFactory.class)
                 .enforce(Policies::changeNetworkHandling)
                 .elseThrowNotEntitled();
@@ -166,22 +175,24 @@ public class NetworkInstrumentation implements InstrumentationConfig {
                     return Policies.empty();
                 }
             }).elseThrowNotEntitled();
-            rule.callingStatic(Socket::new, String.class, Integer.class).enforce(Policies::outboundNetworkAccess).elseThrowNotEntitled();
+            rule.callingStatic(Socket::new, String.class, Integer.class)
+                .enforce(Policies::outboundNetworkAccess)
+                .elseThrow(IOException::new);
             rule.callingStatic(Socket::new, String.class, Integer.class, InetAddress.class, Integer.class)
                 .enforce(Policies::outboundNetworkAccess)
-                .elseThrowNotEntitled();
+                .elseThrow(IOException::new);
             rule.callingStatic(Socket::new, InetAddress.class, Integer.class)
                 .enforce(Policies::outboundNetworkAccess)
-                .elseThrowNotEntitled();
+                .elseThrow(IOException::new);
             rule.callingStatic(Socket::new, InetAddress.class, Integer.class, InetAddress.class, Integer.class)
                 .enforce(Policies::outboundNetworkAccess)
-                .elseThrowNotEntitled();
+                .elseThrow(IOException::new);
             rule.callingStatic(Socket::new, String.class, Integer.class, Boolean.class)
                 .enforce(Policies::outboundNetworkAccess)
-                .elseThrowNotEntitled();
+                .elseThrow(IOException::new);
             rule.callingStatic(Socket::new, InetAddress.class, Integer.class, Boolean.class)
                 .enforce(Policies::outboundNetworkAccess)
-                .elseThrowNotEntitled();
+                .elseThrow(IOException::new);
             rule.callingVoidStatic(Socket::setSocketImplFactory, SocketImplFactory.class)
                 .enforce(Policies::changeNetworkHandling)
                 .elseThrow(IOException::new);
@@ -193,14 +204,14 @@ public class NetworkInstrumentation implements InstrumentationConfig {
         });
 
         builder.on(ServerSocket.class, rule -> {
-            rule.callingStatic(ServerSocket::new).enforce(Policies::inboundNetworkAccess).elseThrowNotEntitled();
-            rule.callingStatic(ServerSocket::new, Integer.class).enforce(Policies::inboundNetworkAccess).elseThrowNotEntitled();
+            rule.callingStatic(ServerSocket::new).enforce(Policies::inboundNetworkAccess).elseThrow(IOException::new);
+            rule.callingStatic(ServerSocket::new, Integer.class).enforce(Policies::inboundNetworkAccess).elseThrow(IOException::new);
             rule.callingStatic(ServerSocket::new, Integer.class, Integer.class)
                 .enforce(Policies::inboundNetworkAccess)
-                .elseThrowNotEntitled();
+                .elseThrow(IOException::new);
             rule.callingStatic(ServerSocket::new, Integer.class, Integer.class, InetAddress.class)
                 .enforce(Policies::inboundNetworkAccess)
-                .elseThrowNotEntitled();
+                .elseThrow(IOException::new);
             rule.callingVoidStatic(ServerSocket::setSocketFactory, SocketImplFactory.class)
                 .enforce(Policies::changeNetworkHandling)
                 .elseThrow(IOException::new);
@@ -212,12 +223,18 @@ public class NetworkInstrumentation implements InstrumentationConfig {
         });
 
         builder.on(DatagramSocket.class, rule -> {
-            rule.callingStatic(DatagramSocket::new).enforce(Policies::allNetworkAccess).elseThrowNotEntitled();
-            rule.callingStatic(DatagramSocket::new, Integer.class).enforce(Policies::allNetworkAccess).elseThrowNotEntitled();
+            rule.callingStatic(DatagramSocket::new)
+                .enforce(Policies::allNetworkAccess)
+                .elseThrow(e -> new SocketException(e.getMessage(), e));
+            rule.callingStatic(DatagramSocket::new, Integer.class)
+                .enforce(Policies::allNetworkAccess)
+                .elseThrow(e -> new SocketException(e.getMessage(), e));
             rule.callingStatic(DatagramSocket::new, Integer.class, InetAddress.class)
                 .enforce(Policies::allNetworkAccess)
-                .elseThrowNotEntitled();
-            rule.callingStatic(DatagramSocket::new, SocketAddress.class).enforce(Policies::allNetworkAccess).elseThrowNotEntitled();
+                .elseThrow(e -> new SocketException(e.getMessage(), e));
+            rule.callingStatic(DatagramSocket::new, SocketAddress.class)
+                .enforce(Policies::allNetworkAccess)
+                .elseThrow(e -> new SocketException(e.getMessage(), e));
             rule.callingVoidStatic(DatagramSocket::setDatagramSocketImplFactory, DatagramSocketImplFactory.class)
                 .enforce(Policies::changeNetworkHandling)
                 .elseThrow(IOException::new);

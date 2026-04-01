@@ -14,7 +14,6 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesIndexResponse;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.fieldcaps.IndexFieldCapabilities;
 import org.elasticsearch.action.fieldcaps.IndexFieldCapabilitiesBuilder;
-import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
@@ -112,6 +111,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UriParts;
+import org.elasticsearch.xpack.esql.plan.logical.UserAgent;
 import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.FuseScoreEval;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
@@ -121,7 +121,6 @@ import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.Period;
 import java.util.ArrayList;
@@ -160,7 +159,10 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning
 import static org.elasticsearch.xpack.esql.TestAnalyzer.loadMapping;
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.NO_FIELDS;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.TEXT_EMBEDDING_INFERENCE_ID;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.fieldCapabilitiesIndexResponse;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.fieldResponseMap;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.indexWithDateDateNanosUnionType;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.mergedResolution;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.randomInferenceIdOtherThan;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.unresolvedRelation;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
@@ -1363,7 +1365,6 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testImplicitDefaultLimitAfterLimitBy() {
-        assumeTrue("LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_LIMIT_BY.isEnabled());
         var plan = basic().query("from test | limit 1 by emp_no");
 
         var defaultLimit = as(plan, Limit.class);
@@ -2333,7 +2334,7 @@ public class AnalyzerTests extends ESTestCase {
             | LOOKUP_🐔 int_number_names ON int
             """;
         if (Build.current().isSnapshot() == false) {
-            basic().error(query, ParsingException.class, containsString("line 3:3: mismatched input 'LOOKUP_🐔' expecting {"));
+            basic().error(query, ParsingException.class, containsString("3:3: mismatched input 'LOOKUP_🐔' expecting {"));
             return;
         }
         LogicalPlan plan = basic().query(query);
@@ -2386,7 +2387,7 @@ public class AnalyzerTests extends ESTestCase {
             | LOOKUP_🐔 int_number_names ON garbage
             """;
         if (Build.current().isSnapshot() == false) {
-            basic().error(query, ParsingException.class, containsString("line 2:3: mismatched input 'LOOKUP_🐔' expecting {"));
+            basic().error(query, ParsingException.class, containsString("2:3: mismatched input 'LOOKUP_🐔' expecting {"));
             return;
         }
         basic().error(query, containsString("Unknown column in lookup target [garbage]"));
@@ -2398,7 +2399,7 @@ public class AnalyzerTests extends ESTestCase {
             | LOOKUP_🐔 garbage ON a
             """;
         if (Build.current().isSnapshot() == false) {
-            basic().error(query, ParsingException.class, containsString("line 2:3: mismatched input 'LOOKUP_🐔' expecting {"));
+            basic().error(query, ParsingException.class, containsString("2:3: mismatched input 'LOOKUP_🐔' expecting {"));
             return;
         }
         basic().error(query, containsString("Unknown table [garbage]"));
@@ -2411,7 +2412,7 @@ public class AnalyzerTests extends ESTestCase {
             | LOOKUP_🐔 int_number_names ON int
             """;
         if (Build.current().isSnapshot() == false) {
-            basic().error(query, ParsingException.class, containsString("line 3:3: mismatched input 'LOOKUP_🐔' expecting {"));
+            basic().error(query, ParsingException.class, containsString("3:3: mismatched input 'LOOKUP_🐔' expecting {"));
             return;
         }
         basic().error(query, containsString("column type mismatch, table column was [integer] and original column was [keyword]"));
@@ -3342,20 +3343,14 @@ public class AnalyzerTests extends ESTestCase {
     public void testResolveInsist_multiIndexFieldPartiallyMappedWithSingleKeywordType_createsUnmappedField() {
         assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
 
-        IndexResolution resolution = IndexResolver.mergedMappings(
-            "foo,bar",
-            false,
-            fieldsInfoOnCurrentVersion(
-                new FieldCapabilitiesResponse(
-                    List.of(
-                        fieldCapabilitiesIndexResponse("foo", messageResponseMap("keyword")),
-                        fieldCapabilitiesIndexResponse("bar", Map.of())
-                    ),
-                    List.of()
-                )
+        FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
+            List.of(
+                fieldCapabilitiesIndexResponse("foo", fieldResponseMap("message", "keyword")),
+                fieldCapabilitiesIndexResponse("bar", Map.of())
             ),
-            IndexResolver.DO_NOT_GROUP
+            List.of()
         );
+        IndexResolution resolution = mergedResolution("foo,bar", caps);
 
         String query = "FROM foo, bar | INSIST_🐔 message";
         var plan = analyzer().addIndex(resolution).query(query);
@@ -3369,20 +3364,14 @@ public class AnalyzerTests extends ESTestCase {
     public void testResolveInsist_multiIndexFieldExistsWithSingleTypeButIsNotKeywordAndMissingCast_createsAnInvalidMappedField() {
         assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
 
-        IndexResolution resolution = IndexResolver.mergedMappings(
-            "foo,bar",
-            false,
-            fieldsInfoOnCurrentVersion(
-                new FieldCapabilitiesResponse(
-                    List.of(
-                        fieldCapabilitiesIndexResponse("foo", messageResponseMap("long")),
-                        fieldCapabilitiesIndexResponse("bar", Map.of())
-                    ),
-                    List.of()
-                )
+        FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
+            List.of(
+                fieldCapabilitiesIndexResponse("foo", fieldResponseMap("message", "long")),
+                fieldCapabilitiesIndexResponse("bar", Map.of())
             ),
-            IndexResolver.DO_NOT_GROUP
+            List.of()
         );
+        IndexResolution resolution = mergedResolution("foo,bar", caps);
         var plan = analyzer().addIndex(resolution).query("FROM foo, bar | INSIST_🐔 message");
         var limit = as(plan, Limit.class);
         var insist = as(limit.child(), Insist.class);
@@ -3390,119 +3379,53 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(attribute.name(), is("message"));
 
         String expected = "Cannot use field [message] due to ambiguities being mapped as [2] incompatible types: "
-            + "[keyword] enforced by INSIST command, and [long] in index mappings";
+            + "[keyword] due to loading from _source, [long] in [foo]";
         assertThat(attribute.unresolvedMessage(), is(expected));
     }
 
     public void testResolveInsist_multiIndexFieldPartiallyExistsWithMultiTypesNoKeyword_createsAnInvalidMappedField() {
         assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
 
-        IndexResolution resolution = IndexResolver.mergedMappings(
-            "foo,bar",
-            false,
-            fieldsInfoOnCurrentVersion(
-                new FieldCapabilitiesResponse(
-                    List.of(
-                        fieldCapabilitiesIndexResponse("foo", messageResponseMap("long")),
-                        fieldCapabilitiesIndexResponse("bar", messageResponseMap("date")),
-                        fieldCapabilitiesIndexResponse("bazz", Map.of())
-                    ),
-                    List.of()
-                )
+        FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
+            List.of(
+                fieldCapabilitiesIndexResponse("foo", fieldResponseMap("message", "long")),
+                fieldCapabilitiesIndexResponse("bar", fieldResponseMap("message", "date")),
+                fieldCapabilitiesIndexResponse("bazz", Map.of())
             ),
-            IndexResolver.DO_NOT_GROUP
+            List.of()
         );
+        IndexResolution resolution = mergedResolution("foo,bar", caps);
         var plan = analyzer().addIndex(resolution).query("FROM foo, bar | INSIST_🐔 message");
         var limit = as(plan, Limit.class);
         var insist = as(limit.child(), Insist.class);
         var attr = (UnsupportedAttribute) EsqlTestUtils.singleValue(insist.output());
 
         String expected = "Cannot use field [message] due to ambiguities being mapped as [3] incompatible types: "
-            + "[keyword] enforced by INSIST command, [datetime] in [bar], [long] in [foo]";
+            + "[keyword] due to loading from _source, [datetime] in [bar], [long] in [foo]";
         assertThat(attr.unresolvedMessage(), is(expected));
-    }
-
-    public void testResolveInsist_multiIndexSameMapping_fieldIsMapped() {
-        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
-
-        IndexResolution resolution = IndexResolver.mergedMappings(
-            "foo,bar",
-            false,
-            fieldsInfoOnCurrentVersion(
-                new FieldCapabilitiesResponse(
-                    List.of(
-                        fieldCapabilitiesIndexResponse("foo", messageResponseMap("long")),
-                        fieldCapabilitiesIndexResponse("bar", messageResponseMap("long"))
-                    ),
-                    List.of()
-                )
-            ),
-            IndexResolver.DO_NOT_GROUP
-        );
-        var plan = analyzer().addIndex(resolution).query("FROM foo, bar | INSIST_🐔 message");
-        var limit = as(plan, Limit.class);
-        var insist = as(limit.child(), Insist.class);
-        var attribute = (FieldAttribute) EsqlTestUtils.singleValue(insist.output());
-        assertThat(attribute.name(), is("message"));
-        assertThat(attribute.dataType(), is(DataType.LONG));
     }
 
     public void testResolveInsist_multiIndexFieldPartiallyExistsWithMultiTypesWithKeyword_createsAnInvalidMappedField() {
         assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
 
-        IndexResolution resolution = IndexResolver.mergedMappings(
-            "foo,bar",
-            false,
-            fieldsInfoOnCurrentVersion(
-                new FieldCapabilitiesResponse(
-                    List.of(
-                        fieldCapabilitiesIndexResponse("foo", messageResponseMap("long")),
-                        fieldCapabilitiesIndexResponse("bar", messageResponseMap("date")),
-                        fieldCapabilitiesIndexResponse("bazz", messageResponseMap("keyword")),
-                        fieldCapabilitiesIndexResponse("qux", Map.of())
-                    ),
-                    List.of()
-                )
+        FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
+            List.of(
+                fieldCapabilitiesIndexResponse("foo", fieldResponseMap("message", "long")),
+                fieldCapabilitiesIndexResponse("bar", fieldResponseMap("message", "date")),
+                fieldCapabilitiesIndexResponse("bazz", fieldResponseMap("message", "keyword")),
+                fieldCapabilitiesIndexResponse("qux", Map.of())
             ),
-            IndexResolver.DO_NOT_GROUP
+            List.of()
         );
+        IndexResolution resolution = mergedResolution("foo,bar", caps);
         var plan = analyzer().addIndex(resolution).query("FROM foo, bar | INSIST_🐔 message");
         var limit = as(plan, Limit.class);
         var insist = as(limit.child(), Insist.class);
         var attr = (UnsupportedAttribute) EsqlTestUtils.singleValue(insist.output());
 
         String expected = "Cannot use field [message] due to ambiguities being mapped as [3] incompatible types: "
-            + "[datetime] in [bar], [keyword] enforced by INSIST command and in [bazz], [long] in [foo]";
+            + "[datetime] in [bar], [keyword] due to loading from _source and in [bazz], [long] in [foo]";
         assertThat(attr.unresolvedMessage(), is(expected));
-    }
-
-    public void testResolveInsist_multiIndexFieldPartiallyExistsWithMultiTypesWithCast_castsAreNotSupported() {
-        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
-
-        IndexResolution resolution = IndexResolver.mergedMappings(
-            "foo,bar",
-            false,
-            fieldsInfoOnCurrentVersion(
-                new FieldCapabilitiesResponse(
-                    List.of(
-                        fieldCapabilitiesIndexResponse("foo", messageResponseMap("long")),
-                        fieldCapabilitiesIndexResponse("bar", messageResponseMap("date")),
-                        fieldCapabilitiesIndexResponse("bazz", Map.of())
-                    ),
-                    List.of()
-                )
-            ),
-            IndexResolver.DO_NOT_GROUP
-        );
-        VerificationException e = expectThrows(
-            VerificationException.class,
-            () -> analyzer().addIndex(resolution).query("FROM foo, bar | INSIST_🐔 message | EVAL message = message :: keyword")
-        );
-        // This isn't the most informative error, but it'll do for now.
-        assertThat(
-            e.getMessage(),
-            containsString("EVAL does not support type [unsupported] as the return data type of expression [message]")
-        );
     }
 
     public void testResolveDenseVector() {
@@ -3956,6 +3879,102 @@ public class AnalyzerTests extends ESTestCase {
             | FORK (FORK (WHERE true) (WHERE true))
                    (WHERE true)
             """, containsString("Only a single FORK command is supported, but found multiple"));
+
+        basic().error("""
+            FROM test
+            | FORK (EVAL conflict_field = "string_value")
+                   (EVAL conflict_field = 123)
+            | EVAL y = conflict_field
+            """, containsString("Column [conflict_field] has conflicting data types in FORK branches: [INTEGER] and [KEYWORD]"));
+
+        basic().error("""
+            FROM test
+            | FORK (EVAL shared_field = "abc")
+                   (EVAL shared_field = 100.5)
+            | WHERE shared_field > 50
+            """, containsString("first argument of [shared_field > 50] is [keyword]"));
+    }
+
+    public void testForkWithAmbiguousFieldType() {
+        IndexResolution resolution = IndexResolver.mergedMappings(
+            "k8s-downsampled,k8s",
+            false,
+            fieldsInfoOnCurrentVersion(
+                new FieldCapabilitiesResponse(
+                    List.of(
+                        fieldCapabilitiesIndexResponse(
+                            "k8s-downsampled",
+                            Map.of(
+                                "network.eth0.tx",
+                                new IndexFieldCapabilitiesBuilder("network.eth0.tx", "aggregate_metric_double").build()
+                            )
+                        ),
+                        fieldCapabilitiesIndexResponse(
+                            "k8s",
+                            Map.of("network.eth0.tx", new IndexFieldCapabilitiesBuilder("network.eth0.tx", "integer").build())
+                        )
+                    ),
+                    List.of()
+                )
+            ),
+            IndexResolver.DO_NOT_GROUP
+        );
+
+        analyzer().addIndex(resolution)
+            .error(
+                """
+                    from k8s-downsampled, k8s
+                    | fork (where true) (where true)
+                    | eval x = network.eth0.tx + 1
+                    """,
+                VerificationException.class,
+                containsString(
+                    "Cannot use field [network.eth0.tx] due to ambiguities being mapped as [2] incompatible types: "
+                        + "[aggregate_metric_double] in [k8s-downsampled], [integer] in [k8s]"
+                )
+            );
+
+        analyzer().addIndex(resolution)
+            .error(
+                """
+                    from k8s-downsampled, k8s
+                    | fork (where true) (where false)
+                    | stats c = COUNT() BY network.eth0.tx
+                    """,
+                VerificationException.class,
+                containsString(
+                    "Cannot use field [network.eth0.tx] due to ambiguities being mapped as [2] incompatible types: "
+                        + "[aggregate_metric_double] in [k8s-downsampled], [integer] in [k8s]"
+                )
+            );
+
+        analyzer().addIndex(resolution)
+            .error(
+                """
+                    from k8s-downsampled, k8s
+                    | fork (KEEP network.eth0.tx) (DROP network.eth0.tx)
+                    | eval x = network.eth0.tx + 1
+                    """,
+                VerificationException.class,
+                containsString(
+                    "Cannot use field [network.eth0.tx] due to ambiguities being mapped as [2] incompatible types: "
+                        + "[aggregate_metric_double] in [k8s-downsampled], [integer] in [k8s]"
+                )
+            );
+
+        analyzer().addIndex(resolution)
+            .error(
+                """
+                    from k8s-downsampled, k8s
+                    | fork (EVAL x = network.eth0.tx + 1)
+                           (WHERE true)
+                    """,
+                VerificationException.class,
+                containsString(
+                    "Cannot use field [network.eth0.tx] due to ambiguities being mapped as [2] incompatible types: "
+                        + "[aggregate_metric_double] in [k8s-downsampled], [integer] in [k8s]"
+                )
+            );
     }
 
     public void testValidFuse() {
@@ -4013,22 +4032,6 @@ public class AnalyzerTests extends ESTestCase {
             """, containsString("FUSE requires a key column, default [_id] column not found"));
     }
 
-    // TODO There's too much boilerplate involved here! We need a better way of creating FieldCapabilitiesResponses from a mapping or index.
-    private static FieldCapabilitiesIndexResponse fieldCapabilitiesIndexResponse(
-        String indexName,
-        Map<String, IndexFieldCapabilities> fields
-    ) {
-        String indexMappingHash = new String(
-            MessageDigests.sha256().digest(fields.toString().getBytes(StandardCharsets.UTF_8)),
-            StandardCharsets.UTF_8
-        );
-        return new FieldCapabilitiesIndexResponse(indexName, indexMappingHash, fields, false, IndexMode.STANDARD);
-    }
-
-    private static Map<String, IndexFieldCapabilities> messageResponseMap(String date) {
-        return Map.of("message", new IndexFieldCapabilitiesBuilder("message", date).build());
-    }
-
     private void assertProjection(LogicalPlan plan, String... names) {
         var limit = as(plan, Limit.class);
         assertThat(Expressions.names(limit.output()), contains(names));
@@ -4055,8 +4058,7 @@ public class AnalyzerTests extends ESTestCase {
         List<FieldCapabilitiesIndexResponse> idxResponses = List.of(
             new FieldCapabilitiesIndexResponse("idx", "idx", Map.of(), true, IndexMode.STANDARD)
         );
-        IndexResolver.FieldsInfo caps = fieldsInfoOnCurrentVersion(new FieldCapabilitiesResponse(idxResponses, List.of()));
-        IndexResolution resolution = IndexResolver.mergedMappings("test*", false, caps, IndexResolver.DO_NOT_GROUP);
+        IndexResolution resolution = mergedResolution("test*", new FieldCapabilitiesResponse(idxResponses, List.of()));
         return analyzer().addIndex(resolution).query(query);
     }
 
@@ -4697,7 +4699,7 @@ public class AnalyzerTests extends ESTestCase {
             Map.of("union_index_1", IndexMode.STANDARD, "union_index_2", IndexMode.STANDARD),
             Map.of(),
             Map.of(),
-            Set.of()
+            Map.of()
         );
         IndexResolution resolution = IndexResolution.valid(index);
 
@@ -4740,7 +4742,7 @@ public class AnalyzerTests extends ESTestCase {
             Map.of("test1", IndexMode.STANDARD, "test2", IndexMode.STANDARD),
             Map.of(),
             Map.of(),
-            Set.of()
+            Map.of()
         );
         IndexResolution resolution = IndexResolution.valid(index);
 
@@ -5013,7 +5015,7 @@ public class AnalyzerTests extends ESTestCase {
             Map.of("k8s", IndexMode.TIME_SERIES, "k8s-downsampled", IndexMode.TIME_SERIES),
             Map.of(),
             Map.of(),
-            Set.of()
+            Map.of()
         );
         var testAnalyzer = analyzer().addIndex(esIndex);
         var stddevPlan = testAnalyzer.query("""
@@ -6467,6 +6469,32 @@ public class AnalyzerTests extends ESTestCase {
         basic().error(
             "ROW fqdn=123 | registered_domain rd = fqdn",
             containsString("Input for REGISTERED_DOMAIN must be of type [string] but is [integer]")
+        );
+    }
+
+    public void testUserAgent() {
+        assumeTrue("requires user_agent command capability", EsqlCapabilities.Cap.USER_AGENT_COMMAND.isEnabled());
+        LogicalPlan plan = basic().query("ROW ua=\"Mozilla/5.0\" | user_agent p = ua WITH { \"extract_device_type\": true }");
+
+        Limit limit = as(plan, Limit.class);
+        UserAgent userAgent = as(limit.child(), UserAgent.class);
+
+        final List<Attribute> attributes = userAgent.generatedAttributes();
+
+        assertThrows(UnsupportedOperationException.class, () -> attributes.add(new UnresolvedAttribute(EMPTY, "test")));
+
+        assertContainsAttribute(attributes, "p.name", DataType.KEYWORD);
+        assertContainsAttribute(attributes, "p.version", DataType.KEYWORD);
+        assertContainsAttribute(attributes, "p.os.name", DataType.KEYWORD);
+        assertContainsAttribute(attributes, "p.os.version", DataType.KEYWORD);
+        assertContainsAttribute(attributes, "p.os.full", DataType.KEYWORD);
+        assertContainsAttribute(attributes, "p.device.name", DataType.KEYWORD);
+        assertContainsAttribute(attributes, "p.device.type", DataType.KEYWORD);
+        assertEquals(7, attributes.size());
+
+        basic().error(
+            "ROW ua=123 | user_agent p = ua WITH { \"extract_device_type\": true }",
+            containsString("Input for USER_AGENT must be of type [string] but is [integer]")
         );
     }
 

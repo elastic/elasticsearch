@@ -22,6 +22,7 @@ configurations {
 
 configurations.all {
   resolutionStrategy.force "io.airlift:aircompressor:${versions.aircompressor}"
+  resolutionStrategy.force "org.xerial.snappy:snappy-java:${versions.snappyJava}"
 }
 
 // OrcFixtureGenerator lives in its own source set so TestingConventions doesn't load it
@@ -55,6 +56,7 @@ dependencies {
   clusterModules project(':modules:repository-gcs')
   clusterPlugins project(':plugins:mapper-size')
   clusterPlugins project(':plugins:mapper-murmur3')
+  clusterPlugins project(':x-pack:plugin:inference:qa:test-service-plugin')
 
   // The ORC datasource plugin under test
   clusterPlugins project(xpackModule('esql-datasource-orc'))
@@ -82,7 +84,7 @@ def orcFixtureOutputDir = file("${buildDir}/orc-fixtures/iceberg-fixtures")
 def orcFixtureDir = file("${orcFixtureOutputDir}/standalone")
 
 // Add CSV base names here to generate ORC fixtures; source: esql:qa:testFixtures/src/main/resources/data/{name}.csv
-def csvToOrcFixtures = ['employees', 'web_logs']
+def csvToOrcFixtures = ['employees', 'web_logs', 'books']
 
 def generateOrcTasks = []
 csvToOrcFixtures.each { baseName ->

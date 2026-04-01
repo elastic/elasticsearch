@@ -110,6 +110,16 @@ class NetworkAccessCheckActions {
         } catch (InvalidAlgorithmParameterException ex) {
             // Assert we actually hit the class we care about, LDAPCertStore (or its impl)
             assert Arrays.stream(ex.getStackTrace()).anyMatch(e -> e.getClassName().endsWith("LDAPCertStore"));
+        } catch (NoSuchAlgorithmException ex) {
+            // In some environments (e.g. with FIPS enabled) the LDAP CertStore is not available.
+            // When this is a genuine entitlement denial, the exception wraps a NotEntitledException as its cause;
+            // otherwise (provider simply not present), we swallow it — the entitlement check still ran.
+            // The bridge is compile-only (loaded in a separate classloader), so we must compare by class name
+            // rather than using instanceof.
+            if (ex.getCause() != null
+                && ex.getCause().getClass().getName().equals("org.elasticsearch.entitlement.bridge.NotEntitledException")) {
+                throw ex;
+            }
         }
     }
 
@@ -303,7 +313,7 @@ class NetworkAccessCheckActions {
         };
     }
 
-    @EntitlementTest(expectedAccess = ALWAYS_DENIED)
+    @EntitlementTest(expectedAccess = ALWAYS_DENIED, expectedExceptionIfDenied = MalformedURLException.class)
     static void createURLWithURLStreamHandler() throws MalformedURLException {
         var x = new URL("http", "host", 1234, "file", new URLStreamHandler() {
             @Override
@@ -313,7 +323,7 @@ class NetworkAccessCheckActions {
         });
     }
 
-    @EntitlementTest(expectedAccess = ALWAYS_DENIED)
+    @EntitlementTest(expectedAccess = ALWAYS_DENIED, expectedExceptionIfDenied = MalformedURLException.class)
     static void createURLWithURLStreamHandler2() throws MalformedURLException {
         var x = new URL(null, "spec", new URLStreamHandler() {
             @Override
@@ -434,7 +444,7 @@ class NetworkAccessCheckActions {
         URLConnection.setContentHandlerFactory(__ -> { throw new IllegalStateException(); });
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = SocketException.class)
     static void bindDatagramSocket() throws SocketException {
         try (var socket = new DatagramSocket(null)) {
             socket.bind(null);

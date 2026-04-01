@@ -42,6 +42,8 @@ import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -52,6 +54,8 @@ import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterService;
+import org.elasticsearch.useragent.UserAgentPlugin;
+import org.elasticsearch.useragent.api.UserAgentParserRegistry;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
@@ -143,6 +147,7 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.URI;
 import java.net.URL;
 import java.nio.file.Files;
@@ -327,7 +332,7 @@ public class CsvTests extends ESTestCase {
             );
             assumeFalseLogging(
                 "Can't simulate _source loading for unmapped fields in csv tests",
-                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.OPTIONAL_FIELDS_V4.capabilityName())
+                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.capabilityName())
             );
             assumeFalseLogging(
                 "can't use rereank in csv tests",
@@ -962,6 +967,13 @@ public class CsvTests extends ESTestCase {
         ExchangeSourceHandler exchangeSource = new ExchangeSourceHandler(between(1, 64), executor);
         ExchangeSinkHandler exchangeSink = new ExchangeSinkHandler(blockFactory, between(1, 64), threadPool::relativeTimeInMillis);
 
+        UserAgentParserRegistry userAgentRegistry;
+        try {
+            userAgentRegistry = createUserAgentRegistry();
+        } catch (IOException e) {
+            throw new IllegalStateException("Failed to create UserAgentParserRegistry", e);
+        }
+
         LocalExecutionPlanner executionPlanner = new LocalExecutionPlanner(
             getTestName(),
             "",
@@ -975,6 +987,7 @@ public class CsvTests extends ESTestCase {
             mock(EnrichLookupService.class),
             mock(LookupFromIndexService.class),
             mock(InferenceService.class),
+            userAgentRegistry,
             physicalOperationProviders,
             operatorFactoryRegistry
         );
@@ -1086,5 +1099,23 @@ public class CsvTests extends ESTestCase {
             }));
         }
         return coordinatorSplits;
+    }
+
+    /**
+     * Creates a {@link UserAgentParserRegistry} with a config directory
+     * containing the custom-regexes.yml test resource, so csv-spec tests can exercise the {@code regex_file} option.
+     */
+    private static UserAgentParserRegistry createUserAgentRegistry() throws IOException {
+        Path homeDir = createTempDir();
+        Path userAgentConfigDir = homeDir.resolve("config").resolve("user-agent");
+        Files.createDirectories(userAgentConfigDir);
+        try (InputStream is = CsvTests.class.getResourceAsStream("/custom-regexes.yml")) {
+            assert is != null : "custom-regexes.yml not found on classpath";
+            Files.copy(is, userAgentConfigDir.resolve("custom-regexes.yml"));
+        }
+        return UserAgentPlugin.createRegistry(
+            TestEnvironment.newEnvironment(Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), homeDir).build()),
+            Settings.EMPTY
+        );
     }
 }

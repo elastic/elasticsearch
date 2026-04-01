@@ -42,9 +42,10 @@ public class FlattenedFieldParserTests extends ESTestCase {
             Integer.MAX_VALUE,
             Integer.MAX_VALUE,
             null,
-            false,
             true,
-            Map.of()
+            true,
+            Map.of(),
+            true
         );
     }
 
@@ -310,7 +311,8 @@ public class FlattenedFieldParserTests extends ESTestCase {
             null,
             false,
             true,
-            Map.of()
+            Map.of(),
+            true
         );
 
         TestDocumentParserContext context = new TestDocumentParserContext(xContentParser);
@@ -337,7 +339,8 @@ public class FlattenedFieldParserTests extends ESTestCase {
             null,
             false,
             true,
-            Map.of()
+            Map.of(),
+            true
         );
 
         TestDocumentParserContext context = new TestDocumentParserContext(xContentParser);
@@ -357,9 +360,33 @@ public class FlattenedFieldParserTests extends ESTestCase {
             Integer.MAX_VALUE,
             10,
             null,
+            true,
+            true,
+            Map.of(),
+            true
+        );
+
+        TestDocumentParserContext context = new TestDocumentParserContext(xContentParser);
+        configuredParser.parse(context);
+        List<IndexableField> fields = context.doc().getFields();
+        assertEquals(0, fields.size());
+    }
+
+    public void testIgnoreAboveWithStoredFields() throws Exception {
+        String input = "{ \"key\": \"a longer field than usual\" }";
+        XContentParser xContentParser = createXContentParser(input);
+        FlattenedFieldParser configuredParser = new FlattenedFieldParser(
+            "field",
+            "field._keyed",
+            "field._keyed._ignored",
+            new FakeFieldType("field"),
+            Integer.MAX_VALUE,
+            10,
+            null,
             false,
             true,
-            Map.of()
+            Map.of(),
+            false
         );
 
         TestDocumentParserContext context = new TestDocumentParserContext(xContentParser);
@@ -385,9 +412,10 @@ public class FlattenedFieldParserTests extends ESTestCase {
             Integer.MAX_VALUE,
             Integer.MAX_VALUE,
             "placeholder",
-            false,
             true,
-            Map.of()
+            true,
+            Map.of(),
+            true
         );
 
         TestDocumentParserContext configuredContext = new TestDocumentParserContext(createXContentParser(input));

@@ -31,6 +31,7 @@ import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -52,7 +53,7 @@ public class TickerScheduleTriggerEngine extends ScheduleTriggerEngine {
 
     private final TimeValue tickInterval;
     private final Map<String, ActiveSchedule> schedules = new ConcurrentHashMap<>();
-    private final Map<String, ActiveSchedule> recentlyAddedSchedules = new ConcurrentHashMap<>();
+    private final Map<String, ActiveSchedule> recentlyAddedSchedules = new HashMap<>(); // used only inside synchronized blocks
     private final Ticker ticker;
     private final AtomicBoolean isRunning = new AtomicBoolean(false);
 
@@ -111,8 +112,8 @@ public class TickerScheduleTriggerEngine extends ScheduleTriggerEngine {
         // watcher indexing listener
         // this also means that updating an existing watch would not retrigger the schedule time, if it remains the same schedule
         if (currentSchedule == null || currentSchedule.schedule.equals(trigger.getSchedule()) == false) {
+            ActiveSchedule schedule = createSchedule(watch, trigger, clock.millis());
             synchronized (this) {
-                ActiveSchedule schedule = createSchedule(watch, trigger, clock.millis());
                 if (isRunning.get() == false) {
                     recentlyAddedSchedules.put(watch.id(), schedule);
                 } else {

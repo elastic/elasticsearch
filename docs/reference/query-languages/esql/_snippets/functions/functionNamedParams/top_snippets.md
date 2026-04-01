@@ -8,7 +8,7 @@
 `num_words`
 :   (integer) The maximum number of words to return in each snippet. When set to 0,
 disables chunking entirely, the input field values are used as-is, which is
-useful when the text has already been chunked externally.
+useful when the text has already been chunked.
 
 
 `highlight`

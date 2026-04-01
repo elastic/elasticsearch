@@ -53,4 +53,19 @@ FROM books
 This examples demonstrates how to use `TOP_SNIPPETS` with `RERANK`. By returning a fixed number of snippets with a limited
 size, we have more control over the number of tokens that are used for semantic reranking.
 
+```{applies_to}
+stack: preview 9.4.0
+```
+
+```esql
+FROM books
+| WHERE MATCH(title, "Return")
+| EVAL snippets = TOP_SNIPPETS(description, "Tolkien", { "num_snippets": 1, "num_words": 25, "highlight": true })
+```
+
+| book_no:keyword | title:text | snippets:keyword |
+| --- | --- | --- |
+| 2714 | Return of the King Being the Third Part of The Lord of the Rings | Concluding the story begun in The Hobbit, this is the final part of <em>Tolkien</em> s epic masterpiece, The Lord of the Rings, featuring an exclusive |
+| 7350 | Return of the Shadow | <em>Tolkien</em> for long believed would be a far shorter book, 'a sequel to The Hobbit'. |
+
 

@@ -260,29 +260,33 @@ null
 topSnippetsHighlightFalse
 required_capability: top_snippets_highlight
 
-ROW content = "The Ring of Power was forged by Sauron."
+ROW content = "The One Ring was forged by Sauron."
 | EVAL snippets = TOP_SNIPPETS(content, "ring", { "highlight": false })
 | KEEP snippets
 ;
 
 snippets:keyword
-The Ring of Power was forged by Sauron.
+The One Ring was forged by Sauron.
 ;
 
 topSnippetsHighlightFromIndex
 required_capability: top_snippets_highlight
 required_capability: match_function
 
+// tag::top-snippets-with-highlighting[]
 FROM books
 | WHERE MATCH(title, "Return")
 | EVAL snippets = TOP_SNIPPETS(description, "Tolkien", { "num_snippets": 1, "num_words": 25, "highlight": true })
+// end::top-snippets-with-highlighting[]
 | KEEP book_no, snippets
-| SORT book_no
 ;
+ignoreOrder: true
 
-book_no:keyword | snippets:keyword
-2714            | Concluding the story begun in The Hobbit, this is the final part of <em>Tolkien</em> s epic masterpiece, The Lord of the Rings, featuring an exclusive
-7350            | <em>Tolkien</em> for long believed would be a far shorter book, 'a sequel to The Hobbit'.
+// tag::top-snippets-with-highlighting-result[]
+book_no:keyword | title:text                                                       | snippets:keyword
+2714            | Return of the King Being the Third Part of The Lord of the Rings | Concluding the story begun in The Hobbit, this is the final part of <em>Tolkien</em> s epic masterpiece, The Lord of the Rings, featuring an exclusive
+7350            | Return of the Shadow                                             | <em>Tolkien</em> for long believed would be a far shorter book, 'a sequel to The Hobbit'.
+// end::top-snippets-with-highlighting-result[]
 ;
 
 topSnippetsHighlightWithHtmlEncoder

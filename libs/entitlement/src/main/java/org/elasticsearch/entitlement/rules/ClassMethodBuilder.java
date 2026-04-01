@@ -1214,6 +1214,10 @@ public class ClassMethodBuilder<T> {
 
     private static MethodKey resolveConstructor(Class<?> clazz, Class<?>... args) {
         validateConstructorExists(clazz, args);
-        return new MethodKey(clazz.getName().replace(".", "/"), "<init>", Arrays.stream(args).map(Class::getCanonicalName).toList());
+        return new MethodKey(
+            clazz.getName().replace(".", "/"),
+            "<init>",
+            Arrays.stream(args).map(TypeUtils::getParameterTypeName).toList()
+        );
     }
 }

@@ -11,8 +11,6 @@ tests:
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=transform/transforms_start_stop/Verify start transform reuses destination index}
   issue: https://github.com/elastic/elasticsearch/issues/115808
-- class: org.elasticsearch.xpack.application.connector.ConnectorIndexServiceTests
-  issue: https://github.com/elastic/elasticsearch/issues/116087
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=transform/transforms_start_stop/Test start already started transform}
   issue: https://github.com/elastic/elasticsearch/issues/98802
@@ -147,9 +145,6 @@ tests:
 - class: org.elasticsearch.xpack.transform.checkpoint.TransformCheckpointServiceNodeTests
   method: testGetCheckpointStats
   issue: https://github.com/elastic/elasticsearch/issues/141112
-- class: org.elasticsearch.xpack.entsearch.EnterpriseSearchRestIT
-  method: test {p0=entsearch/rules/40_rule_query_search/Perform a rule query with an organic query that must be rewritten to another query type}
-  issue: https://github.com/elastic/elasticsearch/issues/141200
 - class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
   method: test {csv-spec:boolean.convertFromIntAndLong}
   issue: https://github.com/elastic/elasticsearch/issues/141375
@@ -240,9 +235,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:spatial.convertCartesianFromStringParseError}
   issue: https://github.com/elastic/elasticsearch/issues/144580
-- class: org.elasticsearch.xpack.logsdb.RandomizedRollingUpgradeIT
-  method: testIndexingSyntheticSource
-  issue: https://github.com/elastic/elasticsearch/issues/144585
 - class: org.elasticsearch.xpack.esql.action.AsyncEsqlQueryActionIT
   method: testUpdateKeepAlive
   issue: https://github.com/elastic/elasticsearch/issues/144618
@@ -383,6 +375,33 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/144587
+- class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
+  method: test
+  issue: https://github.com/elastic/elasticsearch/issues/144587
+- class: org.elasticsearch.xpack.esql.qa.multi_node.ExternalDistributedStressIT
+  method: testHeterogeneousSplitSizes
+  issue: https://github.com/elastic/elasticsearch/issues/145475
+- class: org.elasticsearch.xpack.esql.qa.multi_node.ExternalDistributedStressIT
+  method: testManyUniformSplits
+  issue: https://github.com/elastic/elasticsearch/issues/145476
+- class: org.elasticsearch.xpack.esql.qa.multi_node.ExternalDistributedStressIT
+  method: testManyUniformSplitsWithAggregation
+  issue: https://github.com/elastic/elasticsearch/issues/145477
+- class: org.elasticsearch.xpack.esql.qa.multi_node.ExternalDistributedStressIT
+  method: testManyUniformSplitsWithTopN
+  issue: https://github.com/elastic/elasticsearch/issues/145478
+- class: org.elasticsearch.xpack.esql.CsvTests
+  method: test {csv-spec:spatial-jts.stBufferFoldable}
+  issue: https://github.com/elastic/elasticsearch/issues/145483
+- class: org.elasticsearch.xpack.sql.qa.jdbc.single_node.SingleNodeJdbcResultSetIT
+  method: testScalarOnDates_DateNanos
+  issue: https://github.com/elastic/elasticsearch/issues/145485
+- class: org.elasticsearch.xpack.sql.qa.jdbc.single_node.SingleNodeJdbcResultSetIT
+  method: testMultiValueFieldWithMultiValueLeniencyEnabled
+  issue: https://github.com/elastic/elasticsearch/issues/145486
+- class: org.elasticsearch.xpack.esql.CsvTests
+  method: test {csv-spec:tdigest.ungroupedPercentiles}
+  issue: https://github.com/elastic/elasticsearch/issues/145495
 
 # Examples:
 #

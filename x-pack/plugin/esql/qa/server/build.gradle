@@ -48,7 +48,7 @@ dependencies {
   implementation "org.apache.commons:commons-compress:${versions.esql_commons_compress}"
 
   // OrcFixtureGenerator: ORC/Hadoop (separate from main to avoid jar hell)
-  orcFixtureGenerator("org.apache.orc:orc-core:2.2.2") { exclude group: 'org.slf4j', module: 'slf4j-api' }
+  orcFixtureGenerator("org.apache.orc:orc-core:2.3.0") { exclude group: 'org.slf4j', module: 'slf4j-api' }
   orcFixtureGenerator('org.apache.hive:hive-storage-api:2.8.1')
   orcFixtureGenerator('com.google.protobuf:protobuf-java:3.25.8')
   orcFixtureGenerator('org.apache.hadoop:hadoop-client-api:3.4.2') { exclude group: 'org.slf4j', module: 'slf4j-api' }

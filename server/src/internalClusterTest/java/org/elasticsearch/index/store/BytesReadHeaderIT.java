@@ -159,10 +159,18 @@ public class BytesReadHeaderIT extends ESIntegTestCase {
             CountDownLatch scrollLatch = new CountDownLatch(1);
 
             SearchScrollRequest scrollRequest = new SearchScrollRequest(scrollId.get()).scroll(TimeValue.timeValueMinutes(1));
-            client.searchScroll(scrollRequest, new LatchedActionListener<>(ActionListener.assertOnce(ActionListener.wrap(
-                searchResponse -> scrollBytesRead.set(extractBytesReadHeader(client)),
-                e -> fail("no error expected")
-            )), scrollLatch));
+            client.searchScroll(
+                scrollRequest,
+                new LatchedActionListener<>(
+                    ActionListener.assertOnce(
+                        ActionListener.wrap(
+                            searchResponse -> scrollBytesRead.set(extractBytesReadHeader(client)),
+                            e -> fail("no error expected")
+                        )
+                    ),
+                    scrollLatch
+                )
+            );
 
             assertTrue("scroll search did not complete in time", scrollLatch.await(30, TimeUnit.SECONDS));
             assertThat(scrollBytesRead.get(), greaterThan(0L));

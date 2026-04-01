@@ -266,8 +266,9 @@ public class Approximation {
     // The sample probability threshold should depend on the aggregation
     // functions. For trivial functions like COUNT and SUM, the threshold should
     // be lower than for computationally heavier ones, like MEDIAN and PERCENTILE.
-    // It may also depend on the presence of grouping, and maybe on whether the
-    // grouping is sparse or dense.
+    // It may also depend on the presence of grouping, on whether the grouping
+    // is sparse or dense, and the data size (many/few large/small keys) on the
+    // coordinator.
     //
     // The default row counts should probably scale with cluster size. Otherwise,
     // as the cluster size increases, fewer and fewer rows per node are sampled.
@@ -295,7 +296,7 @@ public class Approximation {
      * they are disabled (by setting "confidence_level":null), any sample
      * probability is allowed,
      */
-    private static final double SAMPLE_PROBABILITY_THRESHOLD = 0.05;
+    private static final double SAMPLE_PROBABILITY_THRESHOLD = 0.10;
 
     private static final Logger logger = LogManager.getLogger(Approximation.class);
 

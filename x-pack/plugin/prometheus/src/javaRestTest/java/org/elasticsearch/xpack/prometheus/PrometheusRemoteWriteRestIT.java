@@ -14,11 +14,8 @@ import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
-import org.elasticsearch.test.cluster.ElasticsearchCluster;
-import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.xpack.prometheus.proto.RemoteWrite;
-import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.util.List;
@@ -30,22 +27,6 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class PrometheusRemoteWriteRestIT extends AbstractPrometheusRestIT {
-
-    @ClassRule
-    public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
-        .distribution(DistributionType.DEFAULT)
-        .user(USER, PASS, "superuser", false)
-        .setting("xpack.security.enabled", "true")
-        .setting("xpack.security.autoconfiguration.enabled", "false")
-        .setting("xpack.license.self_generated.type", "trial")
-        .setting("xpack.ml.enabled", "false")
-        .setting("xpack.watcher.enabled", "false")
-        .build();
-
-    @Override
-    protected String getTestRestCluster() {
-        return cluster.getHttpAddresses();
-    }
 
     public void testRemoteWriteEndpointWithEmptyRequest() throws Exception {
         RemoteWrite.WriteRequest writeRequest = RemoteWrite.WriteRequest.newBuilder().build();

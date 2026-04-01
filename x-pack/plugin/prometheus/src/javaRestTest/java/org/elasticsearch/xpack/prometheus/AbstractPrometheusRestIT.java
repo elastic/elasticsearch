@@ -22,10 +22,13 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.xpack.prometheus.proto.RemoteWrite;
 import org.junit.Before;
+import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.util.List;
@@ -52,6 +55,22 @@ public abstract class AbstractPrometheusRestIT extends ESRestTestCase {
     protected static final String USER = "test_admin";
     protected static final String PASS = "x-pack-test-password";
     protected static final String DEFAULT_DATA_STREAM = "metrics-generic.prometheus-default";
+
+    @ClassRule
+    public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
+        .distribution(DistributionType.DEFAULT)
+        .user(USER, PASS, "superuser", false)
+        .setting("xpack.security.enabled", "true")
+        .setting("xpack.security.autoconfiguration.enabled", "false")
+        .setting("xpack.license.self_generated.type", "trial")
+        .setting("xpack.ml.enabled", "false")
+        .setting("xpack.watcher.enabled", "false")
+        .build();
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
+    }
 
     protected String writeApiKey;
     protected String readApiKey;

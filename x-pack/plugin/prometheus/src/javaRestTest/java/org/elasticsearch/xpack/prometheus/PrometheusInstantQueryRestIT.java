@@ -9,10 +9,7 @@ package org.elasticsearch.xpack.prometheus;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.test.cluster.ElasticsearchCluster;
-import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.ObjectPath;
-import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.util.List;
@@ -26,22 +23,6 @@ import static org.hamcrest.Matchers.instanceOf;
  * Integration tests for the Prometheus {@code /api/v1/query} instant query endpoint.
  */
 public class PrometheusInstantQueryRestIT extends AbstractPrometheusRestIT {
-
-    @ClassRule
-    public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
-        .distribution(DistributionType.DEFAULT)
-        .user(USER, PASS, "superuser", false)
-        .setting("xpack.security.enabled", "true")
-        .setting("xpack.security.autoconfiguration.enabled", "false")
-        .setting("xpack.license.self_generated.type", "trial")
-        .setting("xpack.ml.enabled", "false")
-        .setting("xpack.watcher.enabled", "false")
-        .build();
-
-    @Override
-    protected String getTestRestCluster() {
-        return cluster.getHttpAddresses();
-    }
 
     /**
      * Verifies that querying when no Prometheus indices exist returns an empty result instead of an error.

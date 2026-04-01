@@ -141,7 +141,7 @@ public class ReservedClusterSettingsActionTests extends ESTestCase {
             """;
 
         // Without the fix, this would throw:
-        //   IllegalArgumentException: persistent setting [dummy.setting2], not recognized
+        // IllegalArgumentException: persistent setting [dummy.setting2], not recognized
         TransformState newState = processJSON(action, prevState, json);
 
         // dummy.setting2 should be dropped from reserved state keys

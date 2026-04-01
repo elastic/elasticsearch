@@ -1092,7 +1092,14 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                             }
                         }
                     }
-                    logicalPlan = resolveKeep(new Keep(logicalPlan.source(), logicalPlan, newOutput), UnmappedResolution.DEFAULT);
+                    if (forkColumns.isEmpty()) {
+                        // When forkColumns is empty (all branches only have no-fields), resolveKeep with empty
+                        // projections would resolve to all child output including no-fields. Create a Project with
+                        // empty output directly so the no-fields marker doesn't leak into the fork branch output.
+                        logicalPlan = new Project(logicalPlan.source(), logicalPlan, List.of());
+                    } else {
+                        logicalPlan = resolveKeep(new Keep(logicalPlan.source(), logicalPlan, newOutput), UnmappedResolution.DEFAULT);
+                    }
                 }
 
                 newSubPlans.add(logicalPlan);

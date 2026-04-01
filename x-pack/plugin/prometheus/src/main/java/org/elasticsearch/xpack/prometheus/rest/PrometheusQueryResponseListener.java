@@ -31,13 +31,20 @@ import java.util.Map;
 
 /**
  * Listens for an {@link EsqlQueryResponse}, converts its columnar result into the
- * Prometheus range query JSON format, and sends it as a {@link RestResponse}.
+ * Prometheus JSON format, and sends it as a {@link RestResponse}.
+ * <p>
+ * Supports two query modes:
+ * <ul>
+ *   <li>{@link QueryMode#RANGE} — {@code resultType: "matrix"}, each series has a {@code values} array.</li>
+ *   <li>{@link QueryMode#INSTANT} — {@code resultType: "vector"}, each series has a single {@code value} pair
+ *       (the last sample, since rows arrive ascending by timestamp).</li>
+ * </ul>
  *
- * @see <a href="https://prometheus.io/docs/prometheus/latest/querying/api/#range-vectors">Prometheus Range Vectors</a>
+ * @see <a href="https://prometheus.io/docs/prometheus/latest/querying/api/">Prometheus HTTP API</a>
  */
-class PrometheusQueryRangeResponseListener implements ActionListener<EsqlQueryResponse> {
+class PrometheusQueryResponseListener implements ActionListener<EsqlQueryResponse> {
 
-    private static final Logger logger = LogManager.getLogger(PrometheusQueryRangeResponseListener.class);
+    private static final Logger logger = LogManager.getLogger(PrometheusQueryResponseListener.class);
 
     // Column names expected in the ES|QL PROMQL response.
     static final String VALUE_COLUMN = "value";
@@ -48,10 +55,19 @@ class PrometheusQueryRangeResponseListener implements ActionListener<EsqlQueryRe
     private static final int VALUE_COL_IDX = 0;
     private static final int DIMENSION_COL_START_IDX = 1;
 
-    private final RestChannel channel;
+    enum QueryMode {
+        RANGE,
+        INSTANT
+    }
 
-    PrometheusQueryRangeResponseListener(RestChannel channel) {
+    private final RestChannel channel;
+    private final QueryMode mode;
+    private final int limit;
+
+    PrometheusQueryResponseListener(RestChannel channel, QueryMode mode, int limit) {
         this.channel = channel;
+        this.mode = mode;
+        this.limit = limit;
     }
 
     @Override
@@ -61,7 +77,7 @@ class PrometheusQueryRangeResponseListener implements ActionListener<EsqlQueryRe
         // and crash the node.
         try {
             EsqlResponse response = queryResponse.response();
-            XContentBuilder builder = convertToPrometheusJson(response);
+            XContentBuilder builder = convertToPrometheusJson(response, mode, limit);
             channel.sendResponse(new RestResponse(RestStatus.OK, builder));
         } catch (Exception e) {
             sendErrorResponse(e);
@@ -74,7 +90,7 @@ class PrometheusQueryRangeResponseListener implements ActionListener<EsqlQueryRe
     }
 
     private void sendErrorResponse(Exception e) {
-        logger.debug("PromQL query_range request failed", e);
+        logger.debug("PromQL {} request failed", mode == QueryMode.RANGE ? "query_range" : "query", e);
         PrometheusErrorResponse.send(channel, e, logger);
     }
 
@@ -90,7 +106,11 @@ class PrometheusQueryRangeResponseListener implements ActionListener<EsqlQueryRe
      *   <li>Column N-1 (last): step ({@code long}, epoch milliseconds)</li>
      * </ol>
      */
-    static XContentBuilder convertToPrometheusJson(EsqlResponse response) throws IOException {
+    static XContentBuilder convertToPrometheusJson(EsqlResponse response, QueryMode mode) throws IOException {
+        return convertToPrometheusJson(response, mode, Integer.MAX_VALUE);
+    }
+
+    static XContentBuilder convertToPrometheusJson(EsqlResponse response, QueryMode mode, int limit) throws IOException {
         List<? extends ColumnInfo> columns = response.columns();
         if (columns.size() < 1 || VALUE_COLUMN.equals(columns.get(VALUE_COL_IDX).name()) == false) {
             throw new IllegalStateException("PROMQL response is missing required 'value' column at index " + VALUE_COL_IDX);
@@ -103,6 +123,7 @@ class PrometheusQueryRangeResponseListener implements ActionListener<EsqlQueryRe
         final boolean useSeriesCol = columns.size() > 2 && MetadataAttribute.TIMESERIES.equals(columns.get(DIMENSION_COL_START_IDX).name());
 
         Map<String, SeriesData> seriesMap = new LinkedHashMap<>();
+        boolean truncated = false;
 
         for (Iterable<Object> row : response.rows()) {
             Object[] values = toArray(row, columns.size());
@@ -125,19 +146,20 @@ class PrometheusQueryRangeResponseListener implements ActionListener<EsqlQueryRe
                 seriesKey = keyBuilder.toString();
             }
 
-            String sampleValue = formatSampleValue(values[VALUE_COL_IDX]);
-            double timestamp = parseTimestamp(values[stepColIdx]);
-
             SeriesData series = seriesMap.get(seriesKey);
             if (series == null) {
+                if (seriesMap.size() >= limit) {
+                    truncated = true;
+                    continue;
+                }
                 series = new SeriesData(useSeriesCol ? seriesKey : null, metric);
                 seriesMap.put(seriesKey, series);
             }
-            series.values.add(new double[] { timestamp });
-            series.stringValues.add(sampleValue);
+            series.values.add(new double[] { parseTimestamp(values[stepColIdx]) });
+            series.stringValues.add(formatSampleValue(values[VALUE_COL_IDX]));
         }
 
-        return buildSuccessJson(seriesMap);
+        return buildSuccessJson(seriesMap, mode, truncated);
     }
 
     private static Object[] toArray(Iterable<Object> row, int size) {
@@ -181,12 +203,13 @@ class PrometheusQueryRangeResponseListener implements ActionListener<EsqlQueryRe
         return value.toString();
     }
 
-    private static XContentBuilder buildSuccessJson(Map<String, SeriesData> seriesMap) throws IOException {
+    private static XContentBuilder buildSuccessJson(Map<String, SeriesData> seriesMap, QueryMode mode, boolean truncated)
+        throws IOException {
         XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.startObject();
         builder.field("status", "success");
         builder.startObject("data");
-        builder.field("resultType", "matrix");
+        builder.field("resultType", mode == QueryMode.RANGE ? "matrix" : "vector");
         builder.startArray("result");
 
         for (SeriesData series : seriesMap.values()) {
@@ -202,20 +225,34 @@ class PrometheusQueryRangeResponseListener implements ActionListener<EsqlQueryRe
             }
             builder.endObject(); // metric
 
-            builder.startArray("values");
-            for (int i = 0; i < series.values.size(); i++) {
-                builder.startArray();
-                builder.value(series.values.get(i)[0]);
-                builder.value(series.stringValues.get(i));
-                builder.endArray();
+            if (mode == QueryMode.RANGE) {
+                builder.startArray("values");
+                for (int i = 0; i < series.values.size(); i++) {
+                    builder.startArray();
+                    builder.value(series.values.get(i)[0]);
+                    builder.value(series.stringValues.get(i));
+                    builder.endArray();
+                }
+                builder.endArray(); // values
+            } else {
+                // Instant query: emit the last sample (rows arrive ascending by timestamp)
+                int last = series.values.size() - 1;
+                builder.startArray("value");
+                builder.value(series.values.get(last)[0]);
+                builder.value(series.stringValues.get(last));
+                builder.endArray(); // value
             }
-            builder.endArray(); // values
 
             builder.endObject(); // result entry
         }
 
         builder.endArray(); // result
         builder.endObject(); // data
+        if (truncated) {
+            builder.startArray("warnings");
+            builder.value("results truncated due to limit");
+            builder.endArray();
+        }
         builder.endObject(); // root
         return builder;
     }
@@ -229,7 +266,7 @@ class PrometheusQueryRangeResponseListener implements ActionListener<EsqlQueryRe
      *       {@code {"attributes":{"resource":{"service.name":"foo"}}}} → field {@code attributes.resource.service.name}.</li>
      * </ul>
      */
-    private static void writeMetricFromSeriesJson(XContentBuilder builder, String seriesJson) throws IOException {
+    static void writeMetricFromSeriesJson(XContentBuilder builder, String seriesJson) throws IOException {
         try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, seriesJson)) {
             Map<String, Object> root = parser.map();
             Object labelsObj = root.remove("labels");

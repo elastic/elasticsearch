@@ -73,17 +73,20 @@ import static org.mockito.Mockito.when;
 
 public class JobResultsProviderTests extends ESTestCase {
 
-    /** Mocked tests do not always trigger {@link SearchResponse#decRef()}; release pooled {@link SearchHits} after each test. */
-    private final List<SearchHits> searchHitsToRelease = new ArrayList<>();
+    /**
+     * {@link #createSearchResponse} registers each mock; {@link #getMockedClient} removes a response when it is released via
+     * {@link ActionListener#respondAndRelease}. Tests with a custom client must remove responses from this list when they release
+     * them elsewhere (e.g. {@link MultiSearchResponse} teardown). {@link #decRefMockSearchResponsesNeverReleased} drains any
+     * remainder after each test.
+     */
+    private final List<SearchResponse> mockSearchResponsesPendingDecRef = new ArrayList<>();
 
     @After
-    public void releaseSearchHitsCreatedForMocks() {
-        for (SearchHits hits : searchHitsToRelease) {
-            if (hits.hasReferences()) {
-                hits.decRef();
-            }
+    public void decRefMockSearchResponsesNeverReleased() {
+        for (SearchResponse r : mockSearchResponsesPendingDecRef) {
+            r.decRef();
         }
-        searchHitsToRelease.clear();
+        mockSearchResponsesPendingDecRef.clear();
     }
 
     public void testBuckets_OneBucketNoInterim() throws IOException {
@@ -826,6 +829,8 @@ public class JobResultsProviderTests extends ESTestCase {
             verify(client).prepareSearch(AnomalyDetectorsIndex.jobResultsAliasedName("bar"));
             verifyNoMoreInteractions(client);
         }
+        mockSearchResponsesPendingDecRef.remove(responseFoo);
+        mockSearchResponsesPendingDecRef.remove(responseBar);
     }
 
     public void testDatafeedTimingStats_Ok() throws IOException {
@@ -944,7 +949,7 @@ public class JobResultsProviderTests extends ESTestCase {
         SearchHits hits = new SearchHits(list.toArray(SearchHits.EMPTY), new TotalHits(source.size(), TotalHits.Relation.EQUAL_TO), 1);
         when(response.getHits()).thenReturn(hits);
         SearchHitTestUtil.stubSearchResponseDecRefsHits(response, hits);
-        searchHitsToRelease.add(hits);
+        mockSearchResponsesPendingDecRef.add(response);
 
         return response;
     }
@@ -971,6 +976,7 @@ public class JobResultsProviderTests extends ESTestCase {
                     randomNonNegativeLong()
                 )
             );
+            mockSearchResponsesPendingDecRef.remove(response);
             return null;
         }).when(client).multiSearch(any(), any());
         doAnswer(invocationOnMock -> {
@@ -979,6 +985,7 @@ public class JobResultsProviderTests extends ESTestCase {
             @SuppressWarnings("unchecked")
             ActionListener<SearchResponse> actionListener = (ActionListener<SearchResponse>) invocationOnMock.getArguments()[1];
             ActionListener.respondAndRelease(actionListener, response);
+            mockSearchResponsesPendingDecRef.remove(response);
             return null;
         }).when(client).search(any(), any());
         return client;

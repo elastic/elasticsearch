@@ -27,7 +27,6 @@ import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.core.ReleasableRef;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
@@ -369,8 +368,10 @@ public class JobResultsPersisterTests extends ESTestCase {
             null,
             0.0f
         );
-        try (var hitsRef = ReleasableRef.of(hits)) {
-            testPersistQuantilesSync(hitsRef.get(), ".ml-state-dummy");
+        try {
+            testPersistQuantilesSync(hits, ".ml-state-dummy");
+        } finally {
+            hits.decRef();
         }
     }
 
@@ -412,8 +413,10 @@ public class JobResultsPersisterTests extends ESTestCase {
             null,
             0.0f
         );
-        try (var hitsRef = ReleasableRef.of(hits)) {
-            testPersistQuantilesAsync(hitsRef.get(), ".ml-state-dummy");
+        try {
+            testPersistQuantilesAsync(hits, ".ml-state-dummy");
+        } finally {
+            hits.decRef();
         }
     }
 

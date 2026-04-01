@@ -28,7 +28,6 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.core.ReleasableRef;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
@@ -591,8 +590,10 @@ public class TrainedModelProviderTests extends ESTestCase {
                                     new SearchPhaseExecutionException("query", "all shards failed", ShardSearchFailure.EMPTY_ARRAY)
                                 ) };
                             var msResponse = new MultiSearchResponse(items, 0L);
-                            try (var msRef = ReleasableRef.of(msResponse)) {
-                                listener.onResponse((Response) msRef.get());
+                            try {
+                                listener.onResponse((Response) msResponse);
+                            } finally {
+                                msResponse.decRef();
                             }
                         } else {
                             var items = new MultiSearchResponse.Item[multiSearchRequest.requests().size()];
@@ -603,8 +604,10 @@ public class TrainedModelProviderTests extends ESTestCase {
                                 );
                             }
                             var msResponse = new MultiSearchResponse(items, 0L);
-                            try (var msRef = ReleasableRef.of(msResponse)) {
-                                listener.onResponse((Response) msRef.get());
+                            try {
+                                listener.onResponse((Response) msResponse);
+                            } finally {
+                                msResponse.decRef();
                             }
                         }
                     }
@@ -647,8 +650,10 @@ public class TrainedModelProviderTests extends ESTestCase {
                             var items = new MultiSearchResponse.Item[] {
                                 new MultiSearchResponse.Item(null, new NoShardAvailableActionException(null, "no shard available")) };
                             var msResponse = new MultiSearchResponse(items, 0L);
-                            try (var msRef = ReleasableRef.of(msResponse)) {
-                                listener.onResponse((Response) msRef.get());
+                            try {
+                                listener.onResponse((Response) msResponse);
+                            } finally {
+                                msResponse.decRef();
                             }
                         } else {
                             var items = new MultiSearchResponse.Item[multiSearchRequest.requests().size()];
@@ -659,8 +664,10 @@ public class TrainedModelProviderTests extends ESTestCase {
                                 );
                             }
                             var msResponse = new MultiSearchResponse(items, 0L);
-                            try (var msRef = ReleasableRef.of(msResponse)) {
-                                listener.onResponse((Response) msRef.get());
+                            try {
+                                listener.onResponse((Response) msResponse);
+                            } finally {
+                                msResponse.decRef();
                             }
                         }
                     }
@@ -702,8 +709,10 @@ public class TrainedModelProviderTests extends ESTestCase {
                         var items = new MultiSearchResponse.Item[] {
                             new MultiSearchResponse.Item(null, new IllegalArgumentException("bad request")) };
                         var msResponse = new MultiSearchResponse(items, 0L);
-                        try (var msRef = ReleasableRef.of(msResponse)) {
-                            listener.onResponse((Response) msRef.get());
+                        try {
+                            listener.onResponse((Response) msResponse);
+                        } finally {
+                            msResponse.decRef();
                         }
                     }
                 }

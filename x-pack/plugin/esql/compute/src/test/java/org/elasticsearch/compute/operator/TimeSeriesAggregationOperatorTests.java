@@ -98,9 +98,9 @@ public class TimeSeriesAggregationOperatorTests extends ComputeTestCase {
 
         outputRows.sort(Comparator.comparing(OutputRow::tsid).thenComparingLong(OutputRow::bucket));
         // TSID "a": each point has value 1
-        assertThat(outputRows.get(0).value(), equalTo(7L));  // [0,7m) → 7 points
-        assertThat(outputRows.get(1).value(), equalTo(7L));  // [5m,12m) → 7 points
-        assertThat(outputRows.get(2).value(), equalTo(5L));  // [10m,17m) → 5 points
+        assertThat(outputRows.get(0).value(), equalTo(7L));  // [0,7m) -> 7 points
+        assertThat(outputRows.get(1).value(), equalTo(7L));  // [5m,12m) -> 7 points
+        assertThat(outputRows.get(2).value(), equalTo(5L));  // [10m,17m) -> 5 points
         // TSID "b": each point has value 10
         assertThat(outputRows.get(3).value(), equalTo(70L));
         assertThat(outputRows.get(4).value(), equalTo(70L));
@@ -124,7 +124,7 @@ public class TimeSeriesAggregationOperatorTests extends ComputeTestCase {
             rows.add(List.of("x", ts, 3));
         }
 
-        // internal bucket == output bucket → no sub-bucketing, all groups aligned
+        // internal bucket == output bucket -> no sub-bucketing, all groups aligned
         List<Page> results = runPipeline(fiveMinBucket, fiveMinBucket, windowDuration, rows);
 
         List<OutputRow> outputRows = extractRows(results);
@@ -156,10 +156,8 @@ public class TimeSeriesAggregationOperatorTests extends ComputeTestCase {
 
         // Use both a window aggregator (sum) and a values aggregator (dimension values on tsid column)
         List<GroupingAggregator.Factory> aggregatorFactories = List.of(
-            new WindowAggregatorFunctionSupplier(new SumIntAggregatorFunctionSupplier(), windowDuration).groupingAggregatorFactory(
-                AggregatorMode.SINGLE,
-                List.of(HASH_CHANNEL_COUNT)
-            ),
+            WindowAggregatorFunctionSupplier.forwardWindowFnSupplier(new SumIntAggregatorFunctionSupplier(), windowDuration)
+                .groupingAggregatorFactory(AggregatorMode.SINGLE, List.of(HASH_CHANNEL_COUNT)),
             new org.elasticsearch.compute.aggregation.ValuesBytesRefAggregatorFunctionSupplier().groupingAggregatorFactory(
                 AggregatorMode.SINGLE,
                 List.of(0)
@@ -221,8 +219,8 @@ public class TimeSeriesAggregationOperatorTests extends ComputeTestCase {
     /**
      * Sparse data where output-aligned sub-buckets have no direct data points.
      * With 7m window, 5m output bucket, 1m internal bucket, and data only at minutes 2 and 8:
-     * - Output group at 00:00 is an expanded group (no direct data) — VALUES must still resolve
-     * - Output group at 05:00 is an expanded group (no direct data) — VALUES must still resolve
+     * - Output group at 00:00 is an expanded group (no direct data) - VALUES must still resolve
+     * - Output group at 05:00 is an expanded group (no direct data) - VALUES must still resolve
      * This exercises the path where expandWindowBuckets creates groups that become output-aligned,
      * and selectedForValuesAggregator must remap them to the original group that has dimension data.
      */
@@ -240,10 +238,8 @@ public class TimeSeriesAggregationOperatorTests extends ComputeTestCase {
         rows.add(List.of("s1", baseTime + TimeValue.timeValueMinutes(8).millis(), 10));
 
         List<GroupingAggregator.Factory> aggregatorFactories = List.of(
-            new WindowAggregatorFunctionSupplier(new SumIntAggregatorFunctionSupplier(), windowDuration).groupingAggregatorFactory(
-                AggregatorMode.SINGLE,
-                List.of(HASH_CHANNEL_COUNT)
-            ),
+            WindowAggregatorFunctionSupplier.forwardWindowFnSupplier(new SumIntAggregatorFunctionSupplier(), windowDuration)
+                .groupingAggregatorFactory(AggregatorMode.SINGLE, List.of(HASH_CHANNEL_COUNT)),
             new org.elasticsearch.compute.aggregation.ValuesBytesRefAggregatorFunctionSupplier().groupingAggregatorFactory(
                 AggregatorMode.SINGLE,
                 List.of(0)
@@ -331,7 +327,7 @@ public class TimeSeriesAggregationOperatorTests extends ComputeTestCase {
             rows.add(List.of("z", ts, 2));
         }
 
-        // 4m window, 3m output bucket, 1m internal bucket → GCD = 1m sub-buckets, output every 3m
+        // 4m window, 3m output bucket, 1m internal bucket -> GCD = 1m sub-buckets, output every 3m
         List<Page> results = runPipeline(oneMinBucket, threeMinBucket, windowDuration, rows);
 
         List<OutputRow> outputRows = extractRows(results);
@@ -340,11 +336,11 @@ public class TimeSeriesAggregationOperatorTests extends ComputeTestCase {
             assertThat(threeMinBucket.round(row.bucket()), equalTo(row.bucket()));
         }
         outputRows.sort(Comparator.comparingLong(OutputRow::bucket));
-        // [0,4m) → minutes 0..3 → 4 points × 2 = 8
+        // [0,4m) -> minutes 0..3 -> 4 points × 2 = 8
         assertThat(outputRows.get(0).value(), equalTo(8L));
-        // [3m,7m) → minutes 3..6 → 4 points × 2 = 8
+        // [3m,7m) -> minutes 3..6 -> 4 points × 2 = 8
         assertThat(outputRows.get(1).value(), equalTo(8L));
-        // [6m,10m) → minutes 6..8 → 3 points × 2 = 6
+        // [6m,10m) -> minutes 6..8 -> 3 points × 2 = 6
         assertThat(outputRows.get(2).value(), equalTo(6L));
     }
 
@@ -365,10 +361,8 @@ public class TimeSeriesAggregationOperatorTests extends ComputeTestCase {
             ),
             AggregatorMode.SINGLE,
             List.of(
-                new WindowAggregatorFunctionSupplier(new SumIntAggregatorFunctionSupplier(), windowDuration).groupingAggregatorFactory(
-                    AggregatorMode.SINGLE,
-                    List.of(HASH_CHANNEL_COUNT)
-                )
+                WindowAggregatorFunctionSupplier.forwardWindowFnSupplier(new SumIntAggregatorFunctionSupplier(), windowDuration)
+                    .groupingAggregatorFactory(AggregatorMode.SINGLE, List.of(HASH_CHANNEL_COUNT))
             ),
             10_000,
             outputBucket,

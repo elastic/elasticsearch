@@ -149,7 +149,8 @@ public class WindowGroupingAggregatorFunctionTests extends ForkingOperatorTestCa
     }
 
     protected AggregatorFunctionSupplier aggregatorFunction() {
-        return new WindowAggregatorFunctionSupplier(new SumIntAggregatorFunctionSupplier(), Duration.ofMinutes(5));
+        Duration window = Duration.ofMinutes(5);
+        return WindowAggregatorFunctionSupplier.forwardWindowFnSupplier(new SumIntAggregatorFunctionSupplier(), window);
     }
 
     protected String expectedToStringOfSimpleAggregator() {
@@ -215,10 +216,8 @@ public class WindowGroupingAggregatorFunctionTests extends ForkingOperatorTestCa
             ),
             AggregatorMode.SINGLE,
             List.of(
-                new WindowAggregatorFunctionSupplier(new SumIntAggregatorFunctionSupplier(), windowDuration).groupingAggregatorFactory(
-                    AggregatorMode.SINGLE,
-                    List.of(HASH_CHANNEL_COUNT)
-                )
+                WindowAggregatorFunctionSupplier.forwardWindowFnSupplier(new SumIntAggregatorFunctionSupplier(), windowDuration)
+                    .groupingAggregatorFactory(AggregatorMode.SINGLE, List.of(HASH_CHANNEL_COUNT))
             ),
             10_000,
             fiveMinBucket,
@@ -262,9 +261,9 @@ public class WindowGroupingAggregatorFunctionTests extends ForkingOperatorTestCa
         assertThat("expected 3 output rows at 5-minute boundaries", outputRows.size(), equalTo(3));
 
         // Verify the sums:
-        // bucket at baseTime+0: window covers [0,7m) → minutes 0..6 → 7 points → sum=7
-        // bucket at baseTime+5m: window covers [5m,12m) → minutes 5..11 → 7 points → sum=7
-        // bucket at baseTime+10m: window covers [10m,17m) → minutes 10..14 → 5 points → sum=5
+        // bucket at baseTime+0: window covers [0,7m) -> minutes 0..6 -> 7 points -> sum=7
+        // bucket at baseTime+5m: window covers [5m,12m) -> minutes 5..11 -> 7 points -> sum=7
+        // bucket at baseTime+10m: window covers [10m,17m) -> minutes 10..14 -> 5 points -> sum=5
         outputRows.sort(Comparator.comparingLong(OutputRow::bucket));
         assertThat("sum at baseTime+0m", outputRows.get(0).value(), equalTo(7L));
         assertThat("sum at baseTime+5m", outputRows.get(1).value(), equalTo(7L));
@@ -308,10 +307,8 @@ public class WindowGroupingAggregatorFunctionTests extends ForkingOperatorTestCa
             ),
             AggregatorMode.SINGLE,
             List.of(
-                new WindowAggregatorFunctionSupplier(new SumIntAggregatorFunctionSupplier(), windowDuration).groupingAggregatorFactory(
-                    AggregatorMode.SINGLE,
-                    List.of(HASH_CHANNEL_COUNT)
-                )
+                WindowAggregatorFunctionSupplier.forwardWindowFnSupplier(new SumIntAggregatorFunctionSupplier(), windowDuration)
+                    .groupingAggregatorFactory(AggregatorMode.SINGLE, List.of(HASH_CHANNEL_COUNT))
             ),
             10_000,
             fiveMinBucket,
@@ -355,17 +352,17 @@ public class WindowGroupingAggregatorFunctionTests extends ForkingOperatorTestCa
         outputRows.sort(Comparator.comparing(OutputRow::tsid).thenComparingLong(OutputRow::bucket));
 
         // TSID "a" (value=1, 10 minutes of data): output at 0, 5m
-        // bucket 0: [0,7m) → min(7,10)=7 points → sum=7
-        // bucket 5m: [5m,12m) → minutes 5..9 → 5 points → sum=5
+        // bucket 0: [0,7m) -> min(7,10)=7 points -> sum=7
+        // bucket 5m: [5m,12m) -> minutes 5..9 -> 5 points -> sum=5
         List<OutputRow> aRows = outputRows.stream().filter(r -> r.tsid().equals("a")).toList();
         assertThat(aRows.size(), equalTo(2));
         assertThat(aRows.get(0).value(), equalTo(7L));
         assertThat(aRows.get(1).value(), equalTo(5L));
 
         // TSID "b" (value=2, 15 minutes of data): output at 0, 5m, 10m
-        // bucket 0: [0,7m) → 7 points → sum=14
-        // bucket 5m: [5m,12m) → 7 points → sum=14
-        // bucket 10m: [10m,17m) → 5 points → sum=10
+        // bucket 0: [0,7m) -> 7 points -> sum=14
+        // bucket 5m: [5m,12m) -> 7 points -> sum=14
+        // bucket 10m: [10m,17m) -> 5 points -> sum=10
         List<OutputRow> bRows = outputRows.stream().filter(r -> r.tsid().equals("b")).toList();
         assertThat(bRows.size(), equalTo(3));
         assertThat(bRows.get(0).value(), equalTo(14L));
@@ -373,9 +370,9 @@ public class WindowGroupingAggregatorFunctionTests extends ForkingOperatorTestCa
         assertThat(bRows.get(2).value(), equalTo(10L));
 
         // TSID "c" (value=100, sparse at 0, 5, 10): output at 0, 5m, 10m
-        // bucket 0: [0,7m) → points at 0 and 5 → sum=200
-        // bucket 5m: [5m,12m) → points at 5 and 10 → sum=200
-        // bucket 10m: [10m,17m) → point at 10 → sum=100
+        // bucket 0: [0,7m) -> points at 0 and 5 -> sum=200
+        // bucket 5m: [5m,12m) -> points at 5 and 10 -> sum=200
+        // bucket 10m: [10m,17m) -> point at 10 -> sum=100
         List<OutputRow> cRows = outputRows.stream().filter(r -> r.tsid().equals("c")).toList();
         assertThat(cRows.size(), equalTo(3));
         assertThat(cRows.get(0).value(), equalTo(200L));
@@ -402,7 +399,7 @@ public class WindowGroupingAggregatorFunctionTests extends ForkingOperatorTestCa
             rows.add(List.of("s", ts, 10));
         }
 
-        // No outputTimeBucket → needsOutputFiltering() returns false → super.emit() → allGroupIds stays null
+        // No outputTimeBucket -> needsOutputFiltering() returns false -> super.emit() -> allGroupIds stays null
         var operatorFactory = new TimeSeriesAggregationOperator.Factory(
             fiveMinBucket,
             false,
@@ -412,10 +409,9 @@ public class WindowGroupingAggregatorFunctionTests extends ForkingOperatorTestCa
             ),
             AggregatorMode.SINGLE,
             List.of(
-                new WindowAggregatorFunctionSupplier(new SumIntAggregatorFunctionSupplier(), windowDuration).groupingAggregatorFactory(
-                    AggregatorMode.SINGLE,
-                    List.of(HASH_CHANNEL_COUNT)
-                )
+
+                WindowAggregatorFunctionSupplier.forwardWindowFnSupplier(new SumIntAggregatorFunctionSupplier(), windowDuration)
+                    .groupingAggregatorFactory(AggregatorMode.SINGLE, List.of(HASH_CHANNEL_COUNT))
             ),
             10_000
         );
@@ -452,10 +448,10 @@ public class WindowGroupingAggregatorFunctionTests extends ForkingOperatorTestCa
 
         outputRows.sort(Comparator.comparingLong(OutputRow::bucket));
         // 10m window over 5m buckets: each bucket merges itself + the next bucket
-        // bucket 0: [0,10m) → points at 0 and 5m → sum=20
-        // bucket 5m: [5m,15m) → points at 5m and 10m → sum=20
-        // bucket 10m: [10m,20m) → points at 10m and 15m → sum=20
-        // bucket 15m: [15m,25m) → point at 15m → sum=10
+        // bucket 0: [0,10m) -> points at 0 and 5m -> sum=20
+        // bucket 5m: [5m,15m) -> points at 5m and 10m -> sum=20
+        // bucket 10m: [10m,20m) -> points at 10m and 15m -> sum=20
+        // bucket 15m: [15m,25m) -> point at 15m -> sum=10
         assertThat(outputRows.size(), equalTo(4));
         assertThat(outputRows.get(0).value(), equalTo(20L));
         assertThat(outputRows.get(1).value(), equalTo(20L));

@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.aggregation;
 
 import org.apache.lucene.util.ArrayUtil;
+import org.elasticsearch.compute.aggregation.blockhash.TimeSeriesBlockHash;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.IntArrayBlock;
 import org.elasticsearch.compute.data.IntBigArrayBlock;
@@ -17,15 +18,18 @@ import org.elasticsearch.core.Releasables;
 
 import java.time.Duration;
 import java.util.List;
+import java.util.function.LongConsumer;
 import java.util.stream.IntStream;
 
 /**
  * A {@link GroupingAggregatorFunction} that wraps another, and apply a window function on the final aggregation.
  */
-public record WindowGroupingAggregatorFunction(GroupingAggregatorFunction next, AggregatorFunctionSupplier supplier, Duration window)
-    implements
-        GroupingAggregatorFunction {
-
+public record WindowGroupingAggregatorFunction(
+    GroupingAggregatorFunction next,
+    AggregatorFunctionSupplier supplier,
+    Duration window,
+    WindowEvaluationContext.Factory ctxFactory
+) implements GroupingAggregatorFunction {
     @Override
     public AddInput prepareProcessRawInputPage(SeenGroupIds seenGroupIds, Page page) {
         return next.prepareProcessRawInputPage(seenGroupIds, page);
@@ -74,6 +78,7 @@ public record WindowGroupingAggregatorFunction(GroupingAggregatorFunction next, 
         IntVector selected,
         TimeSeriesGroupingAggregatorEvaluationContext ctx
     ) {
+        WindowEvaluationContext windowCtx = ctxFactory.create(ctx);
         if (selected.getPositionCount() > 0) {
             // TODO: rewrite to NO_WINDOW in the planner if the bucket and the window are the same
             int groupId = selected.getInt(0);
@@ -83,10 +88,6 @@ public record WindowGroupingAggregatorFunction(GroupingAggregatorFunction next, 
                 return next.prepareEvaluateFinal(selected, ctx);
             }
         }
-        // When output filtering is active, allGroupIds contains every group (including sub-bucket
-        // groups that won't appear in the final output). We need all of them for evaluateIntermediate
-        // so that neighbor data is available during the window merge. When null, selected already
-        // contains every group.
         IntVector allGroups = ctx.allGroupIds();
         if (allGroups == null) {
             allGroups = selected;
@@ -112,7 +113,7 @@ public record WindowGroupingAggregatorFunction(GroupingAggregatorFunction next, 
                 finalAgg.aggregatorFunction().addIntermediateInput(0, allGroups, page);
                 for (int i = 0; i < selected.getPositionCount(); i++) {
                     int groupId = selected.getInt(i);
-                    mergeBucketsFromWindow(groupId, backwards, page, finalAgg.aggregatorFunction(), ctx);
+                    mergeBucketsFromWindow(groupId, backwards, page, finalAgg.aggregatorFunction(), windowCtx, ctx);
                 }
             } finally {
                 Releasables.close(intermediateBlocks);
@@ -120,20 +121,14 @@ public record WindowGroupingAggregatorFunction(GroupingAggregatorFunction next, 
             PreparedForEvaluation delegate = finalAgg.prepareForEvaluate(
                 selected,
                 new TimeSeriesGroupingAggregatorEvaluationContext(ctx.driverContext()) {
-                    // expand the window to cover the new range
                     @Override
                     public long rangeStartInMillis(int groupId) {
-                        return ctx.rangeStartInMillis(groupId);
+                        return windowCtx.rangeStartInMillis(groupId);
                     }
 
                     @Override
                     public long rangeEndInMillis(int groupId) {
-                        return rangeStartInMillis(groupId) + window.toMillis();
-                    }
-
-                    @Override
-                    public List<Integer> groupIdsFromWindow(int startingGroupId, Duration window) {
-                        throw new UnsupportedOperationException();
+                        return windowCtx.rangeEndInMillis(groupId);
                     }
 
                     @Override
@@ -147,14 +142,45 @@ public record WindowGroupingAggregatorFunction(GroupingAggregatorFunction next, 
                     }
 
                     @Override
-                    public void computeAdjacentGroupIds() {
-                        // not used by #nextGroupId and #previousGroupId
+                    public void forEachBucketInRange(long rangeStartMillis, long rangeEndMillis, java.util.function.LongConsumer action) {
+                        throw new UnsupportedOperationException();
+                    }
+
+                    @Override
+                    public void forEachGroupInRange(
+                        int startingGroupId,
+                        long rangeStartMillis,
+                        long rangeEndMillis,
+                        java.util.function.IntConsumer action
+                    ) {
+                        throw new UnsupportedOperationException();
+                    }
+
+                    @Override
+                    public void computeAdjacentGroupIds() {}
+
+                    @Override
+                    public void forEachGroupInWindow(
+                        int startingGroupId,
+                        java.time.Duration window,
+                        java.util.function.IntConsumer action
+                    ) {
+                        throw new UnsupportedOperationException();
+                    }
+
+                    @Override
+                    public void forEachBucketInWindow(
+                        long groupId,
+                        java.time.Duration window,
+                        TimeSeriesBlockHash tsBlockHash,
+                        LongConsumer action
+                    ) {
+                        throw new UnsupportedOperationException();
                     }
                 }
             );
             GroupingAggregator takeFinalAgg = finalAgg;
             finalAgg = null;
-            // Leave the final agg open until the prepared results are closed.
             return new PreparedForEvaluation() {
                 @Override
                 public void evaluate(Block[] blocks, int offset, IntVector selectedInPage) {
@@ -176,18 +202,16 @@ public record WindowGroupingAggregatorFunction(GroupingAggregatorFunction next, 
         int[] groupIdToPositions,
         Page page,
         GroupingAggregatorFunction fn,
+        WindowEvaluationContext windowCtx,
         TimeSeriesGroupingAggregatorEvaluationContext context
     ) {
-        var groupIds = context.groupIdsFromWindow(startingGroupId, window);
-        if (groupIds.size() > 1) {
-            try (IntVector oneGroup = context.driverContext().blockFactory().newConstantIntVector(startingGroupId, 1)) {
-                for (int g : groupIds) {
-                    if (g != startingGroupId) {
-                        int position = groupIdToPositions[g];
-                        fn.addIntermediateInput(position, oneGroup, page);
-                    }
+        try (IntVector oneGroup = context.driverContext().blockFactory().newConstantIntVector(startingGroupId, 1)) {
+            windowCtx.forEachGroupInWindow(startingGroupId, g -> {
+                if (g != startingGroupId && g >= 0 && g < groupIdToPositions.length) {
+                    int position = groupIdToPositions[g];
+                    fn.addIntermediateInput(position, oneGroup, page);
                 }
-            }
+            });
         }
     }
 

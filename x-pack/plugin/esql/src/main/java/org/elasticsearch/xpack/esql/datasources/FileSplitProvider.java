@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
+import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.FrameIndex;
 import org.elasticsearch.xpack.esql.datasources.spi.IndexedDecompressionCodec;
@@ -44,7 +45,7 @@ import java.util.function.BiFunction;
 
 /**
  * Default {@link SplitProvider} for file-based sources.
- * Converts each file in the {@link FileSet} into a {@link FileSplit},
+ * Converts each file in the {@link FileList} into a {@link FileSplit},
  * applying L1 partition pruning when filter hints and partition metadata are available.
  *
  * <p>When filter hints contain resolved {@link Expression} objects, evaluates them against
@@ -101,22 +102,22 @@ public class FileSplitProvider implements SplitProvider {
 
     @Override
     public List<ExternalSplit> discoverSplits(SplitDiscoveryContext context) {
-        FileSet fileSet = context.fileSet();
-        if (fileSet == null || fileSet.isResolved() == false) {
+        FileList fileList = context.fileList();
+        if (fileList == null || fileList.isResolved() == false) {
             return List.of();
         }
 
         PartitionMetadata partitionInfo = context.partitionInfo();
         Map<String, Object> config = context.config();
         List<Expression> filterHints = context.filterHints();
-        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaInfo = fileSet.fileSchemaInfo();
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaInfo = fileList.fileSchemaInfo();
         List<ExternalSplit> splits = new ArrayList<>();
         // Dedup cache: files with content-equal mappings share the same ColumnMapping
         // instance on the coordinator, avoiding redundant allocations.
         Map<SchemaReconciliation.ColumnMapping, SchemaReconciliation.ColumnMapping> mappingCache = new HashMap<>();
 
-        for (StorageEntry entry : fileSet.files()) {
-            StoragePath filePath = entry.path();
+        for (int i = 0; i < fileList.fileCount(); i++) {
+            StoragePath filePath = fileList.path(i);
 
             Map<String, Object> partitionValues = Map.of();
             if (partitionInfo != null && partitionInfo.isEmpty() == false) {
@@ -141,7 +142,7 @@ public class FileSplitProvider implements SplitProvider {
                 }
             }
 
-            long fileLength = entry.length();
+            long fileLength = fileList.size(i);
 
             SchemaReconciliation.ColumnMapping columnMapping = null;
             if (schemaInfo != null) {

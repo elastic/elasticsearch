@@ -53,6 +53,8 @@ public class ExternalDistributedClusters {
                 throw new IllegalStateException("Failed to resolve fixtures path", e);
             }
         }
-        return System.getProperty("java.io.tmpdir");
+        // Use a subdirectory of java.io.tmpdir, not the root: path.repo maps to shared_repo file
+        // entitlements; a broad path (e.g. /dev/shm on CI) would imply read access under distro/modules.
+        return PathUtils.get(System.getProperty("java.io.tmpdir"), "esql-external-distributed-path-repo").toAbsolutePath().toString();
     }
 }

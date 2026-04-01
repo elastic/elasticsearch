@@ -62,6 +62,7 @@ public class Clusters {
                 throw new IllegalStateException("Failed to resolve fixtures path", e);
             }
         }
-        return System.getProperty("java.io.tmpdir");
+        // Narrow fallback: path.repo must not be a prefix of the test cluster distro (entitlements).
+        return PathUtils.get(System.getProperty("java.io.tmpdir"), "esql-datasource-orc-path-repo").toAbsolutePath().toString();
     }
 }

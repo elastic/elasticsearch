@@ -13,8 +13,10 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ResolvedIndexExpression;
 import org.elasticsearch.action.ResolvedIndexExpressions;
+import org.elasticsearch.action.fieldcaps.RemoteViewNotSupportedException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
@@ -163,8 +165,10 @@ public class CrossProjectIndexResolutionValidator {
                             }
                             remoteAuthorizationExceptions.putIfAbsent(projectAlias, securityException);
                             remoteUnauthorizedIndices.computeIfAbsent(projectAlias, k -> new ArrayList<>()).add(remoteExpression);
+                        } else if (remoteException instanceof IndexNotFoundException indexNotFoundException) {
+                            if (notFoundException == null) notFoundException = indexNotFoundException;
                         } else {
-                            if (notFoundException == null) notFoundException = (IndexNotFoundException) remoteException;
+                            return remoteException;
                         }
                     }
                 }
@@ -253,6 +257,14 @@ public class CrossProjectIndexResolutionValidator {
             }
         }
 
+        // Check for remote view exceptions that may not have been caught by the per-expression checks above.
+        // This can happen for flat expressions where the resolved expressions don't include remote expressions for views.
+        for (Exception remoteEx : remoteExceptions.values()) {
+            if (ExceptionsHelper.unwrapCause(remoteEx) instanceof RemoteViewNotSupportedException viewException) {
+                return viewException;
+            }
+        }
+
         if (localAuthorizationException == null && remoteAuthorizationExceptions == null) {
             if (notFoundException == null && indicesOptions.allowNoIndices() == false) {
                 if (localResolvedExpressions.localIndicesEmptyOrMissing()
@@ -332,6 +344,9 @@ public class CrossProjectIndexResolutionValidator {
         if (resolvedExpressionsInProject == null) {
             // if we're missing results from the remote because of a connection error, report it; else assume we have an exclusion
             if (remoteExceptions.containsKey(projectAlias)) {
+                if (ExceptionsHelper.unwrapCause(remoteExceptions.get(projectAlias)) instanceof RemoteViewNotSupportedException viewEx) {
+                    return viewEx;
+                }
                 return new IndexNotFoundException(remoteExpression);
             } else {
                 assert localExpressions.expressions()

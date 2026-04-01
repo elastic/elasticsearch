@@ -7,14 +7,11 @@
 
 package org.elasticsearch.xpack.esql.action;
 
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.TimeValue;
 
-import java.io.IOException;
 import java.util.Objects;
 
-public class TimeSpanMarker implements Writeable {
+public class TimeSpanMarker {
     private TimeSpan timeSpan;
     private transient TimeSpan.Builder timeSpanBuilder;
 
@@ -77,11 +74,6 @@ public class TimeSpanMarker implements Writeable {
 
     public TimeValue timeSinceStarted() {
         return timeSpanBuilder != null ? timeSpanBuilder.stop().toTimeValue() : TimeValue.ZERO;
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeOptionalWriteable(timeSpan);
     }
 
     @Override

@@ -125,14 +125,14 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
         out.writeOptionalWriteable(totalMarker.timeSpan());
         out.writeOptionalWriteable(planningMarker.timeSpan());
         if (out.getTransportVersion().supports(ESQL_QUERY_PLANNING_PROFILE)) {
-            out.writeOptionalWriteable(parsingMarker);
-            out.writeOptionalWriteable(preAnalysisMarker);
-            out.writeOptionalWriteable(indicesResolutionMarker);
+            out.writeOptionalWriteable(parsingMarker == null ? null : parsingMarker.timeSpan());
+            out.writeOptionalWriteable(preAnalysisMarker == null ? null : preAnalysisMarker.timeSpan());
+            out.writeOptionalWriteable(indicesResolutionMarker == null ? null : indicesResolutionMarker.timeSpan());
             if (out.getTransportVersion().supports(ESQL_SEPARATE_DEPENDENCY_RESOLUTION)) {
-                out.writeOptionalWriteable(enrichResolutionMarker);
-                out.writeOptionalWriteable(inferenceResolutionMarker);
+                out.writeOptionalWriteable(enrichResolutionMarker == null ? null : enrichResolutionMarker.timeSpan());
+                out.writeOptionalWriteable(inferenceResolutionMarker == null ? null : inferenceResolutionMarker.timeSpan());
             }
-            out.writeOptionalWriteable(analysisMarker);
+            out.writeOptionalWriteable(analysisMarker == null ? null : analysisMarker.timeSpan());
         }
         if (out.getTransportVersion().supports(EsqlExecutionInfo.EXECUTION_PROFILE_FORMAT_VERSION)) {
             out.writeVInt(fieldCapsCalls.get());

@@ -16,7 +16,9 @@ import java.util.Arrays;
 import java.util.Iterator;
 
 import static org.elasticsearch.xpack.downsample.LastValueFieldDownsamplerTests.createValuesInstance;
+import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.nullValue;
 
 public class DimensionFieldDownsamplerTests extends ESTestCase {
@@ -73,7 +75,7 @@ public class DimensionFieldDownsamplerTests extends ESTestCase {
         assertThat(dimensionDownsampler.lastValue(), nullValue());
     }
 
-    public void testMultiValueIsDiscouraged() throws IOException {
+    public void testMultiValueDimensions() throws IOException {
         var docIdBuffer = IntArrayList.from(0);
         Boolean[] multiValue = new Boolean[] { true, false };
         var values = new FormattedDocValues() {
@@ -99,7 +101,9 @@ public class DimensionFieldDownsamplerTests extends ESTestCase {
         values.iterator = Arrays.stream(multiValue).iterator();
         DimensionFieldDownsampler multiLastValueProducer = new DimensionFieldDownsampler(randomAlphanumericOfLength(10), null, null);
         assertThat(multiLastValueProducer.lastValue(), nullValue());
-        expectThrows(AssertionError.class, () -> multiLastValueProducer.collectOnce(values, docIdBuffer));
+        multiLastValueProducer.collectOnce(values, docIdBuffer);
+        assertThat(multiLastValueProducer.lastValue(), instanceOf(Object[].class));
+        assertThat((Object[]) multiLastValueProducer.lastValue(), arrayContainingInAnyOrder(true, false));
     }
 
     public void testCollectIsNotSupported() {

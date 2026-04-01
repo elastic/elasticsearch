@@ -68,8 +68,17 @@ public final class DimensionFieldDownsampler extends AbstractFieldDownsampler<Fo
             int docId = docIdBuffer.get(0);
             if (docValues.advanceExact(docId)) {
                 int docValueCount = docValues.docValueCount();
-                assert docValueCount == 1;
-                Object value = docValues.nextValue();
+                assert docValueCount > 0;
+                Object value;
+                if (docValueCount == 1) {
+                    value = docValues.nextValue();
+                } else {
+                    var values = new Object[docValueCount];
+                    for (int j = 0; j < docValueCount; j++) {
+                        values[j] = docValues.nextValue();
+                    }
+                    value = values;
+                }
                 Objects.requireNonNull(value);
                 this.lastValue = value;
                 this.isEmpty = false;

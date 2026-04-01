@@ -11,7 +11,6 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.BytesRefs;
-import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;

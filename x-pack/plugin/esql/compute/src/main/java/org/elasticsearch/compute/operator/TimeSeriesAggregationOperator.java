@@ -527,19 +527,19 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
                 IntArray prevGroupIds;
                 IntArray nextGroupIds;
 
-            @Override
-            public void forEachGroupInWindow(int startingGroupId, Duration window, IntConsumer action) {
-                int tsid = tsBlockHash.tsidForGroup(startingGroupId);
-                long bucket = tsBlockHash.timestampForGroup(startingGroupId);
-                action.accept(startingGroupId);
-                long endTimestamp = bucket + timeResolution.convert(window.toMillis());
-                while ((bucket = optimizedTimeBucket.nextRoundingValue(bucket)) < endTimestamp) {
-                    long nextGroupId = tsBlockHash.getGroupId(tsid, bucket);
-                    if (nextGroupId != -1) {
-                        action.accept(Math.toIntExact(nextGroupId));
+                @Override
+                public void forEachGroupInWindow(int startingGroupId, Duration window, IntConsumer action) {
+                    int tsid = tsBlockHash.tsidForGroup(startingGroupId);
+                    long bucket = tsBlockHash.timestampForGroup(startingGroupId);
+                    action.accept(startingGroupId);
+                    long endTimestamp = bucket + timeResolution.convert(window.toMillis());
+                    while ((bucket = optimizedTimeBucket.nextRoundingValue(bucket)) < endTimestamp) {
+                        long nextGroupId = tsBlockHash.getGroupId(tsid, bucket);
+                        if (nextGroupId != -1) {
+                            action.accept(Math.toIntExact(nextGroupId));
+                        }
                     }
                 }
-            }
 
                 @Override
                 public void forEachBucketInWindow(long groupId, Duration window, TimeSeriesBlockHash windowBlockHash, LongConsumer action) {

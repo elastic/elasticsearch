@@ -8,7 +8,6 @@
 package org.elasticsearch.compute.aggregation;
 
 import org.apache.lucene.util.ArrayUtil;
-import org.elasticsearch.compute.aggregation.blockhash.TimeSeriesBlockHash;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.IntArrayBlock;
 import org.elasticsearch.compute.data.IntBigArrayBlock;

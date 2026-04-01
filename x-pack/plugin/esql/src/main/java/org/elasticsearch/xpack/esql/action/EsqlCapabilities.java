@@ -255,7 +255,7 @@ public class EsqlCapabilities {
          * V5: Support for rejecting partially unmapped non-keywords unless cast or projected
          *     Support for rejecting loading subfields of flattened fields
          */
-        OPTIONAL_FIELDS_V5(Build.current().isSnapshot()),
+        OPTIONAL_FIELDS_V5,
 
         /**
          * Support specifically for *just* the _index METADATA field. Used by CsvTests, since that is the only metadata field currently
@@ -2351,12 +2351,12 @@ public class EsqlCapabilities {
          * Enables the feature LIMIT n BY expr1, expr2 for retaining at most n docs per group.
          * The feature will not work if we had SORT | LIMIT n BY
          */
-        ESQL_LIMIT_BY(Build.current().isSnapshot()),
+        ESQL_LIMIT_BY,
 
         /**
          * Enables the SORT | LIMIT n BY expr1, expr2 support, see ESQL_LIMIT_BY for more context
          */
-        ESQL_TOPN_BY(Build.current().isSnapshot()),
+        ESQL_TOPN_BY,
 
         /**
          * Corrects a bug with ENRICH when a shard does not contain an index field and we use LIMIT BY on top

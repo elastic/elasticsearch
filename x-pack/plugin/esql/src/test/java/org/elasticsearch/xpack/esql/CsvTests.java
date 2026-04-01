@@ -1062,7 +1062,7 @@ public class CsvTests extends ESTestCase {
                     if (withSplits.splits().isEmpty() == false) {
                         coordinatorSplits.addAll(withSplits.splits());
                     } else {
-                        // Fallback: FileSplitProvider returns empty for FileSet.UNRESOLVED (single-file).
+                        // Fallback: FileSplitProvider returns empty for FileList.UNRESOLVED (single-file).
                         // Create a single split from the path so the operator can read.
                         String path = withSplits.sourcePath();
                         if (path != null && path.startsWith("file://")) {

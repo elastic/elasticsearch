@@ -17,7 +17,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.common.oauth2.OAuth2Secrets.CLIENT_SECRET_FIELD;
-import static org.elasticsearch.xpack.inference.common.oauth2.OAuth2SecretsTests.CLIENT_SECRET_VALUE;
+import static org.elasticsearch.xpack.inference.common.oauth2.OAuth2SecretsTests.TEST_CLIENT_SECRET;
 import static org.elasticsearch.xpack.inference.services.azureopenai.secrets.AzureOpenAiSecretSettings.API_KEY;
 import static org.elasticsearch.xpack.inference.services.azureopenai.secrets.AzureOpenAiSecretSettings.ENTRA_ID;
 import static org.hamcrest.Matchers.containsString;
@@ -41,9 +41,9 @@ public class AzureOpenAiSecretSettingsTests extends ESTestCase {
     }
 
     public void testFromMap_ClientSecret() {
-        var result = AzureOpenAiSecretSettings.fromMap(new HashMap<>(Map.of(CLIENT_SECRET_FIELD, CLIENT_SECRET_VALUE)));
+        var result = AzureOpenAiSecretSettings.fromMap(new HashMap<>(Map.of(CLIENT_SECRET_FIELD, TEST_CLIENT_SECRET)));
         assertThat(result, instanceOf(AzureOpenAiOAuth2Secrets.class));
-        assertThat(((AzureOpenAiOAuth2Secrets) result).getClientSecret().toString(), is(CLIENT_SECRET_VALUE));
+        assertThat(((AzureOpenAiOAuth2Secrets) result).getClientSecret().toString(), is(TEST_CLIENT_SECRET));
     }
 
     public void testFromMap_ReturnsNull_WhenMapIsNull() {

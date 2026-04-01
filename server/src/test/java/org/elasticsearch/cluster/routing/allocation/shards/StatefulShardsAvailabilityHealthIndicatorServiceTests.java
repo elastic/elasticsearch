@@ -876,8 +876,7 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
             System.currentTimeMillis() + TimeValue.timeValueHours(1).getMillis(),
             TimeUnit.MILLISECONDS
         );
-        final boolean gracePeriodReason = randomBoolean();
-        final var reason = gracePeriodReason ? randomUnassignedInfoReason(true) : randomUnassignedInfoReason(false);
+        final var reason = randomFrom(UnassignedInfo.Reason.values());
         final var clusterState = createClusterStateWith(
             projectId,
             List.of(
@@ -896,7 +895,7 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
             Collections.emptyMap()
         );
         final var result = service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO);
-        if (gracePeriodReason) {
+        if (reason.isExpectedTransient()) {
             assertThat("expected GREEN for grace period reason " + reason, result.status(), equalTo(GREEN));
             assertThat(
                 "expected creating replica symptom for reason " + reason,
@@ -951,8 +950,7 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
             System.currentTimeMillis() + TimeValue.timeValueHours(1).getMillis(),
             TimeUnit.MILLISECONDS
         );
-        final boolean gracePeriodReason = randomBoolean();
-        final var reason = gracePeriodReason ? randomUnassignedInfoReason(true) : randomUnassignedInfoReason(false);
+        final var reason = randomFrom(UnassignedInfo.Reason.values());
         final var clusterState = createClusterStateWith(
             projectId,
             List.of(
@@ -970,7 +968,7 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
             Collections.emptyMap()
         );
         final var result = service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO);
-        if (gracePeriodReason) {
+        if (reason.isExpectedTransient()) {
             assertThat("expected GREEN for grace period reason " + reason, result.status(), equalTo(GREEN));
             assertThat(
                 "expected creating primary symptom for reason " + reason,
@@ -1024,8 +1022,7 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
             System.currentTimeMillis() + TimeValue.timeValueHours(1).getMillis(),
             TimeUnit.MILLISECONDS
         );
-        final boolean primaryInGracePeriod = randomBoolean();
-        final var primaryReason = primaryInGracePeriod ? randomUnassignedInfoReason(true) : randomUnassignedInfoReason(false);
+        final var primaryReason = randomFrom(UnassignedInfo.Reason.values());
         final var clusterState = createClusterStateWith(
             projectId,
             List.of(
@@ -1047,7 +1044,7 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
             Collections.emptyMap()
         );
         final var result = service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO);
-        if (primaryInGracePeriod) {
+        if (primaryReason.isExpectedTransient()) {
             assertThat(result.status(), equalTo(YELLOW));
             assertThat(result.symptom(), equalTo("This cluster has 1 creating primary shard, 1 unavailable replica shard."));
         } else {

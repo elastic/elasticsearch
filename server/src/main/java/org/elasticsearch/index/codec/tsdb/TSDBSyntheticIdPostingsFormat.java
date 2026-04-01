@@ -18,8 +18,6 @@ import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.elasticsearch.core.IOUtils;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.codec.bloomfilter.BloomFilter;
 import org.elasticsearch.index.codec.bloomfilter.DelegatingBloomFilterFieldsProducer;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
@@ -42,12 +40,8 @@ public class TSDBSyntheticIdPostingsFormat extends PostingsFormat {
     private final TSDBSyntheticIdSegmentDetailsLogger segmentDetailsLogger;
 
     public TSDBSyntheticIdPostingsFormat() {
-        this(null);
-    }
-
-    public TSDBSyntheticIdPostingsFormat(@Nullable IndexSettings indexSettings) {
         super(FORMAT_NAME);
-        this.segmentDetailsLogger = new TSDBSyntheticIdSegmentDetailsLogger(indexSettings);
+        this.segmentDetailsLogger = new TSDBSyntheticIdSegmentDetailsLogger();
     }
 
     @Override
